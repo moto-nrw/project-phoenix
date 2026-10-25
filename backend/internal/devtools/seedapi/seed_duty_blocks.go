@@ -4,7 +4,8 @@ import "fmt"
 
 // Demo duties (#3822): staff tasks without children that take part in
 // absences and substitutions. „Essensausgabe“ runs in the Mensa with two
-// people required, „Busaufsicht“ has no room at all.
+// people required, during lunch and before their Lernzeit at 13:00;
+// „Busaufsicht“ has no room at all.
 func seedDutyBlocks(rt *Runtime, categoryID, trackID int64, staffIDs []int64) error {
 	if len(staffIDs) < 4 {
 		return fmt.Errorf("duty demo needs four staff")
@@ -16,7 +17,7 @@ func seedDutyBlocks(rt *Runtime, categoryID, trackID int64, staffIDs []int64) er
 	today := todaySeedDate()
 	duties := []map[string]any{
 		{
-			"name": "Essensausgabe", "start_time": "12:00", "end_time": "13:30", "room_id": mensaID,
+			"name": "Essensausgabe", "start_time": "12:00", "end_time": "13:00", "room_id": mensaID,
 			"staff_ids": staffIDs[2:4], "primary_staff_id": staffIDs[2], "required_staff": 2,
 		},
 		{

@@ -30,7 +30,7 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 	// A placeholder without access (ADR 0091): the retired duplicate gets
 	// no invitation and so no way into the school.
 	raw, err := rt.Client.Post("/api/staff/externals", map[string]any{
-		"first_name": staff.FirstName, "last_name": staff.LastName, "organization": "Demo: frühere Beschäftigung für die Dublettenprüfung",
+		"first_name": staff.FirstName, "last_name": staff.LastName, "organization": "Frühere Beschäftigung für die Dublettenprüfung",
 		"access": "none",
 	})
 	if err != nil {
@@ -40,7 +40,7 @@ func (seedStaffPersonMergeStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return fmt.Errorf("decode duplicate employment: %w", err)
 	}
-	if _, err := rt.Client.Put(fmt.Sprintf("/api/staff/%d/stammdaten/kontakt", id), map[string]any{"address_city": "Osnabrück", "note": "Demo: Historie bleibt bei der Personen-Zusammenführung erhalten"}); err != nil {
+	if _, err := rt.Client.Put(fmt.Sprintf("/api/staff/%d/stammdaten/kontakt", id), map[string]any{"address_city": "Osnabrück", "note": "Historie bleibt bei der Personen-Zusammenführung erhalten"}); err != nil {
 		return fmt.Errorf("record duplicate history: %w", err)
 	}
 	if _, err := rt.Client.Delete(fmt.Sprintf("/api/staff/%d", id)); err != nil {

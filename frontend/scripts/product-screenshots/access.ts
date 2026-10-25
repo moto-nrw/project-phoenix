@@ -7,12 +7,17 @@ import type { Shot } from "./shot-list";
 
 // Wohin die Pipeline fotografiert und womit sie sich anmeldet. Beides kommt aus
 // dem lokalen Stack: die Hostnamen aus der Frontend-Env, die Zugänge aus
-// backend/.seed-state.json (Profil `marketing`).
+// backend/.seed-state.json (Profil `vollbetrieb`).
 //
 // Die Pipeline fotografiert nur den eigenen Stack. Ein Host außerhalb von
 // *.localhost bricht ab (.claude/rules/no-production-requests.md).
 
-const PROFILE = "marketing";
+const PROFILE = "vollbetrieb";
+// Der Admin auf den Bildern. Der Bootstrap-Admin des Profils heißt „Seed
+// Admin“, und accounts.admin[0] ist der Entwickler-Admin, der zwischen allen
+// Schulen wechselt. Thomas Schmidt ist ein gewöhnlicher Schul-Admin mit
+// Personennamen; der Seed vergibt die Schlüssel stabil.
+const ADMIN_KEY = "thomas-schmidt";
 
 export interface Credentials {
   readonly email: string;
@@ -29,11 +34,17 @@ export interface StackAccess {
   readonly eltern: Credentials | null;
 }
 
+interface SeedAccountJson extends Partial<Credentials> {
+  key?: string;
+}
+
 interface SeedProfileJson {
   school?: { tenant_slug?: string };
   credentials?: {
-    school_admin?: Partial<Credentials>;
-    accounts?: { betreuer?: Array<Partial<Credentials>> };
+    accounts?: {
+      admin?: SeedAccountJson[];
+      betreuer?: Array<Partial<Credentials>>;
+    };
     parents?: Array<Partial<Credentials>>;
   };
 }
@@ -146,7 +157,7 @@ export function loadStackAccess(options: LoadAccessOptions = {}): StackAccess {
   const captureDay = berlinTodayISO(options.now ?? new Date());
   if (seedDay !== captureDay) {
     throw new Error(
-      `Die Anwesenheit des Marketing-Profils stammt vom ${seedDay}, heute ist ${captureDay}. Die Datenbank für Produkt-Screenshots zurücksetzen und neu seeden.`,
+      `Die Anwesenheit des Seed-Profils ${PROFILE} stammt vom ${seedDay}, heute ist ${captureDay}. Die Datenbank für Produkt-Screenshots zurücksetzen und neu seeden.`,
     );
   }
   const profile = state.profiles?.[PROFILE];
@@ -156,15 +167,19 @@ export function loadStackAccess(options: LoadAccessOptions = {}): StackAccess {
     );
   }
   const slug = profile.school?.tenant_slug;
-  const admin = credentialsOf(profile.credentials?.school_admin);
+  const admin = credentialsOf(
+    profile.credentials?.accounts?.admin?.find(
+      (account) => account.key === ADMIN_KEY,
+    ),
+  );
   if (!slug || !admin) {
     throw new Error(
-      `Das Seed-Profil ${PROFILE} hat keinen vollständigen Schul-Admin-Zugang.`,
+      `Das Seed-Profil ${PROFILE} hat keinen vollständigen Zugang für den Admin ${ADMIN_KEY}.`,
     );
   }
   const tenantUrl = localOrigin(
     `http://${slug}.${domainUrl.host}${parentsUrl.port ? `:${parentsUrl.port}` : ""}`,
-    "Marketing-Tenant",
+    "Screenshot-Tenant",
   );
   return {
     tenantOrigin: tenantUrl.origin,

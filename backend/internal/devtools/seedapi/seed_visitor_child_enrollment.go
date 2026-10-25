@@ -61,7 +61,7 @@ func (s parentEnrollmentSeedStep) seedVisitorChildEnrollment(
 			return err
 		}
 		for _, childID := range detail.ChildIDs {
-			if err := s.decideEnrollmentChild(rt, adminAuth, request.RequestID, childID, "approved", "Demo-Zusage: Betreuung im laufenden Schuljahr"); err != nil {
+			if err := s.decideEnrollmentChild(rt, adminAuth, request.RequestID, childID, "approved", "Zusage: Betreuung im laufenden Schuljahr"); err != nil {
 				return err
 			}
 		}

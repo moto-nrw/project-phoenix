@@ -7,7 +7,8 @@
 #   scripts/product-screenshots.sh --out DIR --version NAME [<shot-id>...]
 #
 # Voraussetzung: der Stack läuft (scripts/dev-native.sh up) und ist mit dem
-# Profil `marketing` geseedet (scripts/dev-native.sh backend go run ./cmd/devtools seed ...).
+# Profil `vollbetrieb` geseedet (scripts/dev-native.sh backend go run ./cmd/devtools seed ...)
+# und der Tag simuliert (... go run ./cmd/devtools simulate full-day).
 # Die Shot-Liste steht in frontend/scripts/product-screenshots/shots.yaml.
 #
 # Das Ausgabeverzeichnis (Standard: tmp/product-screenshots) wird bei jedem Lauf
@@ -29,7 +30,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --out) [ $# -ge 2 ] || die "--out needs a directory"; out=$2; shift 2 ;;
     --version) [ $# -ge 2 ] || die "--version needs a name"; version=$2; shift 2 ;;
-    -h | --help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) die "unknown option $1" ;;
     *) ids+=("$1"); shift ;;
   esac
