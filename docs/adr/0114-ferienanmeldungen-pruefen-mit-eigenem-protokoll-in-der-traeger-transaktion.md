@@ -92,6 +92,10 @@ Sie führt keinen neuen Owner und keine neue Stelle der Träger-Transaktion ein.
 
 ## Folgen
 
-- Die Historie nennt die Person nur über die Konto-ID. Ein Name dazu braucht
-  einen Lesezugriff auf Identity & Access und folgt bei Bedarf.
+- Das Protokoll speichert zu jedem Eintrag die Konto-ID der handelnden
+  Person; die Antwort der Einzelansicht enthält sie bei jedem
+  Verlaufseintrag. Die Oberfläche zeigt sie nicht an, weil eine bloße Nummer
+  niemandem sagt, wer gehandelt hat. Den Namen dazu zeigt sie, sobald
+  Enrollment ihn über einen Port von Identity & Access lesen darf; das folgt
+  mit eigener Entscheidung.
 - Weitere Listen nutzen `lists.FormatCSV` ohne eigenen CSV-Code.
