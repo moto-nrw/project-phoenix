@@ -108,7 +108,7 @@ export function HolidayRegistrationSummary({
             {draft.emergencyContacts.map(contactLine).join("; ")}
           </DataField>
           <DataField label={t("pickupTitle")}>
-            {draft.pickupPersons.map(contactLine).join("; ") || none}
+            {draft.pickupPersons.map(contactLine).join("; ") || t("noPickup")}
           </DataField>
         </DataGrid>
       </SectionCard>
