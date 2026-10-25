@@ -265,7 +265,8 @@ func TestPickupPermissionRequestsListQueryBudget(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	counter := testpkg.CaptureQueries(t, f.db)
+	counter := testpkg.CaptureQueriesForContext(t, f.db)
+	ctx = counter.Context(ctx)
 	rows, err := f.svc.ListPickupPermissionRequests(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.Len(t, rows, 3)

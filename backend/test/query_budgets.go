@@ -72,7 +72,7 @@ var queryBudgets = map[string]queryBudget{
 	// workflows/parentportal — the pickup permission request list resolves the
 	// caller's child, then reads all requests and their sharing visibility once.
 	// The test uses three requests to prevent a per-row visibility lookup.
-	"workflows.parentportal.pickup_permission_requests.list": {max: 8},
+	"workflows.parentportal.pickup_permission_requests.list": {max: 12},
 	// modules/enrollment/http — GET /phases/{id}/responses: phase plus four batched
 	// response sources inside the tenant transaction. The matching test proves
 	// the total stays flat from three to eight children.

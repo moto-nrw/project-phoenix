@@ -30,18 +30,7 @@ func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool
 	if err != nil {
 		return err
 	}
-	var applied carerequests.PickupApplied
-	if request.RequestKind == carerequests.KindPickupPermission {
-		if approve {
-			err = s.Plans.ApplyPickupPermission(ctx, request)
-		} else if request.Status == carerequests.StatusApproved {
-			err = s.Plans.RevertPickupPermission(ctx, request)
-		}
-	} else if approve {
-		applied, err = s.Plans.ApplyPickup(ctx, request, nil, false)
-	} else {
-		err = s.revertPickup(ctx, request)
-	}
+	applied, err := s.applyCorrectionDecision(ctx, request, approve)
 	if err != nil {
 		return err
 	}
@@ -68,6 +57,22 @@ func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool
 		return err
 	}
 	return s.Effects.NotifyCorrection(ctx, request, actorID, approve, reason)
+}
+
+func (s *RequestCorrections) applyCorrectionDecision(ctx context.Context, request *carerequests.Request, approve bool) (carerequests.PickupApplied, error) {
+	if request.RequestKind == carerequests.KindPickupPermission {
+		if approve {
+			return carerequests.PickupApplied{}, s.Plans.ApplyPickupPermission(ctx, request)
+		}
+		if request.Status == carerequests.StatusApproved {
+			return carerequests.PickupApplied{}, s.Plans.RevertPickupPermission(ctx, request)
+		}
+		return carerequests.PickupApplied{}, nil
+	}
+	if approve {
+		return s.Plans.ApplyPickup(ctx, request, nil, false)
+	}
+	return carerequests.PickupApplied{}, s.revertPickup(ctx, request)
 }
 
 func (s *RequestCorrections) loadCorrection(ctx context.Context, id int64, version string) (*carerequests.Request, error) {
