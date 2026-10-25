@@ -28,6 +28,9 @@ type (
 	// write side effect.
 	SettingsDependencies = configSvc.SettingsServiceDependencies
 	SettingSideEffect    = sideeffects.Handler
+	// TraegerSettings is the Träger level of ADR 0086 with its collaborators.
+	TraegerSettings             = configSvc.TraegerSettings
+	TraegerSettingsDependencies = configSvc.TraegerSettingsDependencies
 )
 
 var (
@@ -37,6 +40,7 @@ var (
 	NewPayrollStatusService  = configSvc.NewPayrollStatusService
 	NewSFTPExportSettings    = configSvc.NewSFTPExportSettings
 	NewSettings              = configSvc.NewSettingsServiceWithDependencies
+	NewTraegerSettings       = configSvc.NewTraegerSettings
 	NewSideEffects           = sideeffects.NewRegistryWith
 	WithSettingsSnapshot     = settingsRecords.WithSettingsSnapshot
 	WithSettingsRequestCache = settingsRecords.WithSettingsRequestCache

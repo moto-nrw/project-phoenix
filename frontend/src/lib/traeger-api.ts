@@ -5,6 +5,7 @@
  */
 
 import { apiErrorFromBody, transportFetch } from "./api-error";
+import type { SettingsSchema } from "./settings-api";
 import { filenameFromDisposition } from "./file-download";
 import { type TraegerRole, traegerRoles } from "./traeger-roles";
 
@@ -682,6 +683,42 @@ export async function downloadTraegerAccessLog(
     blob: await response.blob(),
     filename: filenameFromDisposition(response),
   };
+}
+
+// --- Träger-Einstellungen (ADR 0086, #4652) ---
+
+const traegerSettingValuePath = (key: string) =>
+  `/api/traeger/settings/values/${encodeURIComponent(key)}`;
+
+/**
+ * The settings the Träger sets for all its schools: only settings with the
+ * levels `beide` or `traeger`, each with the Träger value or the registry
+ * default.
+ */
+export async function fetchTraegerSettingsSchema(): Promise<SettingsSchema> {
+  const schema = await traegerRequest<SettingsSchema | null>(
+    "/api/traeger/settings/schema",
+  );
+  return { tabs: schema?.tabs ?? [] };
+}
+
+/** Sets the Träger value of one setting. Throws an ApiError on failure. */
+export async function saveTraegerSettingValue(
+  key: string,
+  value: unknown,
+): Promise<void> {
+  await traegerRequest(traegerSettingValuePath(key), {
+    method: "PUT",
+    body: { value },
+  });
+}
+
+/**
+ * Removes the Träger value of one setting: schools fall back to the default
+ * or keep their own value. Throws an ApiError on failure.
+ */
+export async function clearTraegerSettingValue(key: string): Promise<void> {
+  await traegerRequest(traegerSettingValuePath(key), { method: "DELETE" });
 }
 
 /** The Träger of the session, as the portal frame names and marks it. */

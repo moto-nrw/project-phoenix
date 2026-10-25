@@ -20,6 +20,8 @@ function moduleSetting(
     visible: true,
     sort_order: 6,
     access_policy: "operator_managed",
+    levels: "schule",
+    source: "default",
     validation: null,
     depends_on: null,
     options: null,

@@ -85,6 +85,7 @@ basis
 	DELETE /operator/schools/{id}/settings/values/{key}
 	DELETE /traeger/accounts/invitations/{invitationId}
 	DELETE /traeger/accounts/{accountId}
+	DELETE /traeger/settings/values/{key}
 	GET /
 	GET /.well-known/caldav
 	GET /analytics-consent/
@@ -377,6 +378,7 @@ basis
 	GET /traeger/invitations/{token}
 	GET /traeger/organization/
 	GET /traeger/schools/
+	GET /traeger/settings/schema
 	HEAD /.well-known/caldav
 	HEAD /api/caldav
 	HEAD /api/caldav/*
@@ -704,6 +706,7 @@ basis
 	PUT /operator/schools/{id}/settings/values/{key}
 	PUT /traeger/accounts/{accountId}/roles
 	PUT /traeger/holiday-periods/{id}
+	PUT /traeger/settings/values/{key}
 	QUERY /.well-known/caldav
 	QUERY /api/caldav
 	QUERY /api/caldav/*

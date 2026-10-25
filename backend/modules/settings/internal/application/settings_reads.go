@@ -8,8 +8,9 @@ import (
 	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
-// Resolve returns the value for a setting: tenant override if it exists,
-// otherwise the registry default.
+// Resolve returns the value for a setting: the school override if it exists,
+// otherwise the value of the school's Träger for a Träger-level setting,
+// otherwise the registry default (ADR 0086).
 func (s *settingsService) Resolve(ctx context.Context, key string) (any, error) {
 	snapshot, err := s.ResolveMany(ctx, []string{key})
 	if err != nil {
@@ -133,13 +134,21 @@ func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs [
 	}
 
 	var stored []*config.SettingValue
+	var traegerBySchool map[int64][]*config.TraegerSettingValue
 	if len(keys) > 0 {
 		if s.runtime == nil {
 			return nil, config.ErrRuntimeUnavailable
 		}
-		err := s.runtime.WithinAdmin(ctx, func(txCtx context.Context) error {
+		schoolTraeger, err := s.schoolTraegerOf(ctx, uniqueTenantIDs, keys)
+		if err != nil {
+			return nil, &config.SettingsError{Op: "resolve_many_for_tenants", Err: err}
+		}
+		err = s.runtime.WithinAdmin(ctx, func(txCtx context.Context) error {
 			var findErr error
-			stored, findErr = s.valueRepo.FindByTenantsAndKeys(txCtx, uniqueTenantIDs, keys)
+			if stored, findErr = s.valueRepo.FindByTenantsAndKeys(txCtx, uniqueTenantIDs, keys); findErr != nil {
+				return findErr
+			}
+			traegerBySchool, findErr = s.traegerValuesForSchools(txCtx, schoolTraeger, keys)
 			return findErr
 		})
 		if err != nil {
@@ -149,7 +158,7 @@ func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs [
 
 	storedByTenant := settingsRowsByTenant(stored, seenTenantIDs)
 	for _, tenantID := range uniqueTenantIDs {
-		snapshot, err := config.NewSettingsSnapshot(s.registry, tenantID, keys, storedByTenant[tenantID])
+		snapshot, err := config.NewLayeredSettingsSnapshot(s.registry, tenantID, keys, storedByTenant[tenantID], traegerBySchool[tenantID])
 		if err != nil {
 			return nil, err
 		}
@@ -243,7 +252,7 @@ func (s *settingsService) resolveForTenantInTx(ctx context.Context, tenantID int
 	if err != nil {
 		return nil, &config.SettingsError{Op: "resolve_in_tx", Err: err}
 	}
-	snapshot, err := config.NewSettingsSnapshot(s.registry, tenantID, []string{key}, stored)
+	snapshot, err := s.layeredSnapshot(ctx, tenantID, []string{key}, stored)
 	if err != nil {
 		return nil, err
 	}
@@ -348,7 +357,7 @@ func (s *settingsService) resolveCachedSettings(ctx context.Context, tenantID in
 		if err != nil {
 			return nil, &config.SettingsError{Op: "resolve_many", Err: err}
 		}
-		return config.NewSettingsSnapshot(s.registry, tenantID, keys, stored)
+		return s.layeredSnapshot(ctx, tenantID, keys, stored)
 	}
 
 	resolved, missing := cache.Lookup(tenantID, keys)
@@ -363,7 +372,7 @@ func (s *settingsService) resolveCachedSettings(ctx context.Context, tenantID in
 		if err != nil {
 			return nil, &config.SettingsError{Op: "resolve_many", Err: err}
 		}
-		loaded, err := config.NewSettingsSnapshot(s.registry, tenantID, missing, stored)
+		loaded, err := s.layeredSnapshot(ctx, tenantID, missing, stored)
 		if err != nil {
 			return nil, err
 		}
