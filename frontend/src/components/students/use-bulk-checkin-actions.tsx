@@ -5,7 +5,6 @@ import { useCallback, useState, type ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import type { Student } from "~/lib/api";
-import { useLatest } from "~/lib/hooks/use-latest";
 import {
   checkoutConfirmationRoom,
   type useSchoolCheckinMode,
@@ -60,7 +59,6 @@ export function useBulkCheckinActions(
    */
   onRunProcessed?: (action: SchoolCheckinAction) => void,
 ): BulkCheckinActions {
-  const onRunProcessedRef = useLatest(onRunProcessed);
   // Checking a child out of a room ends the running visit, so a batch with
   // children in rooms asks once (#2359). The dialog holds a SNAPSHOT of the
   // selection taken when it opened, and confirming executes exactly that
@@ -103,7 +101,10 @@ export function useBulkCheckinActions(
         // null: nothing selected or whole request failed (hook toasted the
         // error). failed === 0: the hook toasted the success summary.
         if (!outcome) return;
-        onRunProcessedRef.current?.(action);
+        // Keep the callback from the render in which this run began. A page
+        // can change its filters while the request is pending; a completion
+        // must then not report the result against that newer list.
+        onRunProcessed?.(action);
         if (outcome.failed === 0) return;
 
         setBulkFailures({
@@ -121,7 +122,7 @@ export function useBulkCheckinActions(
         setRunningBulkAction(null);
       }
     },
-    [schoolCheckin, onRunProcessedRef],
+    [schoolCheckin, onRunProcessed],
   );
 
   const handleBulkAction = useCallback(

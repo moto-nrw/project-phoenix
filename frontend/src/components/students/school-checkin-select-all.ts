@@ -43,7 +43,7 @@ export function planSelectAll(
 /** Line under the bar's „Alle auswählen“, or null when nobody is left out. */
 export function leftOutLabel(leftOutCount: number): string | null {
   if (leftOutCount === 0) return null;
-  return `${leftOutCount} ausgelassen: krank, entschuldigt oder „Kommt heute nicht“`;
+  return `${leftOutCount} ausgelassen: krank, entschuldigt, auf Klassenfahrt oder „Kommt heute nicht“`;
 }
 
 /** What the check-in bars need to offer „Alle N auswählen“ (#4762). */

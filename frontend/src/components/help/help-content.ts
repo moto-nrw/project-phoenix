@@ -690,7 +690,8 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Öffnen Sie `Alle Kinder`.",
           "Wählen Sie im Filter `Klasse` die Klasse.",
           "Wählen Sie `An- & Abmelden` und danach `Mehrere`.",
-          "Wählen Sie `Alle … auswählen`. Die Zahl nennt die ausgewählten Kinder.",
+          "Tippen Sie auf den Knopf mit `Alle` und der Zahl der Kinder.",
+          "Die Zahl nennt die ausgewählten Kinder.",
           "Tippen Sie Kinder an, die nicht da sind. So nehmen Sie sie wieder heraus.",
           "Wählen Sie `Anmelden`.",
           "Lesen Sie den Hinweis `Noch nicht angemeldet`. Er nennt die Kinder, die noch fehlen.",
@@ -700,7 +701,7 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
     result,
     notes: [
       "Möchten Sie mehrere Kinder ändern? Wählen Sie `Mehrere`.",
-      "`Alle … auswählen` lässt Kinder aus, die heute krank oder entschuldigt sind oder nicht kommen. Die Leiste nennt, wie viele.",
+      "Der Knopf mit `Alle` lässt kranke und entschuldigte Kinder aus. Das gilt auch für Kinder auf Klassenfahrt oder mit „Kommt heute nicht“. Die Leiste nennt ihre Zahl.",
       "Im Hinweis `Noch nicht angemeldet` zeigt `Nur „Schule“ zeigen` die Kinder, die noch im Unterricht sind.",
       "In der Listenansicht kreuzen Sie die Kinder links an und wählen oben `Anmelden` oder `Abmelden`.",
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.

@@ -79,7 +79,7 @@ describe("planSelectAll", () => {
 describe("leftOutLabel", () => {
   it("names how many children were left out and why", () => {
     expect(leftOutLabel(1)).toBe(
-      "1 ausgelassen: krank, entschuldigt oder „Kommt heute nicht“",
+      "1 ausgelassen: krank, entschuldigt, auf Klassenfahrt oder „Kommt heute nicht“",
     );
   });
 

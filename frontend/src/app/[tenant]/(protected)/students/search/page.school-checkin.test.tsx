@@ -754,7 +754,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
       expect(setSelected).toHaveBeenCalledWith(["7", "10", "11"], true);
       expect(
         screen.getByText(
-          "2 ausgelassen: krank, entschuldigt oder „Kommt heute nicht“",
+          "2 ausgelassen: krank, entschuldigt, auf Klassenfahrt oder „Kommt heute nicht“",
         ),
       ).toBeInTheDocument();
     });
@@ -776,7 +776,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
       expect(setSelected).toHaveBeenCalledWith(["7"], true);
       expect(
         screen.getByText(
-          "1 ausgelassen: krank, entschuldigt oder „Kommt heute nicht“",
+          "1 ausgelassen: krank, entschuldigt, auf Klassenfahrt oder „Kommt heute nicht“",
         ),
       ).toBeInTheDocument();
     });
