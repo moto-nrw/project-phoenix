@@ -507,6 +507,7 @@ function StaffCalendarPageInner() {
   const {
     data: holidayData,
     error: holidayError,
+    isLoading: holidaysLoading,
     mutate: mutateHolidays,
   } = useSWRAuth<SchoolHolidays>(`school-holidays-${fromISO}-${toISO}`, () =>
     getSchoolHolidays(fromISO, toISO),
@@ -948,7 +949,9 @@ function StaffCalendarPageInner() {
   const calendarEmpty =
     onCalendarTab &&
     !isLoading &&
+    !holidaysLoading &&
     !calendarError &&
+    !holidayError &&
     eventCount === 0 &&
     holidayCount === 0
       ? {

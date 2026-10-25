@@ -129,6 +129,11 @@ const calendarResponse: CalendarResponse = {
   ],
 };
 
+const emptyCalendarResponse: CalendarResponse = {
+  ...calendarResponse,
+  events: [],
+};
+
 const recipientOptions: CalendarRecipientOptions = {
   staff: [{ id: "7", name: "Anna Mitarbeiterin" }],
   parents: [{ id: "8", name: "Sabine Elternteil" }],
@@ -269,6 +274,87 @@ describe("StaffCalendarPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the calendar visible while public holidays are loading", () => {
+    mockUseSWRAuth.mockImplementation((key: unknown) => {
+      const cacheKey = typeof key === "string" ? key : "";
+      if (cacheKey.startsWith("school-holidays-")) {
+        return {
+          data: undefined,
+          error: undefined,
+          isLoading: true,
+          mutate: vi.fn(),
+        };
+      }
+      if (cacheKey.startsWith("staff-calendar")) {
+        return {
+          data: emptyCalendarResponse,
+          error: null,
+          isLoading: false,
+          mutate: mockMutate,
+        };
+      }
+      return {
+        data: undefined,
+        error: null,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(screen.getAllByText("Mo 05.01.").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText(
+        "Legen Sie einen Termin an oder wechseln Sie den Zeitraum.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the calendar visible when public holidays fail to load", async () => {
+    mockUseSWRAuth.mockImplementation((key: unknown) => {
+      const cacheKey = typeof key === "string" ? key : "";
+      if (cacheKey.startsWith("school-holidays-")) {
+        return {
+          data: undefined,
+          error: new ApiError("holidays failed", 503, {
+            code: "general.unavailable",
+          }),
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      if (cacheKey.startsWith("staff-calendar")) {
+        return {
+          data: emptyCalendarResponse,
+          error: null,
+          isLoading: false,
+          mutate: mockMutate,
+        };
+      }
+      return {
+        data: undefined,
+        error: null,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Feiertage"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Mo 05.01.").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText(
+        "Legen Sie einen Termin an oder wechseln Sie den Zeitraum.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the calendar subscription available when the calendar fails", async () => {
