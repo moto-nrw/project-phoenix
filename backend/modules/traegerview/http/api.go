@@ -31,10 +31,12 @@ func NewResource(overview traegerview.Overview) *Resource {
 
 // TraegerRouter returns the routes mounted at /traeger/schools inside the
 // Träger route group the portal supplies.
-func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router {
+// The projection reads in its own administrative unit, so it does not use
+// the Träger transaction the group offers.
+func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protectedTraegerRoutes(r, func(r chi.Router) {
+	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/", rs.listSchools)
 	})
 	return r
@@ -45,10 +47,10 @@ func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(c
 // frame names and marks as a test system (#4658). It needs the overview right
 // every Träger role holds; the Träger name and its test mark are no personal
 // data, so the read is not written to the access log.
-func (rs *Resource) TraegerOrganizationRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router {
+func (rs *Resource) TraegerOrganizationRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protectedTraegerRoutes(r, func(r chi.Router) {
+	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/", rs.getTraeger)
 	})
 	return r

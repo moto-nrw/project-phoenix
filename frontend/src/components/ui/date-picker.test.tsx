@@ -820,6 +820,24 @@ describe("DatePicker", () => {
 });
 
 describe("ISODateInput", () => {
+  it("wires a check of the surrounding form to the field (#4659)", () => {
+    render(
+      <ISODateInput
+        id="opens"
+        label="Anmeldebeginn"
+        value=""
+        onChange={vi.fn()}
+        error="Bitte wählen Sie den Anmeldebeginn."
+      />,
+    );
+
+    const input = screen.getByLabelText("Anmeldebeginn");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription(
+      "Bitte wählen Sie den Anmeldebeginn.",
+    );
+  });
+
   it("reports an existing date after the configured maximum as invalid", () => {
     const onValidityChange = vi.fn();
     render(

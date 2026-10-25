@@ -201,6 +201,7 @@ export const HELP_TOPICS = {
   teacherLogin: "bei-moto-schule-anmelden",
   traegerLogin: "traeger-anmelden",
   traegerTestSystem: "traeger-testsystem",
+  traegerHolidayPeriod: "traeger-ferienzeitraum",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",

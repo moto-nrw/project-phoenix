@@ -13,6 +13,7 @@ import (
 
 type tenantTxKey struct{}
 type adminTxKey struct{}
+type traegerTxKey struct{}
 
 type databaseTransactionKey struct{}
 
@@ -97,6 +98,44 @@ func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, f
 		}
 
 		txCtx = context.WithValue(txCtx, tenantTxKey{}, tenantID)
+		txCtx = contextWithTransaction(txCtx, &tx)
+		return fn(txCtx, tx)
+	})
+}
+
+// WithinTraeger opens the Träger transaction of ADR 0086 section 5: the
+// request role with app.current_org_id set and no school. The Träger policy
+// of a Träger table admits only this Träger's rows; school tables, keyed by
+// app.current_tenant_id, admit none. An ambient transaction is joined only
+// when it is the Träger transaction of the same Träger.
+func (r *PostgresUnitOfWork) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context, any) error) error {
+	if organizationID <= 0 {
+		return fmt.Errorf("tenant runtime: Träger ID must be positive")
+	}
+	if fn == nil {
+		return fmt.Errorf("tenant runtime: callback is required")
+	}
+	if tx, ok := transactionFromContext(ctx); ok {
+		active, isTraeger := ctx.Value(traegerTxKey{}).(int64)
+		if !isTraeger || active != organizationID {
+			return fmt.Errorf("tenant runtime: ambient transaction is not the Träger transaction")
+		}
+		return fn(ctx, *tx)
+	}
+	if r.skipTenantRole {
+		return fmt.Errorf("tenant runtime: the demo runtime opens no Träger transaction")
+	}
+	return r.runInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_tenant"); err != nil {
+			return fmt.Errorf("tenant runtime: set Träger role: %w", err)
+		}
+		if _, err := tx.NewRaw(
+			"SELECT set_config('app.current_org_id', ?, true)",
+			fmt.Sprint(organizationID),
+		).Exec(txCtx); err != nil {
+			return fmt.Errorf("tenant runtime: set Träger ID: %w", err)
+		}
+		txCtx = context.WithValue(txCtx, traegerTxKey{}, organizationID)
 		txCtx = contextWithTransaction(txCtx, &tx)
 		return fn(txCtx, tx)
 	})

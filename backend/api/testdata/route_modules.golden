@@ -365,6 +365,8 @@ basis
 	GET /public/login-image/{filename}
 	GET /public/request-feed/{token}
 	GET /ready
+	GET /traeger/holiday-periods/
+	GET /traeger/holiday-periods/{id}
 	GET /traeger/organization/
 	GET /traeger/schools/
 	HEAD /.well-known/caldav
@@ -606,6 +608,8 @@ basis
 	POST /operator/staff-person-merges/{schoolId}
 	POST /operator/unregistered-tag-scans/{id}/resolve
 	POST /traeger/auth/login
+	POST /traeger/holiday-periods/
+	POST /traeger/holiday-periods/{id}/publish
 	PUT /.well-known/caldav
 	PUT /analytics-consent/
 	PUT /api/active/combined/{id}
@@ -683,6 +687,7 @@ basis
 	PUT /operator/schools/{id}
 	PUT /operator/schools/{id}/accounts/{accountId}/mfa/override
 	PUT /operator/schools/{id}/settings/values/{key}
+	PUT /traeger/holiday-periods/{id}
 	QUERY /.well-known/caldav
 	QUERY /api/caldav
 	QUERY /api/caldav/*

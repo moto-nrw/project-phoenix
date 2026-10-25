@@ -602,6 +602,8 @@ GET /school/staff-notices/today
 GET /school/supervisions/
 GET /school/supervisions/{id}/roster
 GET /school/supervisions/{id}/students/{student_id}/sheet
+GET /traeger/holiday-periods/
+GET /traeger/holiday-periods/{id}
 GET /traeger/organization/
 GET /traeger/schools/
 HEAD /.well-known/caldav
@@ -994,6 +996,8 @@ POST /school/supervisions/{id}/start
 POST /school/supervisions/{id}/students/{student_id}/check-in
 POST /school/supervisions/{id}/students/{student_id}/check-out
 POST /traeger/auth/login
+POST /traeger/holiday-periods/
+POST /traeger/holiday-periods/{id}/publish
 PUT /.well-known/caldav
 PUT /analytics-consent/
 PUT /api/absence-types/{id}
@@ -1124,6 +1128,7 @@ PUT /school/class-day/homework/{schoolClass}/{homeworkId}
 PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
 PUT /school/supervisions/{id}/students/{student_id}/homework-feedback
+PUT /traeger/holiday-periods/{id}
 QUERY /.well-known/caldav
 QUERY /api/caldav
 QUERY /api/caldav/*
