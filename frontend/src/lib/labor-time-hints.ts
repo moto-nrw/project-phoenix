@@ -20,10 +20,10 @@ export interface LaborHint {
   readonly title: string;
 }
 
-export const breakTooShortLabel = "Pause zu kurz";
+const breakTooShortLabel = "Pause zu kurz";
 
 /** „30 Min. nötig, 15 Min. gemacht“. */
-export function breakTooShortDetail(
+function breakTooShortDetail(
   requiredMinutes: number,
   countedMinutes: number,
 ): string {
@@ -37,8 +37,8 @@ const dailyMaxTitle =
 const weeklyMaxTitle =
   "In einer Woche sind höchstens 48 Stunden Arbeit erlaubt (§ 3 Arbeitszeitgesetz).";
 
-export const dailyMaxLabel = "Mehr als 10 Std. gearbeitet";
-export const weeklyMaxLabel = "Mehr als 48 Std. in der Woche";
+const dailyMaxLabel = "Mehr als 10 Std. gearbeitet";
+const weeklyMaxLabel = "Mehr als 48 Std. in der Woche";
 
 /** Hinweise eines Arbeitstags in fester Reihenfolge: Pause, dann Tageslimit. */
 export function dayLaborHints(day: WorkDayLaborHint | undefined): LaborHint[] {
