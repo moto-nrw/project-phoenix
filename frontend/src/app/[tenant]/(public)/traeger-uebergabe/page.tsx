@@ -29,25 +29,25 @@ const logger = createLogger({ component: "TraegerHandoffPage" });
  */
 export default function TraegerHandoffPage() {
   const [failed, setFailed] = useState(false);
-  const tokenRef = useRef<string | null | undefined>(undefined);
+  const redemption = useRef<Promise<
+    Awaited<ReturnType<typeof signIn>> | undefined
+  > | null>(null);
 
   useEffect(() => {
-    // The fragment is read once and removed; a repeated effect run (React
-    // strict mode) must find the token again.
-    if (tokenRef.current === undefined) {
-      tokenRef.current = takeTraegerHandoffToken();
-    }
-    const token = tokenRef.current;
-    if (!token) {
-      setFailed(true);
-      return;
+    // The token works once: the fragment is read once and redeemed once. A
+    // repeated effect run (React strict mode) waits for the same answer.
+    if (redemption.current === null) {
+      const token = takeTraegerHandoffToken();
+      redemption.current = token
+        ? signIn("credentials", { redirect: false, traegerHandoff: token })
+        : Promise.resolve(undefined);
     }
     let cancelled = false;
-    signIn("credentials", { redirect: false, traegerHandoff: token })
+    redemption.current
       .then((result) => {
         if (cancelled) return;
-        if (result?.error) {
-          logger.warn("traeger_handoff_refused", {});
+        if (!result || result.error) {
+          if (result) logger.warn("traeger_handoff_refused", {});
           setFailed(true);
           return;
         }

@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -60,6 +61,22 @@ describe("TraegerHandoffPage (#4654)", () => {
       traegerHandoff: "handoff-token",
     });
     expect(document.URL).not.toContain("handoff-token");
+  });
+
+  it("redeems the token once when the effect runs twice", async () => {
+    globalThis.history.replaceState(
+      null,
+      "",
+      "/traeger-uebergabe#token=handoff-token",
+    );
+    render(
+      <StrictMode>
+        <TraegerHandoffPage />
+      </StrictMode>,
+    );
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
+    expect(signIn).toHaveBeenCalledTimes(1);
   });
 
   it("leads back to the Träger portal when the link no longer works", async () => {

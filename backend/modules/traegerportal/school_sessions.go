@@ -80,8 +80,11 @@ var schoolSessionErrorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrNoTraegerMembership, Render: func(err error) render.Renderer {
 		return common.ErrorForbiddenWithCode(err, common.CodeTraegerNoMembership)
 	}},
+	// A Träger session without second-factor proof stays valid in the Träger
+	// portal; it only cannot open a school. 403 keeps the portal from reading
+	// the refusal as an ended session.
 	{Target: identityaccess.ErrInvalidToken, Render: func(err error) render.Renderer {
-		return common.ErrorUnauthorizedWithCode(errors.New("the Absprung requires a live Träger session with a second factor; sign in again"), common.CodeIdentityMfaSessionRequired)
+		return common.ErrorForbiddenWithCode(errors.New("the Absprung requires a live Träger session with a second factor; sign in again"), common.CodeTraegerSecondFactorRequired)
 	}},
 	{Target: identityaccess.ErrAccountInactive, Render: func(err error) render.Renderer {
 		return common.ErrorUnauthorizedWithCode(err, common.CodeIdentitySessionAccountInactive)

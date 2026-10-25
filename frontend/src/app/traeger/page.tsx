@@ -124,11 +124,18 @@ export default function TraegerSchoolsPage() {
     () =>
       canOpen
         ? [
-            ...COLUMNS,
+            // On a phone the button takes the place beside the name; the
+            // city moves under it.
+            ...COLUMNS.map((column) =>
+              column.key === "city"
+                ? { ...column, stacked: "field" as const }
+                : column,
+            ),
             {
               key: "open",
               header: "",
               align: "right",
+              stacked: "meta",
               stackedLabel: false,
               render: (school) => (
                 <Button
@@ -175,6 +182,7 @@ export default function TraegerSchoolsPage() {
           defaultSortKey="name"
           stackedOnMobile
           stackedLayout="row"
+          stackedDetailKey={canOpen ? "city" : null}
           emptyState={
             <EmptyState
               icon={<School className="h-12 w-12" aria-hidden="true" />}

@@ -189,8 +189,8 @@ func TestTraegerSchoolSessionNeedsTheSecondFactorOfTheTraegerSession(t *testing.
 	require.Equal(t, http.StatusOK, code)
 
 	code, answer := startTraegerSchoolSession(t, router, traeger.AccessToken, school)
-	assert.Equal(t, http.StatusUnauthorized, code, "the school's admin rights need the second factor")
-	assert.Equal(t, "identity.mfa_session_required", answer.Code)
+	assert.Equal(t, http.StatusForbidden, code, "the school's admin rights need the second factor")
+	assert.Equal(t, "traeger.second_factor_required", answer.Code)
 }
 
 func TestTraegerSchoolSessionFollowsTheSchoolsOfTheTraeger(t *testing.T) {
