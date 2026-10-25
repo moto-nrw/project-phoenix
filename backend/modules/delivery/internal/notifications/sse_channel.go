@@ -115,7 +115,7 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 				return err
 			}
 		}
-		if deliversToSchoolPortal(event) {
+		if deliversToSchoolPortal(event) && !event.schoolPortalClosed {
 			return c.broadcaster.BroadcastToSchoolAccounts(event.Audience.TenantID, accountIDs, sseEvent)
 		}
 		return nil

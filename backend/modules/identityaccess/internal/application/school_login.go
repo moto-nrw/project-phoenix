@@ -395,6 +395,39 @@ func (s *AccountAuthentication) findSchoolPortalTenantForAccount(ctx context.Con
 	return hasPortalRole, firstPortalTenantID, nil
 }
 
+// findBookedSchoolPortalTenantForAccount selects the first school-portal
+// school whose module is booked. An implicit school login can therefore use a
+// later eligible school when an earlier one no longer offers the portal. A
+// requested school is handled separately and remains an explicit refusal.
+func (s *AccountAuthentication) findBookedSchoolPortalTenantForAccount(ctx context.Context, accountID int64) (bool, int64, error) {
+	var portalTenantIDs []int64
+	if err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
+		var err error
+		portalTenantIDs, err = s.schoolPortalTenants(adminCtx, accountID)
+		return err
+	}); err != nil {
+		return false, 0, err
+	}
+
+	var firstNotBooked error
+	for _, tenantID := range portalTenantIDs {
+		err := s.portalModules.RequireSchoolPortal(ctx, tenantID)
+		if err == nil {
+			return true, tenantID, nil
+		}
+		if _, notBooked := identityaccess.PortalNotBooked(err); !notBooked {
+			return false, 0, err
+		}
+		if firstNotBooked == nil {
+			firstNotBooked = err
+		}
+	}
+	if firstNotBooked != nil {
+		return true, portalTenantIDs[0], firstNotBooked
+	}
+	return false, 0, nil
+}
+
 // HasSchoolPortalAccess reports whether the account may still hold a school
 // session at this school: the account is active, the school is alive and
 // active, the mapping is active and the account holds a school-portal role.

@@ -283,6 +283,33 @@ func TestFindSchoolPortalTenant(t *testing.T) {
 	})
 }
 
+func TestSchoolLoginTenantSelectsABookedSchoolAfterAnUnbookedOne(t *testing.T) {
+	t.Parallel()
+	f, account := newSchoolMintFixture(t)
+	f.store.addMapping(1, 11, lehrkraftRole())
+	f.schools.add(11, 110, "school-11", true, false)
+	f.portals.withoutSchoolPortal = map[int64]bool{10: true}
+
+	tenantID, err := f.auth.schoolLoginTenant(context.Background(), account, "", "", "")
+
+	require.NoError(t, err)
+	assert.Equal(t, int64(11), tenantID, "an implicit login selects a later school that booked the portal")
+}
+
+func TestSchoolLoginTenantRefusesAnExplicitUnbookedSchool(t *testing.T) {
+	t.Parallel()
+	f, account := newSchoolMintFixture(t)
+	f.store.addMapping(1, 11, lehrkraftRole())
+	f.schools.add(11, 110, "school-11", true, false)
+	f.portals.withoutSchoolPortal = map[int64]bool{10: true}
+
+	_, err := f.auth.schoolLoginTenant(context.Background(), account, "school-10", "", "")
+
+	require.Error(t, err)
+	_, notBooked := identityaccess.PortalNotBooked(err)
+	assert.True(t, notBooked, "an explicit selection must not silently switch to another school")
+}
+
 func TestHasSchoolPortalRoleAtTenant(t *testing.T) {
 	t.Parallel()
 	f, _ := newSchoolMintFixture(t)
