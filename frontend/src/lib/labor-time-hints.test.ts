@@ -38,7 +38,7 @@ describe("labor-time-hints (#4804)", () => {
         countedBreakMinutes: 15,
       }),
     );
-    expect(hints.map((hint) => hint.label)).toEqual([
+    expect(hints.map((hint) => hint.text)).toEqual([
       "Pause zu kurz: 30 Min. nötig, 15 Min. gemacht",
     ]);
   });
@@ -54,7 +54,7 @@ describe("labor-time-hints (#4804)", () => {
     ).toEqual([]);
     expect(
       liveDayLaborHints(day({ overDailyMaxAt: earlier }), now).map(
-        (h) => h.label,
+        (h) => h.text,
       ),
     ).toEqual(["Mehr als 10 Std. gearbeitet"]);
   });
@@ -69,7 +69,7 @@ describe("labor-time-hints (#4804)", () => {
       }),
       now,
     );
-    expect(hints.map((hint) => hint.label)).toEqual([
+    expect(hints.map((hint) => hint.text)).toEqual([
       "Pause zu kurz: 45 Min. nötig, 30 Min. gemacht",
     ]);
   });

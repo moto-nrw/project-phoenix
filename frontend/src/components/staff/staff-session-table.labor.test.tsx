@@ -107,8 +107,9 @@ describe("StaffSessionTable Pausen und Höchstarbeitszeit (#4804)", () => {
     });
 
     const marked = rowOf("05.01.");
+    expect(within(marked).getByText("Pause zu kurz")).toBeInTheDocument();
     expect(
-      within(marked).getByText("Pause zu kurz: 30 Min. nötig, 15 Min. gemacht"),
+      within(marked).getByText("30 Min. nötig, 15 Min. gemacht"),
     ).toBeInTheDocument();
     const unmarked = rowOf("06.01.");
     expect(within(unmarked).getByText("06.01.")).toBeInTheDocument();

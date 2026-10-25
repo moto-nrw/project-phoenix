@@ -12,16 +12,22 @@ export interface LaborHint {
   readonly key: "break" | "daily-max" | "weekly-max";
   /** Kurzer Text für das Badge. */
   readonly label: string;
+  /** Die Zahlen zum Badge, eine eigene Zeile darunter („30 Min. nötig …“). */
+  readonly detail?: string;
+  /** Der ganze Satz für Stellen ohne Badge: Stempeluhr und Dialog. */
+  readonly text: string;
   /** Langer Text mit Gesetzesbezug für den Tooltip. */
   readonly title: string;
 }
 
-/** „Pause zu kurz: 30 Min. nötig, 15 Min. gemacht“. */
-export function breakTooShortLabel(
+export const breakTooShortLabel = "Pause zu kurz";
+
+/** „30 Min. nötig, 15 Min. gemacht“. */
+export function breakTooShortDetail(
   requiredMinutes: number,
   countedMinutes: number,
 ): string {
-  return `Pause zu kurz: ${requiredMinutes} Min. nötig, ${countedMinutes} Min. gemacht`;
+  return `${requiredMinutes} Min. nötig, ${countedMinutes} Min. gemacht`;
 }
 
 const breakTitle =
@@ -39,12 +45,15 @@ export function dayLaborHints(day: WorkDayLaborHint | undefined): LaborHint[] {
   if (!day) return [];
   const hints: LaborHint[] = [];
   if (day.isBreakTooShort) {
+    const detail = breakTooShortDetail(
+      day.requiredBreakMinutes,
+      day.countedBreakMinutes,
+    );
     hints.push({
       key: "break",
-      label: breakTooShortLabel(
-        day.requiredBreakMinutes,
-        day.countedBreakMinutes,
-      ),
+      label: breakTooShortLabel,
+      detail,
+      text: `${breakTooShortLabel}: ${detail}`,
       title: breakTitle,
     });
   }
@@ -52,6 +61,7 @@ export function dayLaborHints(day: WorkDayLaborHint | undefined): LaborHint[] {
     hints.push({
       key: "daily-max",
       label: dailyMaxLabel,
+      text: dailyMaxLabel,
       title: dailyMaxTitle,
     });
   }
@@ -60,7 +70,14 @@ export function dayLaborHints(day: WorkDayLaborHint | undefined): LaborHint[] {
 
 export function weekLaborHints(week: WeeklySummary | undefined): LaborHint[] {
   if (!week?.isOverWeeklyMax) return [];
-  return [{ key: "weekly-max", label: weeklyMaxLabel, title: weeklyMaxTitle }];
+  return [
+    {
+      key: "weekly-max",
+      label: weeklyMaxLabel,
+      text: weeklyMaxLabel,
+      title: weeklyMaxTitle,
+    },
+  ];
 }
 
 /**

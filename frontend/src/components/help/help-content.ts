@@ -2172,12 +2172,16 @@ function workTimeHintsTopic(): HelpTopic {
     group: "arbeitszeit",
     audience: ["caregiver", "lead"],
     icon: "Hourglass",
-    steps: [
-      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
-      "Lesen Sie in der Tabelle `Zeiterfassung` die Spalte `Hinweis`.",
-      "Lesen Sie unter jeder Woche die Zeile `Summe KW`.",
-    ],
+    steps: [],
     instructionGroups: [
+      {
+        title: "Hinweise finden",
+        steps: [
+          "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
+          "Lesen Sie in der Tabelle `Zeiterfassung` die Spalte `Hinweis`.",
+          "Lesen Sie unter jeder Woche die Zeile `Summe KW`.",
+        ],
+      },
       {
         title: "Diese Hinweise gibt es",
         ordered: false,

@@ -1530,15 +1530,7 @@ function HintBadges({
       tone: "orange",
     });
   }
-  for (const hint of laborHints) {
-    pills.push({
-      key: hint.key,
-      label: hint.label,
-      title: hint.title,
-      tone: "orange",
-    });
-  }
-  if (pills.length === 0) {
+  if (pills.length === 0 && laborHints.length === 0) {
     return <span className="text-xs text-gray-300">–</span>;
   }
   return (
@@ -1551,6 +1543,7 @@ function HintBadges({
           title={pill.title}
         />
       ))}
+      <LaborHintList hints={laborHints} />
     </div>
   );
 }
@@ -1620,22 +1613,34 @@ function WeekSummaryRow({
       <td className="px-3 py-2 text-right whitespace-nowrap text-gray-700 tabular-nums">
         {summary ? formatDuration(summary.totalNetMinutes) : "–"}
       </td>
-      <td colSpan={4} className="px-3 py-2" />
-      <td className="px-3 py-2">
-        {hints.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {hints.map((hint) => (
-              <StatusBadge
-                key={hint.key}
-                label={hint.label}
-                tone="orange"
-                title={hint.title}
-              />
-            ))}
-          </div>
-        ) : null}
+      {/* Der Wochenhinweis steht direkt neben der Summe, über die freien
+          Tagesspalten, damit er nicht in der schmalen Hinweis-Spalte am
+          Rand abgeschnitten wird. */}
+      <td colSpan={5} className="px-3 py-2">
+        <LaborHintList hints={hints} />
       </td>
     </tr>
+  );
+}
+
+// Hinweise zu Pausen und Höchstarbeitszeit (#4804): ein kurzes Badge und die
+// Zahlen als umbrechende Zeile darunter. Als ein langes Badge liefe der Text
+// in der letzten Tabellenspalte aus dem sichtbaren Bereich.
+function LaborHintList({ hints }: { readonly hints: readonly LaborHint[] }) {
+  if (hints.length === 0) return null;
+  return (
+    <>
+      {hints.map((hint) => (
+        <span key={hint.key} className="flex flex-col items-start gap-0.5">
+          <StatusBadge label={hint.label} tone="orange" title={hint.title} />
+          {hint.detail ? (
+            <span className="text-moto-amber-strong text-xs">
+              {hint.detail}
+            </span>
+          ) : null}
+        </span>
+      ))}
+    </>
   );
 }
 

@@ -538,7 +538,7 @@ function renderTimerContent(
           title={hint.title}
           className="text-moto-amber-strong mt-0.5 text-center text-xs font-medium"
         >
-          {hint.label}
+          {hint.text}
         </span>
       ))}
     </>
@@ -2728,7 +2728,7 @@ function EditSessionModal({
               {laborHints.length > 0 && (
                 <div className="space-y-2">
                   {laborHints.map((hint) => (
-                    <Alert key={hint.key} type="warning" message={hint.label} />
+                    <Alert key={hint.key} type="warning" message={hint.text} />
                   ))}
                   <p className="text-xs text-gray-500">
                     So ist der Tag bisher gespeichert. Nach dem Speichern wird
