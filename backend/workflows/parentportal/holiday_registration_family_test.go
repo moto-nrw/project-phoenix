@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -65,10 +64,10 @@ func TestHolidayRegistrationFamilyOffersOnlyPermittedOwnChildren(t *testing.T) {
 	require.NoError(t, err)
 
 	pickupOnly := testpkg.CreateTestStudent(t, db, "Mia", "Schneider", "2b")
-	testpkg.CreateTestStudentGuardianLink(t, db, pickupOnly.ID, chain.GuardianProfileID, securityruntime.GuardianRolePickupOnly)
+	testpkg.CreateTestStudentGuardianLink(t, db, pickupOnly.ID, chain.GuardianProfileID, "pickup_only")
 	foreign := testpkg.CreateTestStudent(t, db, "Tom", "Fremd", "1a")
 	foreignGuardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Frieda", "Fremd", "frieda.fremd")
-	testpkg.CreateTestStudentGuardianLink(t, db, foreign.ID, foreignGuardian.ID, securityruntime.GuardianRolePrimaryGuardian)
+	testpkg.CreateTestStudentGuardianLink(t, db, foreign.ID, foreignGuardian.ID, "primary_guardian")
 
 	family, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, 42, []int64{chain.TenantID})
 	require.NoError(t, err)

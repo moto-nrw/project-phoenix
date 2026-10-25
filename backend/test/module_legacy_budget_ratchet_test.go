@@ -237,7 +237,8 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/catererportal/compose":    37, // added by ADR 0077
 	"workflows/gradetransition/compose":  49,
 	"workflows/openroommove/compose":     46,
-	"workflows/parentportal/compose":     308, // raised by ADR 0078 and ADR 0113 (+1)
+	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1).
+	"workflows/parentportal/compose":     308,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,
