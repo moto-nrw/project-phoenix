@@ -383,6 +383,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/parent/me/children/[studentId]/pickup-permission-requests": [
     "GET parent /parent/me/children/studentId%2F1/pickup-permission-requests",
   ],
+  "api/parent/me/children/[studentId]/pickup-signature-statement": [
+    "POST parent /parent/me/children/studentId%2F1/pickup-signature-statement",
+  ],
   "api/parent/me/children/[studentId]/related-accounts": [
     "GET parent /parent/me/children/studentId%2F1/related-accounts",
     "POST parent /parent/me/children/studentId%2F1/related-accounts",

@@ -19,6 +19,7 @@ import {
 import type { SignatureValue } from "~/lib/signature";
 import {
   PickupSignatureField,
+  PickupSignatureStatementLoadError,
   usePickupSignatureStatement,
 } from "~/components/parent/pickup-permission-fields";
 
@@ -290,10 +291,11 @@ function useRequestForm(
   const alone = aloneWeekdays(
     requestPayload(weekdays, drafts, capabilities).payload,
   );
-  const aloneStatement = usePickupSignatureStatement(
+  const aloneSignatureStatement = usePickupSignatureStatement(
     studentId,
     alone.length > 0 ? { kind: "weekly_alone", weekdays: alone } : null,
   );
+  const aloneStatement = aloneSignatureStatement.statement;
   const aloneKey = alone.join(",");
 
   // Die Unterschrift gilt genau für die Wochentage im Wortlaut. Ändert sich
@@ -350,6 +352,7 @@ function useRequestForm(
     error: form.error,
     submit,
     aloneStatement,
+    aloneSignatureStatement,
     signature,
     setSignature,
     signatureError: form.fieldError(ALONE_SIGNATURE_FIELD),
@@ -444,6 +447,10 @@ export function CareScheduleRequestModal({
             error={form.signatureError}
           />
         )}
+        <PickupSignatureStatementLoadError
+          error={form.aloneSignatureStatement.error}
+          retry={form.aloneSignatureStatement.retry}
+        />
         <FormErrorAlert message={form.error} />
       </div>
     </Modal>

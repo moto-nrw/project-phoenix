@@ -143,7 +143,11 @@ func (s *Service) PickupSignatureStatement(ctx context.Context, accountID, stude
 		if name == "" {
 			return "", ErrPickupSignatureInvalid
 		}
-		return PickupPermissionStatement(child.StudentName, name, normalizedWeekdays(input.Weekdays)), nil
+		weekdays, err := carerequests.NormalizeWeekdays(input.Weekdays)
+		if err != nil {
+			return "", ErrPickupSignatureInvalid
+		}
+		return PickupPermissionStatement(child.StudentName, name, weekdays), nil
 	case PickupSignatureStatementDay:
 		statement := DayPickupStatement(child.StudentName, input.Date, input.DepartureMode, strings.TrimSpace(input.PersonName))
 		if statement == "" {
@@ -151,7 +155,11 @@ func (s *Service) PickupSignatureStatement(ctx context.Context, accountID, stude
 		}
 		return statement, nil
 	case PickupSignatureStatementWeekly:
-		statement := WeeklyAloneStatement(child.StudentName, normalizedWeekdays(input.Weekdays))
+		weekdays, err := carerequests.NormalizeWeekdays(input.Weekdays)
+		if err != nil {
+			return "", ErrPickupSignatureInvalid
+		}
+		statement := WeeklyAloneStatement(child.StudentName, weekdays)
 		if statement == "" {
 			return "", ErrPickupSignatureInvalid
 		}

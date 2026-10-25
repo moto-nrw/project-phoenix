@@ -67,6 +67,7 @@ import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import type { SignatureValue } from "~/lib/signature";
 import {
   PickupSignatureField,
+  PickupSignatureStatementLoadError,
   usePickupSignatureStatement,
 } from "~/components/parent/pickup-permission-fields";
 
@@ -970,7 +971,11 @@ function useDayPickupContacts(studentId: string | undefined): ChildGuardian[] {
     let active = true;
     listChildGuardians(studentId)
       .then((rows) => {
-        if (active) setContacts(rows.filter((row) => !row.is_self));
+        if (active) {
+          setContacts(
+            rows.filter((row) => !row.is_self && row.can_manage_pickup),
+          );
+        }
       })
       .catch((err: unknown) => {
         // Ohne die Liste fehlt nur die Auswahl „Wer holt ab?“; Abholzeit und
@@ -1115,7 +1120,7 @@ export function PickupTimeModal({
   );
   const needsDaySignature =
     Boolean(pickupPerson) || (modeField && departureMode === "alone");
-  const dayStatement = usePickupSignatureStatement(
+  const daySignatureStatement = usePickupSignatureStatement(
     studentId,
     pickupPerson
       ? {
@@ -1129,6 +1134,7 @@ export function PickupTimeModal({
         ? { kind: "day_pickup", date, departureMode }
         : null,
   );
+  const dayStatement = daySignatureStatement.statement;
   const alreadyHome = date === today && childToday?.state === "left";
   // Nach der Frist ist heute für Eltern ganz zu: nicht anfragen, nicht
   // bearbeiten, nicht zurücknehmen. Spätere Tage bleiben offen (#3163).
@@ -1289,6 +1295,15 @@ export function PickupTimeModal({
   // beim Senden festgelegt wurden; sie werden über "Anfrage teilen" geändert.
   const handleSaveEdit = async () => {
     if (!studentId || !request) return;
+    // An existing collector may only be retained after the current contact
+    // list confirmed it. Omitting its ID would silently clear the collector.
+    if (
+      request.pickup_person_guardian_profile_id !== undefined &&
+      !pickupPerson
+    ) {
+      form.invalid(t("pickup.loadError"));
+      return;
+    }
     if (!pickupTime && !(modeField && departureMode) && !pickupPerson) {
       form.invalid(t(modeField ? "pickup.noTimeOrMode" : "pickup.noTime"));
       setInvalidField("pickupTime");
@@ -1725,6 +1740,10 @@ export function PickupTimeModal({
                 error={form.fieldError(DAY_SIGNATURE_FIELD)}
               />
             )}
+            <PickupSignatureStatementLoadError
+              error={daySignatureStatement.error}
+              retry={daySignatureStatement.retry}
+            />
             {studentId && !editing && (
               <RequestSharingSelector
                 studentId={studentId}

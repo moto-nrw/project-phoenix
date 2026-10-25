@@ -147,6 +147,22 @@ func signedContactPermission(t *testing.T, f pickupPermissionFixture, chain test
 	})
 }
 
+func TestPickupSignatureStatement_RejectsInvalidWeekdays(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+	for _, input := range []parentService.PickupSignatureStatementInput{
+		{Kind: parentService.PickupSignatureStatementPermission, PersonName: "Erika Muster", Weekdays: []int{0}},
+		{Kind: parentService.PickupSignatureStatementWeekly, Weekdays: []int{6}},
+	} {
+		_, err := f.svc.PickupSignatureStatement(ctx, chain.AccountID, chain.StudentID, input)
+		require.ErrorIs(t, err, parentService.ErrPickupSignatureInvalid)
+	}
+}
+
 func signedDayCollector(t *testing.T, f pickupPermissionFixture, chain testpkg.ParentChain) *parentService.PickupSignatureInput {
 	t.Helper()
 	return signedPickupSignature(t, f, chain, parentService.PickupSignatureStatementInput{

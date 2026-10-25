@@ -62,6 +62,7 @@ import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
 import { type SignatureValue, signatureRequestBody } from "~/lib/signature";
 import {
   PickupSignatureField,
+  PickupSignatureStatementLoadError,
   PickupWeekdaysField,
   normalizeWeekdays,
   sameWeekdays,
@@ -1042,7 +1043,7 @@ function ContactModal({
   const tError = useTranslations("errorCatalog");
   const formRef = useRef<HTMLDivElement>(null);
   const { error, show, invalid, fieldError, clear } = useApiFormError(formRef);
-  const pickupStatement = usePickupSignatureStatement(
+  const pickupSignatureStatement = usePickupSignatureStatement(
     studentId,
     mode === "create" &&
       canManagePickup &&
@@ -1056,6 +1057,7 @@ function ContactModal({
         }
       : null,
   );
+  const pickupStatement = pickupSignatureStatement.statement;
 
   // The signature attests to the displayed contact and weekdays. Changing
   // either must require a fresh signature.
@@ -1254,6 +1256,10 @@ function ContactModal({
                         error={fieldError(CONTACT_SIGNATURE_FIELD)}
                       />
                     )}
+                    <PickupSignatureStatementLoadError
+                      error={pickupSignatureStatement.error}
+                      retry={pickupSignatureStatement.retry}
+                    />
                   </div>
                 ) : null}
                 <label
@@ -1453,7 +1459,7 @@ function PickupModal({
     canPickup &&
     (!g.can_pickup || !sameWeekdays(weekdays, g.pickup_weekdays ?? []));
   const revokes = g.can_pickup && !canPickup;
-  const pickupStatement = usePickupSignatureStatement(
+  const pickupSignatureStatement = usePickupSignatureStatement(
     studentId,
     grants
       ? {
@@ -1463,6 +1469,7 @@ function PickupModal({
         }
       : null,
   );
+  const pickupStatement = pickupSignatureStatement.statement;
 
   const handleSave = async () => {
     if (grants && (!signature || !pickupStatement)) {
@@ -1643,6 +1650,10 @@ function PickupModal({
                         error={fieldError(PICKUP_SIGNATURE_FIELD)}
                       />
                     )}
+                    <PickupSignatureStatementLoadError
+                      error={pickupSignatureStatement.error}
+                      retry={pickupSignatureStatement.retry}
+                    />
                   </>
                 ) : null}
               </div>

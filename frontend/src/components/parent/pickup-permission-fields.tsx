@@ -9,11 +9,13 @@
  */
 
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   SignaturePad,
   type SignaturePadLabels,
@@ -54,32 +56,66 @@ export function sameWeekdays(
 export function usePickupSignatureStatement(
   studentId: string | undefined,
   input: PickupSignatureStatementInput | null,
-): string | null {
+): {
+  statement: string | null;
+  error: unknown | null;
+  retry: () => void;
+} {
   const [statement, setStatement] = useState<string | null>(null);
+  const [error, setError] = useState<unknown | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const key = input === null ? "" : JSON.stringify(input);
+  const retry = useCallback(() => setAttempt((current) => current + 1), []);
 
   useEffect(() => {
     if (!studentId || key === "") {
       setStatement(null);
+      setError(null);
       return;
     }
     const request = JSON.parse(key) as PickupSignatureStatementInput;
     let active = true;
     setStatement(null);
+    setError(null);
     void (async () => {
       try {
         const next = await getPickupSignatureStatement(studentId, request);
         if (active) setStatement(next);
-      } catch {
-        if (active) setStatement(null);
+      } catch (requestError) {
+        if (active) {
+          setStatement(null);
+          setError(requestError);
+        }
       }
     })();
     return () => {
       active = false;
     };
-  }, [studentId, key]);
+  }, [studentId, key, attempt]);
 
-  return statement;
+  return { statement, error, retry };
+}
+
+/** Shows a failed declaration load where the signature field would appear. */
+export function PickupSignatureStatementLoadError({
+  error,
+  retry,
+}: Readonly<{
+  error: unknown | null;
+  retry: () => void;
+}>) {
+  const t = useTranslations("parentPickupPermission");
+  const { error: loadError, show, clear } = useApiLoadError();
+
+  useEffect(() => {
+    if (error) {
+      void show(error, { object: t("signature.title"), retry });
+    } else {
+      clear();
+    }
+  }, [clear, error, retry, show, t]);
+
+  return <LoadErrorAlert error={loadError} />;
 }
 
 /** Kurze Tagesliste, z. B. „Mo, Mi“; leer für alle Tage. */
