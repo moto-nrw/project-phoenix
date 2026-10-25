@@ -23,6 +23,11 @@ import type {
   OperatorPerson,
   UnregisteredTagScan,
   CreateOrganizationRequest,
+  CreateTestTraegerRequest,
+  BackendTestTraeger,
+  TestTraeger,
+  BackendSampleChildrenResult,
+  SampleChildrenResult,
   CreateSchoolRequest,
   CreateDeviceRequest,
   InviteAdminRequest,
@@ -56,6 +61,8 @@ import {
   mapTraegerMember,
   isBackendTraegerErasureOrder,
   mapTraegerErasureOrder,
+  mapTestTraeger,
+  mapSampleChildrenResult,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -202,6 +209,24 @@ class OperatorProvisioningService {
       `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/erasure-order`,
       { method: "DELETE" },
     );
+  }
+
+  async createTestTraeger(
+    data: CreateTestTraegerRequest,
+  ): Promise<TestTraeger> {
+    const result = await operatorFetch<BackendTestTraeger>(
+      "/api/operator/provisioning/organizations/test-traeger",
+      { method: "POST", body: data },
+    );
+    return mapTestTraeger(result);
+  }
+
+  async createSampleChildren(orgId: string): Promise<SampleChildrenResult> {
+    const result = await operatorFetch<BackendSampleChildrenResult>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/sample-children`,
+      { method: "POST", body: {} },
+    );
+    return mapSampleChildrenResult(result);
   }
 
   async listAllAccounts(): Promise<OrgAccount[]> {

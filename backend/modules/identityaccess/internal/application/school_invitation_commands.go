@@ -234,6 +234,7 @@ var invitationSentinels = []struct {
 	{domain.ErrRoleGrantNotPermitted, identityaccess.ErrRoleGrantNotPermitted},
 	{domain.ErrLehrkraftNoCaregiver, identityaccess.ErrLehrkraftNoCaregiver},
 	{identityaccess.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
+	{domain.ErrCatererAccountJoinsNoSchool, identityaccess.ErrEmailAlreadyExists},
 	{domain.ErrRoleNotFound, identityaccess.ErrRoleNotAssignable},
 	{domain.ErrTransactionUnusable, identityaccess.ErrTransactionUnusable},
 }

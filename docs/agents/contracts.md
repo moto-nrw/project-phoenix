@@ -179,7 +179,7 @@ pending → active → inactive.
 
 | Layer | Scoping mechanism |
 |---|---|
-| JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school` |
+| JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school`, `caterer` (no tenant; ADR 0077) |
 | Context | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` |
 | Database | `common.TenantTxMiddleware` (`backend/api/common/tenant_middleware.go`) runs the request through the root-bound `tenant.UnitOfWork`; rolls back on 5xx or a rollback marker. `PostgresUnitOfWork.WithinTenant` (`backend/modules/transactionruntime/internal/adapters/postgres/tenant_runtime.go`) sets `SET LOCAL ROLE phoenix_tenant` and transaction-local `app.current_tenant_id` |
 | RLS | `provisionTenantRLS` (`backend/database/migrations/rls_provisioning.go`) enables and forces RLS; `USING` and `WITH CHECK` match `tenant_id` to `app.current_tenant_id` |
@@ -214,6 +214,7 @@ host-only). The proxy redirects cross-host paths to their canonical subdomain.
 | Operator | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` | `/api/operator/auth` | `platform` | `POST /operator/auth/login` |
 | Parents | `{NEXT_PUBLIC_PARENTS_HOSTNAME}` | `parent.session-token` | `/api/parent/auth` | `parent` | `POST /parent/auth/login` |
 | School (moto schule) | `{NEXT_PUBLIC_SCHOOL_HOSTNAME}` | `school.session-token`, SameSite=Strict | `/api/school/auth` | `school` | `POST /school/auth/login` |
+| Caterer | `{NEXT_PUBLIC_CATERER_HOSTNAME}` | `caterer.session-token` | `/api/caterer/auth` | `caterer` | `POST /caterer/auth/login` |
 | Träger | `{NEXT_PUBLIC_TRAEGER_HOSTNAME}` | `traeger.session-token` | `/api/traeger/auth` | `org` | `POST /traeger/auth/login` |
 
 ### Login, refresh, and MFA
@@ -230,6 +231,14 @@ Backend paths in this section are relative to `backend/`:
   active mapping and pins that school's `tenant_id`. `SchoolMiddleware`
   accepts only `scope=school`; `common.ProtectedSchoolGroup` includes tenant
   transactions. Unlike parent scope, school scope is tenant-bound.
+- Caterer login requires a caterer account (`auth.caterer_accounts`) that
+  supplies at least one school; any other account answers like a wrong
+  password. The session row is pinned to a supplied school; refresh re-pins
+  it when that school ends the supply and fails once none is left. The token
+  carries no school: `CatererMiddleware` accepts only `scope=caterer`, and the
+  caterer portal (`workflows/catererportal`) opens each supplied school's
+  tenant transaction itself (ADR 0077). The `caterer scope matrix` contract in
+  `TestFullProductionRouterGolden` checks both directions.
 - Träger login (ADR 0084, #4649) requires an active membership in
   `platform.organization_accounts` of an active Träger and mints `scope=org`
   with `org_id` and no `tenant_id`; an account in several Träger chooses one
@@ -237,7 +246,14 @@ Backend paths in this section are relative to `backend/`:
   membership. `TraegerMiddleware` accepts only `scope=org`; the Träger rights
   come from fixed role bundles in `auth.organization_account_roles`. Reads
   across schools run through the `traeger-view` projection in an admin
-  transaction filtered on the Träger's schools. No MFA yet (#4651).
+  transaction filtered on the Träger's schools. Every Träger session needs
+  the e-mail second factor (#4651), independent of any school's `mfa_mode`
+  and of overrides: login answers `mfa_required` or `mfa_enrollment_required`
+  with the resolved `organization_id`, `/traeger/auth/mfa/*` redeems only
+  `org`-scope challenges, and mint and refresh refuse a session without
+  `mfa_verified`. No trusted device. The operator reset
+  (`DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa`)
+  revokes the proof, so the Träger session ends at its next refresh.
 - Absprung into a school (ADR 0084 section 5, #4654): `POST
   /traeger/school-sessions` `{school_id}` needs the Träger right
   `traeger_school:switch` and answers `{handoff_token}`: the refresh token of a
@@ -258,7 +274,7 @@ Backend paths in this section are relative to `backend/`:
   `organization_id`) to the school's `audit.auth_events` in the mint
   transaction. Ending the Träger's or the member's Träger sessions also deletes
   these sessions.
-- `TenantMiddleware` rejects parent, school, and org scopes.
+- `TenantMiddleware` rejects parent, school, caterer, and org scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
@@ -357,7 +373,9 @@ Lehrkraft invitations link to `SCHOOL_URL/invite`, not `FRONTEND_URL/invite`.
 `TENANT_DOMAIN` is the base domain; `NEXT_PUBLIC_TENANT_DOMAIN` is its client
 counterpart. Portal hostnames use the variables in the table above.
 `FRONTEND_URL` is for staff/admin email links; `PARENTS_URL` for parent links;
-`SCHOOL_URL` for school links; `TRAEGER_URL` for Träger links. The latter three are required at backend startup
+`SCHOOL_URL` for school links; `CATERER_URL` for caterer invitation links;
+`TRAEGER_URL` for Träger links. `PARENTS_URL`, `SCHOOL_URL`, `CATERER_URL`
+and `TRAEGER_URL` are required at backend startup
 and must use HTTPS in production. Env change checklist:
 `.claude/rules/env-docker-sync.md`.
 

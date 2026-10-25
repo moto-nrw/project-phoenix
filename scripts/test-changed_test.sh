@@ -18,7 +18,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$fixture"/{backend/probe,fake-bin,scripts}
-for script in test-backend.sh test-changed.sh test-run-id.sh go-package-workers.sh; do
+for script in test-backend.sh test-changed.sh test-run-id.sh go-package-workers.sh go-test-workspace.sh; do
   cp "$repo_root/scripts/$script" "$fixture/scripts/$script"
 done
 cat >"$fixture/scripts/total-memory-gb.sh" <<'EOF'
@@ -34,7 +34,20 @@ cat >"$fixture/fake-bin/go" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ "$*" != 'env GOCACHE' ]; then
+  [ -n "${GOTMPDIR:-}" ] && [ -d "$GOTMPDIR" ] || {
+    echo 'Go command has no usable build workspace' >&2
+    exit 1
+  }
+  if [ -z "${PHX_FIXTURE_GOTMPDIR:-}" ]; then
+    [ "$TMPDIR" = "$GOTMPDIR" ] || { echo 'temporary roots disagree' >&2; exit 1; }
+  fi
+  printf '%s\n' "$GOTMPDIR" >>"$TEST_CHANGED_WORKSPACE_LOG"
+fi
 case "$*" in
+  'env GOCACHE')
+    echo "$PHX_FIXTURE_GO_CACHE"
+    ;;
   'run ./internal/testdb/cmd/bootstrap')
     echo bootstrap >>"$TEST_CHANGED_CALL_LOG"
     if [ "${PHX_FIXTURE_BOOTSTRAP_STATUS:-0}" -ne 0 ]; then
@@ -108,20 +121,36 @@ git -C "$fixture" commit -qm changed
 
 call_log="$fixture/calls.log"
 output_log="$fixture/output.log"
+workspace_log="$fixture/workspace.log"
 run_wrapper() {
   local wrapper=$1 expected_status=$2
   shift 2
   : >"$call_log"
+  : >"$workspace_log"
   status=0
   (
     cd "$fixture"
     PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
+      PHX_FIXTURE_GO_CACHE="$fixture/go-cache" TEST_CHANGED_WORKSPACE_LOG="$workspace_log" \
+      GOTMPDIR="${PHX_FIXTURE_GOTMPDIR:-}" TMPDIR="${PHX_FIXTURE_TMPDIR:-}" \
       "scripts/$wrapper" "$@"
   ) >"$output_log" 2>&1 || status=$?
   if [ "$status" -ne "$expected_status" ]; then
     cat "$output_log" >&2
     echo "$wrapper: expected status $expected_status, got $status" >&2
     exit 1
+  fi
+  local workspace
+  IFS= read -r workspace <"$workspace_log"
+  if [ -n "${PHX_FIXTURE_GOTMPDIR:-}" ]; then
+    [ "$workspace" = "$PHX_FIXTURE_GOTMPDIR" ] && [ -d "$workspace" ]
+  elif [ -n "${PHX_FIXTURE_TMPDIR:-}" ]; then
+    [ "$workspace" = "$PHX_FIXTURE_TMPDIR" ] && [ -d "$workspace" ]
+  else
+    [[ "$workspace" = "$fixture/go-cache/phoenix-tests."* ]] && [ ! -e "$workspace" ] || {
+      echo "$wrapper did not create and clean its private build workspace" >&2
+      exit 1
+    }
   fi
   if [ -e "$fixture/.git/phx-test-run.lock" ]; then
     echo "$wrapper did not release its test-run lock" >&2
@@ -204,4 +233,15 @@ for wrapper in test-backend.sh test-changed.sh; do
   unset PHX_FIXTURE_SWEEP_STATUS
 done
 
-echo 'full/changed-test resource budget and lifecycle tests passed'
+# Caller-owned workspaces are preserved by both wrappers.
+mkdir -p "$fixture/custom-go-tmp"
+export PHX_FIXTURE_GOTMPDIR="$fixture/custom-go-tmp"
+run_wrapper test-changed.sh 0 origin/development
+run_wrapper test-backend.sh 0 ./probe
+unset PHX_FIXTURE_GOTMPDIR
+export PHX_FIXTURE_TMPDIR="$fixture/custom-go-tmp"
+run_wrapper test-changed.sh 0 origin/development
+run_wrapper test-backend.sh 0 ./probe
+unset PHX_FIXTURE_TMPDIR
+
+echo 'full/changed-test resource budget, build workspace and lifecycle tests passed'

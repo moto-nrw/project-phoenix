@@ -26,6 +26,8 @@ var ErrOrganizationInactive = errors.New("organization is inactive")
 type TraegerOrganization struct {
 	ID   int64
 	Name string
+	// TestSystem marks a test Träger (#4658).
+	TestSystem bool
 }
 
 // TraegerMembership is one account's membership at a Träger.
@@ -66,6 +68,10 @@ type TraegerMembershipCommand interface {
 // the person needs an account before the operator assigns them to a Träger.
 var ErrTraegerAccountNotFound = errors.New("no account with this e-mail address")
 
+// ErrTraegerMemberNotFound reports an account that is no member of the
+// Träger-Büro the operator acts on.
+var ErrTraegerMemberNotFound = errors.New("account is no member of this Träger-Büro")
+
 // ErrInvalidTraegerRole reports a role outside the Träger roles.
 var ErrInvalidTraegerRole = errors.New("invalid Träger role")
 
@@ -96,9 +102,22 @@ type AssignTraegerMember struct {
 	ClientIP       net.IP
 }
 
+// ResetTraegerMemberMFA is the operator's reset of the second factor of a
+// Träger-Büro member (#4651): the person sets it up again at the next
+// sign-in. Reason is recorded in the operator audit.
+type ResetTraegerMemberMFA struct {
+	OrganizationID int64
+	AccountID      int64
+	Reason         string
+	OperatorID     int64
+	ClientIP       net.IP
+}
+
 // TraegerMemberProvisioning lets the operator see and assign the people of a
-// Träger-Büro. Each assignment is recorded in the operator audit.
+// Träger-Büro and reset their second factor. Each write is recorded in the
+// operator audit.
 type TraegerMemberProvisioning interface {
 	ListTraegerMembers(ctx context.Context, organizationID int64) ([]TraegerMember, error)
 	AssignTraegerMember(ctx context.Context, input AssignTraegerMember) (TraegerMember, error)
+	ResetTraegerMemberMFA(ctx context.Context, input ResetTraegerMemberMFA) error
 }

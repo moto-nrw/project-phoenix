@@ -76,6 +76,10 @@ var seedCoverageExemptions = map[string]string{
 
 	"auth.account_permissions":                  "direct account grants are retired (#4485); nothing writes the table and it is dropped in a follow-up migration",
 	"auth.demo_accesses":                        "prospect contact data of the public demo; its routes exist under APP_ENV=demo only and the seeder must not invent prospects",
+	"auth.caterer_accounts":                     "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
+	"auth.caterer_invitations":                  "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
+	"auth.caterer_schools":                      "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
+	"auth.caterers":                             "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
 	"auth.mfa_overrides":                        "empty in prod too",
 	"auth.mfa_trusted_devices":                  "empty in prod too",
 	"auth.passkey_credentials":                  "empty in prod too",

@@ -267,6 +267,21 @@ describe("PortalAnalyticsSession", () => {
     },
   );
 
+  it("keeps caterer collection off without requesting another portal's policy", () => {
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { id: "9", scope: "caterer" } },
+    });
+    render(<PortalAnalyticsSession surface="caterer" />);
+
+    expect(mocks.setAnalyticsContext).toHaveBeenCalledWith({
+      surface: "caterer",
+      enabled: false,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(mocks.registerPortalSession).not.toHaveBeenCalled();
+  });
+
   it("registers nothing for a session of another portal", () => {
     mocks.useSession.mockReturnValue({
       status: "authenticated",

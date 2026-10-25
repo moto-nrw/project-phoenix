@@ -226,18 +226,9 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	frontendURL := strings.TrimRight(cfg.FrontendURL, "/")
 	parentsURL := strings.TrimRight(cfg.ParentsURL, "/")
 	schoolURL := strings.TrimRight(cfg.SchoolURL, "/")
-	resetMinutes := cfg.PasswordResetExpiryMinutes
-	if resetMinutes <= 0 {
-		resetMinutes = 30
-	} else if resetMinutes > 1440 {
-		resetMinutes = 1440
-	}
-	inviteHours := cfg.InvitationTokenExpiryHours
-	if inviteHours <= 0 {
-		inviteHours = 48
-	} else if inviteHours > 168 {
-		inviteHours = 168
-	}
+	catererURL := strings.TrimRight(cfg.CatererURL, "/")
+	resetMinutes := authTestTokenExpiry(cfg.PasswordResetExpiryMinutes, 30, 1440)
+	inviteHours := authTestTokenExpiry(cfg.InvitationTokenExpiryHours, 48, 168)
 	codec, err := NewConfiguredSessionTokens(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -298,8 +289,12 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
+	catererMail, err := owners.CatererInvitationDelivery(organizations, owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}, catererURL)
+	if err != nil {
+		return AuthTestModule{}, err
+	}
 	lifecycle, err := owners.LifecycleDependencies(sessionRepos.Lifecycle, command, owners.CaregiverProfiles{Persons: operatorPersons, Membership: operatorMembership},
-		guardianMail, enrollmentClaims, logger)
+		guardianMail, catererMail, enrollmentClaims, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -389,7 +384,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork
 		return nil, err
 	}
 	sessionRepos := owners.SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
-	lifecycle, err := owners.LifecycleDependencies(sessionRepos.Lifecycle, audit, caregivers, owners.UnsentGuardianMail{}, nil, logger)
+	lifecycle, err := owners.LifecycleDependencies(sessionRepos.Lifecycle, audit, caregivers, owners.UnsentGuardianMail{}, nil, nil, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -435,6 +430,17 @@ func (d failingStaffMembership) CreateStaff(context.Context, schoolmembership.Cr
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return CurrentServiceConfig().JWTSecret }
+
+// authTestTokenExpiry bounds fixture lifetimes while accepting an unset config.
+func authTestTokenExpiry(value, fallback, maximum int) int {
+	if value <= 0 {
+		return fallback
+	}
+	if value > maximum {
+		return maximum
+	}
+	return value
+}
 
 // authTestTraegerAccounts composes the Träger-Büro account management of the
 // test module: its invitation mails stay queued in Delivery's outbox and link

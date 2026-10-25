@@ -25,6 +25,7 @@ import {
   adminSetMFAOverride,
   operatorAdminGetGlobalMFAOverride,
   operatorAdminResetMFA,
+  operatorAdminResetTraegerMFA,
   operatorAdminSetGlobalMFAOverride,
   operatorAdminSetMFAOverride,
   type MFAAdminOverride,
@@ -58,9 +59,14 @@ interface Props {
    * "operator" + the relevant schoolId so the proxy hits
    * /api/operator/provisioning/schools/{schoolId}/accounts/{accountId}/mfa
    * instead of the tenant /auth/accounts/{accountId}/mfa path.
+   * "traeger" is the operator's reset of a Träger-Büro member (#4651):
+   * reset only, scoped by the Träger membership. The Träger-Portal
+   * requires the second factor without exception, so no override is
+   * offered and no override state is loaded.
    */
-  readonly scope?: "tenant" | "operator";
+  readonly scope?: "tenant" | "operator" | "traeger";
   readonly schoolId?: string;
+  readonly organizationId?: string;
 }
 
 function overrideLabel(override: MFAAdminOverride): string {
@@ -82,6 +88,7 @@ export function MFAAdminOverrideModal({
   accountLabel,
   scope = "tenant",
   schoolId,
+  organizationId,
 }: Props) {
   const toast = useToast();
   const [view, setView] = useState<View>({ kind: "form" });
@@ -250,7 +257,17 @@ export function MFAAdminOverrideModal({
     setIsWorking(true);
     resetErrors.clear();
     try {
-      if (scope === "operator") {
+      if (scope === "traeger") {
+        if (!organizationId) {
+          throw new Error("organizationId is required for traeger scope");
+        }
+        await operatorAdminResetTraegerMFA(
+          bearerToken,
+          organizationId,
+          accountId,
+          trimmed,
+        );
+      } else if (scope === "operator") {
         if (!schoolId) {
           throw new Error("schoolId is required for operator scope");
         }
@@ -718,9 +735,10 @@ export function MFAAdminOverrideModal({
           <p className="text-sm text-gray-700">
             Das 2FA-Setup für{" "}
             <span className="font-semibold">{accountLabel}</span> wurde
-            vollständig entfernt. Beim nächsten Login kann sich der Account ohne
-            2FA-Code anmelden — oder wird, wenn 2FA für die Schule Pflicht ist,
-            durch die 2FA-Einrichtung geführt.
+            vollständig entfernt.{" "}
+            {scope === "traeger"
+              ? "Beim nächsten Login im Träger-Portal wird der Account durch die 2FA-Einrichtung geführt; die laufende Träger-Sitzung endet. Die Änderung gilt für alle Portale dieses Accounts."
+              : "Beim nächsten Login kann sich der Account ohne 2FA-Code anmelden — oder wird, wenn 2FA für die Schule Pflicht ist, durch die 2FA-Einrichtung geführt."}
           </p>
           <div className="flex justify-end">
             <button

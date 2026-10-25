@@ -34,10 +34,11 @@ def main():
         "NEXT_PUBLIC_OPERATOR_HOSTNAME": "operator.demo.moto-app.de",
         "NEXT_PUBLIC_PARENTS_HOSTNAME": "eltern.demo.moto-app.de",
         "NEXT_PUBLIC_SCHOOL_HOSTNAME": "schule.demo.moto-app.de",
+        "NEXT_PUBLIC_CATERER_HOSTNAME": "caterer.demo.moto-app.de",
         "NEXT_PUBLIC_TRAEGER_HOSTNAME": "traeger.demo.moto-app.de",
         "FRONTEND_URL": "https://demo.moto-app.de", "PARENTS_URL": "https://eltern.demo.moto-app.de",
-        "SCHOOL_URL": "https://schule.demo.moto-app.de", "TRAEGER_URL": "https://traeger.demo.moto-app.de",
-        "EMAIL_FROM_NAME": "moto Demo",
+        "SCHOOL_URL": "https://schule.demo.moto-app.de", "CATERER_URL": "https://caterer.demo.moto-app.de",
+        "TRAEGER_URL": "https://traeger.demo.moto-app.de", "EMAIL_FROM_NAME": "moto Demo",
         "ADMIN_EMAIL": "admin@demo.moto-app.de", "OPERATOR_EMAIL": "operator@demo.moto-app.de",
         # The demo seeder writes the PIN into security.ogs_device_pin, which
         # accepts exactly four digits.

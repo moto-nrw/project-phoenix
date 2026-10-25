@@ -8,11 +8,17 @@
 import * as Sentry from "@sentry/nextjs";
 
 export type SentryPortal =
-  "tenant" | "parent" | "school" | "operator" | "traeger";
+  "tenant" | "parent" | "school" | "caterer" | "operator" | "traeger";
 
 /** Values of the `role` tag: the portal's role model, never a school's role name. */
 type SentryRole =
-  "staff" | "admin" | "carrier" | "guardian" | "lehrkraft" | "operator";
+  | "staff"
+  | "admin"
+  | "carrier"
+  | "guardian"
+  | "lehrkraft"
+  | "caterer"
+  | "operator";
 
 /** The session fields the context reads; every portal's Session.user fits. */
 export interface SentrySessionUser {
@@ -53,6 +59,8 @@ function portalRole(portal: SentryPortal, user: SentrySessionUser): SentryRole {
       return "guardian";
     case "school":
       return "lehrkraft";
+    case "caterer":
+      return "caterer";
     case "operator":
       return "operator";
     case "traeger":

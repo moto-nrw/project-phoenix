@@ -24,18 +24,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// newTraegerSchoolSessionPortal mounts /traeger over the shared package
-// database like newTraegerPortal and hands back the Identity & Access owner
-// whose refresh, switch and validation the school's host would call.
-func newTraegerSchoolSessionPortal(t *testing.T) (*bun.DB, http.Handler, identityaccess.Owner, tenant.UnitOfWork) {
-	t.Helper()
-	db := testpkg.SetupTestDB(t)
-	unit := testpkg.TenantRuntime(t, db)
-	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit)
-	require.NoError(t, err)
-	return db, traegerPortalRouter(t, db, auth.Auth, unit), auth.Auth, unit
-}
-
 // traegerSchoolSessionAnswer reads both answer shapes of the Absprung.
 type traegerSchoolSessionAnswer struct {
 	Data struct {
@@ -58,23 +46,14 @@ func startTraegerSchoolSession(t *testing.T, router http.Handler, token string, 
 	return rec.Code, answer
 }
 
-// signInTraegerWithSecondFactor signs the account in to the Träger-Portal and
-// gives the session the second-factor proof the Träger login carries (#4651).
-func signInTraegerWithSecondFactor(t *testing.T, db *bun.DB, router http.Handler, email, password string) traegerLoginAnswer {
+// signInTraegerWithSecondFactor signs the account in to the Träger-Portal
+// with the second factor its login requires (#4651).
+func signInTraegerWithSecondFactor(t *testing.T, portal *traegerPortalHandler, email, password string) traegerLoginAnswer {
 	t.Helper()
-	code, answer := traegerLogin(t, router, email, password, 0)
-	require.Equal(t, http.StatusOK, code)
-	require.Equal(t, "authenticated", answer.Status)
-	markTraegerSessionVerified(t, db, answer.AccessToken)
+	code, answer := traegerSignIn(t, portal, email, password, 0)
+	require.Equal(t, http.StatusOK, code, answer.Code)
+	require.NotEmpty(t, answer.AccessToken, "the second factor opens a Träger session")
 	return answer
-}
-
-func markTraegerSessionVerified(t *testing.T, db *bun.DB, accessToken string) {
-	t.Helper()
-	family, _ := traegerTokenClaims(t, accessToken)["family_id"].(string)
-	require.NotEmpty(t, family)
-	_, err := db.ExecContext(context.Background(), `UPDATE auth.tokens SET mfa_verified = TRUE WHERE family_id = ? AND portal_scope = 'org'`, family)
-	require.NoError(t, err)
 }
 
 func schoolSubdomain(t *testing.T, db *bun.DB, schoolID int64) string {
@@ -86,13 +65,13 @@ func schoolSubdomain(t *testing.T, db *bun.DB, schoolID int64) string {
 
 func TestTraegerSchoolSessionOpensTheSchoolAsItsAdmin(t *testing.T) {
 	t.Parallel()
-	db, router, identity, unit := newTraegerSchoolSessionPortal(t)
+	db, router, identity, unit := newTraegerPortal(t)
 	password := testpkg.NewTestPassword()
 	organization := traegerOrganization(t, db, "Träger Absprung", true)
 	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Am Markt")
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
-	traeger := signInTraegerWithSecondFactor(t, db, router, account.Email, password)
+	traeger := signInTraegerWithSecondFactor(t, router, account.Email, password)
 
 	code, answer := startTraegerSchoolSession(t, router, traeger.AccessToken, school)
 	require.Equal(t, http.StatusCreated, code, answer.Code)
@@ -138,7 +117,7 @@ func TestTraegerSchoolSessionOpensTheSchoolAsItsAdmin(t *testing.T) {
 
 func TestTraegerSchoolSessionRefusesForeignSchoolsAndMissingRights(t *testing.T) {
 	t.Parallel()
-	db, router, _, _ := newTraegerSchoolSessionPortal(t)
+	db, router, _, _ := newTraegerPortal(t)
 	password := testpkg.NewTestPassword()
 	organization := traegerOrganization(t, db, "Träger Eigen", true)
 	foreign := traegerOrganization(t, db, "Träger Fremd", true)
@@ -146,7 +125,7 @@ func TestTraegerSchoolSessionRefusesForeignSchoolsAndMissingRights(t *testing.T)
 	foreignSchool := testpkg.CreateTestSchoolInOrganization(t, db, foreign, "OGS Fremd")
 	admin := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, admin.ID, identityaccess.TraegerRoleAdministration)
-	traeger := signInTraegerWithSecondFactor(t, db, router, admin.Email, password)
+	traeger := signInTraegerWithSecondFactor(t, router, admin.Email, password)
 
 	code, answer := startTraegerSchoolSession(t, router, traeger.AccessToken, foreignSchool)
 	assert.Equal(t, http.StatusNotFound, code, "the school of another Träger is refused")
@@ -157,7 +136,7 @@ func TestTraegerSchoolSessionRefusesForeignSchoolsAndMissingRights(t *testing.T)
 
 	billing := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, billing.ID, identityaccess.TraegerRoleBilling)
-	billingSession := signInTraegerWithSecondFactor(t, db, router, billing.Email, password)
+	billingSession := signInTraegerWithSecondFactor(t, router, billing.Email, password)
 	code, _ = startTraegerSchoolSession(t, router, billingSession.AccessToken, school)
 	assert.Equal(t, http.StatusForbidden, code, "a role without the right gets 403")
 
@@ -179,29 +158,34 @@ func TestTraegerSchoolSessionRefusesForeignSchoolsAndMissingRights(t *testing.T)
 
 func TestTraegerSchoolSessionNeedsTheSecondFactorOfTheTraegerSession(t *testing.T) {
 	t.Parallel()
-	db, router, _, _ := newTraegerSchoolSessionPortal(t)
+	db, router, _, _ := newTraegerPortal(t)
 	password := testpkg.NewTestPassword()
 	organization := traegerOrganization(t, db, "Träger Zweiter Faktor", true)
 	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Faktor")
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
-	code, traeger := traegerLogin(t, router, account.Email, password, 0)
-	require.Equal(t, http.StatusOK, code)
-
+	traeger := signInTraegerWithSecondFactor(t, router, account.Email, password)
 	code, answer := startTraegerSchoolSession(t, router, traeger.AccessToken, school)
+	require.Equal(t, http.StatusCreated, code, "the signed-in Träger session carries the second factor")
+
+	// The operator reset revokes the proof of the running Träger session
+	// (#4651); its access token lives on until the next refresh.
+	_, err := db.ExecContext(context.Background(), `UPDATE auth.tokens SET mfa_verified = FALSE WHERE account_id = ?`, account.ID)
+	require.NoError(t, err)
+	code, answer = startTraegerSchoolSession(t, router, traeger.AccessToken, school)
 	assert.Equal(t, http.StatusForbidden, code, "the school's admin rights need the second factor")
 	assert.Equal(t, "traeger.second_factor_required", answer.Code)
 }
 
 func TestTraegerSchoolSessionFollowsTheSchoolsOfTheTraeger(t *testing.T) {
 	t.Parallel()
-	db, router, identity, unit := newTraegerSchoolSessionPortal(t)
+	db, router, identity, unit := newTraegerPortal(t)
 	password := testpkg.NewTestPassword()
 	organization := traegerOrganization(t, db, "Träger Zuordnung", true)
 	other := traegerOrganization(t, db, "Träger Übernahme", true)
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
-	traeger := signInTraegerWithSecondFactor(t, db, router, account.Email, password)
+	traeger := signInTraegerWithSecondFactor(t, router, account.Email, password)
 	ctx := tenant.WithUnitOfWork(context.Background(), unit)
 
 	added := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Neu dabei")
@@ -233,7 +217,7 @@ func TestTraegerSchoolSessionFollowsTheSchoolsOfTheTraeger(t *testing.T) {
 
 func TestTraegerSchoolSessionsInTwoTabsStaySignedIn(t *testing.T) {
 	t.Parallel()
-	db, router, identity, unit := newTraegerSchoolSessionPortal(t)
+	db, router, identity, unit := newTraegerPortal(t)
 	password := testpkg.NewTestPassword()
 	organization := traegerOrganization(t, db, "Träger Zwei Tabs", true)
 	foreign := traegerOrganization(t, db, "Träger Anderswo", true)
@@ -242,7 +226,7 @@ func TestTraegerSchoolSessionsInTwoTabsStaySignedIn(t *testing.T) {
 	foreignSchool := testpkg.CreateTestSchoolInOrganization(t, db, foreign, "OGS Fremder Tab")
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
-	traeger := signInTraegerWithSecondFactor(t, db, router, account.Email, password)
+	traeger := signInTraegerWithSecondFactor(t, router, account.Email, password)
 	ctx := tenant.WithUnitOfWork(context.Background(), unit)
 
 	open := func(schoolID int64, proof string) (string, string) {

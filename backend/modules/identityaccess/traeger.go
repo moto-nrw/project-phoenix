@@ -126,21 +126,35 @@ const (
 	// TraegerLoginSelectionRequired lists the Träger of a member of several;
 	// the login is repeated with one of them.
 	TraegerLoginSelectionRequired TraegerLoginStatus = "organization_selection_required"
+	// TraegerLoginMFARequired carries the challenge of the e-mailed code
+	// (#4651); every Träger session needs a second factor.
+	TraegerLoginMFARequired TraegerLoginStatus = "mfa_required"
+	// TraegerLoginMFAEnrollmentRequired carries an enrollment token: the
+	// account sets up its second factor before the Träger session exists.
+	TraegerLoginMFAEnrollmentRequired TraegerLoginStatus = "mfa_enrollment_required"
 )
 
-// TraegerLoginResult is the Träger login answer: a token pair, or the Träger
-// to choose from.
+// TraegerLoginResult is the Träger login answer: a token pair, the Träger to
+// choose from, or the second factor still to pass. On the enrollment branch
+// AccessToken is the enrollment token. OrganizationID names the Träger the
+// login resolved on both second-factor branches.
 type TraegerLoginResult struct {
-	Status        TraegerLoginStatus
-	AccessToken   string
-	RefreshToken  string
-	Organizations []TraegerOrganization
+	Status         TraegerLoginStatus
+	AccessToken    string
+	RefreshToken   string
+	ChallengeToken string
+	MaskedEmail    string
+	OrganizationID int64
+	Organizations  []TraegerOrganization
 }
 
 // TraegerAccountLogin signs an account in to the Träger-Portal. A zero
 // organizationID picks the only Träger of the account or asks for a choice.
+// IssueTraegerTokensForVerifiedMFA mints the Träger session after a proven
+// second factor of the org scope.
 type TraegerAccountLogin interface {
 	LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*TraegerLoginResult, error)
+	IssueTraegerTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, organizationID int64, ipAddress, userAgent string) (*TraegerLoginResult, error)
 }
 
 // TraegerAccount is an account at a Träger with its Träger roles.

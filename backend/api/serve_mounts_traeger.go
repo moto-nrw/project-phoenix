@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -25,10 +26,13 @@ import (
 )
 
 // TraegerPortalIdentity is what the Träger-Portal serves of Identity &
-// Access: the sign-in, the Träger-Büro account management, the Träger-Büro
-// members' addresses and the Absprung into a school.
+// Access: the sign-in, the account second factor, the Träger-Büro account
+// management, the Träger-Büro members' addresses and the Absprung into a
+// school.
 type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
+	identityaccess.AccountMFAChallenges
+	identityaccess.AccountMFAEnrollment
 	identityaccess.TraegerAccountManagement
 	identityaccess.TraegerRoles
 	identityaccess.TraegerSchoolSessions
@@ -68,9 +72,9 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 	return nil
 }
 
-// NewTraegerPortalHTTP binds the Träger sign-in, the account management, the
-// Träger projection and the holiday periods of Enrollment to the portal's
-// route ports.
+// NewTraegerPortalHTTP binds the Träger sign-in, its second factor, the
+// account management, the Träger projection and the holiday periods of
+// Enrollment to the portal's route ports.
 func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit) (*traegerportal.Resource, error) {
 	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil {
 		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail and the access log are required")
@@ -85,8 +89,9 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	}
 	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(),
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
-	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview), holidayPeriods,
-		traegerViewHTTP.NewAccessLogResource(overview), identity, identity), nil
+	overviewRoutes := traegerViewHTTP.NewResource(overview)
+	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity), overviewRoutes, holidayPeriods,
+		traegerViewHTTP.NewAccessLogResource(overview), identity, overviewRoutes, identity), nil
 }
 
 // traegerSchoolIDs binds the Träger projection's school set to Organisation &
@@ -102,6 +107,18 @@ func (s traegerSchoolIDs) ListTraegerSchoolIDs(ctx context.Context, organization
 		return nil, traegerview.ErrTraegerUnavailable
 	}
 	return ids, err
+}
+
+func (s traegerSchoolIDs) ListAccountTraeger(ctx context.Context, accountID int64) ([]traegerview.Traeger, error) {
+	organizations, err := s.organizations.ListAccountTraegerOrganizations(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]traegerview.Traeger, 0, len(organizations))
+	for _, organization := range organizations {
+		result = append(result, traegerview.Traeger(organization))
+	}
+	return result, nil
 }
 
 // traegerAccessTrail binds the Audit Platform's access trail to the Träger
@@ -258,17 +275,70 @@ func TraegerPortalAuth(sessions identityaccess.TraegerAccountLogin) traegerporta
 			if err != nil || result == nil {
 				return nil, err
 			}
-			organizations := make([]traegerportal.Organization, 0, len(result.Organizations))
-			for _, organization := range result.Organizations {
-				organizations = append(organizations, traegerportal.Organization(organization))
+			return traegerPortalLoginResult(result), nil
+		},
+		IssueTokens: func(ctx context.Context, proof traegerportal.VerifiedChallenge, organizationID int64, ipAddress, userAgent string) (*traegerportal.LoginResult, error) {
+			result, err := sessions.IssueTraegerTokensForVerifiedMFA(ctx, identityaccess.VerifiedMFAChallenge{
+				AccountID: proof.AccountID, Scope: identityaccess.MFAChallengeScopeOrg, MFAResetGeneration: proof.MFAResetGeneration,
+			}, organizationID, ipAddress, userAgent)
+			if err != nil || result == nil {
+				return nil, err
 			}
-			return &traegerportal.LoginResult{
-				Status: traegerportal.LoginStatus(result.Status), AccessToken: result.AccessToken,
-				RefreshToken: result.RefreshToken, Organizations: organizations,
-			}, nil
+			return traegerPortalLoginResult(result), nil
 		},
 		InvalidCredentials: identityInvalidCredentials,
 		AccountInactive:    identityIs(identityaccess.ErrAccountInactive),
 		NoMembership:       identityIs(identityaccess.ErrNoTraegerMembership),
+		MFABlocked:         identityMFABlocked,
+		MFAUnavailable:     identityIs(identityaccess.ErrMFAStatusUnavailable),
+		InvalidSession:     identityIs(identityaccess.ErrInvalidToken),
+	}
+}
+
+func traegerPortalLoginResult(result *identityaccess.TraegerLoginResult) *traegerportal.LoginResult {
+	organizations := make([]traegerportal.Organization, 0, len(result.Organizations))
+	for _, organization := range result.Organizations {
+		organizations = append(organizations, traegerportal.Organization(organization))
+	}
+	return &traegerportal.LoginResult{
+		Status: traegerportal.LoginStatus(result.Status), AccessToken: result.AccessToken,
+		RefreshToken: result.RefreshToken, ChallengeToken: result.ChallengeToken, MaskedEmail: result.MaskedEmail,
+		OrganizationID: result.OrganizationID, Organizations: organizations,
+	}
+}
+
+// TraegerPortalMFA binds the Träger second factor. The org challenge scope is
+// applied here, so a challenge of another portal is refused before any code
+// is compared. A Träger challenge names no school.
+func TraegerPortalMFA(mfa interface {
+	identityaccess.AccountMFAChallenges
+	identityaccess.AccountMFAEnrollment
+}) traegerportal.MFARuntime {
+	if mfa == nil {
+		return traegerportal.MFARuntime{}
+	}
+	verified := func(proof identityaccess.VerifiedMFAChallenge) traegerportal.VerifiedChallenge {
+		return traegerportal.VerifiedChallenge{AccountID: proof.AccountID, MFAResetGeneration: proof.MFAResetGeneration}
+	}
+	return traegerportal.MFARuntime{
+		VerifyChallenge: func(ctx context.Context, challengeToken, code string) (traegerportal.VerifiedChallenge, error) {
+			proof, err := mfa.VerifyMFAChallengeForScope(ctx, challengeToken, code, identityaccess.MFAChallengeScopeOrg)
+			return verified(proof), err
+		},
+		VerifyChallengeForOwner: func(ctx context.Context, challengeToken, code string, accountID int64) (traegerportal.VerifiedChallenge, error) {
+			proof, err := mfa.VerifyMFAChallengeForOwner(ctx, challengeToken, code, identityaccess.MFAChallengeScopeOrg, accountID, 0)
+			return verified(proof), err
+		},
+		ResendChallenge: func(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
+			return mfa.ResendMFAChallengeForScope(ctx, challengeToken, ip, identityaccess.MFAChallengeScopeOrg)
+		},
+		StartChallenge: func(ctx context.Context, accountID int64, ip net.IP) (string, error) {
+			return mfa.StartMFAChallenge(ctx, accountID, 0, identityaccess.MFAChallengeScopeOrg, ip)
+		},
+		Enroll:            mfa.EnrollMFA,
+		ChallengeUnusable: identityChallengeUnusable,
+		Blocked:           identityMFABlocked,
+		Unavailable:       identityIs(identityaccess.ErrMFAStatusUnavailable),
+		AlreadyEnrolled:   identityIs(identityaccess.ErrMFAAlreadyEnrolled),
 	}
 }

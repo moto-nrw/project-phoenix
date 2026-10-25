@@ -32,7 +32,7 @@ func DecodeMFAChallengeToken(wire map[string]any, now time.Time) (MFAChallengeCl
 		return MFAChallengeClaims{}, errors.New("missing required claim: account_id")
 	}
 	scope := text(wire, "scope")
-	if scope != "tenant" && scope != "platform" && scope != "school" {
+	if scope != "tenant" && scope != "platform" && scope != "school" && scope != "org" {
 		return MFAChallengeClaims{}, fmt.Errorf("invalid scope claim: %q", scope)
 	}
 	if !flag(wire, "mfa_pending") {

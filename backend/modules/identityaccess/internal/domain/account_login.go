@@ -24,6 +24,7 @@ const (
 	ScopePlatform = "platform"
 	ScopeParent   = "parent"
 	ScopeSchool   = "school"
+	ScopeCaterer  = "caterer"
 )
 
 // LehrkraftRoleName is the school-portal system role (#2207).
@@ -167,7 +168,7 @@ func PersistedPortalScope(jwtScope string) string {
 	switch jwtScope {
 	case ScopeTenant, PortalScopeTenant:
 		return PortalScopeTenant
-	case PortalScopeOrg, PortalScopeParent, PortalScopeSchool:
+	case PortalScopeOrg, PortalScopeParent, PortalScopeSchool, PortalScopeCaterer:
 		return jwtScope
 	default:
 		return PortalScopeUnknown
@@ -180,7 +181,7 @@ func SessionScopeMatches(scope, portal string) bool {
 	switch portal {
 	case "tenant":
 		return scope == ScopeTenant || scope == "tenant"
-	case "platform", "parent", "school", ScopeOrg:
+	case "platform", "parent", "school", "caterer", ScopeOrg:
 		return scope == portal
 	default:
 		return false

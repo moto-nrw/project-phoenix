@@ -20,6 +20,16 @@ func (s *Store) DeleteExpiredGuardianInvitations(ctx context.Context, before tim
 	return int(rows), stats, err
 }
 
+// DeleteExpiredCatererInvitations removes a school's invitations to its
+// caterer once accepted, revoked or expired before the instant (#3873).
+func (s *Store) DeleteExpiredCatererInvitations(ctx context.Context, before time.Time) (int, domain.OperationStats, error) {
+	rows, stats, err := s.exec(ctx, "delete expired caterer invitations", func(db bun.IDB) executor {
+		return db.NewDelete().TableExpr("auth.caterer_invitations").
+			Where("COALESCE(accepted_at, revoked_at, expires_at) < ?", before)
+	})
+	return int(rows), stats, err
+}
+
 func (s *Store) DeleteExpiredAccountMFAEmailChallenges(ctx context.Context, before time.Time) (int, domain.OperationStats, error) {
 	rows, stats, err := s.exec(ctx, "delete expired account mfa email challenges", func(db bun.IDB) executor {
 		return db.NewDelete().TableExpr("auth.mfa_email_challenges").Where("expires_at < ?", before)

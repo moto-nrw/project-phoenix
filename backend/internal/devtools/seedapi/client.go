@@ -78,6 +78,12 @@ func (c *Client) LoginParent(email, password string) error {
 	return nil
 }
 
+// LoginTraeger signs in to the Träger-Portal with its second factor and
+// returns the Träger session without binding it.
+func (c *Client) LoginTraeger(email, password string, organizationID int64) (AuthRef, error) {
+	return c.adapter.LoginTraeger(context.Background(), email, password, organizationID)
+}
+
 // Post makes an authenticated POST request
 func (c *Client) Post(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, true, nil)

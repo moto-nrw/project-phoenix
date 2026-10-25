@@ -23,12 +23,29 @@ export type TraegerLoginResult =
   | {
       readonly status: "organization_selection_required";
       readonly organizations: readonly TraegerChoice[];
+    }
+  | {
+      /** The account has a second factor: a code was mailed (#4651). */
+      readonly status: "mfa_required";
+      readonly challengeToken: string;
+      readonly maskedEmail: string;
+      readonly organizationId: string;
+    }
+  | {
+      /** The account sets up its second factor first. */
+      readonly status: "mfa_enrollment_required";
+      readonly enrollmentToken: string;
+      readonly maskedEmail: string;
+      readonly organizationId: string;
     };
 
 interface BackendLoginResponse {
   status?: string;
   access_token?: string;
   refresh_token?: string;
+  challenge_token?: string;
+  masked_email?: string;
+  organization_id?: number;
   organizations?: { id: number; name: string }[];
 }
 
@@ -61,7 +78,9 @@ async function readJson(response: Response): Promise<unknown> {
 
 /**
  * Signs in at the Träger portal. Without `organizationId` a person who
- * belongs to several Träger gets the choice back instead of tokens.
+ * belongs to several Träger gets the choice back instead of tokens. Every
+ * Träger session needs the second factor: the answer is the mailed code to
+ * enter, or the setup of the factor (#4651).
  */
 export async function traegerLogin(input: {
   readonly email: string;
@@ -98,6 +117,22 @@ export async function traegerLogin(input: {
         id: String(organization.id),
         name: organization.name,
       })),
+    };
+  }
+  if (result.status === "mfa_required" && result.challenge_token) {
+    return {
+      status: "mfa_required",
+      challengeToken: result.challenge_token,
+      maskedEmail: result.masked_email ?? "",
+      organizationId: String(result.organization_id ?? ""),
+    };
+  }
+  if (result.status === "mfa_enrollment_required" && result.access_token) {
+    return {
+      status: "mfa_enrollment_required",
+      enrollmentToken: result.access_token,
+      maskedEmail: result.masked_email ?? "",
+      organizationId: String(result.organization_id ?? ""),
     };
   }
   if (!result.access_token || !result.refresh_token) {
@@ -646,5 +681,34 @@ export async function downloadTraegerAccessLog(
   return {
     blob: await response.blob(),
     filename: filenameFromDisposition(response),
+  };
+}
+
+/** The Träger of the session, as the portal frame names and marks it. */
+export interface TraegerOrganization {
+  readonly id: string;
+  readonly name: string;
+  /** A test Träger with invented sample data (#4658). */
+  readonly testSystem: boolean;
+}
+
+interface BackendTraegerOrganization {
+  id: number;
+  name: string;
+  test_system?: boolean;
+}
+
+/** The Träger of the signed-in person's session. */
+export async function fetchTraegerOrganization(): Promise<TraegerOrganization> {
+  const organization = await traegerRequest<BackendTraegerOrganization | null>(
+    "/api/traeger/organization",
+  );
+  if (!organization) {
+    throw apiErrorFromBody("Träger response without data", 502, organization);
+  }
+  return {
+    id: String(organization.id),
+    name: organization.name,
+    testSystem: organization.test_system ?? false,
   };
 }

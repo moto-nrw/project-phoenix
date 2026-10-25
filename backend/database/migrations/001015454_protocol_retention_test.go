@@ -77,7 +77,7 @@ func (p retentionProtocol) dates() (allowedCutoff, expired, fresh string) {
 	if p.followingYear {
 		return lastYearStartSQL, lastYearStartSQL + " - INTERVAL '1 day'", lastYearStartSQL + " + INTERVAL '1 day'"
 	}
-	return "CURRENT_TIMESTAMP - INTERVAL '3 years'",
+	return "(CURRENT_TIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '3 years') AT TIME ZONE 'UTC'",
 		"CURRENT_TIMESTAMP - INTERVAL '3 years 1 day'",
 		"CURRENT_TIMESTAMP - INTERVAL '3 years' + INTERVAL '1 day'"
 }

@@ -25,6 +25,7 @@ const (
 	MFAChallengeScopeTenant   = "tenant"
 	MFAChallengeScopePlatform = "platform"
 	MFAChallengeScopeSchool   = "school"
+	MFAChallengeScopeOrg      = "org"
 )
 
 // Fixed MFA protocol and operator-policy constants. Account lockout and

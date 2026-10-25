@@ -162,6 +162,7 @@ Das Frontend erklärt beides statt einer Fehlerseite: Die Login-Seiten zeigen ei
 
 | Route | Zuordnung | Begründung |
 |---|---|---|
+| `/api/meal-caterer`, `/caterer` | Mittagessen und Catering | Die Schule verwaltet ihren Caterer in ihrer Mandanten-Sitzung. Das Caterer-Portal hat eine schulübergreifende Sitzung; seine Modulsperre folgt mit den übrigen Portalen in #4895. Der Zugriff je Schule verlangt weiterhin eine Belieferung. |
 | `/api/guardians/...` | Basis | Erziehungsberechtigte und Abholberechtigte braucht jede Schule. |
 | `/api/guardians/invitations`, `invitable`, `bulk-invite`, `without-account`, `.../invite` | Eltern-App | Einladungen gibt es nur für das Elternportal. |
 | `/api/guardians/payment-overview`, `.../payment` | Basis | Bankdaten der Eltern gibt es heute ohne Abrechnung. Wenn Elternbeiträge und Abrechnung gebaut wird, wandern sie dorthin. |

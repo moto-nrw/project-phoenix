@@ -226,6 +226,7 @@ func applyStaticViperTestConfig() {
 	viper.Set("frontend_url", "http://tenant.invalid")
 	viper.Set("parents_url", "http://parents.invalid")
 	viper.Set("school_url", "http://school.invalid")
+	viper.Set("caterer_url", "http://caterer.invalid")
 	viper.Set("traeger_url", "http://traeger.invalid")
 	viper.Set("tenant_domain", "tenant.invalid")
 	viper.Set("next_public_operator_hostname", "operator.invalid")

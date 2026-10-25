@@ -39,10 +39,10 @@ if (!SCHOOL_HOSTNAME) {
   );
 }
 
-const TRAEGER_HOSTNAME = process.env.NEXT_PUBLIC_TRAEGER_HOSTNAME;
-if (!TRAEGER_HOSTNAME) {
+const CATERER_HOSTNAME = process.env.NEXT_PUBLIC_CATERER_HOSTNAME;
+if (!CATERER_HOSTNAME) {
   throw new Error(
-    "NEXT_PUBLIC_TRAEGER_HOSTNAME is not set. " +
+    "NEXT_PUBLIC_CATERER_HOSTNAME is not set. " +
       "Add it to your .env.local or docker-compose environment.",
   );
 }
@@ -272,7 +272,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
   // Block tenant auth endpoints on the operator host. Tenant session cookies
   // are domain-scoped and sent to subdomains, so allowing /api/auth/* here
   // would expose tenant session data on operator.moto-app.de.
-  if (pathname.startsWith("/api/auth/")) {
+  if (pathname.startsWith("/api/auth/") || isCatererApiPath(pathname)) {
     return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
 
@@ -386,7 +386,8 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
   // ever leaked them.
   if (
     pathname.startsWith("/api/auth/") ||
-    pathname.startsWith("/api/operator/auth/")
+    pathname.startsWith("/api/operator/auth/") ||
+    isCatererApiPath(pathname)
   ) {
     return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
@@ -527,6 +528,14 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
   return withSecurityHeaders(NextResponse.redirect(url));
 }
 
+const TRAEGER_HOSTNAME = process.env.NEXT_PUBLIC_TRAEGER_HOSTNAME;
+if (!TRAEGER_HOSTNAME) {
+  throw new Error(
+    "NEXT_PUBLIC_TRAEGER_HOSTNAME is not set. " +
+      "Add it to your .env.local or docker-compose environment.",
+  );
+}
+
 // --- Träger subdomain handling ("moto träger", Träger-Büro portal, #4649) ---
 
 /** Paths the Träger subdomain serves (without /traeger prefix): the login,
@@ -593,6 +602,63 @@ function handleTraegerSubdomain(request: NextRequest): NextResponse {
 
   // Anything else → redirect to root. Keeps the Träger host from serving
   // tenant, operator, parents, or school pages.
+  const url = request.nextUrl.clone();
+  url.pathname = "/";
+  return withSecurityHeaders(NextResponse.redirect(url));
+}
+
+// --- Caterer subdomain handling (caterer portal, ADR 0077) ---
+
+/** Paths the caterer host serves (without /caterer prefix); the overview
+ * itself lives at the root ("/" → /caterer). */
+const CATERER_PATHS = ["/login", "/reset-password", "/einladung"];
+
+/** The caterer portal's BFF routes. Only the caterer host serves them; every
+ * other host answers 404, so a caterer route never runs beside another
+ * portal's cookies (ADR 0077). */
+function isCatererApiPath(pathname: string): boolean {
+  return pathname === "/api/caterer" || pathname.startsWith("/api/caterer/");
+}
+
+function isCatererHost(hostname: string): boolean {
+  return hostname === CATERER_HOSTNAME;
+}
+
+function handleCatererSubdomain(request: NextRequest): NextResponse {
+  const { pathname } = request.nextUrl;
+
+  // Only the caterer portal's BFF routes run on this host: every other
+  // portal's session and API stay out (defense-in-depth on top of the
+  // host-only cookies).
+  if (
+    pathname.startsWith("/api/caterer/") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/monitoring")
+  ) {
+    return secureNext(request);
+  }
+  if (pathname.startsWith("/api/")) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+  }
+
+  // The caterer portal is German-only, like the school portal.
+  if (pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/caterer";
+    return secureRewrite(request, url);
+  }
+  if (
+    CATERER_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/caterer${pathname}`;
+    return secureRewrite(request, url);
+  }
+  if (pathname === "/caterer" || pathname.startsWith("/caterer/")) {
+    return secureNext(request);
+  }
+
+  // Anything else → the overview: the caterer host leaks no other portal.
   const url = request.nextUrl.clone();
   url.pathname = "/";
   return withSecurityHeaders(NextResponse.redirect(url));
@@ -873,13 +939,22 @@ function routeRequest(request: NextRequest): NextResponse {
     return handleTraegerSubdomain(request);
   }
 
+  // 1e. Caterer subdomain gets its own routing (ADR 0077)
+  if (isCatererHost(hostname)) {
+    return handleCatererSubdomain(request);
+  }
+
   // Object links from panes that existed before #3115 need the whole
   // collection query nested in `from`, which static next.config redirects
   // cannot express. Handle both tenant-subdomain and path-routing URLs here.
   const legacySelection = redirectLegacySelection(request);
   if (legacySelection) return legacySelection;
 
-  // 2. /api/* and /monitoring (Sentry tunnel): pass through with security headers.
+  // 2. /api/* and /monitoring (Sentry tunnel): pass through with security
+  // headers. The caterer API runs on the caterer host only (ADR 0077).
+  if (isCatererApiPath(pathname)) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+  }
   if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
     return secureNext(request);
   }
@@ -935,6 +1010,14 @@ function routeRequest(request: NextRequest): NextResponse {
     const protocol = request.nextUrl.protocol;
     const search = request.nextUrl.search;
     const redirectUrl = `${protocol}//${TRAEGER_HOSTNAME}${cleanPath}${search}`;
+    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
+  }
+
+  // 3d. Caterer guard on non-caterer hosts: /caterer/* elsewhere goes to
+  // the caterer host. Exact-segment match, as for the school guard.
+  if (pathname === "/caterer" || pathname.startsWith("/caterer/")) {
+    const cleanPath = pathname.replace(/^\/caterer/, "") || "/";
+    const redirectUrl = `${request.nextUrl.protocol}//${CATERER_HOSTNAME}${cleanPath}${request.nextUrl.search}`;
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 

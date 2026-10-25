@@ -168,6 +168,10 @@ describe("tenant-api", () => {
         // Missing timetable_enabled reads as enabled — the registry default
         // (#2383): an older backend must not hide the Tagesplan entry.
         timetableEnabled: true,
+        // Missing meal switches read as off (#3873): an older backend must
+        // not show the meal pages to a role that cannot read the settings.
+        mealPlanEnabled: false,
+        mealRegistrationEnabled: false,
         waitlistEnabled: true,
         gradeLevelMax: 13,
         // Older backends omit the Analyse-Freigabe (#3603): off, and nothing

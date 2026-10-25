@@ -45,7 +45,7 @@ func newTraegerLifecycleFixture(t *testing.T, label string) (traegerLifecycleFix
 	organizationID, _ := provisionTestSchool(t, db, service, operatorID, label)
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	operator := chi.NewRouter()
-	mountOperatorProvisioningRoutes(operator, resource)
+	mountOperatorProvisioningRoutes(operator, resource, nil)
 	return traegerLifecycleFixture{
 		db: db, ctx: provisioningContext(t, db),
 		operatorID: operatorID, organizationID: organizationID, operator: operator,
@@ -106,8 +106,8 @@ func TestOperatorDeactivationEndsEveryTraegerSessionAndReactivationLetsInAgain(t
 	account := traegerAccount(t, f.db, password)
 	testpkg.CreateTestTraegerMember(t, f.db, f.organizationID, account.ID, identityaccess.TraegerRoleAdministration)
 	unit := testpkg.TenantRuntime(t, f.db)
-	traeger := traegerPortalRouter(t, f.db, identity, unit)
-	code, session := traegerLogin(t, traeger, account.Email, password, 0)
+	traeger, _ := traegerPortalOn(t, f.db, unit)
+	code, session := traegerSignIn(t, traeger, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 	listed, _ := traegerSchools(t, traeger, session.AccessToken)
 	require.Equal(t, http.StatusOK, listed.Code, listed.Body.String())
@@ -130,12 +130,12 @@ func TestOperatorDeactivationEndsEveryTraegerSessionAndReactivationLetsInAgain(t
 	assert.Equal(t, http.StatusUnauthorized, logged.Code, "nor the access log of a school: %s", logged.Body.String())
 	_, _, err := identity.RefreshTokenWithAudit(tenant.WithUnitOfWork(context.Background(), unit), session.RefreshToken, "", "", "")
 	assert.Error(t, err, "the ended session cannot be refreshed")
-	code, _ = traegerLogin(t, traeger, account.Email, password, 0)
+	code, _ = traegerSignIn(t, traeger, account.Email, password, 0)
 	assert.Equal(t, http.StatusForbidden, code, "a deactivated Träger lets nobody sign in")
 
 	rec = f.setActive(t, true)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	code, session = traegerLogin(t, traeger, account.Email, password, 0)
+	code, session = traegerSignIn(t, traeger, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code, "reactivation lets the Träger-Büro in again")
 	listed, _ = traegerSchools(t, traeger, session.AccessToken)
 	assert.Equal(t, http.StatusOK, listed.Code, listed.Body.String())

@@ -15,6 +15,7 @@ import { AnalyticsConsentPromptGate } from "~/components/analytics/analytics-con
 const PORTALS = {
   parents: { scope: "parent", role: "guardian", consent: "parent" },
   school: { scope: "school", role: "lehrkraft", consent: "school" },
+  caterer: { scope: "caterer", role: "caterer", consent: null },
 } as const;
 
 /**
@@ -29,7 +30,7 @@ export function PortalAnalyticsSession({
   consentCopy,
 }: {
   readonly surface: keyof typeof PORTALS;
-  readonly consentCopy: AnalyticsConsentCopy;
+  readonly consentCopy?: AnalyticsConsentCopy;
 }) {
   const { data: session, status } = useSession();
   const { scope, role, consent } = PORTALS[surface];
@@ -43,7 +44,7 @@ export function PortalAnalyticsSession({
     let requestSequence = 0;
     let cancelled = false;
     setAnalyticsContext({ surface, enabled: false });
-    if (status === "authenticated" && inScope) {
+    if (status === "authenticated" && inScope && consent) {
       if (accountId) startAnalyticsConsent(consent, accountId);
       const refresh = () => {
         setAnalyticsContext({ surface, enabled: false });
@@ -91,7 +92,7 @@ export function PortalAnalyticsSession({
       };
     } else if (status === "unauthenticated" || status === "authenticated") {
       clearPortalSession();
-      stopAnalyticsConsent(consent);
+      if (consent) stopAnalyticsConsent(consent);
       registeredRef.current = null;
     }
     return () => {
@@ -100,5 +101,7 @@ export function PortalAnalyticsSession({
     };
   }, [status, inScope, accountId, schoolId, surface, scope, role, consent]);
 
-  return <AnalyticsConsentPromptGate portal={consent} copy={consentCopy} />;
+  return consent && consentCopy ? (
+    <AnalyticsConsentPromptGate portal={consent} copy={consentCopy} />
+  ) : null;
 }
