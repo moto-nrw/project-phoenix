@@ -510,6 +510,14 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "PUT school /school/class-day/handover/schoolClass%2F1/date%2F1",
   ],
   "api/school/class-day/classes": ["GET school /school/class-day/classes"],
+  "api/school/class-day/day-hints/[schoolClass]/[date]": [
+    "DELETE school /school/class-day/day-hints/schoolClass%2F1/date%2F1",
+    "PUT school /school/class-day/day-hints/schoolClass%2F1/date%2F1",
+  ],
+  "api/school/class-day/day-hints/[schoolClass]/[date]/students/[studentId]": [
+    "DELETE school /school/class-day/day-hints/schoolClass%2F1/date%2F1/students/studentId%2F1",
+    "PUT school /school/class-day/day-hints/schoolClass%2F1/date%2F1/students/studentId%2F1",
+  ],
   "api/school/class-day/morning-attendance/[schoolClass]/[date]": [
     "PUT school /school/class-day/morning-attendance/schoolClass%2F1/date%2F1",
   ],
@@ -1021,6 +1029,8 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/templates/[id]/split": [
     "POST tenant /api/timetable/templates/id%2F1/split",
   ],
+  "api/traeger/access-log": ["GET traeger /traeger/access-log"],
+  "api/traeger/access-log/people": ["GET traeger /traeger/access-log/people"],
   "api/traeger/accounts": ["GET traeger /traeger/accounts/"],
   "api/traeger/accounts/[accountId]": [
     "DELETE traeger /traeger/accounts/accountId%2F1",

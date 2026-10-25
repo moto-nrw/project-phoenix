@@ -538,14 +538,18 @@ func noteCanBeEdited(note peopleModule.StudentNote) bool {
 		note.Subject.ActivityGroupID != nil || note.Subject.EducationGroupID != nil
 }
 
-// noteCanBeDeleted mirrors the owner's special case for a retained leadership
-// note. Once its reference is gone, the current group may not replace the
-// original audience; only administration may remove the retained record.
+// noteCanBeDeleted mirrors the owner's special cases: a day hint from moto
+// schule is withdrawn only there (#4795), and once a retained leadership
+// note's reference is gone, the current group may not replace the original
+// audience; only administration may remove the retained record.
 func noteCanBeDeleted(
 	note peopleModule.StudentNote,
 	audience securitycontract.StudentNoteAudience,
 	childEducationGroupID *int64,
 ) bool {
+	if note.Origin == peopleModule.StudentNoteOriginSchool {
+		return false
+	}
 	if note.Visibility == peopleModule.StudentNoteVisibilityGroupLeads &&
 		note.Subject.ActivityGroupID == nil && note.Subject.EducationGroupID == nil {
 		return audience.Admin

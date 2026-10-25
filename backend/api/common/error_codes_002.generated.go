@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetablePlanningTrackNameTaken              = "timetable.planning_track_name_taken"
+	CodeTimetablePlanningTrackNotFound               = "timetable.planning_track_not_found"
+	CodeTimetablePresenceWouldOverstaff              = "timetable.presence_would_overstaff"
+	CodeTimetableReopenAttendanceChanged             = "timetable.reopen_attendance_changed"
 	CodeTimetableReopenStaffBusy                     = "timetable.reopen_staff_busy"
 	CodeTimetableReopenStudentActive                 = "timetable.reopen_student_active"
 	CodeTimetableReopenSupervisionChanged            = "timetable.reopen_supervision_changed"
@@ -135,6 +139,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.planning_track_name_taken":               "business_rejection",
+	"timetable.planning_track_not_found":                "business_rejection",
+	"timetable.presence_would_overstaff":                "business_rejection",
+	"timetable.reopen_attendance_changed":               "business_rejection",
 	"timetable.reopen_staff_busy":                       "business_rejection",
 	"timetable.reopen_student_active":                   "business_rejection",
 	"timetable.reopen_supervision_changed":              "business_rejection",
