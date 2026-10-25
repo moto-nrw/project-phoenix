@@ -101,6 +101,30 @@ describe("HolidayRegistrationStatusCard", () => {
     );
   });
 
+  it("waits with the confirmation until the preview is computed again", () => {
+    render(
+      <ToastProvider>
+        <HolidayRegistrationStatusCard
+          periodId="5"
+          registration={HOLIDAY_REGISTRATION}
+          contribution={HOLIDAY_CONTRIBUTION}
+          previewPending
+          exemption
+          onExemptionChange={vi.fn()}
+          onChanged={vi.fn()}
+          onConfirmed={vi.fn(() => Promise.resolve())}
+        />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Beim Bestätigen von der Zahlung befreien (Leistungsbezug)",
+      }),
+    ).toBeChecked();
+  });
+
   it("names the missing rule when the parents state benefits", () => {
     renderCard({ ...HOLIDAY_REGISTRATION, benefitsDeclared: true }, vi.fn(), {
       ...HOLIDAY_CONTRIBUTION,

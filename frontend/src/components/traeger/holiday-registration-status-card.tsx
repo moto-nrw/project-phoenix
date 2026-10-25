@@ -54,6 +54,7 @@ export function HolidayRegistrationStatusCard({
   periodId,
   registration,
   contribution,
+  previewPending = false,
   exemption,
   onExemptionChange,
   onChanged,
@@ -63,6 +64,8 @@ export function HolidayRegistrationStatusCard({
   registration: HolidayRegistrationDetail;
   /** The contribution a confirmation freezes; null while it loads. */
   contribution: HolidayContribution | null;
+  /** The preview is computed again; the confirmation waits for it. */
+  previewPending?: boolean;
   /** The exemption the confirmation applies; the page shows its preview. */
   exemption: boolean;
   onExemptionChange: (exemption: boolean) => void;
@@ -151,7 +154,9 @@ export function HolidayRegistrationStatusCard({
                 size="md"
                 isLoading={running === "confirm"}
                 loadingText="Bestätigt …"
-                disabled={running !== null || contribution === null}
+                disabled={
+                  running !== null || contribution === null || previewPending
+                }
                 onClick={() => void confirm()}
               >
                 Bestätigen

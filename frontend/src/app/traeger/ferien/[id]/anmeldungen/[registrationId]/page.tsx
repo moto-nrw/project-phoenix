@@ -79,6 +79,9 @@ export default function TraegerHolidayRegistrationPage() {
   // The exemption the confirmation applies; it starts with the parents'
   // statement and the preview follows it.
   const [exemption, setExemption] = useState(false);
+  // While the preview is computed again, the confirmation waits for it: it
+  // must freeze the amount the card shows.
+  const [previewPending, setPreviewPending] = useState(false);
   const latestContribution = useRef(0);
   const { schools, error: schoolsError } = useTraegerSchools();
   const registrationLoad = useApiLoadError();
@@ -119,15 +122,20 @@ export default function TraegerHolidayRegistrationPage() {
   const refreshContribution = useCallback(
     async (withExemption: boolean) => {
       const request = ++latestContribution.current;
+      setPreviewPending(true);
       try {
         const next = await fetchHolidayContribution(
           periodId,
           registrationId,
           withExemption,
         );
-        if (request === latestContribution.current) setContribution(next);
+        if (request === latestContribution.current) {
+          setContribution(next);
+          setPreviewPending(false);
+        }
       } catch (err) {
         if (request !== latestContribution.current) return;
+        setPreviewPending(false);
         logger.warn("traeger_holiday_contribution_refresh_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -202,6 +210,7 @@ export default function TraegerHolidayRegistrationPage() {
             periodId={periodId}
             registration={registration}
             contribution={contribution}
+            previewPending={previewPending}
             exemption={exemption}
             onExemptionChange={changeExemption}
             onChanged={changed}
