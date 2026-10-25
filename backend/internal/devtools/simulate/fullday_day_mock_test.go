@@ -3,6 +3,7 @@ package simulate
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -89,12 +90,15 @@ func mockChildren(state *SeedState) []map[string]any {
 	return append(rows, map[string]any{"id": mockAPIOnlyChild, "first_name": "Lina", "school_class": "Klasse 1a", "day_planning_status": "comes_today"})
 }
 
-// mockDay is the server state the mock keeps: who is in which room.
+// mockDay is the server state the mock keeps: who is in which room, which
+// kiosk runs a session in which room, and which blocks run.
 type mockDay struct {
-	mu     sync.Mutex
-	room   map[string]float64
-	calls  []stampedCall
-	failed []stampedCall
+	mu       sync.Mutex
+	room     map[string]float64
+	sessions map[string]float64
+	running  map[int]bool
+	calls    []stampedCall
+	failed   []stampedCall
 }
 
 func (d *mockDay) inRoom(room float64) int {
@@ -112,7 +116,7 @@ func (d *mockDay) inRoom(room float64) int {
 // mockMensaPlaces children.
 func clockedDayServer(t *testing.T, clock *fakeClock) (*simulationHTTPTestServer, func() []stampedCall) {
 	t.Helper()
-	day := &mockDay{room: map[string]float64{}}
+	day := &mockDay{room: map[string]float64{}, sessions: map[string]float64{}, running: map[int]bool{}}
 	var state *SeedState
 	srv := newSimulationHTTPTestServer(func(w simulationHTTPResponseWriter, r *simulationHTTPRequest) {
 		body := map[string]any{}
@@ -162,19 +166,87 @@ func (d *mockDay) answer(call stampedCall, state *SeedState) (int, any) {
 			return simulationHTTPStatusOK, []map[string]any{{"id": 5, "absence_type": "sick"}}
 		}
 		return simulationHTTPStatusOK, []any{}
-	case call.Path == "/api/iot/checkin" || call.Path == "/api/iot/attendance/toggle":
+	case call.Path == "/api/iot/session/start":
+		room, _ := call.Body["room_id"].(float64)
+		d.sessions[call.Caller] = room
+		return simulationHTTPStatusOK, map[string]any{"active_group_id": 1}
+	case call.Path == "/api/iot/session/end":
+		delete(d.sessions, call.Caller)
+		return simulationHTTPStatusOK, map[string]any{}
+	case call.Path == "/api/iot/attendance/toggle":
+		if _, ok := d.sessions[call.Caller]; !ok {
+			// The device API attributes the toggle to the supervisor of the
+			// kiosk's session (authorizeIoTDeviceToggle).
+			return simulationHTTPStatusInternalServerError, map[string]string{"code": "general.server"}
+		}
 		return d.scan(call)
+	case call.Path == "/api/iot/checkin":
+		return d.scan(call)
+	case strings.HasPrefix(call.Path, "/api/timetable/operations/instances/"):
+		return d.blockAttendance(call, state)
+	case strings.HasPrefix(call.Path, "/api/timetable/instances/") && call.Method == "POST":
+		var id int
+		var transition string
+		if _, err := fmt.Sscanf(call.Path, "/api/timetable/instances/%d/%s", &id, &transition); err == nil {
+			d.running[id] = transition == "start"
+		}
+		return simulationHTTPStatusOK, map[string]any{"id": 77}
 	case call.Path == "/api/timetable/periods/bootstrap":
 		return simulationHTTPStatusOK, map[string]any{"periods": []map[string]any{{"start_date": "2000-01-01", "end_date": "2100-12-31", "is_active": true}}}
 	case call.Path == "/api/staff-messages/recipients":
 		return simulationHTTPStatusOK, []map[string]any{{"account_id": "900", "name": "Katarzyna Schmidt"}, {"account_id": "901", "name": "Julia Klein"}}
 	case call.Path == "/api/staff-messages/threads/open":
 		return simulationHTTPStatusOK, map[string]any{"thread_id": fmt.Sprint(mockTeamThread)}
+	case call.Path == fmt.Sprintf("/api/messages/threads/%d", mockParentThread) && call.Method == "GET":
+		return simulationHTTPStatusOK, map[string]any{"thread_id": fmt.Sprint(mockParentThread), "messages": []map[string]any{{"id": fmt.Sprint(mockParentMsg)}}}
+	case call.Path == fmt.Sprintf("/api/messages/threads/%d", mockParentThread) && call.Body["handled_up_to_message_id"] != fmt.Sprint(mockParentMsg):
+		// A parent wrote in the thread: a reply names the newest message the
+		// staff member saw (requireHandledBoundary).
+		return simulationHTTPStatusConflict, map[string]string{"code": "general.business_rejection"}
 	case strings.HasPrefix(call.Path, "/parent/me/messages/children/"):
 		return simulationHTTPStatusOK, map[string]any{"thread_id": fmt.Sprint(mockParentThread), "messages": []map[string]any{{"id": fmt.Sprint(mockParentMsg)}}}
 	default:
 		return simulationHTTPStatusOK, map[string]any{"id": 77}
 	}
+}
+
+// blockAttendance books a check-in or check-out on a running block. Its
+// planned caregivers and the admin may book the children of its roster; the
+// Mensa fills up. A block the mock does not plan (the open-room block) is
+// booked by the admin.
+func (d *mockDay) blockAttendance(call stampedCall, state *SeedState) (int, any) {
+	var id, studentID int
+	var action string
+	if _, err := fmt.Sscanf(call.Path, "/api/timetable/operations/instances/%d/students/%d/%s", &id, &studentID, &action); err != nil || !d.running[id] {
+		return simulationHTTPStatusConflict, map[string]string{"code": "timetable.instance_not_active"}
+	}
+	room, staff, roster := 10.0, []any{}, []int{studentID}
+	for _, block := range mockBlocks() {
+		if block["id"] == id {
+			room, staff = float64(block["room_id"].(int)), block["staff"].([]any)
+			roster, _ = block["student_ids"].([]int)
+		}
+	}
+	allowed := call.Caller == state.Accounts.Admin[0].Email
+	for _, planned := range staff {
+		entry := planned.(map[string]any)
+		for _, account := range state.Accounts.Betreuer {
+			allowed = allowed || (account.Email == call.Caller && int(account.StaffID) == entry["staff_id"] && entry["is_absent"] == false)
+		}
+	}
+	if !allowed || !slices.Contains(roster, studentID) {
+		return simulationHTTPStatusForbidden, map[string]string{"code": "timetable.operation_forbidden"}
+	}
+	tag := tagOf(int64(studentID))
+	if action == "check-out" {
+		delete(d.room, tag)
+		return simulationHTTPStatusOK, map[string]any{}
+	}
+	if room == mockMensa && d.room[tag] != mockMensa && d.inRoom(mockMensa) >= mockMensaPlaces {
+		return simulationHTTPStatusConflict, map[string]string{"code": codeBlockRoomCapacityExceeded}
+	}
+	d.room[tag] = room
+	return simulationHTTPStatusOK, map[string]any{}
 }
 
 // scan books the kiosk scans into the rooms; the Mensa fills up.

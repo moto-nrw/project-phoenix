@@ -131,28 +131,38 @@ func (rt *Runtime) parentWrites(parent int, childID int64, body string) (parentT
 	if err != nil {
 		return parentThread{}, fmt.Errorf("parent message: %w", err)
 	}
-	threadID, messageID, err := threadMessageIDs(raw)
+	threadID, _, err := threadMessageIDs(raw)
 	if err != nil {
 		return parentThread{}, fmt.Errorf("decode parent message: %w", err)
 	}
 	rt.Counts.Messages++
-	return parentThread{ThreadID: threadID, MessageID: messageID, ChildID: childID}, nil
+	return parentThread{ThreadID: threadID, ChildID: childID}, nil
 }
 
-// ogsAnswers replies in the conversation as the OGS and marks the parent's
-// message handled. The school admin of the screenshots writes, the admin of
-// the run when the profile has none.
+// ogsAnswers replies in the conversation as the OGS. Like the messages page,
+// it opens the conversation first and names the newest message it shows: the
+// reply marks the parents' messages up to it handled, and the API refuses a
+// reply without it once a parent wrote. The school admin of the screenshots
+// writes, the admin of the run when the profile has none.
 func (rt *Runtime) ogsAnswers(thread parentThread, body string) error {
-	reply := map[string]any{"body": body}
-	if thread.MessageID != 0 {
-		reply["handled_up_to_message_id"] = strconv.FormatInt(thread.MessageID, 10)
-	}
 	client := rt.Client
 	if lead, ok := rt.teamChatLead(); ok && lead.Email != "" {
 		var err error
 		if client, err = rt.staffClient(lead); err != nil {
 			return err
 		}
+	}
+	raw, err := client.Get(fmt.Sprintf("/api/messages/threads/%d", thread.ThreadID))
+	if err != nil {
+		return fmt.Errorf("OGS reads a parent conversation: %w", err)
+	}
+	_, newest, err := threadMessageIDs(raw)
+	if err != nil {
+		return fmt.Errorf("decode a parent conversation: %w", err)
+	}
+	reply := map[string]any{"body": body}
+	if newest != 0 {
+		reply["handled_up_to_message_id"] = strconv.FormatInt(newest, 10)
 	}
 	if _, err := client.Post(fmt.Sprintf("/api/messages/threads/%d", thread.ThreadID), reply); err != nil {
 		return fmt.Errorf("OGS reply to a parent: %w", err)

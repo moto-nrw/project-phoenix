@@ -22,6 +22,7 @@ const PAGE = `
   <div role="tablist">
     <button id="tab" role="tab" aria-selected="false">Notizen</button>
   </div>
+  <button id="toggle" aria-pressed="false">Kinder an- und abmelden</button>
   <ul id="area">
     <li>Eins</li><li>Zwei</li><li>Drei</li><li>Vier</li><li>Fünf</li><li>Sechs</li>
   </ul>
@@ -42,6 +43,13 @@ const PAGE = `
   // Der erste Klick wählt den Reiter nur kurz aus, dann dreht die Seite ihn
   // zurück; erst der zweite Klick hält.
   window.tabClicks = 0;
+  // Ein Schalter, der nach dem Klick anders heißt, wie der An- und
+  // Abmelde-Modus der Kindersuche.
+  const toggle = document.getElementById("toggle");
+  toggle.addEventListener("click", () => {
+    toggle.setAttribute("aria-pressed", "true");
+    toggle.textContent = "An- und Abmelde-Modus beenden";
+  });
   const tab = document.getElementById("tab");
   tab.addEventListener("click", () => {
     window.tabClicks += 1;
@@ -125,6 +133,16 @@ test("klicken wiederholt einen Reiter, den die Seite zurückdreht", async ({
       () => (window as unknown as { tabClicks: number }).tabClicks,
     ),
   ).toBe(2);
+});
+
+test("klicken endet auch, wenn der Klick das Ziel umbenennt", async ({
+  page,
+}) => {
+  const network = trackNetworkActivity(page, () => false);
+  await runStep(page, network, {
+    klicken: 'role=button[name="Kinder an- und abmelden"]',
+  });
+  await expect(page.locator("#toggle")).toHaveAttribute("aria-pressed", "true");
 });
 
 test("scrollen legt das Element unter die feste Kopfleiste", async ({

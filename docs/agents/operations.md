@@ -341,8 +341,11 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   shift start, planned blocks start at their planned time with their planned
   staff (the Frühbetreuung at 07:30, the blocks running at 12:00), and only
   caregivers on shift without a parallel block supervise the kiosk rooms that
-  open at 12:00. Children arrive class by class from 12:00, 12:15 and 12:35 or
-  at today's arrival exception; sick or not expected children stay away.
+  open at 12:00. A planned block has no kiosk: its planned caregiver checks the
+  children of its roster in on the block, and a kiosk scans only children into
+  its own session room. Children arrive class by class from 12:00, 12:15 and
+  12:35 or at today's arrival exception; sick or not expected children stay
+  away, and a class arriving before any room is open waits for 12:00.
   Colleagues on shift, parents and the OGS write messages between 07:45 and
   12:50. Every stamp lies before the browser's 13:30, and `set-clock` keeps the
   shift to the real time in `clock-shift` for the restore. Without

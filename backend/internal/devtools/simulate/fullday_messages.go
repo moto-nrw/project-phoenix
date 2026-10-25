@@ -20,11 +20,9 @@ type messageLog struct {
 	teamSenders []int64
 }
 
-// parentThread is a parent conversation and the parent message in it the OGS
-// answers.
+// parentThread is a parent conversation about a child.
 type parentThread struct {
-	ThreadID, MessageID int64
-	ChildID             int64
+	ThreadID, ChildID int64
 }
 
 // parentLogin is the parents portal side of a simulation client.

@@ -54,6 +54,40 @@ func scansOf(calls []stampedCall, id int64, action string) []string {
 	return scans
 }
 
+// checkInsOf lists clock and room of the child's room check-ins: a kiosk
+// scan into a room or a check-in on a running planned block.
+func checkInsOf(calls []stampedCall, id int64) []string {
+	blockRoom := map[int]int{}
+	for _, block := range mockBlocks() {
+		blockRoom[block["id"].(int)] = block["room_id"].(int)
+	}
+	var checkIns []string
+	for _, call := range calls {
+		var block int
+		var student int64
+		if _, err := fmt.Sscanf(call.Path, "/api/timetable/operations/instances/%d/students/%d/check-in", &block, &student); err == nil {
+			if _, planned := blockRoom[block]; planned && student == id {
+				checkIns = append(checkIns, fmt.Sprintf("%s %d", call.Clock, blockRoom[block]))
+			}
+			continue
+		}
+		if call.Path == "/api/iot/checkin" && call.Body["action"] == "checkin" && call.Body["student_rfid"] == tagOf(id) {
+			checkIns = append(checkIns, fmt.Sprintf("%s %v", call.Clock, call.Body["room_id"]))
+		}
+	}
+	return checkIns
+}
+
+// blockCallsOf lists clock and caller of the block's check-ins or
+// check-outs ("check-in", "check-out") of the child.
+func blockCallsOf(calls []stampedCall, block int, id int64, action string) []string {
+	var booked []string
+	for _, call := range callsTo(calls, fmt.Sprintf("/api/timetable/operations/instances/%d/students/%d/%s", block, id, action)) {
+		booked = append(booked, call.Clock+" "+call.Caller)
+	}
+	return booked
+}
+
 func TestRunFullDay_RunsTheDayInClockWaves(t *testing.T) {
 	t.Parallel()
 
@@ -81,10 +115,11 @@ func TestRunFullDay_RunsTheDayInClockWaves(t *testing.T) {
 		id := student.ID
 		if id == mockSickChild || id == mockAbsentChild || sick[id] {
 			assert.Empty(t, scansOf(calls, id, "confirm"), "child %d does not come today", id)
+			assert.Empty(t, checkInsOf(calls, id), "child %d does not come today", id)
 			continue
 		}
 		var afternoon []string
-		for _, scan := range scansOf(calls, id, "checkin") {
+		for _, scan := range checkInsOf(calls, id) {
 			if scan >= "11:00" {
 				afternoon = append(afternoon, strings.Fields(scan)[0])
 			}
@@ -132,10 +167,47 @@ func TestRunFullDay_StartsThePlannedBlocksAtTheirTime(t *testing.T) {
 		assert.NotEqual(t, "07:30", call.Clock, "no kiosk session beside the planned early care")
 	}
 	for id := firstEarlyMockChild; id < mockSickChild; id++ {
-		assert.Equal(t, []string{fmt.Sprintf("07:%02d %d", 28+id, mockOGSRoom)}, scansOf(calls, id, "checkin")[:1],
+		assert.Equal(t, []string{fmt.Sprintf("07:%02d %d", 28+id, mockOGSRoom)}, checkInsOf(calls, id)[:1],
 			"early child %d arrives one per minute in the block's room", id)
+		assert.Equal(t, []string{fmt.Sprintf("07:%02d claudia@test.de", 28+id)}, blockCallsOf(calls, mockEarlyCare, id, "check-in"),
+			"the substitute on the block checks child %d in, as a planned block has no kiosk", id)
+		assert.Equal(t, []string{"07:58 claudia@test.de"}, blockCallsOf(calls, mockEarlyCare, id, "check-out"),
+			"and out again when child %d goes to class", id)
 	}
-	assert.Empty(t, scansOf(calls, mockSickChild, "checkin"), "the sick child of the roster stays home")
+	assert.Empty(t, checkInsOf(calls, mockSickChild), "the sick child of the roster stays home")
+	for _, call := range callsTo(calls, "/api/iot/attendance/toggle") {
+		assert.GreaterOrEqual(t, call.Clock, "11:00", "no kiosk confirms an arrival while only the early care runs")
+	}
+}
+
+// A kiosk books the children of its own room: every scan into a room comes
+// from the kiosk whose session runs there, and the Mittagessen's children
+// are checked in on the block by the caregiver who eats with them.
+func TestRunFullDay_EachRoomTakesItsChildrenTheProductWay(t *testing.T) {
+	t.Parallel()
+
+	calls, _ := runClockedDay(t)
+
+	sessionRoom := map[string]any{}
+	for _, call := range calls {
+		switch {
+		case call.Path == "/api/iot/session/start":
+			sessionRoom[call.Caller] = call.Body["room_id"]
+		case call.Path == "/api/iot/session/end":
+			delete(sessionRoom, call.Caller)
+		case call.Path == "/api/iot/checkin" && call.Body["action"] == "checkin" && call.Body["room_id"] != nil:
+			assert.Equal(t, call.Body["room_id"], sessionRoom[call.Caller], "%s scan of %v at the kiosk of its room", call.Clock, call.Body["student_rfid"])
+		}
+	}
+
+	lunch := 0
+	for id := firstMockChild; id <= lastMockChild; id++ {
+		for _, booked := range blockCallsOf(calls, mockLunch, id, "check-in") {
+			assert.True(t, strings.HasSuffix(booked, " julia@test.de"), "child %d: %s", id, booked)
+			lunch++
+		}
+	}
+	assert.Positive(t, lunch, "the Mittagessen takes its roster on the block")
 }
 
 // Only caregivers with a shift that covers the session supervise, and none who
@@ -176,7 +248,7 @@ func TestRunFullDay_PlacesChildrenByTodaysPlan(t *testing.T) {
 
 	mensa := 0
 	for id := firstMockChild; id <= lastMockChild; id++ {
-		scans := scansOf(calls, id, "checkin")
+		scans := checkInsOf(calls, id)
 		if len(scans) > 0 && strings.HasSuffix(scans[len(scans)-1], fmt.Sprint(mockMensa)) {
 			mensa++
 			assert.LessOrEqual(t, id, int64(40), "only children of the Mittagessen roster eat in the Mensa")
@@ -189,14 +261,15 @@ func TestRunFullDay_PlacesChildrenByTodaysPlan(t *testing.T) {
 		if student.Class != "Klasse 4b" || sick[student.ID] {
 			continue
 		}
-		scans := scansOf(calls, student.ID, "checkin")
+		scans := checkInsOf(calls, student.ID)
 		require.Len(t, scans, 2, "child %d of Klasse 4b", student.ID)
 		assert.True(t, strings.HasPrefix(scans[0], "11:0"), "Klasse 4b arrives at 11:00: %v", scans)
 		assert.True(t, strings.HasPrefix(scans[1], "12:00"), "and moves on when the afternoon opens: %v", scans)
 	}
 
 	assert.NotEmpty(t, callsTo(calls, fmt.Sprintf("/api/students/%d/rfid", mockAPIOnlyChild)), "the admitted child gets a tag")
-	assert.Equal(t, "12:0", scansOf(calls, mockAPIOnlyChild, "confirm")[0][:4], "and arrives with Klasse 1a")
+	require.NotEmpty(t, checkInsOf(calls, mockAPIOnlyChild))
+	assert.Equal(t, "12:0", checkInsOf(calls, mockAPIOnlyChild)[0][:4], "and arrives with Klasse 1a")
 }
 
 // The day leaves messages at the times of its waves: colleagues on shift
@@ -234,10 +307,12 @@ func TestRunFullDay_WritesMessagesDuringTheDay(t *testing.T) {
 	assert.Equal(t, []string{
 		"08:30 POST /parent/me/messages/children/9 eltern9@test.de <nil>",
 		"12:46 GET /parent/me/messages/children/1 sabine@test.de <nil>",
-		"12:46 POST /api/messages/threads/41 katarzyna@test.de <nil>",
+		"12:46 GET /api/messages/threads/41 katarzyna@test.de <nil>",
+		"12:46 POST /api/messages/threads/41 katarzyna@test.de 7",
+		"12:50 GET /api/messages/threads/41 katarzyna@test.de <nil>",
 		"12:50 POST /api/messages/threads/41 katarzyna@test.de 7",
 		"12:50 POST /parent/me/messages/children/10 eltern10@test.de <nil>",
-	}, parents, "the first parent's chat ends with a recent OGS answer")
+	}, parents, "the OGS opens each conversation and answers up to the newest message it shows; the first parent's chat ends with a recent OGS answer")
 }
 
 // Without a clock setter every wave runs at once on the plan's times, so a
@@ -256,7 +331,7 @@ func TestRunFullDay_WithoutClockFollowsThePlan(t *testing.T) {
 	assert.NotEmpty(t, callsTo(calls, fmt.Sprintf("/api/timetable/instances/%d/start", mockEarlyCare)))
 	assert.NotEmpty(t, callsTo(calls, fmt.Sprintf("/api/timetable/instances/%d/start", mockLunch)))
 	assert.Len(t, callsTo(calls, "/api/iot/session/start"), 4)
-	assert.NotEmpty(t, scansOf(calls, 1, "checkin"))
+	assert.NotEmpty(t, checkInsOf(calls, 1))
 }
 
 func TestPlanArrivals_FollowsClassWavesAndExceptions(t *testing.T) {
@@ -281,15 +356,30 @@ func TestPlanArrivals_FollowsClassWavesAndExceptions(t *testing.T) {
 	assert.Equal(t, []int64{5}, plan.unterwegs)
 }
 
+func TestArrivalPlan_WaitQueuesBeforeTheChildrenOfThatTime(t *testing.T) {
+	t.Parallel()
+
+	plan := arrivalPlan{pending: []scheduledArrival{{at: at(11, 0), childID: 3}, {at: at(12, 0), childID: 2}, {at: at(12, 15), childID: 1}}}
+	plan.pending = plan.pending[1:] // child 3 arrives, but no room is open
+	plan.wait(3, sessionsStart)
+
+	var got []string
+	for _, arrival := range plan.pending {
+		got = append(got, fmt.Sprintf("%s %d", arrival.at, arrival.childID))
+	}
+	assert.Equal(t, []string{"12:00 3", "12:00 2", "12:15 1"}, got, "the waiting child comes first when the afternoon rooms open")
+}
+
 func TestRoomPlan_TriesTheBlockRoomFirstThenTheSessionsInTurn(t *testing.T) {
 	t.Parallel()
 
 	plan := newRoomPlan()
 	plan.openBlock(dayBlock{RoomID: 8, StudentIDs: []int64{1}})
-	plan.openSession(6)
-	plan.openSession(7)
+	plan.openSession(6, "d1")
+	plan.openSession(7, "d2")
 
 	assert.Equal(t, []int64{8, 6, 7}, plan.candidates(1))
+	assert.Equal(t, map[int64]string{6: "d1", 7: "d2"}, plan.sessionDevice, "each session room knows its kiosk")
 	assert.Equal(t, []int64{7, 6}, plan.candidates(2))
 	assert.Equal(t, []int64{6, 7}, plan.candidates(3))
 	assert.True(t, plan.isOpen(8))
@@ -320,3 +410,30 @@ const (
 	firstEarlyMockChild int64 = 2
 	lastMockChild       int64 = 100
 )
+
+func TestMergeChildren_TheCarePlanCountsOnlyOnACareDay(t *testing.T) {
+	t.Parallel()
+
+	seeded := []SeedStudent{{ID: 1}, {ID: 2}, {ID: 3}}
+	careDay := mergeChildren(seeded, []apiChild{
+		{ID: "1", DayPlanningStatus: "comes_today"},
+		{ID: "2", DayPlanningStatus: "not_coming_today"},
+		{ID: "3", DayPlanningStatus: "comes_today", Sick: true},
+	})
+	assert.Equal(t, []bool{false, true, true}, absences(careDay), "a care day keeps the plan")
+
+	weekend := mergeChildren(seeded, []apiChild{
+		{ID: "1", DayPlanningStatus: "not_coming_today"},
+		{ID: "2", DayPlanningStatus: "not_coming_today"},
+		{ID: "3", DayPlanningStatus: "not_coming_today", Sick: true},
+	})
+	assert.Equal(t, []bool{false, false, true}, absences(weekend), "a day that expects nobody says nothing about who comes; sick children stay home")
+}
+
+func absences(children []todayChild) []bool {
+	absent := make([]bool, len(children))
+	for i, child := range children {
+		absent[i] = child.Absent
+	}
+	return absent
+}

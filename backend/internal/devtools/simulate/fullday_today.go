@@ -101,9 +101,14 @@ type apiChild struct {
 	ArrivalIsException bool        `json:"arrival_is_exception"`
 }
 
-func (c apiChild) absent() bool {
-	return c.Sick || c.Excused || c.ClassTrip || c.DayPlanningStatus == "not_coming_today"
+// absent reports a child who does not come today. The care plan counts only
+// on a day it expects anybody: a day without any expected child (a local run
+// on a weekend) says nothing about who comes, like a day without shifts.
+func (c apiChild) absent(carePlanned bool) bool {
+	return c.Sick || c.Excused || c.ClassTrip || (carePlanned && c.notComingToday())
 }
+
+func (c apiChild) notComingToday() bool { return c.DayPlanningStatus == "not_coming_today" }
 
 func (c apiChild) arrivalException() wallClock {
 	if !c.ArrivalIsException || c.ArrivalTime == nil {
@@ -202,6 +207,7 @@ func todaysChildren(rt *Runtime) ([]apiChild, error) {
 // mergeChildren keeps the seed state's order and adds the children only the
 // API knows, by ID. A seeded child the API does not list keeps coming.
 func mergeChildren(seeded []SeedStudent, listed []apiChild) []todayChild {
+	carePlanned := slices.ContainsFunc(listed, func(child apiChild) bool { return !child.notComingToday() })
 	byID := make(map[int64]apiChild, len(listed))
 	for _, child := range listed {
 		if id, err := child.ID.Int64(); err == nil {
@@ -212,7 +218,7 @@ func mergeChildren(seeded []SeedStudent, listed []apiChild) []todayChild {
 	for _, student := range seeded {
 		child := todayChild{SeedStudent: student}
 		if listed, ok := byID[student.ID]; ok {
-			child.Absent, child.ArrivalException = listed.absent(), listed.arrivalException()
+			child.Absent, child.ArrivalException = listed.absent(carePlanned), listed.arrivalException()
 			delete(byID, student.ID)
 		}
 		children = append(children, child)
@@ -226,7 +232,7 @@ func mergeChildren(seeded []SeedStudent, listed []apiChild) []todayChild {
 		listed := byID[id]
 		children = append(children, todayChild{
 			SeedStudent: SeedStudent{ID: id, FirstName: listed.FirstName, LastName: listed.LastName, Class: listed.SchoolClass},
-			Absent:      listed.absent(), ArrivalException: listed.arrivalException(),
+			Absent:      listed.absent(carePlanned), ArrivalException: listed.arrivalException(),
 		})
 	}
 	return children

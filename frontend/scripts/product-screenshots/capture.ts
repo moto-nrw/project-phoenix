@@ -456,10 +456,17 @@ const TAB_MAX_CLICKS = 3;
  */
 async function clickStep(page: Page, selector: string): Promise<void> {
   const target = page.locator(selector).first();
+  // Vor dem Klick lesen: ein Klick kann das Ziel umbenennen (der Schalter
+  // „Kinder an- und abmelden“ heißt danach „An- und Abmelde-Modus beenden“),
+  // und ein Locator über den Namen fände es dann nie wieder.
+  const isTab = await target.evaluate(
+    (element) =>
+      element.getAttribute("role") === "tab" &&
+      element.getAttribute("aria-haspopup") === null,
+    undefined,
+    { timeout: 10_000 },
+  );
   await target.click({ timeout: 10_000 });
-  const isTab =
-    (await target.getAttribute("role")) === "tab" &&
-    (await target.getAttribute("aria-haspopup")) === null;
   if (!isTab) return;
   let clicks = 1;
   let nextClickAt = Date.now() + TAB_SELECT_MS;

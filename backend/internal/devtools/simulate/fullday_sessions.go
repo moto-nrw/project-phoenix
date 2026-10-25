@@ -44,15 +44,11 @@ func (startMiddayAction) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("no room opens at %s: no planned block, %d caregivers, %d devices, %d activities",
 			sessionsStart, len(rt.State.Accounts.Betreuer), len(rt.DeviceKeys), len(rt.State.Activities))
 	}
-	device, err := rt.primaryDevice()
-	if err != nil {
-		return err
-	}
 	for _, id := range early {
 		child, _ := rt.child(id)
 		rt.Rooms.leave(id)
 		rt.Counts.StudentsCheckedIn-- // place counts the child again
-		if err := rt.place(child.SeedStudent, device); err != nil {
+		if _, err := rt.place(child.SeedStudent); err != nil {
 			return err
 		}
 	}
@@ -132,7 +128,7 @@ func (rt *Runtime) startSession(deviceKey, actName string, supervisor AccountCre
 	rt.ActiveSessionDeviceKeys = append(rt.ActiveSessionDeviceKeys, deviceKey)
 	rt.SupervisorStaffIDs = append(rt.SupervisorStaffIDs, supervisor.StaffID)
 	if roomID != 0 {
-		rt.Rooms.openSession(roomID)
+		rt.Rooms.openSession(roomID, deviceKey)
 	}
 	rt.Counts.SessionsStarted++
 	fmt.Printf("  Started: %s (device: %s, supervisor: %s)\n", actName, device.Name, supervisor.Name)

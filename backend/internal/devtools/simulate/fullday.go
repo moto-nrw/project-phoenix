@@ -542,14 +542,14 @@ func (kioskOpenRoomStayAction) Run(_ context.Context, rt *Runtime) error {
 	if !ok {
 		return fmt.Errorf("RFID assignment missing for student %d", studentIDs[0])
 	}
-	primaryDevice, err := rt.primaryDevice()
+	kiosk, err := rt.kioskOf(rt.Rooms.childRoom[studentIDs[0]])
 	if err != nil {
 		return err
 	}
 	if _, err := rt.Client.DevicePost("/api/iot/move-to-room", map[string]any{
 		"student_rfid": rfidTag,
 		"room_id":      sporthalle,
-	}, primaryDevice.APIKey, rt.State.DevicePIN); err != nil {
+	}, kiosk.APIKey, rt.State.DevicePIN); err != nil {
 		return fmt.Errorf("book the released Sporthalle at the kiosk: %w", err)
 	}
 	rt.Counts.IndependentStays++

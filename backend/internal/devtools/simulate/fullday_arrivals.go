@@ -33,9 +33,11 @@ type roomPlan struct {
 	// the room of the running block each child is on.
 	blockRooms []int64
 	blockRoom  map[int64]int64
-	// sessionRooms are the rooms of the running kiosk sessions, in turn.
-	sessionRooms []int64
-	next         int
+	// sessionRooms are the rooms of the running kiosk sessions, in turn;
+	// sessionDevice is the kiosk that runs each of them.
+	sessionRooms  []int64
+	sessionDevice map[int64]string
+	next          int
 	// childRoom is the room each child was checked into; order lists the
 	// children in check-in order.
 	childRoom map[int64]int64
@@ -43,7 +45,7 @@ type roomPlan struct {
 }
 
 func newRoomPlan() roomPlan {
-	return roomPlan{blockRoom: map[int64]int64{}, childRoom: map[int64]int64{}}
+	return roomPlan{blockRoom: map[int64]int64{}, sessionDevice: map[int64]string{}, childRoom: map[int64]int64{}}
 }
 
 func (p *roomPlan) openBlock(block dayBlock) {
@@ -66,9 +68,14 @@ func (p *roomPlan) closeBlock(block dayBlock) {
 	}
 }
 
-func (p *roomPlan) openSession(roomID int64) { p.sessionRooms = append(p.sessionRooms, roomID) }
+func (p *roomPlan) openSession(roomID int64, deviceKey string) {
+	p.sessionRooms = append(p.sessionRooms, roomID)
+	p.sessionDevice[roomID] = deviceKey
+}
 
-func (p *roomPlan) closeSessions() { p.sessionRooms, p.next = nil, 0 }
+func (p *roomPlan) closeSessions() {
+	p.sessionRooms, p.sessionDevice, p.next = nil, map[int64]string{}, 0
+}
 
 // open reports whether any room takes children.
 func (p *roomPlan) open() bool { return len(p.blockRoom) > 0 || len(p.sessionRooms) > 0 }
@@ -170,6 +177,13 @@ func planArrivals(children []todayChild) arrivalPlan {
 	return plan
 }
 
+// wait moves the child's arrival to the time of day c, before the children
+// planned for then.
+func (p *arrivalPlan) wait(childID int64, c wallClock) {
+	i, _ := slices.BinarySearchFunc(p.pending, c, func(a scheduledArrival, c wallClock) int { return int(a.at - c) })
+	p.pending = slices.Insert(p.pending, i, scheduledArrival{at: c, childID: childID})
+}
+
 type sickCallsAction struct{}
 
 func (sickCallsAction) Name() string { return "report sick children" }
@@ -205,11 +219,11 @@ func (a arrivalsAction) Run(ctx context.Context, rt *Runtime) error {
 	if a.unregisteredOK {
 		fmt.Println("\nPhase 4: Recording attendance and checking in students...")
 	}
-	device, err := rt.primaryDevice()
-	if err != nil {
-		return err
-	}
 	if a.unregisteredOK {
+		device, err := rt.kioskOf(0)
+		if err != nil {
+			return err
+		}
 		if err := recordUnregisteredTag(rt, device); err != nil {
 			return err
 		}
@@ -217,13 +231,7 @@ func (a arrivalsAction) Run(ctx context.Context, rt *Runtime) error {
 	for len(rt.Arrivals.pending) > 0 && rt.Arrivals.pending[0].at < a.until {
 		next := rt.Arrivals.pending[0]
 		rt.Arrivals.pending = rt.Arrivals.pending[1:]
-		if err := rt.advanceClock(ctx, next.at); err != nil {
-			return err
-		}
-		if err := rt.ensureRoom(ctx, next.at); err != nil {
-			return err
-		}
-		if err := rt.arrive(next.childID, device); err != nil {
+		if err := rt.arriveAt(ctx, next); err != nil {
 			return err
 		}
 	}
@@ -231,6 +239,22 @@ func (a arrivalsAction) Run(ctx context.Context, rt *Runtime) error {
 		fmt.Printf("  %d attendance records, %d students checked in\n", rt.Counts.AttendanceRecords, rt.Counts.StudentsCheckedIn)
 	}
 	return nil
+}
+
+// arriveAt lets the child come at its time. A child arriving before the
+// midday rooms while nobody is free to open a room waits for them.
+func (rt *Runtime) arriveAt(ctx context.Context, next scheduledArrival) error {
+	if err := rt.advanceClock(ctx, next.at); err != nil {
+		return err
+	}
+	if err := rt.ensureRoom(ctx, next.at); err != nil {
+		return err
+	}
+	if !rt.Rooms.open() && next.at < sessionsStart {
+		rt.Arrivals.wait(next.childID, sessionsStart)
+		return nil
+	}
+	return rt.arrive(next.childID)
 }
 
 // recordUnregisteredTag exercises the real kiosk failure path too. The
@@ -250,38 +274,38 @@ func recordUnregisteredTag(rt *Runtime, device SeedDevice) error {
 	return nil
 }
 
-// arrive records the child's attendance unless the early care already did,
-// and checks the child into a room.
-func (rt *Runtime) arrive(childID int64, device SeedDevice) error {
+// arrive checks the child into a room. The check-in records the day's
+// attendance itself, as a kiosk scan or a block's check-in does. A child no
+// room takes is confirmed present at a running kiosk.
+func (rt *Runtime) arrive(childID int64) error {
 	child, ok := rt.child(childID)
 	if !ok {
 		return fmt.Errorf("arriving child %d is not a child of the day", childID)
 	}
-	if !rt.Present[child.ID] {
-		if err := rt.confirmAttendance(child.SeedStudent, device); err != nil {
-			return err
-		}
+	placed, err := rt.place(child.SeedStudent)
+	if err != nil || placed || rt.Present[child.ID] {
+		return err
 	}
-	return rt.place(child.SeedStudent, device)
+	return rt.confirmAttendance(child.SeedStudent)
 }
 
 // place checks the child into the room of its running block, otherwise into
-// the session rooms in turn. A full room passes the child on; a child no room
-// takes stays present without a room.
-func (rt *Runtime) place(student SeedStudent, device SeedDevice) error {
+// the session rooms in turn. A full room passes the child on; it reports
+// whether a room took the child.
+func (rt *Runtime) place(student SeedStudent) (bool, error) {
 	for _, roomID := range rt.Rooms.candidates(student.ID) {
-		err := rt.checkInto(student, roomID, device)
+		err := rt.checkInto(student, roomID)
 		if isCapacityError(err) {
 			continue
 		}
 		if err != nil {
-			return err
+			return false, err
 		}
 		rt.Rooms.record(student.ID, roomID)
 		rt.Counts.StudentsCheckedIn++
-		return nil
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
 
 func isCapacityError(err error) bool {
@@ -290,7 +314,7 @@ func isCapacityError(err error) bool {
 		return false
 	}
 	code := coded.HTTPErrorCode()
-	return code == codeRoomCapacityExceeded || code == codeActivityCapacityExceeded
+	return code == codeRoomCapacityExceeded || code == codeActivityCapacityExceeded || code == codeBlockRoomCapacityExceeded
 }
 
 func (rt *Runtime) studentTag(student SeedStudent) (string, error) {
@@ -301,7 +325,23 @@ func (rt *Runtime) studentTag(student SeedStudent) (string, error) {
 	return tag, nil
 }
 
-func (rt *Runtime) confirmAttendance(student SeedStudent, device SeedDevice) error {
+// markPresent notes that the day's attendance of the child is recorded.
+func (rt *Runtime) markPresent(id int64) {
+	if !rt.Present[id] {
+		rt.Present[id] = true
+		rt.Counts.AttendanceRecords++
+	}
+}
+
+// confirmAttendance records the child present without a room. The kiosk
+// attributes the confirmation to the supervisor of its session, so only a
+// kiosk that runs one can confirm; without one the child stays unrecorded.
+func (rt *Runtime) confirmAttendance(student SeedStudent) error {
+	device, ok := rt.runningKiosk()
+	if !ok {
+		fmt.Printf("  No kiosk runs a session; student %d waits without a room\n", student.ID)
+		return nil
+	}
 	tag, err := rt.studentTag(student)
 	if err != nil {
 		return err
@@ -309,13 +349,26 @@ func (rt *Runtime) confirmAttendance(student SeedStudent, device SeedDevice) err
 	if _, err := rt.Client.DevicePost("/api/iot/attendance/toggle", map[string]string{"rfid": tag, "action": "confirm"}, device.APIKey, rt.State.DevicePIN); err != nil {
 		return fmt.Errorf("record attendance for student %d: %w", student.ID, err)
 	}
-	rt.Present[student.ID] = true
-	rt.Counts.AttendanceRecords++
+	rt.markPresent(student.ID)
 	return nil
 }
 
-func (rt *Runtime) checkInto(student SeedStudent, roomID int64, device SeedDevice) error {
+// checkInto checks the child into the room the way the room takes children:
+// a running planned block through the check-in of its caregiver, a kiosk
+// session through a scan at its kiosk.
+func (rt *Runtime) checkInto(student SeedStudent, roomID int64) error {
+	if block, ok := rt.runningBlockIn(roomID); ok {
+		if err := rt.blockAttendance(block, student.ID, "check-in"); err != nil {
+			return err
+		}
+		rt.markPresent(student.ID)
+		return nil
+	}
 	tag, err := rt.studentTag(student)
+	if err != nil {
+		return err
+	}
+	device, err := rt.kioskOf(roomID)
 	if err != nil {
 		return err
 	}
@@ -324,12 +377,22 @@ func (rt *Runtime) checkInto(student SeedStudent, roomID int64, device SeedDevic
 	}, device.APIKey, rt.State.DevicePIN); err != nil {
 		return fmt.Errorf("check in student %d: %w", student.ID, err)
 	}
+	rt.markPresent(student.ID)
 	return nil
 }
 
-// leaveRoom ends the child's room visit; the child stays present for the day.
-func (rt *Runtime) leaveRoom(student SeedStudent, device SeedDevice) error {
+// leaveRoom ends the child's room visit the way the room took the child; the
+// child stays present for the day.
+func (rt *Runtime) leaveRoom(student SeedStudent) error {
+	roomID := rt.Rooms.childRoom[student.ID]
+	if block, ok := rt.runningBlockIn(roomID); ok {
+		return rt.blockAttendance(block, student.ID, "check-out")
+	}
 	tag, err := rt.studentTag(student)
+	if err != nil {
+		return err
+	}
+	device, err := rt.kioskOf(roomID)
 	if err != nil {
 		return err
 	}
@@ -339,6 +402,28 @@ func (rt *Runtime) leaveRoom(student SeedStudent, device SeedDevice) error {
 		return fmt.Errorf("check out student %d: %w", student.ID, err)
 	}
 	return nil
+}
+
+// kioskOf returns the kiosk a child in the room scans at: the kiosk of the
+// room's session, else any kiosk that runs a session, else the first one.
+func (rt *Runtime) kioskOf(roomID int64) (SeedDevice, error) {
+	if key, ok := rt.Rooms.sessionDevice[roomID]; ok {
+		return rt.State.Devices[key], nil
+	}
+	if device, ok := rt.runningKiosk(); ok {
+		return device, nil
+	}
+	return rt.primaryDevice()
+}
+
+// runningKiosk returns the first kiosk that runs a session. Only such a kiosk
+// can confirm an arrival or a daily checkout: the device API attributes both
+// to the supervisor of its session.
+func (rt *Runtime) runningKiosk() (SeedDevice, bool) {
+	if len(rt.ActiveSessionDeviceKeys) == 0 {
+		return SeedDevice{}, false
+	}
+	return rt.State.Devices[rt.ActiveSessionDeviceKeys[0]], true
 }
 
 // checkedInChildrenOutside lists, in check-in order, up to limit children who
@@ -371,16 +456,12 @@ func (middayActivityAction) Name() string { return "run mid-day activity" }
 func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Println("\nPhase 5: Mid-day activity (children unterwegs)...")
 
-	primaryDevice, err := rt.primaryDevice()
-	if err != nil {
-		return err
-	}
 	for _, id := range rt.Arrivals.unterwegs {
 		child, ok := rt.child(id)
 		if _, inRoom := rt.Rooms.childRoom[id]; !ok || !inRoom {
 			continue
 		}
-		if err := rt.leaveRoom(child.SeedStudent, primaryDevice); err != nil {
+		if err := rt.leaveRoom(child.SeedStudent); err != nil {
 			return err
 		}
 		rt.Rooms.leave(id)
@@ -398,16 +479,12 @@ func (earlyPickupsAction) Name() string { return "pick up children early" }
 // Run sends a few children of the first wave home after lunch.
 func (earlyPickupsAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Println("\nPhase 5e: Early pickups...")
-	primaryDevice, err := rt.primaryDevice()
-	if err != nil {
-		return err
-	}
 	for _, id := range rt.Arrivals.pickups {
 		child, ok := rt.child(id)
 		if !ok || !rt.Present[id] {
 			continue
 		}
-		if err := rt.dailyCheckout(child.SeedStudent, primaryDevice); err != nil {
+		if err := rt.dailyCheckout(child.SeedStudent); err != nil {
 			return err
 		}
 		rt.Rooms.leave(id)
@@ -425,15 +502,11 @@ func (endOfDayAction) Name() string { return "run end-of-day flow" }
 func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Println("\nPhase 6: End of day (daily checkout + end sessions)...")
 
-	primaryDevice, err := rt.primaryDevice()
-	if err != nil {
-		return err
-	}
 	for _, child := range rt.Children {
 		if !rt.Present[child.ID] || rt.Arrivals.home[child.ID] {
 			continue
 		}
-		if err := rt.dailyCheckout(child.SeedStudent, primaryDevice); err != nil {
+		if err := rt.dailyCheckout(child.SeedStudent); err != nil {
 			return err
 		}
 	}
@@ -450,11 +523,19 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 }
 
 // dailyCheckout sends a child home through the kiosk: pickup query, daily
-// checkout and the smiley feedback, as PyrePortal does.
-func (rt *Runtime) dailyCheckout(student SeedStudent, device SeedDevice) error {
+// checkout and the smiley feedback, as PyrePortal does. The child scans at
+// the kiosk of its room, or at another running kiosk when its room has none.
+func (rt *Runtime) dailyCheckout(student SeedStudent) error {
 	tag, err := rt.studentTag(student)
 	if err != nil {
 		return err
+	}
+	device, ok := rt.runningKiosk()
+	if key, inSession := rt.Rooms.sessionDevice[rt.Rooms.childRoom[student.ID]]; inSession {
+		device, ok = rt.State.Devices[key], true
+	}
+	if !ok {
+		return fmt.Errorf("daily checkout of student %d: no kiosk runs a session", student.ID)
 	}
 	if _, err := rt.Client.DevicePost("/api/iot/pickup-query", map[string]any{
 		"student_rfid": tag,

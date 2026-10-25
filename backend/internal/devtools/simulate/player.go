@@ -68,6 +68,9 @@ type Runtime struct {
 	// StaffOnLeave remembers, per checked staff member, whether an approved
 	// absence covers today.
 	StaffOnLeave map[int64]bool
+	// staffLogins are the signed-in clients of the caregivers who run the
+	// started blocks (fullday_blocks.go).
+	staffLogins map[int64]staffLogin
 	// adminLoginAt is when the admin last signed in, on the shared clock.
 	adminLoginAt time.Time
 	Counts       RuntimeCounts
@@ -153,6 +156,7 @@ func newRuntime(state *SeedState, client Client, opts FullDayOptions) *Runtime {
 		Present:        make(map[int64]bool),
 		ClockedInStaff: make(map[int64]bool),
 		StaffOnLeave:   make(map[int64]bool),
+		staffLogins:    make(map[int64]staffLogin),
 		Rooms:          newRoomPlan(),
 		messages:       messageLog{threads: map[int]parentThread{}},
 	}

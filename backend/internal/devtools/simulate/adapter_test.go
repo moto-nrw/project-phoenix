@@ -20,6 +20,7 @@ const (
 	simulationHTTPStatusNoContent           = testpkg.HTTPStatusNoContent
 	simulationHTTPStatusUnauthorized        = testpkg.HTTPStatusUnauthorized
 	simulationHTTPStatusConflict            = testpkg.HTTPStatusConflict
+	simulationHTTPStatusForbidden           = testpkg.HTTPStatusForbidden
 	simulationHTTPStatusInternalServerError = testpkg.HTTPStatusInternalServerError
 )
 

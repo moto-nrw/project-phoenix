@@ -205,8 +205,10 @@ func seedCarePlanDeviations(rt *Runtime, studentIDs []int64) error {
 		}
 	}
 	// The OGS sets the Abholart of one day itself (#3945), today, so the
-	// Kinderkarte and the class day show it on every dev machine.
-	departurePath := fmt.Sprintf("/api/students/%d/departure-exceptions/%s", studentIDs[0], today.String())
+	// Kinderkarte and the class day show it on every dev machine. The
+	// Abholart changes only on a care day: on a weekend without a weekend
+	// plan (the product screenshots) it lands on Monday.
+	departurePath := fmt.Sprintf("/api/students/%d/departure-exceptions/%s", studentIDs[0], seedWeekdayOnOrAfter(today).String())
 	if _, err := rt.Client.Put(departurePath, map[string]any{
 		"departure_mode": "pickup", "reason": "Die Mutter hat angerufen und holt heute selbst ab.",
 	}); err != nil {
