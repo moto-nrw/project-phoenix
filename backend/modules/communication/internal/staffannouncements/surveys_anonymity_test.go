@@ -348,9 +348,9 @@ func TestSurvey_ClosingWhileSubmissionWaitsRejectsTheSubmission(t *testing.T) {
 	commitClose := make(chan struct{})
 	closed := make(chan error, 1)
 	go func() {
-		closed <- f.inSchool(t, func(ctx context.Context) error {
+		closed <- testpkg.WithTenantTx(t, testpkg.Ctx(t), f.db, testpkg.Tenant(t), func(ctx context.Context, tx bun.Tx) error {
 			var pid int
-			if err := f.db.NewRaw("SELECT pg_backend_pid()").Scan(ctx, &pid); err != nil {
+			if err := tx.NewRaw("SELECT pg_backend_pid()").Scan(ctx, &pid); err != nil {
 				return err
 			}
 			if _, err := f.surveys.CloseSurvey(ctx, survey.ID); err != nil {
