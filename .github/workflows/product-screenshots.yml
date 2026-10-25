@@ -117,7 +117,11 @@ jobs:
       LOG_LEVEL: info
       LOG_TEXTLOGGING: "true"
       AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
-      AUTH_JWT_EXPIRY: 15m
+      # Die Simulation stellt die Uhr der VM in Sprüngen von 07:20 bis 12:45
+      # vor. Ein Zugriffstoken muss diesen Wegwerf-Stack mit synthetischen
+      # Daten deshalb über den Vormittag tragen; mit 15 Minuten lief es im
+      # Lauf für PR #4947 zwischen zwei Wellen ab.
+      AUTH_JWT_EXPIRY: 12h
       AUTH_JWT_REFRESH_EXPIRY: 168h
       OPERATOR_EMAIL: operator@example.com
       OPERATOR_PASSWORD: Screenshots1234%
