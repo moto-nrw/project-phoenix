@@ -8,6 +8,7 @@ import "context"
 // legal settings read.
 type intakeSettingsFake struct {
 	enrollmentEnabled    bool
+	moduleCancelled      bool
 	allowSubmissionEdit  bool
 	collectGradeLevel    bool
 	collectSchoolClass   bool
@@ -22,6 +23,9 @@ type intakeSettingsFake struct {
 var _ IntakeSettings = intakeSettingsFake{}
 
 func (f intakeSettingsFake) EnrollmentEnabled(context.Context) bool { return f.enrollmentEnabled }
+func (f intakeSettingsFake) OnlineAnmeldungBooked(context.Context) bool {
+	return !f.moduleCancelled
+}
 func (f intakeSettingsFake) AllowSubmissionEdit(context.Context) (bool, error) {
 	return f.allowSubmissionEdit, nil
 }

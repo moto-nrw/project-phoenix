@@ -35,7 +35,7 @@ var (
 	// must stay in sync.
 	reservedSlugs = map[string]bool{
 		"www": true, "api": true, "operator": true, "parents": true,
-		"eltern": true, "schule": true, "school": true, "grafana": true,
+		"eltern": true, "schule": true, "school": true, "traeger": true, "grafana": true,
 		"pyreportal": true, "help": true, "admin": true, "app": true,
 		"dashboard": true, "analytics": true, "status": true, "mail": true,
 		"staging": true, "demo": true, "ingest": true,
@@ -79,6 +79,8 @@ type Query interface {
 	OrganizationQuery
 	SchoolQuery
 	SchoolListQuery
+	TraegerMembershipQuery
+	TraegerErasureOrderQuery
 }
 
 // OrganizationQuery reads organizations and locks them before mutation.
@@ -134,6 +136,8 @@ type Command interface {
 type Capability interface {
 	Query
 	Command
+	TraegerMembershipCommand
+	TraegerErasureOrderCommand
 }
 
 func ValidateSlug(slug string) error {
@@ -182,6 +186,8 @@ func ErrorCode(err error) string {
 		return "school_not_deleted"
 	case errors.Is(err, ErrOrganizationDeleted):
 		return "school_organization_deleted"
+	case errors.Is(err, ErrOrganizationInactive):
+		return "organization_inactive"
 	default:
 		return "internal_error"
 	}

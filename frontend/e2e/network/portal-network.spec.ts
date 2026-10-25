@@ -110,7 +110,14 @@ async function observe(
   };
 }
 
-async function browserApi(page: Page, analytics: boolean) {
+// `consent` is the account's stored answer (#4901): null while undecided.
+async function browserApi(
+  page: Page,
+  analytics: boolean,
+  consent: boolean | null = analytics,
+) {
+  // The account's answer survives reloads like the stored backend row.
+  let stored = consent;
   await page.route(
     /^http:\/\/(?:proof-on|proof-off|eltern|schule)\.localhost:13843\/api\//,
     async (route) => {
@@ -122,7 +129,12 @@ async function browserApi(page: Page, analytics: boolean) {
       }
       let data: unknown = [];
       if (path.endsWith("/analytics-policy")) data = { enabled: analytics };
-      else if (path === "/api/staff-onboarding")
+      else if (path.endsWith("/analytics-consent")) {
+        if (route.request().method() === "PUT")
+          stored = (route.request().postDataJSON() as { granted: boolean })
+            .granted;
+        data = { granted: stored };
+      } else if (path === "/api/staff-onboarding")
         data = {
           dismissed: true,
           school_ready: false,
@@ -273,10 +285,9 @@ for (const analytics of [false, true]) {
         await visible(page.locator('input[type="email"]'));
         await visible(page.locator('input[type="password"]'));
         await diagnosticControl(page, proof.entries);
-        if (surface !== "ogs" || !analytics)
-          expect(proof.analytics()).toEqual([]);
-        else
-          await expect.poll(() => proof.analytics().length).toBeGreaterThan(0);
+        // Before login nobody has consented (#4901): no portal collects,
+        // whatever the school's switch says.
+        expect(proof.analytics()).toEqual([]);
         await proof.check("network-before-login");
         const beforeLogin = proof.entries.length;
         const previousAnalytics = proof.analytics().length;
@@ -409,6 +420,69 @@ for (const analytics of [false, true]) {
   }
 }
 
+// § 25 TDDDG (#4901): the school allows analytics, the account has not
+// decided. The prompt asks after login; nothing leaves the browser until
+// the person allows it, and nothing after a refusal.
+for (const answer of ["Erlauben", "Ablehnen"] as const) {
+  test(`ogs: consent prompt after login, answer ${answer}`, async ({
+    page,
+    context,
+  }) => {
+    const origin = `http://proof-on.localhost:${port}`;
+    const proof = await observe(context, origin, {
+      analytics: answer === "Erlauben",
+    });
+    await browserApi(page, true, null);
+    await context.addInitScript(() => {
+      localStorage.setItem(
+        "moto.tenant.notification-setup.v1.proof-on.1",
+        JSON.stringify({ done: true }),
+      );
+    });
+    try {
+      await page.goto(`${origin}/`, { waitUntil: "domcontentloaded" });
+      await visible(page.locator('input[type="email"]'));
+      await page.locator('input[type="email"]').fill("fixture@example.invalid");
+      await page
+        .locator('input[type="password"]')
+        .fill(randomBytes(24).toString("hex"));
+      await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+      await page.waitForURL((url) => url.pathname === "/home", {
+        waitUntil: "domcontentloaded",
+      });
+      const prompt = page.getByRole("dialog", {
+        name: "Nutzungsanalyse erlauben?",
+      });
+      // Anker: the prompt of the signed-in, undecided account is open.
+      await visible(prompt);
+      await diagnosticControl(page, proof.entries);
+      expect(proof.analytics()).toEqual([]);
+
+      await prompt.getByRole("button", { name: answer, exact: true }).click();
+      await expect.poll(() => prompt.isVisible()).toBe(false);
+      if (answer === "Erlauben")
+        await expect.poll(() => proof.analytics().length).toBeGreaterThan(0);
+
+      // The profile shows the stored answer; a refusal still sends nothing
+      // after a full page load of the signed-in session.
+      await page.goto(`${origin}/profile`, { waitUntil: "domcontentloaded" });
+      const toggle = page.getByRole("switch", {
+        name: "Nutzungsanalyse erlauben",
+      });
+      await visible(toggle);
+      await expect
+        .poll(() => toggle.getAttribute("aria-checked"))
+        .toBe(answer === "Erlauben" ? "true" : "false");
+      if (answer === "Ablehnen") {
+        await diagnosticControl(page, proof.entries);
+        expect(proof.analytics()).toEqual([]);
+      }
+    } finally {
+      await proof.check();
+    }
+  });
+}
+
 for (const analytics of [false, true]) {
   for (const captcha of [false, true]) {
     test(`public enrollment: analytics ${analytics}, captcha ${captcha}`, async ({
@@ -416,7 +490,11 @@ for (const analytics of [false, true]) {
       context,
     }) => {
       const origin = `http://proof-${analytics ? "on" : "off"}.localhost:${port}`;
-      const proof = await observe(context, origin, { analytics, captcha });
+      // Every /ingest request counts as forbidden here: no consent exists.
+      const proof = await observe(context, origin, {
+        analytics: false,
+        captcha,
+      });
       await page.route("**/api/enrollment/form-bootstrap/public/**", (route) =>
         route.fulfill({
           json: {
@@ -475,9 +553,9 @@ for (const analytics of [false, true]) {
         if (captcha)
           await expect.poll(() => proof.captcha().length).toBeGreaterThan(0);
         else expect(proof.captcha()).toEqual([]);
-        if (analytics)
-          await expect.poll(() => proof.analytics().length).toBeGreaterThan(0);
-        else expect(proof.analytics()).toEqual([]);
+        // An anonymous enrollment has no consent (#4901): nothing is
+        // collected, even where the school's switch allows it.
+        expect(proof.analytics()).toEqual([]);
       } finally {
         await proof.check();
       }

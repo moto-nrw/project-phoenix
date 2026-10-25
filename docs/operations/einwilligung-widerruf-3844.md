@@ -230,14 +230,17 @@ Details und Mengenprüfung: [Raumhistorie, Slice 3844-b](raumhistorie-3844-b.md)
 
 ### 2.3 Stimmungsabfrage / Feedback
 
-Schulweit: **Einstellungen → Datenschutz → Feedback der Kinder beim Gehen**
+Schulweit: **Einstellungen → Datenschutz → Feedback der Kinder zum Tag und zum Essen**
 (`feedback.enabled`). Berechtigung: `config:manage`.
 
 Erfassung erfolgt über Geräte-API `POST /iot/feedback` (Geräteauthentisierung)
 und Personal-API `POST /feedback/` bzw. `/feedback/batch` (`feedback:create`).
-Beide nutzen die Feedback-Funktion mit schulweiter Sperre. In den geprüften
-Elternportal-Routen gibt es weder eine Stimmungsabfrage noch einen eigenen
-Feedback-Einwilligungs-/Widerrufsweg. Eine Rückmeldung zu einem Elternbrief ist
+Beide nutzen die Feedback-Funktion mit schulweiter Sperre. Der Schalter deckt
+auch Essensbewertungen (`feedback.entries.is_mensa_feedback`) ab. Die
+Geräte-API speichert immer `is_mensa_feedback = false`; eine Essensbewertung
+entsteht nur über die Personal-API mit `is_mensa_feedback: true` (#4903).
+In den geprüften Elternportal-Routen gibt es weder eine Stimmungsabfrage noch
+einen eigenen Feedback-Einwilligungs-/Widerrufsweg. Eine Rückmeldung zu einem Elternbrief ist
 ein anderer Vorgang und schaltet diese Erfassung nicht um.
 
 1. **Erteilung:** Extern für den konkreten Zweck nachweisen. Erst nach Prüfung

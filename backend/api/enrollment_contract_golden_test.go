@@ -183,9 +183,17 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 			} `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &payload))
+		total := counter.Queries()
+		route := withoutModuleLock(t, total)
+		overview := make([]string, 0, len(route))
+		for _, query := range route {
+			if !strings.Contains(query, "setting_values") {
+				overview = append(overview, query)
+			}
+		}
 		return queryRun{
-			total:     counter.Queries(),
-			overview:  counter.Matching(func(query string) bool { return !strings.Contains(query, "setting_values") }),
+			total:     total,
+			overview:  overview,
 			settings:  counter.Selects("config.setting_values"),
 			responded: payload.Data.Responded,
 		}
@@ -201,8 +209,11 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	require.Equal(t, len(small.total), len(large.total), "response overview queries must not grow with the roster")
 	require.Equal(t, 1, small.responded, "the shallow rollover chain must resolve to its original child")
 	require.Equal(t, 2, large.responded, "the deeper rollover chain must resolve to its original child")
-	require.Len(t, small.settings, 1, "the route must resolve its settings once")
-	require.Len(t, large.settings, 1, "the route must resolve its settings once")
+	// withoutModuleLock already proved the module lock's single switch read;
+	// the route's own settings stay one read.
+	for _, run := range []queryRun{small, large} {
+		require.Len(t, run.settings, 2, "the module lock and the route must each resolve settings once")
+	}
 	countRolloverSourceQueries := func(queries []string) int {
 		count := 0
 		for _, query := range queries {
@@ -215,6 +226,31 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	require.Equal(t, 1, countRolloverSourceQueries(small.overview), "the shallow rollover chain must use one source query")
 	require.Equal(t, 1, countRolloverSourceQueries(large.overview), "a deeper rollover chain must not add source queries")
 	testpkg.AssertQueryBudget(t, "api.enrollment.phase_responses.list", large.overview)
+}
+
+// withoutModuleLock removes the module lock (#4893) from a request's
+// statements after proving its exact shape: one read transaction of its own,
+// opened before the handler, with one select of the module switch. The route
+// budget then measures the route alone, as before the lock.
+func withoutModuleLock(t *testing.T, queries []string) []string {
+	t.Helper()
+	for i := 3; i+1 < len(queries); i++ {
+		if !strings.Contains(queries[i], "config.setting_values") || !strings.Contains(queries[i], "'module.") {
+			continue
+		}
+		block := queries[i-3 : i+2]
+		require.Equal(t, "BEGIN", block[0], "the module lock reads in a transaction of its own")
+		require.Contains(t, block[1], "SET LOCAL ROLE phoenix_tenant", "the module lock reads as the tenant role")
+		require.Contains(t, block[2], "app.current_tenant_id", "the module lock reads inside the school's tenant scope")
+		require.Equal(t, "COMMIT", block[4], "the module lock reads nothing but its switch")
+		rest := append(append([]string{}, queries[:i-3]...), queries[i+2:]...)
+		for _, query := range rest {
+			require.Falsef(t, strings.Contains(query, "'module."), "the module lock must read its switch once: %s", query)
+		}
+		return rest
+	}
+	require.Fail(t, "the module lock did not read the module switch", strings.Join(queries, "\n"))
+	return nil
 }
 
 // checkEnrollmentAcceptanceGolden pins the acceptance decision (#2699) at the

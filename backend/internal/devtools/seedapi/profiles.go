@@ -53,9 +53,9 @@ type demoProfileDefinition struct {
 func fullOperationProfileDefinition() demoProfileDefinition {
 	return demoProfileDefinition{
 		Key:                 DefaultProfileKey,
-		OrganizationName:    "Demo-Träger Nord",
+		OrganizationName:    "Ganztag Nord e. V.",
 		OrganizationSlug:    "demo-traeger-nord",
-		SchoolName:          "Demo-Schule Vollbetrieb",
+		SchoolName:          "OGS Sonnenhof",
 		SchoolSlug:          DefaultProfileKey,
 		SchoolAdminEmail:    "vollbetrieb-admin@example.test",
 		SchoolAdminPassword: "Vollbetrieb1234%",
@@ -117,8 +117,10 @@ func fullOperationFeatureSettings() map[string]SeedSetting {
 		profileSettingGroupMode: {
 			Value: json.RawMessage(`"` + profileGroupModeFixed + `"`), ManagedBy: SettingManagedByTenant,
 		},
+		// The product screenshots photograph this school, including the
+		// spontaneous start on the supervision page (shot spontane-aktivitaet).
 		profileSettingWebSpontaneous: {
-			Value: json.RawMessage(`false`), ManagedBy: SettingManagedByTenant,
+			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant,
 		},
 		profileSettingEnrollmentEnabled: {
 			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant,
@@ -161,7 +163,7 @@ func fullOperationExpectedState() SeedExpectedState {
 func manualProfileDefinition() demoProfileDefinition {
 	return demoProfileDefinition{
 		Key:                 ManualProfileKey,
-		OrganizationName:    "Demo-Träger Nord",
+		OrganizationName:    "Ganztag Nord e. V.",
 		OrganizationSlug:    "demo-traeger-nord",
 		SchoolName:          "Demo-Schule Manuell",
 		SchoolSlug:          ManualProfileKey,

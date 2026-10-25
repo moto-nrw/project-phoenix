@@ -49,7 +49,7 @@ func (seedEnrollmentIncomeProofStep) Run(_ context.Context, rt *Runtime) error {
 	rt.Client.BindAuth(rt.TenantAuth)
 	slug := rt.Bootstrap.TenantSlug
 	raw, err := rt.Client.PostFileWithFields("/api/enrollment/"+slug+"/uploads", "file", "Einkommensbescheid-2025.pdf",
-		demoPDF("Einkommensbescheid 2025", []string{"Familie Lorenz", "Jahreseinkommen laut Steuerbescheid", "Demo-Dokument für die Anmeldung"}),
+		demoPDF("Einkommensbescheid 2025", []string{"Familie Lorenz", "Jahreseinkommen laut Steuerbescheid", "Kopie für die Anmeldung"}),
 		map[string]string{"phase_id": strconv.FormatInt(rt.Enrollment.PhaseID, 10), "field_key": seedIncomeProofKey})
 	if err != nil {
 		return fmt.Errorf("upload income proof: %w", err)

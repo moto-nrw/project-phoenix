@@ -48,6 +48,8 @@ const {
   mockSoftDeleteSchool,
   mockRestoreSchool,
   mockDeleteDevice,
+  mockAssignTraegerMember,
+  mockMutateTraegerMembers,
   mockPush,
   mockReplace,
 } = vi.hoisted(() => ({
@@ -70,6 +72,8 @@ const {
   mockSoftDeleteSchool: vi.fn(),
   mockRestoreSchool: vi.fn(),
   mockDeleteDevice: vi.fn(),
+  mockAssignTraegerMember: vi.fn(),
+  mockMutateTraegerMembers: vi.fn(),
   mockPush: vi.fn(),
   mockReplace: vi.fn(),
 }));
@@ -129,6 +133,7 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
       softDeleteSchool: mockSoftDeleteSchool,
       restoreSchool: mockRestoreSchool,
       deleteDevice: mockDeleteDevice,
+      assignTraegerMember: mockAssignTraegerMember,
     },
   };
 });
@@ -224,7 +229,7 @@ const mockSchool: {
   city: "Berlin",
   zip: "10115",
   phone: "",
-  email: "",
+  email: "info@test-school.example",
   active: true,
   hidden: false,
   deletedAt: null,
@@ -250,6 +255,8 @@ interface SetupOpts {
   accounts?: unknown[];
   devices?: unknown[];
   persons?: unknown[];
+  traegerMembers?: unknown[];
+  traegerMembersError?: Error;
 }
 
 function keyToString(key: unknown): string {
@@ -273,6 +280,8 @@ function setupSWR(opts: SetupOpts = {}) {
     accounts = [],
     devices = [],
     persons = [],
+    traegerMembers = [],
+    traegerMembersError,
   } = opts;
 
   mockUseSWR.mockImplementation((key: unknown) => {
@@ -310,6 +319,13 @@ function setupSWR(opts: SetupOpts = {}) {
           error: personsError,
           isLoading: personsLoading,
           mutate: vi.fn(),
+        };
+      case "operator-org-traeger-members":
+        return {
+          data: traegerMembers,
+          error: traegerMembersError,
+          isLoading: false,
+          mutate: mockMutateTraegerMembers,
         };
       default:
         return { data: undefined, isLoading: false, mutate: vi.fn() };
@@ -457,6 +473,9 @@ describe("OperatorOrganizationDetailPage", () => {
       target: { value: "INVALID!" },
     });
 
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
@@ -488,6 +507,9 @@ describe("OperatorOrganizationDetailPage", () => {
       target: { value: "BAD DOMAIN!" },
     });
 
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
@@ -521,6 +543,9 @@ describe("OperatorOrganizationDetailPage", () => {
     fireEvent.change(screen.getByLabelText(/Name/), {
       target: { value: "Dup School" },
     });
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     expect(
@@ -544,6 +569,9 @@ describe("OperatorOrganizationDetailPage", () => {
 
     fireEvent.change(screen.getByLabelText(/Name/), {
       target: { value: "New School" },
+    });
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
     });
     fireEvent.click(screen.getByText("Erstellen"));
 
@@ -573,6 +601,13 @@ describe("OperatorOrganizationDetailPage", () => {
 
     const toggleButton = await screen.findByLabelText("Deaktivieren");
     fireEvent.click(toggleButton);
+    // Deactivation signs the Träger-Büro out (#4657), so it asks first.
+    expect(mockUpdateOrganization).not.toHaveBeenCalled();
+    const dialog = await screen.findByRole("dialog", {
+      name: "Träger deaktivieren?",
+    });
+    expect(dialog).toHaveTextContent(/sofort\s+abgemeldet/);
+    fireEvent.click(screen.getByTestId("confirm-btn"));
 
     await waitFor(() => {
       expect(mockUpdateOrganization).toHaveBeenCalledWith(
@@ -849,6 +884,110 @@ describe("OperatorOrganizationDetailPage", () => {
     });
   });
 
+  describe("with the Träger-Büro tab active (#4649)", () => {
+    const member = {
+      accountId: "41",
+      email: "buero@traeger.example",
+      status: "active",
+      roles: ["administration", "read_only"],
+      activatedAt: "2026-10-01T08:00:00Z",
+    };
+
+    it("lists the people with Träger-Portal access and their roles", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({ traegerMembers: [member] });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText("buero@traeger.example"),
+      ).toBeInTheDocument();
+      const row = screen.getByText("buero@traeger.example").closest("tr")!;
+      expect(
+        within(row).getByText("Verwaltung, Nur lesen"),
+      ).toBeInTheDocument();
+      expect(within(row).getByText("Aktiv")).toBeInTheDocument();
+    });
+
+    it("says when nobody has access yet", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({ traegerMembers: [] });
+
+      await renderPage();
+
+      expect(
+        await screen.findByText(
+          "Noch niemand hat Zugang zum Träger-Portal dieses Trägers.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("assigns a person with a Träger role and reloads the list", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({ traegerMembers: [] });
+      mockAssignTraegerMember.mockResolvedValue(member);
+      mockMutateTraegerMembers.mockResolvedValue([member]);
+
+      await renderPage();
+
+      fireEvent.click(screen.getByRole("button", { name: "Person zuordnen" }));
+      const modal = await screen.findByTestId("modal");
+      fireEvent.change(within(modal).getByLabelText(/E-Mail des Kontos/), {
+        target: { value: " buero@traeger.example " },
+      });
+      fireEvent.click(
+        within(screen.getByTestId("modal-footer")).getByRole("button", {
+          name: "Zuordnen",
+        }),
+      );
+
+      await waitFor(() =>
+        expect(mockAssignTraegerMember).toHaveBeenCalledWith("1", {
+          email: "buero@traeger.example",
+          role: "administration",
+        }),
+      );
+      await waitFor(() => expect(mockMutateTraegerMembers).toHaveBeenCalled());
+      expect(
+        await screen.findByText("Die Person ist dem Träger-Büro zugeordnet."),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the modal open with the catalog text for an unknown e-mail", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({ traegerMembers: [] });
+      mockAssignTraegerMember.mockRejectedValue(
+        new ApiError("account not found", 404, {
+          code: "identity.account_not_found",
+        }),
+      );
+
+      await renderPage();
+
+      fireEvent.click(screen.getByRole("button", { name: "Person zuordnen" }));
+      const modal = await screen.findByTestId("modal");
+      fireEvent.change(within(modal).getByLabelText(/E-Mail des Kontos/), {
+        target: { value: "unbekannt@example.com" },
+      });
+      fireEvent.click(
+        within(screen.getByTestId("modal-footer")).getByRole("button", {
+          name: "Zuordnen",
+        }),
+      );
+
+      expect(
+        await screen.findByText(
+          catalogText(
+            "identity.account_not_found",
+            "die Zuordnung zum Träger-Büro",
+          ),
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("modal")).toBeInTheDocument();
+      expect(mockMutateTraegerMembers).not.toHaveBeenCalled();
+    });
+  });
+
   // --- Org-level toggle / edit / delete error paths ---
 
   it("surfaces an error message when toggling the org status fails", async () => {
@@ -858,6 +997,7 @@ describe("OperatorOrganizationDetailPage", () => {
     await renderPage();
 
     fireEvent.click(await screen.findByLabelText("Deaktivieren"));
+    fireEvent.click(await screen.findByTestId("confirm-btn"));
 
     // #2519: catalog text by code in a toast, not a local sentence.
     expect(

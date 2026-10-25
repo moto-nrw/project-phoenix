@@ -31,6 +31,28 @@ var (
 	ErrAccountAuthenticationUnavailable = errors.New("account authentication is not composed")
 )
 
+// PortalNotBookedError refuses a session of a portal whose module the school
+// has not booked (#4895): the parents portal belongs to the module Eltern-App,
+// the school portal to Unterricht am Vormittag. Module is the module key,
+// ModuleLabel its name; HTTP layers answer 403 module.not_booked with both.
+type PortalNotBookedError struct {
+	Module      string
+	ModuleLabel string
+}
+
+func (e *PortalNotBookedError) Error() string {
+	return "school has not booked the module " + e.Module
+}
+
+// PortalNotBooked returns the refusal of a portal whose module is not booked.
+func PortalNotBooked(err error) (*PortalNotBookedError, bool) {
+	var notBooked *PortalNotBookedError
+	if errors.As(err, &notBooked) {
+		return notBooked, true
+	}
+	return nil, false
+}
+
 // AuthenticationError reports which operation of a flow failed. Its text is
 // the retained auth service's ("auth error during <op>: <cause>") so the
 // responses that render it stay unchanged; Err carries the public sentinel
@@ -102,11 +124,13 @@ type SessionClaims struct {
 	IssuedAt      int64
 }
 
-// RefreshClaims is the content of a refresh token.
+// RefreshClaims is the content of a refresh token. A Träger session (scope
+// org) names its Träger in OrgID and no school.
 type RefreshClaims struct {
 	AccountID int64
 	Token     string
 	TenantID  int64
+	OrgID     int64
 	Scope     string
 	ExpiresAt int64
 }
@@ -313,11 +337,12 @@ type AccountAuthentication interface {
 	AccountPasswordConfirmation
 }
 
-// AccountLogin combines tenant, parent and school sign-in capabilities.
+// AccountLogin combines tenant, parent, school and Träger sign-in capabilities.
 type AccountLogin interface {
 	TenantAccountLogin
 	ParentAccountLogin
 	SchoolAccountLogin
+	TraegerAccountLogin
 }
 
 // TenantAccountLogin authenticates accounts at the tenant portal.

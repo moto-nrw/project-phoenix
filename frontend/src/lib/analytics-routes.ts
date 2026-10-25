@@ -170,6 +170,17 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
   "/tagesinformationen",
 ] as const;
 
+/** Träger portal pages under `app/traeger`, as the Träger host shows them. */
+export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
+  "/",
+  "/accounts",
+  "/ferien",
+  "/ferien/:id",
+  "/ferien/neu",
+  "/invite",
+  "/login",
+] as const;
+
 /** Public pages of the bare domain: school choice, start, demo, help. */
 export const TRACKED_PUBLIC_ROUTE_TEMPLATES = [
   "/",
@@ -184,7 +195,8 @@ export const TRACKED_PUBLIC_ROUTE_TEMPLATES = [
   "/start",
 ] as const;
 
-export type AnalyticsRouteSurface = "ogs" | "parents" | "school" | "public";
+export type AnalyticsRouteSurface =
+  "ogs" | "parents" | "school" | "traeger" | "public";
 
 /** Path of every page without a template; never the raw browser path. */
 export const UNKNOWN_ANALYTICS_PATH = "/unknown";
@@ -222,6 +234,7 @@ const matchersBySurface: Readonly<
   ]),
   parents: buildMatchers(TRACKED_PARENT_ROUTE_TEMPLATES),
   school: buildMatchers(TRACKED_SCHOOL_ROUTE_TEMPLATES),
+  traeger: buildMatchers(TRACKED_TRAEGER_ROUTE_TEMPLATES),
   public: buildMatchers(TRACKED_PUBLIC_ROUTE_TEMPLATES),
 };
 
@@ -257,6 +270,11 @@ function resolveOnSurface(
         "school",
         withoutPrefix(pathname, "/school") ?? pathname,
       );
+    case "traeger":
+      return matchTemplate(
+        "traeger",
+        withoutPrefix(pathname, "/traeger") ?? pathname,
+      );
     case "ogs": {
       // Path routing (`/<slug>/dashboard`) puts the tenant slug first. A
       // single segment stays as it is, so an unknown page never counts as
@@ -275,6 +293,8 @@ function resolveOnSurface(
       if (parentsPath) return matchTemplate("parents", parentsPath);
       const schoolPath = withoutPrefix(pathname, "/school");
       if (schoolPath) return matchTemplate("school", schoolPath);
+      const traegerPath = withoutPrefix(pathname, "/traeger");
+      if (traegerPath) return matchTemplate("traeger", traegerPath);
       return (
         matchTemplate("public", pathname) ?? resolveOnSurface("ogs", pathname)
       );

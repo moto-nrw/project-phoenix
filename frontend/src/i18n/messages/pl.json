@@ -607,6 +607,22 @@
     "appInstallGenericDescription": "Dodaj moto do ekranu głównego telefonu i otwieraj je jak aplikację.",
     "appInstallGuide": "Otwórz instrukcję"
   },
+  "analyticsConsent": {
+    "title": "Analiza korzystania",
+    "promptTitle": "Zezwolić na analizę korzystania?",
+    "promptIntro": "moto chce liczyć, z których stron i przycisków Pan/Pani korzysta. Dzięki temu ulepszamy moto.",
+    "promptPrivacy": "moto nie widzi przy tym imion ani wpisywanych treści.",
+    "promptNoDisadvantage": "Jeśli Pan/Pani odmówi, może Pan/Pani korzystać z moto tak samo.",
+    "promptChangeLater": "Wybór dotyczy Pana/Pani konta. Można go zmienić w każdej chwili w „Ustawieniach”.",
+    "allow": "Zezwól",
+    "refuse": "Odmów",
+    "saving": "Zapisywanie…",
+    "closeLabel": "Zdecyduj później",
+    "sectionDescription": "Czy moto może liczyć, z których stron i przycisków Pan/Pani korzysta? moto nie widzi przy tym imion ani wpisywanych treści. Decyduje tylko Pan/Pani.",
+    "switchLabel": "Zezwól na analizę korzystania",
+    "schoolOff": "Szkoła wyłączyła analizę korzystania. Pana/Pani wybór zacznie obowiązywać, gdy szkoła ją ponownie włączy.",
+    "errorObject": "ustawienie analizy korzystania"
+  },
   "pwaInstallHint": {
     "title": "moto jako aplikacja",
     "samsungDescription": "Proszę nie instalować moto przez Samsung Internet. Proszę otworzyć moto w Chrome i tam się zalogować.",
@@ -2327,6 +2343,7 @@
         "class_trip_return_time_weekend": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "class_trip_status_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "class_trip_student_not_in_class": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "homework_not_found": "Tego zadania domowego już nie ma. Odśwież stronę.",
         "morning_attendance_no_school_day": "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
         "morning_attendance_not_today": "Obecność można wpisać tylko na dziś. Otwórz dzisiejszy dzień.",
         "morning_attendance_unknown_child": "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
@@ -2470,7 +2487,11 @@
         "submission_rate_limited": "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
         "waitlist_disabled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "window_closed": "Termin zapisów minął lub jeszcze się nie zaczął. Skontaktuj się ze szkołą.",
-        "withdraw_not_allowed": "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą."
+        "withdraw_not_allowed": "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą.",
+        "holiday_host_school_outside_traeger": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "holiday_period_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "holiday_period_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "holiday_period_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "files": {
         "announcement_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2773,6 +2794,9 @@
         "guardian_notice_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "guardian_notice_past": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "guardian_notice_text_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "homework_feedback_child_not_in_supervision": "To dziecko nie należy do tej opieki. Odśwież stronę.",
+        "homework_feedback_not_allowed": "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
+        "homework_feedback_without_homework": "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
         "idempotency_key_reused": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "instance_end_before_start": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "instance_in_past": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2950,6 +2974,10 @@
         "organization_not_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "organization_has_schools": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "organization_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "traeger_active": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "traeger_erasure_order_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "traeger_erasure_order_open": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "traeger_erasure_started": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "school_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "school_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "school_already_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2978,6 +3006,9 @@
         "module_requires": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "module_required_by": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
+      "module": {
+        "not_booked": "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto."
+      },
       "devices": {
         "tag_scan_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "tag_scan_already_resolved": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
@@ -3001,6 +3032,12 @@
       },
       "operator": {
         "audit_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie."
+      },
+      "traeger": {
+        "already_member": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "last_administrator": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "member_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "no_membership": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       }
     },
     "actions": {

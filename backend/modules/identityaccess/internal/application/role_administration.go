@@ -428,9 +428,6 @@ func (r *RoleAdministration) accountRoles(ctx context.Context, accountID int64) 
 	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return nil, failed("get account roles", domain.ErrAccountNotFound)
 	}
-	if err := r.ensureOrganizationRBACMembership(ctx, accountID, "get account roles", false); err != nil {
-		return nil, err
-	}
 	roles, err := r.store.ListAccountRoles(ctx, accountID)
 	if err != nil {
 		return nil, failed("get account roles", err)
@@ -525,36 +522,10 @@ func (r *RoleAdministration) lockManageableAccount(ctx context.Context, accountI
 	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
 		return failed(op, domain.ErrAccountNotFound)
 	}
-	if err := r.ensureOrganizationRBACMembership(ctx, accountID, op, false); err != nil {
-		return err
-	}
 	if found, err := r.store.LockAccount(ctx, accountID); err != nil || !found {
 		return failed(op, domain.ErrAccountNotFound)
 	}
 	if _, err := r.accounts.FindManageableAccount(ctx, accountID); err != nil {
-		return failed(op, domain.ErrAccountNotFound)
-	}
-	if err := r.ensureOrganizationRBACMembership(ctx, accountID, op, true); err != nil {
-		return err
-	}
-	return nil
-}
-
-// ensureOrganizationRBACMembership restricts organisation-scoped callers to
-// accounts mapped to the school in context. Tenant and platform scopes pass.
-func (r *RoleAdministration) ensureOrganizationRBACMembership(ctx context.Context, accountID int64, op string, lock bool) error {
-	if r.runtime.Scope(ctx) != domain.ScopeOrg {
-		return nil
-	}
-	tenantID := r.runtime.TenantID(ctx)
-	if tenantID == 0 {
-		return failed(op, domain.ErrAccountNotFound)
-	}
-	exists, err := r.store.HasTenantMembership(ctx, accountID, tenantID, lock)
-	if err != nil {
-		return failed(op, err)
-	}
-	if !exists {
 		return failed(op, domain.ErrAccountNotFound)
 	}
 	return nil

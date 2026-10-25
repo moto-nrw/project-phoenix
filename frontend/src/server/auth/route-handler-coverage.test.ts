@@ -5,7 +5,7 @@ import path from "node:path";
 const API_ROOT = path.join(process.cwd(), "src/app/api");
 const AUTH_IMPORT = /(?:~\/server\/auth|server\/auth)/;
 const RESPONSE_AWARE_ROUTE =
-  /with(?:Tenant|Operator|Parent|School)Auth|create(?:FileUpload|Get|Post|Put|Patch|Delete)Handler/;
+  /with(?:Tenant|Operator|Parent|School|Traeger)Auth|create(?:FileUpload|Get|Post|Put|Patch|Delete)Handler/;
 
 function routeFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -41,6 +41,7 @@ describe("authenticated route response coverage", () => {
       ["src/lib/operator/route-wrapper.server.ts", "withOperatorAuth"],
       ["src/lib/parent/route-wrapper.server.ts", "withParentAuth"],
       ["src/lib/school/route-wrapper.server.ts", "withSchoolAuth"],
+      ["src/lib/traeger/route-wrapper.server.ts", "withTraegerAuth"],
     ] as const;
 
     for (const [file, expectedWrapper] of wrappers) {

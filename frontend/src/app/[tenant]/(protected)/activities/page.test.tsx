@@ -8,6 +8,9 @@ import {
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { MODULE_KEYS } from "~/lib/modules";
+import type { TenantInfo } from "~/lib/tenant-api";
+import { useBookedModules, useTenantSafe } from "~/lib/tenant-context";
 import ActivitiesPage from "./page";
 
 const { mockToastSuccess, mockPush, mockRedirect } = vi.hoisted(() => ({
@@ -284,6 +287,36 @@ describe("ActivitiesPage", () => {
       expect(mockToastSuccess).toHaveBeenCalledWith("Gespeichert");
       expect(mockMutate).toHaveBeenCalled();
     });
+  });
+
+  it("does not mount activity data hooks without NFC attendance", () => {
+    vi.mocked(useTenantSafe).mockReturnValue({
+      tenantSlug: "test-tenant",
+      tenant: { tenantId: 1, slug: "test-tenant" } as TenantInfo,
+      routingMode: "subdomain",
+    });
+    vi.mocked(useBookedModules).mockReturnValue(
+      MODULE_KEYS.filter((key) => key !== "nfc_anwesenheit"),
+    );
+    try {
+      render(<ActivitiesPage />);
+
+      // Anker: Der gesperrte Seitenzustand ist gerendert.
+      expect(
+        screen.getByText("NFC-Anwesenheit ist nicht gebucht"),
+      ).toBeVisible();
+      expect(useSWRAuth).not.toHaveBeenCalled();
+      expect(
+        screen.queryByLabelText("Aktivität erstellen"),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.mocked(useTenantSafe).mockReturnValue({
+        tenantSlug: "test-tenant",
+        tenant: null,
+        routingMode: "path",
+      });
+      vi.mocked(useBookedModules).mockReturnValue(MODULE_KEYS);
+    }
   });
 
   it("filters activities by search and my activities", async () => {

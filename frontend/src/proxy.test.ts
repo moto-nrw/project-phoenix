@@ -5,11 +5,13 @@ import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 const OPERATOR_HOSTNAME = "operator.localhost:3000";
 const PARENTS_HOSTNAME = "parents.localhost:3000";
 const SCHOOL_HOSTNAME = "schule.localhost:3000";
+const TRAEGER_HOSTNAME = "traeger.localhost:3000";
 const POSTHOG_KEY = "phc_test_key_123";
 
 vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", SCHOOL_HOSTNAME);
+vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", TRAEGER_HOSTNAME);
 vi.stubEnv("TENANT_DOMAIN", "localhost");
 vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", POSTHOG_KEY);
 
@@ -44,6 +46,17 @@ describe("proxy env validation", () => {
     // Restore for subsequent imports
     vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
     vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
+  });
+
+  it("throws when NEXT_PUBLIC_TRAEGER_HOSTNAME is missing", async () => {
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "");
+
+    await expect(
+      // @ts-expect-error , query string forces fresh module evaluation
+      import("./proxy?missing-traeger"),
+    ).rejects.toThrow("NEXT_PUBLIC_TRAEGER_HOSTNAME is not set");
+
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", TRAEGER_HOSTNAME);
   });
 
   it("throws when TENANT_DOMAIN is missing", async () => {
@@ -858,6 +871,104 @@ describe("proxy", () => {
       expect(res.headers.get("location")).toBeNull();
       expect(res.headers.get("x-middleware-rewrite")).toBeNull();
       expect(res.status).toBe(200);
+    });
+  });
+
+  describe("Träger subdomain (moto träger, #4649)", () => {
+    it("rewrites / to /traeger (the school list)", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain("/traeger");
+    });
+
+    it("rewrites /login to /traeger/login", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/login`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/login",
+      );
+    });
+
+    it("rewrites the holiday periods to /traeger/ferien (#4659)", () => {
+      for (const path of ["/ferien", "/ferien/neu", "/ferien/12"]) {
+        const res = proxy(
+          makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),
+        );
+
+        expect(res.headers.get("location")).toBeNull();
+        expect(res.headers.get("x-middleware-rewrite")).toContain(
+          `/traeger${path}`,
+        );
+      }
+    });
+
+    it("passes through /api/traeger/* without rewriting", () => {
+      for (const path of [
+        "/api/traeger/auth/session",
+        "/api/traeger/schools",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),
+        );
+
+        expect(res.status).toBe(200);
+        expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+        expect(res.headers.get("location")).toBeNull();
+      }
+    });
+
+    it("returns 404 for the other portals' API and auth routes", () => {
+      for (const path of [
+        "/api/auth/session",
+        "/api/operator/auth/session",
+        "/api/parent/auth/session",
+        "/api/school/auth/session",
+        "/api/students",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),
+        );
+        expect(res.status).toBe(404);
+      }
+    });
+
+    it("redirects tenant pages like /dashboard to /", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/dashboard`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toContain(`${TRAEGER_HOSTNAME}/`);
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    });
+
+    it("redirects /traeger/* on other hosts to the Träger host", () => {
+      const res = proxy(
+        makeRequest("http://localhost:3000/traeger/login", "localhost:3000"),
+      );
+
+      const redirect = res.headers.get("location");
+      expect(redirect).toContain(TRAEGER_HOSTNAME);
+      expect(redirect).toContain("/login");
+      expect(redirect).not.toContain("/traeger/login");
+    });
+
+    it("never resolves traeger as a tenant subdomain", () => {
+      const res = proxy(
+        makeRequest(
+          "http://traeger.localhost:3000/dashboard",
+          "traeger.localhost:3001",
+        ),
+      );
+
+      // Anker: the bare-domain branch answers without a tenant rewrite.
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
     });
   });
 

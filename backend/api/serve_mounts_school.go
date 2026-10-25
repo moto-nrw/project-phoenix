@@ -161,6 +161,7 @@ func newTimetableResource(
 		SettingsService:         settings,
 		OfferingSourceOptions:   NewTimetableOfferingSources(careOfferings),
 		SupervisionSheets:       NewTimetableSupervisionSheets(classDay.ClassDay),
+		HomeworkFeedback:        timetableOwner,
 		PlanExportService:       planExport,
 		PickupExtensions:        pickupExtensions,
 		Staffing:                timetableStaffingAnnouncer(lifecycle.Instances),

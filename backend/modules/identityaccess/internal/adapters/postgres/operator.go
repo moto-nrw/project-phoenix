@@ -47,34 +47,35 @@ func operatorRowFromDomain(operator domain.Operator) operatorRow {
 	}
 }
 
-// operatorSessionRow mirrors platform.operator_refresh_tokens.
+// operatorSessionRow mirrors platform.operator_refresh_tokens. The token
+// columns hold hex SHA-256 digests only (#4902).
 type operatorSessionRow struct {
-	bun.BaseModel     `bun:"table:platform.operator_refresh_tokens,alias:operator_refresh_token"`
-	ID                int64      `bun:"id,pk,autoincrement"`
-	OperatorID        int64      `bun:"operator_id,notnull"`
-	Token             string     `bun:"token,notnull"`
-	Expiry            time.Time  `bun:"expiry,notnull"`
-	FamilyID          string     `bun:"family_id,notnull"`
-	Generation        int        `bun:"generation,notnull,default:0"`
-	RotatedAt         *time.Time `bun:"rotated_at"`
-	ReplacementToken  *string    `bun:"replacement_token"`
-	RecoveryProofHash []byte     `bun:"recovery_proof_hash"`
-	CreatedAt         time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt         time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	bun.BaseModel        `bun:"table:platform.operator_refresh_tokens,alias:operator_refresh_token"`
+	ID                   int64      `bun:"id,pk,autoincrement"`
+	OperatorID           int64      `bun:"operator_id,notnull"`
+	TokenHash            string     `bun:"token,notnull"`
+	Expiry               time.Time  `bun:"expiry,notnull"`
+	FamilyID             string     `bun:"family_id,notnull"`
+	Generation           int        `bun:"generation,notnull,default:0"`
+	RotatedAt            *time.Time `bun:"rotated_at"`
+	ReplacementTokenHash *string    `bun:"replacement_token"`
+	RecoveryProofHash    []byte     `bun:"recovery_proof_hash"`
+	CreatedAt            time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt            time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 func (r operatorSessionRow) toDomain() domain.OperatorSession {
 	return domain.OperatorSession{
-		ID: r.ID, OperatorID: r.OperatorID, Token: r.Token, Expiry: r.Expiry, FamilyID: r.FamilyID, Generation: r.Generation,
-		RotatedAt: r.RotatedAt, ReplacementToken: r.ReplacementToken, RecoveryProofHash: r.RecoveryProofHash,
+		ID: r.ID, OperatorID: r.OperatorID, TokenHash: r.TokenHash, Expiry: r.Expiry, FamilyID: r.FamilyID, Generation: r.Generation,
+		RotatedAt: r.RotatedAt, ReplacementTokenHash: r.ReplacementTokenHash, RecoveryProofHash: r.RecoveryProofHash,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
 func operatorSessionRowFromDomain(session domain.OperatorSession) operatorSessionRow {
 	return operatorSessionRow{
-		ID: session.ID, OperatorID: session.OperatorID, Token: session.Token, Expiry: session.Expiry, FamilyID: session.FamilyID, Generation: session.Generation,
-		RotatedAt: session.RotatedAt, ReplacementToken: session.ReplacementToken, RecoveryProofHash: session.RecoveryProofHash,
+		ID: session.ID, OperatorID: session.OperatorID, TokenHash: domain.HashToken(session.Token), Expiry: session.Expiry, FamilyID: session.FamilyID, Generation: session.Generation,
+		RotatedAt: session.RotatedAt, ReplacementTokenHash: session.ReplacementTokenHash, RecoveryProofHash: session.RecoveryProofHash,
 		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
 	}
 }
@@ -298,7 +299,7 @@ func (s *Store) FindOperatorSessionByToken(ctx context.Context, token string, fo
 		return domain.OperatorSession{}, false, domain.OperationStats{}, err
 	}
 	var row operatorSessionRow
-	query := db.NewSelect().Model(&row).Where(`"operator_refresh_token".token = ?`, token)
+	query := db.NewSelect().Model(&row).Where(`"operator_refresh_token".token = ?`, domain.HashToken(token))
 	if forUpdate {
 		query = query.For("UPDATE")
 	}
@@ -311,7 +312,9 @@ func (s *Store) FindOperatorSessionByToken(ctx context.Context, token string, fo
 	if err != nil {
 		return domain.OperatorSession{}, false, stats, fmt.Errorf("identity access postgres: find operator session: %w", err)
 	}
-	return row.toDomain(), true, stats, nil
+	session := row.toDomain()
+	session.Token = token
+	return session, true, stats, nil
 }
 
 func (s *Store) LatestOperatorSessionInFamily(ctx context.Context, familyID string) (domain.OperatorSession, bool, domain.OperationStats, error) {
@@ -350,7 +353,9 @@ func (s *Store) InsertOperatorSession(ctx context.Context, session domain.Operat
 		return domain.OperatorSession{}, stats, fmt.Errorf("identity access postgres: insert operator session: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
-	return row.toDomain(), stats, nil
+	created := row.toDomain()
+	created.Token = session.Token
+	return created, stats, nil
 }
 
 func (s *Store) MarkOperatorSessionRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) (bool, domain.OperationStats, error) {
@@ -361,7 +366,7 @@ func (s *Store) MarkOperatorSessionRotated(ctx context.Context, id int64, replac
 	started := time.Now()
 	result, err := db.NewUpdate().Model((*operatorSessionRow)(nil)).
 		Set("rotated_at = ?", rotatedAt).
-		Set("replacement_token = ?", replacementToken).
+		Set("replacement_token = ?", domain.HashToken(replacementToken)).
 		Set("recovery_proof_hash = ?", recoveryProofHash).
 		Where(`"operator_refresh_token".id = ?`, id).
 		Where(`"operator_refresh_token".rotated_at IS NULL`).

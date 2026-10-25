@@ -252,7 +252,8 @@ func (p *OperatorProvisioning) RevokeOperatorInvitationByActor(ctx context.Conte
 // again. An expired or spent link is never revived.
 func (p *OperatorProvisioning) ResendOperatorInvitation(ctx context.Context, invitationID, actorID int64, ipAddress string) error {
 	return p.runtime.WithAdminTx(ctx, func(ctx context.Context) error {
-		if err := p.tokens.ExtendInvitation(ctx, invitationID, p.now().Add(p.expiry.Invitation)); err != nil {
+		token, err := p.tokens.ExtendInvitation(ctx, invitationID, p.now().Add(p.expiry.Invitation))
+		if err != nil {
 			return err
 		}
 		// The delivery tracking starts over, so the mail the invitee gets now is
@@ -264,6 +265,7 @@ func (p *OperatorProvisioning) ResendOperatorInvitation(ctx context.Context, inv
 		if err != nil {
 			return err
 		}
+		invitation.Token = token
 
 		if err := p.invites.DispatchOperatorInvitation(ctx, invitation, p.inviterName(ctx, actorID)); err != nil {
 			return err

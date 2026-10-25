@@ -28,6 +28,8 @@ func TestRestatedSettingKeysMatchTheRegistry(t *testing.T) {
 		"operations.parent_notes_enabled",
 		"operations.staff_messaging_enabled",
 		"calendar.appointment_reminder_enabled",
+		"module.eltern_app",
+		"module.unterricht_vormittag",
 	}, notifications.RestatedSettingKeys)
 	db := testpkg.SetupTestDB(t)
 	module, err := api.NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))

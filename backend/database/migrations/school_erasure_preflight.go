@@ -13,7 +13,54 @@ func installSchoolErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	return err
 }
 
-const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_preflight(p_school_id BIGINT,p_organization_id BIGINT)
+const schoolErasurePreflightSQL = schoolErasurePreflightPart1SQL + `    education.class_homework,
+` + schoolErasurePreflightPart2SQL + `    education.homework_feedback,
+` + schoolErasurePreflightPart3SQL + schoolErasurePreflightSurveyTablesSQL + schoolErasurePreflightPart3bSQL + `    ) AS edge) <> '29fea663a9755abc25f319748284c7ec63b72293214d3bfe5b85fd9fa325f1e4' THEN
+` + schoolErasurePreflightPart4SQL + `    UNION ALL
+    SELECT 1 FROM education.class_homework AS c JOIN users.staff_school_memberships AS p ON c."created_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+` + schoolErasurePreflightPart5SQL + schoolErasurePreflightSurveyScopeSQL + schoolErasurePreflightPart5bSQL
+
+// schoolErasurePreflightWithoutSurveysSQL is the definition before 1.15.553 (#4781), without the
+// survey tables; the survey rollback reinstalls it.
+const schoolErasurePreflightWithoutSurveysSQL = schoolErasurePreflightPart1SQL + `    education.class_homework,
+` + schoolErasurePreflightPart2SQL + `    education.homework_feedback,
+` + schoolErasurePreflightPart3SQL + schoolErasurePreflightPart3bSQL + `    ) AS edge) <> '2316bae64fadb57c28e90bfc50ebea77bcc69a824bb76d2190c9b0866043189a' THEN
+` + schoolErasurePreflightPart4SQL + `    UNION ALL
+    SELECT 1 FROM education.class_homework AS c JOIN users.staff_school_memberships AS p ON c."created_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+` + schoolErasurePreflightPart5SQL + schoolErasurePreflightPart5bSQL
+
+// The pre-1.15.510 definition shares the unchanged SQL sections.
+const schoolErasurePreflightWithoutHomeworkSQL = schoolErasurePreflightPart1SQL + schoolErasurePreflightPart2SQL + schoolErasurePreflightPart3SQL + schoolErasurePreflightPart3bSQL + `    ) AS edge) <> '8441a2b4fec5eb071bb272598938d610b4678ab580a53e83885ded63e284409b' THEN
+` + schoolErasurePreflightPart4SQL + schoolErasurePreflightPart5SQL + schoolErasurePreflightPart5bSQL
+
+// The survey tables of 1.15.553 (#4781).
+const schoolErasurePreflightSurveyTablesSQL = `    users.survey_answers,
+    users.survey_responses,
+    users.survey_participations,
+    users.survey_question_options,
+    users.survey_questions,
+    users.surveys,
+`
+
+const schoolErasurePreflightSurveyScopeSQL = `    SELECT 1 FROM users.survey_answers AS c JOIN users.survey_responses AS p ON c."response_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_answers AS c JOIN users.survey_questions AS p ON c."question_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_answers AS c JOIN users.survey_question_options AS p ON c."option_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_participations AS c JOIN users.surveys AS p ON c."survey_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_question_options AS c JOIN users.survey_questions AS p ON c."question_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_questions AS c JOIN users.surveys AS p ON c."survey_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.survey_responses AS c JOIN users.surveys AS p ON c."survey_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM users.surveys AS c JOIN users.parent_announcements AS p ON c."announcement_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+`
+
+const schoolErasurePreflightPart1SQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_preflight(p_school_id BIGINT,p_organization_id BIGINT)
  RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
  AS $body$
  DECLARE v_plan JSONB := platform.school_erasure_plan();
@@ -123,7 +170,9 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     documents.folders,
     education.class_arrival_exceptions,
     education.class_arrival_times,
-    education.class_teachers,
+`
+
+const schoolErasurePreflightPart2SQL = `    education.class_teachers,
     education.grade_transition_class_list_entries,
     education.grade_transition_class_teachers,
     education.grade_transition_history,
@@ -132,7 +181,9 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     education.group_substitution,
     education.group_teacher,
     education.groups,
-    enrollment.care_offering_auto_triggers,
+`
+
+const schoolErasurePreflightPart3SQL = `    enrollment.care_offering_auto_triggers,
     enrollment.care_offering_bookings,
     enrollment.care_offerings,
     enrollment.change_request_messages,
@@ -200,13 +251,9 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     users.guardian_phone_numbers,
     users.guardian_profiles,
     users.notification_preferences,
-    users.survey_answers,
-    users.survey_responses,
-    users.survey_participations,
-    users.survey_question_options,
-    users.survey_questions,
-    users.surveys,
-    users.parent_announcement_declaration_submissions,
+`
+
+const schoolErasurePreflightPart3bSQL = `    users.parent_announcement_declaration_submissions,
     users.parent_announcement_declaration_versions,
     users.parent_announcement_options,
     users.parent_announcement_reads,
@@ -289,8 +336,9 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '6d4f6d83d9a3e0410e381a9ccd5abc92856fa0f9de2135bca464cdffccc8f3b2' THEN
-    RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
+`
+
+const schoolErasurePreflightPart4SQL = `    RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
    IF EXISTS (
@@ -379,7 +427,9 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     SELECT 1 FROM config.work_time_model_entries AS c JOIN config.work_time_models AS p ON c."model_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.model_id IN (SELECT p0.id FROM config.work_time_models AS p0 WHERE p0.tenant_id = p_school_id)), FALSE)
     UNION ALL
     SELECT 1 FROM documents.folder_roles AS c JOIN auth.roles AS p ON c."role_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
+`
+
+const schoolErasurePreflightPart5SQL = `    UNION ALL
     SELECT 1 FROM education.grade_transition_class_list_entries AS c JOIN education.grade_transitions AS p ON c."transition_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM education.grade_transition_class_teachers AS c JOIN education.grade_transitions AS p ON c."transition_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
@@ -466,23 +516,9 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
     UNION ALL
     SELECT 1 FROM users.care_withdrawal_completions AS c JOIN enrollment.request_children AS p ON c."source_request_child_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
-    SELECT 1 FROM users.survey_answers AS c JOIN users.survey_responses AS p ON c."response_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
-    SELECT 1 FROM users.survey_answers AS c JOIN users.survey_questions AS p ON c."question_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
-    SELECT 1 FROM users.survey_answers AS c JOIN users.survey_question_options AS p ON c."option_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
-    SELECT 1 FROM users.survey_participations AS c JOIN users.surveys AS p ON c."survey_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
-    SELECT 1 FROM users.survey_question_options AS c JOIN users.survey_questions AS p ON c."question_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
-    SELECT 1 FROM users.survey_questions AS c JOIN users.surveys AS p ON c."survey_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
-    SELECT 1 FROM users.survey_responses AS c JOIN users.surveys AS p ON c."survey_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
-    SELECT 1 FROM users.surveys AS c JOIN users.parent_announcements AS p ON c."announcement_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
-    UNION ALL
-    SELECT 1 FROM users.parent_announcement_options AS c JOIN users.parent_announcements AS p ON c."announcement_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+`
+
+const schoolErasurePreflightPart5bSQL = `    SELECT 1 FROM users.parent_announcement_options AS c JOIN users.parent_announcements AS p ON c."announcement_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM users.parent_announcement_reads AS c JOIN users.parent_announcements AS p ON c."announcement_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
@@ -541,3 +577,8 @@ const schoolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school_er
  END $body$;
  REVOKE ALL ON FUNCTION platform.school_erasure_preflight(BIGINT,BIGINT) FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin, phoenix_demo, phoenix_school_erasure;
 `
+
+func restoreSchoolErasurePreflightBeforeHomework(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasurePreflightWithoutHomeworkSQL)
+	return err
+}

@@ -204,16 +204,17 @@ does not prove the deployed catalog; human verification is described in
 ## Portal session isolation
 
 Each portal has its own NextAuth instance, cookie, and base path.
-Operator, parents, and school cookies are host-only. The tenant cookie is
+Operator, parents, school, and Träger cookies are host-only. The tenant cookie is
 domain-scoped to support switching between school subdomains (localhost:
 host-only). The proxy redirects cross-host paths to their canonical subdomain.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
-| Tenant | `{slug}.{TENANT_DOMAIN}` | `{TENANT_DOMAIN, dots→dashes}.session-token` on `.{TENANT_DOMAIN}`; localhost: `authjs.session-token` | `/api/auth` | `""` or `org` | `POST /auth/login` |
+| Tenant | `{slug}.{TENANT_DOMAIN}` | `{TENANT_DOMAIN, dots→dashes}.session-token` on `.{TENANT_DOMAIN}`; localhost: `authjs.session-token` | `/api/auth` | `""` | `POST /auth/login` |
 | Operator | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` | `/api/operator/auth` | `platform` | `POST /operator/auth/login` |
 | Parents | `{NEXT_PUBLIC_PARENTS_HOSTNAME}` | `parent.session-token` | `/api/parent/auth` | `parent` | `POST /parent/auth/login` |
 | School (moto schule) | `{NEXT_PUBLIC_SCHOOL_HOSTNAME}` | `school.session-token`, SameSite=Strict | `/api/school/auth` | `school` | `POST /school/auth/login` |
+| Träger | `{NEXT_PUBLIC_TRAEGER_HOSTNAME}` | `traeger.session-token` | `/api/traeger/auth` | `org` | `POST /traeger/auth/login` |
 
 ### Login, refresh, and MFA
 
@@ -229,7 +230,15 @@ Backend paths in this section are relative to `backend/`:
   active mapping and pins that school's `tenant_id`. `SchoolMiddleware`
   accepts only `scope=school`; `common.ProtectedSchoolGroup` includes tenant
   transactions. Unlike parent scope, school scope is tenant-bound.
-- `TenantMiddleware` rejects both parent and school scopes.
+- Träger login (ADR 0084, #4649) requires an active membership in
+  `platform.organization_accounts` of an active Träger and mints `scope=org`
+  with `org_id` and no `tenant_id`; an account in several Träger chooses one
+  (`organization_selection_required`). Refresh and validation re-check the
+  membership. `TraegerMiddleware` accepts only `scope=org`; the Träger rights
+  come from fixed role bundles in `auth.organization_account_roles`. Reads
+  across schools run through the `traeger-view` projection in an admin
+  transaction filtered on the Träger's schools. No MFA yet (#4651).
+- `TenantMiddleware` rejects parent, school, and org scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
@@ -252,7 +261,15 @@ unverified; their next refresh refuses privileged access and requires login.
 Completed email/passkey exchanges and valid school-bound trusted devices
 produce `auth.tokens.mfa_verified`; rotation and bounded hand-off recovery
 preserve it. MFA reset clears proof across existing sessions. Password reset
-issues no session. Tenant switching preserves proof only from the presented
+issues no session.
+
+Refresh-session, invitation, password-reset and e-mail-change tokens are
+stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its
+CHECK constraints refuse raw values (#4902). Lookups hash the presented value.
+A refresh successor is HMAC-derived from the presented token, so hand-off
+recovery recomputes it. A resend or guardian approval mails a new link and
+voids the previous one; listings return no token. Do not run an old backend
+against the migrated schema; migration rollback requires a forward fix. Tenant switching preserves proof only from the presented
 account's live same-portal session family, read under the account lock shared with
 MFA reset. Missing, expired, revoked, unverified or foreign-portal families
 cannot satisfy target-school MFA. Such a switch returns 401 (`identity.mfa_session_required`)
@@ -294,7 +311,8 @@ refresh, tenant switching, and wrong-portal rejection for affected flows.
 ### Routing and invitations
 
 `frontend/src/proxy.ts` rewrites tenant hosts to `/[tenant]/*`, operator to
-`/operator/*`, parents to `/parents/*`, and school to `/school/*`.
+`/operator/*`, parents to `/parents/*`, school to `/school/*`, and Träger to
+`/traeger/*`.
 `[tenant]/layout.tsx` resolves slugs through `/auth/tenant/resolve?slug=...`
 (cached five minutes). `POST /auth/switch-tenant` returns a tenant-session JWT
 for the target school, not a `scope=school` portal token.
@@ -319,7 +337,7 @@ Lehrkraft invitations link to `SCHOOL_URL/invite`, not `FRONTEND_URL/invite`.
 `TENANT_DOMAIN` is the base domain; `NEXT_PUBLIC_TENANT_DOMAIN` is its client
 counterpart. Portal hostnames use the variables in the table above.
 `FRONTEND_URL` is for staff/admin email links; `PARENTS_URL` for parent links;
-`SCHOOL_URL` for school links. The latter two are required at backend startup
+`SCHOOL_URL` for school links; `TRAEGER_URL` for Träger links. The latter three are required at backend startup
 and must use HTTPS in production. Env change checklist:
 `.claude/rules/env-docker-sync.md`.
 

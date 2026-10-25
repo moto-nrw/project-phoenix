@@ -607,6 +607,22 @@
     "appInstallGenericDescription": "Fügen Sie moto zum Startbildschirm Ihres Handys hinzu. Dann öffnen Sie moto wie eine App.",
     "appInstallGuide": "Anleitung öffnen"
   },
+  "analyticsConsent": {
+    "title": "Nutzungsanalyse",
+    "promptTitle": "Nutzungsanalyse erlauben?",
+    "promptIntro": "moto möchte zählen, welche Seiten und Schaltflächen Sie nutzen. So machen wir moto besser.",
+    "promptPrivacy": "Namen und Eingaben sieht moto dabei nicht.",
+    "promptNoDisadvantage": "Wenn Sie ablehnen, können Sie moto genauso nutzen.",
+    "promptChangeLater": "Ihre Wahl gilt für Ihr Konto. Sie können sie jederzeit unter „Einstellungen“ ändern.",
+    "allow": "Erlauben",
+    "refuse": "Ablehnen",
+    "saving": "Wird gespeichert…",
+    "closeLabel": "Später entscheiden",
+    "sectionDescription": "Darf moto zählen, welche Seiten und Schaltflächen Sie nutzen? Namen und Eingaben sieht moto dabei nicht. Das entscheiden nur Sie.",
+    "switchLabel": "Nutzungsanalyse erlauben",
+    "schoolOff": "Ihre Schule hat die Nutzungsanalyse ausgeschaltet. Ihre Wahl gilt, sobald die Schule sie wieder einschaltet.",
+    "errorObject": "die Einstellung zur Nutzungsanalyse"
+  },
   "pwaInstallHint": {
     "title": "moto als App nutzen",
     "samsungDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto in Chrome und melden Sie sich dort an.",
@@ -2327,6 +2343,7 @@
         "class_trip_return_time_weekend": "Am Wochenende kommt kein Kind in die OGS. Bitte löschen Sie die Rückkehrzeit.",
         "class_trip_status_conflict": "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
         "class_trip_student_not_in_class": "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
+        "homework_not_found": "Diese Hausaufgabe gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "morning_attendance_no_school_day": "Heute ist kein Schultag. Die Anwesenheit lässt sich nur an Schultagen eintragen.",
         "morning_attendance_not_today": "Die Anwesenheit lässt sich nur für heute eintragen. Bitte öffnen Sie den heutigen Tag.",
         "morning_attendance_unknown_child": "Ein Kind gehört nicht mehr zu dieser Klasse. Bitte laden Sie die Seite neu.",
@@ -2470,7 +2487,11 @@
         "submission_rate_limited": "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
         "waitlist_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
         "window_closed": "Die Anmeldefrist ist vorbei oder hat noch nicht begonnen. Bitte wenden Sie sich an die Schule.",
-        "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule."
+        "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule.",
+        "holiday_host_school_outside_traeger": "Diese Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie eine Schule aus der Liste.",
+        "holiday_period_incomplete": "Der Ferienzeitraum braucht mindestens eine Woche. Jede Woche braucht mindestens ein Zeitmodell.",
+        "holiday_period_invalid": "Bitte prüfen Sie die markierten Felder.",
+        "holiday_period_not_found": "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien."
       },
       "files": {
         "announcement_published": "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
@@ -2773,6 +2794,9 @@
         "guardian_notice_invalid": "Die Nachricht an die Eltern ließ sich nicht senden. Bitte prüfen Sie Betreff und Text.",
         "guardian_notice_past": "Der Termin liegt in der Vergangenheit. Eine Nachricht an die Eltern ist nicht mehr möglich.",
         "guardian_notice_text_invalid": "Bitte geben Sie Betreff und Text für die Eltern ein. Der Text darf höchstens 4000 Zeichen haben.",
+        "homework_feedback_child_not_in_supervision": "Dieses Kind gehört nicht zu dieser Aufsicht. Bitte laden Sie die Seite neu.",
+        "homework_feedback_not_allowed": "Eine Rückmeldung zu Hausaufgaben geht nur in einer Lernzeit, die Sie betreuen.",
+        "homework_feedback_without_homework": "Für die Klasse dieses Kindes sind heute keine Hausaufgaben eingetragen.",
         "idempotency_key_reused": "Dieser Termin wurde schon angelegt. Bitte laden Sie die Seite neu.",
         "instance_end_before_start": "Das Ende muss nach dem Beginn liegen. Bitte prüfen Sie die Uhrzeiten.",
         "instance_in_past": "Der Termin liegt in der Vergangenheit. Er lässt sich nicht mehr ändern.",
@@ -2950,6 +2974,10 @@
         "organization_not_deleted": "Dieser Träger ist nicht gelöscht. Bitte laden Sie die Seite neu.",
         "organization_has_schools": "Zu diesem Träger gehören noch Schulen (Anzahl: {school_count}). Bitte löschen Sie zuerst alle Schulen des Trägers.",
         "organization_deleted": "Der Träger ist gelöscht. Bitte wählen Sie einen anderen Träger.",
+        "traeger_active": "Der Träger ist noch aktiv. Bitte deaktivieren Sie ihn zuerst.",
+        "traeger_erasure_order_not_found": "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
+        "traeger_erasure_order_open": "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
+        "traeger_erasure_started": "Die Löschung hat schon begonnen. Der Löschauftrag kann nicht mehr zurückgenommen werden.",
         "school_not_found": "Diese Schule gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "school_inactive": "Die Schule ist ausgeschaltet. Bitte schalten Sie sie zuerst ein.",
         "school_already_deleted": "Diese Schule ist schon gelöscht. Bitte laden Sie die Seite neu.",
@@ -2978,6 +3006,9 @@
         "module_requires": "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
         "module_required_by": "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab."
       },
+      "module": {
+        "not_booked": "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team."
+      },
       "devices": {
         "tag_scan_not_found": "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "tag_scan_already_resolved": "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu."
@@ -3001,6 +3032,12 @@
       },
       "operator": {
         "audit_unavailable": "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut."
+      },
+      "traeger": {
+        "already_member": "Diese Person gehört schon zum Träger-Büro.",
+        "last_administrator": "Das Träger-Büro braucht mindestens eine Person mit der Rolle Verwaltung. Geben Sie die Rolle zuerst einer anderen Person.",
+        "member_not_found": "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",
+        "no_membership": "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team."
       }
     },
     "actions": {

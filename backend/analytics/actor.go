@@ -27,7 +27,8 @@ type SessionFacts struct {
 // ActorOf maps a session to the analytics surface and role, the same values
 // the frontend registers. Role names are school data, so the OGS portal
 // reports only the admin flag. Operator sessions are no portal. Only an OGS
-// session can become a pseudonym; parent accounts only resolve their schools.
+// session can become a pseudonym; parent accounts also resolve their schools,
+// and every account answers the consent lookup (#4901).
 // The read-only staff preview (#2893) is an admin looking at someone else's
 // view, so it names none.
 func ActorOf(session SessionFacts) (Actor, bool) {
@@ -37,7 +38,7 @@ func ActorOf(session SessionFacts) (Actor, bool) {
 	case session.Parent:
 		return Actor{Surface: SurfaceParents, Role: RoleGuardian, AccountID: session.AccountID}, true
 	case session.School:
-		return Actor{Surface: SurfaceSchool, Role: RoleLehrkraft, SchoolID: session.TenantID}, true
+		return Actor{Surface: SurfaceSchool, Role: RoleLehrkraft, SchoolID: session.TenantID, AccountID: session.AccountID}, true
 	case session.TenantID == 0:
 		return Actor{}, false
 	case session.ReadOnlyPreview:

@@ -14,7 +14,7 @@ import { PROXY_ROUTES } from "~/test/proxy-routes.table";
  * `src/test/proxy-routes.table.ts`. A new pure proxy route without a table row fails.
  */
 
-type Portal = "tenant" | "operator" | "parent" | "school";
+type Portal = "tenant" | "operator" | "parent" | "school" | "traeger";
 type Factory = "get" | "post" | "put" | "patch" | "delete";
 
 interface ProxyDescriptor {
@@ -44,6 +44,7 @@ vi.mock("~/lib/operator/route-wrapper.server", () =>
 );
 vi.mock("~/lib/parent/route-wrapper.server", () => proxyFactories("parent"));
 vi.mock("~/lib/school/route-wrapper.server", () => proxyFactories("school"));
+vi.mock("~/lib/traeger/route-wrapper.server", () => proxyFactories("traeger"));
 
 const appDir = path.resolve(__dirname, "..");
 const PROXY_CALL = /^proxy(Get|Post|Put|Patch|Delete)$/;

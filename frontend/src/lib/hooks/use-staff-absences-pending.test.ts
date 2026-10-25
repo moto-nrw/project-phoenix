@@ -43,7 +43,10 @@ vi.mock("~/lib/staff-api", () => ({
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: (): ReturnType<typeof mockUseTenantSlugSafe> =>
     mockUseTenantSlugSafe(),
+  useModuleBooked: (): boolean => moduleState.booked,
 }));
+
+const moduleState = vi.hoisted(() => ({ booked: true }));
 
 vi.mock("./use-unread-count", () => ({
   useUnreadCount: (opts: UseUnreadCountOptions): unknown =>
@@ -66,6 +69,7 @@ beforeEach(() => {
   mockHasPermission.mockReturnValue(false);
   mockUseShellAuth.mockReturnValue({ mode: "teacher" });
   mockUseTenantSlugSafe.mockReturnValue("testschool");
+  moduleState.booked = true;
   mockUseSession.mockReturnValue({
     data: { user: { id: "7" } },
     status: "authenticated",
@@ -89,6 +93,13 @@ describe("useStaffAbsencesPending", () => {
   });
 
   it("disables the badge for a staffer lacking both admin and vacation:approve", () => {
+    expect(capturedOptions().enabled).toBe(false);
+  });
+
+  // Urlaub und Abwesenheiten gehören zur Zeiterfassung (#4894).
+  it("disables the badge when the school did not book Zeiterfassung", () => {
+    mockIsAdmin.mockReturnValue(true);
+    moduleState.booked = false;
     expect(capturedOptions().enabled).toBe(false);
   });
 

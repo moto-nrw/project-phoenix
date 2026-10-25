@@ -596,7 +596,8 @@ func (s *fakeStore) MarkAccountSessionRotated(_ context.Context, id int64, repla
 		return false, stats(), nil
 	}
 	session.RotatedAt = &rotatedAt
-	session.ReplacementToken = &replacementToken
+	replacementHash := domain.HashToken(replacementToken)
+	session.ReplacementTokenHash = &replacementHash
 	session.RecoveryProofHash = recoveryProofHash
 	s.sessions[id] = session
 	return true, stats(), nil
@@ -1064,6 +1065,7 @@ type authFixture struct {
 	push     *fakePush
 	runtime  *fakeRuntime
 	sessions *Service
+	portals  *fakePortalModules
 }
 
 func newAuthFixture(t *testing.T) *authFixture {
@@ -1077,13 +1079,14 @@ func newAuthFixture(t *testing.T) *authFixture {
 	lock := &fakeMFALock{store: store}
 	audit := &fakeAudit{}
 	push := &fakePush{}
+	portals := &fakePortalModules{}
 	auth, err := NewAccountAuthentication(sessions, AccountAuthenticationDependencies{
-		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{},
+		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{}, PortalModules: portals,
 		MFA: mfa, MFALock: lock, Audit: audit, Push: push, Runtime: runtime, Rotation: fakeRotation{},
 		Logger: slog.New(slog.NewTextHandler(testWriter{t}, nil)),
 	})
 	require.NoError(t, err)
-	return &authFixture{auth: auth, store: store, schools: schools, persons: persons, mfa: mfa, mfaLock: lock, audit: audit, push: push, runtime: runtime, sessions: sessions}
+	return &authFixture{auth: auth, store: store, schools: schools, persons: persons, mfa: mfa, mfaLock: lock, audit: audit, push: push, runtime: runtime, sessions: sessions, portals: portals}
 }
 
 type testWriter struct{ t *testing.T }

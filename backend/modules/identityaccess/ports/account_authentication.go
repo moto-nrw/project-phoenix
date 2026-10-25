@@ -14,10 +14,29 @@ type SchoolDirectory interface {
 	FindSchoolBySubdomain(ctx context.Context, subdomain string) (identityaccess.School, bool, error)
 	LockSchoolShared(ctx context.Context, id int64) (identityaccess.School, bool, error)
 	ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]identityaccess.School, error)
-	// ListManageableSchoolIDs returns the live, active schools of the
-	// organisation: the set an organisation-scoped administrator may
-	// administer accounts at.
-	ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
+}
+
+// TraegerMemberships reads the Organisation & Tenancy Träger memberships of an
+// account: the active, undeleted Träger where its membership is active, in a
+// stable order. It joins the caller's transaction.
+type TraegerMemberships interface {
+	ListAccountTraegerOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error)
+}
+
+// PortalModules answers whether a school booked the module of a portal
+// (#4895): the parents portal belongs to Eltern-App, the school portal to
+// Unterricht am Vormittag. Each call reads in a transaction of its own, so
+// login and refresh check it before they open their session transaction. A
+// school that has not booked the module answers
+// *identityaccess.PortalNotBookedError; a failed read is any other error and
+// never counts as booked.
+type PortalModules interface {
+	// BookedParentPortalSchools returns those of the schools that booked
+	// Eltern-App, in the given order.
+	BookedParentPortalSchools(ctx context.Context, tenantIDs []int64) ([]int64, error)
+	// RequireParentPortal and RequireSchoolPortal refuse one school.
+	RequireParentPortal(ctx context.Context, tenantID int64) error
+	RequireSchoolPortal(ctx context.Context, tenantID int64) error
 }
 
 // TokenCodec signs and parses the session JWTs.

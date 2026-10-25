@@ -332,6 +332,9 @@ describe("OperatorSchoolsPage", () => {
       target: { value: "INVALID!" },
     });
 
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
@@ -367,6 +370,9 @@ describe("OperatorSchoolsPage", () => {
       target: { value: "BAD DOMAIN!" },
     });
 
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {
@@ -404,6 +410,9 @@ describe("OperatorSchoolsPage", () => {
       target: { value: "Dup School" },
     });
 
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     expect(
@@ -441,6 +450,9 @@ describe("OperatorSchoolsPage", () => {
       target: { value: "Dup School" },
     });
 
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     expect(
@@ -476,6 +488,9 @@ describe("OperatorSchoolsPage", () => {
       target: { value: "Fail School" },
     });
 
+    fireEvent.change(screen.getByLabelText(/E-Mail/), {
+      target: { value: "info@new-school.example" },
+    });
     fireEvent.click(screen.getByText("Erstellen"));
 
     await waitFor(() => {

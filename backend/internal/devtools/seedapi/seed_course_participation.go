@@ -73,17 +73,17 @@ func seedCourseActivity(rt *Runtime, courseIndex int, name string, dates []seedD
 	if err != nil {
 		return 0, 0, err
 	}
-	studentIDs := seedCourseStudentIDs(rt)
+	studentIDs := seedCourseStudentIDs(rt, courseIndex)
 	if len(studentIDs) == 0 {
 		return 0, 0, fmt.Errorf("no students available for course %s", name)
 	}
 	return seedCourseOccurrences(rt, courseIndex, name, dates, roomID, activityID, studentIDs)
 }
 
-func seedCourseStudentIDs(rt *Runtime) []int64 {
+func seedCourseStudentIDs(rt *Runtime, courseIndex int) []int64 {
 	studentIDs := make([]int64, 0, courseDemoChildren)
-	for i := range courseDemoChildren {
-		if id, ok := rt.FixedSeeder.studentIDByIndex[i]; ok {
+	for i := range courseDemoChildren { // own children per course: the courses run at the same time
+		if id, ok := rt.FixedSeeder.studentIDByIndex[courseIndex*courseDemoChildren+i]; ok {
 			studentIDs = append(studentIDs, id)
 		}
 	}

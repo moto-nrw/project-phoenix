@@ -2,6 +2,8 @@
 
 import { useReducer } from "react";
 
+import type { ModuleKey } from "~/lib/modules";
+
 /**
  * A form's current error together with the number of the attempt that
  * produced it. The counter is what lets the alert scroll into view on EVERY
@@ -28,6 +30,12 @@ export interface FormErrorDetail {
     readonly copyFailedLabel: string;
   };
   readonly retry?: { readonly label: string; readonly onClick: () => void };
+  /**
+   * The request was refused with `module.not_booked` (#4894): the school did
+   * not book this module. The slots then explain the state instead of
+   * showing an error.
+   */
+  readonly notBookedModule?: ModuleKey;
 }
 
 /** What the error slots accept: a plain string still works for one-shot

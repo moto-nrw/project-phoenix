@@ -205,6 +205,7 @@ describe("getParentHelpTopicForPath", () => {
           ![
             HELP_TOPICS.rooms,
             HELP_TOPICS.activeSupervision,
+            HELP_TOPICS.homeworkFeedback,
             HELP_TOPICS.manageActivity,
             HELP_TOPICS.changeLocation,
             HELP_TOPICS.dayPlan,
@@ -329,9 +330,10 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[16]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
-    // 42 seit #3821 („Eigenen Dienstplan ansehen“).
-    // 44 seit #4781 („An einer Umfrage im Team teilnehmen“).
-    expect(caregiverTopics).toHaveLength(44);
+    // 42 seit #3821 („Eigenen Dienstplan ansehen“), 45 seit #4901
+    // („Nutzungsanalyse erlauben oder ablehnen“, alle Rollen).
+    // 46 seit #4781 („An einer Umfrage im Team teilnehmen“).
+    expect(caregiverTopics).toHaveLength(46);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -506,13 +508,13 @@ describe("getParentHelpTopicForPath", () => {
 
           // Was es in der OGS nicht gibt, steht auch nicht in der Liste:
           // ohne NFC entfallen sieben Themen, bei einfacher Anwesenheit
-          // fuenf, bei offener Betreuung zwei. `Aktivitaet anlegen` faellt
+          // sechs, bei offener Betreuung zwei. `Aktivitaet anlegen` faellt
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            44 -
+            46 -
             (nfcEnabled ? 0 : 7) -
-            (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
+            (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
           expect(caregiverTopics).toHaveLength(expectedLength);
           expect(
@@ -549,8 +551,11 @@ describe("getParentHelpTopicForPath", () => {
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
-    // 87 seit #4781: Umfrage mit Fragebogen und das geteilte Teilnehmen.
-    expect(leadTopics).toHaveLength(87);
+    // 86 seit #4796: die Rückmeldung zu Hausaufgaben in der Lernzeit.
+    // 87 seit #4894: Welche Module hat meine Schule?
+    // 88 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    // 90 seit #4781: Umfrage mit Fragebogen und das geteilte Teilnehmen.
+    expect(leadTopics).toHaveLength(90);
     expect(
       leadTopics.every(
         (topic) =>
@@ -575,8 +580,9 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
-    // 24 seit #4781 („An einer Umfrage teilnehmen“).
-    expect(parentTopics).toHaveLength(24);
+    // 24 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    // 25 seit #4781 („An einer Umfrage teilnehmen“).
+    expect(parentTopics).toHaveLength(25);
     expect(
       parentTopics.every(
         (topic) =>
@@ -610,7 +616,14 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    expect(teacherTopics).toHaveLength(20);
+    // 22 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    expect(teacherTopics).toHaveLength(22);
+    expect([...visible]).toEqual(
+      expect.arrayContaining([
+        HELP_TOPICS.teacherHomework,
+        HELP_TOPICS.teacherClassHandover,
+      ]),
+    );
     expect(visible.has(HELP_TOPICS.teacherCalendar)).toBe(true);
     expect(
       teacherTopics.every(
@@ -634,6 +647,41 @@ describe("getParentHelpTopicForPath", () => {
         .map((id) => `${topic.id} -> ${id}`),
     );
     expect(unreachable).toEqual([]);
+  });
+
+  it("gives the Träger-Büro its own self-contained guide (#4649)", () => {
+    const traegerTopics = getHelpTopics(
+      "detailed",
+      "fixed_groups",
+      true,
+    ).filter((topic) => helpTopicMatchesRole(topic, "traeger"));
+    const visible = new Set(traegerTopics.map((topic) => topic.id));
+
+    expect(traegerTopics.map((topic) => topic.id)).toEqual([
+      HELP_TOPICS.traegerInvitation,
+      HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerAccounts,
+      HELP_TOPICS.traegerHolidayPeriod,
+      HELP_TOPICS.errorMessages,
+    ]);
+    expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([
+      "einstieg",
+      "anmeldeverwaltung",
+      "probleme",
+    ]);
+    // Das Träger-Portal ist ein eigenes Portal: kein Verweis führt in die
+    // Hilfe der OGS, der Eltern oder von moto schule.
+    const unreachable = traegerTopics.flatMap((topic) =>
+      topic.related
+        .filter((id) => !visible.has(id))
+        .map((id) => `${topic.id} -> ${id}`),
+    );
+    expect(unreachable).toEqual([]);
+    // Kein anderer Leser sieht den Träger-Artikel.
+    const login = traegerTopics.find(
+      (topic) => topic.id === HELP_TOPICS.traegerLogin,
+    );
+    expect(login?.audience).toBe("traeger");
   });
 
   it("hides every room-only article when attendance is simple", () => {

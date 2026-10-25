@@ -11,12 +11,13 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// operatorInvitationRow mirrors platform.operator_invitation_tokens.
+// operatorInvitationRow mirrors platform.operator_invitation_tokens. The
+// token column holds the hex SHA-256 of the link token only (#4902).
 type operatorInvitationRow struct {
 	bun.BaseModel   `bun:"table:platform.operator_invitation_tokens,alias:operator_invitation_token"`
 	ID              int64      `bun:"id,pk,autoincrement"`
 	Email           string     `bun:"email,notnull"`
-	Token           string     `bun:"token,notnull"`
+	TokenHash       string     `bun:"token,notnull"`
 	ExpiresAt       time.Time  `bun:"expires_at,notnull"`
 	UsedAt          *time.Time `bun:"used_at"`
 	CreatedBy       int64      `bun:"created_by,notnull"`
@@ -30,20 +31,29 @@ type operatorInvitationRow struct {
 
 func (r operatorInvitationRow) toDomain() domain.OperatorInvitation {
 	return domain.OperatorInvitation{
-		ID: r.ID, Email: r.Email, Token: r.Token, ExpiresAt: r.ExpiresAt, UsedAt: r.UsedAt, CreatedBy: r.CreatedBy,
+		ID: r.ID, Email: r.Email, ExpiresAt: r.ExpiresAt, UsedAt: r.UsedAt, CreatedBy: r.CreatedBy,
 		DisplayName: r.DisplayName,
 		Delivery:    domain.TokenDelivery{SentAt: r.EmailSentAt, Error: r.EmailError, RetryCount: r.EmailRetryCount},
 		CreatedAt:   r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
-// operatorEmailChangeRow mirrors platform.operator_email_change_tokens.
+// withToken maps the row with the raw token its caller holds; the row itself
+// only knows the hash.
+func (r operatorInvitationRow) withToken(token string) domain.OperatorInvitation {
+	invitation := r.toDomain()
+	invitation.Token = token
+	return invitation
+}
+
+// operatorEmailChangeRow mirrors platform.operator_email_change_tokens. The
+// token column holds the hex SHA-256 of the link token only (#4902).
 type operatorEmailChangeRow struct {
 	bun.BaseModel   `bun:"table:platform.operator_email_change_tokens,alias:operator_email_change_token"`
 	ID              int64      `bun:"id,pk,autoincrement"`
 	OperatorID      int64      `bun:"operator_id,notnull"`
 	NewEmail        string     `bun:"new_email,notnull"`
-	Token           string     `bun:"token,notnull"`
+	TokenHash       string     `bun:"token,notnull"`
 	Expiry          time.Time  `bun:"expiry,notnull"`
 	Used            bool       `bun:"used,notnull"`
 	EmailSentAt     *time.Time `bun:"email_sent_at"`
@@ -55,10 +65,18 @@ type operatorEmailChangeRow struct {
 
 func (r operatorEmailChangeRow) toDomain() domain.OperatorEmailChange {
 	return domain.OperatorEmailChange{
-		ID: r.ID, OperatorID: r.OperatorID, NewEmail: r.NewEmail, Token: r.Token, Expiry: r.Expiry, Used: r.Used,
+		ID: r.ID, OperatorID: r.OperatorID, NewEmail: r.NewEmail, Expiry: r.Expiry, Used: r.Used,
 		Delivery:  domain.TokenDelivery{SentAt: r.EmailSentAt, Error: r.EmailError, RetryCount: r.EmailRetryCount},
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
+}
+
+// withToken maps the row with the raw token its caller holds; the row itself
+// only knows the hash.
+func (r operatorEmailChangeRow) withToken(token string) domain.OperatorEmailChange {
+	change := r.toDomain()
+	change.Token = token
+	return change
 }
 
 // executor is a built write statement.
@@ -100,7 +118,7 @@ func (s *Store) InsertOperatorInvitation(ctx context.Context, invitation domain.
 		return domain.OperatorInvitation{}, domain.OperationStats{}, err
 	}
 	row := operatorInvitationRow{
-		Email: invitation.Email, Token: invitation.Token, ExpiresAt: invitation.ExpiresAt, CreatedBy: invitation.CreatedBy,
+		Email: invitation.Email, TokenHash: domain.HashToken(invitation.Token), ExpiresAt: invitation.ExpiresAt, CreatedBy: invitation.CreatedBy,
 		DisplayName: invitation.DisplayName,
 	}
 	started := time.Now()
@@ -110,7 +128,7 @@ func (s *Store) InsertOperatorInvitation(ctx context.Context, invitation domain.
 		return domain.OperatorInvitation{}, stats, fmt.Errorf("identity access postgres: insert operator invitation: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
-	return row.toDomain(), stats, nil
+	return row.withToken(invitation.Token), stats, nil
 }
 
 func (s *Store) FindOperatorInvitation(ctx context.Context, id int64) (domain.OperatorInvitation, bool, domain.OperationStats, error) {
@@ -135,12 +153,12 @@ func (s *Store) FindRedeemableOperatorInvitation(ctx context.Context, token stri
 	var row operatorInvitationRow
 	started := time.Now()
 	err = db.NewSelect().Model(&row).
-		Where(`"operator_invitation_token".token = ?`, token).
+		Where(`"operator_invitation_token".token = ?`, domain.HashToken(token)).
 		Where(`"operator_invitation_token".expires_at > ?`, now).
 		Where(`"operator_invitation_token".used_at IS NULL`).
 		Scan(ctx)
 	found, stats, err := scanOne("find redeemable operator invitation", started, err)
-	return row.toDomain(), found, stats, err
+	return row.withToken(token), found, stats, err
 }
 
 func (s *Store) ListRedeemableOperatorInvitations(ctx context.Context, now time.Time) ([]domain.OperatorInvitation, domain.OperationStats, error) {
@@ -192,7 +210,7 @@ func (s *Store) RedeemOperatorInvitation(ctx context.Context, token string, now 
 	started := time.Now()
 	err = db.NewUpdate().Model(&row).
 		Set("used_at = ?", now).
-		Where(`"operator_invitation_token".token = ?`, token).
+		Where(`"operator_invitation_token".token = ?`, domain.HashToken(token)).
 		Where(`"operator_invitation_token".expires_at > ?`, now).
 		Where(`"operator_invitation_token".used_at IS NULL`).
 		Returning("*").
@@ -201,7 +219,7 @@ func (s *Store) RedeemOperatorInvitation(ctx context.Context, token string, now 
 	if found {
 		stats.Rows = 1
 	}
-	return row.toDomain(), found, stats, err
+	return row.withToken(token), found, stats, err
 }
 
 func (s *Store) RevokeOperatorInvitation(ctx context.Context, id int64, now time.Time) (bool, domain.OperationStats, error) {
@@ -224,10 +242,13 @@ func (s *Store) RevokeOperatorInvitationsForEmail(ctx context.Context, email str
 	return int(rows), stats, err
 }
 
-func (s *Store) ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt, now time.Time) (bool, domain.OperationStats, error) {
+// ExtendOperatorInvitation moves the expiry of a redeemable invitation and
+// replaces its token: the stored hash cannot be mailed again.
+func (s *Store) ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt, now time.Time, token string) (bool, domain.OperationStats, error) {
 	rows, stats, err := s.exec(ctx, "extend operator invitation", func(db bun.IDB) executor {
 		return db.NewUpdate().Model((*operatorInvitationRow)(nil)).
 			Set("expires_at = ?", expiresAt).
+			Set("token = ?", domain.HashToken(token)).
 			Where(`"operator_invitation_token".id = ?`, id).
 			Where(`"operator_invitation_token".used_at IS NULL`).
 			Where(`"operator_invitation_token".expires_at > ?`, now)
@@ -260,7 +281,7 @@ func (s *Store) InsertOperatorEmailChange(ctx context.Context, change domain.Ope
 		return domain.OperatorEmailChange{}, domain.OperationStats{}, err
 	}
 	row := operatorEmailChangeRow{
-		OperatorID: change.OperatorID, NewEmail: change.NewEmail, Token: change.Token, Expiry: change.Expiry, Used: change.Used,
+		OperatorID: change.OperatorID, NewEmail: change.NewEmail, TokenHash: domain.HashToken(change.Token), Expiry: change.Expiry, Used: change.Used,
 	}
 	started := time.Now()
 	result, err := db.NewInsert().Model(&row).Returning("*").Exec(ctx)
@@ -273,7 +294,7 @@ func (s *Store) InsertOperatorEmailChange(ctx context.Context, change domain.Ope
 		return domain.OperatorEmailChange{}, stats, fmt.Errorf("identity access postgres: insert operator email change: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
-	return row.toDomain(), stats, nil
+	return row.withToken(change.Token), stats, nil
 }
 
 func (s *Store) CountOperatorEmailChangesCreatedAfter(ctx context.Context, operatorID int64, since time.Time) (int, domain.OperationStats, error) {
@@ -302,7 +323,7 @@ func (s *Store) RedeemOperatorEmailChange(ctx context.Context, token string, now
 	started := time.Now()
 	err = db.NewUpdate().Model(&row).
 		Set("used = TRUE").
-		Where(`"operator_email_change_token".token = ?`, token).
+		Where(`"operator_email_change_token".token = ?`, domain.HashToken(token)).
 		Where(`"operator_email_change_token".expiry > ?`, now).
 		Where(`"operator_email_change_token".used = FALSE`).
 		Returning("*").
@@ -311,7 +332,7 @@ func (s *Store) RedeemOperatorEmailChange(ctx context.Context, token string, now
 	if found {
 		stats.Rows = 1
 	}
-	return row.toDomain(), found, stats, err
+	return row.withToken(token), found, stats, err
 }
 
 func (s *Store) RevokeOperatorEmailChanges(ctx context.Context, operatorID int64) (domain.OperationStats, error) {

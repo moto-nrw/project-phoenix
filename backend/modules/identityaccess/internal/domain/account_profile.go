@@ -18,3 +18,10 @@ type AccountProfile struct {
 	Bio      string
 	Settings string
 }
+
+// AnalyticsConsent is the account's answer to the usage analytics; Granted
+// is nil while the account has not decided.
+type AnalyticsConsent struct {
+	Granted   *bool
+	DecidedAt *time.Time
+}

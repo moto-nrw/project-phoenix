@@ -12,8 +12,10 @@ func TestCapPortalScopes(t *testing.T) {
 		in   string
 		want []string
 	}{
-		{PortalScopeTenant, []string{PortalScopeTenant, PortalScopeOrg}},
-		{PortalScopeOrg, []string{PortalScopeTenant, PortalScopeOrg}},
+		// ADR 0084: the Träger-Portal has its own session bucket; a Träger
+		// login never evicts an OGS session and vice versa.
+		{PortalScopeTenant, []string{PortalScopeTenant}},
+		{PortalScopeOrg, []string{PortalScopeOrg}},
 		{PortalScopeParent, []string{PortalScopeParent}},
 		{PortalScopeSchool, []string{PortalScopeSchool}},
 		{PortalScopeUnknown, []string{PortalScopeUnknown}},
@@ -50,7 +52,7 @@ func TestAccountSessionValidate(t *testing.T) {
 		{"rejects an unknown scope", AccountSession{AccountID: 1, Token: "handle", PortalScope: "kiosk"}, "invalid portal scope", ""},
 		{"rejects a half hand-off", AccountSession{AccountID: 1, Token: "handle", RotatedAt: &now}, "rotation handoff must include both timestamp and replacement token", ""},
 		{"rejects a proof without a hand-off", AccountSession{AccountID: 1, Token: "handle", RecoveryProofHash: []byte{1}}, "recovery proof hash requires a rotation handoff", ""},
-		{"accepts a complete hand-off", AccountSession{AccountID: 1, Token: "handle", RotatedAt: &now, ReplacementToken: &replacement, RecoveryProofHash: []byte{1}}, "", PortalScopeUnknown},
+		{"accepts a complete hand-off", AccountSession{AccountID: 1, Token: "handle", RotatedAt: &now, ReplacementTokenHash: &replacement, RecoveryProofHash: []byte{1}}, "", PortalScopeUnknown},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

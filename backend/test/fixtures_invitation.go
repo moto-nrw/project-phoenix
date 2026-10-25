@@ -32,10 +32,14 @@ type InvitationTokenFixture struct {
 
 // InsertTestInvitationToken preserves the exact supplied address, token and
 // school. CreateTestInvitationToken adds fixture uniqueness when it is wanted.
+// The row stores TokenHash(invitation.Token); the fixture keeps the raw link.
 func InsertTestInvitationToken(tb testing.TB, db *bun.DB, invitation *InvitationTokenFixture) {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	raw := invitation.Token
+	invitation.Token = TokenHash(tb, db, raw)
 	_, err := db.NewInsert().Model(invitation).ModelTableExpr("auth.invitation_tokens").Returning("id").Exec(ctx)
+	invitation.Token = raw
 	require.NoError(tb, err, "Failed to create test invitation token")
 }

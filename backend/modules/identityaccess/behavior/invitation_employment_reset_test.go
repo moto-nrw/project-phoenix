@@ -70,6 +70,8 @@ func TestInvitationEmploymentResets(t *testing.T) {
 			require.Equal(t, tc.qualifications, pending[0].ResetQualifications)
 			require.Equal(t, tc.work, pending[0].ResetWorkTime)
 			require.NoError(t, module.Invitation.ResendSchoolInvitation(ctx, invitation.ID, creator.ID))
+			// The resend mails a new link; the previous one stops working (#4902).
+			invitation.Token = mailedLinkToken(t, db, account.Email)
 			if tc.active {
 				_, err = db.ExecContext(ctx, `UPDATE users.staff_school_memberships SET deleted_at = NULL WHERE id = ?`, former.ID)
 				require.NoError(t, err)
