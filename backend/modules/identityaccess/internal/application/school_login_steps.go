@@ -38,6 +38,12 @@ func (s *AccountAuthentication) schoolLoginTenant(ctx context.Context, account d
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at any school")
 		return 0, failed("school login", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
+	// Checked before any second factor is mailed: a school without
+	// Unterricht am Vormittag has no school portal (#4895).
+	if err := s.requireSchoolPortal(ctx, "school login", account.ID, portalTenantID); err != nil {
+		s.logFailedLogin(s.runtime.WithTenantID(ctx, portalTenantID), account.ID, ipAddress, userAgent, "School portal not booked")
+		return 0, err
+	}
 
 	return portalTenantID, nil
 }

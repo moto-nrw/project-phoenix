@@ -78,9 +78,9 @@ func requireBookedModule(next http.Handler) http.Handler {
 }
 
 func moduleNotBookedResponse(notBooked *settings.ModuleNotBookedError) render.Renderer {
-	details := map[string]any{"module": string(notBooked.Module)}
+	label := ""
 	if definition, ok := settings.LookupModule(notBooked.Module); ok {
-		details["module_label"] = definition.Label
+		label = definition.Label
 	}
-	return common.ErrorForbiddenWithDetails(notBooked, common.CodeModuleNotBooked, details)
+	return common.ErrorModuleNotBooked(notBooked, string(notBooked.Module), label)
 }

@@ -423,6 +423,13 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 	recoveryProof := r.Header.Get(rotation.RecoveryProofHeader)
 	accessToken, newRefreshToken, err := rs.Sessions.RefreshTokenWithAudit(r.Context(), refreshToken, recoveryProof, ipAddress, userAgent)
 	if err != nil {
+		if notBooked, ok := identityaccess.PortalNotBooked(err); ok {
+			// The school no longer books the portal's module (#4895). The
+			// presented refresh token stays valid; the portal explains the
+			// missing module instead of a silent logout.
+			common.RenderError(w, r, common.ErrorModuleNotBooked(notBooked, notBooked.Module, notBooked.ModuleLabel))
+			return
+		}
 		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {

@@ -36,17 +36,27 @@ func (s *AccountAuthentication) IssueParentTokensForAuthenticatedAccount(ctx con
 // issueParentTokens refuses an account without a guardian role on an active
 // mapping and mints the parent-scope session.
 func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string) (string, string, error) {
-	hasGuardianRole, firstGuardianTenantID, err := s.findGuardianTenantForAccount(ctx, account.ID)
+	guardianTenantIDs, err := s.listGuardianTenantsForAccount(ctx, account.ID)
 	if err != nil {
 		return "", "", failed("parent login: enumerate tenants", err)
 	}
-	if !hasGuardianRole {
+	if len(guardianTenantIDs) == 0 {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Not a guardian at any school")
 		return "", "", failed("parent login", identityaccess.ErrAccountNoGuardianRole)
 	}
-	// The refresh session row is pinned to the first guardian tenant for the
-	// foreign key and RLS; the token itself is cross-tenant on read.
-	session, err := s.createRefreshSession(ctx, account, firstGuardianTenantID, domain.ScopeParent)
+	// The parents portal opens while at least one guardian school booked
+	// Eltern-App (#4895).
+	bookedTenantIDs, err := s.bookedGuardianSchools(ctx, "parent login", account.ID, guardianTenantIDs)
+	if err != nil {
+		if _, notBooked := identityaccess.PortalNotBooked(err); notBooked {
+			s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Parents portal not booked at any guardian school")
+		}
+		return "", "", err
+	}
+	// The refresh session row is pinned to the first guardian tenant with
+	// the portal for the foreign key and RLS; the token itself is
+	// cross-tenant on read.
+	session, err := s.createRefreshSession(ctx, account, bookedTenantIDs[0], domain.ScopeParent)
 	if err != nil {
 		return "", "", err
 	}
@@ -95,6 +105,32 @@ func (s *AccountAuthentication) findGuardianTenantForAccount(ctx context.Context
 		return false, 0, err
 	}
 	return hasGuardianRole, firstGuardianTenantID, nil
+}
+
+// listGuardianTenantsForAccount returns every active mapping that carries the
+// guardian role, in mapping order, inside an administrative transaction.
+func (s *AccountAuthentication) listGuardianTenantsForAccount(ctx context.Context, accountID int64) ([]int64, error) {
+	var guardianTenantIDs []int64
+	if err := s.runtime.WithAdminTx(ctx, func(adminCtx context.Context) error {
+		tenantIDs, _, listErr := s.store.ListActiveTenantIDs(adminCtx, accountID)
+		if listErr != nil {
+			return listErr
+		}
+		for _, tenantID := range tenantIDs {
+			roles, _, roleErr := s.store.ListAccountRolesAtTenant(adminCtx, accountID, tenantID, false)
+			if roleErr != nil {
+				// A real database failure must not read as "not a guardian".
+				return roleErr
+			}
+			if domain.HasGuardianRole(roles) {
+				guardianTenantIDs = append(guardianTenantIDs, tenantID)
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return guardianTenantIDs, nil
 }
 
 // FindGuardianTenant is findGuardianTenantForAccount for the retained

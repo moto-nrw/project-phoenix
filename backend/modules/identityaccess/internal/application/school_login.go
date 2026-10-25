@@ -69,6 +69,9 @@ func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx con
 		s.logFailedLogin(s.runtime.WithTenantID(ctx, tenantID), account.ID, ipAddress, userAgent, "No school portal role at school token issue")
 		return "", "", failed("issue school tokens", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
+	if err := s.requireSchoolPortal(ctx, "issue school tokens", account.ID, tenantID); err != nil {
+		return "", "", err
+	}
 	var claims *domain.AccountClaimsPayload
 	var proof *identityaccess.VerifiedMFAChallenge
 	if len(proofs) > 0 {
@@ -118,6 +121,9 @@ func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int6
 	}
 	if !hasRole {
 		return "", "", failed("switch school", identityaccess.ErrAccountNoSchoolPortalRole)
+	}
+	if err := s.requireSchoolPortal(ctx, "switch school", accountID, targetTenantID); err != nil {
+		return "", "", err
 	}
 	var claims *domain.AccountClaimsPayload
 	session, err := s.createRefreshSessionGuarded(ctx, account, targetTenantID, domain.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &claims), sourceFamilyID)
