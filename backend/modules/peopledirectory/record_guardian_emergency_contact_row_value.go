@@ -15,5 +15,6 @@ type GuardianEmergencyContactRow struct {
 	RelationshipType   *string
 	PickupNotes        *string
 	CanPickup          bool
+	PickupWeekdays     []int
 	IsEmergencyContact bool
 }

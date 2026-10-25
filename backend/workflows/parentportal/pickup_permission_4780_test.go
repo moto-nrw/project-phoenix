@@ -221,6 +221,57 @@ func TestPickupPermissionRequest_SignedThenConfirmedGrantsWeekdays(t *testing.T)
 	assert.Equal(t, permission.Signature.Statement, proof.Statement)
 }
 
+func TestPickupPermissionCorrectionRestoresThePreviousPermission(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-correction")
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+	created, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{
+		Weekdays: []int{2, 4}, Signature: testSignature(t),
+	})
+	require.NoError(t, err)
+	approveCareRequest(t, f, chain.TenantID, created.ID)
+
+	rows, err := f.svc.ListPickupPermissionRequests(ctx, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	current := rows[0]
+	staffCtx, staffID := staffDecisionContext(t, f.db, chain.TenantID)
+	corrector, ok := f.requests.(interface {
+		Correct(context.Context, int64, bool, string, string, int64) error
+	})
+	require.True(t, ok)
+	require.NoError(t, testpkg.WithTenantTx(t, staffCtx, f.db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return corrector.Correct(txCtx, created.ID, false, careplan.ParentRequestVersion(current.UpdatedAt), "Doch nicht", staffID)
+	}))
+
+	canPickup, weekdays := pickupWeekdays(t, f.db, chain.StudentID, contactID)
+	assert.False(t, canPickup)
+	assert.Empty(t, weekdays)
+}
+
+func TestPickupPermissionRequestsListQueryBudget(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	for _, name := range []string{"eins", "zwei", "drei"} {
+		contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-budget-"+name)
+		_, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{Signature: testSignature(t)})
+		require.NoError(t, err)
+	}
+
+	counter := testpkg.CaptureQueries(t, f.db)
+	rows, err := f.svc.ListPickupPermissionRequests(ctx, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.Len(t, rows, 3)
+	testpkg.AssertQueryBudget(t, "workflows.parentportal.pickup_permission_requests.list", counter.Queries())
+}
+
 func TestPickupPermissionRequest_RefusesWithoutSignatureOrPermission(t *testing.T) {
 	t.Parallel()
 

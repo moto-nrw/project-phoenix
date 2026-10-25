@@ -113,8 +113,9 @@ type PickupChangeRequestResponse struct {
 	IsSelf                 bool       `json:"is_self"`
 	// PickupPerson is the one-day collector (#4780); Signed says the request
 	// carries a signature, whose proof the submitter can open.
-	PickupPerson *string `json:"pickup_person,omitempty"`
-	Signed       bool    `json:"signed"`
+	PickupPerson                  *string `json:"pickup_person,omitempty"`
+	PickupPersonGuardianProfileID *string `json:"pickup_person_guardian_profile_id,omitempty"`
+	Signed                        bool    `json:"signed"`
 }
 
 func toPickupChangeRequestResponse(req *careplan.CareScheduleChangeRequest, accountID int64) (PickupChangeRequestResponse, error) {
@@ -145,6 +146,10 @@ func toPickupChangeRequestResponse(req *careplan.CareScheduleChangeRequest, acco
 	}
 	if terms.PickupPersonName != "" {
 		response.PickupPerson = &terms.PickupPersonName
+		if req.Status == carerequests.StatusPending && req.SubmittedBy == accountID {
+			guardianProfileID := strconv.FormatInt(terms.PickupPersonGuardianProfileID, 10)
+			response.PickupPersonGuardianProfileID = &guardianProfileID
+		}
 	}
 	response.Signed = carerequests.StoredSignature(req.Payload) != nil
 	return response, nil

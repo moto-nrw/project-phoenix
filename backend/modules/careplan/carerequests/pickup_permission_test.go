@@ -35,7 +35,8 @@ func TestPickupPermissionPayloadRoundTrip(t *testing.T) {
 	input := PickupPermissionCreateInput{
 		StudentID: 1, GuardianAccountID: 2, GuardianProfileID: 3, RelationshipID: 4,
 		PersonName: " Erika Muster ", Weekdays: []int{3, 1}, PreviousLabel: "Nicht abholberechtigt",
-		Signature: SignedStatement{SignatureID: 9, Statement: "Ich erlaube …"},
+		PreviousPermission: PickupPermissionState{CanPickup: true, Weekdays: []int{4, 2, 2}},
+		Signature:          SignedStatement{SignatureID: 9, Statement: "Ich erlaube …"},
 	}
 	raw, err := PickupPermissionPayload(input)
 	require.NoError(t, err)
@@ -46,6 +47,9 @@ func TestPickupPermissionPayloadRoundTrip(t *testing.T) {
 	assert.Equal(t, input.RelationshipID, permission.RelationshipID)
 	assert.Equal(t, "Erika Muster", permission.PersonName)
 	assert.Equal(t, []int{1, 3}, permission.Weekdays)
+	require.NotNil(t, permission.PreviousPermission)
+	assert.True(t, permission.PreviousPermission.CanPickup)
+	assert.Equal(t, []int{2, 4}, permission.PreviousPermission.Weekdays)
 	require.NotNil(t, permission.Signature)
 	assert.Equal(t, input.Signature.SignatureID, permission.Signature.SignatureID)
 

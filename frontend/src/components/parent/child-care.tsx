@@ -1201,7 +1201,7 @@ export function PickupTimeModal({
         : "",
     );
     setReason(request?.reason ?? existing?.reason ?? "");
-    setPickupPersonId("");
+    setPickupPersonId(request?.pickup_person_guardian_profile_id ?? "");
     setSignature(null);
     clearForm();
     setInvalidField(null);
@@ -1216,14 +1216,14 @@ export function PickupTimeModal({
     });
     return true;
   };
-  // Abholperson und Unterschrift gehen nur gemeinsam mit (#4780).
-  const dayPickup =
-    pickupPerson && signature
-      ? {
-          pickupPersonGuardianProfileId: pickupPerson.guardian_profile_id,
-          signature,
-        }
-      : {};
+  // Eine Unterschrift gehört zur Erklärung, unabhängig davon, ob diese eine
+  // Abholperson oder den Heimweg allein betrifft (#4780).
+  const dayPickup = {
+    ...(pickupPerson
+      ? { pickupPersonGuardianProfileId: pickupPerson.guardian_profile_id }
+      : {}),
+    ...(signature ? { signature } : {}),
+  };
 
   const handleSubmit = async () => {
     // Guard: if the existing overrides never loaded we can't trust the

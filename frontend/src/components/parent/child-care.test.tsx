@@ -1990,4 +1990,80 @@ describe("PickupTimeModal, Abholperson an einem Tag", () => {
     );
     contacts.mockRestore();
   });
+
+  it("sends the signature for walking home alone", async () => {
+    const { onSubmit, reasonInput } = renderModal({
+      departureModeEnabled: true,
+    });
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Abholart an diesem Tag" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Geht allein" }));
+    fireEvent.change(reasonInput!, { target: { value: "Heute allein" } });
+    fireEvent.click(screen.getByRole("button", { name: "Namen tippen" }));
+    fireEvent.change(screen.getByLabelText("Ihr Vor- und Nachname"), {
+      target: { value: "Sabine Muster" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterschrift bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          departureMode: "alone",
+          signature: expect.objectContaining({
+            method: "typed",
+            typedName: "Sabine Muster",
+          }),
+        }),
+      ),
+    );
+  });
+
+  it("keeps the collector selected while editing a pending request", async () => {
+    const contacts = vi
+      .spyOn(parentApi, "listChildGuardians")
+      .mockResolvedValue([
+        {
+          guardian_profile_id: "12",
+          student_guardian_id: "120",
+          first_name: "Rita",
+          last_name: "Klein",
+          relationship_type: "relative",
+          is_primary: false,
+          can_pickup: false,
+          is_emergency_contact: false,
+          phones: [],
+          is_self: false,
+        } as unknown as parentApi.ChildGuardian,
+      ]);
+    renderModal({
+      studentId: "1",
+      pickupChangeRequests: [
+        {
+          id: "request-collector",
+          date: todayISO(),
+          pickup_time: null,
+          departure_mode: "pickup",
+          pickup_person: "Rita Klein",
+          pickup_person_guardian_profile_id: "12",
+          signed: true,
+          reason: "Oma holt ab",
+          status: "pending",
+          created_at: "2026-09-08T09:00:00Z",
+        },
+      ],
+      departureModeEnabled: true,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage bearbeiten" }));
+
+    expect(
+      await screen.findByRole("combobox", { name: "Wer holt ab?" }),
+    ).toHaveTextContent("Rita Klein");
+    contacts.mockRestore();
+  });
 });

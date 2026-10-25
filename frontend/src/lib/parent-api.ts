@@ -341,6 +341,8 @@ export interface PickupChangeRequest {
   readonly is_self?: boolean;
   /** Die Kontaktperson, die das Kind an diesem Tag abholt (#4780). */
   readonly pickup_person?: string;
+  /** Die ID der Kontaktperson zum erneuten Bearbeiten der Anfrage (#4780). */
+  readonly pickup_person_guardian_profile_id?: string;
   /** Die Anfrage trägt eine Unterschrift; ihr Nachweis ist als PDF abrufbar. */
   readonly signed?: boolean;
 }

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -77,7 +78,7 @@ func (s *dayReports) supervisionSheetFor(ctx context.Context, student *SheetStud
 	if sheet.Status, err = s.supervisionStatus(ctx, student.ID, date, &facts); err != nil {
 		return nil, err
 	}
-	if sheet.PickupContacts, sheet.EmergencyContacts, err = s.supervisionContacts(ctx, student.ID); err != nil {
+	if sheet.PickupContacts, sheet.EmergencyContacts, err = s.supervisionContacts(ctx, student.ID, date); err != nil {
 		return nil, err
 	}
 	return sheet, nil
@@ -149,7 +150,7 @@ type supervisionContact struct {
 // A guardian can answer both, and then appears in both lists — the
 // alternative is one merged list where the supervisor has to decode flags
 // under pressure. Contacts that are neither are left out entirely.
-func (s *dayReports) supervisionContacts(ctx context.Context, studentID int64) (pickup, emergency []classday.SupervisionContact, err error) {
+func (s *dayReports) supervisionContacts(ctx context.Context, studentID int64, date calendar.Date) (pickup, emergency []classday.SupervisionContact, err error) {
 	pickup = []classday.SupervisionContact{}
 	emergency = []classday.SupervisionContact{}
 	if s.emergencyContacts == nil {
@@ -159,7 +160,7 @@ func (s *dayReports) supervisionContacts(ctx context.Context, studentID int64) (
 	if err != nil {
 		return nil, nil, fmt.Errorf("supervision sheet: load guardians: %w", err)
 	}
-	for _, entry := range foldSupervisionContacts(rows, studentID) {
+	for _, entry := range foldSupervisionContacts(rows, studentID, date) {
 		if entry.contact.Name == "" && len(entry.contact.Phones) == 0 {
 			continue
 		}
@@ -179,7 +180,7 @@ func (s *dayReports) supervisionContacts(ctx context.Context, studentID int64) (
 
 // foldSupervisionContacts folds the phone-number rows back into one contact
 // per guardian, keeping the rows' priority order.
-func foldSupervisionContacts(rows []EmergencyContactRow, studentID int64) []*supervisionContact {
+func foldSupervisionContacts(rows []EmergencyContactRow, studentID int64, date calendar.Date) []*supervisionContact {
 	byGuardian := map[int64]*supervisionContact{}
 	for _, row := range rows {
 		if row.StudentID != studentID || row.GuardianProfileID <= 0 {
@@ -198,7 +199,7 @@ func foldSupervisionContacts(rows []EmergencyContactRow, studentID int64) []*sup
 			entry.contact.Note = strings.TrimSpace(row.PickupNotes)
 			byGuardian[row.GuardianProfileID] = entry
 		}
-		entry.canPickup = entry.canPickup || row.CanPickup
+		entry.canPickup = entry.canPickup || pickupAllowedOn(row, date)
 		entry.isEmergency = entry.isEmergency || row.IsEmergencyContact
 		entry.contact.Phones = splitUnique(append(entry.contact.Phones, row.PhoneNumber)...)
 	}
@@ -208,6 +209,10 @@ func foldSupervisionContacts(rows []EmergencyContactRow, studentID int64) []*sup
 	}
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].order < entries[j].order })
 	return entries
+}
+
+func pickupAllowedOn(row EmergencyContactRow, date calendar.Date) bool {
+	return row.CanPickup && (len(row.PickupWeekdays) == 0 || slices.Contains(row.PickupWeekdays, int(date.Weekday())))
 }
 
 // splitUnique splits every value on ";" and keeps each trimmed, non-empty

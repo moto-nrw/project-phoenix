@@ -31,7 +31,13 @@ func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool
 		return err
 	}
 	var applied carerequests.PickupApplied
-	if approve {
+	if request.RequestKind == carerequests.KindPickupPermission {
+		if approve {
+			err = s.Plans.ApplyPickupPermission(ctx, request)
+		} else if request.Status == carerequests.StatusApproved {
+			err = s.Plans.RevertPickupPermission(ctx, request)
+		}
+	} else if approve {
 		applied, err = s.Plans.ApplyPickup(ctx, request, nil, false)
 	} else {
 		err = s.revertPickup(ctx, request)
@@ -176,7 +182,7 @@ func validateCareCorrection(request carerequests.Request, version string) error 
 	if version != "" && careplan.ParentRequestVersion(request.UpdatedAt) != version {
 		return careplan.ErrParentRequestStale
 	}
-	if request.RequestKind != "pickup_change" {
+	if request.RequestKind != "pickup_change" && request.RequestKind != carerequests.KindPickupPermission {
 		return fmt.Errorf("%w: Betreuungszeiten speichern keinen Stand von vor der Entscheidung. Bitte ändern Sie den Wochenplan des Kindes direkt", careplan.ErrParentRequestCorrectionUnsupported)
 	}
 	return nil

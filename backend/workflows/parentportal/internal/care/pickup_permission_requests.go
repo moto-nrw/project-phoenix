@@ -109,6 +109,9 @@ func (s *Service) createPickupPermissionRequestInTx(txCtx context.Context, child
 		StudentID: studentID, GuardianAccountID: accountID,
 		GuardianProfileID: guardianProfileID, RelationshipID: link.ID, PersonName: name,
 		Weekdays: weekdays, Reason: input.Reason, PreviousLabel: previousPickupPermissionLabel(link),
+		PreviousPermission: carerequests.PickupPermissionState{
+			CanPickup: link.CanPickup, Weekdays: normalizedWeekdays(link.PickupWeekdays),
+		},
 		Signature: *signed,
 	})
 }

@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 
@@ -63,6 +64,33 @@ func (a requestDecisionAdapter) ApplyPickupPermission(ctx context.Context, reque
 	found, err := a.s.PickupPermissionCommands.ChangeGuardianPickupPermission(ctx, careplan.GuardianPickupPermissionChange{
 		TenantID: request.TenantID, RelationshipID: permission.RelationshipID,
 		CanPickup: &grant, SetWeekdays: true, Weekdays: permission.Weekdays,
+	})
+	if err != nil {
+		return err
+	}
+	if !found {
+		return carerequests.ErrPickupPermissionContactGone
+	}
+	return nil
+}
+
+// RevertPickupPermission restores the precise permission state frozen when
+// the request was filed. A correction must not infer that state from the
+// current contact, which may have a different weekday restriction.
+func (a requestDecisionAdapter) RevertPickupPermission(ctx context.Context, request *carerequests.Request) error {
+	if a.s.PickupPermissionCommands == nil {
+		return errors.New("schedule: pickup permission commands not configured")
+	}
+	permission, err := carerequests.ParsePickupPermission(request.Payload)
+	if err != nil {
+		return err
+	}
+	if permission.PreviousPermission == nil {
+		return fmt.Errorf("%w: Abholberechtigungen ohne gespeicherten vorherigen Stand können nicht sicher korrigiert werden", careplan.ErrParentRequestCorrectionUnsupported)
+	}
+	found, err := a.s.PickupPermissionCommands.ChangeGuardianPickupPermission(ctx, careplan.GuardianPickupPermissionChange{
+		TenantID: request.TenantID, RelationshipID: permission.RelationshipID,
+		CanPickup: &permission.PreviousPermission.CanPickup, SetWeekdays: true, Weekdays: permission.PreviousPermission.Weekdays,
 	})
 	if err != nil {
 		return err

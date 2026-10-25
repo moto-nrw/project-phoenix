@@ -17,6 +17,9 @@ type PickupChangeTerms struct {
 	PreviousDepartureModes []string
 	// PickupPersonName is the one-day collector (#4780), "" for none.
 	PickupPersonName string
+	// PickupPersonGuardianProfileID lets the parent portal preselect the
+	// collector when its still-pending request is edited.
+	PickupPersonGuardianProfileID int64
 }
 
 func StoredPickupTerms(raw json.RawMessage) *PickupChangeTerms {
@@ -31,6 +34,7 @@ func StoredPickupTerms(raw json.RawMessage) *PickupChangeTerms {
 	terms := &PickupChangeTerms{Date: change.Date, DepartureMode: change.DepartureMode}
 	if change.PickupPerson != nil {
 		terms.PickupPersonName = change.PickupPerson.Name
+		terms.PickupPersonGuardianProfileID = change.PickupPerson.GuardianProfileID
 	}
 	if change.PickupTime != nil {
 		terms.PickupTime = change.PickupTime.Format("15:04")

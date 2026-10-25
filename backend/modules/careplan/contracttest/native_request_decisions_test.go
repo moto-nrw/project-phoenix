@@ -54,6 +54,9 @@ func (*decisionBoundary) ApplyPickup(context.Context, *carerequests.Request, *st
 func (*decisionBoundary) ApplyPickupPermission(context.Context, *carerequests.Request) error {
 	return errors.New("unexpected pickup permission application")
 }
+func (*decisionBoundary) RevertPickupPermission(context.Context, *carerequests.Request) error {
+	return errors.New("unexpected pickup permission reversion")
+}
 func (d *decisionBoundary) RegisterDecision(context.Context, *carerequests.Request, carerequests.DecideInput, string, bool) error {
 	d.calls = append(d.calls, "effects")
 	return nil

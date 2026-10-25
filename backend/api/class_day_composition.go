@@ -248,7 +248,7 @@ func (b classDayEmergencyContacts) EmergencyContactRows(ctx context.Context, stu
 			StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID,
 			FirstName: owners.StringValue(row.FirstName), LastName: owners.StringValue(row.LastName),
 			RelationshipType: owners.StringValue(row.RelationshipType), PickupNotes: owners.StringValue(row.PickupNotes),
-			PhoneNumber: owners.StringValue(row.PhoneNumber), CanPickup: row.CanPickup, IsEmergencyContact: row.IsEmergencyContact,
+			PhoneNumber: owners.StringValue(row.PhoneNumber), CanPickup: row.CanPickup, PickupWeekdays: row.PickupWeekdays, IsEmergencyContact: row.IsEmergencyContact,
 		})
 	}
 	return out, nil

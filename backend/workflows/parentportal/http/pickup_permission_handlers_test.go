@@ -1,6 +1,7 @@
 package parent
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -90,4 +91,22 @@ func TestParsePickupPersonID(t *testing.T) {
 	invalid := "abc"
 	_, err = parsePickupPersonID(&invalid)
 	assert.Error(t, err)
+}
+
+func TestPickupChangeResponseExposesCollectorIDOnlyForOwnPendingRequest(t *testing.T) {
+	t.Parallel()
+
+	request := &carerequests.Request{
+		ID: 1, SubmittedBy: 7, Status: carerequests.StatusPending,
+		Payload: json.RawMessage(`{"date":"2026-11-10","reason":"Oma","pickup_person":{"guardian_profile_id":42,"name":"Erika Muster"}}`),
+	}
+	response, err := toPickupChangeRequestResponse(request, 7)
+	require.NoError(t, err)
+	require.NotNil(t, response.PickupPersonGuardianProfileID)
+	assert.Equal(t, "42", *response.PickupPersonGuardianProfileID)
+
+	request.Status = carerequests.StatusApproved
+	response, err = toPickupChangeRequestResponse(request, 7)
+	require.NoError(t, err)
+	assert.Nil(t, response.PickupPersonGuardianProfileID)
 }

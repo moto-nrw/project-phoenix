@@ -35,4 +35,6 @@ type RequestCorrectionPeople interface {
 
 type RequestCorrectionPlans interface {
 	ApplyPickup(context.Context, *carerequests.Request, *string, bool) (carerequests.PickupApplied, error)
+	ApplyPickupPermission(context.Context, *carerequests.Request) error
+	RevertPickupPermission(context.Context, *carerequests.Request) error
 }

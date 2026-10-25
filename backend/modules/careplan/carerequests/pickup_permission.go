@@ -45,18 +45,27 @@ type PickupPerson struct {
 // Weekdays empty means every day. RelationshipID is the child's link to the
 // contact that the approval writes to; the flow resolves it.
 type PickupPermissionCreateInput struct {
-	StudentID         int64
-	GuardianAccountID int64
-	GuardianProfileID int64
-	RelationshipID    int64
-	PersonName        string
-	Weekdays          []int
-	Reason            string
+	StudentID          int64
+	GuardianAccountID  int64
+	GuardianProfileID  int64
+	RelationshipID     int64
+	PersonName         string
+	Weekdays           []int
+	Reason             string
+	PreviousPermission PickupPermissionState
 	// PreviousLabel names the person's days before the request ("Nicht
 	// abholberechtigt", "An allen Tagen", "Nur Mo, Mi"), so the review and the
 	// frozen decision compare with the state the family saw.
 	PreviousLabel string
 	Signature     SignedStatement
+}
+
+// PickupPermissionState is the permission before a request changes it. It is
+// stored with the request so a staff correction can restore exactly that
+// state instead of guessing from the current relationship.
+type PickupPermissionState struct {
+	CanPickup bool
+	Weekdays  []int
 }
 
 // PickupPermission is the stored ask of a pickup permission request.
@@ -68,6 +77,8 @@ type PickupPermission struct {
 	Weekdays  []int
 	Reason    string
 	Signature *SignedStatement
+	// PreviousPermission is nil on legacy rows that predate correction support.
+	PreviousPermission *PickupPermissionState
 }
 
 // NormalizeWeekdays sorts and deduplicates plan weekdays (1 = Monday …
@@ -101,6 +112,10 @@ func PickupPermissionPayload(input PickupPermissionCreateInput) (json.RawMessage
 	if err != nil {
 		return nil, err
 	}
+	previousWeekdays, err := NormalizeWeekdays(input.PreviousPermission.Weekdays)
+	if err != nil {
+		return nil, err
+	}
 	if !validSignedStatement(input.Signature) {
 		return nil, ErrInvalidPayload
 	}
@@ -117,17 +132,25 @@ func PickupPermissionPayload(input PickupPermissionCreateInput) (json.RawMessage
 	if previous := strings.TrimSpace(input.PreviousLabel); previous != "" {
 		payload["previous_label"] = previous
 	}
+	payload["previous_permission"] = map[string]any{
+		"can_pickup": input.PreviousPermission.CanPickup,
+		"weekdays":   previousWeekdays,
+	}
 	return json.Marshal(payload)
 }
 
 // ParsePickupPermission reads a stored pickup permission request.
 func ParsePickupPermission(raw json.RawMessage) (PickupPermission, error) {
 	var payload struct {
-		GuardianProfileID int64  `json:"guardian_profile_id"`
-		RelationshipID    int64  `json:"relationship_id"`
-		PersonName        string `json:"person_name"`
-		Weekdays          []int  `json:"weekdays"`
-		Reason            string `json:"reason"`
+		GuardianProfileID  int64  `json:"guardian_profile_id"`
+		RelationshipID     int64  `json:"relationship_id"`
+		PersonName         string `json:"person_name"`
+		Weekdays           []int  `json:"weekdays"`
+		Reason             string `json:"reason"`
+		PreviousPermission *struct {
+			CanPickup bool  `json:"can_pickup"`
+			Weekdays  []int `json:"weekdays"`
+		} `json:"previous_permission"`
 	}
 	if json.Unmarshal(raw, &payload) != nil || payload.GuardianProfileID <= 0 || payload.RelationshipID <= 0 || payload.PersonName == "" {
 		return PickupPermission{}, ErrInvalidPayload
@@ -136,11 +159,22 @@ func ParsePickupPermission(raw json.RawMessage) (PickupPermission, error) {
 	if err != nil {
 		return PickupPermission{}, err
 	}
-	return PickupPermission{
+	permission := PickupPermission{
 		GuardianProfileID: payload.GuardianProfileID, RelationshipID: payload.RelationshipID,
 		PersonName: payload.PersonName, Weekdays: weekdays, Reason: payload.Reason,
 		Signature: StoredSignature(raw),
-	}, nil
+	}
+	if payload.PreviousPermission != nil {
+		previous, err := NormalizeWeekdays(payload.PreviousPermission.Weekdays)
+		if err != nil {
+			return PickupPermission{}, err
+		}
+		permission.PreviousPermission = &PickupPermissionState{
+			CanPickup: payload.PreviousPermission.CanPickup,
+			Weekdays:  previous,
+		}
+	}
+	return permission, nil
 }
 
 // PickupPermissionEntries renders the ask as one diff line. old is the label
