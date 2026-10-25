@@ -43,7 +43,7 @@ func TestTraegerMembershipKeepsTheAccountInUse(t *testing.T) {
 
 // TestTraegerSessionNamesItsTraegerAndNoSchool pins chk_tokens_session_owner:
 // a Träger session (portal scope org) names its Träger and no school, every
-// other session its school and no Träger.
+// other session its school; school-portal and parent sessions no Träger.
 func TestTraegerSessionNamesItsTraegerAndNoSchool(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -59,7 +59,10 @@ func TestTraegerSessionNamesItsTraegerAndNoSchool(t *testing.T) {
 	assert.NoError(t, insert("org", nil, organization.ID))
 	assert.ErrorContains(t, insert("org", school, organization.ID), "chk_tokens_session_owner", "a Träger session names no school")
 	assert.ErrorContains(t, insert("org", nil, nil), "chk_tokens_session_owner", "a Träger session names its Träger")
-	assert.ErrorContains(t, insert("tenant", school, organization.ID), "chk_tokens_session_owner", "a school session names no Träger")
+	assert.ErrorContains(t, insert("school", school, organization.ID), "chk_tokens_session_owner", "a school-portal session names no Träger")
+	assert.ErrorContains(t, insert("parent", school, organization.ID), "chk_tokens_session_owner", "a parent session names no Träger")
+	// Since 1.15.556 an OGS session may name the Träger it came through
+	// (Absprung, #4654); TestTraegerSchoolSessionNamesSchoolAndTraeger.
 	assert.ErrorContains(t, insert("tenant", nil, nil), "chk_tokens_session_owner", "a school session names its school")
 	assert.NoError(t, insert("tenant", school, nil))
 	_, err := db.ExecContext(ctx, `DELETE FROM auth.tokens WHERE account_id = ?`, accountID)

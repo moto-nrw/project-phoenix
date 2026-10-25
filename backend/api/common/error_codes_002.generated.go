@@ -77,6 +77,8 @@ const (
 	CodeTraegerLastAdministrator                     = "traeger.last_administrator"
 	CodeTraegerMemberNotFound                        = "traeger.member_not_found"
 	CodeTraegerNoMembership                          = "traeger.no_membership"
+	CodeTraegerSchoolNotFound                        = "traeger.school_not_found"
+	CodeTraegerSecondFactorRequired                  = "traeger.second_factor_required"
 	CodeWorkforceAbsenceAllowanceExceeded            = "workforce.absence_allowance_exceeded"
 	CodeWorkforceAbsenceAlreadyDecided               = "workforce.absence_already_decided"
 	CodeWorkforceAbsenceNoWorkingDays                = "workforce.absence_no_working_days"
@@ -223,6 +225,8 @@ var errorCodeClasses2 = map[string]string{
 	"traeger.last_administrator":                        "business_rejection",
 	"traeger.member_not_found":                          "input",
 	"traeger.no_membership":                             "permission",
+	"traeger.school_not_found":                          "permission",
+	"traeger.second_factor_required":                    "permission",
 	"workforce.absence_allowance_exceeded":              "business_rejection",
 	"workforce.absence_already_decided":                 "business_rejection",
 	"workforce.absence_no_working_days":                 "input",

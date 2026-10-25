@@ -28,3 +28,7 @@ func (s *fakeStore) ListTraegerAccounts(context.Context, int64, []int64) ([]doma
 func (s *fakeStore) DeleteTraegerSessions(context.Context, int64) (int64, domain.OperationStats, error) {
 	return 0, domain.OperationStats{}, nil
 }
+
+func (s *fakeStore) FindTraegerSchoolRole(context.Context, string, int64) (domain.RoleAssignment, []string, bool, domain.OperationStats, error) {
+	return domain.RoleAssignment{}, nil, false, domain.OperationStats{}, nil
+}

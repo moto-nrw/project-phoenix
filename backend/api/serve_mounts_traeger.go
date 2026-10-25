@@ -28,13 +28,15 @@ import (
 
 // TraegerPortalIdentity is what the Träger-Portal serves of Identity &
 // Access: the sign-in, the account second factor, the Träger-Büro account
-// management and the Träger-Büro members' addresses.
+// management, the Träger-Büro members' addresses and the Absprung into a
+// school.
 type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
 	identityaccess.AccountMFAChallenges
 	identityaccess.AccountMFAEnrollment
 	identityaccess.TraegerAccountManagement
 	identityaccess.TraegerRoles
+	identityaccess.TraegerSchoolSessions
 }
 
 // TraegerPersons is the People Directory read the access log names people
@@ -92,7 +94,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity), overviewRoutes, holidayPeriods,
-		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, identity, overviewRoutes), nil
+		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, identity, overviewRoutes, identity), nil
 }
 
 // traegerSchoolIDs binds the Träger projection's school set to Organisation &

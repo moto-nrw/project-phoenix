@@ -124,6 +124,7 @@ export const TRACKED_TENANT_PUBLIC_ROUTE_TEMPLATES = [
   "/display",
   "/invite",
   "/reset-password",
+  "/traeger-uebergabe",
 ] as const;
 
 /** Parents portal pages under `app/parents`, as the parents host shows them. */

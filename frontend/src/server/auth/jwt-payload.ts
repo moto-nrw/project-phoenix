@@ -16,4 +16,6 @@ export interface JwtPayload {
   scope?: string;
   read_only?: boolean;
   acting_admin_id?: number;
+  /** An OGS session the Träger-Büro opened through the Absprung (#4654). */
+  via_traeger?: boolean;
 }

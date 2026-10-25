@@ -574,6 +574,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/holiday-periods/"}:                      notCaptured,
 	{http.MethodPut, "/traeger/holiday-periods/{id}"}:                   notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}:          notCaptured,
+	{http.MethodPost, "/traeger/school-sessions/"}:                      notCaptured,
 	{http.MethodDelete, "/traeger/settings/values/{key}"}:               notCaptured,
 	{http.MethodPut, "/traeger/settings/values/{key}"}:                  notCaptured,
 

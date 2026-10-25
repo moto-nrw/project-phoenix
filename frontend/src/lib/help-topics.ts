@@ -208,6 +208,7 @@ export const HELP_TOPICS = {
   traegerHolidayPeriod: "traeger-ferienzeitraum",
   traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   traegerSettings: "traeger-einstellungen",
+  traegerSchoolSwitch: "in-eine-schule-wechseln",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",
