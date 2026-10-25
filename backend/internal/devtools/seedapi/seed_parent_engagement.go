@@ -101,8 +101,7 @@ func seedOutingDate(today seedDate) seedDate {
 }
 
 // seedParentAppointments fills the families' calendar for the coming weeks
-// (#3923). It showed nothing before: only the marketing profile created a
-// parent appointment.
+// (#3923).
 func seedParentAppointments(rt *Runtime, studentID int64) error {
 	today := todaySeedDate()
 	groupID, err := seedStudentGroupID(rt, studentID)
@@ -225,7 +224,7 @@ func seedParentConversation(rt *Runtime, auth AuthRef, studentID int64) error {
 
 func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error {
 	contactRaw, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/guardians", studentID), map[string]any{
-		"first_name": "Rita", "last_name": "Abholkontakt", "email": "rita.abholkontakt@example.test",
+		"first_name": "Gisela", "last_name": "Hahn", "email": "gisela.hahn@example.test",
 		"address_street": "Nebenweg 3", "address_postal_code": "50667", "address_city": "Köln",
 		"phones":            []map[string]any{{"phone_number": "+49 221 555 778", "phone_type": "mobile", "label": "Privat", "is_primary": true}},
 		"relationship_type": "relative", "can_pickup": true, "is_emergency_contact": false,
@@ -250,7 +249,7 @@ func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error
 	}
 	return withTemporarySeedSetting(rt, rt.TenantAuth, "guardians.parent_invite_mode", "staff_approval", "direct", func() error {
 		if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/related-accounts", studentID), map[string]any{
-			"email": "rita.abholkontakt@example.test", "confirm_role_upgrade": true,
+			"email": "gisela.hahn@example.test", "confirm_role_upgrade": true,
 		}); err != nil {
 			return fmt.Errorf("seed pending guardian role upgrade: %w", err)
 		}

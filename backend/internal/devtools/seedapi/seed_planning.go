@@ -150,7 +150,7 @@ func seedPlanningStaffDeviation(rt *Runtime, instanceID, absentStaffID, substitu
 		"absences": []map[string]any{{"staff_id": absentStaffID, "reason": "Fortbildung", "instance_ids": []int64{instanceID}}},
 		"substitutions": []map[string]any{{
 			"absent_staff_id": absentStaffID, "substitute_staff_id": substituteStaffID,
-			"reason": "Vertretung für die Demo", "instance_ids": []int64{instanceID},
+			"reason": "Vertretung wegen Krankheit", "instance_ids": []int64{instanceID},
 		}},
 	}); err != nil {
 		return fmt.Errorf("seed planning staff deviation: %w", err)
@@ -209,9 +209,9 @@ func seedCarePlanDeviations(rt *Runtime, studentIDs []int64) error {
 // seedTodayHomeChanges gives two children a one-day change of their way home,
 // so the strip on the Kinderkarte shows on every dev machine (#3946): index 5
 // is picked up at 13:30 instead of its Gehzeit, index 4, who goes home alone
-// every weekday, is picked up today. The day Abholart of index 0 above does
-// not show, because that child is the group's sick one. On a weekend the
-// changes land on Monday, which has a plan to deviate from.
+// every weekday, is picked up today. Index 0 above shows its day Abholart
+// too. On a weekend the changes land on Monday, which has a plan to deviate
+// from.
 func seedTodayHomeChanges(rt *Runtime, studentIDs []int64) error {
 	if len(studentIDs) < 6 {
 		return fmt.Errorf("today home change students not available")
@@ -250,9 +250,17 @@ func seedGuardianPhoneNumbers(rt *Runtime) (int, error) {
 	return len(ids), nil
 }
 
+// seedArrivalSchedules plans when each child arrives: the twelve children of
+// the Frühbetreuung (seedPlanningTemplateBody) before school, everybody else
+// after the morning lessons, spread over the end of the class periods.
 func seedArrivalSchedules(rt *Runtime, studentIDs []int64) (int, error) {
 	for index, studentID := range studentIDs {
-		arrival := fmt.Sprintf("%02d:%02d", 7+(index%2), 30+(index%3)*10)
+		arrival := fmt.Sprintf("12:%02d", (index%3)*15)
+		if index < 12 {
+			arrival = fmt.Sprintf("07:%02d", 30+(index%3)*10)
+		} else if index%4 == 0 {
+			arrival = "11:45"
+		}
 		schedules := make([]map[string]any, 0, 5)
 		for weekday := 1; weekday <= 5; weekday++ {
 			schedules = append(schedules, map[string]any{
@@ -368,11 +376,12 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 		},
 		{
 			// Holiday care keeps running on the seeded closing day and ends
-			// a few days later (#3594).
+			// a few days later (#3594). It starts when the Frühbetreuung
+			// ends: both share children and staff.
 			"name": "Ferienbetreuung", "type": "care",
 			"target_group_type": "none", "include_closing_days": true,
 			"end_date": holidayCareLastDay(today).String(),
-			"weekdays": []int{1, 2, 3, 4, 5}, "start_time": "08:00", "end_time": "12:00",
+			"weekdays": []int{1, 2, 3, 4, 5}, "start_time": "08:30", "end_time": "12:00",
 		},
 	}
 	for _, body := range variants {

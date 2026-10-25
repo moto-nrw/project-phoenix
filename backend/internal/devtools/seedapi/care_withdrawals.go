@@ -37,7 +37,7 @@ func removeSeedCareBooking(
 ) (int64, error) {
 	path := fmt.Sprintf("/api/enrollment/admin/requests/%d/children/%d/offerings", request.RequestID, request.ChildIDs[0])
 	raw, err := rt.Client.PutWithAuth(rt.TenantAuth, path, map[string]any{
-		"offerings": []any{}, "reason": "Demo-Abschluss für die lokale Prüfung",
+		"offerings": []any{}, "reason": "Abmeldung zum Monatsende",
 		"effective_from": effectiveFrom.String(), "complete_withdrawal_confirmed": true,
 	})
 	if err != nil {
@@ -63,7 +63,7 @@ func resolveSeedCareWithdrawal(rt *Runtime, studentID int64, lastCareDay seedDat
 	if err != nil {
 		return err
 	}
-	body := map[string]any{"last_care_day": lastCareDay.String(), "reason": "other", "reason_note": "Demo-Abschluss wurde erledigt"}
+	body := map[string]any{"last_care_day": lastCareDay.String(), "reason": "other", "reason_note": "Abmeldung wurde erledigt"}
 	previewPath := fmt.Sprintf("/api/students/care-withdrawals/%d/care-end/preview", completionID)
 	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, previewPath, body)
 	if err != nil {
