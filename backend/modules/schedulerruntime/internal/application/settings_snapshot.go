@@ -34,6 +34,7 @@ var schedulerPollingSettingKeys = []string{
 	settingStatusDayRetentionDays,
 	settingAttendanceRetentionDays,
 	settingMorningAttendanceRetentionDays,
+	settingHomeworkRetentionDays,
 	settingGuardianRetentionDays,
 	settingParentMessageRetentionDays,
 	settingStaffMessageRetentionDays,

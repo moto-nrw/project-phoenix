@@ -2,10 +2,14 @@ package behavior_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,19 +30,26 @@ func operatorLoginEmail(prefix string) string {
 	return fmt.Sprintf("%s-%d@test.local", prefix, time.Now().UnixNano())
 }
 
-func liveOperatorHandle(t *testing.T, db *bun.DB, operatorID int64) string {
+// refreshHandle reads the session handle a refresh JWT carries. The
+// database stores only its hash (#4902), so the issued token is the one
+// place a test can take it from.
+func refreshHandle(t *testing.T, refreshJWT string) string {
 	t.Helper()
-	var token string
-	err := db.NewSelect().
-		TableExpr("platform.operator_refresh_tokens").
-		Column("token").
-		Where("operator_id = ?", operatorID).
-		Where("rotated_at IS NULL").
-		Limit(1).
-		Scan(context.Background(), &token)
+	parts := strings.Split(refreshJWT, ".")
+	require.Len(t, parts, 3)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	require.NoError(t, err)
-	require.NotEmpty(t, token)
-	return token
+	var claims struct {
+		Token string `json:"token"`
+	}
+	require.NoError(t, json.Unmarshal(payload, &claims))
+	require.NotEmpty(t, claims.Token)
+	return claims.Token
+}
+
+func sha256Hex(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }
 
 func countOperatorSessions(t *testing.T, db *bun.DB, operatorID int64) int {
@@ -122,20 +133,20 @@ func TestIntegration_OperatorRefresh_RotatesAndRevokesReplay(t *testing.T) {
 	ctx := context.Background()
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-refresh"), testPassword)
 
-	_, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
 	require.NoError(t, err)
-	predecessor := liveOperatorHandle(t, db, operator.ID)
+	predecessor := refreshHandle(t, issued)
 
 	access, refresh, err := identity.RefreshOperatorToken(ctx, operator.ID, predecessor)
 	require.NoError(t, err)
 	assert.NotEmpty(t, access)
 	assert.NotEmpty(t, refresh)
-	successor := liveOperatorHandle(t, db, operator.ID)
+	successor := refreshHandle(t, refresh)
 	assert.NotEqual(t, predecessor, successor, "refresh rotates to a new opaque handle")
 	assert.Equal(t, 2, countOperatorSessions(t, db, operator.ID), "the hand-off survives as replay evidence")
 	var replacement string
-	require.NoError(t, db.NewSelect().TableExpr("platform.operator_refresh_tokens").Column("replacement_token").Where("token = ?", predecessor).Scan(ctx, &replacement))
-	assert.Equal(t, successor, replacement)
+	require.NoError(t, db.NewSelect().TableExpr("platform.operator_refresh_tokens").Column("replacement_token").Where("token = ?", sha256Hex(predecessor)).Scan(ctx, &replacement))
+	assert.Equal(t, sha256Hex(successor), replacement, "the database names both sessions by hash only")
 
 	_, _, err = identity.RefreshOperatorToken(ctx, operator.ID+1_000_000, successor)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "another operator's handle is refused")
@@ -164,9 +175,9 @@ func TestIntegration_OperatorRefresh_RefusesDeactivatedOperator(t *testing.T) {
 	identity := buildOperatorIdentity(t, db)
 	ctx := context.Background()
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-inactive"), testPassword)
-	_, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
 	require.NoError(t, err)
-	handle := liveOperatorHandle(t, db, operator.ID)
+	handle := refreshHandle(t, issued)
 
 	_, err = db.NewUpdate().Table("platform.operators").Set("active = false").Where("id = ?", operator.ID).Exec(ctx)
 	require.NoError(t, err)
@@ -189,9 +200,9 @@ func TestIntegration_OperatorPasswordChange_RevokesSessions(t *testing.T) {
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-password"), testPassword)
 	_, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
 	require.NoError(t, err)
-	_, _, err = identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
 	require.NoError(t, err)
-	handle := liveOperatorHandle(t, db, operator.ID)
+	handle := refreshHandle(t, issued)
 
 	require.ErrorIs(t, identity.ChangeOperatorPassword(ctx, operator.ID, "wrong", newPassword), identityaccess.ErrOperatorPasswordMismatch)
 	var invalid *identityaccess.InvalidInputError

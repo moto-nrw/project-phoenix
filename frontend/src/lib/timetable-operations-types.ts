@@ -1,3 +1,4 @@
+import type { HomeworkFeedbackStatus } from "./homework-feedback";
 import type { CareDayStatus } from "./timetable-types";
 
 import type { ClassHandover } from "~/lib/class-handover";
@@ -126,6 +127,25 @@ export interface TimetableRosterRow {
    * older backends omit the field entirely.
    */
   parallelPresentIn?: TimetableParallelPresence | null;
+  /**
+   * Hausaufgaben der Klasse des Kindes am Tag des Blocks, nur in einer
+   * Lernzeit (#4796). Fehlt ohne Hausaufgaben.
+   */
+  homework?: TimetableRosterHomework[];
+  /** Rückmeldung der OGS zu diesen Hausaufgaben, falls schon gegeben. */
+  homeworkFeedback?: TimetableHomeworkFeedback;
+}
+
+export type TimetableHomeworkFeedbackStatus = HomeworkFeedbackStatus;
+
+interface TimetableRosterHomework {
+  subject: string | null;
+  description: string;
+}
+
+interface TimetableHomeworkFeedback {
+  status: TimetableHomeworkFeedbackStatus;
+  note: string | null;
 }
 
 interface TimetableParallelPresence {
@@ -174,6 +194,11 @@ export interface TimetableRoster {
   canEditAttendance?: boolean;
   /** Sick/excused markers, separate from other block statuses. */
   canReportAbsence?: boolean;
+  /**
+   * Hausaufgaben-Rückmeldung (#4796): eine Lernzeit, die nicht ausfällt,
+   * und das Recht, die Anwesenheit dieses Blocks einzutragen.
+   */
+  canRecordHomeworkFeedback?: boolean;
 }
 
 export interface StartOperationResult {
@@ -181,6 +206,12 @@ export interface StartOperationResult {
   activeGroupId: string;
   status: string;
   startedAt?: string;
+}
+
+/** Was die Rückmeldung zu den Hausaufgaben eines Kindes schickt (#4796). */
+export interface HomeworkFeedbackBody {
+  status: TimetableHomeworkFeedbackStatus;
+  note: string | null;
 }
 
 export interface AttendancePatchBody {
@@ -269,6 +300,11 @@ interface BackendRosterRow {
     start_time: string;
     end_time: string;
   } | null;
+  homework?: { subject?: string | null; description: string }[];
+  homework_feedback?: {
+    status: TimetableHomeworkFeedbackStatus;
+    note?: string | null;
+  } | null;
 }
 
 interface BackendRosterWarning {
@@ -292,6 +328,7 @@ export interface BackendTimetableRoster {
   can_end?: boolean;
   can_edit_attendance?: boolean;
   can_report_absence?: boolean;
+  can_record_homework_feedback?: boolean;
 }
 
 export interface BackendStartOperationResult {
@@ -391,6 +428,22 @@ function mapRosterRow(row: BackendRosterRow): TimetableRosterRow {
       currentEducationGroupId:
         warning.current_education_group_id?.toString() ?? null,
     })),
+    ...(row.homework && row.homework.length > 0
+      ? {
+          homework: row.homework.map((entry) => ({
+            subject: entry.subject ?? null,
+            description: entry.description,
+          })),
+        }
+      : {}),
+    ...(row.homework_feedback
+      ? {
+          homeworkFeedback: {
+            status: row.homework_feedback.status,
+            note: row.homework_feedback.note ?? null,
+          },
+        }
+      : {}),
   };
 }
 
@@ -427,6 +480,9 @@ export function mapRoster(raw: BackendTimetableRoster): TimetableRoster {
     ...(raw.can_report_absence === undefined
       ? {}
       : { canReportAbsence: raw.can_report_absence }),
+    ...(raw.can_record_homework_feedback === undefined
+      ? {}
+      : { canRecordHomeworkFeedback: raw.can_record_homework_feedback }),
   };
 }
 

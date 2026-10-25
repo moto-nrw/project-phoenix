@@ -82,6 +82,7 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 			StudentStatusDayService: presenceservice.NewStatusDays(rCare.StudentStatusDay, owners.NewManualPartialAbsenceDates(rCare.CarePlan),
 				db.Pool(), rCare.CarePlan.LockExceptionDay, clockOrNow(clocks)),
 		})),
+		HomeworkDependencies: classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(owners.MustNewUnobservedTimetable(db))},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence, HandoverStaffNames: classHandoverStaffNames(members.Staff),
 		},

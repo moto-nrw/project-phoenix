@@ -26,7 +26,7 @@ Globale Systemrollen mit `tenant_id IS NULL` sind kein
 Schulbestand; erforderliche Rollenbedeutung muss die spätere Rückgabe
 als Kontext liefern, nicht durch ungefilterten Export globaler Rollen.
 
-Die Mittagessen-Migrationen 1.15.521 bis 1.15.525 ergänzen zehn Tabellen.
+Die Mittagessen-Migrationen 1.15.528 bis 1.15.532 ergänzen zehn Tabellen.
 Bestellungen, Anmeldeänderungen, Einladungen und Belieferungen sind schulbezogen.
 Caterer-Konten und Betriebe sind schulübergreifend; eine Schule darf sie nicht
 allein löschen oder als eigenen Bestand ausgeben. Einladungs-Hashes bleiben
@@ -46,7 +46,7 @@ Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle
 `platform.school_erasures` bereit. Ein aus diesem Katalog abgeleiteter,
-installierter Plan enthält 239 Löschziele (seit Migration 1.15.526 mit den
+installierter Plan enthält 241 Löschziele (seit Migration 1.15.533 mit den
 Mittagessen-Tabellen) mit `tenant`, `tenantChild` oder
 `school`. Die explizit gesperrten Rechnungsreferenzen
 `platform.billing_key_date_counts` bleiben zehn Jahre ab Kalenderjahresende

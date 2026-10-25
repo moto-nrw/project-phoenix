@@ -170,8 +170,9 @@ func TestRefreshHandoffAcrossCatererRepinning(t *testing.T) {
 			t.Parallel()
 			f := newAuthFixture(t)
 			now := time.Now()
-			replacement := "successor"
-			current := domain.AccountSession{ID: 1, AccountID: 1, TenantID: 10, PortalScope: domain.PortalScopeCaterer, FamilyID: "family", RotatedAt: &now, ReplacementToken: &replacement, RecoveryProofHash: fakeRotation{}.RecoveryProofHash(withProof(context.Background(), "recovery"))}
+			replacement := domain.SuccessorRefreshToken("predecessor")
+			replacementHash := domain.HashToken(replacement)
+			current := domain.AccountSession{ID: 1, Token: "predecessor", AccountID: 1, TenantID: 10, PortalScope: domain.PortalScopeCaterer, FamilyID: "family", RotatedAt: &now, ReplacementTokenHash: &replacementHash, RecoveryProofHash: fakeRotation{}.RecoveryProofHash(withProof(context.Background(), "recovery"))}
 			next := domain.AccountSession{ID: 2, Token: replacement, AccountID: current.AccountID, TenantID: 20, PortalScope: domain.PortalScopeCaterer, FamilyID: current.FamilyID, Generation: 1}
 			if test.alter != nil {
 				test.alter(&next)

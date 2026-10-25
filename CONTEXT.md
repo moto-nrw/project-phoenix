@@ -95,6 +95,13 @@ zusätzlich sperren.
 Abschaltbarkeit ist keine Rechtsgrundlage: deren Prüfung bleibt offen
 (#3843, Recht-Slice 3843-e). Produktive Wirksamkeit ist gesondert nachzuweisen.
 
+Zusätzlich braucht es die **Einwilligung** der Person (§ 25 TDDDG, #4901):
+Die Schule kann abschalten, die angemeldete Person muss einwilligen. Die
+Antwort gehört zum Konto und gilt in jeder Schule; erfragt wird sie einmalig
+nach dem Login, geändert in Profil bzw. Einstellungen. Ohne Einwilligung lädt
+der Browser keine Nutzungsanalyse, und Kernaktionen tragen keinen
+Sitzungsbezug. Anonyme Seiten erfassen deshalb außerhalb der Demo nichts.
+
 Eine **Sitzungsaufzeichnung** gibt eine Browsersitzung als Film wieder, mit
 ausgeblendeten Inhalten. In der öffentlichen Demo läuft sie immer. In einer
 echten Schule laufen sie und die Wiedererkennung einzelner Nutzer nur im

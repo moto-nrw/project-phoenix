@@ -33,7 +33,7 @@ func (s *AccountAuthentication) auditRevokedSessions(ctx context.Context, sessio
 	for _, session := range sessions {
 		familyID := session.FamilyID
 		if familyID == "" {
-			familyID = "legacy:" + session.Token
+			familyID = "legacy:" + session.TokenHash
 		}
 		key := fmt.Sprintf("%d:%d:%s:%s", session.AccountID, session.TenantID, session.PortalScope, familyID)
 		group := groups[key]

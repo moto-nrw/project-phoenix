@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	mealAbsenceHistoryVersion     = "1.15.521"
+	mealAbsenceHistoryVersion     = "1.15.528"
 	mealAbsenceHistoryDescription = "Mittagessen: entschuldigt und Ausflug melden das Essen ab wie eine Krankmeldung (#3873)"
 )
 
@@ -18,6 +18,7 @@ func init() {
 		Version:     mealAbsenceHistoryVersion,
 		Description: mealAbsenceHistoryDescription,
 		DependsOn: []string{
+			accountAnalyticsConsentVersion, // after development's latest migration
 			statusDayRetentionPurgeVersion, // the trigger function this one replaces
 			mealPlanAllergensVersion,       // development's latest migrations: meal plan allergens,
 			"1.15.499",                     // password login protection,

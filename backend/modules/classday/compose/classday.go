@@ -23,14 +23,15 @@ type (
 	EmergencyContacts             = application.EmergencyContacts
 	AccessRecord                  = application.AccessRecord
 	AccessLog                     = application.AccessLog
-	BlockStarts                   = application.BlockStarts
 	ArrivalScheduleAnnouncer      = application.ArrivalScheduleAnnouncer
 	MorningAttendanceDependencies = application.MorningAttendanceDependencies
+	HomeworkDependencies          = application.HomeworkDependencies
+	HomeworkEntry                 = application.HomeworkEntry
+	HomeworkFeedbackEntry         = application.HomeworkFeedbackEntry
 	ClassHandoverDependencies     = application.ClassHandoverDependencies
 )
 
-// ClassDayDependencies wire the day report, the supervision sheet and the
-// write seams of moto schule (#2970, #4790, #4794, #4799); a nil seam is unconfigured.
+// ClassDayDependencies wire the school-portal reads and write seams; a nil seam is unconfigured.
 type ClassDayDependencies struct {
 	Caller                 CallerReader
 	Rosters                DayRosters
@@ -44,10 +45,11 @@ type ClassDayDependencies struct {
 	AccessLog              AccessLog
 	ClassArrivalExceptions careplan.ArrivalScheduleService
 	WriteScope             SchoolWriteScope
-	BlockStarts            BlockStarts
+	BlockStarts            application.BlockStarts
 	Announcer              ArrivalScheduleAnnouncer
 	TripStatusDays         ClassTripStatusDays
 	MorningAttendanceDependencies
+	HomeworkDependencies
 	ClassHandoverDependencies
 }
 
@@ -61,7 +63,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		Caller: caller, Rosters: deps.Rosters, StatusDays: deps.StatusDays,
 		Companions: deps.Companions, Students: deps.Students, EmergencyContacts: deps.EmergencyContacts,
 		AccessLog: deps.AccessLog, WriteScope: deps.WriteScope, TripScope: deps.WriteScope, Announcer: deps.Announcer,
-		StudentArrivals: deps.ClassArrivalExceptions, TripStatusDays: deps.TripStatusDays,
+		StudentArrivals: deps.ClassArrivalExceptions, TripStatusDays: deps.TripStatusDays, HomeworkDependencies: deps.HomeworkDependencies,
 		MorningAttendanceDependencies: deps.MorningAttendanceDependencies, ClassHandoverDependencies: deps.ClassHandoverDependencies,
 	}
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {

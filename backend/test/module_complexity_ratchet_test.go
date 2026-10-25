@@ -338,7 +338,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"realtime/hub.go:(*Hub).Unregister": 24,
 	// ADR 0087.
-	"seed/avatar/avatar.go:tracePath": 26,
 	// ADR 0087.
 	"test/fixtures.go:cleanupTenantTestData": 39,
 	// ADR 0087.

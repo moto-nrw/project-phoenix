@@ -79,6 +79,10 @@ type Caller struct {
 	SchoolScope    bool
 	AdminRole      bool
 	AdminWildcard  bool
+
+	// AllSchoolClasses reports class_day:all_classes (#4789): the caller
+	// reaches every class of the school, not only the assigned ones.
+	AllSchoolClasses bool
 }
 
 // CallerPerson is the person linked to the caller's account.

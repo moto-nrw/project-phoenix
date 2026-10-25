@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.526 (#3873): the installed preview with the counts of the meal
+// 1.15.533 (#3873): the installed preview with the counts of the meal
 // ordering tables.
 func installMealOrderErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, mealOrderErasurePreviewSQL)
@@ -126,6 +126,7 @@ const mealOrderErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('documents.folders',(SELECT count(*) FROM documents.folders AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('education.class_arrival_exceptions',(SELECT count(*) FROM education.class_arrival_exceptions AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('education.class_arrival_times',(SELECT count(*) FROM education.class_arrival_times AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('education.class_homework',(SELECT count(*) FROM education.class_homework AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('education.class_teachers',(SELECT count(*) FROM education.class_teachers AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('education.grade_transition_class_list_entries',(SELECT count(*) FROM education.grade_transition_class_list_entries AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('education.grade_transition_class_teachers',(SELECT count(*) FROM education.grade_transition_class_teachers AS r WHERE r.tenant_id = p_school));
@@ -135,6 +136,7 @@ const mealOrderErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('education.group_substitution',(SELECT count(*) FROM education.group_substitution AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('education.group_teacher',(SELECT count(*) FROM education.group_teacher AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('education.groups',(SELECT count(*) FROM education.groups AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('education.homework_feedback',(SELECT count(*) FROM education.homework_feedback AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('enrollment.care_offering_auto_triggers',(SELECT count(*) FROM enrollment.care_offering_auto_triggers AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('enrollment.care_offering_bookings',(SELECT count(*) FROM enrollment.care_offering_bookings AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('enrollment.care_offerings',(SELECT count(*) FROM enrollment.care_offerings AS r WHERE r.tenant_id = p_school));

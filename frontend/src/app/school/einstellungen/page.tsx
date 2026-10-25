@@ -6,6 +6,7 @@
 
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
+import { SchoolAnalyticsConsentSection } from "~/components/settings/analytics-consent-section";
 
 export default function SchoolSettingsPage() {
   return (
@@ -21,6 +22,7 @@ export default function SchoolSettingsPage() {
       </div>
       <NotificationPreferencesSection portal="school" />
       <PushNotificationSection portal="school" />
+      <SchoolAnalyticsConsentSection />
     </div>
   );
 }

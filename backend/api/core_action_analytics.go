@@ -55,11 +55,13 @@ func analyticsSchoolNames(tracker owners.ProductEventTracker) owners.SchoolNames
 // session model: the request's verified session, or the session a login
 // response mints. The root mounts it after the session verifier. The school's
 // Analyse-Freigabe (#3603, settings compose NewAnalyseFreigabe) decides
-// whether an OGS account is a pseudonymous person.
-func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *sessiontoken.TokenAuth, analyseFreigabe func(ctx context.Context, schoolID int64) bool, policy analytics.CollectionPolicy) func(http.Handler) http.Handler {
+// whether an OGS account is a pseudonymous person; the account's consent
+// (#4901) whether an event names the browser session or a person at all.
+func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *sessiontoken.TokenAuth, analyseFreigabe, consent func(ctx context.Context, id int64) bool, policy analytics.CollectionPolicy) func(http.Handler) http.Handler {
 	cfg := analytics.CoreActionConfig{
 		Tracker:         tracker,
 		AnalyseFreigabe: analyseFreigabe,
+		Consent:         consent,
 		Policy:          policy,
 		RequestActor:    analyticsRequestActor,
 		SessionActor: func(accessToken string) (analytics.Actor, bool) {

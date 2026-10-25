@@ -261,7 +261,15 @@ unverified; their next refresh refuses privileged access and requires login.
 Completed email/passkey exchanges and valid school-bound trusted devices
 produce `auth.tokens.mfa_verified`; rotation and bounded hand-off recovery
 preserve it. MFA reset clears proof across existing sessions. Password reset
-issues no session. Tenant switching preserves proof only from the presented
+issues no session.
+
+Refresh-session, invitation, password-reset and e-mail-change tokens are
+stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its
+CHECK constraints refuse raw values (#4902). Lookups hash the presented value.
+A refresh successor is HMAC-derived from the presented token, so hand-off
+recovery recomputes it. A resend or guardian approval mails a new link and
+voids the previous one; listings return no token. Do not run an old backend
+against the migrated schema; migration rollback requires a forward fix. Tenant switching preserves proof only from the presented
 account's live same-portal session family, read under the account lock shared with
 MFA reset. Missing, expired, revoked, unverified or foreign-portal families
 cannot satisfy target-school MFA. Such a switch returns 401 (`identity.mfa_session_required`)

@@ -170,9 +170,9 @@ async function sessionFor(
 }
 
 /**
- * Bilder im Ausschnitt, die noch nicht geladen sind. Avatare laden über
+ * Bilder im Ausschnitt, die noch nicht geladen sind. Bilder laden über
  * next/image mit loading="lazy"; ohne dieses Warten zeigte ein Shot leere
- * Kreise statt Fotos. Ein Bild, das nicht lädt, ersetzt die Avatar-Komponente
+ * Flächen. Ein Avatarbild, das nicht lädt, ersetzt die Avatar-Komponente
  * durch Initialen; es zählt hier also nur, solange es unterwegs ist.
  */
 function countUnloadedImages(page: Page): Promise<number> {

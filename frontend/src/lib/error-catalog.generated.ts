@@ -1261,6 +1261,14 @@ export const ERROR_CATALOG = {
         "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
       "operator.audit_unavailable":
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
+      "classday.homework_not_found":
+        "Diese Hausaufgabe gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Dieses Kind gehört nicht zu dieser Aufsicht. Bitte laden Sie die Seite neu.",
+      "timetable.homework_feedback_not_allowed":
+        "Eine Rückmeldung zu Hausaufgaben geht nur in einer Lernzeit, die Sie betreuen.",
+      "timetable.homework_feedback_without_homework":
+        "Für die Klasse dieses Kindes sind heute keine Hausaufgaben eingetragen.",
     },
   },
   en: {
@@ -1601,6 +1609,14 @@ export const ERROR_CATALOG = {
         "This group message is closed. You can no longer reply.",
       "communication.group_thread_no_recipients":
         "No child in this group has parents with access to moto. The message was not sent.",
+      "classday.homework_not_found":
+        "This homework no longer exists. Please reload the page.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "This child is not part of this supervision. Please reload the page.",
+      "timetable.homework_feedback_not_allowed":
+        "Homework feedback is only possible in a study time you supervise.",
+      "timetable.homework_feedback_without_homework":
+        "No homework is entered for this child's class today.",
     },
   },
   ru: {
@@ -1922,6 +1938,14 @@ export const ERROR_CATALOG = {
         "Это групповое сообщение закрыто. Ответить больше нельзя.",
       "communication.group_thread_no_recipients":
         "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
+      "classday.homework_not_found":
+        "Этого домашнего задания больше нет. Обновите страницу.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Этот ребёнок не относится к этому присмотру. Обновите страницу.",
+      "timetable.homework_feedback_not_allowed":
+        "Отзыв о домашнем задании можно дать только на занятии, которое вы ведёте.",
+      "timetable.homework_feedback_without_homework":
+        "Для класса этого ребёнка на сегодня нет домашних заданий.",
     },
   },
   sq: {
@@ -2258,6 +2282,14 @@ export const ERROR_CATALOG = {
         "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
       "communication.group_thread_no_recipients":
         "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
+      "classday.homework_not_found":
+        "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Ky fëmijë nuk i përket këtij mbikëqyrjeje. Ringarkoni faqen.",
+      "timetable.homework_feedback_not_allowed":
+        "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
+      "timetable.homework_feedback_without_homework":
+        "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
     },
   },
   pl: {
@@ -2581,6 +2613,14 @@ export const ERROR_CATALOG = {
         "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
       "communication.group_thread_no_recipients":
         "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
+      "classday.homework_not_found":
+        "Tego zadania domowego już nie ma. Odśwież stronę.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "To dziecko nie należy do tej opieki. Odśwież stronę.",
+      "timetable.homework_feedback_not_allowed":
+        "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
+      "timetable.homework_feedback_without_homework":
+        "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
     },
   },
   tr: {
@@ -2910,6 +2950,14 @@ export const ERROR_CATALOG = {
         "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
       "communication.group_thread_no_recipients":
         "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
+      "classday.homework_not_found":
+        "Bu ev ödevi artık yok. Lütfen sayfayı yenileyin.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Bu çocuk bu gözetime ait değil. Lütfen sayfayı yenileyin.",
+      "timetable.homework_feedback_not_allowed":
+        "Ev ödevi geri bildirimi yalnızca gözetiminizdeki etüt saatinde verilebilir.",
+      "timetable.homework_feedback_without_homework":
+        "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
     },
   },
   uk: {
@@ -3229,6 +3277,14 @@ export const ERROR_CATALOG = {
         "Це групове повідомлення закрито. Відповісти більше не можна.",
       "communication.group_thread_no_recipients":
         "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
+      "classday.homework_not_found":
+        "Цього домашнього завдання більше немає. Оновіть сторінку.",
+      "timetable.homework_feedback_child_not_in_supervision":
+        "Ця дитина не належить до цього нагляду. Оновіть сторінку.",
+      "timetable.homework_feedback_not_allowed":
+        "Відгук про домашнє завдання можна дати лише на занятті, яке ви ведете.",
+      "timetable.homework_feedback_without_homework":
+        "Для класу цієї дитини на сьогодні немає домашніх завдань.",
     },
   },
 } as const;

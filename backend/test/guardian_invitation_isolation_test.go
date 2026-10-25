@@ -38,7 +38,7 @@ func TestGuardianInvitationsAreIsolatedPerSchool(t *testing.T) {
 			INSERT INTO auth.guardian_invitations (tenant_id, token, guardian_profile_id, created_by, expires_at)
 			VALUES (?, ?, ?, ?, ?)
 			RETURNING id`,
-			tenantID, token, profile.ID, inviter.ID, time.Now().Add(48*time.Hour),
+			tenantID, TokenHash(t, db, token), profile.ID, inviter.ID, time.Now().Add(48*time.Hour),
 		).Scan(context.Background(), &id))
 		return invitation{id: id, token: token}
 	}
@@ -61,7 +61,7 @@ func TestGuardianInvitationsAreIsolatedPerSchool(t *testing.T) {
 			// routes must not answer for a foreign school inside a tenant
 			// session either.
 			var byToken int64
-			require.NoError(t, tx.NewRaw(`SELECT COUNT(*) FROM auth.guardian_invitations WHERE token = ?`, foreign.token).Scan(txCtx, &byToken))
+			require.NoError(t, tx.NewRaw(`SELECT COUNT(*) FROM auth.guardian_invitations WHERE token = ?`, TokenHash(t, db, foreign.token)).Scan(txCtx, &byToken))
 			assert.Zero(t, byToken, "another school's invitation must not be readable by token")
 			return nil
 		}))

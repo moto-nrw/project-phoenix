@@ -1407,13 +1407,6 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "seed/avatar",
-      "owner": "dev-tools",
-      "role": "contract",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/careplan/excusedrequests",
       "owner": "care-plan",
       "role": "contract",
@@ -4157,6 +4150,10 @@
       "write_owner": "timetable-activities"
     },
     {
+      "name": "education.class_homework",
+      "write_owner": "timetable-activities"
+    },
+    {
       "name": "education.class_teachers",
       "write_owner": "school-membership"
     },
@@ -4191,6 +4188,10 @@
     {
       "name": "education.groups",
       "write_owner": "school-structure"
+    },
+    {
+      "name": "education.homework_feedback",
+      "write_owner": "timetable-activities"
     },
     {
       "name": "enrollment.care_offering_auto_triggers",
@@ -5545,10 +5546,6 @@
       "class": "utility"
     },
     {
-      "path": "golang.org/x/image/vector",
-      "class": "utility"
-    },
-    {
       "path": "golang.org/x/sync/singleflight",
       "class": "concurrency"
     },
@@ -5598,10 +5595,6 @@
     },
     {
       "path": "image/color",
-      "class": "standard"
-    },
-    {
-      "path": "image/draw",
       "class": "standard"
     },
     {

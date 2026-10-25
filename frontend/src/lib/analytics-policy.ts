@@ -54,6 +54,12 @@ export interface AnalyticsContext {
   readonly surface: string;
   /** Resolved school switch. Unknown means no collection outside the demo. */
   readonly enabled?: boolean;
+  /**
+   * The signed-in person's own consent (§ 25 TDDDG, #4901). The school's
+   * switch never replaces it: unknown or refused means no collection outside
+   * the demo, recording included.
+   */
+  readonly consent?: boolean;
   /** Local-only route whose enrollment target has resolved; never transmitted. */
   readonly enrollmentTargetPath?: string;
   /** Analyse-Freigabe of the school; only effective on `ogs`. */
@@ -173,8 +179,15 @@ function isKnownSurface(surface: string): surface is AnalyticsSurface {
   return KNOWN_SURFACES.has(surface);
 }
 
+/**
+ * Collection needs the school's switch and the person's consent; the public
+ * demo needs neither. Without both, the SDK does not load at all.
+ */
 export function analyticsCollectionAllowed(context: AnalyticsContext): boolean {
-  return context.deployment === DEMO_DEPLOYMENT || context.enabled === true;
+  return (
+    context.deployment === DEMO_DEPLOYMENT ||
+    (context.enabled === true && context.consent === true)
+  );
 }
 
 export interface AnalyticsSchoolPolicy {
@@ -356,11 +369,14 @@ function recordingOptions(
 
 /**
  * The options that follow the context while the page runs: login, logout,
- * and a school change apply them through `set_config`, so the recorder stops
- * the moment the Analyse-Freigabe is gone from the context.
+ * consent, and a school change apply them through `set_config`, so the
+ * recorder stops the moment the Analyse-Freigabe or the consent is gone. The
+ * browser session reaches the own host's backend (`X-POSTHOG-SESSION-ID`)
+ * only while collection is allowed; an empty list removes the header.
  */
 export function analyticsRuntimeOptions(
   context: AnalyticsContext,
+  ownHostname?: string,
 ): Partial<PostHogConfig> {
   const rules = TIER_RULES[tierOf(context)];
   const recording = recordingOf(context);
@@ -369,6 +385,8 @@ export function analyticsRuntimeOptions(
     disable_session_recording: recording === null,
     enable_recording_console_log: false,
     session_recording: recording ? recordingOptions(context, recording) : {},
+    tracing_headers:
+      analyticsCollectionAllowed(context) && ownHostname ? [ownHostname] : [],
   };
 }
 
@@ -397,7 +415,8 @@ export function analyticsInitOptions(
     api_host: POSTHOG_PROXY_PATH,
     ui_host: POSTHOG_UI_HOST,
     defaults: "2026-01-30",
-    // No cookies, no local or session storage: no consent banner needed.
+    // No cookies, no local or session storage. The SDK still accesses the
+    // device, so it loads only after the person's consent (#4901).
     persistence: "memory",
     disable_persistence: true,
     person_profiles: personProfilesOf(context),
@@ -423,8 +442,7 @@ export function analyticsInitOptions(
     capture_performance: false,
     capture_exceptions: false,
     // The backend links its events to the browser session (#3602).
-    tracing_headers: [ownHostname],
-    ...analyticsRuntimeOptions(context),
+    ...analyticsRuntimeOptions(context, ownHostname),
   };
 }
 

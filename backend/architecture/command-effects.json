@@ -35693,11 +35693,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "e6c2b12bc4cc28f99e26533197eb16a3",
+      "binding_digest": "efff827476f3098cfac082ba6e95a259",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35705,11 +35705,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "da11bcaa41882c9b4b0b4fa81271fbae",
+      "binding_digest": "8826999749f7f7cde2558fcf79cecaa4",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35717,11 +35717,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "e6c2b12bc4cc28f99e26533197eb16a3",
+      "binding_digest": "efff827476f3098cfac082ba6e95a259",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35729,11 +35729,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "da11bcaa41882c9b4b0b4fa81271fbae",
+      "binding_digest": "8826999749f7f7cde2558fcf79cecaa4",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35741,11 +35741,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "3d6801261df9912804f69ed2f14d170a",
+      "binding_digest": "bd3d5d48a8bc143178521b33506e758e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35753,11 +35753,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "f13d90e5114cd62d6ff06131d7103449",
+      "binding_digest": "6965edbb3f6f5c13c9d6014903e7e711",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35765,11 +35765,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "19139cc6295feee7eeeeb453b80d76b5",
+      "binding_digest": "f3228ed9ff553ace8abfcb53710d7d17",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35777,11 +35777,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "79662418dc00540302b7ba3f6c0e3dda",
+      "binding_digest": "dfd97ac98b25ab3e1968319d6426961c",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35813,11 +35813,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "e6c2b12bc4cc28f99e26533197eb16a3",
+      "binding_digest": "efff827476f3098cfac082ba6e95a259",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35825,11 +35825,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "da11bcaa41882c9b4b0b4fa81271fbae",
+      "binding_digest": "8826999749f7f7cde2558fcf79cecaa4",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35837,11 +35837,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "e6c2b12bc4cc28f99e26533197eb16a3",
+      "binding_digest": "efff827476f3098cfac082ba6e95a259",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -35849,11 +35849,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "da11bcaa41882c9b4b0b4fa81271fbae",
+      "binding_digest": "8826999749f7f7cde2558fcf79cecaa4",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36091,6 +36091,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.FindTeacherByStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerStructure.ListSchoolClasses",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.callerStructure.ListSchoolClasses",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ListSchoolClasses",
+      "target_owner": "people-directory",
+      "binding_digest": "2d2a156cfcfcabcb03545c5d9d8e6ca2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.ListSchoolClasses; modules/peopledirectory/ports/repository_contracts.go:127. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",
@@ -36398,11 +36409,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "e6c2b12bc4cc28f99e26533197eb16a3",
+      "binding_digest": "efff827476f3098cfac082ba6e95a259",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36410,11 +36421,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "da11bcaa41882c9b4b0b4fa81271fbae",
+      "binding_digest": "8826999749f7f7cde2558fcf79cecaa4",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36422,11 +36433,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "e6c2b12bc4cc28f99e26533197eb16a3",
+      "binding_digest": "efff827476f3098cfac082ba6e95a259",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36434,11 +36445,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "da11bcaa41882c9b4b0b4fa81271fbae",
+      "binding_digest": "8826999749f7f7cde2558fcf79cecaa4",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36446,11 +36457,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "3d6801261df9912804f69ed2f14d170a",
+      "binding_digest": "bd3d5d48a8bc143178521b33506e758e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36458,11 +36469,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "f13d90e5114cd62d6ff06131d7103449",
+      "binding_digest": "6965edbb3f6f5c13c9d6014903e7e711",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36470,11 +36481,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "19139cc6295feee7eeeeb453b80d76b5",
+      "binding_digest": "f3228ed9ff553ace8abfcb53710d7d17",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36482,11 +36493,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "79662418dc00540302b7ba3f6c0e3dda",
+      "binding_digest": "dfd97ac98b25ab3e1968319d6426961c",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered."
+      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Binding re-reviewed with #3873 (ADR 0077): caterer accounts are refused at every school binding, and a caterer refresh rotates inside the same administrative unit; no further scope is entered. Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37435,6 +37446,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only already reviewed target: identity-access reaches modules/studentpresence.Owner.ListSupervisedLiveGroups (student-presence) through modules/identityaccess/internal/application.CallerSessions.SupervisedSessionIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.CallerStructure.ListSchoolClasses",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerStructure.ListSchoolClasses",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ListSchoolClasses",
+      "target_owner": "people-directory",
+      "binding_digest": "2d2a156cfcfcabcb03545c5d9d8e6ca2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.ListSchoolClasses; modules/peopledirectory/ports/repository_contracts.go:127. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",

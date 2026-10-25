@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.526 (#3873): the installed preflight that also locks the meal
+// 1.15.533 (#3873): the installed preflight that also locks the meal
 // ordering tables. Their foreign keys to platform.schools, to
 // users.student_profiles and among themselves change the fingerprint.
 func installMealOrderErasurePreflight(ctx context.Context, tx bun.Tx) error {
@@ -124,6 +124,7 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
     documents.folders,
     education.class_arrival_exceptions,
     education.class_arrival_times,
+    education.class_homework,
     education.class_teachers,
     education.grade_transition_class_list_entries,
     education.grade_transition_class_teachers,
@@ -133,6 +134,7 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
     education.group_substitution,
     education.group_teacher,
     education.groups,
+    education.homework_feedback,
     enrollment.care_offering_auto_triggers,
     enrollment.care_offering_bookings,
     enrollment.care_offerings,
@@ -292,7 +294,7 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '847078b61aca4e7029f760fcf4f933f0cc28b1b5ad9e35d1eb3e3b157ed5917f' THEN
+    ) AS edge) <> '7a37568e1b0f71f955c039a4d3b6dca09c811160d04baa186b4cf3a14d451868' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
@@ -382,6 +384,8 @@ const mealOrderErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.school
     SELECT 1 FROM config.work_time_model_entries AS c JOIN config.work_time_models AS p ON c."model_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.model_id IN (SELECT p0.id FROM config.work_time_models AS p0 WHERE p0.tenant_id = p_school_id)), FALSE)
     UNION ALL
     SELECT 1 FROM documents.folder_roles AS c JOIN auth.roles AS p ON c."role_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM education.class_homework AS c JOIN users.staff_school_memberships AS p ON c."created_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM education.grade_transition_class_list_entries AS c JOIN education.grade_transitions AS p ON c."transition_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL

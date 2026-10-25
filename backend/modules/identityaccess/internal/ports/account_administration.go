@@ -41,6 +41,12 @@ type AccountAdministrationStore interface {
 	// UpdateAccountPasswordHash replaces the credential of the account
 	// holder; found=false when the row is gone or erased.
 	UpdateAccountPasswordHash(ctx context.Context, id int64, hash string) (bool, domain.OperationStats, error)
+	// FindAnalyticsConsent reads the holder's usage analytics answer (#4901);
+	// found=false when the row is gone or erased.
+	FindAnalyticsConsent(ctx context.Context, id int64) (domain.AnalyticsConsent, bool, domain.OperationStats, error)
+	// SetAnalyticsConsent records the holder's answer with the time of the
+	// decision; found=false when the row is gone or erased.
+	SetAnalyticsConsent(ctx context.Context, id int64, granted bool) (bool, domain.OperationStats, error)
 }
 
 // ManageableSchools is the consumer-owned port over the Organisation &

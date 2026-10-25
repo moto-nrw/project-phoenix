@@ -185,6 +185,7 @@ type Query interface {
 	CategoryQuery
 	ActivityGroupQuery
 	TemplateRowQuery
+	HomeworkQuery
 }
 
 // CalendarPeriodReferenceQuery counts the Timetable rows that reference each
@@ -239,6 +240,7 @@ type Command interface {
 	CategoryCommand
 	CareExitEnrollmentCommand
 	ActivityGroupCommand
+	HomeworkCommand
 }
 
 // CategoryCommand writes activity categories and their shift type links.
