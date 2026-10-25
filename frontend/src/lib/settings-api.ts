@@ -35,10 +35,10 @@ type AccessPolicy =
  * Where a value may be set (ADR 0086): only at the school, at the Träger with
  * a school deviation allowed, or only at the Träger.
  */
-export type SettingLevels = "schule" | "beide" | "traeger";
+type SettingLevels = "schule" | "beide" | "traeger";
 
 /** Where the effective value comes from: registry default, Träger, school. */
-export type SettingSource = "default" | "traeger" | "school";
+type SettingSource = "default" | "traeger" | "school";
 
 export interface ResolvedSetting {
   key: string;

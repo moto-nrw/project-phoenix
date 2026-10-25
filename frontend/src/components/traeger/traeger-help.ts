@@ -13,9 +13,9 @@ function traegerHelpLink(topic: string, returnTo: string): string {
   }).toString()}`;
 }
 
-export const TRAEGER_HELP_HREF = traegerHelpLink(HELP_TOPICS.traegerLogin, "/");
+const TRAEGER_HELP_HREF = traegerHelpLink(HELP_TOPICS.traegerLogin, "/");
 
-export const TRAEGER_SETTINGS_HELP_HREF = traegerHelpLink(
+const TRAEGER_SETTINGS_HELP_HREF = traegerHelpLink(
   HELP_TOPICS.traegerSettings,
   "/einstellungen",
 );
