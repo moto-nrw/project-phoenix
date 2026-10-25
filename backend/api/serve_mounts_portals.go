@@ -5,13 +5,12 @@ import (
 	"log/slog"
 	"net/http"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
