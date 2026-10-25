@@ -56,8 +56,8 @@ func (g deliveryModuleGate) moduleOf(intent deliveryContract.ClaimedIntent) (set
 	}
 }
 
-// Deliverable is the provider's Deliverable seam.
-func (g deliveryModuleGate) Deliverable(ctx context.Context, intent deliveryContract.ClaimedIntent) (bool, error) {
+// deliverable is the provider's Deliverable seam.
+func (g deliveryModuleGate) deliverable(ctx context.Context, intent deliveryContract.ClaimedIntent) (bool, error) {
 	module, ok := g.moduleOf(intent)
 	if !ok || intent.TenantID <= 0 {
 		return true, nil

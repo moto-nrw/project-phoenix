@@ -59,7 +59,7 @@ func TestDeliveryGateStopsMailOfACancelledModule(t *testing.T) {
 		{"parent push without Eltern-App", pushIntent(42, deliveryModels.PushPortalParent), false},
 		{"staff push without Eltern-App", pushIntent(42, deliveryModels.PushPortalStaff), true},
 	} {
-		deliverable, err := gate.Deliverable(ctx, tc.intent)
+		deliverable, err := gate.deliverable(ctx, tc.intent)
 		require.NoError(t, err, tc.name)
 		assert.Equal(t, tc.want, deliverable, tc.name)
 	}
@@ -69,11 +69,11 @@ func TestDeliveryGateStopsSchoolPortalPushWithoutUnterrichtVormittag(t *testing.
 	t.Parallel()
 	gate := newTestDeliveryGate(t, cancelledModules{off: map[int64]string{42: "module.unterricht_vormittag"}})
 
-	deliverable, err := gate.Deliverable(context.Background(), pushIntent(42, deliveryModels.PushPortalSchool))
+	deliverable, err := gate.deliverable(context.Background(), pushIntent(42, deliveryModels.PushPortalSchool))
 	require.NoError(t, err)
 	assert.False(t, deliverable)
 
-	deliverable, err = gate.Deliverable(context.Background(), pushIntent(41, deliveryModels.PushPortalSchool))
+	deliverable, err = gate.deliverable(context.Background(), pushIntent(41, deliveryModels.PushPortalSchool))
 	require.NoError(t, err)
 	assert.True(t, deliverable)
 }
@@ -83,6 +83,6 @@ func TestDeliveryGateRetriesOnReadErrors(t *testing.T) {
 	readErr := errors.New("settings unavailable")
 	gate := newTestDeliveryGate(t, cancelledModules{err: readErr})
 
-	_, err := gate.Deliverable(context.Background(), mailIntent(42, "parent_announcement"))
+	_, err := gate.deliverable(context.Background(), mailIntent(42, "parent_announcement"))
 	require.ErrorIs(t, err, readErr, "an unreadable switch is neither booked nor cancelled")
 }

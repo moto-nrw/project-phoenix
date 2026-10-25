@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -26,12 +27,41 @@ type moduleRequirement struct {
 // router-wide middleware to ParentScopeMiddleware.
 type parentPortalGateKey struct{}
 
-// parentPortalGate opens the parents portal while at least one guardian
-// school of the account booked Eltern-App. The portal spans schools, so the
-// lock is the account's, not one school's.
-type parentPortalGate struct {
-	booking         *settings.ModuleBooking
-	guardianSchools identityaccess.GuardianSchools
+// parentPortalCheck answers nil while at least one guardian school of the
+// account booked Eltern-App, *settings.ModuleNotBookedError for the first
+// school otherwise, and any other error for a failed read. The portal spans
+// schools, so the lock is the account's, not one school's.
+type parentPortalCheck func(ctx context.Context, accountID int64) error
+
+// newParentPortalCheck binds the check to the module switches and the
+// guardian schools of Identity & Access. Without either it is nil and the
+// lock passes, as in route-sized test routers.
+func newParentPortalCheck(booking *settings.ModuleBooking, guardianSchools identityaccess.GuardianSchools) parentPortalCheck {
+	if booking == nil || guardianSchools == nil {
+		return nil
+	}
+	return func(ctx context.Context, accountID int64) error {
+		schoolIDs, err := guardianSchools.ListGuardianSchoolIDs(ctx, accountID)
+		if err != nil {
+			return fmt.Errorf("guardian schools could not be read: %w", err)
+		}
+		var firstRefusal error
+		for _, schoolID := range schoolIDs {
+			err := booking.RequireForTenant(ctx, schoolID, settings.ModuleElternApp)
+			var notBooked *settings.ModuleNotBookedError
+			switch {
+			case err == nil:
+				return nil
+			case errors.As(err, &notBooked):
+				if firstRefusal == nil {
+					firstRefusal = err
+				}
+			default:
+				return err
+			}
+		}
+		return firstRefusal
+	}
 }
 
 // moduleRoutesMiddleware classifies every request by moduleRouteRules
@@ -41,10 +71,12 @@ type parentPortalGate struct {
 // session is bound. Basis routes, paths no rule covers and the surfaces in
 // moduleRoutesLockedElsewhere pass unmarked.
 func moduleRoutesMiddleware(booking *settings.ModuleBooking, guardianSchools identityaccess.GuardianSchools) func(http.Handler) http.Handler {
-	parentGate := parentPortalGate{booking: booking, guardianSchools: guardianSchools}
+	parentCheck := newParentPortalCheck(booking, guardianSchools)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			r = r.WithContext(context.WithValue(r.Context(), parentPortalGateKey{}, parentGate))
+			if parentCheck != nil {
+				r = r.WithContext(context.WithValue(r.Context(), parentPortalGateKey{}, parentCheck))
+			}
 			// The same path chi routes on: the escaped form when the request
 			// carries one, so an encoded slash cannot shift the segments.
 			path := r.URL.Path
@@ -110,38 +142,21 @@ func moduleNotBookedResponse(notBooked *settings.ModuleNotBookedError) render.Re
 // passes: the portal's services already answer an account without children.
 func requireParentPortal(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gate, ok := r.Context().Value(parentPortalGateKey{}).(parentPortalGate)
+		check, ok := r.Context().Value(parentPortalGateKey{}).(parentPortalCheck)
 		claims := sessiontoken.ClaimsFromCtx(r.Context())
-		if !ok || gate.booking == nil || gate.guardianSchools == nil || claims.ID <= 0 {
+		if !ok || check == nil || claims.ID <= 0 {
 			next.ServeHTTP(w, r)
 			return
 		}
-		schoolIDs, err := gate.guardianSchools.ListGuardianSchoolIDs(r.Context(), int64(claims.ID))
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("guardian schools could not be read", err))
-			return
+		err := check(r.Context(), int64(claims.ID))
+		var notBooked *settings.ModuleNotBookedError
+		switch {
+		case errors.As(err, &notBooked):
+			common.RenderError(w, r, moduleNotBookedResponse(notBooked))
+		case err != nil:
+			common.RenderError(w, r, common.ErrorInternalServerWrap("parents portal booking could not be read", err))
+		default:
+			next.ServeHTTP(w, r)
 		}
-		var firstRefusal *settings.ModuleNotBookedError
-		for _, schoolID := range schoolIDs {
-			err := gate.booking.RequireForTenant(r.Context(), schoolID, settings.ModuleElternApp)
-			var notBooked *settings.ModuleNotBookedError
-			switch {
-			case err == nil:
-				next.ServeHTTP(w, r)
-				return
-			case errors.As(err, &notBooked):
-				if firstRefusal == nil {
-					firstRefusal = notBooked
-				}
-			default:
-				common.RenderError(w, r, common.ErrorInternalServerWrap("module booking could not be read", err))
-				return
-			}
-		}
-		if firstRefusal != nil {
-			common.RenderError(w, r, moduleNotBookedResponse(firstRefusal))
-			return
-		}
-		next.ServeHTTP(w, r)
 	})
 }

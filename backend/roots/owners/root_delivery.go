@@ -129,7 +129,7 @@ func BuildDeliveryWorker(
 		Logger: env.Logger.With("service", "delivery"), Tenants: tenants,
 		PushAuthorized: deliveryCompose.NewPushAuthorizationChecker(tenants, pushSubscriptions),
 		DeferredPush:   reminderRecovery(db, reminders),
-		Deliverable:    moduleGate.Deliverable,
+		Deliverable:    moduleGate.deliverable,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initialize delivery module: %w", err)

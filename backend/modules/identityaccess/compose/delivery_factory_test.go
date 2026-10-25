@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -37,7 +36,7 @@ func TestPasswordResetDeliveryFor_RecordsLikeTheModule(t *testing.T) {
 			Sessions: &identityPorts.SessionDependencies{
 				PasswordLoginPolicy: func() (int, time.Duration, error) { return 5, time.Minute, nil },
 				Schools:             sweepSchools{}, Persons: sweepPersons{}, Passwords: sweepPasswords{},
-				Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{}, PortalModules: application.UnbookedPortals{},
+				Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{}, PortalModules: sweepPortals{},
 			},
 		})
 	}
