@@ -4,12 +4,11 @@
 // die buchbaren Wochen mit ausrichtender OGS und Zeitmodellen.
 
 import { Plus } from "lucide-react";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ISODateInput } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
@@ -35,6 +34,33 @@ import { HolidayWeekEditor } from "./holiday-week-editor";
 
 const logger = createLogger({ component: "HolidayPeriodForm" });
 
+const INVALID_DATE_TEXT =
+  "Bitte geben Sie ein gültiges Datum im Format TT.MM.JJJJ ein.";
+
+/**
+ * Date fields whose typed text is no valid date. The draft keeps the last
+ * valid value of such a field, so saving waits until the text is fixed.
+ * Week fields are keyed by the week's stable key, so removing a week does
+ * not shift them onto its neighbour.
+ */
+function invalidDateFields(
+  invalid: ReadonlySet<string>,
+  draft: HolidayPeriodDraft,
+): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const name of ["registration_opens_on", "registration_closes_on"]) {
+    if (invalid.has(name)) fields[name] = INVALID_DATE_TEXT;
+  }
+  draft.weeks.forEach((week, index) => {
+    for (const field of ["starts_on", "ends_on"]) {
+      if (invalid.has(`${week.key}:${field}`)) {
+        fields[`weeks.${index}.${field}`] = INVALID_DATE_TEXT;
+      }
+    }
+  });
+  return fields;
+}
+
 export function HolidayPeriodForm({
   period,
   schools,
@@ -55,6 +81,35 @@ export function HolidayPeriodForm({
     period ? draftFromPeriod(period) : emptyHolidayPeriod(),
   );
   const [saving, setSaving] = useState(false);
+  const [invalidDates, setInvalidDates] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // Stable callbacks: the date field re-reports its validity whenever the
+  // callback changes, which would clear a flag the typed text just set.
+  const markDate = useCallback(
+    (key: string, valid: boolean) =>
+      setInvalidDates((current) => {
+        if (current.has(key) === !valid) return current;
+        const next = new Set(current);
+        if (valid) next.delete(key);
+        else next.add(key);
+        return next;
+      }),
+    [],
+  );
+  const opensValidity = useCallback(
+    (valid: boolean) => markDate("registration_opens_on", valid),
+    [markDate],
+  );
+  const closesValidity = useCallback(
+    (valid: boolean) => markDate("registration_closes_on", valid),
+    [markDate],
+  );
+  const weekDateValidity = useCallback(
+    (weekKey: string, field: "starts_on" | "ends_on", valid: boolean) =>
+      markDate(`${weekKey}:${field}`, valid),
+    [markDate],
+  );
   const errorPath = useApiFormError(formRef);
   const fieldError = (name: string) => errorPath.fieldError(name);
 
@@ -69,7 +124,10 @@ export function HolidayPeriodForm({
     });
 
   const save = async () => {
-    const errors = validateHolidayPeriod(draft);
+    const errors = {
+      ...validateHolidayPeriod(draft),
+      ...invalidDateFields(invalidDates, draft),
+    };
     if (Object.keys(errors).length > 0) {
       errorPath.invalid("Bitte prüfen Sie die markierten Felder.", errors);
       return;
@@ -106,118 +164,119 @@ export function HolidayPeriodForm({
     >
       <FormErrorAlert message={errorPath.error} />
 
-      <SectionCard title="Anmeldung">
-        <div className="space-y-4">
-          <Input
-            name="name"
-            label="Name des Ferienzeitraums"
-            placeholder="Osterferien 2027"
-            value={draft.name}
-            maxLength={120}
-            error={fieldError("name") ?? undefined}
-            onChange={(event) =>
-              setDraft({ ...draft, name: event.target.value })
-            }
-          />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <ISODateInput
-                id="registration_opens_on"
-                label="Anmeldebeginn"
-                value={draft.registrationOpensOn}
-                onChange={(registrationOpensOn) =>
-                  setDraft({ ...draft, registrationOpensOn })
-                }
-              />
-              <FieldErrorHint
-                id="registration_opens_on-error"
-                message={fieldError("registration_opens_on")}
-              />
-            </div>
-            <div>
-              <ISODateInput
-                id="registration_closes_on"
-                label="Anmeldeschluss"
-                value={draft.registrationClosesOn}
-                onChange={(registrationClosesOn) =>
-                  setDraft({ ...draft, registrationClosesOn })
-                }
-              />
-              <FieldErrorHint
-                id="registration_closes_on-error"
-                message={fieldError("registration_closes_on")}
-              />
-            </div>
-          </div>
-          <label htmlFor="binding" className="flex items-start gap-3">
-            <Checkbox
-              id="binding"
-              name="binding"
-              checked={draft.binding}
+      {/* Locked while saving: the answer replaces the draft, so an edit made
+          meanwhile would be lost. */}
+      <fieldset disabled={saving} className="min-w-0 space-y-6">
+        <SectionCard title="Anmeldung">
+          <div className="space-y-4">
+            <Input
+              name="name"
+              label="Name des Ferienzeitraums"
+              placeholder="Osterferien 2027"
+              value={draft.name}
+              maxLength={120}
+              error={fieldError("name") ?? undefined}
               onChange={(event) =>
-                setDraft({ ...draft, binding: event.target.checked })
+                setDraft({ ...draft, name: event.target.value })
               }
             />
-            <span className="text-sm text-gray-900">
-              Die Anmeldung ist verbindlich.
-            </span>
-          </label>
-          <Textarea
-            name="notes"
-            label="Hinweise für Eltern"
-            rows={3}
-            maxLength={2000}
-            placeholder="Zum Beispiel: Mittagessen gibt es vor Ort. Oder: Bitte geben Sie ein Lunchpaket mit."
-            value={draft.notes}
-            error={fieldError("notes") ?? undefined}
-            onChange={(event) =>
-              setDraft({ ...draft, notes: event.target.value })
-            }
-          />
-        </div>
-      </SectionCard>
-
-      <SectionCard
-        title="Wochen"
-        description="Jede Woche findet an einer Schule Ihres Trägers statt."
-      >
-        <div className="space-y-4">
-          {draft.weeks.length === 0 ? (
-            <p className="text-sm text-gray-600">
-              Noch keine Woche. Zum Veröffentlichen braucht der Ferienzeitraum
-              mindestens eine Woche.
-            </p>
-          ) : (
-            draft.weeks.map((week, index) => (
-              <HolidayWeekEditor
-                key={week.key}
-                index={index}
-                week={week}
-                schools={schools}
-                fieldError={fieldError}
-                onChange={(next) => setWeek(index, next)}
-                onRemove={() =>
-                  setDraft({
-                    ...draft,
-                    weeks: draft.weeks.filter((_, i) => i !== index),
-                  })
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <ISODateInput
+                  id="registration_opens_on"
+                  label="Anmeldebeginn"
+                  value={draft.registrationOpensOn}
+                  error={fieldError("registration_opens_on")}
+                  onValidityChange={opensValidity}
+                  onChange={(registrationOpensOn) =>
+                    setDraft({ ...draft, registrationOpensOn })
+                  }
+                />
+              </div>
+              <div>
+                <ISODateInput
+                  id="registration_closes_on"
+                  label="Anmeldeschluss"
+                  value={draft.registrationClosesOn}
+                  error={fieldError("registration_closes_on")}
+                  onValidityChange={closesValidity}
+                  onChange={(registrationClosesOn) =>
+                    setDraft({ ...draft, registrationClosesOn })
+                  }
+                />
+              </div>
+            </div>
+            <label htmlFor="binding" className="flex items-start gap-3">
+              <Checkbox
+                id="binding"
+                name="binding"
+                checked={draft.binding}
+                onChange={(event) =>
+                  setDraft({ ...draft, binding: event.target.checked })
                 }
               />
-            ))
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() =>
-              setDraft({ ...draft, weeks: [...draft.weeks, emptyWeek()] })
-            }
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Woche hinzufügen
-          </Button>
-        </div>
-      </SectionCard>
+              <span className="text-sm text-gray-900">
+                Die Anmeldung ist verbindlich.
+              </span>
+            </label>
+            <Textarea
+              name="notes"
+              label="Hinweise für Eltern"
+              rows={3}
+              maxLength={2000}
+              placeholder="Zum Beispiel: Mittagessen gibt es vor Ort. Oder: Bitte geben Sie ein Lunchpaket mit."
+              value={draft.notes}
+              error={fieldError("notes") ?? undefined}
+              onChange={(event) =>
+                setDraft({ ...draft, notes: event.target.value })
+              }
+            />
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Wochen"
+          description="Jede Woche findet an einer Schule Ihres Trägers statt."
+        >
+          <div className="space-y-4">
+            {draft.weeks.length === 0 ? (
+              <p className="text-sm text-gray-600">
+                Noch keine Woche. Zum Veröffentlichen braucht der Ferienzeitraum
+                mindestens eine Woche.
+              </p>
+            ) : (
+              draft.weeks.map((week, index) => (
+                <HolidayWeekEditor
+                  key={week.key}
+                  index={index}
+                  week={week}
+                  schools={schools}
+                  fieldError={fieldError}
+                  onChange={(next) => setWeek(index, next)}
+                  onDateValidity={weekDateValidity}
+                  onRemove={() =>
+                    setDraft({
+                      ...draft,
+                      weeks: draft.weeks.filter((_, i) => i !== index),
+                    })
+                  }
+                />
+              ))
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() =>
+                setDraft({ ...draft, weeks: [...draft.weeks, emptyWeek()] })
+              }
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Woche hinzufügen
+            </Button>
+          </div>
+        </SectionCard>
+      </fieldset>
 
       <EditActions onCancel={onCancel} saving={saving} saveType="submit" />
     </form>

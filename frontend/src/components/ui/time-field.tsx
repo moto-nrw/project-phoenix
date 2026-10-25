@@ -72,6 +72,7 @@ export function TimeField({
   invalid = false,
   describedBy,
   inputRef,
+  name,
 }: Readonly<{
   value: string;
   onChange: (value: string) => void;
@@ -84,6 +85,8 @@ export function TimeField({
   invalid?: boolean;
   describedBy?: string;
   inputRef?: React.Ref<HTMLInputElement>;
+  /** Form name; a form's error path focuses the first failed field by it. */
+  name?: string;
 }>) {
   const hintId = useId();
   const completedOneDigitHour = useRef<string | null>(null);
@@ -96,6 +99,7 @@ export function TimeField({
       </span>
       <input
         ref={inputRef}
+        name={name}
         type="text"
         inputMode="numeric"
         autoComplete="off"

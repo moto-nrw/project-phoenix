@@ -126,4 +126,63 @@ describe("HolidayPeriodForm", () => {
       }),
     );
   });
+
+  it("does not save while a typed date is no valid date", async () => {
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={stored}
+          schools={schools}
+          onSaved={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+
+    const opens = screen.getByLabelText("Anmeldebeginn");
+    fireEvent.change(opens, { target: { value: "31.02.2027" } });
+    fireEvent.blur(opens);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText("Bitte prüfen Sie die markierten Felder."),
+    ).toBeInTheDocument();
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it("moves the focus to a missing time and locks the form while saving", async () => {
+    let finish: (value: HolidayPeriod) => void = () => undefined;
+    mockUpdate.mockReturnValue(
+      new Promise<HolidayPeriod>((resolve) => {
+        finish = resolve;
+      }),
+    );
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={stored}
+          schools={schools}
+          onSaved={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+
+    const start = screen.getByRole("textbox", { name: /Beginn/ });
+    fireEvent.change(start, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(start).toHaveFocus());
+    expect(
+      screen.getByText("Bitte tragen Sie den Beginn ein."),
+    ).toBeInTheDocument();
+
+    fireEvent.change(start, { target: { value: "08:00" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    expect(screen.getByLabelText("Name des Ferienzeitraums")).toBeDisabled();
+    finish(stored);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Name des Ferienzeitraums")).toBeEnabled(),
+    );
+  });
 });
