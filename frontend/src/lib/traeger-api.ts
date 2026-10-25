@@ -186,7 +186,7 @@ interface BackendAccessLogEntry {
 }
 
 /** The query of a filter, as the backend reads it. */
-export function traegerAccessLogQuery(
+function traegerAccessLogQuery(
   filter: TraegerAccessLogFilter,
   page?: number,
 ): string {
