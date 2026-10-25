@@ -18,6 +18,8 @@ const (
 	defaultSeedSchoolSubdomain  = "demo-school"
 	seedTokenHeader             = "X-Phoenix-Seed-Token"
 	defaultSeedParentPassword   = "ParentSeed1234%"
+	seedAdminFirstName          = "Ines" // the invited school admin, shown as the sender in demo threads
+	seedAdminLastName           = "Lindner"
 	seedPasswordAlphabet        = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"
 	seedPasswordLength          = 12
 )
@@ -30,7 +32,7 @@ type SeedOptions struct {
 	AdminEmail    string // Optional bootstrap school admin email override
 	Randomize     bool   // Append unique suffixes and generate admin credentials
 	SchoolName    string // Optional school name override
-	OnlyProfile   string // Restrict the run to one profile; empty seeds all five
+	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
 	StandingDemo  bool   // Keep simulation devices but disable their user interface
 	// VisitorFirstName and VisitorLastName put a prospect of the public demo
@@ -188,7 +190,7 @@ func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, erro
 	if err != nil {
 		return nil, err
 	}
-	adminName := "Seed Admin"
+	adminName := seedAdminFirstName + " " + seedAdminLastName
 	adminPosition := "OGS-Büro"
 	if err := s.inviteSeedAdmin(schoolID, adminEmail, adminPassword, adminPosition); err != nil {
 		return nil, err
@@ -292,8 +294,8 @@ func (s *Seeder) profileAdminCredentialsFor(definition demoProfileDefinition) (s
 func (s *Seeder) inviteSeedAdmin(schoolID int64, email, password, position string) error {
 	inviteResp, err := s.client.PostWithHeaders(fmt.Sprintf("/operator/schools/%d/invite-admin", schoolID), map[string]any{
 		"email":      email,
-		"first_name": "Seed",
-		"last_name":  "Admin",
+		"first_name": seedAdminFirstName,
+		"last_name":  seedAdminLastName,
 		"position":   position,
 	}, map[string]string{
 		seedTokenHeader: "true",

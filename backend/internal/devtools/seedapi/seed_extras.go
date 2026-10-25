@@ -528,8 +528,8 @@ func (seedCourseParticipationStep) Run(_ context.Context, rt *Runtime) error {
 			return err
 		}
 		studentIDs := make([]int64, 0, courseDemoChildren)
-		for i := range courseDemoChildren {
-			if id, ok := rt.FixedSeeder.studentIDByIndex[i]; ok {
+		for i := range courseDemoChildren { // own children per course: the courses run at the same time
+			if id, ok := rt.FixedSeeder.studentIDByIndex[courseIndex*courseDemoChildren+i]; ok {
 				studentIDs = append(studentIDs, id)
 			}
 		}

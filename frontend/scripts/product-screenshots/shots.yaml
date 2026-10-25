@@ -15,7 +15,13 @@
 #                `pfad` selbst erreichbar ist.
 #
 # Unbekannte Felder schlagen beim Laden fehl. Die Daten kommen aus dem
-# Seed-Profil `marketing` (backend/seed/api).
+# Seed-Profil `vollbetrieb` (backend/internal/devtools/seedapi), dem
+# Standardprofil des Seeders und der Demo, nach `simulate full-day`. Das erste
+# Elternkonto (Sabine Schneider) ist das Elternteil von Felix Schneider; die
+# Kinderakte zeigt Noah Richter. Kinder mit Elternkonto meldet der Seed nie
+# krank, beide sind anwesend. An Betreuungstagen hängt die Kinderkarte Noahs
+# Tagesänderung an den Namen („Noah Richter, … - Details öffnen“), daher der
+# reguläre Ausdruck.
 #
 # Auswahl (#3764, vom Maintainer bestätigt): die Flows der Hilfe und die
 # Nutzung laut PostHog (nur lesend abgefragt). Erfasst sind Seitenaufrufe der
@@ -56,7 +62,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Finn Busch - Details öffnen"]'
+      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
   # Hilfe betreuungszeiten-eintragen, kind-angaben-aendern
   - id: betreuungszeiten-pflegen
@@ -65,7 +71,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Finn Busch - Details öffnen"]'
+      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: '[role="tab"][data-tab-value="betreuungszeiten"]'
   # Hilfe abwesenheiten; PostHog: 253 Abwesenheitsmeldungen
@@ -75,7 +81,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Finn Busch - Details öffnen"]'
+      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: 'main button:has-text("Krank melden")'
       - warten_auf: '[role="dialog"]'
@@ -144,7 +150,7 @@ shots:
     rolle: admin
     pfad: /messages
     vorbereitung:
-      - klicken: 'text=Sarah Yilmaz'
+      - klicken: 'text=Sabine Schneider'
       - warten_auf: 'main textarea'
   # Hilfe elternanfragen-bearbeiten; PostHog: 607 Aufrufe, 82 Abholentscheidungen
   - id: offene-anfragen
@@ -261,8 +267,8 @@ shots:
     rolle: eltern
     pfad: /children
     vorbereitung:
-      - klicken: 'text=Emir Yilmaz'
-      - warten_auf: 'main button:has-text("Emir abmelden")'
+      - klicken: 'text=Felix Schneider'
+      - warten_auf: 'main button:has-text("Felix abmelden")'
   # Hilfe abwesenheit-meines-kindes-melden; PostHog: 75 Abwesenheitsanfragen
   - id: eltern-kind-abmelden
     titel: Kind abmelden
@@ -270,9 +276,9 @@ shots:
     rolle: eltern
     pfad: /children
     vorbereitung:
-      - klicken: 'text=Emir Yilmaz'
+      - klicken: 'text=Felix Schneider'
       - warten_auf: 'role=tab'
-      - klicken: 'main button:has-text("Emir abmelden")'
+      - klicken: 'main button:has-text("Felix abmelden")'
       - warten_auf: '[role="dialog"]'
   # Hilfe abholzeit-fuer-einen-tag-aendern; PostHog: 86 Abholänderungen
   - id: eltern-abholzeit-aendern
@@ -281,7 +287,7 @@ shots:
     rolle: eltern
     pfad: /children
     vorbereitung:
-      - klicken: 'text=Emir Yilmaz'
+      - klicken: 'text=Felix Schneider'
       - warten_auf: 'role=tab'
       - klicken: 'main button:has-text("Abhol")'
       - warten_auf: '[role="dialog"]'
@@ -297,8 +303,9 @@ shots:
     portal: eltern
     rolle: eltern
     pfad: /messages
+    # Felix ist das einzige Kind des Elternkontos: die Seite öffnet seinen
+    # Verlauf direkt, eine Liste zum Anklicken gibt es nicht.
     vorbereitung:
-      - klicken: 'text=Für Emir Yilmaz'
       - warten_auf: 'main textarea'
   # Hilfe als-elternteil-den-kalender-ansehen; PostHog: 132 Aufrufe
   - id: eltern-kalender
@@ -319,7 +326,7 @@ shots:
     rolle: eltern
     pfad: /news
     vorbereitung:
-      - klicken: 'main button:has-text("Herbstfest am Freitag")'
+      - klicken: 'main button:has-text("Elternbrief: Ausflug am Freitag")'
       - warten_auf: '[role="dialog"]'
   # Hilfe mittagessen-ansehen; PostHog: im Median 735 s offen
   - id: eltern-mittagessen
