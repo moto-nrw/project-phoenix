@@ -203,8 +203,9 @@ export function ChangeTraegerRolesModal({
         }}
       >
         <p className="text-sm text-gray-600">
-          Rollen für <span className="font-medium">{member?.email}</span>. Die
-          Änderung gilt nach wenigen Minuten, spätestens bei der nächsten
+          Rollen für{" "}
+          <span className="font-medium wrap-anywhere">{member?.email}</span>.
+          Die Änderung gilt nach wenigen Minuten, spätestens bei der nächsten
           Anmeldung.
         </p>
         <TraegerRoleChoice

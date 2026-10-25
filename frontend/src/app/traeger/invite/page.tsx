@@ -153,7 +153,7 @@ function InviteForm({
       }}
     >
       <FormErrorAlert message={formErrors.error} />
-      <div className="space-y-1 text-sm text-gray-700">
+      <div className="space-y-1 text-sm wrap-anywhere text-gray-700">
         <p>
           Sie sind ins Träger-Büro von{" "}
           <span className="font-semibold">{invitation.organizationName}</span>{" "}

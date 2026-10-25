@@ -129,7 +129,7 @@ export default function TraegerAccountsPage() {
       key: "email",
       header: "E-Mail",
       render: (member) => (
-        <span className="font-medium text-gray-900">
+        <span className="font-medium wrap-anywhere text-gray-900">
           {member.email}
           {member.email === ownEmail ? (
             <span className="ml-1 font-normal text-gray-500">(Sie)</span>
@@ -172,7 +172,9 @@ export default function TraegerAccountsPage() {
       key: "email",
       header: "E-Mail",
       render: (invitation) => (
-        <span className="font-medium text-gray-900">{invitation.email}</span>
+        <span className="font-medium wrap-anywhere text-gray-900">
+          {invitation.email}
+        </span>
       ),
       sortValue: (invitation) => invitation.email,
       stacked: "title",
@@ -294,12 +296,14 @@ export default function TraegerAccountsPage() {
           pending?.kind === "revoke" ? (
             <>
               Der Link an{" "}
-              <span className="font-medium">{pending.invitation.email}</span>{" "}
+              <span className="font-medium wrap-anywhere">
+                {pending.invitation.email}
+              </span>{" "}
               funktioniert danach nicht mehr.
             </>
           ) : (
             <>
-              <span className="font-medium">
+              <span className="font-medium wrap-anywhere">
                 {pending?.kind === "remove" ? pending.member.email : ""}
               </span>{" "}
               kann sich danach nicht mehr im Träger-Portal anmelden. Das
