@@ -25,9 +25,9 @@ import (
 // Platform commits with the change or the change rolls back.
 //
 // Every command re-checks the acting person against the database: the
-// Träger must be live and the actor an active member whose roles still grant
-// "Konten verwalten". The rights in the token may be up to one access token
-// lifetime old.
+// Träger must be live and the actor an active member with a switched-on
+// account whose roles still grant "Konten verwalten". The rights in the
+// token may be up to one access token lifetime old.
 type TraegerAccounts struct {
 	store       ports.TraegerAccountStore
 	memberships identityPorts.TraegerBueroMemberships
@@ -155,6 +155,15 @@ func (t *TraegerAccounts) begin(ctx context.Context, actor identityaccess.Traege
 	unit := traegerUnit{name: traeger.Name, members: members, administrators: administrators}
 	if _, ok := unit.member(actor.AccountID); !ok {
 		return traegerUnit{}, identityaccess.ErrNoTraegerMembership
+	}
+	// The token may outlive a switch-off of the account; the account itself
+	// decides.
+	account, found, _, err := t.store.FindLoginAccount(ctx, actor.AccountID, false)
+	if err != nil {
+		return traegerUnit{}, err
+	}
+	if !found || !account.Active {
+		return traegerUnit{}, identityaccess.ErrAccountInactive
 	}
 	roles, _, err := t.store.ListTraegerRoles(ctx, actor.OrganizationID, actor.AccountID)
 	if err != nil {

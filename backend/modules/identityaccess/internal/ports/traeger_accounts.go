@@ -41,6 +41,9 @@ type TraegerAccountStore interface {
 	// DeleteTraegerSessions ends every session of the account at the Träger.
 	DeleteTraegerSessions(ctx context.Context, organizationID, accountID int64) (domain.OperationStats, error)
 	FindLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
+	// FindLoginAccount reads a live account; the acting person's account
+	// must still be switched on.
+	FindLoginAccount(ctx context.Context, id int64, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error)
 	// LockLoginAccountByEmail is the address lookup under the row lock that
 	// serializes with account retention.
 	LockLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)

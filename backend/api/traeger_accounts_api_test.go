@@ -432,3 +432,22 @@ func TestTraegerInvitationCountsRefusedPasswordsLikeTheLogin(t *testing.T) {
 	rec = traegerCall(t, router, http.MethodGet, "/traeger/invitations/"+token, "", nil)
 	assert.Equal(t, http.StatusOK, rec.Code, "the link stays open for a later try")
 }
+
+// A switched-off account keeps its access token until it expires; the account
+// management refuses it at once (quorum #4937).
+func TestTraegerAccountsRefuseASwitchedOffActor(t *testing.T) {
+	t.Parallel()
+	db, router, _, _ := newTraegerAccountsPortal(t)
+	organizationID := traegerBuero(t, db, "Träger Abgeschaltet")
+	actor, session := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	_, err := db.ExecContext(context.Background(), `UPDATE auth.accounts SET active = FALSE WHERE id = ?`, actor.ID)
+	require.NoError(t, err)
+
+	rec := traegerCall(t, router, http.MethodGet, "/traeger/accounts/", session.AccessToken, nil)
+	assert.Equal(t, http.StatusForbidden, rec.Code, "the token alone no longer reads the colleagues")
+	assert.Contains(t, rec.Body.String(), "identity.account_inactive")
+	rec = traegerCall(t, router, http.MethodPost, "/traeger/accounts/invitations", session.AccessToken, map[string]any{"email": "x@test.local", "roles": []string{identityaccess.TraegerRoleAdministration}})
+	assert.Equal(t, http.StatusForbidden, rec.Code, "nor invites anybody")
+	assert.Empty(t, traegerLedger(t, db, organizationID), "a refused actor changes and reads nothing")
+}

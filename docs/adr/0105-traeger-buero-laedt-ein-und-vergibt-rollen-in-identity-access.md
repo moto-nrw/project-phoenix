@@ -46,8 +46,9 @@ Diese ADR hält fest, wie das umgesetzt ist und was es in den Registern
    `compose.New`; es entsteht keine neue Stelle im Transaktionsregister.
 4. **Prüfung gegen die Datenbank.** Die Routen prüfen das Recht
    `traeger_accounts:manage` im Token. Jeder Befehl prüft zusätzlich in der
-   Einheit, dass der Träger lebt, die handelnde Person aktives Mitglied ist
-   und ihre aktuellen Rollen „Konten verwalten“ geben. Der Träger kommt
+   Einheit, dass der Träger lebt, die handelnde Person aktives Mitglied mit
+   eingeschaltetem Konto ist und ihre aktuellen Rollen „Konten verwalten“
+   geben. Der Träger kommt
    immer aus der Sitzung.
 5. **Letzte Verwaltung.** Ein Befehl, der der letzten aktiven Person die
    Rolle Verwaltung nimmt (Rolle ändern oder entfernen), wird mit
