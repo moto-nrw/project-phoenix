@@ -181,17 +181,21 @@ func TestAccountSessionCapKeepsPortalGroupsApart(t *testing.T) {
 
 	var staff []identityaccess.AccountSession
 	for i := range 5 {
-		scope := "tenant"
-		if i%2 == 1 {
-			scope = "org"
-		}
-		session := newAccountSession(account.ID, scope, newFamilyID(), 0)
+		session := newAccountSession(account.ID, "tenant", newFamilyID(), 0)
 		session.Expiry = time.Now().Add(time.Duration(i+1) * time.Hour)
 		stored, err := access.CreateAccountSession(ctx, session)
 		require.NoError(t, err)
 		staff = append(staff, stored)
 	}
 	parent, err := access.CreateAccountSession(ctx, newAccountSession(account.ID, "parent", newFamilyID(), 0))
+	require.NoError(t, err)
+	// ADR 0084: the Träger-Portal keeps its own session bucket; its session
+	// names the Träger and no school, so it is written administratively like
+	// the Träger sign-in does.
+	adminCtx := testpkg.WithTenantRuntime(t, context.Background(), db)
+	traegerSession := newAccountSession(account.ID, "org", newFamilyID(), 0)
+	traegerSession.OrganizationID = testpkg.Tenant(t)
+	traeger, err := access.CreateAccountSession(adminCtx, traegerSession)
 	require.NoError(t, err)
 	unknown, err := access.CreateAccountSession(ctx, newAccountSession(account.ID, "", newFamilyID(), 0))
 	require.NoError(t, err)
@@ -205,14 +209,19 @@ func TestAccountSessionCapKeepsPortalGroupsApart(t *testing.T) {
 
 	evicted, err := access.EnforceAccountSessionCap(ctx, account.ID, "tenant", 5)
 	require.NoError(t, err)
-	assert.Empty(t, evicted, "rotated, expired, parent and unknown rows do not count against the staff cap")
+	assert.Empty(t, evicted, "rotated, expired, parent, Träger and unknown rows do not count against the staff cap")
 
 	newest, err := access.CreateAccountSession(ctx, newAccountSession(account.ID, "tenant", newFamilyID(), 0))
 	require.NoError(t, err)
-	evicted, err = access.EnforceAccountSessionCap(ctx, account.ID, "org", 5)
+	evicted, err = access.EnforceAccountSessionCap(adminCtx, account.ID, "org", 5)
 	require.NoError(t, err)
-	require.Len(t, evicted, 1, "tenant and org share the staff allowance")
+	assert.Empty(t, evicted, "the Träger portal has its own allowance")
+	evicted, err = access.EnforceAccountSessionCap(ctx, account.ID, "tenant", 5)
+	require.NoError(t, err)
+	require.Len(t, evicted, 1, "the sixth staff session evicts one")
 	assert.Equal(t, staff[0].ID, evicted[0].ID, "the session closest to expiry is evicted first")
+	_, err = access.FindAccountSession(adminCtx, traeger.Token)
+	require.NoError(t, err, "the staff cap leaves the Träger session alone")
 	for _, token := range []string{parent.Token, unknown.Token, rotated.Token, expired.Token, newest.Token} {
 		_, err = access.FindAccountSession(ctx, token)
 		require.NoError(t, err, "the cap must leave other portals, hand-offs, expired rows and the newest session alone")

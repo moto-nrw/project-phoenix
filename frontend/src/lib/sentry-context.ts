@@ -7,7 +7,8 @@
 
 import * as Sentry from "@sentry/nextjs";
 
-export type SentryPortal = "tenant" | "parent" | "school" | "operator";
+export type SentryPortal =
+  "tenant" | "parent" | "school" | "operator" | "traeger";
 
 /** Values of the `role` tag: the portal's role model, never a school's role name. */
 type SentryRole =
@@ -54,6 +55,9 @@ function portalRole(portal: SentryPortal, user: SentrySessionUser): SentryRole {
       return "lehrkraft";
     case "operator":
       return "operator";
+    case "traeger":
+      // The Träger-Büro (#4649); its token names a Träger, never a school.
+      return "carrier";
   }
 }
 

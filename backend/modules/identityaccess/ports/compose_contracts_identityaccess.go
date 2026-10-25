@@ -42,14 +42,17 @@ type SessionDependencies struct {
 	// PasswordLoginPolicy resolves installation-wide registry defaults. School overrides cannot weaken a global identity lock.
 	PasswordLoginPolicy func() (int, time.Duration, error)
 	Schools             SchoolDirectory
-	Persons             PersonDirectory
-	Passwords           PasswordVerifier
-	Codec               TokenCodec
-	MFALock             MFAPolicyLock
-	Audit               AuthAudit
-	Push                PushSubscriptionCleanup
-	TenantRuntime       func(context.Context) context.Context
-	Logger              *slog.Logger
+	// Traeger reads the Träger memberships of Organisation & Tenancy the
+	// Träger-Portal sign-in and refresh re-check (ADR 0084).
+	Traeger       TraegerMemberships
+	Persons       PersonDirectory
+	Passwords     PasswordVerifier
+	Codec         TokenCodec
+	MFALock       MFAPolicyLock
+	Audit         AuthAudit
+	Push          PushSubscriptionCleanup
+	TenantRuntime func(context.Context) context.Context
+	Logger        *slog.Logger
 }
 
 // PasswordPolicy validates and hashes parent account passwords.

@@ -646,6 +646,37 @@ describe("getParentHelpTopicForPath", () => {
     expect(unreachable).toEqual([]);
   });
 
+  it("gives the Träger-Büro its own self-contained guide (#4649)", () => {
+    const traegerTopics = getHelpTopics(
+      "detailed",
+      "fixed_groups",
+      true,
+    ).filter((topic) => helpTopicMatchesRole(topic, "traeger"));
+    const visible = new Set(traegerTopics.map((topic) => topic.id));
+
+    expect(traegerTopics.map((topic) => topic.id)).toEqual([
+      HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.errorMessages,
+    ]);
+    expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([
+      "einstieg",
+      "probleme",
+    ]);
+    // Das Träger-Portal ist ein eigenes Portal: kein Verweis führt in die
+    // Hilfe der OGS, der Eltern oder von moto schule.
+    const unreachable = traegerTopics.flatMap((topic) =>
+      topic.related
+        .filter((id) => !visible.has(id))
+        .map((id) => `${topic.id} -> ${id}`),
+    );
+    expect(unreachable).toEqual([]);
+    // Kein anderer Leser sieht den Träger-Artikel.
+    const login = traegerTopics.find(
+      (topic) => topic.id === HELP_TOPICS.traegerLogin,
+    );
+    expect(login?.audience).toBe("traeger");
+  });
+
   it("hides every room-only article when attendance is simple", () => {
     const binaryIds = new Set(
       getHelpTopics("binary", "fixed_groups", true).map((t) => t.id),

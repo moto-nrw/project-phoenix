@@ -23,6 +23,7 @@ type revocationGroup struct {
 // portal scope, family) group of the revoked sessions, on the caller's
 // transaction.
 func (s *AccountAuthentication) auditRevokedSessions(ctx context.Context, sessions []domain.AccountSession, reason, ipAddress, userAgent string) error {
+	sessions = schoolSessions(sessions)
 	if len(sessions) == 0 {
 		return nil
 	}
@@ -595,4 +596,17 @@ func (s *AccountAuthentication) runScheduledAccountWipe(txCtx context.Context, a
 		return sessions, pushReason, err
 	}
 	return sessions, pushReason, s.completeAccountWideWipes(txCtx, claimed)
+}
+
+// schoolSessions drops Träger sessions: they belong to no school, and
+// audit.auth_events is school-scoped, so their revocation is not filed there
+// (ADR 0084).
+func schoolSessions(sessions []domain.AccountSession) []domain.AccountSession {
+	kept := make([]domain.AccountSession, 0, len(sessions))
+	for _, session := range sessions {
+		if session.PortalScope != domain.PortalScopeOrg {
+			kept = append(kept, session)
+		}
+	}
+	return kept
 }

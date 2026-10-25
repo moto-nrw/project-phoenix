@@ -33,6 +33,9 @@ import type {
   DeviceTransferStatus,
   BackendSchoolPWAUsage,
   SchoolPWAUsage,
+  AssignTraegerMemberRequest,
+  BackendTraegerMember,
+  TraegerMember,
 } from "./provisioning-helpers";
 import {
   mapOrganization,
@@ -48,6 +51,7 @@ import {
   mapUnregisteredTagScan,
   mapDeviceTransferStatus,
   mapSchoolPWAUsage,
+  mapTraegerMember,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -144,6 +148,24 @@ class OperatorProvisioningService {
       `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/accounts`,
     );
     return data.map(mapOrgAccount);
+  }
+
+  async listTraegerMembers(orgId: string): Promise<TraegerMember[]> {
+    const data = await operatorFetch<BackendTraegerMember[]>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/traeger-members`,
+    );
+    return data.map(mapTraegerMember);
+  }
+
+  async assignTraegerMember(
+    orgId: string,
+    data: AssignTraegerMemberRequest,
+  ): Promise<TraegerMember> {
+    const result = await operatorFetch<BackendTraegerMember>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/traeger-members`,
+      { method: "POST", body: data },
+    );
+    return mapTraegerMember(result);
   }
 
   async listAllAccounts(): Promise<OrgAccount[]> {

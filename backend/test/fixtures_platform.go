@@ -147,3 +147,49 @@ func CreateTestOperatorWithPassword(tb testing.TB, db *bun.DB, email, password s
 
 	return op
 }
+
+// CreateTestSchoolInOrganization inserts a live school of the organization
+// and returns its ID (= tenant ID). The organization fixture's cleanup removes
+// it with the organization's other schools.
+func CreateTestSchoolInOrganization(tb testing.TB, db *bun.DB, organizationID int64, name string) int64 {
+	tb.Helper()
+	schoolID := uniqueJWTSafeTenantID()
+	token := fmt.Sprintf("%d-%d", schoolID, uniqueFixtureSuffix())
+	_, err := db.ExecContext(context.Background(), `
+		INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active)
+		VALUES (?, ?, ?, ?, ?, true)`,
+		schoolID, organizationID, name, "test-school-"+token, fmt.Sprintf("t%d", schoolID))
+	require.NoError(tb, err, "Failed to create test school in organization")
+	return schoolID
+}
+
+// CreateTestTraegerMember grants the account an active Träger membership
+// with the given Träger roles (ADR 0084) and removes both when the test
+// ends. The rows carry no tenant, and the tenant cleanup deletes an emptied
+// organization with foreign-key triggers suspended, so they need their own
+// exact-key teardown.
+func CreateTestTraegerMember(tb testing.TB, db *bun.DB, organizationID, accountID int64, roles ...string) {
+	tb.Helper()
+	ctx := context.Background()
+	tb.Cleanup(func() { cleanupTraegerMember(tb, db, organizationID, accountID) })
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO platform.organization_accounts (organization_id, account_id, status, activated_at)
+		VALUES (?, ?, 'active', NOW())`, organizationID, accountID)
+	require.NoError(tb, err, "Failed to create test Träger membership")
+	for _, role := range roles {
+		_, err = db.ExecContext(ctx, `
+			INSERT INTO auth.organization_account_roles (organization_id, account_id, role)
+			VALUES (?, ?, ?)`, organizationID, accountID, role)
+		require.NoError(tb, err, "Failed to create test Träger role")
+	}
+}
+
+// cleanupTraegerMember removes one Träger membership with its roles.
+func cleanupTraegerMember(tb testing.TB, db *bun.DB, organizationID, accountID int64) {
+	tb.Helper()
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx, `DELETE FROM auth.organization_account_roles WHERE organization_id = ? AND account_id = ?`, organizationID, accountID)
+	require.NoError(tb, err, "Failed to clean up test Träger roles")
+	_, err = db.ExecContext(ctx, `DELETE FROM platform.organization_accounts WHERE organization_id = ? AND account_id = ?`, organizationID, accountID)
+	require.NoError(tb, err, "Failed to clean up test Träger membership")
+}

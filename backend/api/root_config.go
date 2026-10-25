@@ -66,6 +66,7 @@ func CurrentServiceConfig() owners.ServiceConfig {
 		PublicAPIURL:               viper.GetString("next_public_api_url"),
 		ParentsURL:                 viper.GetString("parents_url"),
 		SchoolURL:                  viper.GetString("school_url"),
+		TraegerURL:                 viper.GetString("traeger_url"),
 		AppEnv:                     viper.GetString("app_env"),
 		InvitationTokenExpiryHours: viper.GetInt("invitation_token_expiry_hours"),
 		PasswordResetExpiryMinutes: viper.GetInt("password_reset_token_expiry_minutes"),

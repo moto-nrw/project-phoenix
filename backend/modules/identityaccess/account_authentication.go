@@ -102,11 +102,13 @@ type SessionClaims struct {
 	IssuedAt      int64
 }
 
-// RefreshClaims is the content of a refresh token.
+// RefreshClaims is the content of a refresh token. A Träger session (scope
+// org) names its Träger in OrgID and no school.
 type RefreshClaims struct {
 	AccountID int64
 	Token     string
 	TenantID  int64
+	OrgID     int64
 	Scope     string
 	ExpiresAt int64
 }
@@ -313,11 +315,12 @@ type AccountAuthentication interface {
 	AccountPasswordConfirmation
 }
 
-// AccountLogin combines tenant, parent and school sign-in capabilities.
+// AccountLogin combines tenant, parent, school and Träger sign-in capabilities.
 type AccountLogin interface {
 	TenantAccountLogin
 	ParentAccountLogin
 	SchoolAccountLogin
+	TraegerAccountLogin
 }
 
 // TenantAccountLogin authenticates accounts at the tenant portal.

@@ -181,8 +181,14 @@ describe("useApiErrorDisplay", () => {
     expect(loginUrl(clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME, "/schools")).toBe(
       "/login?error=SessionExpired",
     );
+    expect(loginUrl(clientEnv.NEXT_PUBLIC_TRAEGER_HOSTNAME, "/")).toBe(
+      "/login?error=SessionExpired",
+    );
     expect(loginUrl("localhost:3000", "/parents/children")).toBe(
       "/parents/login?error=SessionExpired",
+    );
+    expect(loginUrl("localhost:3000", "/traeger/schulen")).toBe(
+      "/traeger/login?error=SessionExpired",
     );
     expect(loginUrl("localhost:3000", "/home")).toBe("/?error=SessionExpired");
   });

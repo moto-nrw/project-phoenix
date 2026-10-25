@@ -52,6 +52,7 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/parent/enrollments", settings.ModuleOnlineAnmeldung},
 	{"/school", settings.ModuleUnterrichtVormittag},
 	{"/school-sse", settings.ModuleUnterrichtVormittag},
+	{"/traeger", moduleRouteBasis},
 	{"/api/iot", settings.ModuleNFCAnwesenheit},
 	{"/api/iot/staff-clock", settings.ModuleZeiterfassung},
 

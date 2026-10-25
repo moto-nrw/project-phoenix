@@ -46,6 +46,7 @@ function startSurface(): AnalyticsSurface | null {
       operator: clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME,
       parents: clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME,
       school: clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME,
+      traeger: clientEnv.NEXT_PUBLIC_TRAEGER_HOSTNAME,
       tenantDomain: clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
     });
   }

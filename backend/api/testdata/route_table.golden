@@ -516,6 +516,7 @@ GET /operator/organizations/{id}/accounts
 GET /operator/organizations/{id}/devices
 GET /operator/organizations/{id}/persons
 GET /operator/organizations/{id}/schools
+GET /operator/organizations/{id}/traeger-members
 GET /operator/profile/
 GET /operator/roles
 GET /operator/schools/
@@ -599,6 +600,7 @@ GET /school/staff-notices/today
 GET /school/supervisions/
 GET /school/supervisions/{id}/roster
 GET /school/supervisions/{id}/students/{student_id}/sheet
+GET /traeger/schools/
 HEAD /.well-known/caldav
 HEAD /api/caldav
 HEAD /api/caldav/*
@@ -930,6 +932,7 @@ POST /operator/operators/{id}/deactivate
 POST /operator/operators/{id}/reactivate
 POST /operator/organizations/
 POST /operator/organizations/{id}/restore
+POST /operator/organizations/{id}/traeger-members
 POST /operator/profile/email-change
 POST /operator/profile/password
 POST /operator/schools/
@@ -984,6 +987,7 @@ POST /school/supervisions/{id}/complete
 POST /school/supervisions/{id}/start
 POST /school/supervisions/{id}/students/{student_id}/check-in
 POST /school/supervisions/{id}/students/{student_id}/check-out
+POST /traeger/auth/login
 PUT /.well-known/caldav
 PUT /analytics-consent/
 PUT /api/absence-types/{id}

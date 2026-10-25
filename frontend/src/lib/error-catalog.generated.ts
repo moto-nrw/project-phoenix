@@ -1124,6 +1124,8 @@ export const ERROR_CATALOG = {
         "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
       "timetable.window_too_large":
         "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_days} Tage.",
+      "traeger.no_membership":
+        "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
       "workforce.absence_allowance_exceeded":
         "Für diese Art sind nicht mehr genug Tage übrig. Der Anspruch muss zuerst erhöht werden.",
       "workforce.absence_already_decided":
@@ -1586,6 +1588,8 @@ export const ERROR_CATALOG = {
         "Homework feedback is only possible in a study time you supervise.",
       "timetable.homework_feedback_without_homework":
         "No homework is entered for this child's class today.",
+      "traeger.no_membership":
+        "Your account has no access to the Träger portal. Please contact the moto team.",
     },
   },
   ru: {

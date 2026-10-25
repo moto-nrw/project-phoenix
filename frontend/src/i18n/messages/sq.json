@@ -3020,6 +3020,9 @@
       },
       "operator": {
         "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
+      },
+      "traeger": {
+        "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       }
     },
     "actions": {

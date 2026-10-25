@@ -21,6 +21,12 @@ func ParentScopeMiddleware(next http.Handler) http.Handler {
 	return sessiontoken.ParentMiddleware(tenant.ClaimScope{})(next)
 }
 
+// TraegerScopeMiddleware accepts Träger-Portal tokens only and binds their
+// Träger, never a school (ADR 0084).
+func TraegerScopeMiddleware(next http.Handler) http.Handler {
+	return sessiontoken.TraegerMiddleware(tenant.ClaimScope{})(next)
+}
+
 // SchoolScopeMiddleware accepts school-portal tokens only and binds their school.
 func SchoolScopeMiddleware(next http.Handler) http.Handler {
 	return sessiontoken.SchoolMiddleware(tenant.ClaimScope{})(next)

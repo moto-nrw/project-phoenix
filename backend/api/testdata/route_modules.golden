@@ -342,6 +342,7 @@ basis
 	GET /operator/organizations/{id}/devices
 	GET /operator/organizations/{id}/persons
 	GET /operator/organizations/{id}/schools
+	GET /operator/organizations/{id}/traeger-members
 	GET /operator/profile/
 	GET /operator/roles
 	GET /operator/schools/
@@ -362,6 +363,7 @@ basis
 	GET /public/login-image/{filename}
 	GET /public/request-feed/{token}
 	GET /ready
+	GET /traeger/schools/
 	HEAD /.well-known/caldav
 	HEAD /api/caldav
 	HEAD /api/caldav/*
@@ -587,6 +589,7 @@ basis
 	POST /operator/operators/{id}/reactivate
 	POST /operator/organizations/
 	POST /operator/organizations/{id}/restore
+	POST /operator/organizations/{id}/traeger-members
 	POST /operator/profile/email-change
 	POST /operator/profile/password
 	POST /operator/schools/
@@ -596,6 +599,7 @@ basis
 	POST /operator/schools/{id}/restore
 	POST /operator/staff-person-merges/{schoolId}
 	POST /operator/unregistered-tag-scans/{id}/resolve
+	POST /traeger/auth/login
 	PUT /.well-known/caldav
 	PUT /analytics-consent/
 	PUT /api/active/combined/{id}

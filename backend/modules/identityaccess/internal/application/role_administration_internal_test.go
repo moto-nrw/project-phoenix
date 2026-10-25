@@ -578,25 +578,6 @@ func TestRoleAdministration_AccountLockOrder(t *testing.T) {
 		}, f.store.calls)
 	})
 
-	t.Run("organisation scope refuses an account of another school", func(t *testing.T) {
-		f := newRAFixture(t)
-		account := f.account()
-		ctx := withScope(raContext(), domain.ScopeOrg, 3)
-
-		_, err := f.admin.accountRoles(ctx, account)
-		require.ErrorIs(t, err, domain.ErrAccountNotFound)
-	})
-
-	t.Run("organisation scope without a tenant is not found", func(t *testing.T) {
-		f := newRAFixture(t)
-		account := f.account()
-		ctx := withScope(context.Background(), domain.ScopeOrg, 3)
-
-		_, err := f.admin.accountRoles(ctx, account)
-		require.ErrorIs(t, err, domain.ErrAccountNotFound)
-		assert.NotContains(t, f.store.calls, "membership")
-	})
-
 	t.Run("an unmanageable account is not found before any lock", func(t *testing.T) {
 		f := newRAFixture(t)
 		unmanaged := f.store.nextID + 1

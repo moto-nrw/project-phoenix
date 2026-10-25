@@ -758,3 +758,69 @@ export function mapUnregisteredTagScan(
 /** Shown when the browser refuses to copy an API key (#2519). */
 export const API_KEY_COPY_FAILED_MESSAGE =
   "Der API-Key konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.";
+
+// --- Träger-Büro (#4649) ---
+
+/** The fixed Träger roles (ADR 0084); each bundles Träger rights. */
+export const TRAEGER_ROLES = [
+  "administration",
+  "billing",
+  "personnel",
+  "read_only",
+] as const;
+
+export type TraegerRole = (typeof TRAEGER_ROLES)[number];
+
+export const TRAEGER_ROLE_LABELS: Readonly<Record<TraegerRole, string>> = {
+  administration: "Verwaltung",
+  billing: "Abrechnung",
+  personnel: "Personal",
+  read_only: "Nur lesen",
+};
+
+export type TraegerMemberStatus = "active" | "pending" | "inactive";
+
+export const TRAEGER_MEMBER_STATUS_LABELS: Readonly<
+  Record<TraegerMemberStatus, string>
+> = {
+  active: "Aktiv",
+  pending: "Eingeladen",
+  inactive: "Inaktiv",
+};
+
+export interface BackendTraegerMember {
+  account_id: number;
+  email: string;
+  status: TraegerMemberStatus;
+  roles: string[];
+  activated_at: string | null;
+}
+
+export interface TraegerMember {
+  accountId: string;
+  email: string;
+  status: TraegerMemberStatus;
+  roles: TraegerRole[];
+  activatedAt: string | null;
+}
+
+function isTraegerRole(value: string): value is TraegerRole {
+  return (TRAEGER_ROLES as readonly string[]).includes(value);
+}
+
+export function mapTraegerMember(data: BackendTraegerMember): TraegerMember {
+  return {
+    accountId: data.account_id.toString(),
+    email: data.email,
+    status: data.status,
+    // A role this client does not know yet stays out instead of showing a
+    // raw key.
+    roles: (data.roles ?? []).filter(isTraegerRole),
+    activatedAt: data.activated_at ?? null,
+  };
+}
+
+export interface AssignTraegerMemberRequest {
+  email: string;
+  role: TraegerRole;
+}

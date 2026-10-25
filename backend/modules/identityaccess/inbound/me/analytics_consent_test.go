@@ -96,13 +96,15 @@ func TestAnalyticsConsentStartsUndecidedAndRecordsTheOwnAnswer(t *testing.T) {
 	}
 }
 
-// An operator has no portal analytics, and a staff-view preview carries the
-// target's identity: neither reads or decides for that account.
+// An operator and the Träger portal (#4649) have no portal analytics, and a
+// staff-view preview carries the target's identity: none reads or decides for
+// that account.
 func TestAnalyticsConsentRefusesOperatorAndPreviewSessions(t *testing.T) {
 	t.Parallel()
 
 	for name, claims := range map[string]sessiontoken.AppClaims{
 		"operator":   {ID: consentAccountID, Scope: "platform"},
+		"träger":     {ID: consentAccountID, Scope: "org", OrgID: 1},
 		"preview":    {ID: consentAccountID, TenantID: 42, ReadOnly: true},
 		"no account": {TenantID: 42},
 	} {
