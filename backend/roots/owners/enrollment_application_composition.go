@@ -216,6 +216,9 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 		enrollmentOwner.MailKindChangeRequestRejected:    render(renderers.ChangeRequestRejected),
 		enrollmentOwner.MailKindRolloverOptIn:            render(renderers.RolloverOptIn),
 		enrollmentOwner.MailKindRolloverOptOut:           render(renderers.RolloverOptOut),
+		// The receipt of a public holiday registration is a mail of the
+		// Träger, sent with the Träger's name (#4661).
+		enrollmentOwner.MailKindHolidayRegistrationReceived: render(renderers.HolidayRegistrationReceived),
 	}
 }
 

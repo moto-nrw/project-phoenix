@@ -1529,6 +1529,13 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/publish") {
+			// The published period carries its public link and its weeks
+			// for the holiday registration of the same step (#4661).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[`+
+				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/parent-announcements/") && strings.HasSuffix(r.URL.Path, "/publish") {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"published_at": "2026-08-31T00:00:00Z"},

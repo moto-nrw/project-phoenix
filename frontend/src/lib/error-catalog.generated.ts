@@ -367,6 +367,14 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die markierten Felder.",
       "enrollment.holiday_period_not_found":
         "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
+      "enrollment.holiday_registration_closed":
+        "Die Anmeldung für diese Ferien ist nicht offen. Bitte achten Sie auf Anmeldebeginn und Anmeldeschluss.",
+      "enrollment.holiday_registration_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "enrollment.holiday_registration_not_found":
+        "Diesen Anmeldelink gibt es nicht. Bitte nutzen Sie den Link, den Sie vom Träger bekommen haben.",
+      "enrollment.holiday_week_booked":
+        "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
       "enrollment.invalid_email":
         "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
       "enrollment.signature_invalid":
@@ -1592,6 +1600,14 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_period_invalid": "Please check the marked fields.",
       "enrollment.holiday_period_not_found":
         "This holiday period does not exist. Please open it from the holiday list.",
+      "enrollment.holiday_registration_closed":
+        "Registration for these holidays is not open. Please check the start and end of registration.",
+      "enrollment.holiday_registration_invalid":
+        "Please check the marked fields.",
+      "enrollment.holiday_registration_not_found":
+        "This registration link does not exist. Please use the link you received from the provider.",
+      "enrollment.holiday_week_booked":
+        "This week already has registrations. That is why the week and its booked time models cannot be removed.",
       "enrollment.invalid_email": "Please enter a valid email address.",
       "enrollment.signature_invalid":
         "The signature could not be read. Please sign again.",
@@ -1990,6 +2006,12 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Укажите адрес электронной почты.",
       "enrollment.guardian_name_required": "Укажите имя и фамилию.",
       "enrollment.guardian_phone_required": "Укажите номер телефона.",
+      "enrollment.holiday_registration_closed":
+        "Запись на эти каникулы не открыта. Пожалуйста, проверьте начало и конец записи.",
+      "enrollment.holiday_registration_invalid":
+        "Пожалуйста, проверьте отмеченные поля.",
+      "enrollment.holiday_registration_not_found":
+        "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
       "enrollment.signature_invalid":
         "Не удалось прочитать подпись. Пожалуйста, подпишите ещё раз.",
@@ -2361,6 +2383,12 @@ export const ERROR_CATALOG = {
         "Ju lutemi shkruani emrin dhe mbiemrin.",
       "enrollment.guardian_phone_required":
         "Ju lutemi shkruani një numër telefoni.",
+      "enrollment.holiday_registration_closed":
+        "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
+      "enrollment.holiday_registration_invalid":
+        "Ju lutemi kontrolloni fushat e shënuara.",
+      "enrollment.holiday_registration_not_found":
+        "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
       "enrollment.invalid_email":
         "Ju lutemi shkruani një adresë emaili të vlefshme.",
       "enrollment.signature_invalid":
@@ -2727,6 +2755,11 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Wpisz adres e-mail.",
       "enrollment.guardian_name_required": "Wpisz imię i nazwisko.",
       "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
+      "enrollment.holiday_registration_closed":
+        "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
+      "enrollment.holiday_registration_invalid": "Sprawdź zaznaczone pola.",
+      "enrollment.holiday_registration_not_found":
+        "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
       "enrollment.signature_invalid":
         "Nie udało się odczytać podpisu. Prosimy podpisać jeszcze raz.",
@@ -3095,6 +3128,12 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required": "Lütfen adı ve soyadı girin.",
       "enrollment.guardian_phone_required":
         "Lütfen bir telefon numarası girin.",
+      "enrollment.holiday_registration_closed":
+        "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
+      "enrollment.holiday_registration_invalid":
+        "Lütfen işaretli alanları kontrol edin.",
+      "enrollment.holiday_registration_not_found":
+        "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
       "enrollment.signature_invalid":
         "İmza okunamadı. Lütfen tekrar imzalayın.",
@@ -3455,6 +3494,12 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_email_required": "Вкажіть адресу електронної пошти.",
       "enrollment.guardian_name_required": "Вкажіть ім'я та прізвище.",
       "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
+      "enrollment.holiday_registration_closed":
+        "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
+      "enrollment.holiday_registration_invalid":
+        "Будь ласка, перевірте позначені поля.",
+      "enrollment.holiday_registration_not_found":
+        "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
       "enrollment.signature_invalid":
         "Не вдалося прочитати підпис. Будь ласка, підпишіть ще раз.",

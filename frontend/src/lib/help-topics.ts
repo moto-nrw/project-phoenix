@@ -193,6 +193,7 @@ export const HELP_TOPICS = {
   parentMealPlan: "mittagessen-ansehen",
   parentEnroll: "mein-kind-anmelden",
   parentEnrollStatus: "anmeldung-weiter-bearbeiten",
+  parentHolidayRegistration: "fuer-die-ferienbetreuung-anmelden",
   parentAccountProblem: "eltern-konto-laesst-sich-nicht-einrichten",
   parentChildMissing: "mein-kind-wird-nicht-angezeigt",
   parentFeatureMissing: "funktion-ist-fuer-mich-nicht-verfuegbar",
@@ -209,6 +210,7 @@ export const HELP_TOPICS = {
   traegerInvitation: "einladung-ins-traeger-buero-annehmen",
   traegerAccounts: "personen-ins-traeger-buero-einladen",
   traegerHolidayPeriod: "traeger-ferienzeitraum",
+  traegerHolidayRegistration: "traeger-ferienanmeldung-teilen",
   traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   traegerSettings: "traeger-einstellungen",
   traegerBriefkopf: "briefkopf-des-traegers",
@@ -352,6 +354,8 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/children", HELP_TOPICS.parentChildOverview],
   // Die Anmeldung laeuft ueber `/anmeldung/<schule>/<phase>`.
   ["/anmeldung", HELP_TOPICS.parentEnroll],
+  // Der Link eines Trägers zur Ferienanmeldung (#4661).
+  ["/ferienanmeldung", HELP_TOPICS.parentHolidayRegistration],
   // Der Nachweis eines Einverständnisses `/news/<id>/nachweis` gehört zu den
   // Elternbriefen.
   ["/news/", HELP_TOPICS.parentNews],

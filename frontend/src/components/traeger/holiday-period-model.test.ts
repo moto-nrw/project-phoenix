@@ -121,6 +121,8 @@ describe("holiday period model", () => {
       notes: "",
       status: "draft" as const,
       publishedAt: null,
+      publicToken: "token",
+      registrationCount: 0,
     };
     expect(holidayPeriodComplete({ ...base, weeks: [] })).toBe(false);
     const week = {

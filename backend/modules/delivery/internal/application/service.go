@@ -33,6 +33,7 @@ func NewService(store ports.Store, people ports.GuardianDirectory, observe ports
 // enqueueInput is one validated intent with its encoded recipient and payload.
 type enqueueInput struct {
 	TenantID       int64
+	OrganizationID int64
 	Transport      domain.Transport
 	Template       string
 	IdempotencyKey string
@@ -58,8 +59,8 @@ func (s *Service) enqueueEmail(ctx context.Context, intent deliveryContract.Emai
 	intent.Related.Type = strings.TrimSpace(intent.Related.Type)
 	intent.Recipient.Address = strings.TrimSpace(intent.Recipient.Address)
 	intent.Recipient.Name = strings.TrimSpace(intent.Recipient.Name)
-	if (!system && intent.TenantID <= 0) || (system && intent.TenantID != 0) {
-		return deliveryContract.Enqueued{}, errors.New("delivery: tenant is required")
+	if err := validateEmailScope(intent, system); err != nil {
+		return deliveryContract.Enqueued{}, err
 	}
 	if intent.Template == "" {
 		return deliveryContract.Enqueued{}, errors.New("delivery: email template is required")
@@ -83,10 +84,27 @@ func (s *Service) enqueueEmail(ctx context.Context, intent deliveryContract.Emai
 		return deliveryContract.Enqueued{}, fmt.Errorf("delivery: marshal email recipient: %w", err)
 	}
 	return s.enqueue(ctx, enqueueInput{
-		TenantID: intent.TenantID, Transport: domain.TransportEmail, Template: intent.Template,
+		TenantID: intent.TenantID, OrganizationID: intent.OrganizationID, Transport: domain.TransportEmail, Template: intent.Template,
 		IdempotencyKey: intent.IdempotencyKey, Related: intent.Related,
 		Recipient: recipient, Payload: intent.Payload, DeliverAfter: intent.DeliverAfter,
 	}, deliveryContract.TransportEmail)
+}
+
+// validateEmailScope admits a school mail, a Träger mail (ADR 0110) or, on
+// the system path, a global mail with neither.
+func validateEmailScope(intent deliveryContract.EmailIntent, system bool) error {
+	switch {
+	case system && (intent.TenantID != 0 || intent.OrganizationID != 0):
+		return errors.New("delivery: a system email has neither tenant nor Träger")
+	case system:
+		return nil
+	case intent.TenantID > 0 && intent.OrganizationID == 0:
+		return nil
+	case intent.TenantID == 0 && intent.OrganizationID > 0:
+		return nil
+	default:
+		return errors.New("delivery: tenant is required")
+	}
 }
 
 func (s *Service) EnqueueDeferredPush(ctx context.Context, intent deliveryContract.DeferredPushIntent) (deliveryContract.Enqueued, error) {
@@ -166,7 +184,7 @@ func (s *Service) record(ctx context.Context, input enqueueInput) (result domain
 		nextRetryAt = input.DeliverAfter
 	}
 	intent := domain.Intent{
-		TenantID: input.TenantID, Transport: input.Transport, Template: input.Template,
+		TenantID: input.TenantID, OrganizationID: input.OrganizationID, Transport: input.Transport, Template: input.Template,
 		Recipient: input.Recipient, Payload: input.Payload, Status: string(domain.StatePending), NextRetryAt: nextRetryAt,
 	}
 	if input.IdempotencyKey != "" {

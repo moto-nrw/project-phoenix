@@ -25,6 +25,12 @@ func (fakeOperatorRetention) DeleteExpiredOperatorAuditLog(context.Context) (int
 }
 func (fakeOperatorRetention) DeleteDeactivatedOperators(context.Context) (int, error) { return 0, nil }
 
+type fakeHolidayRegistrationRetention struct{}
+
+func (fakeHolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(context.Context) (int, error) {
+	return 0, nil
+}
+
 type fakeAccountRetention struct{}
 
 func (fakeAccountRetention) EraseUnusedAccounts(context.Context) (int, error) { return 0, nil }
@@ -40,19 +46,20 @@ func (f *fakeFeedbackCleaner) DeleteExpired(context.Context) (int, error) { retu
 func minimalWorkerDependencies(t *testing.T) ports.WorkerDependencies {
 	t.Helper()
 	return ports.WorkerDependencies{
-		SettleExpiredTransfers:    noExpiredTransfers,
-		Logger:                    slog.Default(),
-		SchoolRepo:                dbTenantDirectory{},
-		TenantRuntime:             unitTenantRuntime(),
-		Settings:                  &stubSettingsResolver{},
-		AuthCleanup:               &fakeAuthCleanup{},
-		InvitationCleanup:         &fakeInvitationCleaner{},
-		EmailChangeCleanup:        &fakeEmailChangeCleaner{},
-		OperatorInvitationCleanup: &fakeOperatorInvitationCleaner{},
-		OperatorRetention:         ports.OperatorRetention{Ledger: fakeOperatorRetention{}, Accounts: fakeOperatorRetention{}},
-		AccountRetention:          fakeAccountRetention{},
-		FeedbackCleaner:           &fakeFeedbackCleaner{},
-		CleanupRuns:               newFakeCleanupRuns(),
+		SettleExpiredTransfers:       noExpiredTransfers,
+		Logger:                       slog.Default(),
+		SchoolRepo:                   dbTenantDirectory{},
+		TenantRuntime:                unitTenantRuntime(),
+		Settings:                     &stubSettingsResolver{},
+		AuthCleanup:                  &fakeAuthCleanup{},
+		InvitationCleanup:            &fakeInvitationCleaner{},
+		EmailChangeCleanup:           &fakeEmailChangeCleaner{},
+		OperatorInvitationCleanup:    &fakeOperatorInvitationCleaner{},
+		OperatorRetention:            ports.OperatorRetention{Ledger: fakeOperatorRetention{}, Accounts: fakeOperatorRetention{}},
+		AccountRetention:             fakeAccountRetention{},
+		HolidayRegistrationRetention: fakeHolidayRegistrationRetention{},
+		FeedbackCleaner:              &fakeFeedbackCleaner{},
+		CleanupRuns:                  newFakeCleanupRuns(),
 		Lease: ports.WorkerLease{
 			Store: newMemoryLeaseStore(), Name: "worker", Holder: "test-worker",
 			TTL: 30 * time.Second, RenewEvery: 10 * time.Second, RetryEvery: 5 * time.Second, FenceMargin: 5 * time.Second,
@@ -88,6 +95,7 @@ func TestNewWorkerRejectsMissingTokenCleanupDependencies(t *testing.T) {
 		{name: "email change cleanup", remove: func(deps *ports.WorkerDependencies) { deps.EmailChangeCleanup = nil }},
 		{name: "operator invitation cleanup", remove: func(deps *ports.WorkerDependencies) { deps.OperatorInvitationCleanup = nil }},
 		{name: "account retention", remove: func(deps *ports.WorkerDependencies) { deps.AccountRetention = nil }},
+		{name: "holiday registration retention", remove: func(deps *ports.WorkerDependencies) { deps.HolidayRegistrationRetention = nil }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

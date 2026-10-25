@@ -241,7 +241,11 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 func schedulerCleanupJobs(deps ports.WorkerDependencies) []CleanupJob {
 	jobs := buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup)
 	jobs = append(jobs, operatorRetentionJobs(deps.OperatorRetention)...)
-	return append(jobs, accountRetentionJobs(deps.AccountRetention)...)
+	jobs = append(jobs, accountRetentionJobs(deps.AccountRetention)...)
+	if !isNilDependency(deps.HolidayRegistrationRetention) {
+		jobs = append(jobs, CleanupJob{Description: "Holiday registration retention", Run: deps.HolidayRegistrationRetention.DeleteExpiredHolidayRegistrations})
+	}
+	return jobs
 }
 
 // getLogger returns the scheduler's logger, falling back to slog.Default() if nil.

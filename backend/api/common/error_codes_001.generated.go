@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIdentityInvitationRateLimited                  = "identity.invitation_rate_limited"
+	CodeIdentityLehrkraftRoleImmutable                 = "identity.lehrkraft_role_immutable"
+	CodeIdentityMfaAlreadyEnrolled                     = "identity.mfa_already_enrolled"
+	CodeIdentityMfaBlocked                             = "identity.mfa_blocked"
 	CodeIdentityMfaCodeInvalid                         = "identity.mfa_code_invalid"
 	CodeIdentityMfaNotEnrolled                         = "identity.mfa_not_enrolled"
 	CodeIdentityMfaSessionRequired                     = "identity.mfa_session_required"
@@ -298,13 +302,13 @@ const (
 	CodeTimetableInstanceNotConvertible                = "timetable.instance_not_convertible"
 	CodeTimetableInstanceNotEditable                   = "timetable.instance_not_editable"
 	CodeTimetableInstanceNotFound                      = "timetable.instance_not_found"
-	CodeTimetableInstanceOutsidePeriod                 = "timetable.instance_outside_period"
-	CodeTimetableInstanceSelectionInvalid              = "timetable.instance_selection_invalid"
-	CodeTimetableInstanceWeekend                       = "timetable.instance_weekend"
-	CodeTimetableInstancesNotAssigned                  = "timetable.instances_not_assigned"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.invitation_rate_limited":                     "unavailable",
+	"identity.lehrkraft_role_immutable":                    "business_rejection",
+	"identity.mfa_already_enrolled":                        "business_rejection",
+	"identity.mfa_blocked":                                 "unavailable",
 	"identity.mfa_code_invalid":                            "input",
 	"identity.mfa_not_enrolled":                            "business_rejection",
 	"identity.mfa_session_required":                        "permission",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.instance_not_convertible":                   "business_rejection",
 	"timetable.instance_not_editable":                      "business_rejection",
 	"timetable.instance_not_found":                         "business_rejection",
-	"timetable.instance_outside_period":                    "input",
-	"timetable.instance_selection_invalid":                 "input",
-	"timetable.instance_weekend":                           "input",
-	"timetable.instances_not_assigned":                     "input",
 }
 
 func init() {

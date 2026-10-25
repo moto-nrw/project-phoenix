@@ -45,7 +45,11 @@ type EmailRecipient struct {
 }
 
 type EmailIntent struct {
-	TenantID       int64
+	TenantID int64
+	// OrganizationID names a mail of a Träger instead of a school (ADR
+	// 0110). It requires a zero TenantID and the caller's Träger transaction
+	// of that Träger.
+	OrganizationID int64
 	Template       string
 	Recipient      EmailRecipient
 	Payload        json.RawMessage
