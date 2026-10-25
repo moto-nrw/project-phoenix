@@ -7,9 +7,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,8 +66,16 @@ func TestLedgerConcurrentWritersNeverCorruptList(t *testing.T) {
 	}
 	wg.Wait()
 	// Failed lock contenders retry; success and retries produce one record.
-	require.NoError(t, erasureledger.New(path, securityruntime.Fingerprint).Record(json.RawMessage(receipt)))
-	require.NoError(t, erasureledger.New(path, securityruntime.Fingerprint).Check(nil, ""))
+	// The lock is nonblocking, and a subprocess that another parallel test forks
+	// can hold an inherited copy of the descriptor until it execs, so the
+	// operator's retry is modelled here instead of a single attempt.
+	ledger := erasureledger.New(path, securityruntime.Fingerprint)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(c, ledger.Record(json.RawMessage(receipt)))
+	}, 5*time.Second, 10*time.Millisecond)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(c, ledger.Check(nil, ""))
+	}, 5*time.Second, 10*time.Millisecond)
 	data, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Equal(t, 2, strings.Count(string(data), "\n"))
