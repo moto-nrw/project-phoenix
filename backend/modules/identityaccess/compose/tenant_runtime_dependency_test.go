@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -56,7 +57,7 @@ func TestNew_BindsTheTenantRuntimeDependency(t *testing.T) {
 		deps.Sessions = &identityPorts.SessionDependencies{
 			PasswordLoginPolicy: func() (int, time.Duration, error) { return 5, time.Minute, nil },
 			Schools:             sweepSchools{}, Persons: sweepPersons{}, Passwords: sweepPasswords{},
-			Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{},
+			Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{}, PortalModules: application.UnbookedPortals{},
 			Logger: slog.New(slog.NewTextHandler(&logs, nil)),
 		}
 		module, err := New(deps)
