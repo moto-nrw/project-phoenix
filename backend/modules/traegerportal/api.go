@@ -11,8 +11,9 @@
 //  2. A Träger token names its Träger and no school, so no route opens a
 //     tenant transaction. Reads across the schools of the Träger go through
 //     the Träger projection (modules/traegerview) only. Tables of the Träger
-//     itself, such as its holiday periods and its settings, are read and
-//     written in the Träger transaction (ADR 0086 section 5, ADR 0105).
+//     itself, such as its holiday periods, its settings and its master
+//     data, are read and written in the Träger transaction (ADR 0086
+//     section 5, ADR 0105).
 //
 // The sign-in always asks for the second factor (ADR 0084, #4651): an e-mailed
 // code under the org challenge scope, set up first where the account has
@@ -124,6 +125,7 @@ type Resource struct {
 	holidayPeriods TraegerRouter
 	accessLog      TraegerRouter
 	settings       TraegerRouter
+	masterData     TraegerRouter
 	accounts       identityaccess.TraegerAccountManagement
 	organization   TraegerOrganizationRouter
 	schoolSessions identityaccess.TraegerSchoolSessions
@@ -131,15 +133,16 @@ type Resource struct {
 
 // NewResource builds the Träger-Portal resource: the school list, the
 // holiday periods, the access log (#4655), the Träger settings of the
-// Settings Platform (ADR 0086) and the Träger of the session (#4658).
+// Settings Platform (ADR 0086), the master data of Organisation & Tenancy
+// (#4653) and the Träger of the session (#4658).
 // accounts serves the Träger-Büro account routes (#4650) and
 // schoolSessions the Absprung into a school (#4654); without them those
 // routes answer 500.
-func NewResource(auth AuthRuntime, mfa MFARuntime, schools, holidayPeriods, accessLog, settings TraegerRouter, accounts identityaccess.TraegerAccountManagement, organization TraegerOrganizationRouter, schoolSessions identityaccess.TraegerSchoolSessions) *Resource {
-	if schools == nil || holidayPeriods == nil || accessLog == nil || settings == nil || organization == nil {
-		panic("traeger portal: the school list, holiday period, access log, settings and Träger routes are required")
+func NewResource(auth AuthRuntime, mfa MFARuntime, schools, holidayPeriods, accessLog, settings, masterData TraegerRouter, accounts identityaccess.TraegerAccountManagement, organization TraegerOrganizationRouter, schoolSessions identityaccess.TraegerSchoolSessions) *Resource {
+	if schools == nil || holidayPeriods == nil || accessLog == nil || settings == nil || masterData == nil || organization == nil {
+		panic("traeger portal: the school list, holiday period, access log, settings, master data and Träger routes are required")
 	}
-	return &Resource{auth: auth, mfa: mfa, schools: schools, holidayPeriods: holidayPeriods, accessLog: accessLog, settings: settings, accounts: accounts, organization: organization, schoolSessions: schoolSessions}
+	return &Resource{auth: auth, mfa: mfa, schools: schools, holidayPeriods: holidayPeriods, accessLog: accessLog, settings: settings, masterData: masterData, accounts: accounts, organization: organization, schoolSessions: schoolSessions}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -180,6 +183,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r.Mount("/schools", rs.schools.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/holiday-periods", rs.holidayPeriods.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/settings", rs.settings.TraegerRouter(protectedTraegerRoutes))
+	r.Mount("/master-data", rs.masterData.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/accounts", rs.accountRouter(protectedTraegerRoutes))
 	r.Mount("/access-log", rs.accessLog.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/organization", rs.organization.TraegerOrganizationRouter(protectedTraegerRoutes))

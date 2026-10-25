@@ -122,6 +122,8 @@ DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 DELETE /traeger/accounts/invitations/{invitationId}
 DELETE /traeger/accounts/{accountId}
+DELETE /traeger/master-data/bank-accounts/{id}
+DELETE /traeger/master-data/logo
 DELETE /traeger/settings/values/{key}
 GET /
 GET /.well-known/caldav
@@ -626,6 +628,8 @@ GET /traeger/accounts/
 GET /traeger/holiday-periods/
 GET /traeger/holiday-periods/{id}
 GET /traeger/invitations/{token}
+GET /traeger/master-data/
+GET /traeger/master-data/logo
 GET /traeger/organization/
 GET /traeger/schools/
 GET /traeger/settings/schema
@@ -1033,6 +1037,7 @@ POST /traeger/auth/mfa/verify
 POST /traeger/holiday-periods/
 POST /traeger/holiday-periods/{id}/publish
 POST /traeger/invitations/{token}/accept
+POST /traeger/master-data/bank-accounts
 POST /traeger/school-sessions/
 PUT /.well-known/caldav
 PUT /analytics-consent/
@@ -1170,6 +1175,9 @@ PUT /school/notifications/preferences/{type}
 PUT /school/supervisions/{id}/students/{student_id}/homework-feedback
 PUT /traeger/accounts/{accountId}/roles
 PUT /traeger/holiday-periods/{id}
+PUT /traeger/master-data/bank-accounts/{id}
+PUT /traeger/master-data/contact
+PUT /traeger/master-data/logo
 PUT /traeger/settings/values/{key}
 QUERY /.well-known/caldav
 QUERY /api/caldav

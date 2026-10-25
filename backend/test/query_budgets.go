@@ -56,6 +56,11 @@ var queryBudgets = map[string]queryBudget{
 	// their weeks and their time models. Flat in the number of periods and
 	// weeks.
 	"api.traeger.holiday_periods": {max: 4, exact: true},
+	// modules/organizationtenancy — GET /traeger/master-data (#4653): the
+	// Träger binding of the Träger transaction, then the profile row and the
+	// bank accounts of the Träger; the read log writes but selects nothing.
+	// Flat in the number of bank accounts.
+	"api.traeger.master_data": {max: 3, exact: true},
 	// modules/traegerview — GET /traeger/access-log (#4655, ADR 0109): the
 	// Träger row, the school IDs of the Träger, one access trail read of the
 	// Audit Platform, the school rows, the staff members behind staff IDs and

@@ -577,6 +577,12 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/school-sessions/"}:                      notCaptured,
 	{http.MethodDelete, "/traeger/settings/values/{key}"}:               notCaptured,
 	{http.MethodPut, "/traeger/settings/values/{key}"}:                  notCaptured,
+	{http.MethodPut, "/traeger/master-data/contact"}:                    notCaptured,
+	{http.MethodPut, "/traeger/master-data/logo"}:                       notCaptured,
+	{http.MethodDelete, "/traeger/master-data/logo"}:                    notCaptured,
+	{http.MethodPost, "/traeger/master-data/bank-accounts"}:             notCaptured,
+	{http.MethodPut, "/traeger/master-data/bank-accounts/{id}"}:         notCaptured,
+	{http.MethodDelete, "/traeger/master-data/bank-accounts/{id}"}:      notCaptured,
 
 	// School portal (Lehrkräfte).
 	{http.MethodPost, "/school/auth/login"}:                                                      session("login_success"),

@@ -2951,6 +2951,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/organizationtenancy/inbound/traeger",
+      "owner": "organization-tenancy",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/settings/inbound/operator",
       "owner": "settings-platform",
       "role": "http",
@@ -4441,6 +4448,18 @@
     },
     {
       "name": "platform.schools",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.traeger_bank_accounts",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.traeger_master_data_audit",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.traeger_profiles",
       "write_owner": "organization-tenancy"
     },
     {
