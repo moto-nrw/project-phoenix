@@ -95,3 +95,31 @@ func TestSettingsSchoolCannotWriteRetentionWindowsOrTheDeletionSwitch(t *testing
 	put := testutil.NewAuthenticatedRequest(t, "PUT", "/values/gdpr.data_cleanup_time", map[string]any{"value": "03:30"}, testutil.WithTestTenant(t))
 	testutil.AssertSuccessResponse(t, testutil.ExecuteRequest(router, put), 200)
 }
+
+// The school sees its federal state read-only (#4775): the moto team sets
+// it, because it decides the statutory holidays of the Arbeitszeitkonto,
+// the Dienstplan and the Regeltermine.
+func TestSettingsSchoolSeesTheFederalStateButCannotWriteIt(t *testing.T) {
+	t.Parallel()
+	ctx := setupSettingsModule(t)
+	items := schemaItems(t, ctx)
+	item, ok := items["operations.federal_state"]
+	require.True(t, ok, "the school sees its federal state")
+	assert.Equal(t, false, item["writable"])
+	assert.Equal(t, "operator_managed", item["access_policy"])
+	assert.Equal(t, "DE-NW", item["value"])
+
+	router := ctx.resource.SettingsRouter()
+	put := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.federal_state", map[string]any{"value": "DE-BY"}, testutil.WithTestTenant(t))
+	testutil.AssertErrorResponse(t, testutil.ExecuteRequest(router, put), 403)
+	reset := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/operations.federal_state", nil, testutil.WithTestTenant(t))
+	testutil.AssertErrorResponse(t, testutil.ExecuteRequest(router, reset), 403)
+
+	count, err := ctx.db.NewSelect().
+		Table("config.setting_values").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("setting_key = 'operations.federal_state'").
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, count, "a refused write must not store an override")
+}

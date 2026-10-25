@@ -936,6 +936,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET tenant /api/timetable/deviations/history",
   ],
   "api/timetable/gaps": ["GET tenant /api/timetable/gaps"],
+  "api/timetable/holidays": ["GET tenant /api/timetable/holidays"],
   "api/timetable/instances": [
     "GET tenant /api/timetable/instances",
     "POST tenant /api/timetable/instances",

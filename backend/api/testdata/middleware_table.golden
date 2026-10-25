@@ -121,6 +121,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /api/meal-plan/participation/{studentId}
 	GET /api/students/care-schedule-change-requests/{requestId}/proof
 	GET /api/students/{id}/note-subjects
+	GET /api/timetable/holidays
 	POST /api/meal-caterer/invitations
 	POST /api/staff/externals/{id}/invitation
 	PUT /api/meal-plan/participation/{studentId}/days/{date}
