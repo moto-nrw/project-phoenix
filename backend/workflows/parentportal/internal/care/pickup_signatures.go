@@ -158,9 +158,18 @@ func (s *Service) PickupSignatureStatement(ctx context.Context, accountID, stude
 		}
 		return statement, nil
 	case PickupSignatureStatementWeekly:
+		if len(input.Weekdays) == 0 {
+			return "", ErrPickupSignatureInvalid
+		}
 		weekdays, err := carerequests.NormalizeWeekdays(input.Weekdays)
 		if err != nil {
 			return "", ErrPickupSignatureInvalid
+		}
+		if len(weekdays) == 0 {
+			// NormalizeWeekdays uses nil for an unrestricted pickup permission.
+			// Here an input weekday represents an "alone" selection, so all
+			// weekdays still need the declaration and its signature.
+			weekdays = input.Weekdays
 		}
 		statement := WeeklyAloneStatement(child.StudentName, weekdays)
 		if statement == "" {
@@ -223,6 +232,9 @@ func DayPickupStatement(childName string, date calendar.Date, departureMode, per
 func WeeklyAloneStatement(childName string, aloneWeekdays []int) string {
 	if len(aloneWeekdays) == 0 {
 		return ""
+	}
+	if normalized, err := carerequests.NormalizeWeekdays(aloneWeekdays); err == nil {
+		aloneWeekdays = normalized
 	}
 	return "Ich erlaube, dass das Kind " + childName + " " + statementWeekdayList(aloneWeekdays) +
 		" allein nach Hause geht."
