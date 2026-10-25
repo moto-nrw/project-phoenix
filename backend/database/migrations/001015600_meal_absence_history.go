@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	mealAbsenceHistoryVersion     = "1.15.560"
+	mealAbsenceHistoryVersion     = "1.15.600"
 	mealAbsenceHistoryDescription = "Mittagessen: entschuldigt und Ausflug melden das Essen ab wie eine Krankmeldung (#3873)"
 )
 
@@ -18,7 +18,8 @@ func init() {
 		Version:     mealAbsenceHistoryVersion,
 		Description: mealAbsenceHistoryDescription,
 		DependsOn: []string{
-			schoolDayHintsVersion,          // after development's latest migration
+			testTraegerVersion,             // after development's latest migration
+			schoolDayHintsVersion,          // the school day hints
 			traegerInvitationsVersion,      // the Träger invitations
 			traegerErasureOrderVersion,     // the Träger erasure order
 			accountAnalyticsConsentVersion, // the analytics consent

@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.565 (#3873): the installed preview with the counts of the meal
+// 1.15.605 (#3873): the installed preview with the counts of the meal
 // ordering tables.
 func installMealOrderErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, mealOrderErasurePreviewSQL)

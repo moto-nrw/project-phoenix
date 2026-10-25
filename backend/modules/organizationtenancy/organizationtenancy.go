@@ -58,14 +58,18 @@ type Organization struct {
 	Active    bool       `json:"active"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
 	Settings  string     `json:"settings,omitempty"`
+	// TestSystem marks a test Träger with test schools and invented sample
+	// data (#4658). It is set at creation and never changes.
+	TestSystem bool `json:"test_system"`
 }
 
 func (o Organization) IsDeleted() bool { return o.DeletedAt != nil }
 
 type CreateOrganization struct {
-	Name   string
-	Slug   string
-	Active bool
+	Name       string
+	Slug       string
+	Active     bool
+	TestSystem bool
 }
 
 type UpdateOrganization struct {

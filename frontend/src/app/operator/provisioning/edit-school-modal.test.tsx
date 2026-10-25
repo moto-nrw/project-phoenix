@@ -68,6 +68,7 @@ const mockOrg: Organization = {
   deletedAt: null,
   createdAt: "2025-01-01T00:00:00Z",
   updatedAt: "2025-01-01T00:00:00Z",
+  testSystem: false,
 };
 
 const mockSchool: School = {

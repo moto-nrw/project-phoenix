@@ -1,6 +1,6 @@
 # Essensfristen: Werktage werden Kalendertage (#3873)
 
-Migration 1.15.561 rechnet den Vorlauf der Essensfristen von #4866 um.
+Migration 1.15.601 rechnet den Vorlauf der Essensfristen von #4866 um.
 Development zählt `operations.meal_registration_cutoff_lead_days` und
 `operations.meal_cancellation_cutoff_lead_days` in Werktagen: Wochenende,
 gesetzliche Feiertage und Schließtage zählen nicht mit. Die Bestellregeln

@@ -26,6 +26,8 @@ var ErrOrganizationInactive = errors.New("organization is inactive")
 type TraegerOrganization struct {
 	ID   int64
 	Name string
+	// TestSystem marks a test Träger (#4658).
+	TestSystem bool
 }
 
 // TraegerMembership is one account's membership at a Träger.

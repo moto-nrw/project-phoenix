@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const mealCombinedRolePermissionsVersion = "1.15.567"
+const mealCombinedRolePermissionsVersion = "1.15.607"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

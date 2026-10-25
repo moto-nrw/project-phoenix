@@ -84,8 +84,9 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	}
 	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(),
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
-	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview), holidayPeriods,
-		traegerViewHTTP.NewAccessLogResource(overview), identity), nil
+	overviewRoutes := traegerViewHTTP.NewResource(overview)
+	return traegerportal.NewResource(TraegerPortalAuth(identity), overviewRoutes, holidayPeriods,
+		traegerViewHTTP.NewAccessLogResource(overview), identity, overviewRoutes), nil
 }
 
 // traegerSchoolIDs binds the Träger projection's school set to Organisation &
@@ -101,6 +102,18 @@ func (s traegerSchoolIDs) ListTraegerSchoolIDs(ctx context.Context, organization
 		return nil, traegerview.ErrTraegerUnavailable
 	}
 	return ids, err
+}
+
+func (s traegerSchoolIDs) ListAccountTraeger(ctx context.Context, accountID int64) ([]traegerview.Traeger, error) {
+	organizations, err := s.organizations.ListAccountTraegerOrganizations(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]traegerview.Traeger, 0, len(organizations))
+	for _, organization := range organizations {
+		result = append(result, traegerview.Traeger(organization))
+	}
+	return result, nil
 }
 
 // traegerAccessTrail binds the Audit Platform's access trail to the Träger

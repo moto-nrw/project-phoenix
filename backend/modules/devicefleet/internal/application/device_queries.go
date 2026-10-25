@@ -109,7 +109,7 @@ const retentionClockMargin = time.Minute
 
 // unregisteredTagScanRetentionWindow is the review window as elapsed time.
 // The audit retention function evaluates its 90 days in UTC (migration
-// 1.15.566), so neither side lengthens a day across a clock change.
+// 1.15.606), so neither side lengthens a day across a clock change.
 const unregisteredTagScanRetentionWindow = time.Duration(devicefleet.UnregisteredTagScanRetentionDays) * 24 * time.Hour
 
 // DeleteUnregisteredTagScansAfterRetention removes the caller tenant's scans

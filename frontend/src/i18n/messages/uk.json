@@ -2662,7 +2662,9 @@
         "file_type_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "file_unreadable": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "import_batch_failed": "Не вдалося обробити: {object}. Спробуйте пізніше.",
-        "mode_forbidden": "У вас немає доступу до: {object}. Зверніться до школи."
+        "mode_forbidden": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "not_test_traeger": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "test_traeger_inactive": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "iot": {
         "activity_capacity_exceeded": "Не вдалося змінити: {object}. Перевірте поточний стан.",

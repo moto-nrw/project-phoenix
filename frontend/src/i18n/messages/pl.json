@@ -2662,7 +2662,9 @@
         "file_type_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "file_unreadable": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "import_batch_failed": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później.",
-        "mode_forbidden": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
+        "mode_forbidden": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "not_test_traeger": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "test_traeger_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "iot": {
         "activity_capacity_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

@@ -97,6 +97,7 @@ func operatorRouter(
 	unregisteredTagScans http.Handler,
 	limiters authRateLimiters,
 	staffPersonMerge http.Handler,
+	sampleChildren http.HandlerFunc,
 ) chi.Router {
 	// The root provides the session chains; without the signer the verifier
 	// mounts below would fail with a nil dereference instead of naming the
@@ -124,7 +125,7 @@ func operatorRouter(
 		r.Use(identityRoutes.sessions.Operator(ReadOnlyPreviewMiddleware, SecurityPrincipalMiddleware)...)
 
 		identityRoutes.mountPasskeyRoutes(r)
-		mountOperatorProvisioningRoutes(r, provisioningRoutes)
+		mountOperatorProvisioningRoutes(r, provisioningRoutes, sampleChildren)
 		mountOperatorSchoolRoutes(r, provisioningRoutes, identityRoutes.mfaAdmin, schoolSettings)
 		mountOperatorPersonRoutes(r, provisioningRoutes)
 		r.Mount("/staff-person-merges", staffPersonMerge)
@@ -260,7 +261,9 @@ func (rs operatorIdentityRoutes) mountPasskeyRoutes(r chi.Router) {
 
 // mountOperatorProvisioningRoutes registers account/role/stat/device/organization
 // provisioning endpoints.
-func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource) {
+// sampleChildren is Data Import's route that fills a test Träger with
+// invented children (#4658); without it the route is not mounted.
+func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource, sampleChildren http.HandlerFunc) {
 	r.Get("/accounts", provisioning.AuditReadAccess(organizationtenancy.ReadAllAccounts, provisioning.ListAllAccounts))
 	r.Get("/roles", provisioning.ListSystemRoles)
 	r.Get("/stats", provisioning.GetProvisioningStats)
@@ -277,6 +280,7 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 		r.Get("/", provisioning.ListOrganizations)
 		r.Get("/summaries", provisioning.ListOrganizationSummaries)
 		r.Post("/", provisioning.CreateOrganization)
+		r.Post("/test-traeger", provisioning.CreateTestTraeger)
 		r.Put("/{id}", provisioning.UpdateOrganization)
 		r.Delete("/{id}", provisioning.SoftDeleteOrganization)
 		r.Post("/{id}/restore", provisioning.RestoreOrganization)
@@ -289,6 +293,9 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 		r.Get("/{id}/erasure-order", provisioning.TraegerErasureOrder)
 		r.Post("/{id}/erasure-order", provisioning.RecordTraegerErasureOrder)
 		r.Delete("/{id}/erasure-order", provisioning.WithdrawTraegerErasureOrder)
+		if sampleChildren != nil {
+			r.Post("/{id}/sample-children", sampleChildren)
+		}
 	})
 }
 
