@@ -179,9 +179,20 @@ func TestTraegerBankAccountsKeepOneDefault(t *testing.T) {
 	assert.True(t, profile.BankAccounts[0].IsDefault, "deleting the default makes the remaining one the default")
 
 	assert.Equal(t, []string{
-		"master_data:read", "bank_account:create", "bank_account:create", "bank_account:update", "master_data:read",
+		"master_data:read", "bank_account:create", "bank_account:create", "bank_account:update", "bank_account:update", "master_data:read",
 		"bank_account:update", "bank_account:delete", "bank_account:update", "master_data:read",
-	}, masterDataLog(t, db, office.organization), "every read and change is logged with the acting account")
+	}, masterDataLog(t, db, office.organization), "every read and change is logged with the acting account, the old default's demotion too")
+	var demotion struct {
+		SubjectID int64           `bun:"subject_id"`
+		Old       json.RawMessage `bun:"old_value"`
+		New       json.RawMessage `bun:"new_value"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT subject_id, old_value, new_value FROM platform.traeger_master_data_audit
+		WHERE organization_id = ? AND subject = 'bank_account' AND action = 'update' ORDER BY id LIMIT 1`, office.organization).
+		Scan(context.Background(), &demotion))
+	assert.Equal(t, first.ID, demotion.SubjectID, "the first update takes the flag from the old default")
+	assert.Contains(t, string(demotion.Old), `"is_default": true`)
+	assert.Contains(t, string(demotion.New), `"is_default": false`)
 }
 
 func TestTraegerMasterDataRefusesInvalidInput(t *testing.T) {

@@ -49,21 +49,21 @@ export function TraegerLetterheadPreview({
       className="mx-auto w-full max-w-2xl rounded-md border border-gray-200 bg-white p-6 text-sm text-gray-800 shadow-sm sm:p-10"
     >
       <div className="flex flex-wrap items-start justify-between gap-6">
-        <div className="flex min-h-16 items-center">
+        <div className="flex min-h-16 max-w-full items-center">
           {logoSrc ? (
             <Image
               src={logoSrc}
               alt="Logo des Trägers"
               width={240}
               height={80}
-              className="max-h-20 w-auto object-contain"
+              className="max-h-20 w-auto max-w-full object-contain"
               unoptimized
             />
           ) : (
             <span className="text-gray-400">Kein Logo</span>
           )}
         </div>
-        <address className="text-right not-italic">
+        <address className="min-w-0 text-right wrap-anywhere not-italic">
           {sender.length > 0 ? (
             sender.map((line, index) => (
               <p
@@ -83,7 +83,7 @@ export function TraegerLetterheadPreview({
         style={accent ? { backgroundColor: accent } : undefined}
         aria-hidden="true"
       />
-      <p className="mt-4 text-gray-600">
+      <p className="mt-4 wrap-anywhere text-gray-600">
         <span
           className="font-medium text-gray-900"
           style={accent ? { color: accent } : undefined}
@@ -99,7 +99,7 @@ export function TraegerLetterheadPreview({
         <div className="h-2 w-10/12 rounded bg-gray-100" />
         <div className="h-2 w-8/12 rounded bg-gray-100" />
       </div>
-      <figcaption className="mt-10 border-t border-gray-200 pt-3 text-sm text-gray-600">
+      <figcaption className="mt-10 border-t border-gray-200 pt-3 text-sm wrap-anywhere text-gray-600">
         {footer.map((line, index) => (
           <p key={`${index}-${line}`}>{line}</p>
         ))}

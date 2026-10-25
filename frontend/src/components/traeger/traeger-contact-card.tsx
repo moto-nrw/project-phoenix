@@ -30,7 +30,20 @@ export function TraegerContactCard({
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
 
-  useEffect(() => setDraft(contact), [contact]);
+  // A refresh after another change on the page brings a new contact
+  // object; an open draft stays until it is saved or cancelled.
+  const shown = useRef(contact);
+  useEffect(() => {
+    const before = shown.current;
+    shown.current = contact;
+    setDraft((current) =>
+      current.name === before.name &&
+      current.phone === before.phone &&
+      current.email === before.email
+        ? contact
+        : current,
+    );
+  }, [contact]);
 
   const changed =
     draft.name !== contact.name ||

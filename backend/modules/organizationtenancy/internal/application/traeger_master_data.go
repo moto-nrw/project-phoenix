@@ -163,8 +163,8 @@ func (m *TraegerMasterData) CreateBankAccount(ctx context.Context, organizationI
 		return organizationtenancy.TraegerBankAccount{}, organizationtenancy.ErrTraegerBankAccountLabelTaken
 	}
 	input.IsDefault = input.IsDefault || len(existing) == 0
-	if input.IsDefault && len(existing) > 0 {
-		if err := m.store.ClearDefaultBankAccount(ctx, organizationID); err != nil {
+	if input.IsDefault {
+		if err := m.demoteDefault(ctx, organizationID, accountID, existing); err != nil {
 			return organizationtenancy.TraegerBankAccount{}, err
 		}
 	}
@@ -201,7 +201,7 @@ func (m *TraegerMasterData) UpdateBankAccount(ctx context.Context, organizationI
 	}
 	input.IsDefault = input.IsDefault || old.IsDefault
 	if input.IsDefault && !old.IsDefault {
-		if err := m.store.ClearDefaultBankAccount(ctx, organizationID); err != nil {
+		if err := m.demoteDefault(ctx, organizationID, accountID, existing); err != nil {
 			return organizationtenancy.TraegerBankAccount{}, err
 		}
 	}
@@ -240,6 +240,27 @@ func (m *TraegerMasterData) DeleteBankAccount(ctx context.Context, organizationI
 		return nil
 	}
 	return m.promoteOldestBankAccount(ctx, organizationID, accountID, existing, bankAccountID)
+}
+
+// demoteDefault takes the default flag from the current default and logs
+// that change, so the log shows both sides of a new default.
+func (m *TraegerMasterData) demoteDefault(ctx context.Context, organizationID, accountID int64, existing []organizationtenancy.TraegerBankAccount) error {
+	var current *organizationtenancy.TraegerBankAccount
+	for i := range existing {
+		if existing[i].IsDefault {
+			current = &existing[i]
+		}
+	}
+	if current == nil {
+		return nil
+	}
+	if err := m.store.ClearDefaultBankAccount(ctx, organizationID); err != nil {
+		return err
+	}
+	demoted := *current
+	demoted.IsDefault = false
+	return m.audit(ctx, organizationID, accountID, domain.TraegerAuditSubjectBankAccount, current.ID, domain.TraegerAuditActionUpdate,
+		bankAccountAuditValue(current), bankAccountAuditValue(&demoted))
 }
 
 // promoteOldestBankAccount makes the oldest remaining bank account the

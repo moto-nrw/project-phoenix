@@ -400,6 +400,26 @@ describe("Träger upload proxy (#4653)", () => {
       code: "traeger.logo_too_large",
     });
 
+    // Without a Content-Length the proxy stops reading past the limit.
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(32 * 1024));
+      },
+    });
+    const streamed = await proxyUpload("/traeger/master-data/logo", 10)(
+      new NextRequest("http://localhost:3000/api/traeger/master-data/logo", {
+        method: "PUT",
+        body: stream,
+        headers: { "content-type": "multipart/form-data; boundary=x" },
+        duplex: "half",
+      } as ConstructorParameters<typeof NextRequest>[1]),
+      context,
+    );
+    expect(streamed.status).toBe(400);
+    expect(await streamed.json()).toMatchObject({
+      code: "traeger.logo_too_large",
+    });
+
     const notMultipart = await proxyUpload("/traeger/master-data/logo", 1024)(
       upload("{}", { "content-type": "application/json" }),
       context,
