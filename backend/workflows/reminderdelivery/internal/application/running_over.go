@@ -36,7 +36,8 @@ type runningOverFacts struct {
 // will be. Pure, shared by Compute and ComputeBatch.
 //
 // A block without a room (a duty block, #3822) holds no children and is
-// skipped.
+// skipped. So is a spontaneous block: its planned end is a placeholder, and
+// it runs until someone ends it.
 func dueRunningOver(
 	instances []*ports.ActivityInstance,
 	inScope func(*ports.ActivityInstance) bool,
@@ -45,7 +46,7 @@ func dueRunningOver(
 	nextChange := -1
 	due := make([]*ports.ActivityInstance, 0)
 	for _, inst := range instances {
-		if inst == nil || inst.Status != ports.InstanceStatusActive || inst.RoomID <= 0 {
+		if inst == nil || inst.Status != ports.InstanceStatusActive || inst.RoomID <= 0 || inst.IsSpontaneous {
 			continue
 		}
 		if inScope != nil && !inScope(inst) {

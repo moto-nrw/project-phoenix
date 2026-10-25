@@ -69,6 +69,14 @@ func TestDueRunningOverBoundaries(t *testing.T) {
 		assert.Empty(t, due)
 	})
 
+	t.Run("a spontaneous block has no real planned end and never runs over", func(t *testing.T) {
+		spontaneous := activeInstance(6, "Spontan im Hof", 5, 600, 660)
+		spontaneous.IsSpontaneous = true
+		due, next := dueRunningOver([]*ports.ActivityInstance{spontaneous}, nil, runningOverWindow{nowMin: 760, grace: grace})
+		assert.Empty(t, due)
+		assert.Equal(t, -1, next)
+	})
+
 	t.Run("the scope filter keeps foreign rooms out", func(t *testing.T) {
 		filter := activityScopeFilter(map[int64]struct{}{9: {}}, nil)
 		due, next := dueRunningOver([]*ports.ActivityInstance{block}, filter, runningOverWindow{nowMin: 705, grace: grace})

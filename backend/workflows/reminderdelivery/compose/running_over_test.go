@@ -43,6 +43,15 @@ func TestRunningOverReadsTheExecutionState(t *testing.T) {
 		Status: testpkg.ScheduleInstanceStatusCompleted,
 	})
 
+	// A spontaneous block's end is a placeholder: it never runs over.
+	spontaneousRoom := testpkg.CreateTestRoom(t, db, "Hof RunningOver")
+	spontaneousActivity := testpkg.CreateTestActivityGroup(t, db, "Spontan im Hof")
+	spontaneousSession := testpkg.CreateTestActiveGroup(t, db, spontaneousActivity.ID, spontaneousRoom.ID)
+	testpkg.CreateTestActivityInstance(t, db, day, spontaneousRoom.ID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Spontan im Hof", IsSpontaneous: true,
+		ActivityGroupID: &spontaneousActivity.ID, ActiveGroupID: &spontaneousSession.ID,
+	})
+
 	pickedUpLate := testpkg.CreateTestStudent(t, db, "Anna", "Läufer", "3b")
 	stillEarly := testpkg.CreateTestStudent(t, db, "Ben", "Läufer", "3b")
 	entry := day.BerlinMidnight().Add(15 * time.Hour)
@@ -54,7 +63,7 @@ func TestRunningOverReadsTheExecutionState(t *testing.T) {
 	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(ctx context.Context) error {
 		single, err := module.Reminders.Compute(ctx, reminder.Scope{IsAdmin: true})
 		require.NoError(t, err)
-		require.Len(t, single.Reminders, 1, "only the started block runs over; the completed one is over")
+		require.Len(t, single.Reminders, 1, "only the planned, started block runs over; the completed and the spontaneous one do not")
 		got := single.Reminders[0]
 		assert.Equal(t, reminder.TypeActivityRunningOver, got.Type,
 			"a started block is not reported as not started")

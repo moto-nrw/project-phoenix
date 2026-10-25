@@ -45,6 +45,9 @@ type ActivityInstance struct {
 	StartTime time.Time
 	EndTime   time.Time
 	Status    string
+	// IsSpontaneous marks a block started on the spot. Its planned end is a
+	// placeholder (start plus one hour), not a time it was meant to end.
+	IsSpontaneous bool
 }
 
 type InstanceStaff struct {

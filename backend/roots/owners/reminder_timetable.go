@@ -38,6 +38,7 @@ func (r ReminderTimetableReader) FindByTenantAndDate(ctx context.Context, date s
 		result = append(result, &ports.ActivityInstance{
 			ID: value.ID, Title: value.Title, RoomID: value.RoomID,
 			StartTime: value.StartTime, EndTime: value.EndTime, Status: value.Status,
+			IsSpontaneous: value.IsSpontaneous,
 		})
 	}
 	return result, nil
