@@ -207,13 +207,21 @@ const (
 			SELECT week.holiday_period_id FROM enrollment.holiday_period_weeks AS week
 			GROUP BY week.holiday_period_id
 			HAVING max(week.ends_on) < ?)`
+	// deleteEndedHolidayAuditQuery deletes the audit trail of the ended
+	// periods: the entries of a list or an export, which name no
+	// registration, and with them those of the deleted registrations (#4663).
+	deleteEndedHolidayAuditQuery = `DELETE FROM enrollment.holiday_registration_audit
+		WHERE holiday_period_id IN (
+			SELECT week.holiday_period_id FROM enrollment.holiday_period_weeks AS week
+			GROUP BY week.holiday_period_id
+			HAVING max(week.ends_on) < ?)`
 	deleteAllExpiredHolidayRateLimitsQuery = `DELETE FROM enrollment.holiday_registration_rate_limits
 		WHERE window_start < statement_timestamp() - INTERVAL '24 hours'`
 )
 
 // DeleteHolidayRegistrationsEndedBefore deletes, across every Träger, the
-// registrations of the periods whose last week ended before cutoff and the
-// expired abuse counters. Only the administrative transaction of the hourly
+// registrations and the audit trail of the periods whose last week ended
+// before cutoff and the expired abuse counters. Only the administrative transaction of the hourly
 // cleanup may delete across Träger.
 func (s *HolidayRegistrationStore) DeleteHolidayRegistrationsEndedBefore(ctx context.Context, cutoff calendar.Date) (int, error) {
 	if !tenant.IsAdminTx(ctx) {
@@ -227,11 +235,15 @@ func (s *HolidayRegistrationStore) DeleteHolidayRegistrationsEndedBefore(ctx con
 	if err != nil {
 		return 0, fmt.Errorf("enrollment postgres: delete ended holiday registrations: %w", err)
 	}
+	audit, err := affectedRows(db.NewRaw(deleteEndedHolidayAuditQuery, cutoff).Exec(ctx))
+	if err != nil {
+		return 0, fmt.Errorf("enrollment postgres: delete ended holiday registration audit: %w", err)
+	}
 	counters, err := affectedRows(db.NewRaw(deleteAllExpiredHolidayRateLimitsQuery).Exec(ctx))
 	if err != nil {
 		return 0, fmt.Errorf("enrollment postgres: delete expired holiday registration counters: %w", err)
 	}
-	return registrations + counters, nil
+	return registrations + audit + counters, nil
 }
 
 func affectedRows(result sql.Result, err error) (int, error) {

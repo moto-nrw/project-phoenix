@@ -29092,6 +29092,17 @@
     },
     {
       "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolNames.HolidaySchoolNames",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidaySchoolNames.HolidaySchoolNames",
+      "target": "github.com/moto-nrw/project-phoenix/modules/traegerview.Overview.Schools",
+      "target_owner": "traeger-view",
+      "binding_digest": "a3efd0300622dc339703652e1725b8cd",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/traegerview.Overview.Schools. ADR 0114: the export of the holiday registrations names the Träger's schools from the projection's school list, read in the projection's own administrative unit before the route opens the Träger transaction."
+    },
+    {
+      "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindOrganization",

@@ -49,6 +49,8 @@ describe("HolidayPeriodPublishCard", () => {
   beforeEach(() => {
     mockPublish.mockReset();
     vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "parents.localhost:3000");
+    // The published card links to the review of its registrations (#4663).
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "traeger.localhost:3000");
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -158,6 +160,9 @@ describe("HolidayPeriodPublishCard", () => {
     expect(
       screen.getByText("Bisher sind 3 Anmeldungen eingegangen."),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Anmeldungen prüfen" }),
+    ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen");
   });
 
   it("tells a draft that the link for parents comes with publishing", () => {

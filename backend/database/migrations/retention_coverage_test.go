@@ -223,6 +223,7 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.form_schemas":                               notPersonal("enrollment form definitions"),
 	"enrollment.holiday_period_weeks":                       notPersonal("week of a Träger holiday period (#4659): dates and the host school ID, no person"),
 	"enrollment.holiday_periods":                            notPersonal("holiday period of a Träger (#4659): dates, hints and status, no person"),
+	"enrollment.holiday_registration_audit":                 own("hourly token-cleanup, Holiday registration retention -> HolidayRegistrationStore.DeleteHolidayRegistrationsEndedBefore (92 days after the last week of the period, #4663); entries of a registration also go with it; actor_account_id SET NULL on account delete"),
 	"enrollment.holiday_registration_bookings":              parent("enrollment.holiday_registration_children"),
 	"enrollment.holiday_registration_children":              parent("enrollment.holiday_registrations"),
 	"enrollment.holiday_registration_contacts":              parent("enrollment.holiday_registrations"),

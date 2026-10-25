@@ -379,7 +379,7 @@ interface BackendPreview {
 }
 
 /** Sends a request to a Träger BFF route and returns the `data` member. */
-async function traegerRequest<T>(
+export async function traegerRequest<T>(
   path: string,
   init: { method: string; body?: unknown } = { method: "GET" },
 ): Promise<T> {

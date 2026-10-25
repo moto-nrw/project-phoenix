@@ -22,21 +22,25 @@ import (
 // never from the request.
 type HolidayPeriodResource struct {
 	periods       capability.HolidayPeriods
+	review        capability.HolidayRegistrationReview
+	schoolNames   capability.HolidaySchoolNames
 	requireManage common.Middleware
 }
 
-// NewHolidayPeriodResource builds the resource. requireManage admits only a
-// session with the Träger right "Anmeldung verwalten"; the root binds it to
-// the right Identity & Access bundles into the Träger roles (ADR 0084
-// section 4).
-func NewHolidayPeriodResource(periods capability.HolidayPeriods, requireManage common.Middleware) *HolidayPeriodResource {
-	if periods == nil || requireManage == nil {
-		panic("enrollment http: the holiday periods and the right check are required")
+// NewHolidayPeriodResource builds the resource with the review of the
+// period's registrations (#4663). requireManage admits only a session with
+// the Träger right "Anmeldung verwalten"; the root binds it to the right
+// Identity & Access bundles into the Träger roles (ADR 0084 section 4).
+// schoolNames names the schools in the export.
+func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, schoolNames capability.HolidaySchoolNames, requireManage common.Middleware) *HolidayPeriodResource {
+	if periods == nil || review == nil || schoolNames == nil || requireManage == nil {
+		panic("enrollment http: the holiday periods, the registration review, the school names and the right check are required")
 	}
-	return &HolidayPeriodResource{periods: periods, requireManage: requireManage}
+	return &HolidayPeriodResource{periods: periods, review: review, schoolNames: schoolNames, requireManage: requireManage}
 }
 
-// TraegerRouter returns the routes mounted at /traeger/holiday-periods.
+// TraegerRouter returns the routes mounted at /traeger/holiday-periods,
+// with the review of each period's registrations.
 func (rs *HolidayPeriodResource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -47,6 +51,7 @@ func (rs *HolidayPeriodResource) TraegerRouter(protectedTraegerRoutes func(chi.R
 		manage.Get("/{id}", rs.get)
 		manage.Put("/{id}", rs.update)
 		manage.Post("/{id}/publish", rs.publish)
+		rs.registrationRoutes(r, withTx)
 	})
 	return r
 }

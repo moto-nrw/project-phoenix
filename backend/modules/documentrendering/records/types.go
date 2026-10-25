@@ -11,6 +11,9 @@ const (
 	FormatPDF  Format = "pdf"
 	FormatDOCX Format = "docx"
 	FormatXLSX Format = "xlsx"
+	// FormatCSV is a flat table for spreadsheets and other programs: one
+	// header row with the column labels, one line per row (#4663).
+	FormatCSV Format = "csv"
 )
 
 type ColumnID string

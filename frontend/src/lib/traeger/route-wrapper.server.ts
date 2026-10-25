@@ -213,16 +213,23 @@ function fileResponse(backend: Response, request: NextRequest): Response {
 /**
  * GET proxy for a Träger file export (#4655): forwards the query and streams
  * the file back. A backend error keeps its problem body, so the client shows
- * the catalog text for its code.
+ * the catalog text for its code. The endpoint may depend on the route's path
+ * parameters, like the export of a holiday period's registrations (#4663).
  */
-export function proxyFile(endpoint: string) {
-  return withTraegerAuth(async (request: NextRequest) => {
+export function proxyFile(
+  endpoint: string | ((params: Record<string, unknown>) => string),
+) {
+  return withTraegerAuth(async (request: NextRequest, context) => {
     try {
       const session = await traegerAuth();
       const token = session?.user?.token;
       if (!token) return createUnauthorizedResponse(request);
 
-      const target = `${endpoint}${buildQueryString(request)}`;
+      const path =
+        typeof endpoint === "string"
+          ? endpoint
+          : endpoint(await extractParams(request, context));
+      const target = `${path}${buildQueryString(request)}`;
       const first = await traegerServerFile(target, token);
       if (first.status !== 401) return fileResponse(first, request);
 

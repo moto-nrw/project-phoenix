@@ -29,7 +29,7 @@ type (
 	File = records.File
 )
 
-// Renderer renders a list document. Rendering neither stores the file nor
+// Renderer renders a list document as a PDF, DOCX, XLSX or CSV file. Rendering neither stores the file nor
 // decides who may read it; the caller owns both.
 type Renderer interface {
 	Render(doc Document, format Format, filenameBase string) (File, error)
@@ -94,6 +94,7 @@ const (
 	FormatPDF  = records.FormatPDF
 	FormatDOCX = records.FormatDOCX
 	FormatXLSX = records.FormatXLSX
+	FormatCSV  = records.FormatCSV
 )
 
 // Presets of the child lists.
