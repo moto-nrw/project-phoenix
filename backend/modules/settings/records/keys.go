@@ -170,22 +170,40 @@ const (
 	// KeyWeekendFollowsFriday makes Saturday and Sunday care days that run
 	// on Friday's weekly plan (#3921). Operator-only; the public demo
 	// schools carry it so the demo has a school day at every hour.
-	KeyWeekendFollowsFriday                  = "operations.weekend_follows_friday"
-	KeyAttendanceEditScope                   = "operations.attendance_edit_scope"
-	KeyBlockStartScope                       = "operations.block_start_scope"
-	KeyBlockCompleteScope                    = "operations.block_complete_scope"
-	KeyStudentAbsenceEditScope               = "operations.student_absence_edit_scope"
-	KeyClassArrivalExceptionEditors          = "operations.class_arrival_exception_editors"
-	KeySchoolPortalWriteScope                = "operations.school_portal_write_scope"
-	KeySchoolPortalMorningAttendance         = "operations.school_portal_morning_attendance"
-	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
-	KeyMealRegistrationEnabled               = "operations.meal_registration_enabled"
-	KeyMealRegistrationCutoffTime            = "operations.meal_registration_cutoff_time"
-	KeyMealRegistrationCutoffLeadDays        = "operations.meal_registration_cutoff_lead_days"
-	KeyMealRegistrationCutoffWeekday         = "operations.meal_registration_cutoff_weekday"
-	KeyMealCancellationCutoffSeparate        = "operations.meal_cancellation_cutoff_separate"
-	KeyMealCancellationCutoffTime            = "operations.meal_cancellation_cutoff_time"
-	KeyMealCancellationCutoffLeadDays        = "operations.meal_cancellation_cutoff_lead_days"
+	KeyWeekendFollowsFriday          = "operations.weekend_follows_friday"
+	KeyAttendanceEditScope           = "operations.attendance_edit_scope"
+	KeyBlockStartScope               = "operations.block_start_scope"
+	KeyBlockCompleteScope            = "operations.block_complete_scope"
+	KeyStudentAbsenceEditScope       = "operations.student_absence_edit_scope"
+	KeyClassArrivalExceptionEditors  = "operations.class_arrival_exception_editors"
+	KeySchoolPortalWriteScope        = "operations.school_portal_write_scope"
+	KeySchoolPortalMorningAttendance = "operations.school_portal_morning_attendance"
+	KeyParentRequestReasonPolicy     = "operations.parent_request_reason_policy"
+	KeyMealRegistrationEnabled       = "operations.meal_registration_enabled"
+	KeyMealRegistrationCutoffTime    = "operations.meal_registration_cutoff_time"
+	// The meal ordering rules of a school (#3873): which registration model
+	// it runs, the registration deadline and, where the model has one, the
+	// separate cancellation deadline. Each deadline is either a number of
+	// days before the meal day or a weekday of the previous week, always at
+	// a clock time. The registration deadline's clock time is the older
+	// operations.meal_registration_cutoff_time.
+	KeyMealRegistrationModel           = "operations.meal_registration_model"
+	KeyMealRegistrationDeadlineKind    = "operations.meal_registration_deadline_kind"
+	KeyMealRegistrationLeadDays        = "operations.meal_registration_lead_days"
+	KeyMealRegistrationDeadlineWeekday = "operations.meal_registration_deadline_weekday"
+	KeyMealCancellationDeadlineKind    = "operations.meal_cancellation_deadline_kind"
+	KeyMealCancellationLeadDays        = "operations.meal_cancellation_lead_days"
+	KeyMealCancellationDeadlineWeekday = "operations.meal_cancellation_deadline_weekday"
+	KeyMealCancellationCutoffTime      = "operations.meal_cancellation_cutoff_time"
+	KeyMealAnnualRegistrationDeadline  = "operations.meal_annual_registration_deadline"
+	KeyMealAnnualChanges               = "operations.meal_annual_changes"
+	KeyMealSickAfterDeadline           = "operations.meal_sick_after_deadline"
+	KeyMealOrderRhythm                 = "operations.meal_order_rhythm"
+	KeyMealOrderDetail                 = "operations.meal_order_detail"
+	// KeyMealCatererNamesEnabled lets the caterer see the children's names
+	// (#3873). Off by default; a school switches it on only with a data
+	// processing agreement in place.
+	KeyMealCatererNamesEnabled               = "gdpr.meal_caterer_names_enabled"
 	KeySickClearMode                         = "operations.sick_clear_mode"
 	KeyExcusedClearMode                      = "operations.excused_clear_mode"
 	KeyPresenceMode                          = "operations.presence_mode"

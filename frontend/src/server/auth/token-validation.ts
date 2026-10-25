@@ -1,7 +1,7 @@
 import { getServerApiUrl } from "~/lib/server-api-url";
 import type { JwtPayload } from "./jwt-payload";
 
-type Portal = "tenant" | "platform" | "parent" | "school" | "org";
+type Portal = "tenant" | "platform" | "parent" | "school" | "caterer" | "org";
 
 /** Only backend-verified claims may cross a client token-handoff boundary. */
 export async function validateSessionToken(

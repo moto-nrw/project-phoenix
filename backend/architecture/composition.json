@@ -72,7 +72,7 @@
       "declaration": "TestNewWorkerRejectsMissingJobs",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        79
+        81
       ],
       "tables": []
     },
@@ -82,7 +82,7 @@
       "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        71
+        73
       ],
       "tables": []
     },
@@ -92,8 +92,8 @@
       "declaration": "TestNewWorkerRejectsMissingSettings",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        195,
-        199
+        209,
+        213
       ],
       "tables": []
     },
@@ -103,7 +103,7 @@
       "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        104
+        106
       ],
       "tables": []
     },
@@ -113,8 +113,8 @@
       "declaration": "TestNewWorkerRejectsTypedNilDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        120,
-        131
+        122,
+        133
       ],
       "tables": []
     }
@@ -16394,6 +16394,7 @@
       "email-outbox",
       "file-store-cleanup",
       "instance-overdue",
+      "meal-orders",
       "pwa-usage-cleanup",
       "reminder-notifications",
       "rollover-deadline",
@@ -16490,6 +16491,7 @@
     "email-outbox",
     "file-store-cleanup",
     "instance-overdue",
+    "meal-orders",
     "pwa-usage-cleanup",
     "reminder-notifications",
     "rollover-deadline",

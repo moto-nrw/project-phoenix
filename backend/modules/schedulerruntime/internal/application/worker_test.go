@@ -37,6 +37,8 @@ func (fakeAccountRetention) EraseUnusedAccounts(context.Context) (int, error) { 
 
 func (fakeAccountRetention) CleanupErasedAccountAvatars(context.Context) (int, error) { return 0, nil }
 
+func (fakeAccountRetention) DeleteUnusedCaterers(context.Context) (int, error) { return 0, nil }
+
 type fakeFeedbackCleaner struct{ err error }
 
 func (f *fakeFeedbackCleaner) DeleteExpired(context.Context) (int, error) { return 0, f.err }
@@ -158,14 +160,25 @@ func (r markingCleanupRuntime) WithinAdmin(ctx context.Context, fn func(context.
 }
 
 type transactionalAccountRetention struct {
-	t       *testing.T
-	err     error
-	cleaned bool
+	t        *testing.T
+	err      error
+	erased   bool
+	cleaned  bool
+	caterers bool
 }
 
 func (r *transactionalAccountRetention) EraseUnusedAccounts(ctx context.Context) (int, error) {
 	r.t.Helper()
 	require.Equal(r.t, true, ctx.Value(cleanupTransactionKey{}), "anonymization uses the scheduler transaction")
+	r.erased = true
+	return 0, nil
+}
+
+func (r *transactionalAccountRetention) DeleteUnusedCaterers(ctx context.Context) (int, error) {
+	r.t.Helper()
+	require.Equal(r.t, true, ctx.Value(cleanupTransactionKey{}), "the caterer deletion uses the scheduler transaction")
+	require.True(r.t, r.erased, "caterers go after the account erasure, which decides whether their accounts are still needed")
+	r.caterers = true
 	return 0, nil
 }
 
@@ -186,6 +199,7 @@ func TestAccountAvatarJobOwnsItsTransactionAndReportsPartialFailure(t *testing.T
 	err := newScheduler(deps).runCleanupJobs(t.Context())
 	require.ErrorIs(t, err, partial)
 	require.True(t, retention.cleaned)
+	require.True(t, retention.caterers, "a file failure does not stop the caterer deletion")
 }
 
 func TestNewWorkerRejectsMissingSettings(t *testing.T) {

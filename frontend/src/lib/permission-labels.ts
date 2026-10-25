@@ -39,6 +39,7 @@ export const resourceLabels: Record<string, string> = {
   supervision: "Aufsichten",
   display: "Info-Point",
   vacation: "Urlaub",
+  meals: "Mittagessen",
   "*": "Alle Bereiche",
 };
 
@@ -63,6 +64,8 @@ export const actionLabels: Record<string, string> = {
   health: "Gesundheitsdaten",
   legal: "Sorgerecht",
   arrival_exception_write: "Ankunftszeit ändern",
+  orders: "Essenslisten",
+  register: "Anmeldungen ändern",
   all_classes: "Alle Klassen",
   school: "In moto schule",
   class_trip_write: "Ausflug melden",
@@ -197,6 +200,12 @@ const permissionDescriptions: Record<string, string> = {
   "config:update": "Einstellungen der Schule ändern",
   "config:manage":
     "Alle Einstellungen der Schule ändern, auch Anmeldung, Formulare und Datenschutz",
+
+  // Mittagessen (#3873)
+  "meals:read": "Speiseplan und Essenszahlen ansehen",
+  "meals:manage": "Speiseplan pflegen und den Caterer verwalten",
+  "meals:orders": "Essenslisten mit Namen sehen",
+  "meals:register": "Anmeldung eines Kindes ändern, auch nach der Frist",
 
   // IoT
   "iot:read": "Tablets und Geräte ansehen",

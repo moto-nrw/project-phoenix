@@ -37,16 +37,10 @@ func verifyPreloadSettingKeys(keys []string) error {
 // schedulerSettings binds the Settings Platform service and its cross-tenant
 // batch read, so one query per minute preloads the polling settings of every
 // school.
-// verifiedSchedulerSettings checks the worker's setting keys against the
-// registry before it builds the worker's settings port.
-func verifiedSchedulerSettings(settings settingsCompose.BatchSettingsService) (schedulerPorts.SettingsResolver, error) {
+func schedulerSettings(settings settingsCompose.BatchSettingsService) (schedulerPorts.SettingsResolver, error) {
 	if err := verifySchedulerSettingKeys(); err != nil {
 		return nil, err
 	}
-	return schedulerSettings(settings)
-}
-
-func schedulerSettings(settings settingsCompose.BatchSettingsService) (schedulerPorts.SettingsResolver, error) {
 	snapshots, err := settingsCompose.NewTenantSnapshots(settings)
 	if err != nil {
 		return nil, fmt.Errorf("worker settings snapshots: %w", err)

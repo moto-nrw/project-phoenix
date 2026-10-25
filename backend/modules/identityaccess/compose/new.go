@@ -90,7 +90,7 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	if err != nil {
 		return nil, err
 	}
-	auth, err := newAccountAuthentication(service, store, dependencies.Sessions, application.CapabilityGate{Capability: flows.Capability})
+	auth, err := newAccountAuthentication(service, store, store, dependencies.Sessions, application.CapabilityGate{Capability: flows.Capability})
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	if err != nil {
 		return nil, err
 	}
-	demoAccess, traegerAccounts, err := newPortalAccess(dependencies, auth, store, runAdmin)
+	demoAccess, traegerAccounts, caterers, err := composeBesideEngine(dependencies, auth, store, runAdmin)
 	if err != nil {
 		return nil, err
 	}
@@ -130,9 +130,20 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
 		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), runAdmin), AccountRetention: application.NewAccountRetention(store, attach, runAdmin, dependencies.RemoveErasedAvatarFile, application.InvitationLogger(dependencies.Invitations)),
 		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
-		TraegerAccounts:       traegerAccounts, DemoAccess: demoAccess,
+		TraegerAccounts:       traegerAccounts, DemoAccess: demoAccess, Caterers: caterers,
 	})
 	return owner, nil
+}
+
+// composeBesideEngine composes the capabilities the owner carries beside its
+// services: the demo access, the Träger accounts and the caterer flows.
+func composeBesideEngine(dependencies Dependencies, auth *application.AccountAuthentication, store *postgres.Store, runAdmin func(context.Context, func(context.Context) error) error) (*identityaccess.DemoAccess, *application.TraegerAccounts, *identityaccess.CatererAccess, error) {
+	demoAccess, traegerAccounts, err := newPortalAccess(dependencies, auth, store, runAdmin)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	caterers, err := newCatererAccess(auth, store, dependencies.Sessions, dependencies.Lifecycle)
+	return demoAccess, traegerAccounts, caterers, err
 }
 
 // NewGuardianInvitationReads composes the guardian invitation lists over the

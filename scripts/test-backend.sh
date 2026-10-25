@@ -16,6 +16,8 @@
 set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root/backend"
+# shellcheck source=scripts/go-test-workspace.sh
+source "$repo_root/scripts/go-test-workspace.sh"
 
 sweep() {
   status=$?
@@ -23,6 +25,7 @@ sweep() {
     status=1
   fi
   [ -n "${PHX_TEST_RUN_LOCK:-}" ] && rm -f "$PHX_TEST_RUN_LOCK"
+  if ! cleanup_go_test_workspace && [ "$status" -eq 0 ]; then status=1; fi
   return "$status"
 }
 # Stabile Run-ID pro Worktree (Cache-Hebel) plus Overlap-Lock; Details im
@@ -31,6 +34,7 @@ sweep() {
 # shellcheck source=scripts/test-run-id.sh
 source "$repo_root/scripts/test-run-id.sh"
 trap sweep EXIT
+prepare_go_test_workspace
 
 # Handshake once per run instead of once per test binary: server erreichbar,
 # Template zum Migrations-Hash gebaut. Die Binaries bekommen das Ergebnis

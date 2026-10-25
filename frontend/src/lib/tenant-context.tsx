@@ -379,6 +379,17 @@ export function useTimetableEnabled(): boolean {
   return ctx?.tenant?.timetableEnabled !== false;
 }
 
+// Fail closed: without a resolved school the meal pages stay hidden.
+export function useMealPlanEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.mealPlanEnabled === true;
+}
+
+export function useMealRegistrationEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.mealRegistrationEnabled === true;
+}
+
 export function useWaitlistEnabled(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.waitlistEnabled !== false;

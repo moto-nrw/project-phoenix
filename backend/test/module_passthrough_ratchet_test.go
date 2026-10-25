@@ -225,12 +225,13 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
-// for modules/communication and modules/schoolcalendar).
-// Raised by ADR 0079: the reachable-children read of modules/communication (+1).
+// for modules/communication and modules/schoolcalendar), by ADR 0077 (two
+// for modules/identityaccess) and by ADR 0078 (one for
+// workflows/parentportal), and by ADR 0079 (one for modules/communication).
 // Raised by ADR 0104: FindManageableAccount of modules/identityaccess (+1).
 // Raised by ADR 0105: the holiday period reads of modules/enrollment (+2).
 // Raised by ADR 0110: the holiday registration retention of modules/enrollment (+1).
-const modulePassthroughOwnerBudgetTotal = 1404
+const modulePassthroughOwnerBudgetTotal = 1405
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -258,13 +259,14 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/devicescan":    35,
 	// Raised by ADR 0105: the holiday period reads of the Träger-Portal; by
 	// ADR 0110: the retention of the public holiday registrations.
-	"modules/enrollment":          27,
-	"modules/exporttransfer":      1,
-	"modules/facilities":          13,
-	"modules/feedback":            2,
-	"modules/filestorage":         6,
-	"modules/identityaccess":      213,
-	"modules/mealplan":            3,
+	"modules/enrollment":     27,
+	"modules/exporttransfer": 1,
+	"modules/facilities":     13,
+	"modules/feedback":       2,
+	"modules/filestorage":    6,
+	// Raised by ADR 0077: the caterer flows.
+	"modules/identityaccess":      215,
+	"modules/mealplan":            1,
 	"modules/organizationtenancy": 11,
 	"modules/peopledirectory":     208,
 	"modules/requestreview":       15,
@@ -279,7 +281,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/timetable":        204,
 	"modules/workforce":        139,
 	"workflows/openroommove":   1,
-	"workflows/parentportal":   17,
+	// Raised by ADR 0078: the week change of the meal plan adapter.
+	"workflows/parentportal": 18,
 }
 
 func TestModulePassthroughRatchet(t *testing.T) {

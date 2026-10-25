@@ -7,10 +7,15 @@ import { catalogText } from "~/test/error-catalog-text";
 
 import MealPlanPage from "./page";
 
-const { getMealPlanWeek, setDay } = vi.hoisted(() => ({
-  getMealPlanWeek: vi.fn(),
-  setDay: vi.fn(),
-}));
+const { getMealPlanWeek, getMealOrders, setDay, rights, features } = vi.hoisted(
+  () => ({
+    features: { mealPlanEnabled: true },
+    rights: { admin: true, permissions: [] as string[] },
+    getMealPlanWeek: vi.fn(),
+    getMealOrders: vi.fn(),
+    setDay: vi.fn(),
+  }),
+);
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -27,8 +32,9 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/lib/auth-utils", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/auth-utils")>()),
-  isAdmin: () => true,
-  hasPermission: () => true,
+  isAdmin: () => rights.admin,
+  hasPermission: (_session: unknown, permission: string) =>
+    rights.permissions.includes(permission),
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -43,10 +49,6 @@ vi.mock("~/lib/hooks/use-navigation-guard", () => ({
   }),
 }));
 
-vi.mock("~/lib/hooks/use-settings-schema", () => ({
-  useSettingsSchema: () => ({ data: undefined }),
-}));
-
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: () => "2026-10-06",
 }));
@@ -54,7 +56,33 @@ vi.mock("~/lib/hooks/use-berlin-today", () => ({
 vi.mock("~/lib/meal-plan-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/meal-plan-api")>()),
   getMealPlanWeek,
+  getMealOrders,
   setDay,
+}));
+
+vi.mock("~/lib/tenant-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
+  useMealPlanEnabled: () => features.mealPlanEnabled,
+  useMealRegistrationEnabled: () => true,
+}));
+vi.mock("~/components/meal-plan/meal-participant-list", () => ({
+  MealParticipantList: ({
+    canRegister,
+    canExport,
+    onRegistrationChanged,
+  }: {
+    canRegister: boolean;
+    canExport: boolean;
+    onRegistrationChanged: () => void;
+  }) => (
+    <div
+      data-testid="participants"
+      data-register={String(canRegister)}
+      data-export={String(canExport)}
+    >
+      <button onClick={onRegistrationChanged}>Save registration</button>
+    </div>
+  ),
 }));
 
 function renderPage() {
@@ -68,6 +96,24 @@ function renderPage() {
 describe("Speiseplan: Statuszeile bei Ladefehler (#2517)", () => {
   beforeEach(() => {
     getMealPlanWeek.mockReset();
+    getMealOrders.mockReset();
+    getMealOrders.mockResolvedValue({
+      rhythm: "daily",
+      detail: "total",
+      days: [],
+    });
+    rights.admin = true;
+    rights.permissions = [];
+  });
+
+  it("reloads the order overview after saving a registration", async () => {
+    getMealPlanWeek.mockResolvedValue([]);
+    renderPage();
+    await waitFor(() => expect(getMealOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save registration" }),
+    );
+    await waitFor(() => expect(getMealOrders).toHaveBeenCalledTimes(2));
   });
 
   it("shows the catalog load error and no planned-days count", async () => {
@@ -95,6 +141,123 @@ describe("Speiseplan: Statuszeile bei Ladefehler (#2517)", () => {
     expect(
       await screen.findByText(/0 von 5 Tagen geplant/),
     ).toBeInTheDocument();
+  });
+});
+
+// Der Wochenwechsel steuert Wochenplan und Bestellung und steht darum als
+// Bedienband in der Kopfkarte (Bauart 3 Regel 1, TENANT-PAGE-SPEC Regel 3).
+describe("Speiseplan: Wochenwechsel im Seitenkopf", () => {
+  beforeEach(() => {
+    getMealPlanWeek.mockReset();
+    getMealPlanWeek.mockResolvedValue([]);
+    getMealOrders.mockReset();
+    getMealOrders.mockResolvedValue({
+      rhythm: "daily",
+      detail: "total",
+      days: [],
+    });
+    rights.admin = true;
+    rights.permissions = [];
+    features.mealPlanEnabled = true;
+  });
+
+  it("names the week once in the head bar, not again in the status line", async () => {
+    renderPage();
+
+    // Die Statuszeile trägt nur noch die geplanten Tage.
+    expect(
+      await screen.findByText("0 von 5 Tagen geplant"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("KW 41 · 05.10.–09.10.2026")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Diese Woche" })).toBeDisabled();
+  });
+
+  it("switches plan and order together and returns to this week", async () => {
+    renderPage();
+    await screen.findByText("0 von 5 Tagen geplant");
+
+    fireEvent.click(screen.getByRole("button", { name: "Nächste Woche" }));
+
+    await waitFor(() =>
+      expect(getMealPlanWeek).toHaveBeenLastCalledWith("2026-10-12"),
+    );
+    await waitFor(() =>
+      expect(getMealOrders).toHaveBeenLastCalledWith(
+        "2026-10-12",
+        "2026-10-16",
+      ),
+    );
+    expect(
+      await screen.findByText("KW 42 · 12.10.–16.10.2026"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Diese Woche" }));
+    await waitFor(() =>
+      expect(getMealPlanWeek).toHaveBeenLastCalledWith("2026-10-05"),
+    );
+  });
+
+  it("orders the cards: plan, order, caterer, day list last", async () => {
+    renderPage();
+
+    const plan = await screen.findByRole("heading", { name: "Wochenplan" });
+    const order = await screen.findByRole("heading", { name: "Bestellung" });
+    const caterer = await screen.findByRole("heading", { name: "Caterer" });
+    const list = await screen.findByTestId("participants");
+    const follows = (a: Element, b: Element) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(plan, order)).toBe(true);
+    expect(follows(order, caterer)).toBe(true);
+    expect(follows(caterer, list)).toBe(true);
+  });
+});
+
+describe("meal registration permissions", () => {
+  it.each([
+    [["meals:register"], "true", "false"],
+    [["meals:orders"], "false", "true"],
+  ] as const)(
+    "keeps registration independent of export rights (%j)",
+    async (permissions, register, exporting) => {
+      rights.admin = false;
+      rights.permissions = [...permissions];
+      getMealPlanWeek.mockResolvedValue([]);
+      renderPage();
+      const list = await screen.findByTestId("participants");
+      expect(list).toHaveAttribute("data-register", register);
+      expect(list).toHaveAttribute("data-export", exporting);
+    },
+  );
+});
+
+describe("meal plan feature gate", () => {
+  beforeEach(() => {
+    getMealPlanWeek.mockReset();
+    getMealPlanWeek.mockResolvedValue([]);
+    rights.admin = true;
+    rights.permissions = [];
+    features.mealPlanEnabled = true;
+  });
+
+  it("waits for meal planning to be enabled before loading the week", async () => {
+    features.mealPlanEnabled = false;
+    const { rerender } = renderPage();
+
+    expect(screen.getByText("Speiseplan")).toBeInTheDocument();
+    expect(getMealPlanWeek).not.toHaveBeenCalled();
+
+    features.mealPlanEnabled = true;
+    rerender(
+      <ToastProvider>
+        <MealPlanPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText(/0 von 5 Tagen geplant/),
+    ).toBeInTheDocument();
+    expect(getMealPlanWeek).toHaveBeenCalledOnce();
+    expect(getMealPlanWeek).toHaveBeenCalledWith("2026-10-05");
   });
 });
 

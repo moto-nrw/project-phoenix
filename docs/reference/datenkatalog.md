@@ -7,7 +7,7 @@ Grundlage für #3837 und #3838, Slices 3837-a/b und 3838-a/b/c.
 
 ## Stand und Quelle
 
-**Im Code klassifiziert:** 248 Tabellen und neun Upload-Kinds in
+**Im Code klassifiziert:** 257 Tabellen und neun Upload-Kinds in
 `backend/modules/organizationtenancy/data_lifecycle_catalog.json`.
 `organizationtenancy.DataLifecycleCatalogSource` stellt denselben Katalog zur
 Laufzeit als `embed.FS` bereit. `ReadFile("data_lifecycle_catalog.json")` liefert
@@ -26,6 +26,12 @@ Globale Systemrollen mit `tenant_id IS NULL` sind kein
 Schulbestand; erforderliche Rollenbedeutung muss die spätere Rückgabe
 als Kontext liefern, nicht durch ungefilterten Export globaler Rollen.
 
+Die Mittagessen-Migrationen 1.15.600 bis 1.15.604 ergänzen zehn Tabellen.
+Bestellungen, Anmeldeänderungen, Einladungen und Belieferungen sind schulbezogen.
+Caterer-Konten und Betriebe sind schulübergreifend; eine Schule darf sie nicht
+allein löschen oder als eigenen Bestand ausgeben. Einladungs-Hashes bleiben
+von der Rückgabe ausgeschlossen.
+
 **Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
 liest den freigegebenen Katalogbestand in einer schreibgeschützten
 `REPEATABLE READ`-Transaktion über eine eigene administrative Leserolle.
@@ -40,7 +46,8 @@ Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle
 `platform.school_erasures` bereit. Ein aus diesem Katalog abgeleiteter,
-installierter Plan enthält 221 Löschziele mit `tenant`, `tenantChild` oder
+installierter Plan enthält 241 Löschziele (seit Migration 1.15.605 mit den
+Mittagessen-Tabellen) mit `tenant`, `tenantChild` oder
 `school`. Die explizit gesperrten Rechnungsreferenzen
 `platform.billing_key_date_counts` bleiben zehn Jahre ab Kalenderjahresende
 erhalten und sind von der Datenrückgabe an Dritte ausgeschlossen (ADR 0092). Ein Wächter gleicht ihn mit dem Produktionskatalog ab.

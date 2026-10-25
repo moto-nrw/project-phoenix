@@ -19,6 +19,9 @@ const feedTokenPatterns = [
   /(\/public\/calendar\/)[^/?#\s"]+/g,
   /(\/api\/request-feed\/)[^/?#\s"]+/g,
   /(\/public\/request-feed\/)[^/?#\s"]+/g,
+  // The caterer's mailed invitation: school ID, then the token (ADR 0077).
+  /(\/einladung\/[^/?#\s"]+\/)[^/?#\s"]+/g,
+  /(\/caterer\/invitations\/[^/?#\s"]+\/)[^/?#\s"]+/g,
 ];
 
 function redactFeedToken(value: string): string {
