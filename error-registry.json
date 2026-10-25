@@ -4135,6 +4135,14 @@
       "legacy": "timetable.window_too_large"
     },
     {
+      "code": "traeger.access_log_export_too_large",
+      "class": "input",
+      "parameters": [
+        "limit"
+      ],
+      "legacy": "traeger.access_log_export_too_large"
+    },
+    {
       "code": "traeger.already_member",
       "class": "business_rejection",
       "parameters": [],
