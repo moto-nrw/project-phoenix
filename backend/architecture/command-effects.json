@@ -15340,6 +15340,50 @@
     },
     {
       "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestCorrectionPlans.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.FindGuardianLink",
+      "target_owner": "people-directory",
+      "binding_digest": "48c5da16b416d67394ea04c8e136e99d",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Approval-time contact eligibility reads the current People Directory relationship. It writes no foreign row and takes no cross-owner lock."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestCorrectionPlans.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.FindGuardian",
+      "target_owner": "people-directory",
+      "binding_digest": "6047f22d89aa94c3790aa4c62b45b83d",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Approval-time contact eligibility reads the current People Directory profile. It writes no foreign row and takes no cross-owner lock."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestCorrectionPlans.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.FindGuardianLink",
+      "target_owner": "people-directory",
+      "binding_digest": "1ff7e8e54f013fa0f6cd0e47113dc2f0",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Approval-time contact eligibility reads the current People Directory relationship. It writes no foreign row and takes no cross-owner lock."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestCorrectionPlans.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.FindGuardian",
+      "target_owner": "people-directory",
+      "binding_digest": "716e30ee360b9217d5a6e51161903550",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Approval-time contact eligibility reads the current People Directory profile. It writes no foreign row and takes no cross-owner lock."
+    },
+    {
+      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestCorrectionPlans.ApplyPickup",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickup",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
@@ -15512,6 +15556,50 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.MissingStudentError; modules/peopledirectory/ports/repository_vocabulary.go:364. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestDecisionPlans.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.FindGuardianLink",
+      "target_owner": "people-directory",
+      "binding_digest": "48c5da16b416d67394ea04c8e136e99d",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Approval-time contact eligibility reads the current People Directory relationship. It writes no foreign row and takes no cross-owner lock."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestDecisionPlans.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.FindGuardian",
+      "target_owner": "people-directory",
+      "binding_digest": "6047f22d89aa94c3790aa4c62b45b83d",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Approval-time contact eligibility reads the current People Directory profile. It writes no foreign row and takes no cross-owner lock."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestDecisionPlans.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.FindGuardianLink",
+      "target_owner": "people-directory",
+      "binding_digest": "1ff7e8e54f013fa0f6cd0e47113dc2f0",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Approval-time contact eligibility reads the current People Directory relationship. It writes no foreign row and takes no cross-owner lock."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestDecisionPlans.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.FindGuardian",
+      "target_owner": "people-directory",
+      "binding_digest": "716e30ee360b9217d5a6e51161903550",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Approval-time contact eligibility reads the current People Directory profile. It writes no foreign row and takes no cross-owner lock."
     },
     {
       "source_owner": "care-plan",

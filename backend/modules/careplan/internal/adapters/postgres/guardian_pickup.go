@@ -76,6 +76,14 @@ func (s *Store) ChangeGuardianPickupPermission(ctx context.Context, change carep
 			query = query.Set("pickup_weekdays = ?::smallint[]", pgdialect.Array(change.Weekdays))
 		}
 	}
+	if change.Expected != nil {
+		query = query.Where(`"pickup".can_pickup = ?`, change.Expected.CanPickup)
+		if len(change.Expected.Weekdays) == 0 {
+			query = query.Where(`"pickup".pickup_weekdays IS NULL`)
+		} else {
+			query = query.Where(`"pickup".pickup_weekdays = ?::smallint[]`, pgdialect.Array(change.Expected.Weekdays))
+		}
+	}
 	stats, affected, err := execute(ctx, query, "change guardian pickup permission")
 	return affected > 0, stats, err
 }

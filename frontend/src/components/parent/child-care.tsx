@@ -1207,6 +1207,12 @@ export function PickupTimeModal({
     setInvalidField(null);
   }, [clearForm, existing, request]);
 
+  // A date is part of the signed declaration even when neither date has an
+  // existing override, so the prefill effect above does not run.
+  useEffect(() => {
+    setSignature(null);
+  }, [date]);
+
   // Fehlt die Unterschrift für eine Abholperson oder den Heimweg allein,
   // bleibt der Dialog offen und nennt das Feld (#4780).
   const signatureMissing = (): boolean => {
@@ -1598,6 +1604,7 @@ export function PickupTimeModal({
                   ]}
                   onChange={(next) => {
                     setDepartureMode(next as DayDepartureMode | "");
+                    setSignature(null);
                     if (next !== "" && next !== "pickup") setPickupPersonId("");
                     if (invalidField === "pickupTime") {
                       setInvalidField(null);
@@ -1633,6 +1640,7 @@ export function PickupTimeModal({
                   ]}
                   onChange={(next) => {
                     setPickupPersonId(next);
+                    setSignature(null);
                     if (invalidField === "pickupTime") {
                       setInvalidField(null);
                       form.clear();

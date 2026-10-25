@@ -1060,6 +1060,12 @@ function ContactModal({
   const formRef = useRef<HTMLDivElement>(null);
   const { error, show, invalid, fieldError, clear } = useApiFormError(formRef);
 
+  // The signature attests to the displayed contact and weekdays. Changing
+  // either must require a fresh signature.
+  useEffect(() => {
+    setPickupSignature(null);
+  }, [firstName, lastName, pickupWeekdays]);
+
   const setPhone = (index: number, patch: Partial<PhoneDraft>) =>
     setPhones((prev) =>
       prev.map((p, i) => (i === index ? { ...p, ...patch } : p)),
@@ -1229,7 +1235,10 @@ function ContactModal({
                   <div className="space-y-3 pl-8">
                     <PickupWeekdaysField
                       value={pickupWeekdays}
-                      onChange={setPickupWeekdays}
+                      onChange={(next) => {
+                        setPickupWeekdays(next);
+                        setPickupSignature(null);
+                      }}
                       disabled={busy}
                     />
                     <p className="text-sm text-gray-600">
@@ -1605,7 +1614,10 @@ function PickupModal({
               <div className="space-y-3 pl-8">
                 <PickupWeekdaysField
                   value={weekdays}
-                  onChange={setWeekdays}
+                  onChange={(next) => {
+                    setWeekdays(next);
+                    setSignature(null);
+                  }}
                   disabled={busy}
                 />
                 {grants ? (

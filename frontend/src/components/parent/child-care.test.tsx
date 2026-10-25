@@ -2023,6 +2023,36 @@ describe("PickupTimeModal, Abholperson an einem Tag", () => {
     );
   });
 
+  it("requires a new signature when the selected date changes", async () => {
+    const { onSubmit, dateInput, reasonInput } = renderModal({
+      departureModeEnabled: true,
+    });
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Abholart an diesem Tag" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Geht allein" }));
+    fireEvent.change(reasonInput!, { target: { value: "Heute allein" } });
+    fireEvent.click(screen.getByRole("button", { name: "Namen tippen" }));
+    fireEvent.change(screen.getByLabelText("Ihr Vor- und Nachname"), {
+      target: { value: "Sabine Muster" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterschrift bestätigen" }),
+    );
+    fireEvent.change(dateInput, { target: { value: "2026-09-16" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(
+      (
+        await screen.findAllByText(
+          "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("keeps the collector selected while editing a pending request", async () => {
     const contacts = vi
       .spyOn(parentApi, "listChildGuardians")

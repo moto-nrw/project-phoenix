@@ -795,6 +795,40 @@ describe("GuardiansPanel", () => {
       expect(mocks.updateGuardianRelationship).not.toHaveBeenCalled();
     });
 
+    it("requires a new signature after the selected weekdays change", async () => {
+      mocks.listChildGuardians.mockResolvedValue([contact]);
+      render(
+        <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Abholrecht verwalten" }),
+      );
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>("#guardian-can-pickup")!,
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", {
+          name: "Nur an bestimmten Tagen",
+        }),
+      );
+      signByTyping(dialog);
+      fireEvent.click(
+        within(dialog).getByRole("checkbox", { name: "Dienstag" }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+
+      expect(
+        await within(dialog).findAllByText(
+          "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“.",
+        ),
+      ).not.toHaveLength(0);
+      expect(mocks.submitPickupPermissionRequest).not.toHaveBeenCalled();
+    });
+
     it("submits a related contact change with the signed permission request", async () => {
       mocks.listChildGuardians.mockResolvedValue([contact]);
       mocks.submitPickupPermissionRequest.mockResolvedValue({});

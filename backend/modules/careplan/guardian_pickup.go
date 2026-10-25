@@ -36,6 +36,17 @@ type GuardianPickupPermissionChange struct {
 	PickupNotes    *string
 	SetWeekdays    bool
 	Weekdays       []int
+	// Expected makes the write conditional on the permission still having this
+	// state. It prevents a request correction from overwriting a later change
+	// made by staff.
+	Expected *GuardianPickupPermissionState
+}
+
+// GuardianPickupPermissionState is the safety-relevant portion of a pickup
+// permission. Nil weekdays mean that the permission applies every day.
+type GuardianPickupPermissionState struct {
+	CanPickup bool
+	Weekdays  []int
 }
 
 // GuardianPickupPermissions is the command side of the pickup permission.
