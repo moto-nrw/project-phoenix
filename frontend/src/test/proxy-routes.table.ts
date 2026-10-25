@@ -1097,6 +1097,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "POST traeger /traeger/holiday-periods/id%2F1/publish",
   ],
   "api/traeger/organization": ["GET traeger /traeger/organization"],
+  "api/traeger/school-sessions": ["POST traeger /traeger/school-sessions"],
   "api/traeger/schools": ["GET traeger /traeger/schools"],
   "api/work-time-models": [
     "GET tenant /api/work-time-models",
