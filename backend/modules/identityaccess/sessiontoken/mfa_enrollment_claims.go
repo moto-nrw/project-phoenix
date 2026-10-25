@@ -14,6 +14,10 @@ const (
 	// must never be laundered into a tenant session via the enrollment
 	// detour.
 	MFAEnrollmentScopeSchool = "school"
+	// MFAEnrollmentScopeOrg tags enrollment tokens minted by the Träger-Portal
+	// login (#4651). Only the /traeger/auth/mfa/enroll/* handlers accept it,
+	// and confirming there mints a Träger session.
+	MFAEnrollmentScopeOrg = "org"
 )
 
 // MFAEnrollmentClaims represents a short-lived JWT issued to an account that
@@ -68,6 +72,7 @@ func (c *MFAEnrollmentClaims) ParseClaims(claims map[string]any) error {
 		scopeTenant:    MFAEnrollmentScopeTenant,
 		scopePlatform:  MFAEnrollmentScopePlatform,
 		scopeSchool:    MFAEnrollmentScopeSchool,
+		scopeOrg:       MFAEnrollmentScopeOrg,
 		pendingFlagKey: "mfa_enrollment_pending",
 		notPendingErr:  "token is not a pending-MFA-enrollment token",
 	}, &c.CommonClaims)

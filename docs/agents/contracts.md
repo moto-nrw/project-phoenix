@@ -246,7 +246,14 @@ Backend paths in this section are relative to `backend/`:
   membership. `TraegerMiddleware` accepts only `scope=org`; the Träger rights
   come from fixed role bundles in `auth.organization_account_roles`. Reads
   across schools run through the `traeger-view` projection in an admin
-  transaction filtered on the Träger's schools. No MFA yet (#4651).
+  transaction filtered on the Träger's schools. Every Träger session needs
+  the e-mail second factor (#4651), independent of any school's `mfa_mode`
+  and of overrides: login answers `mfa_required` or `mfa_enrollment_required`
+  with the resolved `organization_id`, `/traeger/auth/mfa/*` redeems only
+  `org`-scope challenges, and mint and refresh refuse a session without
+  `mfa_verified`. No trusted device. The operator reset
+  (`DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa`)
+  revokes the proof, so the Träger session ends at its next refresh.
 - `TenantMiddleware` rejects parent, school, caterer, and org scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect

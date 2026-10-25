@@ -290,6 +290,7 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 		r.Get("/{id}/persons", provisioning.AuditReadAccess(organizationtenancy.ReadOrganizationPersons, provisioning.ListOrganizationPersons))
 		r.Get("/{id}/traeger-members", provisioning.AuditReadAccess(organizationtenancy.ReadTraegerMembers, provisioning.ListTraegerMembers))
 		r.Post("/{id}/traeger-members", provisioning.AssignTraegerMember)
+		r.Delete("/{id}/traeger-members/{accountId}/mfa", provisioning.ResetTraegerMemberMFA)
 		r.Get("/{id}/erasure-order", provisioning.TraegerErasureOrder)
 		r.Post("/{id}/erasure-order", provisioning.RecordTraegerErasureOrder)
 		r.Delete("/{id}/erasure-order", provisioning.WithdrawTraegerErasureOrder)
