@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"math/rand"
 	"slices"
 	"time"
 )
@@ -20,8 +19,9 @@ const (
 
 var feedbackValues = []string{"positive", "neutral", "negative"}
 
-// Eight seeded sessions receive students round-robin. The 85th student would
-// become the 11th child in Leseecke, whose seeded capacity is 10.
+// fullDayCheckinLimit is how many seeded children the public demo checks into
+// its rooms in turn (demo.go). The 85th would become the 11th child in
+// Leseecke, whose seeded capacity is 10.
 const fullDayCheckinLimit = 84
 
 // FullDayOptions configures a full-day simulation run.
@@ -32,6 +32,9 @@ type FullDayOptions struct {
 	Verbose   bool
 	Client    ClientFactory
 	Now       func() time.Time // nil uses the system clock
+	// SetClock moves the shared clock before each wave of the day (see
+	// fullday_clock.go); nil runs every wave at once.
+	SetClock ClockSetter
 }
 
 func (o FullDayOptions) now() time.Time {
@@ -102,6 +105,7 @@ func (loginAdminAction) Run(_ context.Context, rt *Runtime) error {
 	if err := rt.Client.Login(admin.Email, admin.Password, rt.State.Bootstrap.TenantSlug); err != nil {
 		return fmt.Errorf("admin login: %w", err)
 	}
+	rt.adminLoginAt = rt.Options.now()
 	fmt.Printf("  Logged in as %s\n", admin.Email)
 	return nil
 }
@@ -119,88 +123,32 @@ func (assignRFIDsAction) Run(_ context.Context, rt *Runtime) error {
 	if len(rt.State.Students) == 0 {
 		return fmt.Errorf("no students in seed state for RFID assignment")
 	}
-	rfidDevice := rt.State.Devices[deviceKeysForRFID[0]]
+	rt.DeviceKeys = deviceKeysForRFID
 
-	for _, student := range rt.State.Students {
-		rfidTag := fmt.Sprintf("DE%06X", student.ID)
-		rt.RFIDTags[student.ID] = rfidTag
-
-		body := map[string]string{"rfid_tag": rfidTag}
-		_, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", student.ID), body, rfidDevice.APIKey, rt.State.DevicePIN)
-		if err != nil {
-			return fmt.Errorf("assign RFID to student %d: %w", student.ID, err)
-		}
-		rt.Counts.RFIDAssigned++
+	if err := rt.assignTags(rt.State.Students); err != nil {
+		return err
 	}
 	fmt.Printf("  %d/%d RFID tags assigned\n", rt.Counts.RFIDAssigned, len(rt.State.Students))
 	return nil
 }
 
-type startSessionsAction struct{}
-
-func (startSessionsAction) Name() string { return "start sessions" }
-
-func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
-	fmt.Println("\nPhase 3: Starting activity sessions...")
-
-	rt.DeviceKeys = sortedDeviceKeys(rt.State.Devices)
-	rt.ActivityNames = sortedStringKeys(rt.State.Activities)
-	betreuer := rt.State.Accounts.Betreuer
-
-	sessionsToStart := min(len(betreuer), len(rt.DeviceKeys), len(rt.ActivityNames))
-	if sessionsToStart == 0 {
-		return fmt.Errorf("no sessions can start: %d staff accounts, %d devices, %d activities", len(betreuer), len(rt.DeviceKeys), len(rt.ActivityNames))
+// assignTags gives every child without one a tag through the first device.
+func (rt *Runtime) assignTags(students []SeedStudent) error {
+	device := rt.State.Devices[rt.DeviceKeys[0]]
+	for _, student := range students {
+		if _, tagged := rt.RFIDTags[student.ID]; tagged {
+			continue
+		}
+		rfidTag := fmt.Sprintf("DE%06X", student.ID)
+		body := map[string]string{"rfid_tag": rfidTag}
+		if _, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", student.ID), body, device.APIKey, rt.State.DevicePIN); err != nil {
+			return fmt.Errorf("assign RFID to student %d: %w", student.ID, err)
+		}
+		rt.RFIDTags[student.ID] = rfidTag
+		rt.Counts.RFIDAssigned++
 	}
-	if sessionsToStart > 10 {
-		sessionsToStart = 10
-	}
-
-	for i := 0; i < sessionsToStart; i++ {
-		deviceKey := rt.DeviceKeys[i]
-		device := rt.State.Devices[deviceKey]
-		actName := rt.ActivityNames[i]
-		activityID := rt.State.Activities[actName]
-		supervisor := betreuer[i]
-
-		roomID := findRoomForActivity(actName, rt.State.Rooms)
-
-		body := map[string]any{
-			"activity_id":    activityID,
-			"supervisor_ids": []int64{supervisor.StaffID},
-		}
-		if roomID != 0 {
-			body["room_id"] = roomID
-		}
-
-		_, err := rt.Client.DevicePost("/api/iot/session/start", body, device.APIKey, rt.State.DevicePIN)
-		if err != nil {
-			startErr := fmt.Errorf("start session for %s: %w", actName, err)
-			if cleanupErr := endActiveSessions(rt); cleanupErr != nil {
-				return errors.Join(startErr, fmt.Errorf("end previously started sessions: %w", cleanupErr))
-			}
-			return startErr
-		}
-		rt.ActiveSessionDeviceKeys = append(rt.ActiveSessionDeviceKeys, deviceKey)
-
-		if roomID != 0 {
-			rt.ActiveRoomIDs = append(rt.ActiveRoomIDs, roomID)
-		}
-
-		rt.Counts.SessionsStarted++
-		fmt.Printf("  Started: %s (device: %s, supervisor: %s)\n", actName, device.Name, supervisor.Name)
-	}
-
-	if len(rt.ActiveRoomIDs) == 0 {
-		for _, roomID := range rt.State.Rooms {
-			rt.ActiveRoomIDs = append(rt.ActiveRoomIDs, roomID)
-		}
-	}
-
-	fmt.Printf("  %d sessions started\n", rt.Counts.SessionsStarted)
 	return nil
 }
-
-type recordAttendanceAction struct{}
 
 // isoDate is the wire layout of every calendar date in the moto API.
 const isoDate = "2006-01-02"
@@ -451,112 +399,6 @@ func (seedStaffFeedTombstoneAction) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
-func (recordAttendanceAction) Name() string { return "record attendance and checkins" }
-
-func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
-	fmt.Println("\nPhase 4: Recording attendance and checking in students...")
-
-	primaryDevice, err := rt.primaryDevice()
-	if err != nil {
-		return err
-	}
-	// Exercise the real kiosk failure path too. The endpoint intentionally
-	// returns 404, while recording the unknown tag for operator follow-up.
-	_, err = rt.Client.DevicePost("/api/iot/checkin", map[string]any{
-		"student_rfid": "DEMO-UNREGISTERED-TAG", "action": "checkin",
-	}, primaryDevice.APIKey, rt.State.DevicePIN)
-	var expectedErr interface {
-		HTTPStatusCode() int
-		HTTPErrorCode() string
-	}
-	if !errors.As(err, &expectedErr) || expectedErr.HTTPStatusCode() != 404 || expectedErr.HTTPErrorCode() != codeRFIDTagNotFound {
-		return fmt.Errorf("record unregistered tag scan: expected 404 (rfid_tag_not_found), got %w", err)
-	}
-
-	studentsToProcess := len(rt.State.Students)
-	if studentsToProcess > 90 {
-		studentsToProcess = 90
-	}
-
-	for i := 0; i < studentsToProcess; i++ {
-		student := rt.State.Students[i]
-		rfidTag, ok := rt.RFIDTags[student.ID]
-		if !ok {
-			return fmt.Errorf("RFID assignment missing for student %d", student.ID)
-		}
-
-		attendanceBody := map[string]string{
-			"rfid":   rfidTag,
-			"action": "confirm",
-		}
-		_, err := rt.Client.DevicePost("/api/iot/attendance/toggle", attendanceBody, primaryDevice.APIKey, rt.State.DevicePIN)
-		if err != nil {
-			return fmt.Errorf("record attendance for student %d: %w", student.ID, err)
-		}
-		rt.Counts.AttendanceRecords++
-
-		if i < fullDayCheckinLimit && len(rt.ActiveRoomIDs) > 0 {
-			roomID := rt.ActiveRoomIDs[i%len(rt.ActiveRoomIDs)]
-			checkinBody := map[string]any{
-				"student_rfid": rfidTag,
-				"action":       "checkin",
-				"room_id":      roomID,
-			}
-			_, err := rt.Client.DevicePost("/api/iot/checkin", checkinBody, primaryDevice.APIKey, rt.State.DevicePIN)
-			if err != nil {
-				return fmt.Errorf("check in student %d: %w", student.ID, err)
-			}
-			rt.Counts.StudentsCheckedIn++
-		}
-	}
-
-	fmt.Printf("  %d attendance records, %d students checked in\n", rt.Counts.AttendanceRecords, rt.Counts.StudentsCheckedIn)
-	return nil
-}
-
-type middayActivityAction struct{}
-
-func (middayActivityAction) Name() string { return "run mid-day activity" }
-
-func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
-	fmt.Println("\nPhase 5: Mid-day activity (sick marks, individual checkouts)...")
-
-	primaryDevice, err := rt.primaryDevice()
-	if err != nil {
-		return err
-	}
-
-	for i := 96; i < len(rt.State.Students) && i < 100; i++ { // four fall ill: with the seed's, under one child in ten
-		student := rt.State.Students[i]
-		body := map[string]any{"sick": true}
-		_, err := rt.Client.Put(fmt.Sprintf("/api/students/%d", student.ID), body)
-		if err != nil {
-			return fmt.Errorf("mark student %d sick: %w", student.ID, err)
-		}
-		rt.Counts.StudentsSick++
-	}
-
-	for i := 75; i < fullDayCheckinLimit && i < len(rt.State.Students); i++ {
-		student := rt.State.Students[i]
-		rfidTag, ok := rt.RFIDTags[student.ID]
-		if !ok {
-			return fmt.Errorf("RFID assignment missing for student %d", student.ID)
-		}
-		body := map[string]any{
-			"student_rfid": rfidTag,
-			"action":       "checkout",
-		}
-		_, err := rt.Client.DevicePost("/api/iot/checkin", body, primaryDevice.APIKey, rt.State.DevicePIN)
-		if err != nil {
-			return fmt.Errorf("check out student %d: %w", student.ID, err)
-		}
-		rt.Counts.StudentsCheckedOut++
-	}
-
-	fmt.Printf("  %d marked sick, %d checked out\n", rt.Counts.StudentsSick, rt.Counts.StudentsCheckedOut)
-	return nil
-}
-
 // independentRoomStayCount is how many children the demo moves into the
 // released Sporthalle beside the football children.
 const independentRoomStayCount = 3
@@ -572,7 +414,7 @@ func (independentRoomStaysAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Println("\nPhase 5b: Independent stays in a released room...")
 
 	sporthalle := rt.State.Rooms["Sporthalle"]
-	if sporthalle == 0 || len(rt.ActiveRoomIDs) == 0 {
+	if sporthalle == 0 || len(rt.Rooms.order) == 0 {
 		fmt.Println("  Skipped: no Sporthalle or no checked-in children in this profile")
 		return nil
 	}
@@ -596,34 +438,15 @@ func (independentRoomStaysAction) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
-// checkedInChildrenOutside lists, in check-in order, up to limit children who
-// stay checked in through the day and were placed outside roomID, after
-// skipping the first skip of them. Children below the midday checkout range
-// stay checked in.
-func checkedInChildrenOutside(rt *Runtime, roomID int64, skip, limit int) []int64 {
-	ids := make([]int64, 0, limit)
-	for i := 0; i < 75 && i < fullDayCheckinLimit && i < len(rt.State.Students) && len(rt.ActiveRoomIDs) > 0; i++ {
-		if rt.ActiveRoomIDs[i%len(rt.ActiveRoomIDs)] == roomID {
-			continue
-		}
-		if skip > 0 {
-			skip--
-			continue
-		}
-		ids = append(ids, rt.State.Students[i].ID)
-		if len(ids) == limit {
-			break
-		}
-	}
-	return ids
-}
-
 // openRoomBlockTitle names the timetable block the demo runs in the released
 // Sporthalle, and openRoomBlockChildren is how many children it checks in.
 const (
 	openRoomBlockTitle    = "Turnen"
 	openRoomBlockChildren = 2
 )
+
+// The block's window: after the AGs of 14:00 have their own caregivers.
+var openRoomBlockStart, openRoomBlockEnd = at(14, 0), at(15, 30)
 
 type openRoomBlockAction struct{}
 
@@ -632,15 +455,20 @@ func (openRoomBlockAction) Name() string { return "run a block in a released roo
 // Run plans a block for today in the released Sporthalle, starts it, and
 // checks a few children into it. The Sporthalle already holds the football
 // session and the independent stays, so its room page shows a block section
-// beside them (#3281). The first caregiver is planned on the block. There is
-// no care on weekends, so the phase skips them.
+// beside them (#3281). The first caregiver who is on shift, supervises no
+// running session and has no other block at that time is planned on it, so
+// nobody supervises two rooms at once. There is no care on weekends, so the
+// phase skips them.
 func (openRoomBlockAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Println("\nPhase 5c: A block in a released room...")
 
 	sporthalle := rt.State.Rooms["Sporthalle"]
-	betreuer := rt.State.Accounts.Betreuer
-	if sporthalle == 0 || len(betreuer) == 0 || betreuer[0].StaffID == 0 {
-		fmt.Println("  Skipped: no Sporthalle or no caregiver in this profile")
+	caregiver, err := rt.freeCaregiver(openRoomBlockStart, openRoomBlockEnd)
+	if err != nil {
+		return err
+	}
+	if sporthalle == 0 || caregiver == 0 {
+		fmt.Println("  Skipped: no Sporthalle or no free caregiver in this profile")
 		return nil
 	}
 	berlin, err := time.LoadLocation("Europe/Berlin")
@@ -660,11 +488,11 @@ func (openRoomBlockAction) Run(_ context.Context, rt *Runtime) error {
 
 	created, err := rt.Client.Post("/api/timetable/instances", map[string]any{
 		"date":        today.Format(isoDate),
-		"start_time":  "14:00",
-		"end_time":    "15:30",
+		"start_time":  openRoomBlockStart.String(),
+		"end_time":    openRoomBlockEnd.String(),
 		"title":       openRoomBlockTitle,
 		"room_id":     sporthalle,
-		"staff_ids":   []int64{betreuer[0].StaffID},
+		"staff_ids":   []int64{caregiver},
 		"student_ids": studentIDs,
 	})
 	if err != nil {
@@ -714,14 +542,14 @@ func (kioskOpenRoomStayAction) Run(_ context.Context, rt *Runtime) error {
 	if !ok {
 		return fmt.Errorf("RFID assignment missing for student %d", studentIDs[0])
 	}
-	primaryDevice, err := rt.primaryDevice()
+	kiosk, err := rt.kioskOf(rt.Rooms.childRoom[studentIDs[0]])
 	if err != nil {
 		return err
 	}
 	if _, err := rt.Client.DevicePost("/api/iot/move-to-room", map[string]any{
 		"student_rfid": rfidTag,
 		"room_id":      sporthalle,
-	}, primaryDevice.APIKey, rt.State.DevicePIN); err != nil {
+	}, kiosk.APIKey, rt.State.DevicePIN); err != nil {
 		return fmt.Errorf("book the released Sporthalle at the kiosk: %w", err)
 	}
 	rt.Counts.IndependentStays++
@@ -761,66 +589,6 @@ func responseDataID(raw []byte) (int64, error) {
 	return id, nil
 }
 
-type endOfDayAction struct{}
-
-func (endOfDayAction) Name() string { return "run end-of-day flow" }
-
-func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
-	fmt.Println("\nPhase 6: End of day (daily checkout + end sessions)...")
-
-	primaryDevice, err := rt.primaryDevice()
-	if err != nil {
-		return err
-	}
-
-	for i := 0; i < 75 && i < len(rt.State.Students); i++ {
-		student := rt.State.Students[i]
-		rfidTag, ok := rt.RFIDTags[student.ID]
-		if !ok {
-			return fmt.Errorf("RFID assignment missing for student %d", student.ID)
-		}
-		// Query pickup info first (mirrors PyrePortal flow)
-		_, err := rt.Client.DevicePost("/api/iot/pickup-query", map[string]any{
-			"student_rfid": rfidTag,
-		}, primaryDevice.APIKey, rt.State.DevicePIN)
-		if err != nil {
-			return fmt.Errorf("query pickup for student %d: %w", student.ID, err)
-		}
-
-		body := map[string]any{
-			"rfid":        rfidTag,
-			"action":      "confirm_daily_checkout",
-			"destination": "zuhause",
-		}
-		_, err = rt.Client.DevicePost("/api/iot/attendance/toggle", body, primaryDevice.APIKey, rt.State.DevicePIN)
-		if err != nil {
-			return fmt.Errorf("record daily checkout for student %d: %w", student.ID, err)
-		}
-		rt.Counts.DailyCheckouts++
-
-		// Submit feedback (like the PyrePortal smiley picker after checkout)
-		feedbackBody := map[string]any{
-			"student_id": student.ID,
-			"value":      feedbackValues[rand.Intn(len(feedbackValues))],
-		}
-		_, err = rt.Client.DevicePost("/api/iot/feedback", feedbackBody, primaryDevice.APIKey, rt.State.DevicePIN)
-		if err != nil {
-			return fmt.Errorf("submit feedback for student %d: %w", student.ID, err)
-		}
-		rt.Counts.FeedbackSubmitted++
-	}
-	fmt.Printf("  %d daily checkouts, %d feedback submitted\n", rt.Counts.DailyCheckouts, rt.Counts.FeedbackSubmitted)
-
-	if err := completeOpenRoomBlock(rt); err != nil {
-		return err
-	}
-	if err := endActiveSessions(rt); err != nil {
-		return err
-	}
-	fmt.Printf("  %d sessions ended\n", rt.Counts.SessionsEnded)
-	return nil
-}
-
 func endActiveSessions(rt *Runtime) error {
 	var errs []error
 	for _, deviceKey := range slices.Clone(rt.ActiveSessionDeviceKeys) {
@@ -852,42 +620,24 @@ func (printSummaryAction) Name() string { return "print summary" }
 func (printSummaryAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Println("\n--- Simulation Summary ---")
 	fmt.Printf("  RFID tags assigned:  %d\n", rt.Counts.RFIDAssigned)
+	fmt.Printf("  Planned blocks:      %d\n", rt.Counts.BlocksStarted)
 	fmt.Printf("  Sessions started:    %d\n", rt.Counts.SessionsStarted)
 	fmt.Printf("  Attendance records:  %d\n", rt.Counts.AttendanceRecords)
 	fmt.Printf("  Students checked in: %d\n", rt.Counts.StudentsCheckedIn)
 	fmt.Printf("  Students sick:       %d\n", rt.Counts.StudentsSick)
-	fmt.Printf("  Students checked out:%d\n", rt.Counts.StudentsCheckedOut)
+	fmt.Printf("  Students unterwegs:  %d\n", rt.Counts.StudentsCheckedOut)
+	fmt.Printf("  Early care children: %d\n", rt.Counts.EarlyCareChildren)
+	fmt.Printf("  Early pickups:       %d\n", rt.Counts.EarlyPickups)
+	fmt.Printf("  Staff clocked in:    %d (%d on leave)\n", rt.Counts.StaffClockedIn, rt.Counts.StaffAbsent)
 	fmt.Printf("  Independent stays:  %d\n", rt.Counts.IndependentStays)
 	fmt.Printf("  Open-room block:    %d children\n", rt.Counts.OpenRoomBlockChildren)
+	fmt.Printf("  Messages written:   %d\n", rt.Counts.Messages)
 	if rt.Options.Close {
 		fmt.Printf("  Feedback submitted:  %d\n", rt.Counts.FeedbackSubmitted)
 		fmt.Println("  End-of-day:          completed")
 	}
 	fmt.Println("--------------------------")
 	return nil
-}
-
-func fullDayScenario(close bool) Scenario {
-	actions := []Action{
-		verifyServerAction{},
-		loginAdminAction{},
-		assignRFIDsAction{},
-		startSessionsAction{},
-		seedStaffFeedTombstoneAction{},
-		recordAttendanceAction{},
-		middayActivityAction{},
-		independentRoomStaysAction{},
-		openRoomBlockAction{},
-		kioskOpenRoomStayAction{},
-	}
-	if close {
-		actions = append(actions, endOfDayAction{})
-	}
-	actions = append(actions, printSummaryAction{})
-	return Scenario{
-		Name:    "full-day",
-		Actions: actions,
-	}
 }
 
 // findRoomForActivity maps activity names to their default rooms using the demo data convention.

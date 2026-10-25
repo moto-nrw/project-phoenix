@@ -17,7 +17,7 @@ type recordedCall struct {
 }
 
 // openRoomBlockRuntime is a full-day runtime after the sessions started: two
-// rooms in turn, the Sporthalle second, and five checked-in children.
+// rooms in turn, the Sporthalle second, and twelve checked-in children.
 func openRoomBlockRuntime(t *testing.T, now time.Time) (*Runtime, func() []recordedCall) {
 	t.Helper()
 
@@ -44,7 +44,12 @@ func openRoomBlockRuntime(t *testing.T, now time.Time) (*Runtime, func() []recor
 		Rooms:    map[string]int64{"OGS-Raum 1": 1, "Sporthalle": 2},
 	}
 	rt := newRuntime(state, newClient(srv.URL, false), FullDayOptions{Now: func() time.Time { return now }})
-	rt.ActiveRoomIDs = []int64{1, 2}
+	// Twelve children checked into the two rooms in turn; the caregiver has
+	// a shift through the afternoon.
+	for id := firstMockChild; id <= 12; id++ {
+		rt.Rooms.record(id, 2-id%2)
+	}
+	rt.Today.Shifts = []plannedShift{{StaffID: 10, StartTime: "08:00", EndTime: "16:30"}}
 	return rt, func() []recordedCall {
 		mu.Lock()
 		defer mu.Unlock()

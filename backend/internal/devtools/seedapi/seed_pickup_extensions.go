@@ -8,7 +8,7 @@ import (
 
 // Demo data for later pickup times without a block (#3261). "Freies Spiel"
 // is the afternoon block with children from the call, after the 14:00 AGs of
-// the same caregiver, "Teamsitzung" an office
+// the same caregiver, "Teamsitzung" a Wednesday office
 // appointment without children that must never be offered. Two children stay
 // longer than before: one on a single day (day task), one on every Thursday
 // (weekday task). Both show up as to-dos on the home page.
@@ -30,12 +30,16 @@ func seedPickupExtensionDemo(rt *Runtime, roomID, categoryID, trackID int64, stu
 			"student_ids": studentIDs[10:16], "staff_ids": staffIDs[:1], "primary_staff_id": staffIDs[0],
 		},
 		{
+			// A team meets once a week, not every afternoon.
 			"name": "Teamsitzung", "type": "external", "start_time": "15:00", "end_time": "15:45",
-			"staff_ids": staffIDs[1:2], "primary_staff_id": staffIDs[1],
+			"staff_ids": staffIDs[1:2], "primary_staff_id": staffIDs[1], "weekdays": []int{3},
 		},
 	}
 	for _, body := range templates {
-		body["weekdays"], body["week_pattern"], body["target_group_type"] = []int{1, 2, 3, 4, 5}, 0, "none"
+		if _, ok := body["weekdays"]; !ok {
+			body["weekdays"] = []int{1, 2, 3, 4, 5}
+		}
+		body["week_pattern"], body["target_group_type"] = 0, "none"
 		body["room_id"], body["category_id"], body["planning_track_id"] = roomID, categoryID, trackID
 		// Two weeks, so the pending parent request a week out has blocks too.
 		body["materialize_from"], body["materialize_to"] = today.String(), today.AddDays(13).String()

@@ -301,7 +301,7 @@ and #3455).
 
 Product screenshots are not PR evidence. They are the images for website, sales
 material and social media: every **Shot** of `frontend/scripts/product-screenshots/shots.yaml`
-photographed from the tenant and parents portal, plus **Geräte-Mockups** in the
+photographed from the tenant, parents and Träger portal, plus **Geräte-Mockups** in the
 official Apple bezels (see `CONTEXT.md`, "Produkt-Screenshots"; #3759).
 
 ```bash
@@ -314,9 +314,9 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
 - Needs the native stack (`scripts/dev-native.sh up`) seeded with the school
   profile `vollbetrieb`, the seeder's default and the demo's profile, followed by
   `scripts/dev-native.sh backend go run ./cmd/devtools simulate full-day`
-  (without it only a few children are present); the tenant
-  and parents logins come from
-  `backend/.seed-state.json`. Seed and capture must happen on the same Berlin
+  (without it only a few children are present); the tenant, parents and
+  Träger logins come from
+  `backend/.seed-state.json` (Träger: the profile's school admin). Seed and capture must happen on the same Berlin
   calendar day, or the command asks for a fresh seed instead of showing stale
   attendance. Only `*.localhost` hosts are photographed.
 - Tenant screenshot and E2E logins complete the real MFA flow through local
@@ -333,11 +333,24 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   (`reference-time.ts`). The server renders with its real clock, so the
   reference day must be the server's day; on a weekend a local run aborts on the
   resulting hydration error instead of printing an inconsistent image. The
-  workflow sets the runner's clock to the last Tuesday, 12:00 Berlin, after its
-  downloads and before migrating and seeding, and restores it before uploading,
-  so every release shows a Tuesday with presence stamped shortly after 12:00,
-  when the `vollbetrieb` weekly plans expect the children after their lessons.
-  A local run stamps presence with the real time of the seed.
+  workflow sets the runner's clock to the last Tuesday, 07:20 Berlin, after its
+  downloads and before migrating and seeding, and restores it before uploading.
+  `simulate full-day --clock-command "$RUNNER_TEMP/set-clock"` then moves the
+  clock forward wave by wave (`backend/internal/devtools/simulate/fullday_clock.go`).
+  The waves follow today's plan, read from the API: staff stamp in at their
+  shift start, planned blocks start at their planned time with their planned
+  staff (the Frühbetreuung at 07:30, the blocks running at 12:00), and only
+  caregivers on shift without a parallel block supervise the kiosk rooms that
+  open at 12:00. A planned block has no kiosk: its planned caregiver checks the
+  children of its roster in on the block, and a kiosk scans only children into
+  its own session room. Children arrive class by class from 12:00, 12:15 and
+  12:35 or at today's arrival exception; sick or not expected children stay
+  away, and a class arriving before any room is open waits for 12:00.
+  Colleagues on shift, parents and the OGS write messages between 07:45 and
+  12:50. Every stamp lies before the browser's 13:30, and `set-clock` keeps the
+  shift to the real time in `clock-shift` for the restore. Without
+  `--clock-command` (a local run) all waves run at once on the plan's times
+  and carry the real time.
   Text that depends on the time of day must therefore not be rendered on the
   server: the home greeting uses `useTimeBasedGreeting` (`src/lib/greeting.ts`).
 - Adding a shot: the list follows the help flows and PostHog usage (#3764),

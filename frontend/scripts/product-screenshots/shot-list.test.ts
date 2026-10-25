@@ -22,6 +22,10 @@ shots:
       - klicken: "text=Filter"
       - scrollen: 400
       - scrollen: "footer"
+      - tippen: { feld: "#email", text: "jonas@example.org" }
+      - zeichnen: "canvas"
+      - scrollen_im_bereich: "li >> nth=0"
+      - einblenden: "footer"
 `;
 
 describe("Shot-Liste", () => {
@@ -36,6 +40,10 @@ describe("Shot-Liste", () => {
       { klicken: "text=Filter" },
       { scrollen: 400 },
       { scrollen: "footer" },
+      { tippen: { feld: "#email", text: "jonas@example.org" } },
+      { zeichnen: "canvas" },
+      { scrollen_im_bereich: "li >> nth=0" },
+      { einblenden: "footer" },
     ]);
   });
 
@@ -50,6 +58,14 @@ describe("Shot-Liste", () => {
     expect(devicesFor(withDefault[0]!)).toEqual(["iphone", "ipad"]);
   });
 
+  it("kennt das Träger-Portal mit der Rolle traeger und Desktop-Geräten", () => {
+    const [traeger] = parseShotList(
+      "shots:\n  - {id: a, titel: A, portal: traeger, rolle: traeger, pfad: /ferien}",
+    );
+    expect(traeger?.portal).toBe("traeger");
+    expect(devicesFor(traeger!)).toEqual(["macbook", "ipad"]);
+  });
+
   it("weist unbekannte Felder ab", () => {
     expect(() =>
       parseShotList(
@@ -61,7 +77,26 @@ describe("Shot-Liste", () => {
   it("weist unbekannte Felder in Vorbereitungsschritten ab", () => {
     expect(() =>
       parseShotList(
-        "shots:\n  - {id: a, titel: A, portal: tenant, rolle: admin, pfad: /, vorbereitung: [{tippen: x}]}",
+        "shots:\n  - {id: a, titel: A, portal: tenant, rolle: admin, pfad: /, vorbereitung: [{druecken: x}]}",
+      ),
+    ).toThrow(/Ungültige Shot-Liste/);
+  });
+
+  it.each([
+    ["ohne Text", "{tippen: {feld: '#email'}}"],
+    ["mit leerem Feld", "{tippen: {feld: '', text: a}}"],
+    [
+      "mit unbekanntem Feld",
+      "{tippen: {feld: '#email', text: a, enter: true}}",
+    ],
+    ["als bloßer Text", "{tippen: '#email'}"],
+    ["mit leerem Selektor", "{zeichnen: ''}"],
+    ["im Bereich ohne Selektor", "{scrollen_im_bereich: ''}"],
+    ["einblenden ohne Selektor", "{einblenden: ''}"],
+  ])("weist einen Schritt tippen/zeichnen/scrollen %s ab", (_name, step) => {
+    expect(() =>
+      parseShotList(
+        `shots:\n  - {id: a, titel: A, portal: tenant, rolle: admin, pfad: /, vorbereitung: [${step}]}`,
       ),
     ).toThrow(/Ungültige Shot-Liste/);
   });
@@ -90,6 +125,14 @@ describe("Shot-Liste", () => {
     [
       "eine Rolle, die nicht zum Portal passt",
       "{id: a, titel: A, portal: tenant, rolle: eltern, pfad: /}",
+    ],
+    [
+      "eine Schulrolle im Träger-Portal",
+      "{id: a, titel: A, portal: traeger, rolle: admin, pfad: /}",
+    ],
+    [
+      "die Träger-Rolle im Schulportal",
+      "{id: a, titel: A, portal: tenant, rolle: traeger, pfad: /}",
     ],
     [
       "ein doppeltes Gerät",

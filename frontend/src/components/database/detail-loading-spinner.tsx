@@ -13,6 +13,7 @@ export function DetailLoadingSpinner({ label }: DetailLoadingSpinnerProps) {
     <div
       role="status"
       aria-live="polite"
+      aria-busy="true"
       className="flex h-full min-h-[240px] items-center justify-center"
     >
       <div className="flex flex-col items-center gap-4">

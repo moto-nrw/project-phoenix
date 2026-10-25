@@ -26,7 +26,7 @@ func TestFamilyAppGuardiansCoverEveryOtherChildOnce(t *testing.T) {
 	// other parent of the same child.
 	parents := []ParentCredentials{{GuardianID: ids["Sabine Schneider"]}}
 
-	guardians, err := familyAppGuardians(ids, parents)
+	indexes, err := familyAppGuardianIndexes(ids, parents)
 	require.NoError(t, err)
 
 	// A guardian of siblings has one entry per child and one account for all.
@@ -37,12 +37,12 @@ func TestFamilyAppGuardiansCoverEveryOtherChildOnce(t *testing.T) {
 	}
 	children := map[int]bool{}
 	listed := map[int64]bool{}
-	for _, id := range guardians {
+	for _, index := range indexes {
+		require.Less(t, index, len(DemoGuardians), "index %d is a demo guardian", index)
+		id := ids[demoGuardianKey(DemoGuardians[index])]
 		assert.False(t, listed[id], "guardian %d is listed once", id)
 		listed[id] = true
-		entries, ok := entriesByID[id]
-		require.True(t, ok, "guardian %d is a demo guardian", id)
-		for _, guardian := range entries {
+		for _, guardian := range entriesByID[id] {
 			assert.True(t, guardian.IsPrimary, "%s %s", guardian.FirstName, guardian.LastName)
 			assert.False(t, children[guardian.StudentIndex], "child %d gets one account", guardian.StudentIndex)
 			children[guardian.StudentIndex] = true
@@ -58,7 +58,7 @@ func TestFamilyAppGuardiansCoverEveryOtherChildOnce(t *testing.T) {
 func TestFamilyAppGuardiansReportAMissingGuardian(t *testing.T) {
 	t.Parallel()
 
-	_, err := familyAppGuardians(map[string]int64{}, nil)
+	_, err := familyAppGuardianIndexes(map[string]int64{}, nil)
 	require.Error(t, err)
 }
 
