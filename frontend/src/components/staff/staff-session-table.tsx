@@ -23,9 +23,16 @@ import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
   berlinTodayISO,
   endOfBerlinDayISO,
+  isoWeekNumber,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import {
+  dayLaborHints,
+  indexLaborDays,
+  weekLaborHints,
+  type LaborHint,
+} from "~/lib/labor-time-hints";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type {
@@ -43,6 +50,8 @@ import {
   toIsoDayOfWeek,
 } from "~/lib/staff-metrics-helpers";
 import type {
+  WeeklySummary,
+  WorkDayLaborHint,
   WorkSessionEdit,
   WorkSessionHistory,
 } from "~/lib/time-tracking-helpers";
@@ -227,7 +236,8 @@ function splitSessionByBerlinDate(
 //
 // MVP Limitation tracker:
 //   - admin edit-in-place (SquarePen action column) — Tranche 1b
-//   - ArbZG warning chips - Tranche 3 (#896)
+//   - ArbZG-Hinweise (#4804): Pause zu kurz und mehr als 10 Std. je Tag,
+//     mehr als 48 Std. je Woche — vom Server bewertet, nur Hinweise
 export function StaffSessionTable({
   staffId,
   from,
@@ -252,6 +262,8 @@ export function StaffSessionTable({
   onEditDay,
   onBackfillAbsence,
   fetchEdits,
+  laborDays,
+  weeklySummaries,
 }: {
   readonly staffId: string;
   readonly from: Date;
@@ -338,6 +350,13 @@ export function StaffSessionTable({
     staffId: string,
     sessionId: string,
   ) => Promise<WorkSessionEdit[]>;
+  // ArbZG-Sicht je Arbeitstag vom Server (#4804), nach Tag des Einstempelns.
+  // Ein Nachtblock trägt seinen Hinweis deshalb am Tag, an dem er begann.
+  readonly laborDays?: readonly WorkDayLaborHint[];
+  // Wochensummen vom Server. Nur wenn gesetzt, schließt jede Woche mit einer
+  // Summenzeile ab, die mehr als 48 Std. markiert. Der Aufrufer lädt dafür
+  // ganze Kalenderwochen, auch über den Rand des sichtbaren Monats hinaus.
+  readonly weeklySummaries?: readonly WeeklySummary[];
 }) {
   // Die Segmentierung unten liest die Uhr: ein offener Block wird an ihr
   // gekappt, und ein Nachtblock bekommt sein zweites Segment erst, wenn der
@@ -397,6 +416,19 @@ export function StaffSessionTable({
     return map;
   }, [plannedShifts]);
   const columnCount = COLUMN_COUNT + (showPlan ? 1 : 0);
+  const laborDaysByDate = useMemo(() => indexLaborDays(laborDays), [laborDays]);
+  const weeklySummaryByKey = useMemo(
+    () =>
+      weeklySummaries
+        ? new Map(
+            weeklySummaries.map((week) => [
+              `${week.year}-${week.weekNumber}`,
+              week,
+            ]),
+          )
+        : null,
+    [weeklySummaries],
+  );
 
   // Absences arrive as date ranges; expand to a per-day lookup so each row in
   // the table can ask "is this date covered by Krank/Urlaub/etc?". Mirrors the
@@ -614,8 +646,13 @@ export function StaffSessionTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {days.map((day) => {
+              {days.map((day, dayIndex) => {
                 const key = toDateKey(day);
+                const weekKey = isoWeekKey(day);
+                const nextDay = days[dayIndex + 1];
+                const closesWeek =
+                  weeklySummaryByKey !== null &&
+                  (nextDay === undefined || isoWeekKey(nextDay) !== weekKey);
                 const dow = toIsoDayOfWeek(day);
                 const daySessions = sessionsByDate.get(key) ?? [];
                 // Single-block days keep their familiar row; multi-block days
@@ -910,6 +947,7 @@ export function StaffSessionTable({
                           <HintBadges
                             sessions={daySessions}
                             holidayName={holidayName}
+                            laborHints={dayLaborHints(laborDaysByDate.get(key))}
                           />
                           {canEdit && (
                             // Zeilenaktion nur im Kebab der Zeile (BAUARTEN-
@@ -1167,6 +1205,15 @@ export function StaffSessionTable({
                             </td>
                           </tr>
                         ))}
+                    {closesWeek && (
+                      <WeekSummaryRow
+                        day={day}
+                        from={from}
+                        to={to}
+                        summary={weeklySummaryByKey?.get(weekKey)}
+                        leadingColumns={showPlan ? 7 : 6}
+                      />
+                    )}
                   </Fragment>
                 );
               })}
@@ -1439,15 +1486,19 @@ function SourceBadges({
   return <StatusBadge label="App" tone="gray" />;
 }
 
+const NO_LABOR_HINTS: readonly LaborHint[] = [];
+
 // Hinweis-Spalte für orthogonale System- und Korrektur-Hinweise. Mehrere
 // Pills können gleichzeitig sichtbar sein (z.B. NFC-Session mit Auto-Checkout
 // UND nachträglicher Korrektur).
 function HintBadges({
   sessions,
   holidayName,
+  laborHints = NO_LABOR_HINTS,
 }: {
   readonly sessions: readonly StaffHistorySession[];
   readonly holidayName?: string;
+  readonly laborHints?: readonly LaborHint[];
 }) {
   if (sessions.length === 0) {
     return <span className="text-xs text-gray-300">–</span>;
@@ -1476,6 +1527,14 @@ function HintBadges({
     pills.push({
       key: "auto-checkout",
       label: "Auto-Checkout",
+      tone: "orange",
+    });
+  }
+  for (const hint of laborHints) {
+    pills.push({
+      key: hint.key,
+      label: hint.label,
+      title: hint.title,
       tone: "orange",
     });
   }
@@ -1518,6 +1577,74 @@ function deltaClass(delta: number): string {
   if (delta < -15) return "text-moto-red-strong font-medium";
   if (delta < 0) return "font-medium text-gray-500";
   return "text-moto-green-strong font-medium";
+}
+
+// Wochensumme am Ende jeder Kalenderwoche (#4804). Die Summe kommt vom
+// Server und gilt für die GANZE Woche: im Monatsblick reicht die erste oder
+// letzte Woche über den Monatsrand, und die 48-Std.-Grenze gilt je Woche,
+// nicht je sichtbarem Ausschnitt.
+function WeekSummaryRow({
+  day,
+  from,
+  to,
+  summary,
+  leadingColumns,
+}: {
+  readonly day: Date;
+  readonly from: Date;
+  readonly to: Date;
+  readonly summary: WeeklySummary | undefined;
+  readonly leadingColumns: number;
+}) {
+  const monday = new Date(day);
+  monday.setDate(monday.getDate() - toIsoDayOfWeek(day));
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  const reachesBeyond =
+    toDateKey(monday) < toDateKey(from) || toDateKey(sunday) > toDateKey(to);
+  const hints = weekLaborHints(summary);
+  return (
+    <tr className="bg-gray-50 text-xs font-medium text-gray-600">
+      <td colSpan={leadingColumns} className="px-3 py-2">
+        <span
+          title={
+            reachesBeyond
+              ? "Summe der ganzen Kalenderwoche, auch der Tage außerhalb dieser Ansicht"
+              : undefined
+          }
+        >
+          {`Summe KW ${isoWeekNumber(toDateKey(day))}`}
+          {reachesBeyond ? " (ganze Woche)" : ""}
+        </span>
+      </td>
+      <td className="px-3 py-2 text-right whitespace-nowrap text-gray-700 tabular-nums">
+        {summary ? formatDuration(summary.totalNetMinutes) : "–"}
+      </td>
+      <td colSpan={4} className="px-3 py-2" />
+      <td className="px-3 py-2">
+        {hints.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {hints.map((hint) => (
+              <StatusBadge
+                key={hint.key}
+                label={hint.label}
+                tone="orange"
+                title={hint.title}
+              />
+            ))}
+          </div>
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
+// ISO-Jahr und -Woche eines Tags, im Format der Server-Wochensummen. Das Jahr
+// ist das des Donnerstags der Woche, nicht das Kalenderjahr des Tags.
+function isoWeekKey(d: Date): string {
+  const thursday = new Date(d);
+  thursday.setDate(thursday.getDate() + 3 - toIsoDayOfWeek(d));
+  return `${thursday.getFullYear()}-${isoWeekNumber(toDateKey(d))}`;
 }
 
 function toDateKey(d: Date): string {

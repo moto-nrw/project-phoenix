@@ -53,7 +53,7 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   audit_count?: number;
 }
 
-interface BackendWeeklySummary {
+export interface BackendWeeklySummary {
   week_number: number;
   year: number;
   total_net_minutes: number;
@@ -63,9 +63,27 @@ interface BackendWeeklySummary {
   is_over_weekly_max: boolean;
 }
 
+// ArbZG-Sicht eines Arbeitstags (#4804): alle Blöcke, die an diesem
+// Berliner Tag eingestempelt wurden, gemeinsam bewertet. Die Instants nennen
+// bei laufender Arbeit (ohne laufende Pause), ab wann ein Hinweis gilt.
+export interface BackendWorkDayLaborHint {
+  date: string;
+  net_minutes: number;
+  break_minutes: number;
+  counted_break_minutes: number;
+  required_break_minutes: number;
+  is_break_too_short: boolean;
+  is_over_daily_max: boolean;
+  is_running: boolean;
+  over_daily_max_at: string | null;
+  break_too_short_at: string | null;
+  break_too_short_required_minutes: number;
+}
+
 export interface BackendHistoryResponse {
   sessions: BackendWorkSessionHistory[];
   weekly_summaries: BackendWeeklySummary[];
+  labor_days?: BackendWorkDayLaborHint[] | null;
 }
 
 export interface BackendWorkSessionEdit {
@@ -411,6 +429,22 @@ export interface WeeklySummary {
   isOverWeeklyMax: boolean;
 }
 
+export interface WorkDayLaborHint {
+  /** Tag des Einstempelns, "YYYY-MM-DD". */
+  date: string;
+  netMinutes: number;
+  breakMinutes: number;
+  /** Pausen, die für das Arbeitszeitgesetz zählen (je mindestens 15 Min.). */
+  countedBreakMinutes: number;
+  requiredBreakMinutes: number;
+  isBreakTooShort: boolean;
+  isOverDailyMax: boolean;
+  isRunning: boolean;
+  overDailyMaxAt: string | null;
+  breakTooShortAt: string | null;
+  breakTooShortRequiredMinutes: number;
+}
+
 export interface WorkSessionEdit {
   id: string;
   sessionId: string;
@@ -500,19 +534,49 @@ function mapWeeklySummaryResponse(data: BackendWeeklySummary): WeeklySummary {
   };
 }
 
-/**
- * Maps the full history response (sessions + weekly summaries)
- */
-export function mapHistoryResponse(data: BackendHistoryResponse): {
+export function mapWorkDayLaborHint(
+  data: BackendWorkDayLaborHint,
+): WorkDayLaborHint {
+  return {
+    date: data.date,
+    netMinutes: data.net_minutes,
+    breakMinutes: data.break_minutes,
+    countedBreakMinutes: data.counted_break_minutes,
+    requiredBreakMinutes: data.required_break_minutes,
+    isBreakTooShort: data.is_break_too_short,
+    isOverDailyMax: data.is_over_daily_max,
+    isRunning: data.is_running,
+    overDailyMaxAt: data.over_daily_max_at ?? null,
+    breakTooShortAt: data.break_too_short_at ?? null,
+    breakTooShortRequiredMinutes: data.break_too_short_required_minutes,
+  };
+}
+
+export interface HistoryResult {
   sessions: WorkSessionHistory[];
   weeklySummaries: WeeklySummary[];
-} {
+  laborDays: WorkDayLaborHint[];
+}
+
+/**
+ * Maps the full history response (sessions, weekly summaries, ArbZG hints)
+ */
+export function mapHistoryResponse(
+  data: BackendHistoryResponse,
+): HistoryResult {
   return {
     sessions: (data.sessions ?? []).map(mapWorkSessionHistoryResponse),
     weeklySummaries: (data.weekly_summaries ?? []).map(
       mapWeeklySummaryResponse,
     ),
+    laborDays: (data.labor_days ?? []).map(mapWorkDayLaborHint),
   };
+}
+
+export function mapWeeklySummaries(
+  data: readonly BackendWeeklySummary[] | null | undefined,
+): WeeklySummary[] {
+  return (data ?? []).map(mapWeeklySummaryResponse);
 }
 
 /**

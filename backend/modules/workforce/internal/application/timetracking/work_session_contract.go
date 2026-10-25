@@ -129,6 +129,8 @@ type summaryWeekKey struct {
 type HistoryResponse struct {
 	Sessions        []*SessionResponse `json:"sessions"`
 	WeeklySummaries []WeeklySummary    `json:"weekly_summaries"`
+	// LaborDays is the ArbZG view per check-in day inside the range (#4804).
+	LaborDays []WorkDayLaborHint `json:"labor_days"`
 }
 
 // WorkSessionEditView decorates an audit row with the editor's display name
