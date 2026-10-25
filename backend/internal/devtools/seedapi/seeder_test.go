@@ -1065,6 +1065,15 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.URL.Path == "/api/holiday-weeks/" {
+			// The hosting school's weeks with the confirmed siblings (#4665).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":51,"participants":2}]}`)
+			return
+		}
+		if r.URL.Path == "/api/holiday-weeks/51/participants" {
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"participants":[]}}`)
+			return
+		}
 		// The Träger master data step (#4653) uploads a multipart logo and
 		// reads the bank accounts it already has.
 		if strings.HasPrefix(r.URL.Path, "/traeger/master-data/") {
