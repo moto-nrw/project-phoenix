@@ -44,13 +44,18 @@ type EditPickupChangeRequestBody struct {
 	DepartureMode   string `json:"departure_mode"`
 	Reason          string `json:"reason"`
 	ExpectedVersion string `json:"expected_version"`
+	// PickupPersonGuardianProfileID names the one-day collector; Signature is
+	// needed for a collector or walking home alone (#4780).
+	PickupPersonGuardianProfileID *string                      `json:"pickup_person_guardian_profile_id"`
+	Signature                     *declarationSignatureRequest `json:"signature,omitempty"`
 }
 
 // EditCareScheduleRequestBody is the wire shape of
 // PUT /parent/me/children/{studentId}/care-schedule/requests/{requestId}.
 type EditCareScheduleRequestBody struct {
-	Payload         map[string]any `json:"payload"`
-	ExpectedVersion string         `json:"expected_version"`
+	Payload         map[string]any               `json:"payload"`
+	ExpectedVersion string                       `json:"expected_version"`
+	Signature       *declarationSignatureRequest `json:"signature,omitempty"`
 }
 
 // EditMasterDataRequestBody is the wire shape of
@@ -189,7 +194,13 @@ func (rs *Resource) editPickupChangeRequest(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	departureMode := strings.TrimSpace(body.DepartureMode)
-	if pickup == nil && departureMode == "" {
+	preservePickupDeclaration := body.PickupPersonGuardianProfileID == nil && body.Signature == nil
+	personID, err := parsePickupPersonID(body.PickupPersonGuardianProfileID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if pickup == nil && departureMode == "" && personID == 0 {
 		renderParentWriteError(w, r, parentService.ErrNoCareException)
 		return
 	}
@@ -197,10 +208,10 @@ func (rs *Resource) editPickupChangeRequest(w http.ResponseWriter, r *http.Reque
 	if pickup != nil {
 		pickupTime = *pickup
 	}
-	row, err := rs.ParentService.EditPickupChangeRequest(
-		r.Context(), target.accountID, target.studentID, target.requestID,
-		date, pickupTime, departureMode, body.Reason, body.ExpectedVersion,
-	)
+	row, err := rs.ParentService.EditPickupChange(r.Context(), target.accountID, target.studentID, target.requestID, parentService.PickupChangeEdit{
+		Date: date, PickupTime: pickupTime, DepartureMode: departureMode, Reason: body.Reason, ExpectedVersion: body.ExpectedVersion,
+		PickupPersonID: personID, Signature: body.Signature.pickupInput(), PreservePickupDeclaration: preservePickupDeclaration,
+	})
 	if err != nil {
 		renderParentRequestError(w, r, err)
 		return
@@ -222,8 +233,8 @@ func (rs *Resource) editCareScheduleRequest(w http.ResponseWriter, r *http.Reque
 	if !decodeEditBody(w, r, &body) {
 		return
 	}
-	view, err := rs.ParentService.EditCareScheduleRequest(
-		r.Context(), target.accountID, target.studentID, target.requestID, body.Payload, body.ExpectedVersion,
+	view, err := rs.ParentService.EditSignedCareScheduleRequest(
+		r.Context(), target.accountID, target.studentID, target.requestID, body.Payload, body.ExpectedVersion, body.Signature.pickupInput(),
 	)
 	if err != nil {
 		renderParentRequestError(w, r, err)

@@ -181,6 +181,42 @@
       "legacy": "care.declaration_signature_required"
     },
     {
+      "code": "care.pickup_permission_request_required",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care.pickup_permission_request_required"
+    },
+    {
+      "code": "care.pickup_permission_unchanged",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care.pickup_permission_unchanged"
+    },
+    {
+      "code": "care.pickup_person_not_linked",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.pickup_person_not_linked"
+    },
+    {
+      "code": "care.pickup_proof_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care.pickup_proof_not_found"
+    },
+    {
+      "code": "care.pickup_signature_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.pickup_signature_invalid"
+    },
+    {
+      "code": "care.pickup_signature_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.pickup_signature_required"
+    },
+    {
       "code": "care.declaration_version_changed",
       "class": "business_rejection",
       "parameters": [],
@@ -2928,6 +2964,18 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "change_request_stale"
+    },
+    {
+      "code": "students.pickup_permission_contact_gone",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.pickup_permission_contact_gone"
+    },
+    {
+      "code": "students.pickup_proof_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.pickup_proof_not_found"
     },
     {
       "code": "students.checkin_care_ended",

@@ -521,7 +521,7 @@ func toDirectoryLink(link *peopledirectory.GuardianRelationshipSnapshot, granted
 		ID: link.ID, TenantID: link.GetTenantID(), StudentID: link.StudentID, GuardianProfileID: link.GuardianProfileID,
 		RelationshipType: link.RelationshipType, GuardianRole: link.GuardianRole,
 		IsPrimary: link.IsPrimary, IsEmergencyContact: link.IsEmergencyContact, CanPickup: link.CanPickup,
-		PickupNotes: link.PickupNotes, EmergencyPriority: link.EmergencyPriority, IsPayer: link.IsPayer,
+		PickupNotes: link.PickupNotes, PickupWeekdays: link.PickupWeekdays, EmergencyPriority: link.EmergencyPriority, IsPayer: link.IsPayer,
 		Permissions: grantedGuardianPermissions(link, granted),
 	}
 }

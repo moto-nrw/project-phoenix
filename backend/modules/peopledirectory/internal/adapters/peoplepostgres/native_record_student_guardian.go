@@ -27,6 +27,7 @@ func NativeGuardianRelationshipValue(value *models.StudentGuardian) *directory.G
 	result.IsEmergencyContact = value.IsEmergencyContact
 	result.CanPickup = value.CanPickup
 	result.PickupNotes = value.PickupNotes
+	result.PickupWeekdays = value.PickupWeekdays
 	result.EmergencyPriority = value.EmergencyPriority
 	result.IsPayer = value.IsPayer
 	if value.Permissions != nil {
@@ -53,6 +54,7 @@ func GuardianRelationshipRow(value *directory.GuardianRelationshipSnapshot) (*mo
 	result.IsEmergencyContact = value.IsEmergencyContact
 	result.CanPickup = value.CanPickup
 	result.PickupNotes = value.PickupNotes
+	result.PickupWeekdays = value.PickupWeekdays
 	result.EmergencyPriority = value.EmergencyPriority
 	result.IsPayer = value.IsPayer
 	if value.Permissions != nil {

@@ -141,6 +141,7 @@ func (rs *Resource) mountCommunicationRoutes(r chi.Router, authRateLimiter func(
 	r.Post("/me/news/{announcementId}/read", rs.markAnnouncementRead)
 	r.Post("/me/news/{announcementId}/acknowledge", rs.acknowledgeAnnouncement)
 	rs.mountDeclarationRoutes(r, authRateLimiter)
+	rs.mountPickupPermissionRoutes(r)
 	// Poll answer, one child per call (#1371).
 	r.Post("/me/news/{announcementId}/respond", rs.respondToAnnouncement)
 	// Survey (#4781), one answer per guardian account.

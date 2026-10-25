@@ -1003,6 +1003,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	// Ids of the parent pickup changes the seeder files, served back as the
 	// open care queue so the decided demo request (#3135) finds its tokens.
 	var pickupRequestIDs []int64
+	// lastGuardianID is the parent-managed contact the pickup permission
+	// request of #4780 names.
+	var lastGuardianID int64
 	var trace *fullSeedAPITrace
 	if len(traces) > 0 {
 		trace = traces[0]
@@ -1374,6 +1377,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/parent/me/children/") && strings.HasSuffix(r.URL.Path, "/pickup-signature-statement") && r.Method == seedHTTPMethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"statement": "Serverseitig erzeugte Abholerlaubnis."},
+			})
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/parent/me/children/") && strings.HasSuffix(r.URL.Path, "/care-exception") && r.Method == seedHTTPMethodPost {
 			pickupRequestIDs = append(pickupRequestIDs, idCounter)
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -1491,7 +1500,17 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/parent/me/children/") && strings.HasSuffix(r.URL.Path, "/pickup-permission-requests") && r.Method == seedHTTPMethodGet {
+			pickupRequestIDs = append(pickupRequestIDs, idCounter)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{
+					"id": fmt.Sprintf("%d", idCounter), "guardian_profile_id": fmt.Sprintf("%d", lastGuardianID), "status": "pending",
+				}},
+			})
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/parent/me/children/") && strings.HasSuffix(r.URL.Path, "/guardians") && r.Method == seedHTTPMethodPost {
+			lastGuardianID = idCounter
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"guardian_profile_id": fmt.Sprintf("%d", idCounter)},
 			})

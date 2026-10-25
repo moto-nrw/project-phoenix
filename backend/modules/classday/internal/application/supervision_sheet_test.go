@@ -39,3 +39,20 @@ func TestRecordSupervisionSheetAuditStoresStudentID(t *testing.T) {
 		assert.Equal(t, sheet.StudentID, *entry.StudentID)
 	}
 }
+
+func TestFoldSupervisionContactsLimitsPickupPermissionToWeekdays(t *testing.T) {
+	t.Parallel()
+
+	rows := []EmergencyContactRow{{
+		StudentID: 1, GuardianProfileID: 2, FirstName: "Erika", LastName: "Muster",
+		CanPickup: true, PickupWeekdays: []int{2, 4},
+	}}
+
+	tuesday := foldSupervisionContacts(rows, 1, calendar.NewDate(2026, 9, 8))
+	require.Len(t, tuesday, 1)
+	assert.True(t, tuesday[0].canPickup)
+
+	wednesday := foldSupervisionContacts(rows, 1, calendar.NewDate(2026, 9, 9))
+	require.Len(t, wednesday, 1)
+	assert.False(t, wednesday[0].canPickup)
+}

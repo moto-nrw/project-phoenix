@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 )
 
 // CreateGuardianContact adds an accountless contact to the child.
@@ -25,24 +27,28 @@ func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentI
 	if err := s.requireGuardianManagementEnabled(ctx, child.TenantID); err != nil {
 		return nil, err
 	}
-	if (input.CanPickup || input.IsEmergencyContact) && !child.HasPermission(GuardianPermissionPickupManage) {
-		return nil, ErrGuardianPermissionDenied
-	}
-	if s.Guardians == nil {
-		return nil, errors.New("parent: guardian records are not configured")
+	pickupWeekdays, err := s.checkNewContactFlags(child, input)
+	if err != nil {
+		return nil, err
 	}
 
 	var result *ChildGuardian
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		created, err := s.createGuardianContactInTx(txCtx, child, accountID, studentID, input)
+		if err != nil || !input.CanPickup {
+			result = created
+			return err
+		}
 		result = created
+		_, err = s.createPickupPermissionRequestInTx(txCtx, child, accountID, studentID, created.GuardianProfileID,
+			pickupWeekdays, PickupPermissionInput{Signature: input.PickupSignature})
 		return err
 	})
 	if txErr != nil {
 		if errors.Is(txErr, ErrGuardianEmailConflict) {
 			return nil, ErrGuardianEmailConflict
 		}
-		return nil, txErr
+		return nil, MapCareRequestError(txErr, "create guardian contact")
 	}
 
 	s.Logger.Info("parent created guardian contact",
@@ -52,6 +58,29 @@ func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentI
 		slog.Int64("tenant_id", child.TenantID),
 	)
 	return result, nil
+}
+
+// checkNewContactFlags gates the pickup and emergency flags of a new contact
+// on parent_portal.pickup.manage and returns the weekdays a requested pickup
+// permission asks for. The pickup permission needs a signature (#4780).
+func (s *Service) checkNewContactFlags(child *Child, input CreateGuardianContactInput) ([]int, error) {
+	if (input.CanPickup || input.IsEmergencyContact) && !child.HasPermission(GuardianPermissionPickupManage) {
+		return nil, ErrGuardianPermissionDenied
+	}
+	pickupWeekdays, err := carerequests.NormalizeWeekdays(input.PickupWeekdays)
+	if err != nil {
+		return nil, ErrInvalidCareRequestPayload
+	}
+	if input.CanPickup && input.PickupSignature == nil {
+		return nil, ErrPickupSignatureRequired
+	}
+	if input.CanPickup && s.CareRequests == nil {
+		return nil, errors.New("parent: pickup permission requests are not configured")
+	}
+	if s.Guardians == nil {
+		return nil, errors.New("parent: guardian records are not configured")
+	}
+	return pickupWeekdays, nil
 }
 
 // createGuardianContactInTx writes the new profile, its phones and its link to
@@ -91,8 +120,9 @@ func (s *Service) createGuardianContactInTx(ctx context.Context, child *Child, a
 	if err := s.auditContactChanges(ctx, accountID, studentID, profile.ID, guardianContactSnapshot{}, profile, phones); err != nil {
 		return nil, err
 	}
+	granted := false
 	flagInput := GuardianRelationshipInput{
-		CanPickup:          &input.CanPickup,
+		CanPickup:          &granted,
 		IsEmergencyContact: &input.IsEmergencyContact,
 	}
 	if err := s.auditPickupFlagChanges(ctx, accountID, studentID, profile.ID, flagInput, false, false); err != nil {
@@ -177,6 +207,9 @@ func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, 
 		EmergencyPriority:  1,
 	}
 	s.applyDefaultGuardianRole(link)
+	// The role follows what the family asks for; the pickup permission itself
+	// waits for the OGS to confirm the signed request (#4780).
+	link.CanPickup = false
 	link.TenantID = tenantID
 	if err := s.GuardianPolicy.NormalizeRelationship(link); err != nil {
 		return nil, err

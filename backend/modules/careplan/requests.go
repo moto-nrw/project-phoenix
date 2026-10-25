@@ -56,6 +56,8 @@ type ExcusedAbsenceDecision struct {
 type CareScheduleChangeRequest = carerequests.Request
 
 type CareScheduleRequestFilter struct {
+	// IDs restricts the listing to exact rows. Nil means no ID filter.
+	IDs          []int64
 	StudentID    int64
 	RequestKinds []string
 	Statuses     []string

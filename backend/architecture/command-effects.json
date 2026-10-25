@@ -7963,6 +7963,32 @@
     },
     {
       "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests.PickupPermissionApprovals.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.pickupPermissionApprovalAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/workflows/parentportal.PickupPermissionApprovals.ApplyPickupPermission",
+      "target_owner": "parent-portal",
+      "binding_digest": "ecfe71211ca60429bbac25195af91318",
+      "effect": "mutation",
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0111",
+      "reason": "Bounded coordination debt: Parent Portal locks and rechecks the People Directory contact, then invokes Care Plan's guarded pickup-permission command in the same tenant transaction. A dedicated workflow contract remains follow-up work."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests.PickupPermissionApprovals.ValidatePickupPerson",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.pickupPermissionApprovalAdapter.ValidatePickupPerson",
+      "target": "github.com/moto-nrw/project-phoenix/workflows/parentportal.PickupPermissionApprovals.ValidatePickupPerson",
+      "target_owner": "parent-portal",
+      "binding_digest": "3990f6577bc2a7340f58f85982671f2a",
+      "effect": "lock",
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0111",
+      "reason": "Bounded coordination debt: Parent Portal locks and rechecks the stored one-day collector before Care Plan writes its dated pickup note in the same tenant transaction. A dedicated workflow contract remains follow-up work."
+    },
+    {
+      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests.Service.CreatePickupChangeRequest",
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CareScheduleRequestService.CreatePickupChangeRequest",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
@@ -9319,6 +9345,28 @@
       "adr": "0067",
       "approval_adr": "0083",
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/peopledirectory/internal/application.StudentRoutePersons.UpdatePerson; modules/peopledirectory/internal/application/student_route_persons.go:50. "
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.PickupSignatureProofs.PickupSignatureProof",
+      "binding": "github.com/moto-nrw/project-phoenix/api.staffPickupSignatures.PickupSignatureProof",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.Signatures",
+      "target_owner": "audit-platform",
+      "binding_digest": "182b052b27e179a909e46ba1a9371720",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: the OGS proof of a signed parent request (#4780) reads its stored signature through modules/auditlog.SignatureLedger.Signatures (audit-platform), a tenant-scoped SELECT of audit.signatures by id inside the caller's tenant transaction. No owned-row mutation, lock or scope effect."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.ReportRenderer.RenderReport",
+      "binding": "github.com/moto-nrw/project-phoenix/api.declarationReports.RenderReport",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
+      "target_owner": "document-rendering",
+      "binding_digest": "3a587bdb139363c30ed7326bb0590745",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: care-plan renders the PDF proof of a signed parent request (#4780) through modules/documentrendering/lists.RecordRenderer.RenderRecords (document-rendering) via api.declarationReports.RenderReport. No persistent, lock or scope effect."
     },
     {
       "source_owner": "care-plan",
@@ -14440,6 +14488,19 @@
     },
     {
       "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupApprovalDirectory.ValidatePickupPerson",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.pickupApprovalAdapter.ValidatePickupPerson",
+      "target": "github.com/moto-nrw/project-phoenix/workflows/parentportal.PickupPermissionApprovals.ValidatePickupPerson",
+      "target_owner": "parent-portal",
+      "binding_digest": "54d23424c3e7dc1f2bf98bc740d3b1a9",
+      "effect": "lock",
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0111",
+      "reason": "Bounded coordination debt: Parent Portal locks and rechecks the stored one-day collector before Care Plan writes its dated pickup note in the same tenant transaction. A dedicated workflow contract remains follow-up work."
+    },
+    {
+      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.PickupApprovalLocker.LockStudentAndExceptionDay",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayLocker.LockStudentAndExceptionDay",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
@@ -15318,6 +15379,19 @@
     },
     {
       "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestCorrectionPlans.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/workflows/parentportal.PickupPermissionApprovals.ApplyPickupPermission",
+      "target_owner": "parent-portal",
+      "binding_digest": "64babea8edd52314788ae2aa068ac337",
+      "effect": "mutation",
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0111",
+      "reason": "Bounded coordination debt: Parent Portal locks and rechecks the People Directory contact, then invokes Care Plan's guarded pickup-permission command in the same tenant transaction. A dedicated workflow contract remains follow-up work."
+    },
+    {
+      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestCorrectionPlans.ApplyPickup",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickup",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
@@ -15490,6 +15564,19 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.MissingStudentError; modules/peopledirectory/ports/repository_vocabulary.go:364. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.RequestDecisionPlans.ApplyPickupPermission",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.requestDecisionAdapter.ApplyPickupPermission",
+      "target": "github.com/moto-nrw/project-phoenix/workflows/parentportal.PickupPermissionApprovals.ApplyPickupPermission",
+      "target_owner": "parent-portal",
+      "binding_digest": "64babea8edd52314788ae2aa068ac337",
+      "effect": "mutation",
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0111",
+      "reason": "Bounded coordination debt: Parent Portal locks and rechecks the People Directory contact, then invokes Care Plan's guarded pickup-permission command in the same tenant transaction. A dedicated workflow contract remains follow-up work."
     },
     {
       "source_owner": "care-plan",

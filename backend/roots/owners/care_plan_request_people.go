@@ -14,6 +14,8 @@ import (
 type RequestPeople interface {
 	FindStudentRecord(context.Context, int64) (peopledirectory.StudentRecord, error)
 	FindStudentRecordForMutation(context.Context, int64) (peopledirectory.StudentRecord, error)
+	FindGuardian(context.Context, int64) (peopledirectory.Guardian, error)
+	FindGuardianLink(context.Context, int64) (peopledirectory.GuardianLink, error)
 	FindPerson(context.Context, int64) (peopledirectory.Person, error)
 	UpdateStudent(context.Context, peopledirectory.StudentWrite) (peopledirectory.StudentRecord, error)
 }

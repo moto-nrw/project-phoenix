@@ -44,6 +44,8 @@ type ResourceConfig struct {
 	Persons                      PersonRecords
 	PickupAdjustmentService      careplan.PickupAdjustments
 	PickupScheduleService        careplan.PickupScheduleService
+	PickupSignatureProofs        PickupSignatureProofs
+	Reports                      ReportRenderer
 	SettingsService              TenantSettings
 	StudentAuditService          StudentChangeHistory
 	StudentConsents              StudentConsentCapability
@@ -75,6 +77,7 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests/{requestId}", rs.getCareScheduleChangeRequest)
+	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests/{requestId}/proof", rs.getCareScheduleChangeRequestProof)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/preview", rs.previewOfferingChangeRequest)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/decide", rs.decideOfferingChangeRequest)
 	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/excused-absence-requests/{requestId}/decide", rs.decideExcusedAbsenceRequest)

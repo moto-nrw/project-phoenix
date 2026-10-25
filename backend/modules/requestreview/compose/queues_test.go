@@ -15,6 +15,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
@@ -282,6 +283,7 @@ func TestHistoryRowsCarryDecisionFactsAndCorrectability(t *testing.T) {
 	f.care.history = []*careplan.CareScheduleHistoryItem{
 		{Request: &careplan.CareScheduleChangeRequest{ID: 3, UpdatedAt: updated, StudentID: 2, RequestKind: "weekly_schedule", Status: "approved", ReviewedAt: &decided}, FirstName: "Ben", LastName: "Berg"},
 		{Request: &careplan.CareScheduleChangeRequest{ID: 4, UpdatedAt: updated, StudentID: 2, RequestKind: "pickup_change", Status: "rejected", ReviewedAt: &decided}, FirstName: "Ben", LastName: "Berg"},
+		{Request: &careplan.CareScheduleChangeRequest{ID: 8, UpdatedAt: updated, StudentID: 2, RequestKind: carerequests.KindPickupPermission, Status: "approved", ReviewedAt: &decided}, FirstName: "Ben", LastName: "Berg"},
 	}
 	f.offering.history = []*careplan.OfferingHistoryItem{
 		{Request: &careplan.OfferingChangeRequest{ID: 5, UpdatedAt: updated, StudentID: 3, Status: "withdrawn"}, StudentName: "Cara Cruz"},
@@ -307,6 +309,7 @@ func TestHistoryRowsCarryDecisionFactsAndCorrectability(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, care[0].CanCorrect, "a weekly plan keeps no pre-decision copy")
 	assert.True(t, care[1].CanCorrect, "a pickup change does")
+	assert.True(t, care[2].CanCorrect, "a pickup permission keeps its pre-decision permission")
 
 	offering, _, err := queues.Offering.History(context.Background(), requestreview.QueueFilter{})
 	require.NoError(t, err)

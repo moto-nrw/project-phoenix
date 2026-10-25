@@ -13,7 +13,9 @@ import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
   type StaffCareRequest,
   decideCareScheduleChangeRequest,
+  downloadCareRequestProofPdf,
 } from "~/lib/care-request-review-api";
+import { Button } from "~/components/ui/button";
 import type { RequestDiffEntry } from "~/lib/messaging-status";
 import {
   fetchPickupExtensions,
@@ -47,8 +49,10 @@ export function careSummary(
     const day = parts.length > 1 ? parts[0] : undefined;
     if (day) days.add(day);
   }
-  if (kinds.size === 0)
+  if (kinds.size === 0) {
+    if (requestKind === "pickup_permission") return "Abholberechtigung";
     return requestKind === "pickup_change" ? "Abholzeit" : "Betreuungszeiten";
+  }
   const what = [...kinds].join(" + ");
   if (days.size === 0) return what;
   // Ab drei Tagen nur noch die Anzahl: ausgeschrieben ("Montag, Dienstag,
@@ -67,6 +71,7 @@ export function careSummary(
 export function careTypeLabel(
   requestKind: StaffCareRequest["request_kind"],
 ): string | undefined {
+  if (requestKind === "pickup_permission") return "Abholberechtigung";
   return requestKind === "pickup_change" ? "Einzelner Tag" : undefined;
 }
 
@@ -78,15 +83,28 @@ export function careTypeLabel(
 function pickupChangeLegs(diff: readonly RequestDiffEntry[]): {
   time: boolean;
   mode: boolean;
+  person: boolean;
 } {
   const mode = diff.some((entry) => entry.care_kind === "departure_mode");
-  const time = diff.some((entry) => entry.care_kind === "pickup") || !mode;
-  return { time, mode };
+  // Die Abholperson eines Tages (#4780).
+  const person = diff.some((entry) => entry.care_kind === "pickup_person");
+  const time =
+    diff.some((entry) => entry.care_kind === "pickup") || (!mode && !person);
+  return { time, mode, person };
 }
 
 function decisionNotice(row: StaffCareRequest, approve: boolean): string {
+  if (row.request_kind === "pickup_permission") {
+    return approve
+      ? "Die Abholberechtigung ist eingetragen."
+      : "Die Anfrage zur Abholberechtigung ist abgelehnt.";
+  }
   if (row.request_kind === "pickup_change") {
-    const { time, mode } = pickupChangeLegs(row.diff);
+    const { time, mode, person } = pickupChangeLegs(row.diff);
+    if (person && !time && !mode)
+      return approve
+        ? "Die Abholperson ist für diesen Tag eingetragen."
+        : "Die Anfrage zur Abholperson ist abgelehnt.";
     if (time && mode)
       return approve
         ? "Abholzeit und Abholart sind übernommen."
@@ -246,9 +264,12 @@ function decisionInputReady(
   setError: (message: string) => void,
   setReasonError: (value: boolean) => void,
 ): boolean {
+  // Nur eine neue Abholzeit verschiebt Termine; Abholart oder Abholperson
+  // allein haben keine Vorschau, wie im Backend (#3945, #4780).
   if (
     approve &&
     row.request_kind === "pickup_change" &&
+    pickupChangeLegs(row.diff).time &&
     !row.impact_available
   ) {
     setError(
@@ -287,8 +308,48 @@ function CareRequestDetails({ row }: Readonly<{ row: StaffCareRequest }>) {
             ändert am Betreuungsplan nichts (#3945). */}
         {row.request_kind === "pickup_change" &&
           pickupChangeLegs(row.diff).time && <PickupImpact row={row} />}
+        {row.signed && <CareRequestProofButton requestId={row.id} />}
       </ReviewDiffPanel>
     </>
+  );
+}
+
+/**
+ * Die Eltern haben unterschrieben (#4780): Nachweis mit Erklärung und
+ * Unterschrift als PDF.
+ */
+function CareRequestProofButton({
+  requestId,
+}: Readonly<{ requestId: string }>) {
+  const { show } = useApiErrorDisplay();
+  const [busy, setBusy] = useState(false);
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-gray-200 pt-3">
+      <p className="text-sm text-gray-700">
+        Von den Eltern unterschrieben (einfache elektronische Signatur mit
+        gezeichneter Unterschrift).
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="compact"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          downloadCareRequestProofPdf(requestId)
+            .catch((err: unknown) => {
+              logger.warn("care_request_proof_download_failed", {
+                error: err instanceof Error ? err.message : String(err),
+                request_id: requestId,
+              });
+              void show(err, { object: "Der Nachweis" });
+            })
+            .finally(() => setBusy(false));
+        }}
+      >
+        Nachweis (PDF)
+      </Button>
+    </div>
   );
 }
 

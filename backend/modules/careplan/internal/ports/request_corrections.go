@@ -14,6 +14,7 @@ type RequestCorrectionRecords interface {
 	DeleteException(context.Context, int64) error
 	FindDepartureException(context.Context, int64) (*careplan.DepartureException, error)
 	DeleteDepartureException(context.Context, int64) error
+	DeletePickupNote(context.Context, int64) error
 }
 
 type RequestCorrectionEvent struct {
@@ -34,4 +35,6 @@ type RequestCorrectionPeople interface {
 
 type RequestCorrectionPlans interface {
 	ApplyPickup(context.Context, *carerequests.Request, *string, bool) (carerequests.PickupApplied, error)
+	ApplyPickupPermission(context.Context, *carerequests.Request) error
+	RevertPickupPermission(context.Context, *carerequests.Request) error
 }

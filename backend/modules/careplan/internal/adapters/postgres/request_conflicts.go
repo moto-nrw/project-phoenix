@@ -24,7 +24,7 @@ func IsPendingCareScheduleConflict(err error) bool {
 		return false
 	}
 	switch detail.Field('n') {
-	case "uniq_care_schedule_change_requests_pending", "uniq_care_schedule_change_requests_pending_pickup_date":
+	case "uniq_care_schedule_change_requests_pending", "uniq_care_schedule_change_requests_pending_pickup_date", "uniq_care_schedule_change_requests_pending_pickup_permission":
 		return true
 	default:
 		return false
