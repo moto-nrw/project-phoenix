@@ -3375,6 +3375,12 @@
       "legacy": "invalid_target"
     },
     {
+      "code": "substitutions.last_supervisor",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "substitutions.last_supervisor"
+    },
+    {
       "code": "substitutions.not_found",
       "class": "business_rejection",
       "parameters": [],

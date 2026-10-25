@@ -33882,6 +33882,30 @@
     },
     {
       "source_owner": "facilities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ReleaseSupervision",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ReleaseSupervision",
+      "target_owner": "student-presence",
+      "binding_digest": "a0b5a36fca9dbb17ddac7d83196a773b",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application/presence.presenceFacade.ReleaseSupervision; modules/studentpresence/internal/application/presence/supervision_service.go:171 (promoted through the facade's embedded engine).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "facilities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "target_owner": "student-presence",
+      "binding_digest": "0fe09244fcbefae3accbd48a40c0248a",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Presence.ReleaseSupervision; modules/studentpresence.Presence (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "facilities",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ResolveSchulhofRoomColor",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ResolveSchulhofRoomColor",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ResolveSchulhofRoomColor",
@@ -65638,6 +65662,18 @@
     },
     {
       "source_owner": "school-structure",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SupervisionRelease.ReleaseSupervision",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "target_owner": "student-presence",
+      "binding_digest": "0fe09244fcbefae3accbd48a40c0248a",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Presence.ReleaseSupervision; modules/studentpresence.Presence (supplied contract method). "
+    },
+    {
+      "source_owner": "school-structure",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.TeacherDirectory.FindTeacher",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EducationTeachers.FindTeacher",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Teacher.SetTenantID",
@@ -66751,6 +66787,30 @@
       "classification": "leaf",
       "adr": "0067",
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Presence.ProcessSessionTimeout; modules/studentpresence.Presence (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "school-structure",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ReleaseSupervision",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ReleaseSupervision",
+      "target_owner": "student-presence",
+      "binding_digest": "a0b5a36fca9dbb17ddac7d83196a773b",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application/presence.presenceFacade.ReleaseSupervision; modules/studentpresence/internal/application/presence/supervision_service.go:171 (promoted through the facade's embedded engine).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "school-structure",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.ReleaseSupervision",
+      "target_owner": "student-presence",
+      "binding_digest": "0fe09244fcbefae3accbd48a40c0248a",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Presence.ReleaseSupervision; modules/studentpresence.Presence (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
     },
     {
       "source_owner": "school-structure",

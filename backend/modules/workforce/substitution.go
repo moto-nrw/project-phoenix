@@ -257,7 +257,12 @@ type GroupHandoverAssignment struct {
 	EndDate       string
 }
 
-type AdditionalSupervisionAssignment struct{ ActiveGroupID, TargetStaffID int64 }
+// AdditionalSupervisionAssignment adds TargetStaffID to a running
+// supervision; HandOver also ends the caller's own supervision (#4763).
+type AdditionalSupervisionAssignment struct {
+	ActiveGroupID, TargetStaffID int64
+	HandOver                     bool
+}
 
 type ScheduleAbsenceChange struct {
 	StaffID     int64    `json:"staff_id"`

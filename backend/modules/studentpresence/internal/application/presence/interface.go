@@ -43,6 +43,7 @@ type Service interface {
 	UpdateGroupSupervisor(ctx context.Context, supervisor *ports.GroupSupervisor) error
 	DeleteGroupSupervisor(ctx context.Context, id int64) error
 	EndSupervision(ctx context.Context, id int64) error
+	ReleaseSupervision(ctx context.Context, activeGroupID, staffID int64) (studentpresence.GroupSupervision, error)
 
 	// Combined Group operations
 	CreateCombinedGroup(ctx context.Context, group *studentpresence.CombinedGroup) error

@@ -178,6 +178,26 @@ class SubstitutionService {
     activeGroupId: string,
     targetStaffId: string,
   ): Promise<{ id: string; targetName: string }> {
+    return this.postAdditionalSupervision(activeGroupId, targetStaffId, false);
+  }
+
+  /**
+   * Hands the caller's running supervision over (#4763): the target becomes
+   * a supervisor and the caller's own supervision ends. The children and
+   * the planning stay as they are.
+   */
+  async handOverSupervision(
+    activeGroupId: string,
+    targetStaffId: string,
+  ): Promise<{ id: string; targetName: string }> {
+    return this.postAdditionalSupervision(activeGroupId, targetStaffId, true);
+  }
+
+  private async postAdditionalSupervision(
+    activeGroupId: string,
+    targetStaffId: string,
+    handOver: boolean,
+  ): Promise<{ id: string; targetName: string }> {
     const response = await sessionFetch("/api/substitutions", {
       method: "POST",
       credentials: "include",
@@ -186,19 +206,41 @@ class SubstitutionService {
         additional_supervision: {
           active_group_id: activeGroupId,
           target_staff_id: targetStaffId,
+          ...(handOver ? { hand_over: true } : {}),
         },
       }),
     });
     if (!response.ok) {
       throw await apiErrorFromResponse(
         response,
-        "additional supervision failed",
+        handOver
+          ? "supervision handover failed"
+          : "additional supervision failed",
       );
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendAdditionalSupervisionResult>;
     const body = unwrapSubstitutionProxyEnvelope(envelope);
     return { id: body.id.toString(), targetName: body.target.full_name };
+  }
+
+  /**
+   * Ends the caller's own supervision while another supervisor stays
+   * (#4763); the backend refuses with substitutions.last_supervisor
+   * otherwise.
+   */
+  async releaseSupervision(activeGroupId: string): Promise<void> {
+    const response = await sessionFetch("/api/substitutions/end", {
+      method: "POST",
+      credentials: "include",
+      body: JSON.stringify({
+        type: "additional_supervision",
+        id: activeGroupId,
+      }),
+    });
+    if (!response.ok) {
+      throw await apiErrorFromResponse(response, "supervision release failed");
+    }
   }
 
   async createSubstitution(
