@@ -148,7 +148,7 @@ func fullOperationExpectedState() SeedExpectedState {
 		Rooms:           len(DemoRooms),
 		Groups:          10,
 		Staff:           len(DemoStaff),
-		Contacts:        len(DemoGuardians),
+		Contacts:        demoGuardianProfileCount(),
 		ParentAccounts:  6,
 		PhysicalDevices: len(DemoDevices),
 		HasEnrollment:   true,

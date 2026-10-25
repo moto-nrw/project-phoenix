@@ -264,7 +264,7 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 53,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 26,
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 25,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentRequestsSeedStep).Run": 16,
 	// ADR 0087.
@@ -288,9 +288,7 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).Seed": 22,
 	// ADR 0087.
-	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedGuardianPayments": 18,
-	// ADR 0087.
-	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedGuardians": 25,
+	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedGuardianPayments": 16,
 	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedStaffAccounts": 29,
 	// ADR 0087.

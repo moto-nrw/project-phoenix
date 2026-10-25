@@ -262,6 +262,8 @@ func emailLocalPart(firstName, lastName string) string {
 		"ü", "ue",
 		"ß", "ss",
 		"ı", "i",
+		"ç", "c",
+		"ş", "s",
 	).Replace(strings.ReplaceAll(strings.ToLower(firstName+"."+lastName), " ", "."))
 }
 
