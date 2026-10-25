@@ -312,7 +312,10 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
 ```
 
 - Needs the native stack (`scripts/dev-native.sh up`) seeded with the school
-  profile `marketing`; the tenant and parents logins come from
+  profile `vollbetrieb`, the seeder's default and the demo's profile, followed by
+  `scripts/dev-native.sh backend go run ./cmd/devtools simulate full-day`
+  (without it only a few children are present); the tenant
+  and parents logins come from
   `backend/.seed-state.json`. Seed and capture must happen on the same Berlin
   calendar day, or the command asks for a fresh seed instead of showing stale
   attendance. Only `*.localhost` hosts are photographed.
@@ -326,13 +329,15 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   directory is replaced only when its marker and files match a previous pipeline
   result; unrelated files and older outputs without the marker stay untouched.
   Remove or move an older output explicitly before rerunning. Nothing is uploaded.
-- The browser clock stands at 10:15 Berlin of today's weekday
-  (`reference-time.ts`); the seed derives its schedules from the same time. The
-  server renders with its real clock, so the reference day must be the server's
-  day; on a weekend a local run aborts on the resulting hydration error instead
-  of printing an inconsistent image. The workflow instead sets the runner's
-  clock back to the Friday after its downloads and restores it before uploading.
-  Live presence follows the server clock too.
+- The browser clock stands at 13:30 Berlin of today's weekday
+  (`reference-time.ts`). The server renders with its real clock, so the
+  reference day must be the server's day; on a weekend a local run aborts on the
+  resulting hydration error instead of printing an inconsistent image. The
+  workflow sets the runner's clock to the last Tuesday, 12:00 Berlin, after its
+  downloads and before migrating and seeding, and restores it before uploading,
+  so every release shows a Tuesday with presence stamped shortly after 12:00,
+  when the `vollbetrieb` weekly plans expect the children after their lessons.
+  A local run stamps presence with the real time of the seed.
   Text that depends on the time of day must therefore not be rendered on the
   server: the home greeting uses `useTimeBasedGreeting` (`src/lib/greeting.ts`).
 - Adding a shot: the list follows the help flows and PostHog usage (#3764),

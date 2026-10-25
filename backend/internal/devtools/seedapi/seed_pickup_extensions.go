@@ -7,7 +7,8 @@ import (
 )
 
 // Demo data for later pickup times without a block (#3261). "Freies Spiel"
-// is the afternoon block with children from the call, "Teamsitzung" an office
+// is the afternoon block with children from the call, after the 14:00 AGs of
+// the same caregiver, "Teamsitzung" an office
 // appointment without children that must never be offered. Two children stay
 // longer than before: one on a single day (day task), one on every Thursday
 // (weekday task). Both show up as to-dos on the home page.
@@ -25,7 +26,7 @@ func seedPickupExtensionDemo(rt *Runtime, roomID, categoryID, trackID int64, stu
 	today := todaySeedDate()
 	templates := []map[string]any{
 		{
-			"name": seedFreePlayTitle, "type": "care", "start_time": "14:45", "end_time": seedFreePlayEnd,
+			"name": seedFreePlayTitle, "type": "care", "start_time": "15:00", "end_time": seedFreePlayEnd,
 			"student_ids": studentIDs[10:16], "staff_ids": staffIDs[:1], "primary_staff_id": staffIDs[0],
 		},
 		{
