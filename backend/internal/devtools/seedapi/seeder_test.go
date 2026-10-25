@@ -781,9 +781,9 @@ func TestManualGuardianForStudentUsesStudentIndex(t *testing.T) {
 		name         string
 	}{
 		{studentIndex: 0, name: "Sabine Schneider"},
-		{studentIndex: 4, name: "Thomas Richter"},
+		{studentIndex: 4, name: "Shirin Amini"},
 		{studentIndex: 10, name: "Ralf Zimmermann"},
-		{studentIndex: 11, name: "Susanne Braun"},
+		{studentIndex: 11, name: "Priya Kumar"},
 	} {
 		guardian, err := manualGuardianForStudent(expected.studentIndex)
 		require.NoError(t, err)
@@ -1462,9 +1462,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if r.URL.Path == "/api/staff-messages/recipients" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": []map[string]any{
-					{"account_id": "7001", "name": "Thomas Schmidt"},
+					{"account_id": "7001", "name": "Katarzyna Schmidt"},
 					{"account_id": "7002", "name": "Sabine Weber"},
-					{"account_id": "7020", "name": "Uwe Lange"},
+					{"account_id": "7020", "name": "Ana Silva"},
 					{"account_id": "7004", "name": "Claudia Wagner"},
 				},
 			})

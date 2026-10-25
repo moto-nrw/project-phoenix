@@ -564,6 +564,10 @@ var coreActions = map[RouteKey]CoreAction{
 	// decision for the Träger exists; a Träger session names no school, so
 	// ActorOf yields no actor either.
 	{http.MethodPost, "/traeger/auth/login"}:                            notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/enroll/confirm"}:               notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/enroll/start"}:                 notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/resend"}:                       notCaptured,
+	{http.MethodPost, "/traeger/auth/mfa/verify"}:                       notCaptured,
 	{http.MethodPost, "/traeger/accounts/invitations"}:                  notCaptured,
 	{http.MethodDelete, "/traeger/accounts/invitations/{invitationId}"}: notCaptured,
 	{http.MethodPut, "/traeger/accounts/{accountId}/roles"}:             notCaptured,

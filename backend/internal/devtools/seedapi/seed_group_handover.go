@@ -10,9 +10,9 @@ func (s *FixedSeeder) seedGroupHandover(_ context.Context) error {
 	if !ok {
 		return fmt.Errorf("group not found: sternengruppe")
 	}
-	targetStaffID, ok := s.staffIDs["Birgit Braun"]
+	targetStaffID, ok := s.staffIDs["Daria Nowak"]
 	if !ok {
-		return fmt.Errorf("staff not found: Birgit Braun")
+		return fmt.Errorf("staff not found: Daria Nowak")
 	}
 
 	today := todaySeedDate()

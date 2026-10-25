@@ -8464,7 +8464,10 @@ function teacherFeatureMissingTopic(): HelpTopic {
 //
 // Die Ablaeufe sind noch nicht Schritt fuer Schritt gegen die App geprueft,
 // deshalb bleiben es Entwuerfe.
-/** `/traeger/login` (#4649): eigene Adresse, danach die Liste der Schulen. */
+/**
+ * `/traeger/login` (#4649): eigene Adresse, danach die Liste der Schulen.
+ * Der Code per E-Mail ist Pflicht, beim ersten Mal mit Einrichtung (#4651).
+ */
 function traegerLoginTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerLogin,
@@ -8475,7 +8478,10 @@ function traegerLoginTopic(): HelpTopic {
     group: "einstieg",
     audience: "traeger",
     icon: "Building2",
-    requirements: ["Das moto-Team hat Ihr Konto dem Träger-Büro zugeordnet."],
+    requirements: [
+      "Das moto-Team hat Ihr Konto dem Träger-Büro zugeordnet.",
+      "Zugriff auf Ihr E-Mail-Postfach. Bei jeder Anmeldung kommt ein Code per E-Mail.",
+    ],
     steps: [
       "Öffnen Sie die Adresse des Träger-Portals.",
       "Tragen Sie Ihre `E-Mail-Adresse` ein.",
@@ -8483,14 +8489,21 @@ function traegerLoginTopic(): HelpTopic {
       "Wählen Sie `Anmelden`.",
       "Gehören Sie zu mehreren Trägern? Wählen Sie den Träger aus.",
       "Wählen Sie dann `Träger öffnen`.",
+      "moto zeigt die `Code-Eingabe`. Öffnen Sie die E-Mail von moto.",
+      "Geben Sie den sechsstelligen Code ein. moto prüft ihn automatisch.",
     ],
     result: "moto öffnet die Seite `Schulen` mit allen Schulen Ihres Trägers.",
     notes: ["Legen Sie sich die Adresse als Lesezeichen an."],
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
       "Sie nutzen dasselbe Konto wie in der OGS. Ein zweites Passwort brauchen Sie nicht.",
+      "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein.",
+      "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
     ],
     troubleshootingDetails: [
+      "Keine E-Mail mit Code? Schauen Sie im Spam-Ordner nach. Wählen Sie sonst `Neuen Code anfordern`.",
+      "Zu oft einen falschen Code eingegeben? Warten Sie 15 Minuten. Oder bitten Sie das moto-Team, den Code zurückzusetzen. Dann richten Sie ihn bei der nächsten Anmeldung neu ein.",
+      "Kein Zugriff mehr auf Ihre E-Mails? Wenden Sie sich an das moto-Team.",
       "moto sagt, Ihr Konto habe keinen Zugang zum Träger-Portal? Wenden Sie sich an das moto-Team.",
       "moto meldet Sie ab und lässt Sie nicht wieder hinein? Dann ist der Zugang Ihres Trägers ausgeschaltet. Wenden Sie sich an das moto-Team.",
       "Eine Schule fehlt in der Liste? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
