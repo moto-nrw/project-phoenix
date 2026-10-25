@@ -2515,7 +2515,11 @@
         "withdraw_not_allowed": "Цей запис більше не можна відкликати. Зверніться до школи.",
         "signature_required": "Будь ласка, підпишіть заявку.",
         "signature_invalid": "Не вдалося прочитати підпис. Будь ласка, підпишіть ще раз.",
-        "signature_not_found": "Для цієї заявки немає підпису."
+        "signature_not_found": "Для цієї заявки немає підпису.",
+        "holiday_host_school_outside_traeger": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "holiday_period_incomplete": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "holiday_period_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "holiday_period_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "files": {
         "announcement_published": "Не вдалося змінити: {object}. Перевірте поточний стан.",

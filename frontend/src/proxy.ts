@@ -529,9 +529,11 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
 
 // --- Träger subdomain handling ("moto träger", Träger-Büro portal, #4649) ---
 
-/** Paths the Träger subdomain serves (without /traeger prefix). The school
- * list itself lives at the root ("/" → /traeger). */
-const TRAEGER_PUBLIC_PATHS = ["/login"];
+/** Paths the Träger subdomain serves (without /traeger prefix): the login
+ * and the holiday periods (#4659). The school list itself lives at the root
+ * ("/" → /traeger). The client guard sends a visitor without a session to the
+ * login. */
+const TRAEGER_PUBLIC_PATHS = ["/login", "/ferien"];
 
 function isTraegerHost(hostname: string): boolean {
   return hostname === TRAEGER_HOSTNAME;

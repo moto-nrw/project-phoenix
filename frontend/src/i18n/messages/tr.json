@@ -2515,7 +2515,11 @@
         "withdraw_not_allowed": "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin.",
         "signature_required": "Lütfen kaydı imzalayın.",
         "signature_invalid": "İmza okunamadı. Lütfen tekrar imzalayın.",
-        "signature_not_found": "Bu kayıt için imza yok."
+        "signature_not_found": "Bu kayıt için imza yok.",
+        "holiday_host_school_outside_traeger": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "holiday_period_incomplete": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "holiday_period_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "holiday_period_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "files": {
         "announcement_published": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

@@ -2515,7 +2515,11 @@
         "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",
         "signature_required": "Ju lutemi nënshkruani regjistrimin.",
         "signature_invalid": "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
-        "signature_not_found": "Për këtë regjistrim nuk ka nënshkrim."
+        "signature_not_found": "Për këtë regjistrim nuk ka nënshkrim.",
+        "holiday_host_school_outside_traeger": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_period_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "holiday_period_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_period_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "files": {
         "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

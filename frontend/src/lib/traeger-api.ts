@@ -132,3 +132,191 @@ export async function fetchTraegerSchools(): Promise<TraegerSchool[]> {
     city: school.city ?? "",
   }));
 }
+
+// --- Ferienzeiträume (#4659) ---
+
+/** A bookable care time of a holiday week; the price is in whole cent. */
+export interface HolidayTimeModel {
+  /** Absent for a time model the form adds. */
+  readonly id?: string;
+  readonly name: string;
+  /** Wall-clock "HH:MM". */
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly priceCents: number;
+}
+
+/** A bookable week of a holiday period with the school that hosts it. */
+export interface HolidayWeek {
+  readonly id?: string;
+  /** Calendar dates "YYYY-MM-DD". */
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly hostSchoolId: string;
+  readonly timeModels: readonly HolidayTimeModel[];
+}
+
+/** What the Träger-Büro writes: the whole period with its weeks. */
+export interface HolidayPeriodInput {
+  readonly name: string;
+  readonly registrationOpensOn: string;
+  readonly registrationClosesOn: string;
+  readonly binding: boolean;
+  readonly notes: string;
+  readonly weeks: readonly HolidayWeek[];
+}
+
+export interface HolidayPeriod extends HolidayPeriodInput {
+  readonly id: string;
+  readonly status: "draft" | "published";
+  readonly publishedAt: string | null;
+}
+
+interface BackendTimeModel {
+  id: number;
+  name: string;
+  starts_at: string;
+  ends_at: string;
+  price_cents: number;
+}
+
+interface BackendWeek {
+  id: number;
+  starts_on: string;
+  ends_on: string;
+  host_school_id: number;
+  time_models?: BackendTimeModel[] | null;
+}
+
+interface BackendHolidayPeriod {
+  id: number;
+  name: string;
+  registration_opens_on: string;
+  registration_closes_on: string;
+  binding: boolean;
+  notes: string;
+  status: "draft" | "published";
+  published_at: string | null;
+  weeks?: BackendWeek[] | null;
+}
+
+function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
+  return {
+    id: String(period.id),
+    name: period.name,
+    registrationOpensOn: period.registration_opens_on,
+    registrationClosesOn: period.registration_closes_on,
+    binding: period.binding,
+    notes: period.notes,
+    status: period.status,
+    publishedAt: period.published_at,
+    weeks: (period.weeks ?? []).map((week) => ({
+      id: String(week.id),
+      startsOn: week.starts_on,
+      endsOn: week.ends_on,
+      hostSchoolId: String(week.host_school_id),
+      timeModels: (week.time_models ?? []).map((model) => ({
+        id: String(model.id),
+        name: model.name,
+        startsAt: model.starts_at,
+        endsAt: model.ends_at,
+        priceCents: model.price_cents,
+      })),
+    })),
+  };
+}
+
+function holidayPeriodToBackend(input: HolidayPeriodInput) {
+  return {
+    name: input.name,
+    registration_opens_on: input.registrationOpensOn,
+    registration_closes_on: input.registrationClosesOn,
+    binding: input.binding,
+    notes: input.notes,
+    weeks: input.weeks.map((week) => ({
+      ...(week.id ? { id: Number(week.id) } : {}),
+      starts_on: week.startsOn,
+      ends_on: week.endsOn,
+      host_school_id: Number(week.hostSchoolId),
+      time_models: week.timeModels.map((model) => ({
+        ...(model.id ? { id: Number(model.id) } : {}),
+        name: model.name,
+        starts_at: model.startsAt,
+        ends_at: model.endsAt,
+        price_cents: model.priceCents,
+      })),
+    })),
+  };
+}
+
+async function traegerData<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await transportFetch(url, {
+    credentials: "include",
+    cache: "no-store",
+    ...init,
+    headers: { "Content-Type": "application/json", ...init?.headers },
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  return (data as { data?: T } | null)?.data as T;
+}
+
+const holidayPeriodsPath = "/api/traeger/holiday-periods";
+
+/** Every holiday period of the signed-in person's Träger, newest first. */
+export async function fetchHolidayPeriods(): Promise<HolidayPeriod[]> {
+  const periods =
+    (await traegerData<BackendHolidayPeriod[] | null>(holidayPeriodsPath)) ??
+    [];
+  return periods.map(holidayPeriodFromBackend);
+}
+
+/** One holiday period of the Träger. */
+export async function fetchHolidayPeriod(id: string): Promise<HolidayPeriod> {
+  return holidayPeriodFromBackend(
+    await traegerData<BackendHolidayPeriod>(
+      `${holidayPeriodsPath}/${encodeURIComponent(id)}`,
+    ),
+  );
+}
+
+/** Creates a holiday period as a draft. */
+export async function createHolidayPeriod(
+  input: HolidayPeriodInput,
+): Promise<HolidayPeriod> {
+  return holidayPeriodFromBackend(
+    await traegerData<BackendHolidayPeriod>(holidayPeriodsPath, {
+      method: "POST",
+      body: JSON.stringify(holidayPeriodToBackend(input)),
+    }),
+  );
+}
+
+/** Saves the whole period; weeks and time models left out are removed. */
+export async function updateHolidayPeriod(
+  id: string,
+  input: HolidayPeriodInput,
+): Promise<HolidayPeriod> {
+  return holidayPeriodFromBackend(
+    await traegerData<BackendHolidayPeriod>(
+      `${holidayPeriodsPath}/${encodeURIComponent(id)}`,
+      { method: "PUT", body: JSON.stringify(holidayPeriodToBackend(input)) },
+    ),
+  );
+}
+
+/** Publishes a complete period for registration. */
+export async function publishHolidayPeriod(id: string): Promise<HolidayPeriod> {
+  return holidayPeriodFromBackend(
+    await traegerData<BackendHolidayPeriod>(
+      `${holidayPeriodsPath}/${encodeURIComponent(id)}/publish`,
+      { method: "POST" },
+    ),
+  );
+}

@@ -166,7 +166,7 @@ func transactionOperation(name string) (start, admin bool) {
 	switch name {
 	case "WithinSystem", "WithinAdmin", "WithinAdminRetry", "WithAdminTx", "WithAdminTxOrDirect", "AdminTx", "RunAdmin", "RunAdminRead", "AdminScope", "withinAdmin", "withinAdminRetry", "withAdminTx", "adminTx", "inAdmin":
 		return true, true
-	case "WithinDemo", "WithinTenant", "WithinTenantRetry", "WithinCurrentTenant", "WithTenantTx", "TenantTx", "RunTenant", "RunInTx", "RunInTxWithRetry", "RunInTransaction", "Begin", "BeginTx", "RunWrite", "RunRead", "RunPlatform", "withinTenant", "withinTenantRetry", "runInTx", "InTenantTx", "inTenantTx", "inTenant", "runInTenantTx", "runInSessionTx":
+	case "WithinTraeger", "withinTraeger", "WithinDemo", "WithinTenant", "WithinTenantRetry", "WithinCurrentTenant", "WithTenantTx", "TenantTx", "RunTenant", "RunInTx", "RunInTxWithRetry", "RunInTransaction", "Begin", "BeginTx", "RunWrite", "RunRead", "RunPlatform", "withinTenant", "withinTenantRetry", "runInTx", "InTenantTx", "inTenantTx", "inTenant", "runInTenantTx", "runInSessionTx":
 		return true, false
 	}
 	return false, false
