@@ -264,9 +264,12 @@ function decisionInputReady(
   setError: (message: string) => void,
   setReasonError: (value: boolean) => void,
 ): boolean {
+  // Nur eine neue Abholzeit verschiebt Termine; Abholart oder Abholperson
+  // allein haben keine Vorschau, wie im Backend (#3945, #4780).
   if (
     approve &&
     row.request_kind === "pickup_change" &&
+    pickupChangeLegs(row.diff).time &&
     !row.impact_available
   ) {
     setError(

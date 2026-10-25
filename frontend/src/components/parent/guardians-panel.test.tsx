@@ -826,7 +826,7 @@ describe("GuardiansPanel", () => {
         <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
       );
 
-      expect(await screen.findByText(/Nur Mo, Mi/)).toBeInTheDocument();
+      expect(await screen.findByText("Nur Mo, Mi")).toBeInTheDocument();
     });
   });
 });

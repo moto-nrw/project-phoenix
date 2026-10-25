@@ -346,6 +346,46 @@ describe("CareRequestReviewItem", () => {
     );
   });
 
+  // Abholart oder Abholperson allein verschieben keinen Termin; das Backend
+  // liefert dafür keine Vorschau und prüft keine (#3945, #4780).
+  it.each([
+    {
+      label: "27.10.2026 · Abholperson",
+      old: "",
+      new: "Rita Klein",
+      care_kind: "pickup_person" as const,
+    },
+    {
+      label: "27.10.2026 · Abholart",
+      old: "Fährt Bus",
+      new: "Wird abgeholt",
+      care_kind: "departure_mode" as const,
+      old_modes: ["bus"],
+      new_mode: "pickup",
+    },
+  ])(
+    "approves a day request without a time leg ($care_kind)",
+    async (entry) => {
+      mockDecide.mockResolvedValue(pickupRow({ status: "approved" }));
+      const onDecided = vi.fn();
+      render(
+        <CareRequestReviewItem
+          row={pickupRow({
+            impact_available: false,
+            impact_token: "",
+            affected_blocks: [],
+            diff: [entry],
+          })}
+          onDecided={onDecided}
+        />,
+      );
+      expand();
+      fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+      await waitFor(() => expect(mockDecide).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(onDecided).toHaveBeenCalled());
+    },
+  );
+
   it("shows a generic decision error without calling onDecided", async () => {
     mockDecide.mockRejectedValueOnce(
       new ApiError("boom", 500, { code: "general.server" }),

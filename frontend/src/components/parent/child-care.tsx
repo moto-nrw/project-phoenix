@@ -1657,12 +1657,13 @@ export function PickupTimeModal({
               }}
               label={t("pickup.pickupLabel")}
               hint={
-                modeField
+                modeField || pickupPerson
                   ? `${t("pickup.pickupOptionalHint")} ${t("timeFormatHint")}`
                   : t("timeFormatHint")
               }
               placeholder={t("timeExample")}
-              required={!modeField}
+              // Mit einer Abholperson darf die Uhrzeit gleich bleiben (#4780).
+              required={!modeField && !pickupPerson}
               invalid={invalidField === "pickupTime"}
               describedBy={invalidField === "pickupTime" ? errorId : undefined}
             />

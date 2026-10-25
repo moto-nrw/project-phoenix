@@ -810,9 +810,12 @@ function GuardianRow({
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {g.can_pickup && (
                 <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-gray-200 ring-inset">
-                  {pickupDays.length > 0
-                    ? `${t("guardians.badges.canPickup")} · ${tPermission("onlyDays", { days: weekdayList(pickupDays) })}`
-                    : t("guardians.badges.canPickup")}
+                  {t("guardians.badges.canPickup")}
+                </span>
+              )}
+              {g.can_pickup && pickupDays.length > 0 && (
+                <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium whitespace-nowrap text-gray-700 ring-1 ring-gray-200 ring-inset">
+                  {tPermission("onlyDays", { days: weekdayList(pickupDays) })}
                 </span>
               )}
               {pendingPermission && (
