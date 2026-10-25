@@ -12,12 +12,13 @@ import {
   useRef,
   useState,
 } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { Check } from "lucide-react";
 import {
   AuthFieldError,
   AuthShell,
-  AuthShellSkeleton,
   MotoBrand,
   authInputClass,
   authPrimaryButtonClassName,
@@ -33,6 +34,7 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
+import { Loading } from "~/components/ui/loading";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   acceptCatererInvitation,
@@ -83,23 +85,46 @@ export default function CatererInvitationPage() {
     void load();
   }, [load]);
 
-  if (loading) return <AuthShellSkeleton />;
+  if (loading) {
+    return (
+      <AuthShell
+        eyebrow="Einladung"
+        eyebrowClassName="text-moto-green"
+        title="Konto einrichten"
+        subtitle="Wir prüfen Ihre Einladung."
+        variant="tenant"
+        brand={<MotoBrand />}
+        formMaxWidth="max-w-[32rem]"
+      >
+        <Loading fullPage={false} />
+      </AuthShell>
+    );
+  }
+
+  const existing = invitation?.hasCatererAccount ?? false;
 
   return (
     <AuthShell
       eyebrow="Einladung"
-      title={
-        invitation?.schoolName
-          ? `${invitation.schoolName} lädt Sie ein`
-          : "Diese Einladung lässt sich nicht öffnen"
-      }
+      eyebrowClassName="text-moto-green"
+      title={existing ? "Schule hinzufügen" : "Konto einrichten"}
       subtitle={
         invitation
-          ? "Mit diesem Konto sehen Sie, was die Schule bei Ihnen bestellt."
+          ? [
+              `${invitation.schoolName || "Eine Schule"} lädt Sie ein.`,
+              invitation.addressTaken
+                ? ""
+                : existing
+                  ? "Bestätigen Sie mit Ihrem Passwort."
+                  : "Wählen Sie Ihr Passwort.",
+            ]
+              .filter(Boolean)
+              .join(" ")
           : "Die Einladung kommt von der Schule per E-Mail."
       }
       variant="tenant"
       brand={<MotoBrand />}
+      formMaxWidth="max-w-[32rem]"
     >
       {invitation?.addressTaken ? (
         <Alert
@@ -109,11 +134,44 @@ export default function CatererInvitationPage() {
       ) : invitation ? (
         <AcceptForm schoolId={schoolId} token={token} invitation={invitation} />
       ) : (
-        <LoadErrorAlert error={loadErrors.error} />
+        <div className="space-y-4">
+          <LoadErrorAlert error={loadErrors.error} />
+          <Link
+            href={catererPath("/caterer/login")}
+            className={authPrimaryButtonClassName}
+          >
+            Zur Anmeldung
+          </Link>
+        </div>
       )}
     </AuthShell>
   );
 }
+
+/** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */
+function acceptFieldErrors(
+  existing: boolean,
+  password: string,
+  confirmPassword: string,
+): Record<string, string> {
+  if (existing) {
+    return password === ""
+      ? { password: "Bitte geben Sie Ihr Passwort ein." }
+      : {};
+  }
+  if (!PASSWORD_RULES.every((rule) => rule.test(password))) {
+    return {
+      password: "Das Passwort erfüllt noch nicht alle Anforderungen.",
+    };
+  }
+  if (password !== confirmPassword) {
+    return { confirm_password: "Die Passwörter stimmen nicht überein." };
+  }
+  return {};
+}
+
+/** Wie lange der Erfolgsschirm steht, bevor die Seite wechselt. */
+const ACCEPTED_SCREEN_MS = 1500;
 
 function AcceptForm({
   schoolId,
@@ -127,13 +185,20 @@ function AcceptForm({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const latestSubmitRef = useRef<() => void>(() => undefined);
   const existing = invitation.hasCatererAccount;
 
   const submit = async () => {
+    const fields = acceptFieldErrors(existing, password, confirmPassword);
+    if (Object.keys(fields).length > 0) {
+      formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
+      return;
+    }
     setSubmitting(true);
     formErrors.clear();
     try {
@@ -151,22 +216,29 @@ function AcceptForm({
       setSubmitting(false);
       return;
     }
+    setAccepted(true);
+    const shown = new Promise((resolve) =>
+      setTimeout(resolve, ACCEPTED_SCREEN_MS),
+    );
+    let target = catererPath("/caterer");
     try {
       const tokens = await loginCaterer(invitation.email, password);
-      await signIn("caterer-credentials", {
+      const result = await signIn("caterer-credentials", {
         redirect: false,
         internalRefresh: "true",
         token: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       });
-      window.location.href = catererPath("/caterer");
+      if (result?.error) throw new Error(result.error);
     } catch (cause) {
       // Accepted, only the automatic sign-in failed: the login page works.
       logger.warn("caterer_signin_after_accept_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
       });
-      window.location.href = catererPath("/caterer/login");
+      target = catererPath("/caterer/login");
     }
+    await shown;
+    window.location.href = target;
   };
 
   useLayoutEffect(() => {
@@ -176,94 +248,127 @@ function AcceptForm({
   const passwordError = formErrors.fieldError("password");
   const confirmError = formErrors.fieldError("confirm_password");
 
+  if (accepted) {
+    return (
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex flex-col items-center py-12"
+      >
+        <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-gray-900">
+          <Check className="h-6 w-6 text-white" aria-hidden="true" />
+        </div>
+        <h3 className="mb-1 text-base font-semibold text-gray-900">
+          {existing ? "Schule hinzugefügt" : "Konto erstellt"}
+        </h3>
+        {/* „weitergeleitet“, nicht „angemeldet“: scheitert die automatische
+            Anmeldung, geht es zur Anmeldeseite. */}
+        <p className="text-sm text-gray-500">
+          Sie werden gleich weitergeleitet.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <form
       ref={formRef}
       noValidate
-      className="space-y-6"
+      className="space-y-6 text-left"
       onSubmit={(event) => {
         event.preventDefault();
         void submit();
       }}
     >
-      {formErrors.error ? <FormErrorAlert message={formErrors.error} /> : null}
-      <p className="text-left text-sm text-gray-700">
-        {existing
-          ? `Sie haben schon ein Caterer-Konto für ${invitation.email}. Bestätigen Sie mit Ihrem Passwort. Dann kommt ${invitation.schoolName} zu Ihren Schulen dazu.`
-          : `Sie melden sich mit ${invitation.email} an. Legen Sie jetzt ein Passwort fest.`}
-      </p>
+      <FormErrorAlert message={formErrors.error} />
 
-      <div className="space-y-4 text-left">
-        <div>
-          <label
-            htmlFor="password"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            {existing ? "Ihr Passwort" : "Neues Passwort"}
-          </label>
-          <div className="relative">
-            <input
-              id="password"
-              type={showPassword ? "text" : "password"}
-              autoComplete={existing ? "current-password" : "new-password"}
-              value={password}
-              disabled={submitting}
-              onChange={(event) => setPassword(event.target.value)}
-              aria-invalid={Boolean(passwordError)}
-              aria-describedby={passwordError ? "password-error" : undefined}
-              className={`${authInputClass(Boolean(passwordError))} pr-10`}
-            />
-            <PasswordToggleButton
-              showPassword={showPassword}
-              onToggle={() => setShowPassword(!showPassword)}
-            />
-          </div>
-          <AuthFieldError id="password-error" message={passwordError} />
+      <section className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-3 text-sm">
+        <p className="font-medium text-gray-700">
+          Einladung für{" "}
+          <span className="font-semibold text-gray-900">
+            {invitation.email}
+          </span>
+        </p>
+      </section>
+
+      <div>
+        <label
+          htmlFor="password"
+          className={`mb-1 block text-sm font-medium ${passwordError ? "text-moto-red" : "text-gray-700"}`}
+        >
+          Passwort
+        </label>
+        <div className="relative">
+          <input
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete={existing ? "current-password" : "new-password"}
+            value={password}
+            disabled={submitting}
+            onChange={(event) => setPassword(event.target.value)}
+            aria-invalid={Boolean(passwordError)}
+            aria-describedby={passwordError ? "password-error" : undefined}
+            className={`${authInputClass(Boolean(passwordError))} pr-10`}
+            required
+          />
+          <PasswordToggleButton
+            showPassword={showPassword}
+            onToggle={() => setShowPassword(!showPassword)}
+          />
         </div>
+        <AuthFieldError id="password-error" message={passwordError} />
+      </div>
 
-        {existing ? null : (
-          <>
-            <PasswordRequirements
-              requirements={PASSWORD_RULES.map((rule) => ({
-                label: rule.label,
-                met: rule.test(password),
-              }))}
-            />
-            <div>
-              <label
-                htmlFor="confirm-password"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Passwort wiederholen
-              </label>
+      {existing ? null : (
+        <>
+          <div>
+            <label
+              htmlFor="confirmPassword"
+              className={`mb-1 block text-sm font-medium ${confirmError ? "text-moto-red" : "text-gray-700"}`}
+            >
+              Passwort bestätigen
+            </label>
+            <div className="relative">
               <input
-                id="confirm-password"
-                type={showPassword ? "text" : "password"}
+                id="confirmPassword"
+                name="confirm_password"
+                type={showConfirmPassword ? "text" : "password"}
                 autoComplete="new-password"
                 value={confirmPassword}
                 disabled={submitting}
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 aria-invalid={Boolean(confirmError)}
-                aria-describedby={confirmError ? "confirm-error" : undefined}
-                className={authInputClass(Boolean(confirmError))}
+                aria-describedby={
+                  confirmError ? "confirmPassword-error" : undefined
+                }
+                className={`${authInputClass(Boolean(confirmError))} pr-10`}
+                required
               />
-              <AuthFieldError id="confirm-error" message={confirmError} />
+              <PasswordToggleButton
+                showPassword={showConfirmPassword}
+                onToggle={() => setShowConfirmPassword(!showConfirmPassword)}
+              />
             </div>
-          </>
-        )}
-      </div>
+            <AuthFieldError id="confirmPassword-error" message={confirmError} />
+          </div>
+
+          <PasswordRequirements
+            requirements={PASSWORD_RULES.map((rule) => ({
+              label: rule.label,
+              met: rule.test(password),
+            }))}
+          />
+        </>
+      )}
 
       <button
         type="submit"
-        disabled={submitting || password === ""}
+        disabled={submitting}
         className={authPrimaryButtonClassName}
       >
         <span className="relative z-10">
-          {submitting
-            ? "Wird gespeichert …"
-            : existing
-              ? "Schule hinzufügen"
-              : "Konto anlegen"}
+          {submitting ? "Wird übernommen…" : "Einladung akzeptieren"}
         </span>
       </button>
     </form>

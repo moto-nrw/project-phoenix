@@ -33,9 +33,12 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CatererLoginPage" });
 
+// Wie die anderen Anmeldungen: der Portalname klein darüber, die Begrüßung
+// als Titel.
 const SHELL_COPY = {
-  eyebrow: "Caterer",
-  title: "Bestellungen für Ihre Küche",
+  eyebrow: "Caterer-Portal",
+  eyebrowClassName: "text-moto-blue",
+  title: "Willkommen im Caterer-Portal",
   subtitle: "Melden Sie sich mit Ihrem Caterer-Konto an.",
 } as const;
 
@@ -168,7 +171,7 @@ function LoginForm() {
         {isCheckingAuth ? (
           <div className="flex flex-col items-center gap-4 py-12">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
-            <p className="text-sm text-gray-500">Sitzung wird überprüft …</p>
+            <p className="text-sm text-gray-500">Anmeldung wird geprüft …</p>
           </div>
         ) : (
           <form
@@ -256,15 +259,17 @@ function LoginForm() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={authPrimaryButtonClassName}
-            >
-              <span className="relative z-10">
-                {isSubmitting ? "Anmeldung läuft …" : "Anmelden"}
-              </span>
-            </button>
+            <div className="mt-2">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className={authPrimaryButtonClassName}
+              >
+                <span className="relative z-10">
+                  {isSubmitting ? "Anmeldung läuft …" : "Anmelden"}
+                </span>
+              </button>
+            </div>
           </form>
         )}
       </AuthShell>

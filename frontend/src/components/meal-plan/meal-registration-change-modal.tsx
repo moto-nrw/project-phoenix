@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { Checkbox } from "~/components/ui/checkbox";
@@ -11,6 +18,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   useApiFormError,
   useApiLoadError,
@@ -41,6 +49,9 @@ type ScheduleState = "idle" | "loading" | "loaded" | "failed";
  * Die Schule ändert die Anmeldung eines Kindes, auch nach der Frist (#3873):
  * einen Tag, den Tag zurück auf die festen Tage, oder die festen Tage ab
  * einem Datum. Eltern sehen die Änderung im Elternportal.
+ *
+ * `initialStudentId` wählt das Kind beim Öffnen vor (Zeilenmenü der
+ * Tagesliste); ohne wird das Kind erst im Fenster gewählt.
  */
 export function MealRegistrationChangeModal({
   isOpen,
@@ -49,6 +60,7 @@ export function MealRegistrationChangeModal({
   date,
   participants,
   others,
+  initialStudentId,
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
@@ -56,6 +68,7 @@ export function MealRegistrationChangeModal({
   date: string;
   participants: readonly DailyMealParticipant[];
   others: readonly DailyMealParticipant[];
+  initialStudentId?: string;
 }>) {
   const t = useTranslations("mealParticipantList");
   const locale = useLocale();
@@ -102,19 +115,6 @@ export function MealRegistrationChangeModal({
     [eating, locale, others, participants, t],
   );
 
-  useEffect(() => {
-    if (!isOpen) return;
-    setStudentId("");
-    setScope("day");
-    setChoice(null);
-    setWeekdays([]);
-    setScheduleState("idle");
-    scheduleRequest.current += 1;
-    setEffectiveFrom(date < today ? today : date);
-    clearError();
-    clearScheduleError();
-  }, [clearError, clearScheduleError, date, isOpen, today]);
-
   // Die festen Tage des gewählten Kindes vorbelegen. Bis sie da sind, bleiben
   // die Tage leer und Speichern gesperrt, damit nie die Tage eines anderen
   // Kindes gespeichert werden.
@@ -143,6 +143,41 @@ export function MealRegistrationChangeModal({
     },
     [clearScheduleError, showScheduleError, t],
   );
+
+  // Die Vorbelegung liest, wer an dem Tag isst, ohne das Fenster bei jedem
+  // Neuladen der Tagesliste zurückzusetzen.
+  const eatingRef = useRef(eating);
+  useLayoutEffect(() => {
+    eatingRef.current = eating;
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const start = date < today ? today : date;
+    setScope("day");
+    setEffectiveFrom(start);
+    clearError();
+    if (initialStudentId) {
+      setStudentId(initialStudentId);
+      setChoice(eatingRef.current.has(initialStudentId) ? "skips" : "eats");
+      void loadSchedule(initialStudentId, start);
+      return;
+    }
+    setStudentId("");
+    setChoice(null);
+    setWeekdays([]);
+    setScheduleState("idle");
+    scheduleRequest.current += 1;
+    clearScheduleError();
+  }, [
+    clearError,
+    clearScheduleError,
+    date,
+    initialStudentId,
+    isOpen,
+    loadSchedule,
+    today,
+  ]);
 
   function chooseChild(child: string) {
     setStudentId(child);
@@ -216,10 +251,10 @@ export function MealRegistrationChangeModal({
     >
       <div className="space-y-5">
         <p className="text-sm text-gray-600">{t("changeHint")}</p>
-        <div className="space-y-1.5">
+        <div>
           <span
             id="meal-change-child-label"
-            className="text-sm font-medium text-gray-800"
+            className="mb-2 block text-sm font-medium text-gray-700"
           >
             {t("child")}
           </span>
@@ -259,36 +294,48 @@ export function MealRegistrationChangeModal({
         ) : (
           <div className="space-y-3">
             {scheduleError ? <LoadErrorAlert error={scheduleError} /> : null}
-            {scheduleState === "loading" ? (
-              <p className="text-sm text-gray-600" role="status">
-                {t("scheduleLoading")}
-              </p>
-            ) : null}
             <fieldset disabled={scheduleState !== "loaded"}>
-              <legend className="text-sm font-medium text-gray-800">
+              <legend className="text-sm font-medium text-gray-700">
                 {t("regularDays")}
               </legend>
-              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                {WEEKDAYS.map((weekday) => (
-                  <ChoiceTile
-                    key={weekday}
-                    selected={weekdays.includes(weekday)}
-                    className="flex min-h-11 items-center gap-2 px-3 py-2 text-sm font-medium"
-                  >
-                    <Checkbox
-                      checked={weekdays.includes(weekday)}
-                      onChange={() =>
-                        setWeekdays((current) =>
-                          current.includes(weekday)
-                            ? current.filter((value) => value !== weekday)
-                            : [...current, weekday].sort((a, b) => a - b),
-                        )
-                      }
+              {/* Bis die festen Tage da sind, stehen Platzhalter an ihrer
+                  Stelle: kein Ladetext, und kein Tag, der falsch leer wirkt. */}
+              {scheduleState === "loading" ? (
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  <span className="sr-only" role="status">
+                    {t("scheduleLoading")}
+                  </span>
+                  {WEEKDAYS.map((weekday) => (
+                    <Skeleton
+                      key={weekday}
+                      className="h-11 rounded-lg"
+                      aria-hidden="true"
                     />
-                    {t(`weekday${weekday}`)}
-                  </ChoiceTile>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                  {WEEKDAYS.map((weekday) => (
+                    <ChoiceTile
+                      key={weekday}
+                      selected={weekdays.includes(weekday)}
+                      className="flex min-h-11 items-center gap-2 px-3 py-2 text-sm font-medium"
+                    >
+                      <Checkbox
+                        checked={weekdays.includes(weekday)}
+                        onChange={() =>
+                          setWeekdays((current) =>
+                            current.includes(weekday)
+                              ? current.filter((value) => value !== weekday)
+                              : [...current, weekday].sort((a, b) => a - b),
+                          )
+                        }
+                      />
+                      {t(`weekday${weekday}`)}
+                    </ChoiceTile>
+                  ))}
+                </div>
+              )}
             </fieldset>
             <ISODatePicker
               label={t("effectiveFrom")}

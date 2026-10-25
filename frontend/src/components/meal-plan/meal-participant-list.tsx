@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Check, Utensils } from "lucide-react";
+import { Check, UserPen, Utensils } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -18,6 +18,8 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ExportMenu } from "~/components/ui/export-menu";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { SectionCard } from "~/components/ui/section-card";
 import { MealRegistrationChangeModal } from "~/components/meal-plan/meal-registration-change-modal";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
@@ -84,7 +86,9 @@ function weeklyRows(week: WeeklyMealList | null): WeeklyMealRow[] {
 
 /**
  * Die Tagesliste für die Küche. Mit `canRegister` (meals:register) lädt sie
- * auch die Kinder, die nicht essen, und bietet „Anmeldung ändern“ an.
+ * auch die Kinder, die nicht essen: „Anmeldung ändern“ im Kopf öffnet das
+ * Änderungsfenster ohne Kind, „Anmeldung ändern…“ im Menü einer Zeile mit
+ * diesem Kind.
  */
 export function MealParticipantList({
   canRegister,
@@ -119,7 +123,8 @@ export function MealParticipantList({
   const [participants, setParticipants] = useState<DailyMealParticipant[]>([]);
   // Die übrigen Kinder des Tages, für Änderungen durch die Schule (#3873).
   const [others, setOthers] = useState<DailyMealParticipant[]>([]);
-  const [changing, setChanging] = useState(false);
+  // Offenes Änderungsfenster; `studentId` ist das vorgewählte Kind.
+  const [changing, setChanging] = useState<{ studentId?: string } | null>(null);
   const weekStart = mondayOf(parseISODate(date));
   const [week, setWeek] = useState<WeeklyMealList | null>(null);
   const [loading, setLoading] = useState(true);
@@ -170,6 +175,16 @@ export function MealParticipantList({
     void load();
   }, [load]);
 
+  // Ändern geht nur in der Tagesansicht, für einen geöffneten Tag ab heute,
+  // und erst, wenn die Liste geladen ist.
+  const canChangeDay =
+    canRegister &&
+    view === "day" &&
+    !loading &&
+    !loadError &&
+    !closed &&
+    date >= today;
+
   const columns = useMemo<DataTableColumn<DailyMealParticipant>[]>(
     () => [
       {
@@ -188,6 +203,34 @@ export function MealParticipantList({
       },
     ],
     [t],
+  );
+  const dayColumns = useMemo<DataTableColumn<DailyMealParticipant>[]>(
+    () =>
+      canChangeDay
+        ? [
+            ...columns,
+            {
+              key: "actions",
+              header: "",
+              align: "right",
+              stacked: "meta",
+              render: (row) => (
+                <OverflowMenu
+                  ariaLabel={t("rowActions", {
+                    name: `${row.firstName} ${row.lastName}`,
+                  })}
+                  items={[
+                    {
+                      label: t("change"),
+                      onClick: () => setChanging({ studentId: row.studentId }),
+                    },
+                  ]}
+                />
+              ),
+            },
+          ]
+        : columns,
+    [canChangeDay, columns, t],
   );
 
   const weekDates = useMemo(
@@ -268,135 +311,133 @@ export function MealParticipantList({
     retryDownloadRef.current = (format) => void download(format);
   });
 
+  const cutoffLine =
+    isWeek || (!closed && !deadline)
+      ? null
+      : closed
+        ? t("closedDay")
+        : t("cutoff", {
+            date: new Date(deadline).toLocaleString(locale, {
+              weekday: "short",
+              day: "2-digit",
+              month: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "Europe/Berlin",
+            }),
+          });
+
+  // Eine Karte wie „Bestellung“: Titel, Frist und Aktionen im Kopf, die
+  // Liste der Kinder als Körper (#3873). Die Kopfzeile bricht selbst um.
   return (
-    <section className="space-y-4" aria-labelledby="meal-participants-title">
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h2
-              id="meal-participants-title"
-              className="text-lg font-semibold text-gray-900"
-            >
-              {isWeek ? t("weekTitle") : t("title")}
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              {isWeek ? t("weekDescription") : t("description")}
-            </p>
-            {!isWeek && closed ? (
-              <p className="mt-1 text-sm font-medium text-gray-700">
-                {t("closedDay")}
-              </p>
-            ) : !isWeek && deadline ? (
-              <p className="mt-1 text-sm font-medium text-gray-700">
-                {t("cutoff", {
-                  date: new Date(deadline).toLocaleString(locale, {
-                    weekday: "short",
-                    day: "2-digit",
-                    month: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    timeZone: "Europe/Berlin",
-                  }),
-                })}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:shrink-0">
-            {canExport ? (
-              <SegmentedControl
-                ariaLabel={t("viewAria")}
-                items={[
-                  { value: "day", label: t("viewDay") },
-                  { value: "week", label: t("viewWeek") },
-                ]}
-                value={view}
-                onChange={setView}
-              />
-            ) : null}
-            <ISODatePicker
-              id="meal-participant-date"
-              value={isWeek ? weekStart : date}
-              onChange={setSelectedDate}
-              ariaLabel={
-                isWeek
-                  ? t("weekDateAria", {
-                      from: formatDate(weekStart, false, locale),
-                    })
-                  : t("dateAria", {
-                      date: formatDate(date, false, locale),
-                    })
-              }
-              {...datePicker}
-              calendarLayout="popover-below"
-              controlSize="md"
-              disabledDay={isWeekendDay}
-              hideClearButton
-              required
-              className="w-full sm:w-44"
-              triggerClassName="w-full min-w-44 flex-none justify-between rounded-lg text-sm font-medium"
-            />
-
-            {canRegister && !isWeek ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="bg-white"
-                onClick={() => setChanging(true)}
-                disabled={
-                  loading || Boolean(loadError) || closed || date < today
-                }
-              >
-                {t("change")}
-              </Button>
-            ) : null}
-
-            {canExport ? (
-              <div className="flex flex-wrap gap-2 sm:justify-end">
-                <ExportMenu
-                  label={isWeek ? t("weekDownloadGroup") : t("downloadGroup")}
-                  options={[
-                    { key: "pdf", format: "pdf", label: t("pdf") },
-                    { key: "xlsx", format: "xlsx", label: t("excel") },
-                  ]}
-                  busyKey={exporting}
-                  unavailable={loading || Boolean(loadError)}
-                  onSelect={(option) => {
-                    if (option.format === "pdf" || option.format === "xlsx")
-                      void download(option.format);
-                  }}
-                />
-                <span className="sr-only" role="status" aria-live="polite">
-                  {exporting === "pdf"
-                    ? t("pdfDownloadStatus")
-                    : exporting === "xlsx"
-                      ? t("excelDownloadStatus")
-                      : ""}
-                </span>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {isWeek && week && !loading && !loadError ? (
-          <p className="mt-4 text-sm text-gray-700">
-            <span className="text-gray-500">{t("weekCountsLabel")}: </span>
-            <span className="font-semibold tabular-nums">
-              {week.days
-                .map(
-                  (day) =>
-                    `${weekdayShort.format(parseISODate(day.date))} ${
-                      day.closed
-                        ? t("weekClosed")
-                        : t("weekCount", { count: day.participants.length })
-                    }`,
-                )
-                .join(" · ")}
+    <SectionCard
+      title={isWeek ? t("weekTitle") : t("title")}
+      description={
+        <>
+          <span className="block">
+            {isWeek ? t("weekDescription") : t("description")}
+          </span>
+          {cutoffLine ? (
+            <span className="mt-1 block font-medium text-gray-700">
+              {cutoffLine}
             </span>
-          </p>
-        ) : null}
-      </div>
+          ) : null}
+        </>
+      }
+      actions={
+        <>
+          {canExport ? (
+            <SegmentedControl
+              ariaLabel={t("viewAria")}
+              items={[
+                { value: "day", label: t("viewDay") },
+                { value: "week", label: t("viewWeek") },
+              ]}
+              value={view}
+              onChange={setView}
+            />
+          ) : null}
+          <ISODatePicker
+            id="meal-participant-date"
+            value={isWeek ? weekStart : date}
+            onChange={setSelectedDate}
+            ariaLabel={
+              isWeek
+                ? t("weekDateAria", {
+                    from: formatDate(weekStart, false, locale),
+                  })
+                : t("dateAria", {
+                    date: formatDate(date, false, locale),
+                  })
+            }
+            {...datePicker}
+            calendarLayout="popover-below"
+            controlSize="md"
+            disabledDay={isWeekendDay}
+            hideClearButton
+            required
+            className="w-full sm:w-44"
+            triggerClassName="w-full min-w-44 flex-none justify-between rounded-lg text-sm font-medium"
+          />
+
+          {canRegister && !isWeek ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              className="gap-2"
+              onClick={() => setChanging({})}
+              disabled={!canChangeDay}
+            >
+              <UserPen className="h-4 w-4" aria-hidden="true" />
+              {t("changeTitle")}
+            </Button>
+          ) : null}
+
+          {canExport ? (
+            <>
+              <ExportMenu
+                label={isWeek ? t("weekDownloadGroup") : t("downloadGroup")}
+                options={[
+                  { key: "pdf", format: "pdf", label: t("pdf") },
+                  { key: "xlsx", format: "xlsx", label: t("excel") },
+                ]}
+                busyKey={exporting}
+                unavailable={loading || Boolean(loadError)}
+                onSelect={(option) => {
+                  if (option.format === "pdf" || option.format === "xlsx")
+                    void download(option.format);
+                }}
+              />
+              <span className="sr-only" role="status" aria-live="polite">
+                {exporting === "pdf"
+                  ? t("pdfDownloadStatus")
+                  : exporting === "xlsx"
+                    ? t("excelDownloadStatus")
+                    : ""}
+              </span>
+            </>
+          ) : null}
+        </>
+      }
+    >
+      {isWeek && week && !loading && !loadError ? (
+        <p className="mb-4 text-sm text-gray-700">
+          <span className="text-gray-500">{t("weekCountsLabel")}: </span>
+          <span className="font-semibold tabular-nums">
+            {week.days
+              .map(
+                (day) =>
+                  `${weekdayShort.format(parseISODate(day.date))} ${
+                    day.closed
+                      ? t("weekClosed")
+                      : t("weekCount", { count: day.participants.length })
+                  }`,
+              )
+              .join(" · ")}
+          </span>
+        </p>
+      ) : null}
 
       {loadError ? (
         <LoadErrorAlert error={loadError} />
@@ -421,11 +462,12 @@ export function MealParticipantList({
         />
       ) : (
         <DataTable
-          columns={columns}
+          columns={dayColumns}
           rows={participants}
           getRowKey={(row) => row.studentId}
           isLoading={loading}
           stackedOnMobile
+          rowHasInteractiveControls={canChangeDay}
           caption={t("caption", {
             date: formatDate(date, false, locale),
           })}
@@ -439,8 +481,8 @@ export function MealParticipantList({
         />
       )}
       <MealRegistrationChangeModal
-        isOpen={canRegister && changing}
-        onClose={() => setChanging(false)}
+        isOpen={canRegister && changing !== null}
+        onClose={() => setChanging(null)}
         onSaved={() => {
           void load();
           onRegistrationChanged?.();
@@ -448,7 +490,8 @@ export function MealParticipantList({
         date={date}
         participants={participants}
         others={others}
+        initialStudentId={changing?.studentId}
       />
-    </section>
+    </SectionCard>
   );
 }

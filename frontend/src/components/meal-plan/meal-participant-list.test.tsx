@@ -114,8 +114,13 @@ describe("MealParticipantList", () => {
       "2026-09-07",
       false,
     );
+    // Anker: die Zeile des Kindes ist geladen.
+    expect(screen.getAllByText("Muster, Mia").length).toBeGreaterThan(0);
     expect(
       screen.queryByRole("button", { name: "Anmeldung ändern" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Aktionen für Mia Muster" }),
     ).not.toBeInTheDocument();
   });
 
@@ -128,7 +133,7 @@ describe("MealParticipantList", () => {
       true,
     );
     expect(
-      screen.getByRole("button", { name: "Anmeldung ändern" }),
+      await screen.findByRole("button", { name: "Anmeldung ändern" }),
     ).toBeEnabled();
     expect(
       screen.queryByRole("button", { name: "Woche" }),
@@ -653,6 +658,105 @@ describe("MealParticipantList", () => {
       expect(
         screen.getByRole("button", { name: "Anmeldung ändern" }),
       ).toBeDisabled();
+    });
+
+    // Der Kopfknopf wählt kein Kind vor: das Kind wird im Fenster gewählt.
+    it("opens the change from the head without a chosen child", async () => {
+      render(<MealParticipantList canRegister />);
+
+      await screen.findAllByText("Muster, Mia");
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Anmeldung ändern" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      expect(
+        within(dialog).getByRole("combobox", { name: "Kind" }),
+      ).toHaveTextContent("Kind wählen");
+      expect(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      ).toBeDisabled();
+      expect(mocks.getChildMealSchedule).not.toHaveBeenCalled();
+    });
+
+    // Das Menü einer Zeile öffnet dasselbe Fenster mit diesem Kind.
+    it("opens the change for one child from its row menu", async () => {
+      const onRegistrationChanged = vi.fn();
+      render(
+        <MealParticipantList
+          canRegister
+          onRegistrationChanged={onRegistrationChanged}
+        />,
+      );
+
+      await screen.findAllByText("Muster, Mia");
+      fireEvent.click(
+        within(screen.getByRole("table")).getByRole("button", {
+          name: "Aktionen für Mia Muster",
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Anmeldung ändern…" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      expect(
+        within(dialog).getByRole("combobox", { name: "Kind" }),
+      ).toHaveTextContent("Muster, Mia · 2a · Isst mit");
+      await waitFor(() =>
+        expect(mocks.getChildMealSchedule).toHaveBeenCalledWith(
+          "42",
+          "2026-09-07",
+        ),
+      );
+      // Mia isst schon mit: vorgeschlagen ist die Abmeldung für den Tag.
+      expect(
+        within(dialog).getByRole("button", { name: "Isst nicht mit" }),
+      ).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+
+      await waitFor(() =>
+        expect(mocks.setChildMealDay).toHaveBeenCalledWith(
+          "42",
+          "2026-09-07",
+          false,
+        ),
+      );
+      expect(
+        await screen.findByText("Die Anmeldung von Mia Muster ist geändert."),
+      ).toBeInTheDocument();
+      expect(onRegistrationChanged).toHaveBeenCalledOnce();
+    });
+
+    it("offers no change for a past day", async () => {
+      mocks.today = "2026-09-08";
+      setTestClock(new Date("2026-09-08T12:00:00+02:00"));
+      render(<MealParticipantList canRegister />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Datum: 08.09.2026" }),
+      );
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Montag, 7. September 2026",
+        }),
+      );
+      await waitFor(() =>
+        expect(mocks.getDailyMealParticipants).toHaveBeenCalledWith(
+          "2026-09-07",
+          true,
+        ),
+      );
+      // Anker: die Zeile des vergangenen Tages ist geladen.
+      expect(
+        (await screen.findAllByText("Muster, Mia")).length,
+      ).toBeGreaterThan(0);
+      expect(
+        screen.getByRole("button", { name: "Anmeldung ändern" }),
+      ).toBeDisabled();
+      expect(
+        screen.queryByRole("button", { name: "Aktionen für Mia Muster" }),
+      ).not.toBeInTheDocument();
     });
   });
 
