@@ -4,7 +4,7 @@ import {
   type BrowserContext,
   type Page,
 } from "@playwright/test";
-import { loginToLocalTenant } from "../../e2e/local-tenant-login";
+import { localMFACode, loginToLocalTenant } from "../../e2e/local-tenant-login";
 
 import { accessForShot, type Credentials, type StackAccess } from "./access";
 import {
@@ -115,21 +115,36 @@ const STATUS_DOT_MAX_PX = 8;
  * Abholung bald fällig ist; Skelette sind Flächen, keine Symbole.
  */
 function countLoadingIndicators(page: Page): Promise<number> {
+  return loadingIndicators(page).then((found) => found.length);
+}
+
+/**
+ * Die sichtbaren Ladeanzeigen als kurze HTML-Ausschnitte. Ein kaputter Shot
+ * nennt sie, damit ein CI-Lauf sagt, was noch lädt.
+ */
+function loadingIndicators(page: Page): Promise<string[]> {
   return page.evaluate(
     ({ selector, dotMax }) =>
-      Array.from(document.querySelectorAll(selector)).filter((element) => {
-        if (element.matches('[aria-busy="true"]')) return true;
-        if (element instanceof SVGElement) return false;
-        const { width, height } = element.getBoundingClientRect();
-        return width > dotMax || height > dotMax;
-      }).length,
+      Array.from(document.querySelectorAll(selector))
+        .filter((element) => {
+          if (element.matches('[aria-busy="true"]')) return true;
+          if (element instanceof SVGElement) return false;
+          const { width, height } = element.getBoundingClientRect();
+          return width > dotMax || height > dotMax;
+        })
+        .map((element) => element.outerHTML.slice(0, 240)),
     { selector: LOADING_SELECTOR, dotMax: STATUS_DOT_MAX_PX },
   );
 }
 
+/** Wohin ein kaputter Shot sein Bild legt; der Workflow lädt es hoch. */
+const FAILURE_DIR = "test-results/product-screenshots";
+
 /**
  * Anmeldung im Träger-Portal (app/traeger/login). Gehört das Konto zu mehreren
  * Trägern, fragt die Seite nach dem Träger; dann gilt der vorausgewählte erste.
+ * Danach verlangt das Portal den zweiten Faktor (#4651): den Code aus der
+ * Mail im lokalen Mailpit, beim ersten Mal mit Einrichtung.
  */
 async function loginToTraeger(
   page: Page,
@@ -137,17 +152,44 @@ async function loginToTraeger(
   credentials: Credentials,
 ): Promise<void> {
   const leftLogin = (url: URL) => !url.pathname.endsWith("/login");
+  const choice = page.locator('input[name="organization"]').first();
+  const code = page.locator('input[autocomplete="one-time-code"]').first();
+  const sendCode = page.getByRole("button", {
+    name: "Code an meine E-Mail senden",
+  });
   await page.goto(`${origin}/login`, { waitUntil: "domcontentloaded" });
   await page.fill("#email", credentials.email);
   await page.fill("#password", credentials.password);
+  let notBefore = Date.now();
   await page.click('button[type="submit"]');
-  const choice = page.locator('input[name="organization"]').first();
-  await Promise.race([
-    page.waitForURL(leftLogin, { timeout: 30_000 }),
-    choice.waitFor({ state: "visible", timeout: 30_000 }),
-  ]);
-  if (leftLogin(new URL(page.url()))) return;
-  await page.click('button[type="submit"]');
+  // Welcher Schritt der Anmeldung als Nächstes kommt; höchstens 30 s.
+  const nextStep = async () => {
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
+      if (leftLogin(new URL(page.url()))) return "fertig";
+      if (await choice.isVisible()) return "traeger";
+      if (await code.isVisible()) return "code";
+      if (await sendCode.isVisible()) return "einrichtung";
+      await page.waitForTimeout(250);
+    }
+    throw new Error("Die Träger-Anmeldung kam nach 30 s nicht weiter.");
+  };
+  let step = await nextStep();
+  if (step === "traeger") {
+    notBefore = Date.now();
+    await page.click('button[type="submit"]');
+    step = await nextStep();
+  }
+  if (step === "fertig") return;
+  if (step === "einrichtung") {
+    notBefore = Date.now();
+    await sendCode.click();
+  }
+  await code.waitFor({ timeout: 30_000 });
+  await code.fill(await localMFACode(credentials.email, notBefore));
+  if (step === "einrichtung") {
+    await page.getByRole("button", { name: "Weiter zum Dashboard" }).click();
+  }
   await page.waitForURL(leftLogin, { timeout: 30_000 });
 }
 
@@ -523,6 +565,16 @@ async function captureOne(
       }),
     ];
     if (reasons.length > 0) {
+      if (settled.loadingIndicators > 0) {
+        for (const html of await loadingIndicators(page)) {
+          reasons.push(`Ladeanzeige: ${html}`);
+        }
+      }
+      await page
+        .screenshot({
+          path: `${FAILURE_DIR}/kaputt-${shot.id}-${device.id}.png`,
+        })
+        .catch(() => undefined);
       throw new BrokenShotError(shot.id, device.id, reasons);
     }
 
