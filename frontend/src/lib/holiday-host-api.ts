@@ -101,7 +101,7 @@ function mapWeek(week: BackendWeek): HostedHolidayWeek {
 }
 
 /** Die Antwort des Backends in der Form der Oberfläche. */
-export function mapHolidayParticipantList(
+function mapHolidayParticipantList(
   list: BackendParticipantList,
 ): HolidayParticipantList {
   return {
