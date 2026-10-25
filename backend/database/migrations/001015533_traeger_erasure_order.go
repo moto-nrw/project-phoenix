@@ -106,7 +106,12 @@ const traegerErasureOrderSQL = `
     'platform.organization_accounts', (SELECT count(*) FROM platform.organization_accounts WHERE organization_id = p_org),
     'auth.organization_account_roles', (SELECT count(*) FROM auth.organization_account_roles WHERE organization_id = p_org),
     'auth.tokens', (SELECT count(*) FROM auth.tokens WHERE organization_id = p_org),
-    'platform.schools', (SELECT count(*) FROM platform.schools WHERE organization_id = p_org)));
+    'platform.schools', (SELECT count(*) FROM platform.schools WHERE organization_id = p_org)),
+   -- Schools this order already erased, for every operator: a repeated run
+   -- replays their file phase after an upload restore.
+   'school_ids', (SELECT COALESCE(jsonb_agg(school_id ORDER BY school_id), '[]'::jsonb)
+    FROM platform.school_erasures
+    WHERE organization_id = p_org AND order_reference = v_order.order_reference));
  END $body$;
 
  CREATE FUNCTION platform.begin_organization_erasure(p_org BIGINT, p_operator BIGINT, p_reference TEXT)
@@ -176,6 +181,11 @@ const traegerErasureOrderSQL = `
   END IF;
   IF EXISTS (SELECT FROM platform.schools WHERE organization_id = p_org) THEN
    RAISE EXCEPTION 'organization erasure requires its schools to be erased first' USING ERRCODE = '22023';
+  END IF;
+  -- A school whose rows are gone but whose file phase did not finish, under
+  -- any operator or reference, keeps the root: no completion over leftovers.
+  IF EXISTS (SELECT FROM platform.school_erasures WHERE organization_id = p_org AND status <> 'completed') THEN
+   RAISE EXCEPTION 'organization erasure requires every school erasure to be completed' USING ERRCODE = '22023';
   END IF;
   v_counts := jsonb_build_object(
    'platform.organizations', 1,

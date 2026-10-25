@@ -220,7 +220,10 @@ bloße Trägerzuordnung. Der Probelauf zeigt am Ende den Stand des Auftrags
 Wiederaufnahme auch bereits entfernte Schulen mit derselben
 Referenz/Operator-ID. Erst wenn keine Schule mehr übrig ist, löscht der Lauf
 die Trägerwurzel, schreibt den Eintrag `erase` ins Operator-Audit und
-schließt den Auftrag ab. Ein erneuter Aufruf liefert dann nur den Nachweis.
+schließt den Auftrag ab. Ist noch ein Schulauftrag des Trägers unfertig, auch
+unter anderer Referenz oder Operator-ID, bleibt die Wurzel stehen. Ein
+erneuter Aufruf nach dem Abschluss wiederholt die Dateiphase jeder gelöschten
+Schule (etwa nach einem Upload-Restore) und liefert den Nachweis.
 Ein offener Auftrag lässt sich im Operator-Portal zurücknehmen, solange der
 erste Lauf ihn nicht begonnen hat (`started_at`). Danach bleibt er bestehen;
 einen abgebrochenen Lauf mit derselben Referenz und Operator-ID fortsetzen.

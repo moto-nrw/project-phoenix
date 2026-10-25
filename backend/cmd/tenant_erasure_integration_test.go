@@ -262,7 +262,8 @@ func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T
 	_, err = db.ExecContext(ctx, `INSERT INTO auth.tokens (account_id, token, expiry, portal_scope, organization_id)
 		VALUES (?, encode(sha256(gen_random_uuid()::text::bytea), 'hex'), NOW() + INTERVAL '1 hour', 'org', ?)`, member.ID, organizationID)
 	require.NoError(t, err)
-	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()), erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
+	uploads := t.TempDir()
+	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(uploads), erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
 	require.NoError(t, err)
 	count := func(query string, args ...any) int {
 		t.Helper()
@@ -294,6 +295,17 @@ func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T
 
 	_, err = db.ExecContext(ctx, `UPDATE platform.organization_erasure_orders SET erase_not_before = '2026-01-03' WHERE organization_id = ?`, organizationID)
 	require.NoError(t, err)
+	// An unfinished school erasure of the Träger, under another operator and
+	// reference, keeps the root: its files may still exist.
+	other := testpkg.CreateTestOperator(t, db)
+	_, err = db.ExecContext(ctx, `INSERT INTO platform.school_erasures (school_id, organization_id, operator_id, order_reference, status, failed_at, last_error_code)
+		VALUES (?, ?, ?, 'ORDER-OTHER', 'failed', clock_timestamp(), 'F0001')`, b+1000000, organizationID, other.ID)
+	require.NoError(t, err)
+	_, err = service.Run(ctx, request)
+	require.Error(t, err, "the root waits for every school erasure of the Träger")
+	require.Equal(t, 1, count(`SELECT count(*) FROM platform.organizations WHERE id = ?`, organizationID))
+	_, err = db.ExecContext(ctx, `DELETE FROM platform.school_erasures WHERE order_reference = 'ORDER-OTHER'`)
+	require.NoError(t, err)
 	results, err = service.Run(ctx, request)
 	require.NoError(t, err)
 	require.Len(t, results, 3)
@@ -324,10 +336,16 @@ func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T
 	require.Equal(t, 1, count(`SELECT count(*) FROM platform.operator_audit_log
 		WHERE operator_id = ? AND action = 'erase' AND resource_type = 'organization' AND resource_id = ?`, operator.ID, organizationID), "the root deletion is in the operator audit")
 
+	// An upload restore may bring files back after the root is gone: a
+	// repeated run replays the file phase of every erased school.
+	restoredFile := filepath.Join(uploads, fmt.Sprintf("files/%d/restored.bin", a))
+	require.NoError(t, os.MkdirAll(filepath.Dir(restoredFile), 0700))
+	require.NoError(t, os.WriteFile(restoredFile, []byte("synthetic"), 0600))
 	repeated, err := service.Run(ctx, request)
 	require.NoError(t, err)
-	require.Len(t, repeated, 1)
-	require.JSONEq(t, string(results[2]), string(repeated[0]), "a repeated run returns the evidence")
+	require.Len(t, repeated, 3)
+	require.NoFileExists(t, restoredFile)
+	require.JSONEq(t, string(results[2]), string(repeated[2]), "a repeated run returns the evidence")
 	request.DryRun = true
 	checked, err := service.Run(ctx, request)
 	require.NoError(t, err)

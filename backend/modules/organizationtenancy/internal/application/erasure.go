@@ -150,16 +150,23 @@ func (s *Erasure) runSchools(ctx context.Context, r organizationtenancy.ErasureR
 // order, after the grace period, every school first and then the Träger root.
 // A dry run previews the schools and reports the order check without changes.
 func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.ErasureRequest, kinds []organizationtenancy.LifecycleFileKind) ([]json.RawMessage, error) {
-	check, status, err := s.organizationCheck(ctx, r)
+	check, status, erased, err := s.organizationCheck(ctx, r)
 	if err != nil {
 		return nil, err
 	}
 	if status == "completed" {
-		// The root is gone; a repeated run returns the evidence.
 		if r.DryRun {
 			return []json.RawMessage{check}, nil
 		}
-		return s.eraseOrganizationRoot(ctx, r)
+		// The root is gone. A repeated run replays the file phase of every
+		// erased school, like a school retry after an upload restore, and
+		// returns the evidence.
+		results, err := s.runSchools(ctx, r, erased, kinds)
+		if err != nil {
+			return results, err
+		}
+		proof, err := s.eraseOrganizationRoot(ctx, r)
+		return append(results, proof...), err
 	}
 	if !r.DryRun && status != "due" {
 		return nil, fmt.Errorf("erasure: organization order is %s; it needs the written confirmation recorded in the operator portal, a deactivated organization and the end of the grace period; nothing erased", status)
@@ -186,19 +193,21 @@ func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.Era
 	return append(results, proof...), err
 }
 
-// organizationCheck reads the order state of the Träger without changes.
-func (s *Erasure) organizationCheck(ctx context.Context, r organizationtenancy.ErasureRequest) (json.RawMessage, string, error) {
+// organizationCheck reads the order state of the Träger without changes, with
+// the schools the order already erased.
+func (s *Erasure) organizationCheck(ctx context.Context, r organizationtenancy.ErasureRequest) (json.RawMessage, string, []int64, error) {
 	raw, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_check", r.OrganizationID, r.OperatorID, r.OrderReference)
 	if err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
 	var check struct {
-		Status string `json:"status"`
+		Status    string  `json:"status"`
+		SchoolIDs []int64 `json:"school_ids"`
 	}
 	if err := json.Unmarshal(raw, &check); err != nil || check.Status == "" {
-		return nil, "", errors.New("erasure: invalid organization order check")
+		return nil, "", nil, errors.New("erasure: invalid organization order check")
 	}
-	return raw, check.Status, nil
+	return raw, check.Status, check.SchoolIDs, nil
 }
 
 // eraseOrganizationRoot deletes the Träger root after its schools.
