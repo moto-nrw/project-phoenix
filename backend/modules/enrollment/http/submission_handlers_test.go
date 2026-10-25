@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
@@ -502,4 +504,145 @@ func remoteIPFromRequestThroughXFFMiddleware(req *http.Request) string {
 	})
 	router.ServeHTTP(httptest.NewRecorder(), req)
 	return ip
+}
+
+// A submission of a signed form without or with an unreadable signature is
+// refused on the wire with its own code and the field (#4786).
+func TestMapSubmitError_SignatureRefusals400WithCodeAndField(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		err  error
+		code string
+	}{
+		{capability.InvalidInput(capability.CodeSignatureRequired, "signature", capability.ErrSignatureRequired), "enrollment.signature_required"},
+		{capability.InvalidInput(capability.CodeSignatureInvalid, "signature", fmt.Errorf("record: %w", capability.ErrSignatureInvalid)), "enrollment.signature_invalid"},
+	} {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/x", nil)
+		mapSubmitError(w, r, tc.err)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		var body struct {
+			Code   string `json:"code"`
+			Errors []struct {
+				Field string `json:"field"`
+			} `json:"errors"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+		assert.Equal(t, tc.code, body.Code)
+		require.NotEmpty(t, body.Errors)
+		assert.Equal(t, "signature", body.Errors[0].Field)
+	}
+}
+
+// The proof refuses a legal snapshot whose consents cannot be read instead
+// of printing every consent as refused.
+func TestSignatureProofDocument_RefusesUnreadableConsents(t *testing.T) {
+	t.Parallel()
+
+	req := &Request{LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{ConsentFlags: []byte("kaputt")}}}
+	_, err := signatureProofDocument(signatureProof{Request: req, Signature: &capability.RequestSignature{}}, time.Now())
+	require.Error(t, err)
+}
+
+func TestSignatureProofRecord_UsesMethodNeutralTitle(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name           string
+		signature      *capability.RequestSignature
+		wantMethodText string
+	}{
+		{
+			name:           "drawn",
+			signature:      &capability.RequestSignature{Method: "drawn"},
+			wantMethodText: "Mit Finger, Stift oder Maus gezeichnet",
+		},
+		{
+			name:           "typed",
+			signature:      &capability.RequestSignature{Method: "typed", TypedName: "Anna Beispiel"},
+			wantMethodText: "Name getippt: Anna Beispiel",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			record := signatureProofRecord(tc.signature)
+
+			assert.Equal(t, "Einfache elektronische Signatur", record.Title)
+			require.NotEmpty(t, record.Fields)
+			assert.Equal(t, tc.wantMethodText, record.Fields[0].Value)
+		})
+	}
+}
+
+func TestSignatureProofDocument_ReproducesFrozenLegalTextAndDocuments(t *testing.T) {
+	t.Parallel()
+
+	req := &Request{LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{
+		ConsentFlags: []byte(`{"photo":true}`),
+		Blocks: []capability.LegalBlockSnapshot{
+			{
+				Key: "privacy", Kind: capability.LegalBlockKindPrivacyNotice,
+				Title: "Datenschutz", Label: "Datenschutz gelesen.", Text: "Ihre Daten bleiben bei der Schule.",
+				Attachments: []capability.FormAttachment{{Label: "Datenschutzhinweise", DocumentURL: "/dokumente/datenschutz.pdf"}},
+			},
+			{
+				Key: "photo", Kind: capability.LegalBlockKindConsent,
+				Title: "Fotos", Label: "Ich stimme Fotos zu.", Text: "Fotos zeigen den OGS-Alltag.",
+				Attachments: []capability.FormAttachment{{Label: "Fotohinweise", DocumentURL: "/dokumente/fotos.pdf"}},
+			},
+		},
+	}}}
+
+	doc, err := signatureProofDocument(signatureProof{Request: req, Signature: &capability.RequestSignature{}}, time.Now())
+	require.NoError(t, err)
+	require.Len(t, doc.Groups, 3)
+	legal := doc.Groups[2].Records[0]
+	require.Equal(t, "Rechtstexte zum Zeitpunkt der letzten Abgabe", legal.Title)
+	require.Equal(t, []lists.SubRecord{
+		{Title: "Datenschutz", Fields: []lists.Field{
+			{Label: "Bestätigung", Value: "Datenschutz gelesen."},
+			{Label: "Antwort", Value: "Zur Kenntnis genommen"},
+			{Label: "Text", Value: "Ihre Daten bleiben bei der Schule."},
+			{Label: "Dokument: Datenschutzhinweise", Value: "/dokumente/datenschutz.pdf"},
+		}},
+		{Title: "Fotos", Fields: []lists.Field{
+			{Label: "Bestätigung", Value: "Ich stimme Fotos zu."},
+			{Label: "Antwort", Value: "Zugestimmt"},
+			{Label: "Text", Value: "Fotos zeigen den OGS-Alltag."},
+			{Label: "Dokument: Fotohinweise", Value: "/dokumente/fotos.pdf"},
+		}},
+	}, legal.Subs)
+}
+
+func TestSignatureProofDocument_IncludesSignedAnswersAndOfferingChoices(t *testing.T) {
+	t.Parallel()
+
+	req := &Request{
+		CustomData: map[string]any{"vegetarisch": true},
+		LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{
+			ConsentFlags: []byte(`{}`),
+		}},
+	}
+	child := &RequestChild{ID: 17, FirstName: "Lina", LastName: "Beispiel", DateOfBirth: calendar.NewDate(2018, 4, 15),
+		CustomData: map[string]any{"abholzeit": map[string]any{"mon": "15:00"}}}
+	doc, err := signatureProofDocument(signatureProof{
+		Request: req, Children: []*RequestChild{child}, Signature: &capability.RequestSignature{},
+		Schema: &capability.FormSchema{Fields: []capability.FormField{
+			{Key: "vegetarisch", Label: "Vegetarisch", Type: capability.FormFieldBoolean},
+			{Key: "abholzeit", Label: "Abholzeit", Type: capability.FormFieldWeekdaySchedule, AppliesToCh: true},
+		}},
+		OfferingSelections: []*capability.RequestChildOfferingRecord{{
+			RequestChildID: child.ID, CareOfferingID: 42, SelectedDays: []string{"mon", "wed"},
+		}},
+		OfferingNames: map[int64]string{42: "Kernzeit"},
+	}, time.Now())
+	require.NoError(t, err)
+	require.Len(t, doc.Groups, 2)
+	require.Len(t, doc.Groups[1].Records, 2)
+
+	guardian := doc.Groups[1].Records[0].Fields
+	assert.Contains(t, guardian, lists.Field{Label: "Vegetarisch", Value: "Ja"})
+	childFields := doc.Groups[1].Records[1].Fields
+	assert.Contains(t, childFields, lists.Field{Label: "Betreuungsangebote", Value: "Kernzeit (#42) (Mo, Mi)"})
+	assert.Contains(t, childFields, lists.Field{Label: "Abholzeit", Value: "Mo 15:00"})
 }

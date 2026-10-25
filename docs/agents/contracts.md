@@ -512,3 +512,12 @@ The parents portal serves `/parents/anmeldung/{slug}/{phaseId}` with the same
 `profileFetcher`, `submitter`, and `skipCaptcha`. Authenticated parent submissions
 stamp `enrollment.requests.guardian_account_id`; decisions prefer attachment by
 that ID over email matching.
+
+A form template with `core_requirements.signature` requires the parent's
+signature on every parent submission and form edit (#4786); the server refuses
+a missing one with `enrollment.signature_required`. The status token is the
+only authority for the parent's proof (`GET /api/enrollment/requests/{token}?format=pdf`):
+it resolves one request of one school, every later read stays on that request
+and school, and an unknown, expired or altered token answers 404
+`enrollment.status_link_invalid`. Details:
+[docs/reference/elternerklaerungen.md](../reference/elternerklaerungen.md#anmeldung-mit-unterschrift-4786).

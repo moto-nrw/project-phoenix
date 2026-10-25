@@ -47,6 +47,8 @@ type submissionPlan struct {
 	statusToken      string
 	statusURL        string
 	statusExpiresAt  time.Time
+	// signatureRequired: the parent signs this submission (#4786).
+	signatureRequired bool
 }
 
 func (s *Intake) submit(ctx context.Context, req SubmitRequest) (*submitOutcome, error) {
@@ -154,6 +156,10 @@ func (s *Intake) planSubmissionContract(ctx context.Context, req *SubmitRequest,
 		return fmt.Errorf("submit: load schema: %w", err)
 	}
 	plan.schema = schema
+	plan.signatureRequired = signatureRequired(schema, plan.submissionSource)
+	if err := s.requireSignature(plan.signatureRequired, req.Signature); err != nil {
+		return err
+	}
 	if plan.legalBlocks, err = s.resolveSubmissionLegalBlocks(ctx, schema); err != nil {
 		return fmt.Errorf("submit: resolve legal blocks: %w", err)
 	}
@@ -265,6 +271,12 @@ func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *
 	}
 	if outcome.Children, err = s.createSubmittedChildren(ctx, req, plan, request, overrides, submitter); err != nil {
 		return err
+	}
+	if plan.signatureRequired {
+		doc := newSignedEnrollmentDocument(request, req.Children, req.AdditionalGuardians, plan.selections)
+		if err := s.recordSignature(ctx, request, req.Signature, doc); err != nil {
+			return err
+		}
 	}
 	return s.notifySubmission(ctx, req, plan, outcome, len(overrides) > 0)
 }

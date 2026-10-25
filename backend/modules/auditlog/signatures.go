@@ -176,8 +176,11 @@ type Signature struct {
 // SignatureLedger appends and reads signatures inside the caller's tenant
 // transaction, so a signature commits or rolls back with the record that
 // references it. Reads return only rows of that school; ids of another school
-// are simply absent.
+// are simply absent. LatestEnrollmentSignatures returns, per enrollment
+// request, its newest signature (#4786): a parent edit signs again, so the
+// newest one belongs to the request's current version.
 type SignatureLedger interface {
 	RecordSignature(context.Context, SignatureEntry) (*Signature, error)
 	Signatures(ctx context.Context, ids []int64) (map[int64]*Signature, error)
+	LatestEnrollmentSignatures(ctx context.Context, requestIDs []int64) (map[int64]*Signature, error)
 }
