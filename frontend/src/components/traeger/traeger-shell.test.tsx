@@ -114,4 +114,39 @@ describe("TraegerShell", () => {
     expect(screen.queryByRole("button", { name: "Ferien" })).toBeNull();
     sessionUser.permissions = [];
   });
+
+  // #4655: the access log is a tab only for those who may read it.
+  it("offers the access log only with the right to read it", () => {
+    sessionUser.permissions = [
+      "traeger_overview:read",
+      "traeger_enrollment:manage",
+    ];
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    expect(
+      screen.getAllByRole("button", { name: "Ferien" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Zugriffsprotokoll" }),
+    ).toBeNull();
+    unmount();
+
+    sessionUser.permissions = [
+      "traeger_overview:read",
+      "traeger_access_log:read",
+    ];
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Zugriffsprotokoll" })[0]!,
+    );
+    expect(mockPush).toHaveBeenLastCalledWith("/access-log");
+    sessionUser.permissions = [];
+  });
 });
