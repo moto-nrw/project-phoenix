@@ -96,7 +96,7 @@ function holidaysDescription(
   window: HolidayWindow,
 ): string {
   const scope = window.schoolYearName
-    ? `im Schuljahr „${window.schoolYearName}“`
+    ? `für „${window.schoolYearName}“`
     : "in den nächsten zwölf Monaten";
   const state = data ? ` in ${data.federalStateName}` : "";
   return `Nur zur Information: die gesetzlichen Feiertage${state} ${scope}. moto richtet sie nach dem Bundesland der Schule. Stimmt das Bundesland nicht, wenden Sie sich an das moto-Team.`;

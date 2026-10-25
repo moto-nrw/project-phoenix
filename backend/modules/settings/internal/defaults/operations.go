@@ -502,7 +502,7 @@ var operations_init_standort_10Definitions = []config.Definition{
 	{
 		Key:             config.KeyFederalState,
 		Label:           "Bundesland",
-		Description:     "Bundesland der Schule. Danach richten sich die gesetzlichen Feiertage. An Feiertagen gibt es in der Zeiterfassung kein Soll. Der Dienstplan legt keine Schichten an. Regeltermine finden nicht statt. Ändern kann es nur das moto-Team.",
+		Description:     "Bundesland der Schule. Danach richten sich die gesetzlichen Feiertage. An Feiertagen gibt es in der Zeiterfassung kein Soll. Der Dienstplan legt keine Schichten an. Regeltermine finden nicht statt.",
 		Type:            config.FieldSelect,
 		Default:         "DE-NW",
 		ReadPermission:  "config:read",

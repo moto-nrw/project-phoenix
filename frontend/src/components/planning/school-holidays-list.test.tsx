@@ -98,9 +98,7 @@ describe("SchoolHolidaysList", () => {
     expect(card).not.toBeNull();
     const list = within(card as HTMLElement);
     expect(
-      list.getByText(
-        /in Nordrhein-Westfalen im Schuljahr „Schuljahr 2026\/27“/,
-      ),
+      list.getByText(/in Nordrhein-Westfalen für „Schuljahr 2026\/27“/),
     ).toBeInTheDocument();
     expect(list.getByText("Tag der Deutschen Einheit")).toBeInTheDocument();
     expect(list.getByText("Allerheiligen")).toBeInTheDocument();

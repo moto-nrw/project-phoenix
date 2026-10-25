@@ -697,7 +697,11 @@ export function PersonalCalendar({
         <SlideOverContent widthClass="sm:w-[520px]">
           <SlideOverHeader className="flex-row items-start justify-between gap-3">
             <div className="min-w-0">
-              <SlideOverTitle>Termin</SlideOverTitle>
+              <SlideOverTitle>
+                {selectedEvent?.source === "public_holiday"
+                  ? "Feiertag"
+                  : "Termin"}
+              </SlideOverTitle>
             </div>
             <SlideOverCloseButton />
           </SlideOverHeader>
