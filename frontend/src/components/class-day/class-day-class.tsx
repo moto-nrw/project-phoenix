@@ -6,8 +6,9 @@
 // in der Betreuung, wer geht nach Hause, und bei wem ist es heute anders als
 // sonst. Abweichungen stehen am Kind selbst, nicht in einem eigenen Block —
 // jedes Kind kommt genau einmal vor. Heute trägt die Lehrkraft am Kind auch
-// ein, ob es am Vormittag da ist (#4790), und übergibt die Klasse nach dem
-// Unterricht an die OGS (#4794).
+// ein, ob es am Vormittag da ist (#4790), und übergibt die Klasse an die OGS
+// (#4794). Hausaufgaben trägt sie für den Tag
+// ein; die Rückmeldung der OGS steht am Kind (#4796).
 
 import { ChevronLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
@@ -15,6 +16,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormModal } from "~/components/ui/form-modal";
@@ -25,8 +27,11 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { Input } from "~/components/ui/input";
 import NavigationLink from "~/components/ui/navigation-link";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
+import { Textarea } from "~/components/ui/textarea";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import type {
   ClassDayReport,
@@ -34,6 +39,10 @@ import type {
   MorningAttendanceStatus,
 } from "~/lib/class-day-api";
 import { formatDate, parseISODate, todayISO } from "~/lib/date-helpers";
+import {
+  HOMEWORK_DESCRIPTION_MAX_LENGTH,
+  HOMEWORK_SUBJECT_MAX_LENGTH,
+} from "~/lib/homework-feedback";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import type {
@@ -65,6 +74,7 @@ import {
   isWeekendISO,
 } from "./routes";
 import { Section, type StudentRowMorning } from "./student-row";
+import { type ClassHomeworkApi, useClassHomework } from "./use-class-homework";
 
 const logger = createLogger({ component: "ClassDayClass" });
 
@@ -134,6 +144,12 @@ export interface ClassDayClassProps {
     marks: readonly MorningAttendanceMark[],
   ) => Promise<void>;
   /**
+   * Trägt Hausaufgaben ein und ändert oder löscht jeden Eintrag der Klasse,
+   * egal wer ihn angelegt hat (#4796). Ohne sie
+   * bleiben die Hausaufgaben eine Anzeige.
+   */
+  readonly homework?: ClassHomeworkApi;
+  /**
    * Übergibt die Klasse heute an die OGS (#4794). Ohne sie bleibt die
    * Übergabe eine Anzeige.
    */
@@ -147,6 +163,7 @@ export interface ClassDayClassProps {
     schoolClass: string,
     date: string,
   ) => Promise<void>;
+
   /** Nur für Tests: fixiert den Vergleichstag für "Heute gemeldet". */
   readonly now?: Date;
 }
@@ -159,8 +176,10 @@ export function ClassDayClass({
   fetchClasses,
   reportClassTrip,
   recordMorningAttendance,
+  homework,
   handOverClass,
   withdrawClassHandover,
+
   now,
 }: ClassDayClassProps) {
   // Kein Default-Prop: eine `new Date()` in der Signatur bricht die
@@ -362,6 +381,16 @@ export function ClassDayClass({
       setSavingMorning(false);
     }
   };
+  // Hausaufgaben (#4796): nur mit Berechtigung und Schreibweg ein Knopf.
+  const homeworkEntries = report?.homework ?? [];
+  const canWriteHomework =
+    Boolean(homework) && report?.can_write_homework === true && !weekend;
+  const homeworkForm = useClassHomework({
+    api: homework,
+    schoolClass,
+    dateISO,
+    onChanged: () => refetchReport(),
+  });
   // Übergabe an die OGS (#4794): bestätigt wird je Klasse, Ausnahmen je Kind.
   const canHandOver =
     Boolean(handOverClass && withdrawClassHandover) &&
@@ -606,6 +635,74 @@ export function ClassDayClass({
           </div>
         ) : null}
 
+        {/* Hausaufgaben des Tages (#4796). Ein Satz sagt, wer sie sieht. */}
+        {schoolClass && !weekend && report ? (
+          <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  Hausaufgaben
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Die OGS sieht sie in der Lernzeit und meldet je Kind zurück.
+                </p>
+              </div>
+              {canWriteHomework ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={homeworkForm.openNew}
+                >
+                  Hausaufgaben eintragen
+                </Button>
+              ) : null}
+            </div>
+            {homeworkEntries.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                Für diesen Tag sind keine Hausaufgaben eingetragen.
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {homeworkEntries.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="moto-content-surface flex min-w-0 items-start justify-between gap-3 rounded-xl border px-3 py-2.5 shadow-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      {entry.subject ? (
+                        <p className="text-sm font-medium text-gray-900">
+                          {entry.subject}
+                        </p>
+                      ) : null}
+                      <p className="text-sm break-words whitespace-pre-line text-gray-700">
+                        {entry.description}
+                      </p>
+                    </div>
+                    {canWriteHomework ? (
+                      <OverflowMenu
+                        ariaLabel={`Aktionen zur Hausaufgabe ${entry.subject ?? ""}`.trim()}
+                        triggerSize="sm"
+                        items={[
+                          {
+                            label: "Ändern",
+                            onClick: () => homeworkForm.openEdit(entry),
+                          },
+                          {
+                            label: "Löschen",
+                            destructive: true,
+                            onClick: () => homeworkForm.askDelete(entry),
+                          },
+                        ]}
+                      />
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : null}
+
         {schoolClass && weekend && (
           <EmptyState
             className="mt-4"
@@ -729,6 +826,70 @@ export function ClassDayClass({
           </div>
         ) : null}
       </section>
+
+      {canWriteHomework ? (
+        <FormModal
+          isOpen={homeworkForm.draft !== null}
+          onClose={homeworkForm.close}
+          title={
+            homeworkForm.draft?.editing
+              ? "Hausaufgabe ändern"
+              : `Hausaufgaben für ${formatDate(dateISO)}`
+          }
+          size="md"
+          mobilePosition="bottom"
+          closeDisabled={homeworkForm.saving}
+          isBackdropDismissDisabled
+          error={homeworkForm.formError}
+          footer={
+            <EditActions
+              className="p-4"
+              onCancel={homeworkForm.close}
+              onSave={() => void homeworkForm.save()}
+              saving={homeworkForm.saving}
+            />
+          }
+        >
+          <div className="space-y-4 p-4">
+            <Input
+              id="homework-subject"
+              name="subject"
+              label="Fach (freiwillig)"
+              controlSize="compact"
+              maxLength={HOMEWORK_SUBJECT_MAX_LENGTH}
+              value={homeworkForm.draft?.subject ?? ""}
+              onChange={(event) =>
+                homeworkForm.update("subject", event.target.value)
+              }
+            />
+            <Textarea
+              id="homework-description"
+              name="description"
+              label="Was ist zu tun?"
+              rows={4}
+              maxLength={HOMEWORK_DESCRIPTION_MAX_LENGTH}
+              value={homeworkForm.draft?.description ?? ""}
+              error={homeworkForm.fieldError("description")}
+              onChange={(event) =>
+                homeworkForm.update("description", event.target.value)
+              }
+            />
+          </div>
+        </FormModal>
+      ) : null}
+
+      {canWriteHomework ? (
+        <ConfirmDeleteModal
+          isOpen={homeworkForm.deleting !== null}
+          title="Hausaufgabe löschen?"
+          description="Die OGS sieht diese Hausaufgabe danach nicht mehr."
+          gate={{ mode: "twoStep" }}
+          onConfirm={() => homeworkForm.confirmDelete()}
+          onClose={homeworkForm.closeDelete}
+          loading={homeworkForm.removing}
+          error={homeworkForm.deleteError}
+        />
+      ) : null}
 
       {schoolClass && canReportClassTrip ? (
         <ClassTripBulkStatusModal

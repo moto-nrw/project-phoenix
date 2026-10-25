@@ -36,6 +36,7 @@ describe("HelpEntry", () => {
       "Leitung",
       "Elternteil",
       "Lehrkraft",
+      "Träger-Büro",
     ]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
@@ -107,6 +108,20 @@ describe("HelpEntry", () => {
     expect(
       screen.queryByRole("heading", { name: "Wie arbeitet Ihre OGS?" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("sends the Träger-Büro straight to its guide", () => {
+    const onSubmit = renderEntry();
+
+    fireEvent.click(screen.getByText("Träger-Büro"));
+
+    // Das Träger-Portal kennt keine Einstellungen einer einzelnen OGS.
+    expect(onSubmit).toHaveBeenCalledWith({
+      role: "traeger",
+      nfcEnabled: null,
+      groupMode: "unknown",
+      presenceMode: "unknown",
+    });
   });
 
   it("passes the chosen school settings on", () => {

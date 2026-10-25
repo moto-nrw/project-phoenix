@@ -13,14 +13,16 @@ import (
 // write it. The table is tenant-scoped: the statements apply the tenant the
 // runtime scoped the caller to, so an administrative transaction — the
 // public accept and validate routes run in one — reaches the invitation of
-// every school while a tenant-scoped caller stays inside its own.
+// every school while a tenant-scoped caller stays inside its own. The token
+// column holds the hex SHA-256 of the link token only (#4902): reads by ID or
+// listings return the invitation without its token.
 
 type schoolInvitationRow struct {
 	bun.BaseModel       `bun:"table:auth.invitation_tokens,alias:invitation_token"`
 	ID                  int64                   `bun:"id,pk,autoincrement"`
 	TenantID            int64                   `bun:"tenant_id,notnull"`
 	Email               string                  `bun:"email,notnull"`
-	Token               string                  `bun:"token,notnull"`
+	TokenHash           string                  `bun:"token,notnull"`
 	RoleID              int64                   `bun:"role_id,notnull"`
 	ExpiresAt           time.Time               `bun:"expires_at,notnull"`
 	UsedAt              *time.Time              `bun:"used_at"`
@@ -43,7 +45,7 @@ type schoolInvitationRow struct {
 
 func (r schoolInvitationRow) toDomain() domain.SchoolInvitation {
 	return domain.SchoolInvitation{
-		ID: r.ID, TenantID: r.TenantID, Email: r.Email, Token: r.Token, RoleID: r.RoleID, ExpiresAt: r.ExpiresAt,
+		ID: r.ID, TenantID: r.TenantID, Email: r.Email, RoleID: r.RoleID, ExpiresAt: r.ExpiresAt,
 		UsedAt: r.UsedAt, CreatedBy: r.CreatedBy, FirstName: r.FirstName, LastName: r.LastName, Position: r.Position,
 		ResetMasterData: r.ResetMasterData, ResetQualifications: r.ResetQualifications, ResetWorkTime: r.ResetWorkTime, EmploymentAction: r.EmploymentAction, CaregiverEnabled: r.CaregiverEnabled, PersonID: r.PersonID,
 		Delivery:  domain.TokenDelivery{SentAt: r.EmailSentAt, Error: r.EmailError, RetryCount: r.EmailRetryCount},
@@ -61,7 +63,7 @@ func (s *Store) InsertSchoolInvitation(ctx context.Context, invitation domain.Sc
 		return domain.SchoolInvitation{}, domain.OperationStats{}, err
 	}
 	row := schoolInvitationRow{
-		TenantID: invitation.TenantID, Email: invitation.Email, Token: invitation.Token, RoleID: invitation.RoleID,
+		TenantID: invitation.TenantID, Email: invitation.Email, TokenHash: domain.HashToken(invitation.Token), RoleID: invitation.RoleID,
 		ExpiresAt: invitation.ExpiresAt, CreatedBy: invitation.CreatedBy, FirstName: invitation.FirstName,
 		LastName: invitation.LastName, Position: invitation.Position, CaregiverEnabled: invitation.CaregiverEnabled,
 		PersonID: invitation.PersonID, EmploymentAction: invitation.EmploymentAction,
@@ -74,7 +76,9 @@ func (s *Store) InsertSchoolInvitation(ctx context.Context, invitation domain.Sc
 		return domain.SchoolInvitation{}, stats, fmt.Errorf("identity access postgres: insert school invitation: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
-	return row.toDomain(), stats, nil
+	created := row.toDomain()
+	created.Token = invitation.Token
+	return created, stats, nil
 }
 
 func (s *Store) FindSchoolInvitation(ctx context.Context, id int64) (domain.SchoolInvitation, bool, domain.OperationStats, error) {
@@ -96,9 +100,11 @@ func (s *Store) FindSchoolInvitationByToken(ctx context.Context, token string) (
 	}
 	var row schoolInvitationRow
 	started := time.Now()
-	err = invitationTenantFilter(s.scope(ctx), db.NewSelect().Model(&row).Where(`"invitation_token".token = ?`, token)).Scan(ctx)
+	err = invitationTenantFilter(s.scope(ctx), db.NewSelect().Model(&row).Where(`"invitation_token".token = ?`, domain.HashToken(token))).Scan(ctx)
 	found, stats, err := scanOne("find school invitation by token", started, err)
-	return row.toDomain(), found, stats, err
+	invitation := row.toDomain()
+	invitation.Token = token
+	return invitation, found, stats, err
 }
 
 // schoolInvitationListRow is the pending-list projection: the invitation
@@ -107,7 +113,6 @@ type schoolInvitationListRow struct {
 	ID                  int64                   `bun:"id"`
 	TenantID            int64                   `bun:"tenant_id"`
 	Email               string                  `bun:"email"`
-	Token               string                  `bun:"token"`
 	RoleID              int64                   `bun:"role_id"`
 	RoleName            string                  `bun:"role_name"`
 	ExpiresAt           time.Time               `bun:"expires_at"`
@@ -131,7 +136,7 @@ type schoolInvitationListRow struct {
 
 func (r schoolInvitationListRow) toDomain() domain.SchoolInvitation {
 	return domain.SchoolInvitation{
-		ID: r.ID, TenantID: r.TenantID, Email: r.Email, Token: r.Token, RoleID: r.RoleID, RoleName: r.RoleName,
+		ID: r.ID, TenantID: r.TenantID, Email: r.Email, RoleID: r.RoleID, RoleName: r.RoleName,
 		ExpiresAt: r.ExpiresAt, UsedAt: r.UsedAt, CreatedBy: r.CreatedBy, CreatorEmail: r.CreatorEmail,
 		FirstName: r.FirstName, LastName: r.LastName, Position: r.Position, ResetMasterData: r.ResetMasterData, ResetQualifications: r.ResetQualifications, ResetWorkTime: r.ResetWorkTime, EmploymentAction: r.EmploymentAction, CaregiverEnabled: r.CaregiverEnabled,
 		PersonID:  r.PersonID,
@@ -149,7 +154,7 @@ func (s *Store) ListRedeemableSchoolInvitations(ctx context.Context, now time.Ti
 	started := time.Now()
 	query := invitationTenantFilter(s.scope(ctx), db.NewSelect().
 		TableExpr(`auth.invitation_tokens AS "invitation_token"`).
-		ColumnExpr(`"invitation_token".id, "invitation_token".tenant_id, "invitation_token".email, "invitation_token".token, "invitation_token".role_id`).
+		ColumnExpr(`"invitation_token".id, "invitation_token".tenant_id, "invitation_token".email, "invitation_token".role_id`).
 		ColumnExpr(`COALESCE("role".name, '') AS role_name`).
 		ColumnExpr(`"invitation_token".expires_at, "invitation_token".used_at, "invitation_token".created_by`).
 		ColumnExpr(`COALESCE("creator".email, '') AS creator_email`).
@@ -204,11 +209,14 @@ func (s *Store) RevokeSchoolInvitationsForTenant(ctx context.Context, tenantID i
 	return int(rows), stats, err
 }
 
-func (s *Store) ExtendSchoolInvitation(ctx context.Context, id int64, expiresAt, now time.Time) (bool, domain.OperationStats, error) {
+// ExtendSchoolInvitation moves the expiry of a redeemable invitation and
+// replaces its token: the stored hash cannot be mailed again.
+func (s *Store) ExtendSchoolInvitation(ctx context.Context, id int64, expiresAt, now time.Time, token string) (bool, domain.OperationStats, error) {
 	scope := s.scope(ctx)
 	rows, stats, err := s.exec(ctx, "extend school invitation", func(db bun.IDB) executor {
 		return invitationTenantFilter(scope, db.NewUpdate().Model((*schoolInvitationRow)(nil)).
 			Set("expires_at = ?", expiresAt).
+			Set("token = ?", domain.HashToken(token)).
 			Where(`"invitation_token".id = ?`, id).
 			Where(`"invitation_token".used_at IS NULL`).
 			Where(`"invitation_token".expires_at > ?`, now))

@@ -25,8 +25,8 @@ func TestNewCallerRowsRequiresEveryDependency(t *testing.T) {
 func TestNewCallerContextRequiresEveryDependency(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewCallerContext(TokenAdapter{}, nil, CallerPersons{}, nil, nil, nil, nil, nil, slog.Default())
-	require.EqualError(t, err, "compose caller context: the accounts, persons, membership, staff groups, supervised activities, presence and a logger are required")
+	_, err := NewCallerContext(TokenAdapter{}, nil, CallerPersons{}, nil, nil, nil, nil, nil, nil, slog.Default())
+	require.EqualError(t, err, "compose caller context: the accounts, persons, membership, staff groups, school classes, supervised activities, presence and a logger are required")
 }
 
 type staffIdentityStub struct {

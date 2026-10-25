@@ -108,7 +108,7 @@ func (seedFamilyProtectionStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	_, err := rt.Client.Put(fmt.Sprintf("/api/students/%d/family-protection", studentID), map[string]any{
 		"enabled": true,
-		"reason":  "Demo: private Familienangaben schützen",
+		"reason":  "Private Familienangaben schützen",
 	})
 	if err != nil {
 		return fmt.Errorf("seed family protection: %w", err)
@@ -219,10 +219,10 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	}
 	steps = append(steps, parentEnrollmentSeedStep{seeder: seeder})
 	if !seeder.options.DeferHistory {
-		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentIncomeProofStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
+		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
 	}
 	steps = append(steps,
-		seedParentEngagementStep{},
+		seedParentEngagementStep{}, seedAnalyticsConsentStep{}, seedSchoolLifeStep{},
 		// After the parents: it orders lunch for a child of the first one.
 		seedMealOrdersStep{},
 		seedGradeTransitionStep{},
@@ -241,10 +241,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			manualProfileStep{seeder: seeder},
 			seedEnrollmentWeeklyProfileStep{seeder: seeder},
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
-			seedMarketingProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, seedStaffPersonMergeStep{})
+	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{})
 	if !seeder.options.DeferHistory {
 		steps = append(steps, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 	}
@@ -276,7 +275,7 @@ func deferredPastSteps() []Step {
 // counts them, so both follow.
 func deferredDemoSteps(seeder *Seeder) []Step {
 	return append(deferredPastSteps(),
-		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentIncomeProofStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
+		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
 		seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 }
 

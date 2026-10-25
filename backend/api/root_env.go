@@ -53,6 +53,9 @@ func resolveServiceLinks(cfg owners.ServiceConfig) (owners.ServiceLinks, error) 
 		// The caterer's invitation link lands on the caterer portal
 		// (ADR 0077).
 		{"CATERER_URL", cfg.CatererURL, &links.CatererURL},
+		// Träger-Büro invitation links land on the Träger-Portal (ADR
+		// 0084): a required value without a default.
+		{"TRAEGER_URL", cfg.TraegerURL, &links.TraegerURL},
 	} {
 		value, err := requiredLink(link.name, link.raw, production)
 		if err != nil {

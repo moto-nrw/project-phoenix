@@ -123,7 +123,7 @@ func BuildIdentityAccess(
 			StaffURL: links.FrontendURL, ParentsURL: links.ParentsURL, SchoolURL: links.SchoolURL, CatererURL: links.CatererURL,
 			Expiry: links.PasswordResetTokenExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
 		}, authLogger),
-		Invitations: invitationDeps,
+		Invitations: invitationDeps, Traeger: traegerAccountDependencies(mailDispatcher, mailFrom, deliveryRuntime, links, authLogger),
 		OperatorProvisioning: operatorProvisioningDependencies(&operatorLinkWiring{
 			dispatcher: mailDispatcher, defaultFrom: mailFrom, durable: durable,
 			frontendURL: links.FrontendURL, operatorFrontendURL: operatorFrontendURL,
@@ -139,7 +139,7 @@ func BuildIdentityAccess(
 	// retained records.
 	usercontextLogger := env.Logger.With("service", "usercontext")
 	caller, err := NewCallerContext(tokens, module, CallerPersons{Rows: people.Persons, People: persons}, membership, staffGroups,
-		activityGroups, presence, settings, usercontextLogger)
+		people.Students, activityGroups, presence, settings, usercontextLogger)
 	if err != nil {
 		return nil, nil, err
 	}

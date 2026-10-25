@@ -19,9 +19,8 @@ func (rs *GuardianResource) listPendingInvitations(w http.ResponseWriter, r *htt
 			"email_error":         invitation.EmailError,
 			"email_retry_count":   invitation.EmailRetryCount,
 		}
-		if rs.runtime.ExposeInvitationToken(r) {
-			response["token"] = invitation.Token
-		}
+		// The link of a pending invitation is stored as hash only (#4902);
+		// no listing can hand it out, not even to the seeder.
 		responses = append(responses, response)
 	}
 	rs.succeed(w, r, http.StatusOK, responses, "Pending invitations retrieved successfully")

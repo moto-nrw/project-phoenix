@@ -21,6 +21,7 @@ vi.mock("~/lib/caterer-api", () => mocks);
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import CatererOverviewPage from "./page";
+import { setTestClock } from "~/test/clock";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -284,12 +285,71 @@ describe("CatererOverviewPage (#3873)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("marks failed school sums and incomplete aggregate totals", async () => {
+    mocks.fetchCatererOrders.mockImplementation((schoolId: string) =>
+      schoolId === "1"
+        ? Promise.resolve(week([10, 10, 10, 10, 10]))
+        : Promise.reject(new Error("School orders unavailable")),
+    );
+    render(<CatererOverviewPage />, { wrapper: ToastProvider });
+    await screen.findAllByText("Bestellung nicht geladen");
+    const table = screen.getAllByRole("table")[0]!;
+    const failed = within(table).getByText("OGS Süd").closest("tr")!;
+    expect(within(failed).getByText("Nicht geladen")).toBeInTheDocument();
+    const total = within(table)
+      .getByText("Summe", { selector: "span" })
+      .closest("tr")!;
+    expect(within(total).getAllByText("Unvollständig")).toHaveLength(6);
+    const loaded = within(table).getByText("OGS Nord").closest("tr")!;
+    expect(within(loaded).getByText("50")).toBeInTheDocument();
+  });
+
+  it("advances reads and exports across Berlin midnight", async () => {
+    vi.useFakeTimers();
+    setTestClock("2026-09-09T23:59:30+02:00");
+    await act(async () => {
+      render(<CatererOverviewPage />, { wrapper: ToastProvider });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
+    });
+    expect(mocks.fetchCatererOrders).toHaveBeenLastCalledWith(
+      "2",
+      "2026-09-10",
+      "2026-09-10",
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(mocks.fetchCatererOrders).toHaveBeenLastCalledWith(
+      "2",
+      "2026-09-11",
+      "2026-09-11",
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
+    });
+    expect(mocks.downloadCatererDeliveries).toHaveBeenCalledWith(
+      "2026-09-11",
+      "2026-09-11",
+      "pdf",
+    );
+  });
+
   it.each(["resolve", "reject"] as const)(
     "keeps the current period when an older school request settles last (%s)",
     async (outcome) => {
       render(<CatererOverviewPage />, { wrapper: ToastProvider });
-      const table = (await screen.findAllByRole("table"))[0]!;
-      expect(within(table).getByText("OGS Nord")).toBeInTheDocument();
+      // Die Karte zeigt die Tabelle schon beim Laden; erst die Zeile
+      // der Schule belegt, dass die Bestellungen da sind.
+      await waitFor(() =>
+        expect(
+          within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+        ).toBeInTheDocument(),
+      );
 
       const olderSchools = deferred<{
         catererName: string;
@@ -298,8 +358,13 @@ describe("CatererOverviewPage (#3873)", () => {
       mocks.fetchCatererSchools.mockReturnValueOnce(olderSchools.promise);
       fireEvent.click(screen.getByRole("button", { name: "Nächste Woche" }));
       fireEvent.click(screen.getByRole("button", { name: "Morgen" }));
-      const currentTable = (await screen.findAllByRole("table"))[0]!;
-      expect(within(currentTable).getByText("OGS Nord")).toBeInTheDocument();
+      // Die Karte zeigt die Tabelle schon beim Laden; erst die Zeile
+      // der Schule belegt, dass die Bestellungen da sind.
+      await waitFor(() =>
+        expect(
+          within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+        ).toBeInTheDocument(),
+      );
       expect(mocks.fetchCatererOrders).toHaveBeenLastCalledWith(
         "2",
         "2026-09-10",
@@ -333,8 +398,13 @@ describe("CatererOverviewPage (#3873)", () => {
   );
   it("keeps loading the current period when older orders arrive", async () => {
     render(<CatererOverviewPage />, { wrapper: ToastProvider });
-    const table = (await screen.findAllByRole("table"))[0]!;
-    expect(within(table).getByText("OGS Nord")).toBeInTheDocument();
+    // Die Karte zeigt die Tabelle schon beim Laden; erst die Zeile
+    // der Schule belegt, dass die Bestellungen da sind.
+    await waitFor(() =>
+      expect(
+        within(screen.getAllByRole("table")[0]!).getByText("OGS Nord"),
+      ).toBeInTheDocument(),
+    );
 
     const olderOrders = deferred<ReturnType<typeof week>>();
     mocks.fetchCatererOrders.mockReturnValueOnce(olderOrders.promise);

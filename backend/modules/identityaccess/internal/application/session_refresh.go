@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -80,16 +79,12 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 	// rotation transaction: either the rotation and the claims commit
 	// together, or the transaction rolls back and the presented refresh
 	// token is still the caller's.
-	var (
-		guard    mintGuard
-		metadata *domain.AccountClaimsPayload
-	)
-	if claims.Scope == domain.ScopeSchool {
-		guard = s.schoolRefreshMintGuard(claims.AccountID, claims.TenantID, &metadata)
-	} else {
-		guard = s.refreshClaimsGuard(claims.Scope, claims.TenantID, &metadata)
+	var metadata *domain.AccountClaimsPayload
+	guard, err := s.refreshMintGuard(claims, &metadata)
+	if err != nil {
+		return nil, err
 	}
-	account, newSession, recovered, err := s.refreshSessionInTransaction(ctx, claims, ipAddress, userAgent, s.refreshTenant(claims.TenantID), guard)
+	account, newSession, recovered, err := s.refreshSessionInTransaction(ctx, claims, ipAddress, userAgent, s.refreshTenant(claims), guard)
 	if err != nil {
 		return nil, err
 	}
@@ -123,18 +118,40 @@ func (s *AccountAuthentication) refreshAuditContext(ctx context.Context, claims 
 // refreshTenant pins the successor of a tenant or parent session to the
 // tenant of the presented token. Pre-tenant-claim tokens carry tenant 0;
 // their successor gets the account's default mapping.
-func (s *AccountAuthentication) refreshTenant(tenantID int64) successorTenant {
+func (s *AccountAuthentication) refreshTenant(claims domain.RefreshClaims) successorTenant {
 	return func(ctx context.Context, accountID int64, _ domain.AccountSession) (int64, error) {
-		if tenantID > 0 {
-			return tenantID, nil
+		if claims.Scope == domain.ScopeOrg {
+			return 0, nil
+		}
+		if claims.TenantID > 0 {
+			return claims.TenantID, nil
 		}
 		resolved, _, err := s.resolveAccountTenant(ctx, accountID, "")
 		return resolved, err
 	}
 }
 
-// refreshClaimsGuard assembles the claims of a tenant or parent refresh
-// inside the rotation transaction. Parent-scope refresh tokens
+// refreshMintGuard selects the guard that re-authorizes the refresh of the
+// presented portal inside the rotation transaction. A Träger session names
+// its Träger and never a school; its guard re-checks the membership and
+// reloads the roles (ADR 0084).
+func (s *AccountAuthentication) refreshMintGuard(claims domain.RefreshClaims, metadata **domain.AccountClaimsPayload) (mintGuard, error) {
+	switch claims.Scope {
+	case domain.ScopeSchool:
+		return s.schoolRefreshMintGuard(claims.AccountID, claims.TenantID, metadata), nil
+	case domain.ScopeOrg:
+		if claims.OrgID <= 0 || claims.TenantID != 0 {
+			s.logRefreshDecision("refresh_session_rejected", "traeger_token_without_traeger", claims.AccountID, claims.TenantID)
+			return nil, failed("refresh Träger session", identityaccess.ErrInvalidToken)
+		}
+		return s.traegerMintGuard(claims.OrgID, metadata), nil
+	default:
+		return s.refreshClaimsGuard(claims.Scope, claims.TenantID, metadata), nil
+	}
+}
+
+// refreshClaimsGuard assembles the claims of a non-school refresh (tenant and
+// parent scopes) inside the rotation transaction. Parent-scope refresh tokens
 // round-trip as parent tokens: detected via the scope claim or, for tokens
 // that predate it, a guardian-only role set at the refresh tenant.
 func (s *AccountAuthentication) refreshClaimsGuard(scope string, tenantID int64, out **domain.AccountClaimsPayload) mintGuard {
@@ -279,7 +296,9 @@ func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountS
 }
 
 func (r *refreshRotation) validatePresented(ctx context.Context, presented domain.AccountSession, now time.Time) error {
-	if presented.AccountID != r.claims.AccountID || (r.claims.TenantID > 0 && presented.TenantID != r.claims.TenantID) {
+	traegerToken, traegerSession := r.claims.Scope == domain.ScopeOrg, presented.PortalScope == domain.PortalScopeOrg
+	if presented.AccountID != r.claims.AccountID || (r.claims.TenantID > 0 && presented.TenantID != r.claims.TenantID) ||
+		traegerToken != traegerSession || (traegerToken && presented.OrganizationID != r.claims.OrgID) {
 		return r.reject(ctx, presented, "claim_mismatch", "revoke mismatched refresh-token family", identityaccess.ErrInvalidToken)
 	}
 	if now.After(presented.Expiry) {
@@ -372,42 +391,60 @@ func (s *AccountAuthentication) resolveRefreshHandoff(ctx context.Context, prese
 		if current.RotatedAt == nil {
 			return current, current.ID != presented.ID, nil
 		}
-		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
+		if current.ReplacementTokenHash == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
 			return current, false, identityaccess.ErrInvalidToken
 		}
 		if err := s.requireAccountRecoveryProof(ctx, current.RecoveryProofHash, proofValidated); err != nil {
 			return current, false, err
 		}
 		proofValidated = true
-		next, err := s.sessions.findAccountSessionForUpdate(ctx, *current.ReplacementToken)
+		next, err := s.handoffSuccessor(ctx, current)
 		if err != nil {
-			if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
-				return current, false, identityaccess.ErrInvalidToken
-			}
-			return current, false, fmt.Errorf("follow refresh-token handoff: %w", err)
-		}
-		// Tenant 0 is the legacy pre-tenant-claim state whose first successor
-		// may carry the resolved tenant. Only caterer sessions can repin
-		// between schools; they grant no tenant-portal access.
-		if !sameAccountSessionLineage(current, next) {
-			return current, false, identityaccess.ErrInvalidToken
+			return current, false, err
 		}
 		current = next
 	}
 	return current, false, identityaccess.ErrInvalidToken
 }
 
+// handoffSuccessor locks the session a rotated one handed off to. Only the
+// hash of the successor is stored, so its raw value is recomputed from the
+// token this hop was presented with (#4902); a hand-off recorded before
+// #4902 named a random successor and is not recoverable.
+func (s *AccountAuthentication) handoffSuccessor(ctx context.Context, current domain.AccountSession) (domain.AccountSession, error) {
+	successorToken := domain.SuccessorRefreshToken(current.Token)
+	if domain.HashToken(successorToken) != *current.ReplacementTokenHash {
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
+	}
+	next, err := s.sessions.findAccountSessionForUpdate(ctx, successorToken)
+	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
+	}
+	if err != nil {
+		return domain.AccountSession{}, fmt.Errorf("follow refresh-token handoff: %w", err)
+	}
+	// Tenant 0 is the legacy pre-tenant-claim state whose first successor
+	// may carry the resolved tenant; modern lineage stays pinned.
+	if !sameAccountSessionLineage(current, next) {
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
+	}
+	return next, nil
+}
+
 // createAndPersistSuccessor mints the successor and records the bounded
-// predecessor hand-off atomically.
+// predecessor hand-off atomically. The successor follows from the presented
+// token, so a lost response can be recomputed although only hashes are
+// stored (#4902).
 func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, predecessor domain.AccountSession, accountID, tenantID int64, scope string, now time.Time) (domain.AccountSession, error) {
 	expiry := now.Add(s.codec.RefreshExpiry())
 	if predecessor.FamilyExpiryCap != nil && predecessor.FamilyExpiryCap.Before(expiry) {
 		expiry = *predecessor.FamilyExpiryCap
 	}
 	successor := domain.AccountSession{
-		Token:           uuid.Must(uuid.NewV4()).String(),
+		Token:           domain.SuccessorRefreshToken(predecessor.Token),
 		AccountID:       accountID,
 		TenantID:        tenantID,
+		OrganizationID:  predecessor.OrganizationID,
 		Expiry:          expiry,
 		Mobile:          predecessor.Mobile,
 		Identifier:      predecessor.Identifier,
@@ -531,6 +568,11 @@ func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToke
 // auditLogout appends the audit rows after the family deletion committed;
 // logout must never leave a usable session because the audit store is down.
 func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.AccountSession, sessions []domain.AccountSession, claimTenantID int64, ipAddress, userAgent string) {
+	// A Träger session belongs to no school, and the authentication ledger
+	// is school-scoped (ADR 0084); the Träger audit arrives with #4655.
+	if revoked.PortalScope == domain.PortalScopeOrg {
+		return
+	}
 	tenantID := revoked.TenantID
 	if tenantID == 0 {
 		tenantID = claimTenantID
@@ -575,5 +617,5 @@ func (s *AccountAuthentication) requireAccountRecoveryProof(ctx context.Context,
 func sameAccountSessionLineage(current, next domain.AccountSession) bool {
 	sameTenant := current.TenantID == 0 || next.TenantID == current.TenantID
 	catererRepin := current.PortalScope == domain.PortalScopeCaterer && next.PortalScope == domain.PortalScopeCaterer
-	return next.FamilyID == current.FamilyID && next.AccountID == current.AccountID && (sameTenant || catererRepin) && next.Generation == current.Generation+1
+	return next.FamilyID == current.FamilyID && next.AccountID == current.AccountID && (sameTenant || catererRepin) && next.OrganizationID == current.OrganizationID && next.Generation == current.Generation+1
 }

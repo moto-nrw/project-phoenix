@@ -137,7 +137,7 @@ export function findBrokenReasons(observation: ShotObservation): string[] {
   }
   if (observation.unloadedImages > 0) {
     reasons.push(
-      `${observation.unloadedImages} Bild(er) nach dem Timeout nicht geladen (etwa Fotos in Avataren)`,
+      `${observation.unloadedImages} Bild(er) nach dem Timeout nicht geladen`,
     );
   }
 

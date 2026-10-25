@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.526 (#3873): the installed erasure plan with the eight school-scoped
+// 1.15.547 (#3873): the installed erasure plan with the eight school-scoped
 // meal ordering tables, inserted before the meal participation overrides.
 func installMealOrderErasurePlan(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, mealOrderErasurePlanSQL)
@@ -119,6 +119,7 @@ const mealOrderErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_eras
   {"name": "documents.folders","predicate": "r.tenant_id = $1"},
   {"name": "education.class_arrival_exceptions","predicate": "r.tenant_id = $1"},
   {"name": "education.class_arrival_times","predicate": "r.tenant_id = $1"},
+  {"name": "education.class_homework","predicate": "r.tenant_id = $1"},
   {"name": "education.class_teachers","predicate": "r.tenant_id = $1"},
   {"name": "education.grade_transition_class_list_entries","predicate": "r.tenant_id = $1"},
   {"name": "education.grade_transition_class_teachers","predicate": "r.tenant_id = $1"},
@@ -128,6 +129,7 @@ const mealOrderErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_eras
   {"name": "education.group_substitution","predicate": "r.tenant_id = $1"},
   {"name": "education.group_teacher","predicate": "r.tenant_id = $1"},
   {"name": "education.groups","predicate": "r.tenant_id = $1"},
+  {"name": "education.homework_feedback","predicate": "r.tenant_id = $1"},
   {"name": "enrollment.care_offering_auto_triggers","predicate": "r.tenant_id = $1"},
   {"name": "enrollment.care_offering_bookings","predicate": "r.tenant_id = $1"},
   {"name": "enrollment.care_offerings","predicate": "r.tenant_id = $1"},

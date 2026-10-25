@@ -106,6 +106,10 @@ function schoolTitleForPath(pathname: string): string | null {
   ) {
     return "Tagesinformationen";
   }
+  // Kalender in moto schule (#4798).
+  if (pathname === "/kalender" || pathname === "/school/kalender") {
+    return "Kalender";
+  }
   return null;
 }
 
@@ -114,6 +118,14 @@ function schoolTitleForPath(pathname: string): string | null {
 function catererTitleForPath(pathname: string): string | null {
   if (pathname === "/" || pathname === "/caterer") return "Bestellungen";
   return null;
+}
+
+// In moto schule arbeiten Lehrkräfte und die Schulverwaltung (#4789);
+// Sekretariat und Schulleitung sollen nicht als Lehrkraft beschriftet sein.
+function schoolRoleLabel(roles: readonly string[]): string {
+  return roles.some((role) => role.trim().toLowerCase() === "schulverwaltung")
+    ? "Schulverwaltung"
+    : "Lehrkraft";
 }
 
 export function Header() {
@@ -249,7 +261,7 @@ export function Header() {
       : mode === "parent"
         ? tParentNav("role")
         : mode === "school"
-          ? "Lehrkraft"
+          ? schoolRoleLabel(userRoles)
           : mode === "caterer"
             ? "Caterer"
             : getAccountRoleLabel(userRoles, user?.roleIsSystem);

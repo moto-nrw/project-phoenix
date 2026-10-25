@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
     NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000",
     NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000",
     NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000",
+    NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000",
   },
   init: vi.fn(),
   capture: vi.fn(),
@@ -60,7 +61,7 @@ describe("posthog-client", () => {
     stubHost("school-a.localhost:3000");
     vi.stubGlobal("requestIdleCallback", vi.fn());
     const { setAnalyticsContext } = await import("./posthog-client");
-    setAnalyticsContext({ enabled: true });
+    setAnalyticsContext({ enabled: true, consent: true });
   });
 
   afterEach(() => {
@@ -84,6 +85,54 @@ describe("posthog-client", () => {
       expect(mocks.capture).not.toHaveBeenCalled();
     },
   );
+
+  it.each([false, undefined])(
+    "never loads the SDK while the person's consent is %s",
+    async (consent) => {
+      const {
+        setAnalyticsContext,
+        initializePostHog,
+        capturePostHog,
+        schedulePostHogInitialization,
+      } = await import("./posthog-client");
+      setAnalyticsContext({ consent });
+      schedulePostHogInitialization();
+      capturePostHog("login_failed");
+      await initializePostHog();
+      expect(mocks.init).not.toHaveBeenCalled();
+      expect(mocks.capture).not.toHaveBeenCalled();
+    },
+  );
+
+  it("sends the session header only after consent and ends it on revocation", async () => {
+    const { setAnalyticsContext, initializePostHog, capturePostHog } =
+      await import("./posthog-client");
+    await initializePostHog();
+    expect(initOptions().tracing_headers).toEqual(["school-a.localhost"]);
+
+    setAnalyticsContext({ consent: false });
+    capturePostHog("login_failed");
+
+    expect(mocks.optOut).toHaveBeenCalledOnce();
+    expect(mocks.stopRecording).toHaveBeenCalledOnce();
+    expect(mocks.setConfig).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        tracing_headers: [],
+        disable_session_recording: true,
+      }),
+    );
+    expect(mocks.capture).not.toHaveBeenCalled();
+    const beforeSend = initOptions().before_send as BeforeSendFn;
+    expect(
+      beforeSend({ uuid: "u", event: "$pageview", properties: {} }),
+    ).toBeNull();
+
+    setAnalyticsContext({ consent: true });
+    expect(mocks.optIn).toHaveBeenLastCalledWith({ captureEventName: false });
+    expect(mocks.setConfig).toHaveBeenLastCalledWith(
+      expect.objectContaining({ tracing_headers: ["school-a.localhost"] }),
+    );
+  });
 
   it("registers the session after an embedded school's veto is removed", async () => {
     const { setTenantAnalyticsPolicy, setAnalyticsContext, initializePostHog } =
@@ -223,8 +272,10 @@ describe("posthog-client", () => {
       deployment: "localhost",
     });
 
+    // Logout ends the session's consent (#4901): the anonymous host
+    // collects nothing, whatever the previous portal was.
     clearPostHogContext();
-    expect(pageview()?.properties.surface).toBe("ogs");
+    expect(pageview()).toBeNull();
   });
 
   it.each(["parents", "school"] as const)(
@@ -236,7 +287,7 @@ describe("posthog-client", () => {
       );
       const { initializePostHog, setAnalyticsContext } =
         await import("./posthog-client");
-      setAnalyticsContext({ surface, enabled: true });
+      setAnalyticsContext({ surface, enabled: true, consent: true });
       await initializePostHog();
 
       expect(mocks.init).toHaveBeenCalledOnce();
@@ -257,7 +308,7 @@ describe("posthog-client", () => {
       const { initializePostHog, setAnalyticsContext, clearPostHogContext } =
         await import("./posthog-client");
       setAnalyticsContext(
-        { surface, enabled: true },
+        { surface, enabled: true, consent: true },
         {
           properties: { role: "previous-role" },
           resetFirst: false,
@@ -283,7 +334,7 @@ describe("posthog-client", () => {
     const { initializePostHog, setAnalyticsContext, clearPostHogContext } =
       await import("./posthog-client");
     setAnalyticsContext(
-      { surface: "parents", enabled: true },
+      { surface: "parents", enabled: true, consent: true },
       {
         properties: { role: "previous-role" },
         resetFirst: false,
@@ -291,7 +342,7 @@ describe("posthog-client", () => {
     );
     clearPostHogContext();
     setAnalyticsContext(
-      { surface: "parents", enabled: true },
+      { surface: "parents", enabled: true, consent: true },
       {
         properties: { role: "guardian" },
         resetFirst: false,

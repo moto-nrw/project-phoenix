@@ -56,6 +56,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/active/visits/transit/assign": [
     "POST tenant /api/active/visits/transit/assign",
   ],
+  "api/analytics-consent": [
+    "GET tenant /analytics-consent/",
+    "PUT tenant /analytics-consent/",
+  ],
   "api/announcement-attachments/[announcementId]/[attachmentId]": [
     "DELETE tenant /api/announcement-attachments/announcementId%2F1/attachmentId%2F1",
   ],
@@ -246,6 +250,15 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/organizations/[id]/devices": [
     "GET operator /operator/organizations/id%2F1/devices",
   ],
+  "api/operator/provisioning/organizations/[id]/erasure-order": [
+    "GET operator /operator/organizations/id%2F1/erasure-order",
+    "POST operator /operator/organizations/id%2F1/erasure-order",
+    "DELETE operator /operator/organizations/id%2F1/erasure-order",
+  ],
+  "api/operator/provisioning/organizations/[id]/traeger-members": [
+    "GET operator /operator/organizations/id%2F1/traeger-members",
+    "POST operator /operator/organizations/id%2F1/traeger-members",
+  ],
   "api/operator/provisioning/organizations/[id]/persons": [
     "GET operator /operator/organizations/id%2F1/persons",
   ],
@@ -290,6 +303,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/stats": ["GET operator /operator/stats"],
   "api/operator/provisioning/unregistered-tag-scans": [
     "GET operator /operator/unregistered-tag-scans",
+  ],
+  "api/parent/analytics-consent": [
+    "GET parent /analytics-consent/",
+    "PUT parent /analytics-consent/",
   ],
   "api/parent/analytics-policy": ["GET parent /analytics-policy"],
   "api/parent/calendar": ["GET parent /parent/me/calendar"],
@@ -465,6 +482,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school-setup/steps/[step]": [
     "PUT tenant /api/school-setup/steps/step%2F1",
   ],
+  "api/school/analytics-consent": [
+    "GET school /analytics-consent/",
+    "PUT school /analytics-consent/",
+  ],
   "api/school/analytics-policy": ["GET school /analytics-policy"],
   "api/school/calendar/appointments": [
     "POST school /school/calendar/appointments",
@@ -490,6 +511,13 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/school/class-day/class-trips/[schoolClass]": [
     "POST school /school/class-day/class-trips/schoolClass%2F1",
+  ],
+  "api/school/class-day/homework/[schoolClass]": [
+    "POST school /school/class-day/homework/schoolClass%2F1",
+  ],
+  "api/school/class-day/homework/[schoolClass]/[homeworkId]": [
+    "DELETE school /school/class-day/homework/schoolClass%2F1/homeworkId%2F1",
+    "PUT school /school/class-day/homework/schoolClass%2F1/homeworkId%2F1",
   ],
   "api/school/class-day/handover/[schoolClass]/[date]": [
     "DELETE school /school/class-day/handover/schoolClass%2F1/date%2F1",
@@ -543,6 +571,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/school/supervisions/[id]/students/[studentId]/check-out": [
     "POST school /school/supervisions/id/1/students/studentId/1/check-out",
+  ],
+  "api/school/supervisions/[id]/students/[studentId]/homework-feedback": [
+    "PUT school /school/supervisions/id%2F1/students/studentId%2F1/homework-feedback",
   ],
   "api/school/supervisions/[id]/students/[studentId]/sheet": [
     "GET school /school/supervisions/id/1/students/studentId/1/sheet",
@@ -941,6 +972,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/operations/instances/[id]/students/[studentId]/check-out": [
     "POST tenant /api/timetable/operations/instances/id%2F1/students/studentId%2F1/check-out",
   ],
+  "api/timetable/operations/instances/[id]/students/[studentId]/homework-feedback":
+    [
+      "PUT tenant /api/timetable/operations/instances/id%2F1/students/studentId%2F1/homework-feedback",
+    ],
   "api/timetable/operations/instances/[id]/students/check-in": [
     "POST tenant /api/timetable/operations/instances/id%2F1/students/check-in",
   ],
@@ -1000,6 +1035,31 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/templates/[id]/split": [
     "POST tenant /api/timetable/templates/id%2F1/split",
   ],
+  "api/traeger/accounts": ["GET traeger /traeger/accounts/"],
+  "api/traeger/accounts/[accountId]": [
+    "DELETE traeger /traeger/accounts/accountId%2F1",
+  ],
+  "api/traeger/accounts/[accountId]/roles": [
+    "PUT traeger /traeger/accounts/accountId%2F1/roles",
+  ],
+  "api/traeger/accounts/invitations": [
+    "POST traeger /traeger/accounts/invitations",
+  ],
+  "api/traeger/accounts/invitations/[invitationId]": [
+    "DELETE traeger /traeger/accounts/invitations/invitationId%2F1",
+  ],
+  "api/traeger/holiday-periods": [
+    "GET traeger /traeger/holiday-periods",
+    "POST traeger /traeger/holiday-periods",
+  ],
+  "api/traeger/holiday-periods/[id]": [
+    "GET traeger /traeger/holiday-periods/id%2F1",
+    "PUT traeger /traeger/holiday-periods/id%2F1",
+  ],
+  "api/traeger/holiday-periods/[id]/publish": [
+    "POST traeger /traeger/holiday-periods/id%2F1/publish",
+  ],
+  "api/traeger/schools": ["GET traeger /traeger/schools"],
   "api/work-time-models": [
     "GET tenant /api/work-time-models",
     "POST tenant /api/work-time-models",

@@ -21,7 +21,7 @@ func newTenantCommand() *cobra.Command {
 	parent := tenantCommand(runTenantExport)
 	var request organizationtenancy.ErasureRequest
 	var root, ledgerPath string
-	erase := &cobra.Command{Use: "erase", Short: "Erase one school, or process an organization's schools (root remains open)", Args: cobra.NoArgs, SilenceUsage: true, SilenceErrors: true,
+	erase := &cobra.Command{Use: "erase", Short: "Erase one school, or an organization with its recorded order: its schools, then the Träger root", Args: cobra.NoArgs, SilenceUsage: true, SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			db, err := transactionCompose.OpenDatabase()
 			if err != nil {
@@ -42,7 +42,7 @@ func newTenantCommand() *cobra.Command {
 		}}
 	f := erase.Flags()
 	f.Int64Var(&request.SchoolID, "school", 0, "School ID (exactly one target)")
-	f.Int64Var(&request.OrganizationID, "organization", 0, "Organization ID; school phases only, organization root remains open")
+	f.Int64Var(&request.OrganizationID, "organization", 0, "Organization ID; needs the order recorded in the operator portal after its grace period; erases every school, then the root")
 	f.Int64Var(&request.OperatorID, "operator", 0, "Active internal operator ID, not a name")
 	f.StringVar(&request.OrderReference, "order", "", "Non-personal ticket reference: 3-40 uppercase letters/digits/hyphens")
 	f.StringVar(&request.Confirmation, "confirm", "", "Exact target: school:<id> or organization:<id>")

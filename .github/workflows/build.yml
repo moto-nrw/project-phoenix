@@ -274,6 +274,17 @@ jobs:
             echo "hostname=caterer.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
+      - name: Determine Träger hostname
+        id: traeger_hostname
+        run: |
+          if [[ "${{ needs.check-environment.outputs.environment }}" == "staging" ]]; then
+            echo "hostname=traeger.staging.moto-app.de" >> $GITHUB_OUTPUT
+          elif [[ "${{ needs.check-environment.outputs.environment }}" == "demo" ]]; then
+            echo "hostname=traeger.demo.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            echo "hostname=traeger.moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
       - name: Determine tenant domain
         id: tenant_domain
         run: |
@@ -361,6 +372,7 @@ jobs:
           NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
           NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
           NEXT_PUBLIC_CATERER_HOSTNAME: "caterer.localhost:3000"
+          NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000"
           TENANT_DOMAIN: "localhost"
           NEXT_PUBLIC_TENANT_DOMAIN: "localhost"
         run: pnpm run generate:guides
@@ -389,6 +401,7 @@ jobs:
             NEXT_PUBLIC_PARENTS_HOSTNAME=${{ steps.parents_hostname.outputs.hostname }}
             NEXT_PUBLIC_SCHOOL_HOSTNAME=${{ steps.school_hostname.outputs.hostname }}
             NEXT_PUBLIC_CATERER_HOSTNAME=${{ steps.caterer_hostname.outputs.hostname }}
+            NEXT_PUBLIC_TRAEGER_HOSTNAME=${{ steps.traeger_hostname.outputs.hostname }}
             TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets[needs.check-environment.outputs.environment == 'demo' && 'DEMO_NEXT_PUBLIC_SENTRY_DSN' || 'NEXT_PUBLIC_SENTRY_DSN'] }}

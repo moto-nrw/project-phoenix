@@ -57,6 +57,7 @@ func (rs *Resource) SchoolSupervisionRouter(protectedSchoolRoutes func(chi.Route
 		r.With(own, withTx, attendance).Post("/{id}/students/{student_id}/check-in", rs.operationsCheckInStudent)
 		r.With(own, withTx, attendance).Post("/{id}/students/{student_id}/check-out", rs.operationsCheckOutStudent)
 		r.With(own, withTx, attendance).Patch("/{id}/students/{student_id}/attendance", rs.operationsPatchAttendance)
+		r.With(own, withTx).Put("/{id}/students/{student_id}/homework-feedback", rs.operationsPutHomeworkFeedback)
 	})
 
 	return r

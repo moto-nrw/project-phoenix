@@ -35,34 +35,10 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("staff messages require at least three staff accounts, got %d", len(staff))
 	}
 
-	// The first recipient lookup runs before any staff login, so it uses the
-	// admin session; the deferred bind hands that session back to later steps.
-	rt.Client.BindAuth(rt.TenantAuth)
+	// The deferred bind hands the admin session back to later steps.
 	defer rt.Client.BindAuth(rt.TenantAuth)
 
-	// Two conversations, each opened by a different person, so the demo data
-	// shows both an unread and an already-answered thread.
-	conversations := []struct {
-		from     StaffCredentials
-		to       StaffCredentials
-		messages []string
-	}{
-		{
-			from: staff[0],
-			to:   staff[1],
-			messages: []string{
-				"Kannst du heute die 2a übernehmen? Ich bin bis 14 Uhr im Elterngespräch.",
-				"Danke dir! Die Liste liegt im Gruppenraum.",
-			},
-		},
-		{
-			from: staff[1],
-			to:   staff[2],
-			messages: []string{
-				"Die Materialliste für die Bastel-AG liegt im OGS-Büro.",
-			},
-		},
-	}
+	conversations := staffChatConversations(staff)
 
 	// Wer welche Unterhaltung danach oeffnet. Ohne dieses zweite Durchgehen
 	// entstehen KEINE Zeilen in users.staff_message_reads: Lesecursor schreibt
@@ -76,12 +52,14 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 
 	sent := 0
 	for _, c := range conversations {
+		// Look the recipient up as the sender: the list leaves out the caller,
+		// and the previous sender may be this recipient.
+		if err := rt.Client.Login(c.from.Email, c.from.Password); err != nil {
+			return fmt.Errorf("login as staff message sender %s: %w", c.from.Email, err)
+		}
 		recipientID, err := staffAccountID(rt, c.to)
 		if err != nil {
 			return err
-		}
-		if err := rt.Client.Login(c.from.Email, c.from.Password); err != nil {
-			return fmt.Errorf("login as staff message sender %s: %w", c.from.Email, err)
 		}
 
 		raw, err := rt.Client.Post(
@@ -125,6 +103,36 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 
 	fmt.Printf("  %d staff messages created, %d conversations read\n", sent, read)
 	return nil
+}
+
+type staffChatConversation struct {
+	from, to StaffCredentials
+	messages []string
+}
+
+// staffChatConversations are the demo team chats, each opened by a different
+// person, so the data shows unread and already-answered threads. The second
+// staff member (the admin of the product screenshots) takes part in most.
+func staffChatConversations(staff []StaffCredentials) []staffChatConversation {
+	conversations := []staffChatConversation{
+		{staff[0], staff[1], []string{
+			"Kannst du heute die 2a übernehmen? Ich bin bis 14 Uhr im Elterngespräch.",
+			"Danke dir! Die Liste liegt im Gruppenraum.",
+		}},
+		{staff[1], staff[2], []string{"Die Materialliste für die Bastel-AG liegt im OGS-Büro."}},
+	}
+	if len(staff) >= 5 {
+		conversations = append(conversations,
+			staffChatConversation{staff[3], staff[1], []string{
+				"Ich bin morgen erst ab 11 Uhr da, ich habe einen Arzttermin. Die Frühbetreuung übernimmt Sabine.",
+			}},
+			staffChatConversation{staff[1], staff[4], []string{
+				"Denkst du an die Laternen für Freitag? Der Kleber ist fast leer.",
+				"Ich bringe morgen zwei neue Tuben mit.",
+			}},
+		)
+	}
+	return conversations
 }
 
 // staffAccountID resolves the recipient's account id from the Team-Chat's own

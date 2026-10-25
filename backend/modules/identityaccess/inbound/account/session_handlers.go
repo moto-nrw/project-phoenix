@@ -445,6 +445,10 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantNotFound))
 			case errors.Is(err, identityaccess.ErrTenantAccessDenied):
 				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
+			case errors.Is(err, identityaccess.ErrNoTraegerMembership):
+				// The Träger membership ended or the Träger was switched off
+				// (#4649): the Träger session is over, like a revoked mapping.
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrNoTraegerMembership))
 			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 				// The account is school-portal-only at this school (#2207).
 				// 401, not 403: the tenant session is simply over, and the

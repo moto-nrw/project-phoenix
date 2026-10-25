@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.526 (#3873): the installed static deletion with the meal ordering
+// 1.15.547 (#3873): the installed static deletion with the meal ordering
 // tables: an order's changes and lines before its days, its days before
 // the order, all before the children and the school root.
 func installMealOrderErasureDelete(ctx context.Context, tx bun.Tx) error {
@@ -327,6 +327,12 @@ const mealOrderErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_er
    SELECT count(*) INTO v_count FROM education.class_arrival_times AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM education.class_arrival_times AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('education.class_arrival_times', v_count);
+   SELECT count(*) INTO v_count FROM education.class_homework AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM education.class_homework AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('education.class_homework', v_count);
+   SELECT count(*) INTO v_count FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('education.homework_feedback', v_count);
    SELECT count(*) INTO v_count FROM education.class_teachers AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM education.class_teachers AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('education.class_teachers', v_count);

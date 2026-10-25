@@ -1,0 +1,28 @@
+{{define "traeger-invitation.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>Einladung ins Träger-Portal</h1>
+    <p>Guten Tag,</p>
+    <p>Sie sind ins Träger-Büro von <strong>{{.TraegerName}}</strong> eingeladen. Ihre Rolle: <strong>{{.RoleNames}}</strong>.</p>
+    <p>Klicken Sie auf den Button. Dann legen Sie Ihr Passwort fest. Haben Sie schon ein moto-Konto, geben Sie dessen Passwort ein.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.InvitationURL}}">Einladung annehmen</a>
+    </div>
+
+    <div class="highlight-box">
+        <p>Der Link gilt {{.ExpiryHours}} Stunden.</p>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.InvitationURL}}">{{.InvitationURL}}</a>
+    </div>
+
+    <p class="security-note">Sie haben keine Einladung erwartet? Dann können Sie diese E-Mail ignorieren.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

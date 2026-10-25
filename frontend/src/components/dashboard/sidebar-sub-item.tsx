@@ -6,6 +6,7 @@ import {
   type UnreadBadgeTone,
 } from "~/components/messaging/unread-badge";
 import { SIDEBAR_SUB_ITEM_CLASSES } from "~/components/dashboard/sidebar-geometry";
+import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 
 interface SidebarSubItemProps {
   readonly href: string;
@@ -19,6 +20,8 @@ interface SidebarSubItemProps {
   readonly badgeNoun?: string;
   // Ziel der geführten Tour der ersten Schritte (#2832).
   readonly tourId?: string;
+  // Modul nicht gebucht (#4894): Schloss statt Zähler.
+  readonly locked?: boolean;
 }
 
 export function SidebarSubItem({
@@ -30,6 +33,7 @@ export function SidebarSubItem({
   badgeTone,
   badgeNoun,
   tourId,
+  locked = false,
 }: SidebarSubItemProps) {
   return (
     <NavLink
@@ -42,7 +46,9 @@ export function SidebarSubItem({
       }`}
     >
       <span className="truncate">{label}</span>
-      {badgeCount > 0 ? (
+      {locked ? (
+        <ModuleLockMark className="ml-2" />
+      ) : badgeCount > 0 ? (
         <UnreadBadge
           count={badgeCount}
           tone={badgeTone}

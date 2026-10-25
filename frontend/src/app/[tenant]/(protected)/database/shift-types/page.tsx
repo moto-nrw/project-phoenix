@@ -12,9 +12,10 @@ import {
   CATALOG_SELECTION_PARAM,
   type CatalogConfig,
 } from "~/components/database/catalog/catalog-page";
-import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
+import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 import { Button } from "~/components/ui/button";
 import { CatalogColorField } from "~/components/ui/database/catalog-color-field";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import { categoryService } from "~/lib/category-api";
@@ -26,7 +27,7 @@ import { shiftTypeService } from "~/lib/shift-type-api";
 import type { ShiftType } from "~/lib/shift-type-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import { useTimetableEnabled } from "~/lib/tenant-context";
+import { useModuleBooked } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "DatabaseShiftTypesPage" });
 
@@ -51,7 +52,6 @@ function ShiftTypesPageContent() {
   const toast = useToast();
   // „Beispiele hinzufügen“ ist eine Aktion ohne Formular: Fehler als Toast.
   const { show: showSeedError } = useApiErrorDisplay();
-  const timetableEnabled = useTimetableEnabled();
   const [seeding, setSeeding] = useState(false);
 
   const {
@@ -59,7 +59,7 @@ function ShiftTypesPageContent() {
     isLoading,
     error: swrError,
     mutate,
-  } = useSWRAuth<ShiftType[]>(timetableEnabled ? CACHE_KEY : null, () =>
+  } = useSWRAuth<ShiftType[]>(CACHE_KEY, () =>
     shiftTypeService.getShiftTypes(),
   );
   // Ladefehler mit Katalogtext und Wiederholen statt eines eigenen Satzes
@@ -74,9 +74,7 @@ function ShiftTypesPageContent() {
   // Liste würde bestehende Zuordnungen löschen (#1837).
   const { data: categories, error: categoriesError } = useSWRAuth<
     ActivityCategory[]
-  >(timetableEnabled ? CATEGORY_CACHE_KEY : null, () =>
-    categoryService.getManagedCategories(),
-  );
+  >(CATEGORY_CACHE_KEY, () => categoryService.getManagedCategories());
   const categoriesReady = categories !== undefined && !categoriesError;
 
   const onChanged = useCallback(
@@ -282,17 +280,6 @@ function ShiftTypesPageContent() {
     }
   }, [onChanged, toast, showSeedError]);
 
-  if (!timetableEnabled) {
-    return (
-      <PlanningDisabledState
-        pageTitle="Dienstarten"
-        heading="Dienstarten sind nicht verfügbar"
-        description="Der Betreuungsplan ist für diese Schule ausgeschaltet."
-        testId="shift-types-disabled-state"
-      />
-    );
-  }
-
   return (
     <CatalogPage
       config={config}
@@ -324,10 +311,25 @@ function ShiftTypesPageContent() {
   );
 }
 
+function BookedShiftTypesPage() {
+  const dienstplanBooked = useModuleBooked("dienstplan");
+
+  // Die Buchung ist noch nicht bekannt: nicht mit einem leeren Katalog
+  // antworten und erst recht keine Katalogdaten laden. Ist das Modul sicher
+  // nicht gebucht, ersetzt TenantPage diesen Ladezustand durch die Erklärung.
+  if (!dienstplanBooked) {
+    return <TenantPage title="Dienstarten" loading />;
+  }
+
+  return <ShiftTypesPageContent />;
+}
+
 export default function ShiftTypesPage() {
   return (
     <Suspense fallback={null}>
-      <ShiftTypesPageContent />
+      <ModuleRouteGuard module="dienstplan" title="Dienstarten">
+        <BookedShiftTypesPage />
+      </ModuleRouteGuard>
     </Suspense>
   );
 }

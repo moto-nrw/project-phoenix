@@ -88,7 +88,12 @@ export function CreateSchoolModal({
         });
         return;
       }
-      if (!schoolName.trim() || !schoolSlug.trim() || !schoolSubdomain.trim())
+      if (
+        !schoolName.trim() ||
+        !schoolSlug.trim() ||
+        !schoolSubdomain.trim() ||
+        !schoolEmail.trim()
+      )
         return;
       if (!isValidSlug(schoolSlug)) {
         const hint =
@@ -114,7 +119,7 @@ export function CreateSchoolModal({
           ...(schoolCity && { city: schoolCity.trim() }),
           ...(schoolZip && { zip: schoolZip.trim() }),
           ...(schoolPhone && { phone: schoolPhone.trim() }),
-          ...(schoolEmail && { email: schoolEmail.trim() }),
+          email: schoolEmail.trim(),
           ...(schoolHidden && { hidden: true }),
         });
         onClose();
@@ -170,7 +175,8 @@ export function CreateSchoolModal({
               !schoolOrgId ||
               !schoolName.trim() ||
               !schoolSlug.trim() ||
-              !schoolSubdomain.trim()
+              !schoolSubdomain.trim() ||
+              !schoolEmail.trim()
             }
             className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
@@ -270,7 +276,7 @@ export function CreateSchoolModal({
 
         <div className="border-t border-gray-100 pt-4">
           <p className="mb-3 text-xs font-medium text-gray-500 uppercase">
-            Kontaktdaten (optional)
+            Kontaktdaten
           </p>
           <div className="space-y-3">
             <FormField
@@ -339,6 +345,7 @@ export function CreateSchoolModal({
               <FormField
                 label="E-Mail"
                 htmlFor="school-email"
+                required
                 error={formErrors.fieldError("email")}
               >
                 <input
@@ -348,8 +355,12 @@ export function CreateSchoolModal({
                   value={schoolEmail}
                   onChange={(e) => setSchoolEmail(e.target.value)}
                   maxLength={255}
+                  required
                   className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Antworten von Eltern gehen an diese Adresse.
+                </p>
               </FormField>
             </div>
           </div>

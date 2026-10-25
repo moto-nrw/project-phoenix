@@ -124,7 +124,6 @@ func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
 
 	type TokenResponse struct {
 		ID         int64  `json:"id"`
-		Token      string `json:"token"`
 		Expiry     string `json:"expiry"`
 		Mobile     bool   `json:"mobile"`
 		Identifier string `json:"identifier,omitempty"`
@@ -135,7 +134,6 @@ func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
 	for _, token := range tokens {
 		resp := &TokenResponse{
 			ID:        token.ID,
-			Token:     token.Token,
 			Expiry:    token.Expiry.Format(time.RFC3339),
 			Mobile:    token.Mobile,
 			CreatedAt: token.CreatedAt.Format(time.RFC3339),

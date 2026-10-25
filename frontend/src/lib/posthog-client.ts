@@ -47,10 +47,16 @@ function startSurface(): AnalyticsSurface | null {
       parents: clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME,
       school: clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME,
       caterer: clientEnv.NEXT_PUBLIC_CATERER_HOSTNAME,
+      traeger: clientEnv.NEXT_PUBLIC_TRAEGER_HOSTNAME,
       tenantDomain: clientEnv.NEXT_PUBLIC_TENANT_DOMAIN,
     });
   }
   return hostSurface;
+}
+
+/** The portal of this page's host; null on the operator host. */
+export function analyticsHostSurface(): AnalyticsSurface | null {
+  return startSurface();
 }
 
 function startContext(): AnalyticsContext | null {
@@ -158,7 +164,7 @@ export function resetAndCapturePostHog(
  * context drops a pseudonymous ID for a new anonymous one.
  */
 function applyContext(posthog: PostHog, active: AnalyticsContext): void {
-  posthog.set_config(analyticsRuntimeOptions(active));
+  posthog.set_config(analyticsRuntimeOptions(active, window.location.hostname));
   const identity = analyticsIdentity(active);
   const current = posthog.get_distinct_id();
   if (identity) {
@@ -204,6 +210,12 @@ export function setAnalyticsContext(
     pendingOperations.length = 0;
     runOperation("opt_out", (posthog) => posthog.opt_out_capturing());
     runOperation("stop_recording", (posthog) => posthog.stopSessionRecording());
+    // A revoked consent also ends the session header to the backend.
+    runOperation("stop_tracing_headers", (posthog) =>
+      posthog.set_config(
+        analyticsRuntimeOptions(next, window.location.hostname),
+      ),
+    );
     return;
   }
   runOperation("opt_in", (posthog) =>
@@ -250,7 +262,10 @@ export function clearPostHogContext(): void {
     posthog.unregister("role");
     posthog.reset();
     // Stops a school recording at logout or school change.
-    if (cleared) posthog.set_config(analyticsRuntimeOptions(cleared));
+    if (cleared)
+      posthog.set_config(
+        analyticsRuntimeOptions(cleared, window.location.hostname),
+      );
   });
 }
 

@@ -1151,6 +1151,57 @@ func TestOrderSnapshotIgnoresAbsencesAfterTheDeadline(t *testing.T) {
 	assert.Equal(t, -1, monday.Changes[0].Delta, "the order itself still holds the child")
 }
 
+// A sick note after the final poll still cancels at the next poll, even
+// across the month boundary. Reads show the same change without writing.
+func TestOrdersReconcileSickCancellationsAfterMidnight(t *testing.T) {
+	t.Parallel()
+	for _, rhythm := range []string{"daily", "weekly"} {
+		t.Run(rhythm, func(t *testing.T) {
+			t.Parallel()
+			db := testpkg.SetupTestDB(t)
+			testpkg.OwnTenant(t)
+			ctx := testpkg.Ctx(t)
+			settings := singleDeadlineSettings("09:00")
+			settings.SickAfterDeadline, settings.OrderRhythm = "cancelled", rhythm
+			student := testpkg.CreateTestStudent(t, db, "Kai", "Mitternacht", "1a")
+			tooLate := testpkg.CreateTestStudent(t, db, "Lia", "NachMitternacht", "1a")
+			account := testpkg.CreateTestAccount(t, db, "meal-midnight")
+			early := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 30, 8, 0, 0, 0, testBerlin))
+			for _, id := range []int64{student.ID, tooLate.ID} {
+				require.NoError(t, early.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: id, GuardianAccountID: account.ID, Date: "2026-09-30", Participating: true}))
+			}
+			lastPoll := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 30, 23, 55, 0, 0, testBerlin))
+			require.NoError(t, lastPoll.SettleOrders(ctx))
+			createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-30", time.Date(2026, 9, 30, 23, 59, 0, 0, testBerlin))
+			createSickStatusDay(t, db, tooLate.TenantID, tooLate.ID, "2026-09-30", time.Date(2026, 10, 1, 0, 1, 0, 0, testBerlin))
+			nextPoll := buildModuleWithRules(t, db, settings, time.Date(2026, 10, 1, 0, 2, 0, 0, testBerlin))
+			assertCancellation := func(module mealplan.Capability, numbered bool) {
+				t.Helper()
+				week, err := module.Orders(ctx, "2026-09-01", "2026-09-30")
+				require.NoError(t, err)
+				day := orderDay(t, week, "2026-09-30")
+				assert.Equal(t, []int64{tooLate.ID}, childIDs(day.Children), "only reports before the meal day's end cancel")
+				require.Len(t, day.Changes, 1)
+				assert.Equal(t, student.ID, day.Changes[0].Child.StudentID)
+				assert.Equal(t, -1, day.Changes[0].Delta)
+				assert.Equal(t, numbered, day.Changes[0].Sequence > 0)
+				export, err := week.MonthExport("2026-09-01")
+				require.NoError(t, err)
+				assert.Equal(t, [][]string{{"NachMitternacht, Lia", "1a", "1"}}, export.Lines)
+			}
+			assertCancellation(nextPoll, false)
+			var count int
+			require.NoError(t, db.NewRaw(`SELECT count(*) FROM schedule.meal_order_changes WHERE tenant_id = ?`, student.TenantID).Scan(ctx, &count))
+			assert.Zero(t, count, "reading does not store the cancellation")
+			require.NoError(t, nextPoll.SettleOrders(ctx))
+			require.NoError(t, nextPoll.SettleOrders(ctx))
+			assertCancellation(nextPoll, true)
+			later := buildModuleWithRules(t, db, settings, time.Date(2026, 10, 5, 10, 0, 0, 0, testBerlin))
+			assertCancellation(later, true)
+		})
+	}
+}
+
 // A weekly order fixes the whole week at the earliest deadline among its
 // days; switching back to daily never orders a day twice.
 func TestWeeklyOrdersFixTheWholeWeekOnce(t *testing.T) {

@@ -74,7 +74,9 @@ test.describe("Planung navigation", () => {
     await page.waitForURL((url) => url.pathname.endsWith("/vertretung"));
   });
 
-  test("legacy deep links redirect with translated params", async ({
+  // Jeder Alt-Link bekommt sein eigenes Zeitbudget: fünf vollständige
+  // Navigationen samt Dev-Kompilierung überschreiten zusammen 30 Sekunden.
+  test("legacy deep link /planung?tab=dienstplan redirects to /dienstplan", async ({
     page,
   }) => {
     // /planung?tab=dienstplan -> /dienstplan
@@ -82,11 +84,19 @@ test.describe("Planung navigation", () => {
     await page.waitForURL(
       (url) => url.pathname.endsWith("/dienstplan") && url.search === "",
     );
+  });
 
+  test("legacy deep link /planung redirects to /betreuungsplan", async ({
+    page,
+  }) => {
     // /planung ohne tab -> /betreuungsplan
     await page.goto("/planung");
     await page.waitForURL((url) => url.pathname.endsWith("/betreuungsplan"));
+  });
 
+  test("legacy deep link /timetables redirects with translated params", async ({
+    page,
+  }) => {
     // /timetables?view=week&week=1&instance=42
     // -> /betreuungsplan?d={Montag der nächsten Woche}&view=woche&block=42
     await page.goto("/timetables?view=week&week=1&instance=42");
@@ -100,7 +110,11 @@ test.describe("Planung navigation", () => {
       "d",
       "view",
     ]);
+  });
 
+  test("legacy deep link /vertretungsplan redirects with translated params", async ({
+    page,
+  }) => {
     // /vertretungsplan?instance=42&history=1 -> /vertretung?block=42&verlauf=1
     await page.goto("/vertretungsplan?instance=42&history=1");
     await page.waitForURL((url) => url.pathname.endsWith("/vertretung"));
@@ -111,7 +125,11 @@ test.describe("Planung navigation", () => {
       "block",
       "verlauf",
     ]);
+  });
 
+  test("legacy deep link /staff/dienstplan redirects without the staff prefix", async ({
+    page,
+  }) => {
     // /staff/dienstplan -> /dienstplan ohne Query. Wichtig: die Start-URL
     // endet selbst auf "/dienstplan", deshalb explizit auf das Verschwinden
     // des /staff-Präfixes warten, sonst erfüllt sich die Assertion sofort.

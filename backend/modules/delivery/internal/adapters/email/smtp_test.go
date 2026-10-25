@@ -390,4 +390,17 @@ func TestSMTPMailer_Send_SpecialCharacterDisplayName(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, built.GetAddrHeaderString(mail.HeaderReplyTo))
 	})
+	// A mailto on the central noreply sender would lead nowhere (#2872).
+	t.Run("no list-unsubscribe header", func(t *testing.T) {
+		built, err := mailer.buildMessage(mailcontract.Message{
+			From:     mailcontract.NewEmail("moto", "noreply@moto-ogs.de"),
+			To:       mailcontract.NewEmail("Erika Muster", "erika@example.test"),
+			Subject:  "Einladung zum Eltern-Portal",
+			Template: "regression.html",
+			Content:  map[string]string{"Message": "Hallo"},
+		})
+		require.NoError(t, err)
+		assert.Empty(t, built.GetGenHeader(mail.HeaderListUnsubscribe))
+		assert.Empty(t, built.GetGenHeader(mail.HeaderListUnsubscribePost))
+	})
 }

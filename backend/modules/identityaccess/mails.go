@@ -56,12 +56,13 @@ func trimmedLogoURL(origin string) string {
 // frontend/src/lib/role-labels.ts, the one name per role the school sees
 // everywhere (#4574).
 var systemRoleDisplayNames = map[string]string{
-	"admin":      "Verwaltung",
-	"user":       "Betreuung",
-	"guest":      "Gast",
-	"guardian":   "Eltern",
-	"lehrkraft":  "Lehrkraft",
-	"ag-leitung": "AG-Leitung",
+	"admin":           "Verwaltung",
+	"user":            "Betreuung",
+	"guest":           "Gast",
+	"guardian":        "Eltern",
+	"lehrkraft":       "Lehrkraft",
+	"ag-leitung":      "AG-Leitung",
+	"schulverwaltung": "Schulverwaltung",
 }
 
 // RoleDisplayName is the German name the invitation mail shows for a role;
@@ -286,6 +287,25 @@ func OperatorEmailChangeConfirmedMail(displayName, origin string) Mail {
 		Content: map[string]any{
 			"LogoURL":     origin + motoLogoPath,
 			"DisplayName": displayName,
+		},
+	}
+}
+
+// --- the Träger-Büro invitation ---------------------------------------------
+
+// TraegerInvitationMail is the mail carrying an invitation into a
+// Träger-Büro (#4650). The link goes to the Träger-Portal at traegerOrigin;
+// its proxy serves /invite from the Träger routes. origin serves the logo.
+func TraegerInvitationMail(invitation TraegerInvitation, traegerName, origin, traegerOrigin string, expiry time.Duration) Mail {
+	return Mail{
+		Subject:  "Einladung ins Träger-Portal von moto",
+		Template: "traeger-invitation.html",
+		Content: map[string]any{
+			"InvitationURL": fmt.Sprintf("%s/invite?token=%s", strings.TrimRight(traegerOrigin, "/"), invitation.Token),
+			"TraegerName":   traegerName,
+			"RoleNames":     TraegerRoleLabels(invitation.Roles),
+			"ExpiryHours":   int(expiry / time.Hour),
+			"LogoURL":       origin + motoLogoPath,
 		},
 	}
 }

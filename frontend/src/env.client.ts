@@ -34,6 +34,10 @@ export const clientEnv = {
     "NEXT_PUBLIC_CATERER_HOSTNAME",
     process.env.NEXT_PUBLIC_CATERER_HOSTNAME,
   ),
+  NEXT_PUBLIC_TRAEGER_HOSTNAME: required(
+    "NEXT_PUBLIC_TRAEGER_HOSTNAME",
+    process.env.NEXT_PUBLIC_TRAEGER_HOSTNAME,
+  ),
   // Empty in staging and local development: the analytics sends nothing.
   NEXT_PUBLIC_POSTHOG_KEY: optional(process.env.NEXT_PUBLIC_POSTHOG_KEY),
 } as const;

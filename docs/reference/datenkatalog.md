@@ -26,7 +26,7 @@ Globale Systemrollen mit `tenant_id IS NULL` sind kein
 Schulbestand; erforderliche Rollenbedeutung muss die spätere Rückgabe
 als Kontext liefern, nicht durch ungefilterten Export globaler Rollen.
 
-Die Mittagessen-Migrationen 1.15.521 bis 1.15.525 ergänzen zehn Tabellen.
+Die Mittagessen-Migrationen 1.15.542 bis 1.15.546 ergänzen zehn Tabellen.
 Bestellungen, Anmeldeänderungen, Einladungen und Belieferungen sind schulbezogen.
 Caterer-Konten und Betriebe sind schulübergreifend; eine Schule darf sie nicht
 allein löschen oder als eigenen Bestand ausgeben. Einladungs-Hashes bleiben
@@ -46,7 +46,7 @@ Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle
 `platform.school_erasures` bereit. Ein aus diesem Katalog abgeleiteter,
-installierter Plan enthält 239 Löschziele (seit Migration 1.15.526 mit den
+installierter Plan enthält 241 Löschziele (seit Migration 1.15.547 mit den
 Mittagessen-Tabellen) mit `tenant`, `tenantChild` oder
 `school`. Die explizit gesperrten Rechnungsreferenzen
 `platform.billing_key_date_counts` bleiben zehn Jahre ab Kalenderjahresende
@@ -67,7 +67,7 @@ Die manuelle Ergänzungs-/Drittpersonenprüfung und Schulfreigabe sind Bestandte
 des [Verfahrens](../operations/auskunft-und-rueckgabe.md#6-personenauskunft-auf-weisung-der-schule),
 nicht durch `COMPLETE` erledigt.
 
-**Offen:** produktiver Nachweis, manuelle Nebensystemschritte, Trägerwurzel,
+**Offen:** produktiver Nachweis, manuelle Nebensystemschritte,
 Wiederholung nach Restore (3837-d), organisatorische Fristenbestätigung
 (3838-d) und Data-Act-Abgleich (3838-e).
 Die Katalogeinträge selbst sind

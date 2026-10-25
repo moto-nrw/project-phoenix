@@ -655,6 +655,22 @@
     "appInstallGenericDescription": "Add moto to your phone's home screen so you can open it like an app.",
     "appInstallGuide": "Open guide"
   },
+  "analyticsConsent": {
+    "title": "Usage analytics",
+    "promptTitle": "Allow usage analytics?",
+    "promptIntro": "moto would like to count which pages and buttons you use. This helps us improve moto.",
+    "promptPrivacy": "moto does not see names or anything you type.",
+    "promptNoDisadvantage": "If you decline, you can use moto just the same.",
+    "promptChangeLater": "Your choice applies to your account. You can change it at any time under “Settings”.",
+    "allow": "Allow",
+    "refuse": "Decline",
+    "saving": "Saving…",
+    "closeLabel": "Decide later",
+    "sectionDescription": "May moto count which pages and buttons you use? moto does not see names or anything you type. Only you decide this.",
+    "switchLabel": "Allow usage analytics",
+    "schoolOff": "Your school has turned usage analytics off. Your choice applies as soon as the school turns it on again.",
+    "errorObject": "the usage analytics setting"
+  },
   "pwaInstallHint": {
     "title": "Use moto as an app",
     "samsungDescription": "Do not install moto through Samsung Internet. Open moto in Chrome and sign in there.",
@@ -2375,6 +2391,7 @@
         "class_trip_return_time_weekend": "{object} could not be saved. Please check your entries.",
         "class_trip_status_conflict": "{object} could not be changed. Please check its current status.",
         "class_trip_student_not_in_class": "{object} could not be changed. Please check its current status.",
+        "homework_not_found": "This homework no longer exists. Please reload the page.",
         "morning_attendance_no_school_day": "Today is not a school day. Attendance can only be recorded on school days.",
         "morning_attendance_not_today": "Attendance can only be recorded for today. Please open today.",
         "morning_attendance_unknown_child": "A child no longer belongs to this class. Please reload the page.",
@@ -2514,7 +2531,11 @@
         "submission_rate_limited": "Too many enrollments were sent. Please try again in an hour.",
         "waitlist_disabled": "{object} could not be changed. Please check its current status.",
         "window_closed": "The enrollment period has ended or has not started yet. Please contact the school.",
-        "withdraw_not_allowed": "This enrollment can no longer be withdrawn. Please contact the school."
+        "withdraw_not_allowed": "This enrollment can no longer be withdrawn. Please contact the school.",
+        "holiday_host_school_outside_traeger": "This school does not belong to your Träger. Please choose a school from the list.",
+        "holiday_period_incomplete": "The holiday period needs at least one week. Every week needs at least one time model.",
+        "holiday_period_invalid": "Please check the marked fields.",
+        "holiday_period_not_found": "This holiday period does not exist. Please open it from the holiday list."
       },
       "files": {
         "announcement_published": "{object} could not be changed. Please check its current status.",
@@ -2826,6 +2847,9 @@
         "guardian_notice_invalid": "{object} could not be saved. Please check your entries.",
         "guardian_notice_past": "{object} could not be saved. Please check your entries.",
         "guardian_notice_text_invalid": "{object} could not be saved. Please check your entries.",
+        "homework_feedback_child_not_in_supervision": "This child is not part of this supervision. Please reload the page.",
+        "homework_feedback_not_allowed": "Homework feedback is only possible in a study time you supervise.",
+        "homework_feedback_without_homework": "No homework is entered for this child's class today.",
         "idempotency_key_reused": "{object} could not be changed. Please check its current status.",
         "instance_end_before_start": "{object} could not be saved. Please check your entries.",
         "instance_in_past": "{object} could not be saved. Please check your entries.",
@@ -3003,6 +3027,10 @@
         "organization_not_deleted": "{object} could not be changed. Please check its current status.",
         "organization_has_schools": "{object} could not be changed. Please check its current status.",
         "organization_deleted": "{object} could not be changed. Please check its current status.",
+        "traeger_active": "{object} could not be changed. Please check its current status.",
+        "traeger_erasure_order_not_found": "{object} could not be changed. Please check its current status.",
+        "traeger_erasure_order_open": "{object} could not be changed. Please check its current status.",
+        "traeger_erasure_started": "{object} could not be changed. Please check its current status.",
         "school_not_found": "{object} could not be changed. Please check its current status.",
         "school_inactive": "{object} could not be changed. Please check its current status.",
         "school_already_deleted": "{object} could not be changed. Please check its current status.",
@@ -3031,6 +3059,9 @@
         "module_requires": "{object} could not be saved. Please check your entries.",
         "module_required_by": "{object} could not be saved. Please check your entries."
       },
+      "module": {
+        "not_booked": "Your school has not booked the module {module_label}. To book it, please contact the moto team."
+      },
       "devices": {
         "tag_scan_not_found": "{object} could not be changed. Please check its current status.",
         "tag_scan_already_resolved": "{object} could not be changed. Please check its current status."
@@ -3054,6 +3085,12 @@
       },
       "operator": {
         "audit_unavailable": "{object} is unavailable right now. Please try again."
+      },
+      "traeger": {
+        "already_member": "This person already belongs to the Träger office.",
+        "last_administrator": "The Träger office needs at least one person with the role Verwaltung. Give this role to someone else first.",
+        "member_not_found": "This person no longer belongs to the Träger office. Please reload the page.",
+        "no_membership": "Your account has no access to the Träger portal. Please contact the moto team."
       }
     },
     "actions": {

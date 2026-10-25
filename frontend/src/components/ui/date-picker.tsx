@@ -868,6 +868,12 @@ interface ISODateInputProps {
   readonly minDateError?: string;
   readonly maxDateError?: string;
   readonly disabled?: boolean;
+  /**
+   * A check of the surrounding form on the stored value (missing date, date
+   * range, overlap). It is shown and wired like the field's own check, which
+   * wins while the typed text is no valid date.
+   */
+  readonly error?: string | null;
 }
 
 export function ISODateInput({
@@ -882,6 +888,7 @@ export function ISODateInput({
   minDateError = "Das Datum liegt vor dem zulässigen Zeitraum.",
   maxDateError = "Das Datum liegt nach dem zulässigen Zeitraum.",
   disabled,
+  error,
 }: ISODateInputProps) {
   const [inputValue, setInputValue] = useState(() =>
     formatISODateInputValue(value),
@@ -897,6 +904,7 @@ export function ISODateInput({
     ),
   );
   const errorId = `${id}-error`;
+  const shownError = inputError ?? error ?? null;
 
   useEffect(() => {
     setInputValue(formatISODateInputValue(value));
@@ -968,15 +976,15 @@ export function ISODateInput({
             maxLength={10}
             value={inputValue}
             disabled={disabled}
-            aria-invalid={inputError ? true : undefined}
-            aria-describedby={inputError ? errorId : undefined}
+            aria-invalid={shownError ? true : undefined}
+            aria-describedby={shownError ? errorId : undefined}
             onChange={(event) => {
               const nextValue = event.target.value;
               setInputValue(nextValue);
               validate(nextValue, false);
             }}
             onBlur={() => validate(inputValue, true)}
-            className={inputError ? "ring-moto-red" : ""}
+            className={shownError ? "ring-moto-red" : ""}
           />
         </div>
         <DatePicker
@@ -995,14 +1003,18 @@ export function ISODateInput({
           monthYearNavigation
           disabled={disabled}
           ariaLabel={`${label} im Kalender auswählen`}
-          invalid={Boolean(inputError)}
+          invalid={Boolean(shownError)}
         />
       </div>
-      {inputError && (
+      {inputError ? (
         <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
           {inputError}
         </p>
-      )}
+      ) : error ? (
+        <p id={errorId} className="text-moto-red mt-1 text-xs">
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

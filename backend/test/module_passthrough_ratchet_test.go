@@ -225,10 +225,12 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
-// for modules/communication and modules/schoolcalendar), by ADR 0077 (three
+// for modules/communication and modules/schoolcalendar), by ADR 0077 (two
 // for modules/identityaccess) and by ADR 0078 (one for
 // workflows/parentportal), and by ADR 0079 (one for modules/communication).
-const modulePassthroughOwnerBudgetTotal = 1402
+// Raised by ADR 0104: FindManageableAccount of modules/identityaccess (+1).
+// Raised by ADR 0105: the holiday period reads of modules/enrollment (+2).
+const modulePassthroughOwnerBudgetTotal = 1404
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -238,7 +240,9 @@ const modulePassthroughOwnerBudgetTotal = 1402
 // c49b81c3a9 (2394 in 34 compositions). #4084 carries the compositions that
 // still hold more than construction. Sorted alphabetically so later diffs stay
 // readable. Shrink-only — an entry may fall or go, never rise, and no module
-// gets a new entry.
+// gets a new entry. Raised by ADR 0104: removing the former org branch leaves
+// FindManageableAccount of modules/identityaccess a plain transaction
+// wrapper (+1).
 var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/appointments": 21,
 	"modules/auditlog":     1,
@@ -247,12 +251,13 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
 	// Raised by ADR 0079: the facade observes the reachable-children read.
-	"modules/communication":  58,
-	"modules/dataimport":     1,
-	"modules/delivery":       5,
-	"modules/devicefleet":    33,
-	"modules/devicescan":     35,
-	"modules/enrollment":     24,
+	"modules/communication": 58,
+	"modules/dataimport":    1,
+	"modules/delivery":      5,
+	"modules/devicefleet":   33,
+	"modules/devicescan":    35,
+	// Raised by ADR 0105: the holiday period reads of the Träger-Portal.
+	"modules/enrollment":     26,
 	"modules/exporttransfer": 1,
 	"modules/facilities":     13,
 	"modules/feedback":       2,

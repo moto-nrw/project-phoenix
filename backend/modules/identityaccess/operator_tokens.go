@@ -94,8 +94,9 @@ type OperatorInvitationCommand interface {
 	// the address and returns how many it spent.
 	RevokeOperatorInvitationsForEmail(ctx context.Context, email string) (int, error)
 	// ExtendOperatorInvitation moves the expiry of a redeemable invitation
-	// to the future expiresAt.
-	ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt time.Time) error
+	// to the future expiresAt and replaces its link token. It returns the new
+	// raw token, the only copy: the store keeps its hash (#4902).
+	ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt time.Time) (string, error)
 	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
 	DeleteExpiredOperatorInvitations(ctx context.Context) (int, error)
 }

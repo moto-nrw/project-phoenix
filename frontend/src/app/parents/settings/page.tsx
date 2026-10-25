@@ -16,6 +16,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
+import { ParentAnalyticsConsentSection } from "~/components/settings/parent-analytics-consent-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
@@ -84,6 +85,7 @@ export default function ParentSettingsPage() {
         <NotificationPreferencesSection portal="parent" />
       </div>
       <PushNotificationSection portal="parent" />
+      <ParentAnalyticsConsentSection />
     </ParentPage>
   );
 }

@@ -2,7 +2,13 @@
 
 import { CheckCircleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
-import { GraduationCap, HeartHandshake, Users, UserRound } from "lucide-react";
+import {
+  Building2,
+  GraduationCap,
+  HeartHandshake,
+  Users,
+  UserRound,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -68,6 +74,12 @@ const ROLE_OPTIONS: readonly RoleOption[] = [
     label: "Lehrkraft",
     description: "Sie arbeiten mit moto schule.",
     icon: GraduationCap,
+  },
+  {
+    role: "traeger",
+    label: "Träger-Büro",
+    description: "Sie arbeiten für den Träger mehrerer OGS.",
+    icon: Building2,
   },
 ];
 

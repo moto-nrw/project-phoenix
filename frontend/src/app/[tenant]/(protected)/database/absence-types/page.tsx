@@ -13,6 +13,7 @@ import {
   CATALOG_SELECTION_PARAM,
   type CatalogConfig,
 } from "~/components/database/catalog/catalog-page";
+import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 import { absenceTypeService, type AbsenceType } from "~/lib/absence-type-api";
 import { CARRYOVER_OPTIONS, carryoverRuleLabel } from "~/lib/absence-helpers";
 import type { SectionConfig } from "~/lib/database/types";
@@ -196,8 +197,10 @@ function AbsenceTypesPageContent() {
 
 export default function AbsenceTypesPage() {
   return (
-    <Suspense fallback={null}>
-      <AbsenceTypesPageContent />
-    </Suspense>
+    <ModuleRouteGuard module="zeiterfassung" title="Abwesenheitsarten">
+      <Suspense fallback={null}>
+        <AbsenceTypesPageContent />
+      </Suspense>
+    </ModuleRouteGuard>
   );
 }

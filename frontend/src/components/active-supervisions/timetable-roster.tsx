@@ -14,7 +14,20 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceModal } from "~/components/ui/choice-modal";
+import { EditActions } from "~/components/ui/edit-actions";
 import type { FormErrorInput } from "~/components/ui/form-error";
+import { FormModal } from "~/components/ui/form-modal";
+import { Input } from "~/components/ui/input";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { useApiFormError } from "~/contexts/ToastContext";
+import {
+  HOMEWORK_FEEDBACK_COLORS,
+  HOMEWORK_FEEDBACK_LABELS,
+  HOMEWORK_FEEDBACK_STATUSES,
+  HOMEWORK_NOTE_MAX_LENGTH,
+  homeworkLine,
+} from "~/lib/homework-feedback";
 import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import { OccupancyBadges } from "~/components/ui/occupancy-badges";
 import type { AddUnplannedStudentModalProps } from "~/components/active-supervisions/add-unplanned-student-modal";
@@ -45,6 +58,8 @@ import { hasOpenEnd } from "~/lib/block-children";
 import { TIMETABLE_VIEW_ONLY_NOTICE } from "~/lib/timetable-operation-access";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
+  HomeworkFeedbackBody,
+  TimetableHomeworkFeedbackStatus,
   TimetableRoster,
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
@@ -126,6 +141,13 @@ function RosterStudentMeta({
     </>
   );
 }
+
+// Die Antworten der Hausaufgaben-Rückmeldung (#4796) im Auswahlfeld.
+const HOMEWORK_FEEDBACK_TONES = {
+  done: "green",
+  not_done: "red",
+  difficult: "neutral",
+} as const satisfies Record<TimetableHomeworkFeedbackStatus, string>;
 
 const ROSTER_META_CLASS =
   "inline-flex items-center gap-1 text-xs font-medium text-gray-500";
@@ -268,6 +290,11 @@ interface RosterRowActionsProps {
   ) => Promise<void>;
   /** Adresse der Kinderseite; ohne sie gibt es den Knopf „Profil ansehen“ nicht. */
   readonly profileHref?: string;
+  /**
+   * Öffnet die Rückmeldung zu den Hausaufgaben (#4796). Nur in einer
+   * Lernzeit mit dem Recht dazu, und nur bei Kindern mit Hausaufgaben.
+   */
+  readonly onHomework?: (row: TimetableRosterRow) => void;
 }
 
 function RosterRowActions({
@@ -275,12 +302,15 @@ function RosterRowActions({
   onAction,
   access,
   profileHref,
+  onHomework,
 }: RosterRowActionsProps) {
+  const homeworkAction = onHomework && (row.homework?.length ?? 0) > 0;
   if (
     !access.attendance &&
     !access.statuses &&
     !access.absence &&
-    !profileHref
+    !profileHref &&
+    !homeworkAction
   ) {
     return null;
   }
@@ -366,6 +396,16 @@ function RosterRowActions({
           Zurück auf erwartet
         </Button>
       ) : null}
+      {homeworkAction ? (
+        <Button
+          type="button"
+          onClick={() => onHomework?.(row)}
+          variant="outline"
+          size="md"
+        >
+          Hausaufgaben
+        </Button>
+      ) : null}
       {/* Ein Link, kein Anwesenheitsknopf: er öffnet nur die Kinderseite
           (#4356). Nur ein Icon am Ende der Zeile, damit die Zeile nicht
           wächst; auf dem Handy rechts außen. Der Name im Label unterscheidet
@@ -414,6 +454,7 @@ interface TimetableRosterRowProps {
    */
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly studentProfileHref?: (row: TimetableRosterRow) => string;
+  readonly onHomework?: (row: TimetableRosterRow) => void;
 }
 
 function TimetableRosterStudentRow({
@@ -427,6 +468,7 @@ function TimetableRosterStudentRow({
   onAction,
   onOpenStudent,
   studentProfileHref,
+  onHomework,
 }: TimetableRosterRowProps) {
   const pickupTimeLabel = rosterPickupTimeLabel(
     row.pickupTime,
@@ -522,12 +564,36 @@ function TimetableRosterStudentRow({
             {`Auch in „${row.parallelPresentIn.title}“ (${row.parallelPresentIn.startTime}–${row.parallelPresentIn.endTime}) als anwesend eingetragen`}
           </div>
         ) : null}
+        {/* Hausaufgaben der Klasse in der Lernzeit (#4796): was zu tun ist
+            und, falls schon gegeben, die Rückmeldung. */}
+        {row.homework?.map((entry, index) => (
+          <div
+            key={`${index}:${homeworkLine(entry)}`}
+            className="mt-0.5 text-sm break-words text-gray-700"
+          >
+            Hausaufgaben: {homeworkLine(entry)}
+          </div>
+        ))}
+        {row.homeworkFeedback ? (
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <StatusColorBadge
+              label={`Rückmeldung: ${HOMEWORK_FEEDBACK_LABELS[row.homeworkFeedback.status]}`}
+              color={HOMEWORK_FEEDBACK_COLORS[row.homeworkFeedback.status]}
+            />
+            {row.homeworkFeedback.note ? (
+              <span className="text-sm break-words text-gray-600">
+                {row.homeworkFeedback.note}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <RosterRowActions
         row={row}
         onAction={onAction}
         access={actionAccess}
         profileHref={studentProfileHref?.(row)}
+        onHomework={onHomework}
       />
     </div>
   );
@@ -547,6 +613,7 @@ interface TimetableRosterSectionProps {
   readonly onAction: RosterRowActionsProps["onAction"];
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly studentProfileHref?: (row: TimetableRosterRow) => string;
+  readonly onHomework?: (row: TimetableRosterRow) => void;
   readonly rows: TimetableRosterRow[];
   readonly showTimetableCounts: boolean;
   readonly title: string;
@@ -564,6 +631,7 @@ function TimetableRosterSection({
   onAction,
   onOpenStudent,
   studentProfileHref,
+  onHomework,
   rows,
   showTimetableCounts,
   title,
@@ -609,6 +677,7 @@ function TimetableRosterSection({
               onAction={onAction}
               onOpenStudent={onOpenStudent}
               studentProfileHref={studentProfileHref}
+              onHomework={onHomework}
             />
           ))}
         </div>
@@ -921,6 +990,15 @@ interface TimetableRosterContentProps {
   readonly onExcuseRestOfDay?: (row: TimetableRosterRow) => Promise<void>;
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   /**
+   * Speichert die Rückmeldung zu den Hausaufgaben eines Kindes (#4796).
+   * Ohne sie fehlt der Knopf „Hausaufgaben“; die Hausaufgaben stehen dann nur
+   * zum Lesen am Kind.
+   */
+  readonly onSaveHomeworkFeedback?: (
+    row: TimetableRosterRow,
+    body: HomeworkFeedbackBody,
+  ) => Promise<void>;
+  /**
    * Adresse der Kinderseite für den Knopf „Profil ansehen“ (#4356). Nur wer
    * die Kinderseite öffnen darf (`users:read`), bekommt sie; ohne sie fehlt
    * der Knopf.
@@ -1031,6 +1109,7 @@ export function TimetableRosterContent({
   onRosterAction,
   onExcuseRestOfDay,
   onOpenStudent,
+  onSaveHomeworkFeedback,
   studentProfileHref,
   onSearchChange,
   rowFilter = null,
@@ -1112,6 +1191,52 @@ export function TimetableRosterContent({
       setExcuseRow(null);
     }
   };
+  // Rückmeldung zu den Hausaufgaben (#4796): eine Lernzeit mit dem Recht
+  // dazu. Der Dialog sammelt Antwort und Notiz und speichert erst dann.
+  const homeworkEnabled =
+    roster.canRecordHomeworkFeedback === true &&
+    onSaveHomeworkFeedback !== undefined;
+  const [homeworkRow, setHomeworkRow] = useState<TimetableRosterRow | null>(
+    null,
+  );
+  const [homeworkStatus, setHomeworkStatus] =
+    useState<TimetableHomeworkFeedbackStatus | null>(null);
+  const [homeworkNote, setHomeworkNote] = useState("");
+  const [savingHomework, setSavingHomework] = useState(false);
+  const homeworkErrors = useApiFormError();
+  const openHomework = (row: TimetableRosterRow) => {
+    homeworkErrors.clear();
+    setHomeworkRow(row);
+    setHomeworkStatus(row.homeworkFeedback?.status ?? null);
+    setHomeworkNote(row.homeworkFeedback?.note ?? "");
+  };
+  const closeHomework = () => {
+    homeworkErrors.clear();
+    setHomeworkRow(null);
+  };
+  const saveHomework = async () => {
+    if (!homeworkRow || !onSaveHomeworkFeedback) return;
+    if (!homeworkStatus) {
+      homeworkErrors.invalid("Bitte wählen Sie eine Antwort.");
+      return;
+    }
+    homeworkErrors.clear();
+    setSavingHomework(true);
+    try {
+      await onSaveHomeworkFeedback(homeworkRow, {
+        status: homeworkStatus,
+        note: homeworkNote.trim() === "" ? null : homeworkNote.trim(),
+      });
+      setHomeworkRow(null);
+    } catch (cause) {
+      void homeworkErrors.show(cause, {
+        object: "die Rückmeldung",
+        retry: () => void saveHomework(),
+      });
+    } finally {
+      setSavingHomework(false);
+    }
+  };
   const closeAddStudent = () => {
     setAddStudentOpen(false);
     // Der nächste Dialog startet ohne Suche und ohne Fehlermeldung; beides
@@ -1152,6 +1277,7 @@ export function TimetableRosterContent({
     onAction: handleRosterAction,
     onOpenStudent,
     studentProfileHref,
+    onHomework: homeworkEnabled ? openHomework : undefined,
     showTimetableCounts,
   };
 
@@ -1229,6 +1355,66 @@ export function TimetableRosterContent({
           onClose={() => setExcuseRow(null)}
           onSelect={(scope) => void handleExcuseScope(scope)}
         />
+      ) : null}
+      {homeworkEnabled ? (
+        <FormModal
+          isOpen={homeworkRow !== null}
+          onClose={closeHomework}
+          title={`Hausaufgaben von ${homeworkRow?.studentName ?? ""}`}
+          size="md"
+          mobilePosition="bottom"
+          closeDisabled={savingHomework}
+          error={homeworkErrors.error}
+          footer={
+            <EditActions
+              className="p-4"
+              onCancel={closeHomework}
+              onSave={() => void saveHomework()}
+              saving={savingHomework}
+              saveLabel="Rückmeldung speichern"
+            />
+          }
+        >
+          <div className="space-y-4 p-4">
+            <ul className="space-y-1 text-sm text-gray-700">
+              {homeworkRow?.homework?.map((entry, index) => (
+                <li
+                  key={`${index}:${homeworkLine(entry)}`}
+                  className="break-words whitespace-pre-line"
+                >
+                  {homeworkLine(entry)}
+                </li>
+              ))}
+            </ul>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">
+                Wie lief es heute?
+              </p>
+              <SegmentedControl
+                items={HOMEWORK_FEEDBACK_STATUSES.map((status) => ({
+                  value: status,
+                  label: HOMEWORK_FEEDBACK_LABELS[status],
+                  tone: HOMEWORK_FEEDBACK_TONES[status],
+                  disabled: savingHomework,
+                }))}
+                value={homeworkStatus}
+                onChange={setHomeworkStatus}
+                variant="pills"
+                ariaLabel="Rückmeldung zu den Hausaufgaben"
+                fullWidth
+              />
+            </div>
+            <Input
+              id="homework-feedback-note"
+              name="note"
+              label="Kurze Notiz (freiwillig)"
+              controlSize="compact"
+              maxLength={HOMEWORK_NOTE_MAX_LENGTH}
+              value={homeworkNote}
+              onChange={(event) => setHomeworkNote(event.target.value)}
+            />
+          </div>
+        </FormModal>
       ) : null}
       {hasNoMatch ? (
         <SectionCard>

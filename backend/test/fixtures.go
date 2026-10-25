@@ -30,19 +30,19 @@ const (
 	testEmailFormat               = "%s-%d@test.local"
 )
 
-// fixtureSeq counts every unique-suffix request in this binary.
-var fixtureSeq int64
+// Seed once so adding the counter to changing clock readings cannot collide.
+var fixtureSeq = time.Now().UnixNano()
 
 // uniqueFixtureSuffix returns a number no two fixtures in this process share.
 // The clock alone is not enough: two parallel tests can read the same
 // nanosecond, and the collision surfaces as a duplicate-key error on an
 // unrelated unique index (idx_accounts_email was the one that found this).
-// The counter guarantees uniqueness within the process; the timestamp only
+// The counter guarantees uniqueness within the process; its initial timestamp only
 // makes a collision between two processes on one database unlikely, it does
 // not rule it out. Each package binary has its own clone, so that second case
 // barely arises.
 func uniqueFixtureSuffix() int64 {
-	return time.Now().UnixNano() + atomic.AddInt64(&fixtureSeq, 1)
+	return atomic.AddInt64(&fixtureSeq, 1)
 }
 
 // UniqueSuffix is uniqueFixtureSuffix for tests that build their own unique
@@ -1207,12 +1207,7 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		Generation: 0,
 	}
 	token.TenantID = fixtureTenantID(tb)
-
-	err := db.NewInsert().
-		Model(token).
-		ModelTableExpr(`auth.tokens`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test token")
+	insertTokenFixture(tb, ctx, db, token)
 
 	return token
 }
@@ -1410,9 +1405,6 @@ type InvitationTokenOptions struct {
 func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time) *InvitationTokenFixture {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Make email unique
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 	token := fmt.Sprintf("test-token-%d", uniqueFixtureSuffix())
@@ -1427,12 +1419,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 		invitation.CreatedBy = Int64Ptr(createdBy)
 	}
 	invitation.TenantID = fixtureTenantID(tb)
-
-	err := db.NewInsert().
-		Model(invitation).
-		ModelTableExpr(`auth.invitation_tokens`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test invitation token")
+	InsertTestInvitationToken(tb, db, invitation)
 
 	return invitation
 }
@@ -1440,9 +1427,6 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 // CreateTestInvitationTokenWithOptions creates an invitation token with optional fields.
 func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email string, roleID, createdBy int64, expiresAt time.Time, opts *InvitationTokenOptions) *InvitationTokenFixture {
 	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	// Make email unique
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
@@ -1463,12 +1447,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 		invitation.LastName = opts.LastName
 	}
 	invitation.TenantID = fixtureTenantID(tb)
-
-	err := db.NewInsert().
-		Model(invitation).
-		ModelTableExpr(`auth.invitation_tokens`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test invitation token with options")
+	InsertTestInvitationToken(tb, db, invitation)
 
 	return invitation
 }
@@ -1922,12 +1901,7 @@ func CreateTestTokenForTenant(tb testing.TB, db *bun.DB, tenantID int64, account
 		Generation: 0,
 	}
 	token.TenantID = tenantID
-
-	err := db.NewInsert().
-		Model(token).
-		ModelTableExpr(`auth.tokens`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test token for tenant")
+	insertTokenFixture(tb, ctx, db, token)
 
 	return token
 }

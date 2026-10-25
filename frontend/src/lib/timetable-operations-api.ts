@@ -6,6 +6,7 @@ import {
 } from "./api-error";
 import type {
   AttendancePatchBody,
+  HomeworkFeedbackBody,
   BackendStartOperationResult,
   BackendTimetableRoster,
   PlannedTimetableInstance,
@@ -223,6 +224,28 @@ export const timetableOperationsApi = {
         `/api/timetable/operations/instances/${instanceId}/students/${studentId}/attendance`,
         {
           method: "PATCH",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        },
+      ),
+    );
+  },
+
+  /** Rückmeldung zu den Hausaufgaben eines Kindes der Lernzeit (#4796). */
+  async saveHomeworkFeedback(
+    instanceId: string,
+    studentId: string,
+    body: HomeworkFeedbackBody,
+  ): Promise<void> {
+    await unwrap<unknown>(
+      await transportFetch(
+        `/api/timetable/operations/instances/${instanceId}/students/${studentId}/homework-feedback`,
+        {
+          method: "PUT",
           credentials: "include",
           headers: {
             Accept: "application/json",

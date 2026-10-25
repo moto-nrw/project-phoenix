@@ -54,6 +54,10 @@ type Dependencies struct {
 	// change flows (#3332). They require Sessions and Operators;
 	// compositions without it report ErrOperatorProvisioningUnavailable.
 	OperatorProvisioning *OperatorProvisioningDependencies
+	// Traeger composes the Träger-Büro account management (#4650): the
+	// invitation into a Träger-Büro and its roles. It requires Sessions;
+	// compositions without it report ErrTraegerAccountsUnavailable.
+	Traeger *identityBindingPorts.TraegerAccountDependencies
 	// Demo composes public demo access only in the demo environment.
 	Demo *identityBindingPorts.DemoDependencies
 	// TenantRuntime binds transactions; a zero value keeps the sessions' own runtime.
@@ -113,7 +117,7 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	if err != nil {
 		return nil, err
 	}
-	demoAccess, caterers, err := composeBesideEngine(dependencies, auth, store)
+	demoAccess, traegerAccounts, caterers, err := composeBesideEngine(dependencies, auth, store, runAdmin)
 	if err != nil {
 		return nil, err
 	}
@@ -126,20 +130,20 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
 		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), runAdmin), AccountRetention: application.NewAccountRetention(store, attach, runAdmin, dependencies.RemoveErasedAvatarFile, application.InvitationLogger(dependencies.Invitations)),
 		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
-		DemoAccess:            demoAccess, Caterers: caterers,
+		TraegerAccounts:       traegerAccounts, DemoAccess: demoAccess, Caterers: caterers,
 	})
 	return owner, nil
 }
 
 // composeBesideEngine composes the capabilities the owner carries beside its
-// services: the demo access and the caterer flows.
-func composeBesideEngine(dependencies Dependencies, auth *application.AccountAuthentication, store *postgres.Store) (*identityaccess.DemoAccess, *identityaccess.CatererAccess, error) {
-	demoAccess, err := composeDemoAccess(dependencies.DB, auth, dependencies.Demo)
+// services: the demo access, the Träger accounts and the caterer flows.
+func composeBesideEngine(dependencies Dependencies, auth *application.AccountAuthentication, store *postgres.Store, runAdmin func(context.Context, func(context.Context) error) error) (*identityaccess.DemoAccess, *application.TraegerAccounts, *identityaccess.CatererAccess, error) {
+	demoAccess, traegerAccounts, err := newPortalAccess(dependencies, auth, store, runAdmin)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	caterers, err := newCatererAccess(auth, store, dependencies.Sessions, dependencies.Lifecycle)
-	return demoAccess, caterers, err
+	return demoAccess, traegerAccounts, caterers, err
 }
 
 // NewGuardianInvitationReads composes the guardian invitation lists over the
@@ -185,4 +189,24 @@ func newRegistrationFlows(auth *application.AccountAuthentication, store *postgr
 		return nil, nil, nil, err
 	}
 	return resets, invitations, provisioning, nil
+}
+
+// newPortalAccess composes the public demo access and the Träger-Büro
+// account management (#4650) over the global administrative unit; each is
+// nil without its dependencies. The account management requires Sessions:
+// the login's password check proves an existing account at acceptance.
+func newPortalAccess(dependencies Dependencies, auth *application.AccountAuthentication, store *postgres.Store, runAdmin func(context.Context, func(context.Context) error) error) (*identityaccess.DemoAccess, *application.TraegerAccounts, error) {
+	demoAccess, err := composeDemoAccess(dependencies.DB, auth, dependencies.Demo)
+	deps := dependencies.Traeger
+	if err != nil || deps == nil {
+		return demoAccess, nil, err
+	}
+	if dependencies.Sessions == nil || auth == nil {
+		return nil, nil, errors.New("identity access compose: the Träger account management requires the session dependencies")
+	}
+	traegerAccounts, err := application.NewTraegerAccounts(application.TraegerAccountsDependencies{
+		Store: store, Memberships: deps.Memberships, Delivery: deps.Delivery, Audit: deps.Audit, Passwords: deps.Passwords,
+		Credentials: auth.CheckPasswordLogin, Unit: runAdmin, Expiry: deps.Expiry, Logger: deps.Logger,
+	})
+	return demoAccess, traegerAccounts, err
 }

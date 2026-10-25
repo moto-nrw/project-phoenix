@@ -257,7 +257,7 @@ func TestOperatorRefresh_RotatesInsideOneAdminTransaction(t *testing.T) {
 	sessions := f.store.operatorSessionsOf(42)
 	require.Len(t, sessions, 2, "the rotated predecessor stays as replay evidence")
 	require.NotNil(t, sessions[0].RotatedAt)
-	assert.Equal(t, successor, *sessions[0].ReplacementToken)
+	assert.Equal(t, domain.HashToken(successor), *sessions[0].ReplacementTokenHash, "the hand-off names its successor by hash only")
 	assert.Equal(t, sessions[0].FamilyID, sessions[1].FamilyID)
 	assert.Equal(t, 1, sessions[1].Generation)
 }

@@ -126,6 +126,20 @@ async function saveSeriesForm(page: Page) {
     await expect(save.or(next)).toBeVisible();
   }
   await save.click();
+
+  // The seeder places a closing day 40 days after the seed day, so on some
+  // run weekdays (a Sunday seed hits a Friday) it falls into the opened
+  // series. The planner then asks about closing days before it probes for
+  // lost edits; "Schließtage auslassen" keeps the series' stored behaviour.
+  const closingDays = page.getByRole("dialog", {
+    name: "Schließtage in dieser Serie",
+  });
+  await expect(closingDays.or(lostEditsWarning(page))).toBeVisible();
+  if (await closingDays.isVisible()) {
+    await closingDays
+      .getByRole("button", { name: /Schließtage auslassen/ })
+      .click();
+  }
 }
 
 function lostEditsWarning(page: Page) {

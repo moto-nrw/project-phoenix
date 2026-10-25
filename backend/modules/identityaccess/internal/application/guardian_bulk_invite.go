@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -362,8 +363,10 @@ func bulkInviteEmailProblem(email string, seen map[string]bool) string {
 	return ""
 }
 
-// resendOpenInvitation mails the redeemable invitation again and restarts its
-// window, so nobody receives a link that expires within the hour. A request
+// resendOpenInvitation mails the redeemable invitation again with a new link
+// and restarts its window, so nobody receives a link that expires within the
+// hour. Only the hash of a token is stored (#4902): the previous link stops
+// working. A request
 // still waiting for staff approval is not redeemable; the caller then issues
 // a staff invitation, which supersedes it.
 func (l *AccountLifecycle) resendOpenInvitation(ctx context.Context, dryRun bool, profile domain.GuardianProfile, open []domain.GuardianInvitation) (bool, error) {
@@ -378,6 +381,7 @@ func (l *AccountLifecycle) resendOpenInvitation(ctx context.Context, dryRun bool
 		if err != nil {
 			return false, failed(opGuardianBulkInvite, err)
 		}
+		invitation.Token = uuid.Must(uuid.NewV4()).String()
 		invitation.ExpiresAt = time.Now().Add(expiry)
 		invitation.EmailSentAt = nil
 		invitation.EmailError = nil

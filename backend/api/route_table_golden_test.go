@@ -407,6 +407,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			t.Run("IoT error code declarations", checkIoTErrorCodesGolden)
 			t.Run("IoT error reports relay", func(t *testing.T) { checkIoTErrorReportsRelay(t, api, sentryFake, newKiosk) })
 			t.Run("school scope matrix", func(t *testing.T) { checkSchoolScopeMatrix(t, api) })
+			t.Run("traeger scope matrix", func(t *testing.T) { checkTraegerScopeMatrix(t, api) })
 			t.Run("caregiver wiring", func(t *testing.T) { checkCaregiverWiring(t, api) })
 			t.Run("timetable conflict wiring", func(t *testing.T) { checkTimetableConflictWiring(t, api) })
 			t.Run("former late-bound mounts", func(t *testing.T) { checkFormerLateBoundMounts(t, api) })
@@ -423,6 +424,8 @@ func TestFullProductionRouterGolden(t *testing.T) {
 			t.Run("caterer scope matrix", func(t *testing.T) { checkCatererScopeMatrix(t, api) })
 			t.Run("ag-leitung route permissions", func(t *testing.T) { checkAGLeitungRoutePermissions(t, api) })
 			t.Run("guest route permissions", func(t *testing.T) { checkGuestRoutePermissions(t, api) })
+			t.Run("module route map", func(t *testing.T) { checkModuleRouteMap(t, api) })
+			t.Run("module booking gate", func(t *testing.T) { checkModuleBookingGate(t, api) })
 		})
 		return nil
 	})

@@ -33,3 +33,9 @@ func SessionIDFromContext(ctx context.Context) string {
 	sessionID, _ := ctx.Value(sessionIDKey{}).(string)
 	return sessionID
 }
+
+// withoutSessionID drops the browser session from ctx, for an event whose
+// account has not consented to the usage analytics (#4901).
+func withoutSessionID(ctx context.Context) context.Context {
+	return context.WithValue(ctx, sessionIDKey{}, "")
+}

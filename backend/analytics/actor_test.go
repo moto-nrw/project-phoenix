@@ -25,7 +25,10 @@ func TestActorOfKeepsParentAccountInternalForSchoolPolicy(t *testing.T) {
 	actor, _ = ActorOf(SessionFacts{Caterer: true, AccountID: 31})
 	assert.Equal(t, Actor{Surface: SurfaceCaterer, Role: RoleCaterer}, actor, "a caterer names neither school nor account")
 	actor, _ = ActorOf(SessionFacts{School: true, TenantID: 21, AccountID: 31})
-	assert.Equal(t, Actor{Surface: SurfaceSchool, Role: RoleLehrkraft, SchoolID: 21}, actor)
+	// The account answers the consent lookup only (#4901); the event stays
+	// keyed by the school.
+	assert.Equal(t, Actor{Surface: SurfaceSchool, Role: RoleLehrkraft, SchoolID: 21, AccountID: 31}, actor)
+	assert.Equal(t, "school:21", distinctID(actor))
 	actor, _ = ActorOf(SessionFacts{TenantID: 21, ReadOnlyPreview: true, Admin: true, AccountID: 31})
 	assert.Equal(t, Actor{Surface: SurfaceOGS, Role: RoleAdmin, SchoolID: 21}, actor, "the preview names no account")
 	actor, _ = ActorOf(SessionFacts{TenantID: 21, Admin: true, AccountID: 31})

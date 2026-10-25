@@ -146,6 +146,7 @@ A direct fetch outside this inventory needs a reason and a shared proxy path.
 | `students/[id]/photo/[filename]` | Serves student photo bytes with MIME and cache headers. |
 | `students/day-log/export` | Streams day-log export bytes with no-store caching. |
 | `students/export` | Streams the student export file and backend disposition. |
+| `traeger/auth/logout` | Uses the Träger refresh token, not the access token, to revoke the `org` session. |
 
 The three SSE routes (`sse/events`, `parent/sse/events`, and
 `school/sse/events`) use `proxySSEStream` separately: each must keep its own

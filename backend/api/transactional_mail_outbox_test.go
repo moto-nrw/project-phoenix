@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"regexp"
 	"strconv"
 	"testing"
 	"time"
@@ -250,8 +251,14 @@ func TestOperatorEmailChangeMailOutboxIsAtomic(t *testing.T) {
 			}
 			if kind == "operator_email_change_confirmed" {
 				require.NoError(t, initiate(ctx))
-				var token string
-				require.NoError(t, db.NewRaw(`SELECT token FROM platform.operator_email_change_tokens WHERE operator_id = ? AND used = false`, operator.ID).Scan(ctx, &token))
+				// The row stores only the hash of the link (#4902); the
+				// confirmation follows the link the verification mail carries.
+				var mail string
+				require.NoError(t, db.NewRaw(`SELECT payload::text FROM platform.email_outbox WHERE kind = ? AND payload->'Message'->'To'->>'Address' = ? ORDER BY id DESC LIMIT 1`,
+					owners.TransactionalMailKind, newAddress).Scan(ctx, &mail))
+				match := emailChangeLinkToken.FindStringSubmatch(mail)
+				require.Len(t, match, 2, "the verification mail carries a link")
+				token := match[1]
 				trigger = func(txCtx context.Context) error {
 					_, err := module.ConfirmOperatorEmailChange(txCtx, token, "127.0.0.1")
 					return err
@@ -261,3 +268,5 @@ func TestOperatorEmailChangeMailOutboxIsAtomic(t *testing.T) {
 		})
 	}
 }
+
+var emailChangeLinkToken = regexp.MustCompile(`email-confirm\?token=([A-Za-z0-9_-]+)`)

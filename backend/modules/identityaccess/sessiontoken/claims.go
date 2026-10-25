@@ -65,6 +65,11 @@ func (c *AppClaims) IsPlatformScope() bool {
 	return c.Scope == "platform"
 }
 
+// IsOrgScope returns true if this is a Träger-portal token (#4649).
+func (c *AppClaims) IsOrgScope() bool {
+	return c.Scope == claimScopeOrg
+}
+
 // IsParentScope returns true if this is a parent-portal token.
 func (c *AppClaims) IsParentScope() bool {
 	return c.Scope == claimScopeParent
