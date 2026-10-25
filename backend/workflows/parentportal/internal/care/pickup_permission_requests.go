@@ -173,7 +173,7 @@ func (s *Service) createPickupPermissionRequestInTx(txCtx context.Context, child
 		}
 		return nil, err
 	}
-	if err := s.refusePickupPermissionTarget(profile, link, accountID); err != nil {
+	if err := refusePickupPermissionTarget(profile, link, s.GuardianPolicy); err != nil {
 		return nil, err
 	}
 	if link.CanPickup && slices.Equal(normalizedWeekdays(link.PickupWeekdays), weekdays) {
@@ -199,12 +199,11 @@ func (s *Service) createPickupPermissionRequestInTx(txCtx context.Context, child
 // refusePickupPermissionTarget applies the eligibility of the direct pickup
 // flag (#1667): no account holder (also not the caller), no social worker,
 // no full guardian.
-func (s *Service) refusePickupPermissionTarget(profile *GuardianProfile, link *GuardianRelationship, accountID int64) error {
+func refusePickupPermissionTarget(profile *GuardianProfile, link *GuardianRelationship, policy GuardianPolicy) error {
 	if err := refusePickupFlagEdit(profile, link); err != nil {
 		return err
 	}
-	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
-	if !isSelf && s.GuardianPolicy.IsFullRole(link.GuardianRole) {
+	if policy.IsFullRole(link.GuardianRole) {
 		return ErrGuardianRoleManaged
 	}
 	return nil

@@ -95,6 +95,9 @@ func (s *PickupApprovals) applyLegs(ctx context.Context, input carerequests.Pick
 		applied.DepartureExceptionID = id
 	}
 	if change.PickupPerson != nil {
+		if err := s.People.ValidatePickupPerson(ctx, input.StudentID, change.PickupPerson.GuardianProfileID); err != nil {
+			return applied, err
+		}
 		id, err := s.Exceptions.CreateNote(ctx, careplan.PickupNote{
 			TenantID: input.TenantID, StudentID: input.StudentID, NoteDate: careplan.Date(change.Date),
 			Content: DayCollectorNote(change.PickupPerson.Name), CreatedBy: staffID,

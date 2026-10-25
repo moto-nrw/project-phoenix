@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -54,56 +53,18 @@ func (a requestDecisionAdapter) ApplyPickup(ctx context.Context, request *carere
 // so its relationship belongs to this child; a link removed since then
 // refuses the approval.
 func (a requestDecisionAdapter) ApplyPickupPermission(ctx context.Context, request *carerequests.Request) error {
-	if a.s.PickupPermissionCommands == nil {
-		return errors.New("schedule: pickup permission commands not configured")
+	if a.s.PickupPermissionApprovals == nil {
+		return errors.New("schedule: pickup permission approvals not configured")
 	}
 	permission, err := carerequests.ParsePickupPermission(request.Payload)
 	if err != nil {
 		return err
 	}
-	if err := a.validatePickupPermissionTarget(ctx, request, permission); err != nil {
-		return err
-	}
-	grant := true
-	found, err := a.s.PickupPermissionCommands.ChangeGuardianPickupPermission(ctx, careplan.GuardianPickupPermissionChange{
-		TenantID: request.TenantID, RelationshipID: permission.RelationshipID,
-		CanPickup: &grant, SetWeekdays: true, Weekdays: permission.Weekdays,
+	return a.s.ApplyPickupPermission(ctx, carerequests.PickupPermissionApproval{
+		TenantID: request.TenantID, StudentID: request.StudentID,
+		GuardianProfileID: permission.GuardianProfileID, RelationshipID: permission.RelationshipID,
+		Weekdays: permission.Weekdays,
 	})
-	if err != nil {
-		return err
-	}
-	if !found {
-		return carerequests.ErrPickupPermissionContactGone
-	}
-	return nil
-}
-
-// validatePickupPermissionTarget repeats the contact eligibility check at the
-// point of approval. A pending request must not grant authority after staff
-// changed its contact into an account holder or a school-managed guardian.
-func (a requestDecisionAdapter) validatePickupPermissionTarget(ctx context.Context, request *carerequests.Request, permission carerequests.PickupPermission) error {
-	link, err := a.s.People.FindGuardianLink(ctx, permission.RelationshipID)
-	if errors.Is(err, peopleValues.ErrGuardianLinkNotFound) {
-		return carerequests.ErrPickupPermissionContactGone
-	}
-	if err != nil {
-		return fmt.Errorf("schedule: read pickup permission relationship: %w", err)
-	}
-	if link.StudentID != request.StudentID || link.GuardianProfileID != permission.GuardianProfileID ||
-		link.GuardianRole == securityruntime.GuardianRoleSocialWorker || securityruntime.IsFullGuardianRole(link.GuardianRole) {
-		return carerequests.ErrPickupPermissionContactGone
-	}
-	guardian, err := a.s.People.FindGuardian(ctx, permission.GuardianProfileID)
-	if errors.Is(err, peopleValues.ErrGuardianNotFound) {
-		return carerequests.ErrPickupPermissionContactGone
-	}
-	if err != nil {
-		return fmt.Errorf("schedule: read pickup permission contact: %w", err)
-	}
-	if guardian.HasAccount || guardian.AccountID != nil {
-		return carerequests.ErrPickupPermissionContactGone
-	}
-	return nil
 }
 
 // RevertPickupPermission restores the precise permission state frozen when

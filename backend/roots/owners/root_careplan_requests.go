@@ -18,6 +18,7 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // CarePlanRequests are the parent request queues of Care Plan: the
@@ -64,12 +65,17 @@ func BuildCarePlanRequests(
 	if err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose care plan pickup permissions: %w", err)
 	}
+	pickupPermissionApprovals := parentportal.NewPickupPermissionApprovals(
+		NewParentGuardianProfileReads(people.GuardianProfiles),
+		NewParentStudentGuardianReads(people.StudentGuardians),
+		NewParentGuardianPolicy(), pickupPermissions,
+	)
 	requests := CarePlanRequests{
 		CareRequests: NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 			carePlan, persons, schedules.Arrivals, schedules.Pickups, NewLoggedStudentPresence(db, env.Logger),
 			schedules.AutoExcusal, carePlan, caller, emitter, hub,
 			reviews, permissions, events, env.Logger.With("service", "care-requests"), services.StudentAudit,
-			WithRequestShareVisibility(shares), WithCareRequestToday(env.Today), WithPickupPermissions(pickupPermissions),
+			WithRequestShareVisibility(shares), WithCareRequestToday(env.Today), WithPickupPermissions(pickupPermissions), WithPickupPermissionApprovals(pickupPermissionApprovals),
 		),
 	}
 	if requests.OfferingChanges, err = buildOfferingChanges(db, env, carePlan, people, enrollment, timetableOwner, settings, offerings, reviews, permissions, emitter, shares); err != nil {

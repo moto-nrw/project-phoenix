@@ -33,9 +33,12 @@ type CareScheduleRequestService struct {
 	StudentAudit      requestStudentAudit
 	Logger            *slog.Logger
 	ReviewPolicy      RequestReviewPolicy
-	// PickupPermissionCommands writes the pickup permission an approved
-	// pickup permission request grants (#4780).
+	// PickupPermissionCommands writes the frozen previous permission when a
+	// correction reverts an approved pickup permission request (#4780).
 	PickupPermissionCommands careplan.GuardianPickupPermissions
+	// PickupPermissionApprovals coordinates the live People Directory contact
+	// check and Care Plan write of an approved pickup permission request.
+	carerequests.PickupPermissionApprovals
 	// PickupPermissions serves the pickup permission requests from the native
 	// submissions and reads (#4780).
 	carerequests.PickupPermissions
@@ -75,6 +78,14 @@ func WithCareRequestToday(today func() timezone.Date) CareRequestOption {
 func WithPickupPermissions(permissions careplan.GuardianPickupPermissions) CareRequestOption {
 	return func(o *careRequestOptions) {
 		o.service = append(o.service, func(s *CareScheduleRequestService) { s.PickupPermissionCommands = permissions })
+	}
+}
+
+// WithPickupPermissionApprovals wires the Parent Portal workflow's
+// review-time contact guard. It shares the request decision's tenant unit.
+func WithPickupPermissionApprovals(approvals carerequests.PickupPermissionApprovals) CareRequestOption {
+	return func(o *careRequestOptions) {
+		o.service = append(o.service, func(s *CareScheduleRequestService) { s.PickupPermissionApprovals = approvals })
 	}
 }
 

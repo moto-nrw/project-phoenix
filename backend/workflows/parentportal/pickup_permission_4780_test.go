@@ -61,6 +61,11 @@ func buildPickupPermissionService(t *testing.T) pickupPermissionFixture {
 	require.NoError(t, err)
 	permissions, err := careplanCompose.NewGuardianPickupPermissions(db, func(careplanCompose.Observation) {})
 	require.NoError(t, err)
+	pickupPermissionApprovals := parentService.NewPickupPermissionApprovals(
+		owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		owners.NewParentGuardianPolicy(), permissions,
+	)
 	requests := owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan(), persons, schedules.Arrivals, schedules.Pickups, presence,
 		newPickupExcusal(t, db, repos.CarePlan(),
@@ -72,6 +77,7 @@ func buildPickupPermissionService(t *testing.T) pickupPermissionFixture {
 		nil, slog.Default(), sfServices.StudentAudit,
 		owners.WithCareRequestToday(func() calendar.Date { return pickupPermissionToday }),
 		owners.WithPickupPermissions(permissions),
+		owners.WithPickupPermissionApprovals(pickupPermissionApprovals),
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges:     owners.ParentGuardianChanges(),
@@ -492,6 +498,45 @@ func TestDayPickupPerson_MustBeAContactOfTheChild(t *testing.T) {
 		Date: pickupPermissionDay, PickupPersonID: otherContact, Reason: "Fremde Person", Signature: testSignature(t),
 	})
 	require.ErrorIs(t, err, parentService.ErrPickupPersonNotLinked)
+}
+
+func TestDayPickupPerson_RefusesAnAccountHoldingContact(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	accountHolder := linkAccountGuardian(t, f.db, chain.StudentID, "konto-4780-tag", map[string]interface{}{
+		"parent_portal.access": true,
+	})
+
+	_, err := f.svc.SubmitPickupChange(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, parentService.PickupChangeSubmission{
+		Date: pickupPermissionDay, PickupPersonID: accountHolder, Reason: "Mit Konto", Signature: testSignature(t),
+	})
+	require.ErrorIs(t, err, parentService.ErrGuardianHasOwnAccount)
+}
+
+func TestDayPickupApprovalRefusesAContactNowManagedByTheSchool(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "schule-4780-tag")
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	created, err := f.svc.SubmitPickupChange(ctx, chain.AccountID, chain.StudentID, parentService.PickupChangeSubmission{
+		Date: pickupPermissionDay, PickupPersonID: contactID, Reason: "Noch Kontakt", Signature: testSignature(t),
+	})
+	require.NoError(t, err)
+	_, err = f.db.NewUpdate().TableExpr("users.student_guardian_relationships").
+		Set("guardian_role = ?", "social_worker").Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, contactID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	staffCtx, staffID := staffDecisionContext(t, f.db, chain.TenantID)
+	err = testpkg.WithTenantTx(t, staffCtx, f.db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := f.requests.Decide(txCtx, carerequests.DecideInput{RequestID: created.ID, Approve: true, ReviewedBy: staffID})
+		return decideErr
+	})
+	require.ErrorIs(t, err, carerequests.ErrPickupPermissionContactGone)
 }
 
 func TestWalkingHomeAloneNeedsASignature(t *testing.T) {

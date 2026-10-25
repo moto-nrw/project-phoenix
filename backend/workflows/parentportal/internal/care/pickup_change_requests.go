@@ -379,28 +379,36 @@ func (s *Service) signDayPickup(txCtx context.Context, child *Child, accountID, 
 	return person, signed, nil
 }
 
-// childContactPerson finds a contact person linked to the child.
+// childContactPerson locks and checks a contact person linked to the child.
+// A one-day permission grants the same pickup authority as a standing one, so
+// account holders and school-managed guardians are not eligible here either.
 func (s *Service) childContactPerson(ctx context.Context, studentID, guardianProfileID int64) (*carerequests.PickupPerson, error) {
-	links, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, err
-	}
-	for _, link := range links {
-		if link == nil || link.GuardianProfileID != guardianProfileID {
-			continue
-		}
-		profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, guardianProfileID); err != nil {
 		if errors.Is(err, ErrGuardianProfileNotFound) {
 			return nil, ErrPickupPersonNotLinked
 		}
-		if err != nil {
-			return nil, err
-		}
-		name := strings.TrimSpace(profile.FirstName + " " + profile.LastName)
-		if name == "" {
+		return nil, err
+	}
+	link, err := s.findChildGuardianLinkForUpdate(ctx, studentID, guardianProfileID)
+	if err != nil {
+		if errors.Is(err, ErrGuardianNotLinked) {
 			return nil, ErrPickupPersonNotLinked
 		}
-		return &carerequests.PickupPerson{GuardianProfileID: guardianProfileID, Name: name}, nil
+		return nil, err
 	}
-	return nil, ErrPickupPersonNotLinked
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
+	if errors.Is(err, ErrGuardianProfileNotFound) {
+		return nil, ErrPickupPersonNotLinked
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := refusePickupPermissionTarget(profile, link, s.GuardianPolicy); err != nil {
+		return nil, err
+	}
+	name := strings.TrimSpace(profile.FirstName + " " + profile.LastName)
+	if name == "" {
+		return nil, ErrPickupPersonNotLinked
+	}
+	return &carerequests.PickupPerson{GuardianProfileID: guardianProfileID, Name: name}, nil
 }

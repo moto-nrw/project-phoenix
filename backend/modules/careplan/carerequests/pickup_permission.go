@@ -1,6 +1,7 @@
 package carerequests
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -24,6 +25,26 @@ const KindPickupPerson = "pickup_person"
 // ErrPickupPermissionContactGone refuses an approval whose contact person is
 // no longer linked to the child.
 var ErrPickupPermissionContactGone = errors.New("schedule: pickup permission contact is no longer linked")
+
+// PickupPermissionApproval is the permission state an approved request may
+// grant. The parent-portal workflow checks the current People Directory
+// contact under its row locks before delegating the Care Plan write.
+type PickupPermissionApproval struct {
+	TenantID          int64
+	StudentID         int64
+	GuardianProfileID int64
+	RelationshipID    int64
+	Weekdays          []int
+}
+
+// PickupPermissionApprovals coordinates the current-contact check with the
+// Care Plan permission write inside the caller's tenant transaction. The
+// same check also guards a one-day collector before its approval writes a
+// dated pickup note.
+type PickupPermissionApprovals interface {
+	ApplyPickupPermission(context.Context, PickupPermissionApproval) error
+	ValidatePickupPerson(context.Context, int64, int64) error
+}
 
 // SignedStatement is the wording a guardian signed and the signature the
 // Audit Platform stored for it. The stored signature carries the SHA-256 of
