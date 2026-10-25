@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
@@ -11,16 +12,29 @@ import "@testing-library/jest-dom/vitest";
 const mocks = vi.hoisted(() => ({
   getMealOrders: vi.fn(),
   downloadMealMonth: vi.fn(),
+  downloadMealDeliveries: vi.fn(),
 }));
 
 vi.mock("~/lib/meal-plan-api", () => ({
   getMealOrders: mocks.getMealOrders,
   downloadMealMonth: mocks.downloadMealMonth,
+  downloadMealDeliveries: mocks.downloadMealDeliveries,
 }));
 
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { MealOrders } from "~/lib/meal-plan-api";
+import { catalogText } from "~/test/error-catalog-text";
 import { MealOrderWeek } from "./meal-order-week";
+
+/** Opens the one export menu of the card and the month dialog behind it. */
+async function openMonthExport() {
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Bestellung herunterladen" }),
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Exportieren…" }));
+  return screen.findByRole("dialog");
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -79,6 +93,7 @@ describe("MealOrderWeek", () => {
       ],
     });
     mocks.downloadMealMonth.mockResolvedValue(undefined);
+    mocks.downloadMealDeliveries.mockResolvedValue(undefined);
   });
 
   it("shows each day's state, numbers and late changes", async () => {
@@ -105,25 +120,93 @@ describe("MealOrderWeek", () => {
     expect(screen.getAllByText("OGS geschlossen")).not.toHaveLength(0);
   });
 
-  it("downloads the month of the shown week", async () => {
+  // docs/reference/exporte.md, Regel 2: ein Einstieg im Kartenkopf. Die
+  // Monatsübersicht hat eine Option (den Monat) und öffnet den Export-Dialog.
+  it("downloads the month of the shown week from the export dialog", async () => {
     render(<MealOrderWeek mondayISO="2026-09-07" canExportMonth />, {
       wrapper: ToastProvider,
     });
 
+    const dialog = await openMonthExport();
     expect(
-      screen.getByRole("button", {
-        name: "Lieferliste der Woche herunterladen",
-      }),
+      within(dialog).getByText("Monatsübersicht exportieren"),
     ).toBeInTheDocument();
+    // Anker: eine Woche in einem Monat nennt ihn, ohne Auswahl.
+    expect(within(dialog).getByText("September 2026")).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("group", { name: "Monat wählen" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.downloadMealMonth).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Excel" }));
     fireEvent.click(
-      await screen.findByRole("button", { name: "September als Excel" }),
+      within(dialog).getByRole("button", { name: "Herunterladen" }),
     );
     await waitFor(() =>
       expect(mocks.downloadMealMonth).toHaveBeenCalledWith("2026-09", "xlsx"),
     );
+  });
+
+  it("keeps a failed month export in the open dialog", async () => {
+    mocks.downloadMealMonth.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
+    render(<MealOrderWeek mondayISO="2026-09-07" canExportMonth />, {
+      wrapper: ToastProvider,
+    });
+
+    const dialog = await openMonthExport();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Herunterladen" }),
+    );
     expect(
-      screen.queryByRole("group", { name: "Monat wählen" }),
+      await within(dialog).findByText(
+        catalogText("general.server", "die Monatsübersicht"),
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.downloadMealMonth).toHaveBeenCalledWith("2026-09", "pdf");
+  });
+
+  // Die Lieferliste hat keine Optionen: ein Menüeintrag je Format.
+  it("downloads the week's delivery list from the same menu", async () => {
+    render(<MealOrderWeek mondayISO="2026-09-07" canExportMonth />, {
+      wrapper: ToastProvider,
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Bestellung herunterladen" }),
+    );
+    expect(screen.getByText("Lieferliste der Woche")).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "PDF" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Excel" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "CSV" }));
+    await waitFor(() =>
+      expect(mocks.downloadMealDeliveries).toHaveBeenCalledWith(
+        "2026-09-07",
+        "2026-09-11",
+        "csv",
+      ),
+    );
+    // Kein Knopf je Format mehr im Kartenkopf.
+    expect(
+      screen.queryByRole("button", { name: /als (PDF|Excel)/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows a failed delivery list as a toast with the object", async () => {
+    mocks.downloadMealDeliveries.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
+    render(<MealOrderWeek mondayISO="2026-09-07" canExportMonth />, {
+      wrapper: ToastProvider,
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Bestellung herunterladen" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
+    expect(
+      await screen.findByText(catalogText("general.server", "die Lieferliste")),
+    ).toBeInTheDocument();
   });
 
   it.each([
@@ -194,8 +277,14 @@ describe("MealOrderWeek", () => {
       wrapper: ToastProvider,
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Oktober" }));
-    fireEvent.click(screen.getByRole("button", { name: "Oktober als PDF" }));
+    const dialog = await openMonthExport();
+    expect(
+      within(dialog).getByRole("group", { name: "Monat wählen" }),
+    ).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Oktober" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Herunterladen" }),
+    );
     await waitFor(() =>
       expect(mocks.downloadMealMonth).toHaveBeenCalledWith("2026-10", "pdf"),
     );
@@ -232,11 +321,10 @@ describe("MealOrderWeek", () => {
       wrapper: ToastProvider,
     });
 
+    // Anker: die Bestellung der Woche ist geladen.
     await screen.findAllByText("Vom Caterer bestätigt");
     expect(
-      screen.queryByRole("button", {
-        name: "Lieferliste der Woche herunterladen",
-      }),
+      screen.queryByRole("button", { name: "Bestellung herunterladen" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /als PDF/ }),

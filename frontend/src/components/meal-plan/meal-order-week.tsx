@@ -2,16 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Download, FileSpreadsheet } from "lucide-react";
+import { CalendarRange, FileSpreadsheet, FileText } from "lucide-react";
 
-import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import {
+  EXPORT_FORMAT_LABELS,
+  ExportDialog,
+} from "~/components/ui/export-dialog";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { useExportRun } from "~/hooks/use-export-run";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -22,6 +29,12 @@ import {
 } from "~/lib/meal-plan-api";
 
 const logger = createLogger({ component: "MealOrderWeek" });
+
+type DeliveryFormat = "pdf" | "xlsx" | "csv";
+type MonthFormat = "pdf" | "xlsx";
+
+const DELIVERY_FORMATS: readonly DeliveryFormat[] = ["pdf", "xlsx", "csv"];
+const MONTH_FORMATS: readonly MonthFormat[] = ["pdf", "xlsx"];
 
 /**
  * Die Bestellung der Woche (#3873): je Tag, ob die Frist noch läuft oder
@@ -41,7 +54,8 @@ export function MealOrderWeek({
   const locale = useLocale();
   const [days, setDays] = useState<MealOrderDay[]>([]);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
+  const [deliveryBusy, setDeliveryBusy] = useState<DeliveryFormat | null>(null);
+  const [monthExportOpen, setMonthExportOpen] = useState(false);
   const { error, show, clear } = useApiLoadError();
   const { show: showActionError } = useApiErrorDisplay();
   const reloadRef = useRef<() => void>(() => undefined);
@@ -61,9 +75,10 @@ export function MealOrderWeek({
   const month =
     chosenMonth && months.includes(chosenMonth) ? chosenMonth : months[0]!;
   const monthName = useCallback(
-    (value: string) =>
+    (value: string, withYear = false) =>
       parseISODate(`${value}-01`).toLocaleDateString(locale, {
         month: "long",
+        ...(withYear ? { year: "numeric" } : {}),
       }),
     [locale],
   );
@@ -102,7 +117,8 @@ export function MealOrderWeek({
     return invalidateRequests;
   }, [invalidateRequests, load, refreshVersion]);
 
-  async function downloadDeliveries(format: "pdf" | "xlsx" | "csv") {
+  async function downloadDeliveries(format: DeliveryFormat) {
+    setDeliveryBusy(format);
     try {
       await downloadMealDeliveries(mondayISO, friday, format);
     } catch (cause) {
@@ -110,22 +126,48 @@ export function MealOrderWeek({
         error: cause instanceof Error ? cause.message : String(cause),
       });
       void showActionError(cause, { object: t("errorObjectDelivery") });
+    } finally {
+      setDeliveryBusy(null);
     }
   }
 
-  async function download(format: "pdf" | "xlsx") {
-    setExporting(format);
-    try {
-      await downloadMealMonth(month, format);
-    } catch (cause) {
-      logger.error("meal_month_export_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void showActionError(cause, { object: t("errorObjectMonth") });
-    } finally {
-      setExporting(null);
-    }
-  }
+  // Die Monatsübersicht hat eine Option (den Monat) und läuft darum über den
+  // gemeinsamen Export-Dialog (docs/reference/exporte.md, Regel 2). Fehler
+  // bleiben im offenen Dialog.
+  const monthRun = useExportRun<MonthFormat>({
+    isOpen: monthExportOpen,
+    onDownload: (format) => downloadMealMonth(month, format),
+    errorObject: t("errorObjectMonth"),
+    onDone: () => setMonthExportOpen(false),
+    logName: "meal_month",
+  });
+
+  // EIN Export-Einstieg im Kartenkopf: die Lieferliste ohne Optionen mit
+  // einem Eintrag je Format, die Monatsübersicht mit Optionen als Dialog.
+  const exportItems: OverflowMenuEntry[] = [
+    { kind: "header", label: t("deliveryHeader") },
+    ...DELIVERY_FORMATS.map((format): OverflowMenuEntry => ({
+      label:
+        deliveryBusy === format
+          ? t("downloadLoading")
+          : EXPORT_FORMAT_LABELS[format],
+      icon:
+        format === "pdf" ? (
+          <FileText className="h-4 w-4" aria-hidden />
+        ) : (
+          <FileSpreadsheet className="h-4 w-4" aria-hidden />
+        ),
+      disabled: deliveryBusy !== null,
+      onClick: () => void downloadDeliveries(format),
+    })),
+    { kind: "separator" },
+    { kind: "header", label: t("monthHeader") },
+    {
+      label: t("monthExport"),
+      icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+      onClick: () => setMonthExportOpen(true),
+    },
+  ];
 
   const dateTime = useCallback(
     (instant: string) =>
@@ -244,72 +286,9 @@ export function MealOrderWeek({
       title={t("title")}
       description={t("description")}
       actions={
-        <div className="flex flex-wrap items-center gap-2">
-          {canExportMonth ? (
-            <div
-              role="group"
-              aria-label={t("monthGroup")}
-              className="flex flex-wrap items-center gap-2"
-            >
-              {months.length > 1 ? (
-                <SegmentedControl<string>
-                  items={months.map((value) => ({
-                    value,
-                    label: monthName(value),
-                  }))}
-                  value={month}
-                  onChange={setChosenMonth}
-                  ariaLabel={t("monthChoice")}
-                />
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="gap-2 bg-white"
-                onClick={() => void download("pdf")}
-                isLoading={exporting === "pdf"}
-                loadingText={t("downloadLoading")}
-                disabled={exporting !== null}
-              >
-                <Download className="h-4 w-4" aria-hidden="true" />
-                {t("monthPdf", { month: monthName(month) })}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                className="gap-2 bg-white"
-                onClick={() => void download("xlsx")}
-                isLoading={exporting === "xlsx"}
-                loadingText={t("downloadLoading")}
-                disabled={exporting !== null}
-              >
-                <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
-                {t("monthExcel", { month: monthName(month) })}
-              </Button>
-            </div>
-          ) : null}
-          {canExportMonth ? (
-            <OverflowMenu
-              ariaLabel={t("deliveryMenu")}
-              items={[
-                {
-                  label: t("deliveryPdf"),
-                  onClick: () => void downloadDeliveries("pdf"),
-                },
-                {
-                  label: t("deliveryExcel"),
-                  onClick: () => void downloadDeliveries("xlsx"),
-                },
-                {
-                  label: t("deliveryCsv"),
-                  onClick: () => void downloadDeliveries("csv"),
-                },
-              ]}
-            />
-          ) : null}
-        </div>
+        canExportMonth ? (
+          <OverflowMenu ariaLabel={t("exportMenu")} items={exportItems} />
+        ) : undefined
       }
     >
       {error ? (
@@ -324,6 +303,40 @@ export function MealOrderWeek({
           caption={t("caption")}
         />
       )}
+      {canExportMonth ? (
+        <ExportDialog<MonthFormat>
+          isOpen={monthExportOpen}
+          onClose={() => setMonthExportOpen(false)}
+          title={t("monthDialogTitle")}
+          description={t("monthDialogDescription")}
+          formats={MONTH_FORMATS}
+          run={monthRun}
+        >
+          <section>
+            <p className="text-sm font-medium text-gray-900">
+              {t("monthLabel")}
+            </p>
+            <div className="mt-2">
+              {/* Eine Woche über zwei Monate bietet beide Monate an. */}
+              {months.length > 1 ? (
+                <SegmentedControl<string>
+                  items={months.map((value) => ({
+                    value,
+                    label: monthName(value),
+                  }))}
+                  value={month}
+                  onChange={setChosenMonth}
+                  ariaLabel={t("monthChoice")}
+                />
+              ) : (
+                <p className="text-sm text-gray-700">
+                  {monthName(month, true)}
+                </p>
+              )}
+            </div>
+          </section>
+        </ExportDialog>
+      ) : null}
     </SectionCard>
   );
 }
