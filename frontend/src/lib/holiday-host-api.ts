@@ -143,7 +143,7 @@ async function readData<T>(url: string, fallback: string): Promise<T> {
 /** Die Wochen, die die Schule ausrichtet und die noch nicht vorbei sind. */
 export async function fetchHostedHolidayWeeks(): Promise<HostedHolidayWeek[]> {
   const weeks = await readData<BackendWeek[] | null>(
-    `${BASE}/`,
+    BASE,
     "Ferienwochen konnten nicht geladen werden",
   );
   return (weeks ?? []).map(mapWeek);

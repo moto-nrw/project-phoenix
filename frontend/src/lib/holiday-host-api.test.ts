@@ -55,7 +55,7 @@ describe("holiday host api", () => {
         participants: 1,
       },
     ]);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-weeks/");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-weeks");
   });
 
   it("maps a participant list, keeping holiday guests without a school", async () => {
