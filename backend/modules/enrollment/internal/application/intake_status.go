@@ -323,6 +323,11 @@ func (s *Intake) writeEditPatch(ctx context.Context, req *Request, consentPatche
 			return fmt.Errorf("edit: load pinned schema: %w", err)
 		}
 		schema = loaded
+		// A signed form is edited through the full form, which signs the
+		// new version again (#4786); the field patch carries no signature.
+		if signatureRequired(schema, req.SubmissionSource) {
+			return enrollmentNative.InvalidInput(enrollmentNative.CodeSignatureRequired, "signature", enrollmentNative.ErrSignatureRequired)
+		}
 		byKey := buildFieldsByKey(schema)
 		req.CustomData = sanitizeVisibleAnswers(schema, false, req.CustomData,
 			fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey})

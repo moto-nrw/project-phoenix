@@ -49,6 +49,9 @@ type SubmitRequest struct {
 	// AdditionalGuardians are the co-guardians the parent added beyond the
 	// primary guardian.
 	AdditionalGuardians []SubmitGuardian
+	// Signature is the parent's signature (#4786); a form that requires one
+	// refuses a parent submission or edit without it.
+	Signature *SubmitSignature
 }
 
 // SubmitGuardian is one additional guardian of a submission. Only the names
