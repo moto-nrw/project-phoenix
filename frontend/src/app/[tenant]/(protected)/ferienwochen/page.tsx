@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import useSWR from "swr";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -22,6 +21,7 @@ import {
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
+import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "FerienwochenPage" });
 
@@ -113,15 +113,17 @@ export default function FerienwochenPage() {
   const { isReady, isLoading: permissionLoading } = useRequirePermission([
     "config:read",
   ]);
-  const weeks = useSWR(
+  // Tenant-scoped keys: the list holds children's names and birth dates, so
+  // another school's cache entry must never show here.
+  const weeks = useSWRAuth(
     isReady ? "holiday-weeks" : null,
     fetchHostedHolidayWeeks,
   );
   const [chosenWeek, setChosenWeek] = useState<string | null>(null);
   const selectedWeek =
     weeks.data?.find((week) => week.id === chosenWeek) ?? weeks.data?.[0];
-  const participants = useSWR(
-    selectedWeek ? ["holiday-participants", selectedWeek.id] : null,
+  const participants = useSWRAuth(
+    selectedWeek ? `holiday-participants:${selectedWeek.id}` : null,
     () => fetchHolidayParticipants(selectedWeek?.id ?? ""),
   );
 

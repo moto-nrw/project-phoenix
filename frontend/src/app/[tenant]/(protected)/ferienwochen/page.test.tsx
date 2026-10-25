@@ -1,6 +1,12 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactElement } from "react";
-import { SWRConfig } from "swr";
+import { SWRConfig, type Cache } from "swr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import FerienwochenPage from "./page";
@@ -9,8 +15,16 @@ import type {
   HolidayParticipantList,
   HostedHolidayWeek,
 } from "~/lib/holiday-host-api";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 vi.unmock("swr");
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    status: "authenticated",
+    data: { user: { token: "test-token" } },
+  }),
+}));
 
 const { weeksMock, participantsMock, downloadMock } = vi.hoisted(() => ({
   weeksMock: vi.fn(),
@@ -28,10 +42,13 @@ vi.mock("~/lib/hooks/use-require-permission", () => ({
   useRequirePermission: () => ({ isReady: true, isLoading: false }),
 }));
 
-function renderPage(ui: ReactElement = <FerienwochenPage />) {
+function renderPage(
+  ui: ReactElement = <FerienwochenPage />,
+  cache: Cache = new Map(),
+) {
   return render(
     <ToastProvider>
-      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+      <SWRConfig value={{ provider: () => cache, dedupingInterval: 0 }}>
         {ui}
       </SWRConfig>
     </ToastProvider>,
@@ -114,6 +131,7 @@ function listOf(week: HostedHolidayWeek): HolidayParticipantList {
 describe("FerienwochenPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useTenantSlugSafe).mockReturnValue("test-tenant");
     downloadMock.mockResolvedValue(undefined);
   });
 
@@ -180,6 +198,26 @@ describe("FerienwochenPage", () => {
       ),
     ).toBeInTheDocument();
     expect(participantsMock).not.toHaveBeenCalled();
+  });
+
+  it("never shows the children of another school from the shared cache", async () => {
+    const cache: Cache = new Map();
+    weeksMock.mockResolvedValueOnce([firstWeek]);
+    participantsMock.mockResolvedValueOnce(listOf(firstWeek));
+    const firstSchool = renderPage(<FerienwochenPage />, cache);
+    await screen.findByText("Muster, Lia", { selector: "td, td *" });
+    firstSchool.unmount();
+
+    vi.mocked(useTenantSlugSafe).mockReturnValue("other-school");
+    weeksMock.mockReturnValueOnce(new Promise(() => undefined));
+    renderPage(<FerienwochenPage />, cache);
+
+    // Anker: die Seite der zweiten Schule fragt ihre eigenen Ferienwochen ab.
+    await waitFor(() => expect(weeksMock).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByText("Muster, Lia", { selector: "td, td *" }),
+    ).not.toBeInTheDocument();
+    expect(participantsMock).toHaveBeenCalledTimes(1);
   });
 
   it("downloads the list of the selected week", async () => {
