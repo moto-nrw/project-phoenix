@@ -220,7 +220,7 @@ func (s *surveyService) CloseSurvey(ctx context.Context, id int64) (*communicati
 	if survey.Status(now) != communication.SurveyStatusOpen {
 		return nil, communication.ErrSurveyNotOpen
 	}
-	if err := s.store.SetClosesAt(ctx, id, now); err != nil {
+	if err := s.store.CloseSurvey(ctx, id, now, survey.AnnouncementID); err != nil {
 		return nil, err
 	}
 	s.logger.Info("survey closed", slog.Int64("survey_id", id))

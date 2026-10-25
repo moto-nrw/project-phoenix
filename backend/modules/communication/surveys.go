@@ -280,7 +280,7 @@ type SurveyDraftRecords interface {
 	CreateSurvey(ctx context.Context, in SurveyInput, createdBy *int64) (*Survey, error)
 	ReplaceDraft(ctx context.Context, id int64, in SurveyInput) (bool, error)
 	MarkPublished(ctx context.Context, id int64, at time.Time, announcementID *int64) (bool, error)
-	SetClosesAt(ctx context.Context, id int64, at time.Time) error
+	CloseSurvey(ctx context.Context, id int64, at time.Time, announcementID *int64) error
 	DeleteSurvey(ctx context.Context, id int64) error
 	ExpiredSurveys(ctx context.Context, audience string, cutoff time.Time) ([]Survey, error)
 }

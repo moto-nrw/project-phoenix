@@ -439,6 +439,16 @@ func TestParentSurvey_OneAnswerPerGuardianAccountAndCarrierStaysOutOfAnnouncemen
 	})
 	require.ErrorIs(t, err, communication.ErrSurveyAlreadyAnswered, "one answer per guardian account, not per child")
 
+	var closed *communication.Survey
+	require.NoError(t, f.inSchool(t, func(ctx context.Context) error {
+		closed, err = f.surveys.CloseSurvey(ctx, survey.ID)
+		return err
+	}))
+	var carrierExpiresAt time.Time
+	require.NoError(t, f.db.NewRaw(`SELECT expires_at FROM users.parent_announcements WHERE id = ?`, *survey.AnnouncementID).Scan(testpkg.Ctx(t), &carrierExpiresAt))
+	assert.Equal(t, closed.ClosesAt, carrierExpiresAt, "closing a parent survey expires its feed carrier")
+	assert.True(t, carrierExpiresAt.Before(survey.ClosesAt), "the carrier no longer stays visible until the original deadline")
+
 	// The carrier is none of the announcement routes: its read times per
 	// guardian would line up with the anonymous answers.
 	require.NoError(t, f.inSchool(t, func(ctx context.Context) error {

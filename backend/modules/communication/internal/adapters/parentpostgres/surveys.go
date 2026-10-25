@@ -290,8 +290,10 @@ func (s *SurveyStore) MarkPublished(ctx context.Context, id int64, at time.Time,
 	return affected == 1, err
 }
 
-// SetClosesAt moves the end of a survey.
-func (s *SurveyStore) SetClosesAt(ctx context.Context, id int64, at time.Time) error {
+// CloseSurvey ends a survey and makes its parent-news carrier expire at the
+// same instant. Both writes join the request's school transaction, so a
+// failure to close the carrier rolls back the survey close as well.
+func (s *SurveyStore) CloseSurvey(ctx context.Context, id int64, at time.Time, announcementID *int64) error {
 	db, tenantID, err := s.tenantDB(ctx, "close survey")
 	if err != nil {
 		return err
@@ -303,7 +305,21 @@ func (s *SurveyStore) SetClosesAt(ctx context.Context, id int64, at time.Time) e
 	if err != nil {
 		return fmt.Errorf("close survey: %w", err)
 	}
-	return assertOneRow(result, "close survey")
+	if err := assertOneRow(result, "close survey"); err != nil {
+		return err
+	}
+	if announcementID == nil {
+		return nil
+	}
+	result, err = db.NewUpdate().TableExpr("users.parent_announcements").
+		Set("expires_at = ?", at).
+		Set("updated_at = ?", time.Now()).
+		Where("id = ? AND tenant_id = ? AND system_kind = ?", *announcementID, tenantID, "survey").
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("close survey carrier: %w", err)
+	}
+	return assertOneRow(result, "close survey carrier")
 }
 
 // DeleteSurvey removes a survey with its questions, participations and
