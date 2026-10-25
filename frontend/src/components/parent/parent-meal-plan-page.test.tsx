@@ -1,16 +1,24 @@
 import {
   act,
   fireEvent,
-  render,
+  render as renderPlain,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
 import deMessages from "~/i18n/messages/de.json";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+
+// A failed week registration has no dialog and reports through the toast
+// provider of the shared error path.
+function render(ui: React.ReactElement) {
+  return renderPlain(ui, { wrapper: ToastProvider });
+}
 
 const unavailable = () =>
   new ApiError("diag", 503, { code: "general.unavailable" });
@@ -1257,6 +1265,53 @@ describe("ParentMealPlanPage", () => {
         ),
       ).toBeInTheDocument();
       expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the week cancellation dialog open on a failure and retries from it", async () => {
+      mocks.getMealParticipation.mockResolvedValue(
+        plan({ days: [day("2026-08-13")] }),
+      );
+      mocks.setMealParticipationWeek
+        .mockRejectedValueOnce(unavailable())
+        .mockResolvedValue({ changed: ["2026-08-13"], locked: [] });
+
+      render(<ParentMealPlanPage />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Woche abmelden" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(within(dialog).getByRole("button", { name: "Abmelden" }));
+
+      expect(
+        await within(dialog).findByText(
+          catalogText(
+            "general.unavailable",
+            deMessages.parentMealPlan.errorObjectWeekCancel,
+          ),
+          { exact: false },
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).toBe(dialog);
+
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Wiederholen" }),
+      );
+
+      await waitFor(() =>
+        expect(mocks.setMealParticipationWeek).toHaveBeenCalledTimes(2),
+      );
+      expect(mocks.setMealParticipationWeek).toHaveBeenLastCalledWith(
+        "child-1",
+        "2026-08-10",
+        false,
+      );
+      expect(
+        await screen.findByText("Die Woche ist abgemeldet."),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+      );
     });
 
     it("registers the open days of a week without asking and names the days past their deadline", async () => {
