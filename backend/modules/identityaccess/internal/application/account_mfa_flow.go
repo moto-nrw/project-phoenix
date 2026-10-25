@@ -192,7 +192,7 @@ func (f *AccountMFAFlows) HasEnrollment(ctx context.Context, accountID int64) (b
 // the transport accepted the message, so a failed send leaves no redeemable
 // code behind.
 func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
-	if scope != domain.MFAChallengeScopeTenant && scope != domain.MFAChallengeScopeSchool {
+	if scope != domain.MFAChallengeScopeTenant && scope != domain.MFAChallengeScopeSchool && scope != domain.MFAChallengeScopeOrg {
 		return "", identityaccess.ErrMFAUnsupportedScope
 	}
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
@@ -217,7 +217,7 @@ func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantI
 	// the enrollment-confirm and passkey-registration paths look a code up
 	// by account, and only these columns keep that lookup inside its portal.
 	createdAt := f.now()
-	enabled, days := f.trustedDeviceHint(ctx, tenantID)
+	enabled, days := f.challengeDeviceHint(ctx, tenantID, scope)
 	challenge, send, err := f.enqueueChallenge(ctx, domain.AccountMFAChallenge{
 		AccountID: accountID, Scope: scope, TenantID: tenantID, CodeHash: codeHash,
 		ExpiresAt: createdAt.Add(domain.MFAChallengeTTL), ConsumedAt: &createdAt, IPAddress: ip,
@@ -322,20 +322,8 @@ func (f *AccountMFAFlows) Enroll(ctx context.Context, accountID int64) error {
 // while devices still verify, say. An operator audit participates through record.
 func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64, record ...func(context.Context) error) error {
 	err := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if err := f.records.LockAccountForOverrideWrite(txCtx, accountID); err != nil {
+		if err := f.disableCascade(txCtx, accountID); err != nil {
 			return err
-		}
-		if err := f.records.InvalidateSessionMFA(txCtx, accountID); err != nil {
-			return err
-		}
-		if err := f.records.DeleteCredentials(txCtx, accountID); err != nil {
-			return fmt.Errorf("delete credential: %w", err)
-		}
-		if err := f.records.RevokeAllTrustedDevices(txCtx, accountID, f.now()); err != nil {
-			return fmt.Errorf("revoke trusted devices: %w", err)
-		}
-		if err := f.records.ResetMFAAttempts(txCtx, accountID); err != nil {
-			return fmt.Errorf("reset mfa attempts: %w", err)
 		}
 		if len(record) > 0 && record[0] != nil {
 			return record[0](txCtx)
@@ -351,6 +339,29 @@ func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64, record .
 		AccountID: accountID, Type: domain.AuthEventMFADisabled, Success: true,
 		IPAddress: domain.MFAAuditFallbackIP,
 	})
+	return nil
+}
+
+// disableCascade runs the writes of Disable on the caller's transaction,
+// under the account lock MFA reset and session mint share. The operator's
+// reset of a Träger-Büro member participates with it in the administrative
+// unit of Organisation & Tenancy (ADR 0067, #4651).
+func (f *AccountMFAFlows) disableCascade(txCtx context.Context, accountID int64) error {
+	if err := f.records.LockAccountForOverrideWrite(txCtx, accountID); err != nil {
+		return err
+	}
+	if err := f.records.InvalidateSessionMFA(txCtx, accountID); err != nil {
+		return err
+	}
+	if err := f.records.DeleteCredentials(txCtx, accountID); err != nil {
+		return fmt.Errorf("delete credential: %w", err)
+	}
+	if err := f.records.RevokeAllTrustedDevices(txCtx, accountID, f.now()); err != nil {
+		return fmt.Errorf("revoke trusted devices: %w", err)
+	}
+	if err := f.records.ResetMFAAttempts(txCtx, accountID); err != nil {
+		return fmt.Errorf("reset mfa attempts: %w", err)
+	}
 	return nil
 }
 
@@ -508,6 +519,15 @@ func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID, te
 	return identityaccess.ErrMFAPermissionDenied
 }
 
+// challengeDeviceHint is the remember-device line of a code mail. A Träger
+// challenge has no school and remembers no device, so its mail offers none.
+func (f *AccountMFAFlows) challengeDeviceHint(ctx context.Context, tenantID int64, scope string) (bool, int) {
+	if scope == domain.MFAChallengeScopeOrg {
+		return false, 0
+	}
+	return f.trustedDeviceHint(ctx, tenantID)
+}
+
 func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64) (bool, int) {
 	if !f.IsTrustedDeviceEnabled(ctx, tenantID) {
 		return false, 0
@@ -548,6 +568,12 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 	if event.TenantID == 0 {
 		event.TenantID = f.runtime.TenantID(ctx)
 	}
+	if event.TenantID == 0 && withoutSchoolLedger(ctx) {
+		f.logger.Info("Träger mfa event without a school ledger",
+			slog.String("event_type", event.Type),
+			slog.Int64("account_id", event.AccountID))
+		return
+	}
 	if event.TenantID == 0 {
 		f.logger.Error("failed to audit mfa event",
 			slog.String("event_type", event.Type),
@@ -574,6 +600,23 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 			slog.String("event_type", event.Type),
 			slog.String("error", err.Error()))
 	}
+}
+
+// schoolLedgerKey marks a Träger-Portal challenge. The authentication ledger
+// is school-scoped and a Träger session names no school (ADR 0084), so its
+// events are logged like the Träger sign-in itself.
+type schoolLedgerKey struct{}
+
+func traegerMFAContext(ctx context.Context, scope string) context.Context {
+	if scope != domain.MFAChallengeScopeOrg {
+		return ctx
+	}
+	return context.WithValue(ctx, schoolLedgerKey{}, true)
+}
+
+func withoutSchoolLedger(ctx context.Context) bool {
+	marked, _ := ctx.Value(schoolLedgerKey{}).(bool)
+	return marked
 }
 
 func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail) (domain.AccountMFAChallenge, func(context.Context) error, error) {

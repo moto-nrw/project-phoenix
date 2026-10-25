@@ -168,6 +168,21 @@ class OperatorProvisioningService {
     return mapTraegerMember(result);
   }
 
+  /**
+   * Resets the second factor of a Träger-Büro member (#4651); the person
+   * sets it up again at the next sign-in. The reason goes to the audit.
+   */
+  async resetTraegerMemberMfa(
+    orgId: string,
+    accountId: string,
+    reason: string,
+  ): Promise<void> {
+    await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/traeger-members/${encodeURIComponent(accountId)}/mfa`,
+      { method: "DELETE", body: { reason } },
+    );
+  }
+
   async listAllAccounts(): Promise<OrgAccount[]> {
     const data = await operatorFetch<BackendOrgAccount[]>(
       "/api/operator/provisioning/accounts",

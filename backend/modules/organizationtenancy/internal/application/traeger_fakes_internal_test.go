@@ -35,3 +35,5 @@ func (*fakeIdentity) AssignTraegerRole(context.Context, int64, int64, string) er
 func (*fakeIdentity) ListTraegerAccounts(context.Context, int64, []int64) ([]organizationtenancy.TraegerAccount, error) {
 	return nil, nil
 }
+
+func (*fakeIdentity) ResetTraegerMFA(context.Context, int64) error { return nil }

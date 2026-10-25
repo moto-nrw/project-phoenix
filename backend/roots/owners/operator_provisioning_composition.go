@@ -78,11 +78,13 @@ type ProvisioningIdentity struct {
 	Traeger        ProvisioningTraegerIdentity
 }
 
-// ProvisioningTraegerIdentity is the account lookup and the Träger roles the
-// operator's Träger membership grant uses (ADR 0084).
+// ProvisioningTraegerIdentity is the account lookup, the Träger roles and the
+// participating reset of the second factor the operator's Träger-Büro
+// management uses (ADR 0084, #4651).
 type ProvisioningTraegerIdentity interface {
 	identityaccess.GuardianAccessQuery
 	identityaccess.TraegerRoles
+	ResetMFAInTransaction(ctx context.Context, accountID int64) error
 }
 
 // provisioningTenantScope scopes an operator's identity write to the school
@@ -299,6 +301,16 @@ func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizatio
 		return organizationtenancy.ErrInvalidTraegerRole
 	case errors.Is(err, identityaccess.ErrAccountNotFound):
 		return organizationtenancy.ErrTraegerAccountNotFound
+	}
+	return err
+}
+
+// ResetTraegerMFA resets the member's second factor on the operator's
+// transaction.
+func (p ProvisioningIdentity) ResetTraegerMFA(ctx context.Context, accountID int64) error {
+	err := p.Traeger.ResetMFAInTransaction(ctx, accountID)
+	if errors.Is(err, identityaccess.ErrAccountNotFound) {
+		return organizationtenancy.ErrTraegerMemberNotFound
 	}
 	return err
 }

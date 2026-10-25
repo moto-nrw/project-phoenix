@@ -11,8 +11,10 @@
 //     tenant transaction. Reads across the schools of the Träger go through
 //     the Träger projection (modules/traegerview) only.
 //
-// Refresh and logout run through the shared, scope-preserving /auth/refresh
-// and /auth/logout like the school portal's.
+// The sign-in always asks for the second factor (ADR 0084, #4651): an e-mailed
+// code under the org challenge scope, set up first where the account has
+// none. Refresh and logout run through the shared, scope-preserving
+// /auth/refresh and /auth/logout like the school portal's.
 package traegerportal
 
 import (
@@ -27,6 +29,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 const headerUserAgent = "User-Agent"
@@ -40,6 +43,11 @@ const (
 	// LoginStatusOrganizationSelectionRequired lists the Träger of a member
 	// of several; the client repeats the login with organization_id.
 	LoginStatusOrganizationSelectionRequired LoginStatus = "organization_selection_required"
+	// LoginStatusMFARequired carries the challenge of the e-mailed code.
+	LoginStatusMFARequired LoginStatus = "mfa_required"
+	// LoginStatusMFAEnrollmentRequired carries an enrollment token: the
+	// account sets up its second factor first.
+	LoginStatusMFAEnrollmentRequired LoginStatus = "mfa_enrollment_required"
 )
 
 // Organization is a Träger the person may choose at sign-in.
@@ -48,12 +56,17 @@ type Organization struct {
 	Name string `json:"name"`
 }
 
-// LoginResult is the Träger login answer the portal renders.
+// LoginResult is the Träger login answer the portal renders. On the
+// enrollment branch AccessToken is the enrollment token; OrganizationID names
+// the Träger the login resolved on both second-factor branches.
 type LoginResult struct {
-	Status        LoginStatus
-	AccessToken   string
-	RefreshToken  string
-	Organizations []Organization
+	Status         LoginStatus
+	AccessToken    string
+	RefreshToken   string
+	ChallengeToken string
+	MaskedEmail    string
+	OrganizationID int64
+	Organizations  []Organization
 }
 
 // AuthRuntime is the Träger-Portal's session port. The Träger sign-in is
@@ -61,6 +74,9 @@ type LoginResult struct {
 // does not name the owner's contract.
 type AuthRuntime struct {
 	Login func(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*LoginResult, error)
+	// IssueTokens mints the Träger session after a proven second factor;
+	// the membership is checked again.
+	IssueTokens func(ctx context.Context, proof VerifiedChallenge, organizationID int64, ipAddress, userAgent string) (*LoginResult, error)
 	// InvalidCredentials reports an unknown address or a wrong password;
 	// the portal masks both as one answer.
 	InvalidCredentials func(error) bool
@@ -68,10 +84,18 @@ type AuthRuntime struct {
 	AccountInactive func(error) bool
 	// NoMembership reports a correct password without Träger-Büro access.
 	NoMembership func(error) bool
+	// MFABlocked reports a locked-out or rate-limited second factor.
+	MFABlocked func(error) bool
+	// MFAUnavailable reports the fail-closed second-factor gate.
+	MFAUnavailable func(error) bool
+	// InvalidSession reports a proof a reset revoked before the mint.
+	InvalidSession func(error) bool
 }
 
 func (rt *AuthRuntime) complete() bool {
-	return rt != nil && rt.Login != nil && rt.InvalidCredentials != nil && rt.AccountInactive != nil && rt.NoMembership != nil
+	return rt != nil && rt.Login != nil && rt.IssueTokens != nil && rt.InvalidCredentials != nil &&
+		rt.AccountInactive != nil && rt.NoMembership != nil && rt.MFABlocked != nil &&
+		rt.MFAUnavailable != nil && rt.InvalidSession != nil
 }
 
 // TraegerRouter is a Träger route resource the root supplies; the portal
@@ -83,15 +107,16 @@ type TraegerRouter interface {
 // Resource bundles the Träger-Portal handlers.
 type Resource struct {
 	auth    AuthRuntime
+	mfa     MFARuntime
 	schools TraegerRouter
 }
 
 // NewResource builds the Träger-Portal resource.
-func NewResource(auth AuthRuntime, schools TraegerRouter) *Resource {
+func NewResource(auth AuthRuntime, mfa MFARuntime, schools TraegerRouter) *Resource {
 	if schools == nil {
 		panic("traeger portal: the school list routes are required")
 	}
-	return &Resource{auth: auth, schools: schools}
+	return &Resource{auth: auth, mfa: mfa, schools: schools}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -100,6 +125,9 @@ var (
 	errInvalidCredentials = errors.New("invalid username or password")
 	errAccountInactive    = errors.New("account is inactive")
 	errNoMembership       = errors.New("account has no Träger-Büro access")
+	errMFABlocked         = errors.New("the second factor is locked or rate limited")
+	errMFAUnavailable     = errors.New("the second factor is unavailable")
+	errMFACodeInvalid     = errors.New("the code is invalid or expired")
 )
 
 // RouterWithAuthRateLimiter returns the router mounted at /traeger. The
@@ -113,6 +141,17 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 			r.Use(authRateLimiter)
 		}
 		r.Post("/login", rs.login)
+		// The Träger second factor: redeems only org-scope challenges.
+		r.Post("/mfa/verify", rs.mfaVerify)
+		r.Post("/mfa/resend", rs.mfaResend)
+		// Setting up the factor takes the narrow enrollment token the
+		// login mints, never a Träger session; the handlers pin the org
+		// enrollment scope on top.
+		r.Group(func(r chi.Router) {
+			r.Use(sessiontoken.MFAEnrollmentAuthenticator)
+			r.Post("/mfa/enroll/start", rs.mfaEnrollStart)
+			r.Post("/mfa/enroll/confirm", rs.mfaEnrollConfirm)
+		})
 	})
 	r.Mount("/schools", rs.schools.TraegerRouter(protectedTraegerRoutes))
 	return r
@@ -138,10 +177,14 @@ func (req *LoginRequest) Bind(_ *http.Request) error {
 
 // LoginResponse mirrors the other portals' login answer.
 type LoginResponse struct {
-	Status        string         `json:"status"`
-	AccessToken   string         `json:"access_token,omitempty"`
-	RefreshToken  string         `json:"refresh_token,omitempty"`
-	Organizations []Organization `json:"organizations,omitempty"`
+	Status                string         `json:"status"`
+	AccessToken           string         `json:"access_token,omitempty"`
+	RefreshToken          string         `json:"refresh_token,omitempty"`
+	ChallengeToken        string         `json:"challenge_token,omitempty"`
+	MaskedEmail           string         `json:"masked_email,omitempty"`
+	MFAEnrollmentRequired bool           `json:"mfa_enrollment_required,omitempty"`
+	OrganizationID        int64          `json:"organization_id,omitempty"`
+	Organizations         []Organization `json:"organizations,omitempty"`
 }
 
 // login signs a person in to the Träger-Portal.
@@ -160,10 +203,16 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		rs.renderLoginError(w, r, err)
 		return
 	}
-	render.JSON(w, r, LoginResponse{
+	render.JSON(w, r, loginResponse(result))
+}
+
+func loginResponse(result *LoginResult) LoginResponse {
+	return LoginResponse{
 		Status: string(result.Status), AccessToken: result.AccessToken, RefreshToken: result.RefreshToken,
-		Organizations: result.Organizations,
-	})
+		ChallengeToken: result.ChallengeToken, MaskedEmail: result.MaskedEmail,
+		MFAEnrollmentRequired: result.Status == LoginStatusMFAEnrollmentRequired,
+		OrganizationID:        result.OrganizationID, Organizations: result.Organizations,
+	}
 }
 
 // renderLoginError masks unknown addresses and wrong passwords like the other
@@ -177,6 +226,10 @@ func (rs *Resource) renderLoginError(w http.ResponseWriter, r *http.Request, err
 		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(errAccountInactive, common.CodeIdentitySessionAccountInactive))
 	case rs.auth.NoMembership(err):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(errNoMembership, common.CodeTraegerNoMembership))
+	case rs.auth.MFABlocked(err):
+		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(errMFABlocked, common.CodeIdentityMfaBlocked))
+	case rs.auth.MFAUnavailable(err):
+		common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(errMFAUnavailable, common.CodeIdentityMfaStatusUnavailable))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}

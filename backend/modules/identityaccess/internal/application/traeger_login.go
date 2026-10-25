@@ -21,7 +21,8 @@ import (
 var errTraegerMembershipsUnavailable = errors.New("identity access: Träger memberships are not composed")
 
 // LoginTraeger checks the password, resolves the Träger of the account and
-// mints a Träger session. A member of several Träger without a choice gets
+// asks for the second factor, or mints the Träger session where the second
+// factor is not composed. A member of several Träger without a choice gets
 // the list to choose from; a choice outside the memberships is refused like a
 // missing membership.
 func (s *AccountAuthentication) LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (_ *identityaccess.TraegerLoginResult, err error) {
@@ -37,12 +38,7 @@ func (s *AccountAuthentication) LoginTraeger(ctx context.Context, email, passwor
 	if err != nil {
 		return nil, err
 	}
-	var organizations []identityaccess.TraegerOrganization
-	err = globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
-		var listErr error
-		organizations, listErr = s.traeger.ListAccountTraegerOrganizations(txCtx, account.ID)
-		return listErr
-	})
+	organizations, err := s.listTraegerOrganizations(ctx, account.ID)
 	if err != nil {
 		return nil, failed("Träger login: list memberships", err)
 	}
@@ -56,10 +52,88 @@ func (s *AccountAuthentication) LoginTraeger(ctx context.Context, email, passwor
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No Träger membership at Träger login")
 		return nil, failed("Träger login", identityaccess.ErrNoTraegerMembership)
 	}
+	if s.mfa.Configured() {
+		return s.traegerSecondFactor(ctx, account, organizationID, ipAddress)
+	}
+	return s.mintTraegerSession(ctx, account, organizationID, nil, ipAddress, userAgent)
+}
+
+// traegerSecondFactor answers a correct password with the second factor
+// (ADR 0084, #4651): every Träger session needs it, for every Träger role and
+// independent of the mfa_mode of any school. An account without an enrolled
+// factor sets it up first. The Träger the person chose travels back to the
+// client, which names it again when it redeems the code; the mint checks the
+// membership again.
+func (s *AccountAuthentication) traegerSecondFactor(ctx context.Context, account domain.LoginAccount, organizationID int64, ipAddress string) (*identityaccess.TraegerLoginResult, error) {
+	enrolled, err := s.mfa.HasEnrollment(ctx, account.ID)
+	if err != nil {
+		return nil, failed("check mfa enrollment", identityaccess.ErrMFAStatusUnavailable)
+	}
+	if !enrolled {
+		result, err := s.mfaEnrollmentResult(account, 0, domain.ScopeOrg)
+		if err != nil {
+			return nil, err
+		}
+		return &identityaccess.TraegerLoginResult{
+			Status: identityaccess.TraegerLoginMFAEnrollmentRequired, AccessToken: result.AccessToken,
+			MaskedEmail: result.MaskedEmail, OrganizationID: organizationID,
+		}, nil
+	}
+	result, err := s.mfaChallengeResult(ctx, account, 0, domain.ScopeOrg, ipAddress)
+	if err != nil {
+		return nil, err
+	}
+	return &identityaccess.TraegerLoginResult{
+		Status: identityaccess.TraegerLoginMFARequired, ChallengeToken: result.ChallengeToken,
+		MaskedEmail: result.MaskedEmail, OrganizationID: organizationID,
+	}, nil
+}
+
+// IssueTraegerTokensForVerifiedMFA mints the Träger session once the second
+// factor is proven. The proof binds the account; the Träger is the one the
+// login resolved, or the only one of the account. The mint guard re-checks
+// the membership and the MFA reset generation under the account lock, so a
+// membership ended or a factor reset mid-challenge mints nothing.
+func (s *AccountAuthentication) IssueTraegerTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, organizationID int64, ipAddress, userAgent string) (_ *identityaccess.TraegerLoginResult, err error) {
+	if s == nil {
+		return nil, errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	ctx = bindRuntime(s.attach, ctx)
+	if s.traeger == nil {
+		return nil, failed("Träger login", errTraegerMembershipsUnavailable)
+	}
+	if proof.Scope != identityaccess.MFAChallengeScopeOrg {
+		return nil, failed("issue Träger tokens", identityaccess.ErrInvalidToken)
+	}
+	account, err := s.authenticatedAccount(ctx, "issue Träger tokens", proof.AccountID)
+	if err != nil {
+		return nil, err
+	}
+	organizations, err := s.listTraegerOrganizations(ctx, account.ID)
+	if err != nil {
+		return nil, failed("issue Träger tokens: list memberships", err)
+	}
+	if organizationID == 0 && len(organizations) == 1 {
+		organizationID = organizations[0].ID
+	}
+	if !containsTraeger(organizations, organizationID) {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No Träger membership at Träger token issue")
+		return nil, failed("issue Träger tokens", identityaccess.ErrNoTraegerMembership)
+	}
+	return s.mintTraegerSession(ctx, account, organizationID, &proof, ipAddress, userAgent)
+}
+
+// mintTraegerSession persists the Träger session and issues its pair. A
+// proof marks the session as verified by a second factor; the mint refuses
+// an unverified Träger session wherever the second factor is composed.
+func (s *AccountAuthentication) mintTraegerSession(ctx context.Context, account domain.LoginAccount, organizationID int64, proof *identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (*identityaccess.TraegerLoginResult, error) {
 	var metadata *domain.AccountClaimsPayload
 	session := s.newRefreshSession(account.ID, domain.ScopeOrg)
 	session.OrganizationID = organizationID
-	session, err = s.persistNewSession(ctx, account, session, 0, s.traegerMintGuard(organizationID, &metadata), "")
+	session.MFAVerified = proof != nil
+	guard := s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeOrg, s.traegerMintGuard(organizationID, &metadata))
+	session, err := s.persistNewSession(ctx, account, session, 0, guard, "")
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +217,18 @@ func (s *AccountAuthentication) recordTraegerLogin(ctx context.Context, accountI
 			slog.Int64("account_id", accountID),
 			slog.Any("error", err))
 	}
+}
+
+// listTraegerOrganizations reads the Träger of the account outside the mint;
+// the mint guard reads them again under the account lock.
+func (s *AccountAuthentication) listTraegerOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error) {
+	var organizations []identityaccess.TraegerOrganization
+	err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		var listErr error
+		organizations, listErr = s.traeger.ListAccountTraegerOrganizations(txCtx, accountID)
+		return listErr
+	})
+	return organizations, err
 }
 
 func containsTraeger(organizations []identityaccess.TraegerOrganization, organizationID int64) bool {

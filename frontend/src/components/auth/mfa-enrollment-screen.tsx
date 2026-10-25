@@ -53,6 +53,8 @@ interface MFAEnrollmentScreenProps {
    */
   readonly onComplete: (tokens: MFATokenResponse) => void | Promise<void>;
   readonly onExit?: () => void;
+  /** The Träger the Träger-Portal login resolved (#4651). */
+  readonly organizationId?: string;
 }
 
 export function MFAEnrollmentScreen({
@@ -61,6 +63,7 @@ export function MFAEnrollmentScreen({
   userEmail,
   onComplete,
   onExit,
+  organizationId,
 }: MFAEnrollmentScreenProps) {
   const [step, setStep] = useState<Step>("intro");
   // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
@@ -133,6 +136,7 @@ export function MFAEnrollmentScreen({
           submittedCode,
           false,
           challengeTokenRef.current ?? undefined,
+          organizationId,
         );
         tokensRef.current = tokens;
         setStep("success");
@@ -150,7 +154,7 @@ export function MFAEnrollmentScreen({
         setIsConfirming(false);
       }
     },
-    [scope, bearerToken, clearError, showError],
+    [scope, bearerToken, organizationId, clearError, showError],
   );
 
   const showBack = step !== "success";
@@ -272,7 +276,11 @@ export function MFAEnrollmentScreen({
             <div className="space-y-5">
               <Alert
                 type="info"
-                message="Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an Ihre Schulverwaltung. Der zusätzliche Nachweis bleibt bei besonderen Zugriffsrechten Pflicht."
+                message={
+                  scope === "traeger"
+                    ? "Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an das moto-Team. Im Träger-Portal ist der Code immer Pflicht."
+                    : "Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an Ihre Schulverwaltung. Der zusätzliche Nachweis bleibt bei besonderen Zugriffsrechten Pflicht."
+                }
               />
               <Button
                 type="button"

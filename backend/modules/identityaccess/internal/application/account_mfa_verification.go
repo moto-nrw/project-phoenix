@@ -31,6 +31,7 @@ func (f *AccountMFAFlows) VerifyChallengeForOwner(ctx context.Context, challenge
 }
 
 func (f *AccountMFAFlows) verifyChallengeBound(ctx context.Context, challengeToken, code, expectedScope string, owner *challengeOwner) (domain.VerifiedMFAChallenge, error) {
+	ctx = traegerMFAContext(ctx, expectedScope)
 	claims, err := f.challengeClaims(challengeToken, expectedScope, owner)
 	if err != nil {
 		return domain.VerifiedMFAChallenge{}, err
@@ -89,6 +90,7 @@ func (f *AccountMFAFlows) VerifyCodeForAccount(ctx context.Context, accountID, t
 }
 
 func (f *AccountMFAFlows) VerifyEnrollmentCode(ctx context.Context, accountID, tenantID int64, code, expectedScope string) (domain.VerifiedMFAChallenge, error) {
+	ctx = traegerMFAContext(ctx, expectedScope)
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
 	if err != nil || !found {
 		return domain.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid

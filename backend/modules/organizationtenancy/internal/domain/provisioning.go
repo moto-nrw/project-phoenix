@@ -18,6 +18,7 @@ const (
 	AuditActionSoftDelete   = "soft_delete"
 	AuditActionRestore      = "restore"
 	AuditActionGrant        = "grant"
+	AuditActionMFAReset     = "mfa_reset"
 
 	AuditResourceOrganization  = "organization"
 	AuditResourceSchool        = "school"

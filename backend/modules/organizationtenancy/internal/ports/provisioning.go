@@ -38,13 +38,17 @@ type ProvisioningIdentity interface {
 }
 
 // ProvisioningTraegerIdentity is the Identity & Access part of the Träger
-// membership (ADR 0084): the account behind an address and the Träger roles.
-// The role command joins the caller's administrative transaction; an unknown
-// role is organizationtenancy.ErrInvalidTraegerRole.
+// membership (ADR 0084): the account behind an address, the Träger roles and
+// the reset of the second factor. The role and reset commands join the
+// caller's administrative transaction; an unknown role is
+// organizationtenancy.ErrInvalidTraegerRole.
 type ProvisioningTraegerIdentity interface {
 	FindAccountIDByEmail(ctx context.Context, email string) (int64, bool, error)
 	AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error
 	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]organizationtenancy.TraegerAccount, error)
+	// ResetTraegerMFA resets the account's second factor on the caller's
+	// administrative transaction (#4651).
+	ResetTraegerMFA(ctx context.Context, accountID int64) error
 }
 
 // ProvisioningDevices is the Device Fleet part of provisioning. A missing

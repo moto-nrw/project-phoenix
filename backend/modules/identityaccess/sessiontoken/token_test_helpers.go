@@ -115,6 +115,7 @@ func (c *MFAChallengeClaims) ParseClaims(claims map[string]any) error {
 		scopeTenant:    MFAChallengeScopeTenant,
 		scopePlatform:  MFAChallengeScopePlatform,
 		scopeSchool:    MFAChallengeScopeSchool,
+		scopeOrg:       MFAChallengeScopeOrg,
 		pendingFlagKey: "mfa_pending",
 		notPendingErr:  "token is not a pending-MFA challenge",
 	}, &c.CommonClaims)

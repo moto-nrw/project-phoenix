@@ -15,6 +15,7 @@ import type {
   OrganizationSummary,
   SchoolAccount,
   SchoolSummary,
+  TraegerMember,
 } from "~/lib/operator/provisioning-helpers";
 import {
   summaryToOrganization,
@@ -48,7 +49,8 @@ import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
 import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
-import { TRAEGER_MEMBER_COLUMNS } from "./traeger-member-columns";
+import { ResetTraegerMfaModal } from "~/app/operator/provisioning/reset-traeger-mfa-modal";
+import { traegerMemberColumns } from "./traeger-member-columns";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import {
@@ -119,6 +121,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
   const [assignTraegerOpen, setAssignTraegerOpen] = useState(false);
+  const [mfaResetMember, setMfaResetMember] = useState<TraegerMember | null>(
+    null,
+  );
 
   const currentTabSearch = activeTab === "schulen" ? "" : `?tab=${activeTab}`;
 
@@ -699,7 +704,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               />
             ) : (
               <DataTable
-                columns={TRAEGER_MEMBER_COLUMNS}
+                columns={traegerMemberColumns(setMfaResetMember)}
                 rows={traegerMembers ?? []}
                 getRowKey={(member) => member.accountId}
                 defaultSortKey="email"
@@ -716,6 +721,13 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         organizationId={organization.id}
         organizationName={organization.name}
         onAssigned={() => mutateTraegerMembers()}
+      />
+
+      <ResetTraegerMfaModal
+        member={mfaResetMember}
+        onClose={() => setMfaResetMember(null)}
+        organizationId={organization.id}
+        onReset={() => mutateTraegerMembers()}
       />
 
       {caregiverAccount && caregiverSchoolContext ? (

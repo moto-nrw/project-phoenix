@@ -1,6 +1,6 @@
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 
-export type LoginScope = "tenant" | "operator" | "school";
+export type LoginScope = "tenant" | "operator" | "school" | "traeger";
 
 interface AuthenticatedLoginResponse {
   status: "authenticated";
@@ -83,6 +83,8 @@ function mfaUrl(scope: LoginScope, suffix: string): string {
       // School MFA endpoints answer top-level JSON like the tenant ones
       // (no operator envelope), so only the URL differs.
       return `/api/school/auth/mfa/${suffix}`;
+    case "traeger":
+      return `/api/traeger/auth/mfa/${suffix}`;
     default:
       return `/api/auth/mfa/${suffix}`;
   }
@@ -181,6 +183,14 @@ interface VerifyParams {
   challengeToken: string;
   code: string;
   rememberDevice: boolean;
+  /** The Träger the Träger-Portal login resolved (#4651). */
+  organizationId?: string;
+}
+
+// The Träger-Portal names the Träger the login resolved when it redeems the
+// code; the other portals have no such field.
+function organizationField(organizationId?: string) {
+  return organizationId ? { organization_id: Number(organizationId) } : {};
 }
 
 export async function verifyMFA(
@@ -192,6 +202,7 @@ export async function verifyMFA(
     challenge_token: params.challengeToken,
     code: params.code,
     remember_device: params.rememberDevice,
+    ...organizationField(params.organizationId),
   };
   if (isOperator(scope)) {
     const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
@@ -279,6 +290,7 @@ export async function enrollConfirm(
   code: string,
   rememberDevice = false,
   challengeToken?: string,
+  organizationId?: string,
 ): Promise<MFATokenResponse> {
   const url = mfaUrl(scope, "enroll/confirm");
   // The school confirm is bound to the exact challenge enroll/start minted
@@ -287,6 +299,7 @@ export async function enrollConfirm(
     code,
     remember_device: rememberDevice,
     ...(challengeToken ? { challenge_token: challengeToken } : {}),
+    ...organizationField(organizationId),
   };
   if (isOperator(scope)) {
     const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(

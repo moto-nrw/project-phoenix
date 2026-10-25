@@ -1,5 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -40,11 +46,118 @@ function submitCredentials() {
   fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
 }
 
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+async function enterCode(code: string) {
+  const inputs = (await screen.findAllByRole("textbox")).slice(0, 6);
+  await act(async () => {
+    fireEvent.change(inputs[0]!, { target: { value: code } });
+  });
+}
+
 describe("TraegerLoginPage", () => {
+  const fetchMock = vi.fn<typeof fetch>();
+
   beforeEach(() => {
     mockLogin.mockReset();
     mockSignIn.mockReset();
     mockSearchParamsGet.mockReturnValue(null);
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("asks for the mailed code and redeems it for the resolved Träger", async () => {
+    mockLogin.mockResolvedValue({
+      status: "mfa_required",
+      challengeToken: "challenge",
+      maskedEmail: "b***@traeger.example",
+      organizationId: "7",
+    });
+    fetchMock.mockResolvedValue(
+      jsonResponse({ access_token: "access", refresh_token: "refresh" }),
+    );
+    mockSignIn.mockResolvedValue({ error: undefined });
+    render(<TraegerLoginPage />);
+
+    submitCredentials();
+
+    expect(
+      await screen.findByRole("heading", { name: "Code-Eingabe" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("b***@traeger.example")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: /Tage merken/ }),
+    ).not.toBeInTheDocument();
+    await enterCode("123456");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/traeger/auth/mfa/verify");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      challenge_token: "challenge",
+      code: "123456",
+      remember_device: false,
+      organization_id: 7,
+    });
+    await waitFor(() =>
+      expect(mockSignIn).toHaveBeenCalledWith("traeger-credentials", {
+        redirect: false,
+        internalRefresh: "true",
+        token: "access",
+        refreshToken: "refresh",
+      }),
+    );
+  });
+
+  it("sets up the second factor before the first Träger session", async () => {
+    mockLogin.mockResolvedValue({
+      status: "mfa_enrollment_required",
+      enrollmentToken: "enrollment",
+      maskedEmail: "b***@traeger.example",
+      organizationId: "7",
+    });
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ challenge_token: "challenge" }))
+      .mockResolvedValueOnce(
+        jsonResponse({ access_token: "access", refresh_token: "refresh" }),
+      );
+    mockSignIn.mockResolvedValue({ error: undefined });
+    render(<TraegerLoginPage />);
+
+    submitCredentials();
+
+    expect(
+      await screen.findByText(
+        "Kein Zugriff auf Ihre E-Mails? Wenden Sie sich an das moto-Team. Im Träger-Portal ist der Code immer Pflicht.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
+    );
+    await enterCode("654321");
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const [startUrl, startInit] = fetchMock.mock.calls[0]!;
+    expect(startUrl).toBe("/api/traeger/auth/mfa/enroll/start");
+    const startHeaders = (startInit?.headers ?? {}) as Record<string, string>;
+    expect(startHeaders.Authorization).toBe("Bearer enrollment");
+    const [confirmUrl, confirmInit] = fetchMock.mock.calls[1]!;
+    expect(confirmUrl).toBe("/api/traeger/auth/mfa/enroll/confirm");
+    expect(JSON.parse(confirmInit?.body as string)).toEqual({
+      code: "654321",
+      remember_device: false,
+      challenge_token: "challenge",
+      organization_id: 7,
+    });
   });
 
   it("seeds the Träger session with the minted pair", async () => {
