@@ -40,7 +40,10 @@ func init() {
 // data, the consents and the review stay with the Träger. No policy admits a
 // write. Access to a child of another school therefore exists only through a
 // confirmed booking for a week the school hosts, and it ends after that week
-// without anyone revoking it. The SECURITY DEFINER functions read the period,
+// without anyone revoking it. holiday_host_booking answers only for a
+// booking of exactly that child in exactly that week, so a direct call with
+// the ID of another child of the Träger reveals nothing about it. The
+// SECURITY DEFINER functions read the period,
 // the week, the registration and the child without the Träger policy, keep
 // the policies free of cycles, and answer nothing outside a school
 // transaction, so a Träger transaction keeps exactly its own policy.
@@ -77,10 +80,13 @@ CREATE FUNCTION enrollment.holiday_host_booking(p_organization_id BIGINT, p_week
 	AS $$
 	SELECT enrollment.holiday_host_week(p_organization_id, p_week_id) AND EXISTS (
 		SELECT 1
-		FROM enrollment.holiday_registration_children AS child
+		FROM enrollment.holiday_registration_bookings AS booking
+		JOIN enrollment.holiday_registration_children AS child
+			ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
 		JOIN enrollment.holiday_registrations AS registration
 			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
-		WHERE child.organization_id = p_organization_id AND child.id = p_child_id
+		WHERE booking.organization_id = p_organization_id AND booking.holiday_period_week_id = p_week_id
+			AND booking.holiday_registration_child_id = p_child_id
 			AND registration.status = 'confirmed'
 	)
 	$$;

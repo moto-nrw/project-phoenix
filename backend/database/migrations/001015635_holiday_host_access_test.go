@@ -81,6 +81,7 @@ func TestHolidayHostSchoolReadsOnlyConfirmedChildrenOfItsOpenWeeks(t *testing.T)
 	draftWeek, draftModel := insertWeek(draft, "2099-08-03", "2099-08-07")
 	confirmed := register(published, "confirmed", home, [2]int64{open, openModel}, [2]int64{ended, endedModel})
 	register(published, "confirmed", nil, [2]int64{open, openModel})
+	bookedElsewhere := register(published, "confirmed", home, [2]int64{ended, endedModel})
 	register(published, "received", home, [2]int64{open, openModel})
 	register(published, "cancelled", nil, [2]int64{open, openModel})
 	register(draft, "confirmed", home, [2]int64{draftWeek, draftModel})
@@ -121,7 +122,7 @@ func TestHolidayHostSchoolReadsOnlyConfirmedChildrenOfItsOpenWeeks(t *testing.T)
 		return seen
 	}
 
-	assert.Equal(t, visible{Periods: 2, Weeks: 3, Models: 3, Registrations: 5, Children: 5, Bookings: 6, Contacts: 5},
+	assert.Equal(t, visible{Periods: 2, Weeks: 3, Models: 3, Registrations: 6, Children: 6, Bookings: 7, Contacts: 6},
 		read("app.current_org_id", own), "the Träger keeps seeing all of its rows")
 	assert.Equal(t, visible{Periods: 1, Weeks: 1, Models: 1, Bookings: 2},
 		read("app.current_tenant_id", host),
@@ -144,6 +145,17 @@ func TestHolidayHostSchoolReadsOnlyConfirmedChildrenOfItsOpenWeeks(t *testing.T)
 	assert.Empty(t, participants(host, draftWeek), "a week of a draft period opens nothing")
 	assert.Empty(t, participants(home, open), "a school that does not host the week reads no child")
 	assert.Empty(t, participants(foreignSchool, open), "a school of another Träger reads no child")
+	hostBooking := func(child int64) bool {
+		var booked bool
+		require.NoError(t, asRequestRole("app.current_tenant_id", fmt.Sprint(host), func(tx bun.Tx) error {
+			return tx.NewRaw(`SELECT enrollment.holiday_host_booking(?, ?, ?)`, own, open, child).Scan(ctx, &booked)
+		}))
+		return booked
+	}
+	assert.True(t, hostBooking(confirmed), "the host confirms a booking of its open week")
+	assert.False(t, hostBooking(bookedElsewhere),
+		"a confirmed child of the Träger without a booking in the hosted week stays hidden from the host")
+
 	err := asRequestRole("app.current_tenant_id", fmt.Sprint(host), func(tx bun.Tx) error {
 		_, err := tx.ExecContext(ctx, `SELECT allergies FROM enrollment.holiday_host_participants(?, ?)`, own, open)
 		return err
