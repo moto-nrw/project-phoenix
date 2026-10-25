@@ -2,6 +2,15 @@
 package common
 
 const (
+	CodeTimetableSeriesEndOutsidePeriod              = "timetable.series_end_outside_period"
+	CodeTimetableSickAbsenceScopeLocked              = "timetable.sick_absence_scope_locked"
+	CodeTimetableSlotListDrifted                     = "timetable.slot_list_drifted"
+	CodeTimetableSlotListGroupingInvalid             = "timetable.slot_list_grouping_invalid"
+	CodeTimetableSlotListPickupPastDate              = "timetable.slot_list_pickup_past_date"
+	CodeTimetableSlotListReconciliationFutureDate    = "timetable.slot_list_reconciliation_future_date"
+	CodeTimetableSlotListsDisabled                   = "timetable.slot_lists_disabled"
+	CodeTimetableSpontaneousActivitiesDisabled       = "timetable.spontaneous_activities_disabled"
+	CodeTimetableSpontaneousCategoryArchived         = "timetable.spontaneous_category_archived"
 	CodeTimetableStaffAbsentOnDate                   = "timetable.staff_absent_on_date"
 	CodeTimetableStaffAbsentOnSource                 = "timetable.staff_absent_on_source"
 	CodeTimetableStaffAbsentOnTarget                 = "timetable.staff_absent_on_target"
@@ -46,6 +55,9 @@ const (
 	CodeTimetableWindowEndBeforeStart                = "timetable.window_end_before_start"
 	CodeTimetableWindowTooLarge                      = "timetable.window_too_large"
 	CodeTraegerAccessLogExportTooLarge               = "traeger.access_log_export_too_large"
+	CodeTraegerAlreadyMember                         = "traeger.already_member"
+	CodeTraegerLastAdministrator                     = "traeger.last_administrator"
+	CodeTraegerMemberNotFound                        = "traeger.member_not_found"
 	CodeTraegerNoMembership                          = "traeger.no_membership"
 	CodeWorkforceAbsenceAllowanceExceeded            = "workforce.absence_allowance_exceeded"
 	CodeWorkforceAbsenceAlreadyDecided               = "workforce.absence_already_decided"
@@ -118,6 +130,15 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.series_end_outside_period":               "input",
+	"timetable.sick_absence_scope_locked":               "business_rejection",
+	"timetable.slot_list_drifted":                       "business_rejection",
+	"timetable.slot_list_grouping_invalid":              "input",
+	"timetable.slot_list_pickup_past_date":              "input",
+	"timetable.slot_list_reconciliation_future_date":    "input",
+	"timetable.slot_lists_disabled":                     "permission",
+	"timetable.spontaneous_activities_disabled":         "permission",
+	"timetable.spontaneous_category_archived":           "business_rejection",
 	"timetable.staff_absent_on_date":                    "business_rejection",
 	"timetable.staff_absent_on_source":                  "input",
 	"timetable.staff_absent_on_target":                  "business_rejection",
@@ -162,6 +183,9 @@ var errorCodeClasses2 = map[string]string{
 	"timetable.window_end_before_start":                 "input",
 	"timetable.window_too_large":                        "input",
 	"traeger.access_log_export_too_large":               "input",
+	"traeger.already_member":                            "business_rejection",
+	"traeger.last_administrator":                        "business_rejection",
+	"traeger.member_not_found":                          "input",
 	"traeger.no_membership":                             "permission",
 	"workforce.absence_allowance_exceeded":              "business_rejection",
 	"workforce.absence_already_decided":                 "business_rejection",

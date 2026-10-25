@@ -2483,7 +2483,11 @@
         "submission_rate_limited": "Too many enrollments were sent. Please try again in an hour.",
         "waitlist_disabled": "{object} could not be changed. Please check its current status.",
         "window_closed": "The enrollment period has ended or has not started yet. Please contact the school.",
-        "withdraw_not_allowed": "This enrollment can no longer be withdrawn. Please contact the school."
+        "withdraw_not_allowed": "This enrollment can no longer be withdrawn. Please contact the school.",
+        "holiday_host_school_outside_traeger": "This school does not belong to your Träger. Please choose a school from the list.",
+        "holiday_period_incomplete": "The holiday period needs at least one week. Every week needs at least one time model.",
+        "holiday_period_invalid": "Please check the marked fields.",
+        "holiday_period_not_found": "This holiday period does not exist. Please open it from the holiday list."
       },
       "files": {
         "announcement_published": "{object} could not be changed. Please check its current status.",
@@ -2966,6 +2970,10 @@
         "organization_not_deleted": "{object} could not be changed. Please check its current status.",
         "organization_has_schools": "{object} could not be changed. Please check its current status.",
         "organization_deleted": "{object} could not be changed. Please check its current status.",
+        "traeger_active": "{object} could not be changed. Please check its current status.",
+        "traeger_erasure_order_not_found": "{object} could not be changed. Please check its current status.",
+        "traeger_erasure_order_open": "{object} could not be changed. Please check its current status.",
+        "traeger_erasure_started": "{object} could not be changed. Please check its current status.",
         "school_not_found": "{object} could not be changed. Please check its current status.",
         "school_inactive": "{object} could not be changed. Please check its current status.",
         "school_already_deleted": "{object} could not be changed. Please check its current status.",
@@ -2994,6 +3002,9 @@
         "module_requires": "{object} could not be saved. Please check your entries.",
         "module_required_by": "{object} could not be saved. Please check your entries."
       },
+      "module": {
+        "not_booked": "Your school has not booked the module {module_label}. To book it, please contact the moto team."
+      },
       "devices": {
         "tag_scan_not_found": "{object} could not be changed. Please check its current status.",
         "tag_scan_already_resolved": "{object} could not be changed. Please check its current status."
@@ -3020,6 +3031,9 @@
       },
       "traeger": {
         "access_log_export_too_large": "The export has more than {limit} entries. Please choose a shorter period or more filters.",
+        "already_member": "This person already belongs to the Träger office.",
+        "last_administrator": "The Träger office needs at least one person with the role Verwaltung. Give this role to someone else first.",
+        "member_not_found": "This person no longer belongs to the Träger office. Please reload the page.",
         "no_membership": "Your account has no access to the Träger portal. Please contact the moto team."
       }
     },

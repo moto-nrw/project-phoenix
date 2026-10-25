@@ -2483,7 +2483,11 @@
         "submission_rate_limited": "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
         "waitlist_disabled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "window_closed": "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
-        "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën."
+        "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",
+        "holiday_host_school_outside_traeger": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_period_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "holiday_period_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_period_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "files": {
         "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2966,6 +2970,10 @@
         "organization_not_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "organization_has_schools": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "organization_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_active": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_erasure_order_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_erasure_order_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_erasure_started": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "school_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "school_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "school_already_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2994,6 +3002,9 @@
         "module_requires": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "module_required_by": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
+      "module": {
+        "not_booked": "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto."
+      },
       "devices": {
         "tag_scan_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "tag_scan_already_resolved": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
@@ -3020,6 +3031,9 @@
       },
       "traeger": {
         "access_log_export_too_large": "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
+        "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "last_administrator": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "member_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       }
     },

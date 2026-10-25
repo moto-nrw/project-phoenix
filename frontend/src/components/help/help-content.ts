@@ -3088,9 +3088,9 @@ function groupsCatalogTopic(groupMode: HelpGroupMode): HelpTopic {
 }
 
 /**
- * Aktivitaetenkatalog unter `/database/activities`. Nur mit NFC: die Route
- * liegt hinter `NfcModeGuard`, und der Eintrag steht in `NFC_ONLY_HREFS`
- * (dashboard/sidebar.tsx). Deshalb auch in NFC_ONLY_TOPIC_IDS.
+ * Aktivitaetenkatalog unter `/database/activities`. Nur mit NFC: die Seite
+ * gehört im Modul-Register (lib/module-register.ts) zu NFC-Anwesenheit.
+ * Deshalb auch in NFC_ONLY_TOPIC_IDS.
  */
 function activitiesCatalogTopic(): HelpTopic {
   return {
@@ -5767,6 +5767,7 @@ function settingsGuideTopic(): HelpTopic {
           "`Gebuchte Module`: Zeigt die Zusatzmodule Ihrer OGS.",
           "Die Schalter sind nur zur Information. Sie können sie nicht ändern.",
           "Die gebuchten Module stehen im Vertrag mit moto. Wenn Sie etwas ändern möchten, wenden Sie sich an das moto-Team.",
+          "Mehr dazu steht in der Anleitung „Welche Module hat meine Schule?“.",
         ],
       },
       {
@@ -6167,6 +6168,49 @@ function infoDisplaysTopic(): HelpTopic {
 }
 
 /**
+ * Gebuchte Module (#4894). Der Reiter `Module` unter Einstellungen zeigt sie
+ * lesend (#4892); Navigation, Startseite und Seiten folgen dem Modul-Register
+ * (lib/module-register.ts). Das Schloss sieht nur, wer die Schule leitet.
+ */
+function modulesTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadModules,
+    title: "Welche Module hat meine Schule?",
+    question: "Welche Module hat meine Schule?",
+    summary:
+      "Unter `Einstellungen` sehen Sie, welche Zusatzmodule Ihre OGS gebucht hat.",
+    group: "konfiguration",
+    audience: "lead",
+    icon: "PuzzlePiece",
+    steps: [
+      "Öffnen Sie unten in der Seitenleiste `Einstellungen`.",
+      "Wählen Sie den Reiter `Module`.",
+      "Klappen Sie `Gebuchte Module` auf. Dort steht jedes Zusatzmodul mit einem Satz, was dazugehört.",
+      "Ein eingeschalteter Schalter heißt: Ihre OGS hat das Modul gebucht.",
+    ],
+    result: "Sie wissen, welche Zusatzmodule Ihre OGS nutzen kann.",
+    notes: [
+      "moto Basis hat jede OGS. Dazu gehören zum Beispiel Kinder, Gruppen, Räume, Anwesenheit und Kalender.",
+      "Die Schalter sind nur zur Information. Welche Module Ihre OGS hat, steht im Vertrag mit moto.",
+    ],
+    differences: [
+      "Ein Menüpunkt hat ein Schloss? Dann gehört er zu einem Modul, das Ihre OGS nicht gebucht hat. Das Schloss sehen nur Sie als Leitung. Ihr Team sieht den Menüpunkt nicht.",
+      "Eine Seite sagt `ist nicht gebucht`? Dann gehört sie zu einem Modul, das Ihre OGS nicht gebucht hat. Die Seite nennt das Modul.",
+      "Ein Bereich fehlt trotz gebuchtem Modul? Dann ist er unter `Einstellungen` ausgeschaltet, zum Beispiel der Speiseplan.",
+    ],
+    troubleshootingDetails: [
+      "Sie brauchen ein weiteres Modul, oder ein Modul ist falsch eingetragen? Wenden Sie sich an das moto-Team. Nur das moto-Team kann Module buchen oder abbestellen.",
+      "Ein Modul wurde abbestellt? Die Daten bleiben gespeichert, bis ihre Löschfrist abläuft. Brauchen Sie die Daten noch, fragen Sie das moto-Team nach einem Export.",
+    ],
+    related: [
+      HELP_TOPICS.settingsGuide,
+      HELP_TOPICS.leadMissingMenu,
+      HELP_TOPICS.settings,
+    ],
+  };
+}
+
+/**
  * Der Problemartikel der Leitung. Bewusst getrennt vom Betreuer-Thema
  * `missingMenu`: dort fehlt einem selbst etwas, hier einer anderen Person.
  */
@@ -6194,6 +6238,7 @@ function leadMissingMenuTopic(): HelpTopic {
     ],
     differences: [
       "Manche Bereiche hängen nicht an Rechten, sondern an Funktionen Ihrer OGS.",
+      "Manche Bereiche gehören zu einem Zusatzmodul. Hat Ihre OGS es nicht gebucht, sieht Ihr Team den Bereich nicht. Sie selbst sehen ihn mit Schloss.",
       "Ohne NFC fehlen `Aktivitäten` und `Geräte`. Bei einfacher Anwesenheit fehlen `Räume` und `Heute`.",
       "Ohne feste Gruppen fehlt `Gruppen`.",
       "`Info-Displays` hängt an einem eigenen Schalter in den `Einstellungen`, nicht an einem Recht.",
@@ -6204,6 +6249,7 @@ function leadMissingMenuTopic(): HelpTopic {
     ],
     related: [
       HELP_TOPICS.leadStaffPermissions,
+      HELP_TOPICS.leadModules,
       HELP_TOPICS.settings,
       HELP_TOPICS.leadInviteStaff,
     ],
@@ -6280,6 +6326,7 @@ function leadTopics(
     // --- Einstellungen und Geräte ---
     settingsTopic(),
     settingsGuideTopic(),
+    modulesTopic(),
     parentVisibilityTopic(),
     infoDisplaysTopic(),
     leadBirthdaysTopic(),
@@ -8234,10 +8281,169 @@ function traegerLoginTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, Ihr Konto habe keinen Zugang zum Träger-Portal? Wenden Sie sich an das moto-Team.",
+      "moto meldet Sie ab und lässt Sie nicht wieder hinein? Dann ist der Zugang Ihres Trägers ausgeschaltet. Wenden Sie sich an das moto-Team.",
       "Eine Schule fehlt in der Liste? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
     ],
     related: [HELP_TOPICS.errorMessages],
+  };
+}
+
+/** `/traeger/invite` (#4650): Einladung aus der Mail annehmen. */
+function traegerInvitationTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerInvitation,
+    title: "Einladung ins Träger-Büro annehmen",
+    question: "Wie nehme ich eine Einladung ins Träger-Büro an?",
+    summary:
+      "Sie haben eine E-Mail mit einer Einladung bekommen. So kommen Sie ins Träger-Portal.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "UserRoundPlus",
+    requirements: ["Jemand aus dem Träger-Büro hat Sie per E-Mail eingeladen."],
+    steps: [
+      "Öffnen Sie die E-Mail `Einladung ins Träger-Portal von moto`.",
+      "Wählen Sie `Einladung annehmen`.",
+      "Haben Sie noch kein moto-Konto? Tragen Sie ein `Neues Passwort` ein und wiederholen Sie es.",
+      "Haben Sie schon ein moto-Konto? Tragen Sie das Passwort dieses Kontos ein.",
+      "Wählen Sie `Einladung annehmen`.",
+    ],
+    result:
+      "moto meldet Sie an und öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",
+    notes: [
+      "Mit derselben E-Mail-Adresse und demselben Passwort melden Sie sich später an.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, die Einladung sei abgelaufen? Bitten Sie die Person, die Sie eingeladen hat, um eine neue Einladung.",
+      "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Setzen Sie es in der Anmeldung Ihrer Schule über `Passwort vergessen?` zurück.",
+    ],
+    related: [HELP_TOPICS.traegerLogin],
+  };
+}
+
+/** `/traeger/ferien` (#4659): Ferienzeitraum mit Wochen und Zeitmodellen. */
+function traegerHolidayPeriodTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerHolidayPeriod,
+    title: "Ferienzeitraum anlegen",
+    question: "Wie plane ich Ferienbetreuung für mehrere Schulen?",
+    summary:
+      "Ein Ferienzeitraum hat buchbare Wochen. Jede Woche findet an einer Schule Ihres Trägers statt.",
+    group: "anmeldeverwaltung",
+    audience: "traeger",
+    icon: "SunHorizon",
+    requirements: [
+      "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Ferienzeitraum anlegen",
+        steps: [
+          "Wählen Sie oben `Ferien`.",
+          "Wählen Sie `Ferienzeitraum anlegen`.",
+          "Tragen Sie den `Name des Ferienzeitraums` ein, zum Beispiel Osterferien 2027.",
+          "Tragen Sie `Anmeldebeginn` und `Anmeldeschluss` ein.",
+          "Ist die Anmeldung verbindlich? Dann lassen Sie den Haken bei `Die Anmeldung ist verbindlich.`.",
+          "Schreiben Sie unter `Hinweise für Eltern`, was Eltern wissen müssen. Zum Beispiel, ob es Mittagessen gibt oder ein Lunchpaket nötig ist.",
+        ],
+      },
+      {
+        title: "Wochen und Zeitmodelle planen",
+        steps: [
+          "Tragen Sie bei jeder Woche `Erster Tag` und `Letzter Tag` ein.",
+          "Wählen Sie die `Ausrichtende OGS`. Dort findet die Betreuung in dieser Woche statt.",
+          "Tragen Sie die Zeitmodelle ein, zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“. Jedes Zeitmodell hat `Beginn`, `Ende` und `Preis in Euro`.",
+          "Weitere Wochen fügen Sie mit `Woche hinzufügen` hinzu.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Veröffentlichen",
+        steps: [
+          "Öffnen Sie den Ferienzeitraum in der Liste `Ferien`.",
+          "Wählen Sie oben `Veröffentlichen`.",
+          "Bestätigen Sie mit `Veröffentlichen`.",
+        ],
+      },
+    ],
+    result:
+      "Der Ferienzeitraum ist für die Anmeldung freigegeben. Sie können ihn danach weiter ändern.",
+    notes: [
+      "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
+      "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
+    ],
+    troubleshootingDetails: [
+      "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",
+      "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
+    ],
+    related: [HELP_TOPICS.traegerLogin],
+  };
+}
+
+/** `/traeger/accounts` (#4650): Personen einladen, Rollen ändern, entfernen. */
+function traegerAccountsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerAccounts,
+    title: "Personen ins Träger-Büro einladen",
+    question:
+      "Wie lade ich Personen ins Träger-Büro ein und gebe ihnen Rollen?",
+    summary:
+      "Unter `Personen` laden Sie Kolleginnen und Kollegen ein. Die Rolle bestimmt, was eine Person darf.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "UsersThree",
+    requirements: ["Sie haben die Rolle `Verwaltung`."],
+    instructionGroups: [
+      {
+        title: "Person einladen",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Wählen Sie `Person einladen`.",
+          "Tragen Sie die `E-Mail-Adresse` ein.",
+          "Wählen Sie mindestens eine Rolle.",
+          "Wählen Sie `Einladung senden`.",
+        ],
+      },
+      {
+        title: "Rollen ändern",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
+          "Wählen Sie `Rollen ändern`.",
+          "Wählen Sie die Rollen und dann `Speichern`.",
+        ],
+      },
+      {
+        title: "Person entfernen",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
+          "Wählen Sie `Aus dem Träger-Büro entfernen`.",
+          "Wählen Sie `Ja, entfernen` und dann `Entfernen`.",
+        ],
+      },
+    ],
+    steps: [],
+    result:
+      "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
+    notes: [
+      "`Verwaltung` darf alles verwalten, auch Personen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
+      "Eine Person kann mehrere Rollen haben.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
+      "Geänderte Rollen gelten nach wenigen Minuten. Eine entfernte Person kann sich nicht mehr anmelden. Eine offene Sitzung endet nach wenigen Minuten.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, das Träger-Büro brauche mindestens eine Person mit der Rolle Verwaltung? Geben Sie die Rolle zuerst einer anderen Person.",
+      "Die Einladung ist abgelaufen? Laden Sie die Person noch einmal ein. Die alte Einladung gilt dann nicht mehr.",
+      "Eine Einladung soll nicht mehr gelten? Wählen Sie bei der Einladung `Einladung zurücknehmen`.",
+    ],
+    related: [HELP_TOPICS.traegerInvitation],
   };
 }
 
@@ -8296,7 +8502,10 @@ function traegerAccessLogTopic(): HelpTopic {
 }
 
 const TRAEGER_TOPICS: readonly HelpTopic[] = [
+  traegerInvitationTopic(),
   traegerLoginTopic(),
+  traegerAccountsTopic(),
+  traegerHolidayPeriodTopic(),
   traegerAccessLogTopic(),
 ];
 

@@ -63,7 +63,7 @@ func (o *Overview) Schools(ctx context.Context, organizationID int64) ([]traeger
 }
 
 // read runs fn of an access log read with the school set of the Träger in
-// the projection's administrative unit (ADR 0111).
+// the projection's administrative unit (ADR 0109).
 func (o *Overview) read(ctx context.Context, organizationID int64, fn func(adminCtx context.Context, schools []int64) error) error {
 	return o.withinAdmin(ctx, func(adminCtx context.Context) error {
 		ids, err := o.schoolIDs.ListTraegerSchoolIDs(adminCtx, organizationID)

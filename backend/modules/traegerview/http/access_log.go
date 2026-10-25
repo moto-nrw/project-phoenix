@@ -35,11 +35,13 @@ func NewAccessLogResource(overview traegerview.Overview) *AccessLogResource {
 }
 
 // TraegerRouter returns the routes mounted at /traeger/access-log inside the
-// Träger route group the portal supplies.
-func (rs *AccessLogResource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router {
+// Träger route group the portal supplies. The projection reads in its own
+// administrative unit, so it does not use the Träger transaction the group
+// offers.
+func (rs *AccessLogResource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protectedTraegerRoutes(r, func(r chi.Router) {
+	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.Use(common.RequiresPermission(identityaccess.TraegerRightAccessLogRead))
 		r.Get("/", rs.list)
 		r.Get("/people", rs.people)
@@ -134,6 +136,9 @@ func traegerViewer(w http.ResponseWriter, r *http.Request) (traegerview.Viewer, 
 
 func renderAccessLogError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, traegerview.ErrTraegerUnavailable):
+		// The moto team deactivated the Träger: its session has ended.
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 	case errors.Is(err, traegerview.ErrInvalidAccessLogFilter):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, traegerview.ErrAccessLogExportTooLarge):

@@ -165,16 +165,13 @@ export const DATABASE_PAGE_PERMISSIONS: Readonly<
   "/database/exports": "users:delete",
 };
 
-/** Kataloge, die ohne den Planungsbereich (timetable.enabled) nichts zu ordnen haben. */
+/**
+ * Kataloge, die ohne den Betreuungsplan (timetable.enabled) nichts zu ordnen
+ * haben. Die Dienstarten gehören zum Dienstplan und folgen seinem Modul;
+ * Aktivitäten und Geräte folgen NFC-Anwesenheit (Modul-Register, #4894).
+ */
 export const PLANNING_CATALOG_HREFS: ReadonlySet<string> = new Set([
   "/database/planning-tracks",
-  "/database/shift-types",
-]);
-
-/** Datenverwaltungsseiten, die es nur mit NFC gibt: Aktivitäten und Geräte. */
-export const NFC_ONLY_DATABASE_HREFS: ReadonlySet<string> = new Set([
-  "/database/activities",
-  "/database/devices",
 ]);
 
 /** Die Rechte einer Datenverwaltungsseite als Liste; leer für unbekannte Pfade. */

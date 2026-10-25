@@ -18,7 +18,7 @@ type AccessTrail struct {
 
 // NewAccessTrail builds the trail over the caller's transaction. It never
 // opens one: the Träger projection calls it inside its administrative unit
-// (ADR 0111).
+// (ADR 0109).
 func NewAccessTrail(runtime Runtime) *AccessTrail {
 	return &AccessTrail{runtime: requireRuntime(runtime)}
 }

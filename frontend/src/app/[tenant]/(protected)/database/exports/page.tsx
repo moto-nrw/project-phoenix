@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { useModuleBooked } from "~/lib/tenant-context";
 import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
 import {
@@ -101,6 +102,10 @@ export default function DatabaseExportsPage() {
   // "Wer ist wo" hits POST /api/rooms/export, which requires rooms:read on top
   // of the users:read that gates this page. Without rooms:read the export 403s,
   // so hide the card rather than offer a button that always fails.
+  // Die Verweise zeigen nur Exporte von Modulen, die die Schule gebucht hat.
+  const onlineAnmeldungBooked = useModuleBooked("online_anmeldung");
+  const zeiterfassungBooked = useModuleBooked("zeiterfassung");
+  const dienstplanBooked = useModuleBooked("dienstplan");
   const canReadRooms = isAdmin(session) || hasPermission(session, "rooms:read");
   // Der Dienstplan ist admin-only (die Seite leitet andere auf /staff um), der
   // Export folgt derselben Grenze statt auf eine Sackgasse zu verlinken.
@@ -140,10 +145,13 @@ export default function DatabaseExportsPage() {
     (canReadRooms ? 1 : 0);
   const linkCount =
     (canUseSlotLists && !timetableDisabled ? 1 : 0) +
-    (canEditPlans && !timetableDisabled ? 1 : 0) +
+    (canEditPlans && dienstplanBooked ? 1 : 0) +
     (canUseSlotLists && !timetableDisabled ? 1 : 0) +
-    (isAdmin(session) ? 1 : 0) +
-    1; // Zeitnachweis
+    ((isAdmin(session) || hasPermission(session, "config:manage")) &&
+    onlineAnmeldungBooked
+      ? 1
+      : 0) +
+    (zeiterfassungBooked ? 1 : 0); // Zeitnachweis
   const statusLine = `${listCount} ${listCount === 1 ? "Liste" : "Listen"} · ${linkCount} auf anderen Seiten`;
 
   const runExport = async (key: string, task: () => Promise<void>) => {
@@ -330,7 +338,7 @@ export default function DatabaseExportsPage() {
           {/* Die beiden Wochenpläne (#2079) exportieren immer die Woche, die
               auf ihrer Seite gerade zu sehen ist. Ein Datumsdialog hier wäre
               eine zweite, konkurrierende Bedienung derselben Sache. */}
-          {canEditPlans && !timetableDisabled && (
+          {canEditPlans && dienstplanBooked && (
             <InfoCard
               title="Dienstplan"
               icon={<CalendarRange className="h-5 w-5" />}
@@ -357,31 +365,34 @@ export default function DatabaseExportsPage() {
           )}
           {/* /admin/enrollments verlangt config:manage (#3469); ohne das Recht
               führte der Link nur auf eine Umleitung zur Startseite. */}
-          {(isAdmin(session) || hasPermission(session, "config:manage")) && (
+          {(isAdmin(session) || hasPermission(session, "config:manage")) &&
+            onlineAnmeldungBooked && (
+              <InfoCard
+                title="Anmeldungen"
+                icon={<MotoConceptIcon concept="enrollments" size={20} />}
+              >
+                <ExportDescription>
+                  Eingegangene Anmeldungen einer Anmeldephase. Der Export gehört
+                  zur jeweiligen Phase.
+                </ExportDescription>
+                <ExportLink href="/admin/enrollments">
+                  Zu den Anmeldephasen
+                </ExportLink>
+              </InfoCard>
+            )}
+
+          {zeiterfassungBooked && (
             <InfoCard
-              title="Anmeldungen"
-              icon={<MotoConceptIcon concept="enrollments" size={20} />}
+              title="Zeitnachweis"
+              icon={<MotoConceptIcon concept="timeTracking" size={20} />}
             >
               <ExportDescription>
-                Eingegangene Anmeldungen einer Anmeldephase. Der Export gehört
-                zur jeweiligen Phase.
+                Arbeitszeiten einer Person für einen Zeitraum. Der Export gehört
+                zum jeweiligen Profil.
               </ExportDescription>
-              <ExportLink href="/admin/enrollments">
-                Zu den Anmeldephasen
-              </ExportLink>
+              <ExportLink href="/database/personal">Zum Personal</ExportLink>
             </InfoCard>
           )}
-
-          <InfoCard
-            title="Zeitnachweis"
-            icon={<MotoConceptIcon concept="timeTracking" size={20} />}
-          >
-            <ExportDescription>
-              Arbeitszeiten einer Person für einen Zeitraum. Der Export gehört
-              zum jeweiligen Profil.
-            </ExportDescription>
-            <ExportLink href="/database/personal">Zum Personal</ExportLink>
-          </InfoCard>
         </ExportSection>
       </div>
 

@@ -10,7 +10,7 @@ import (
 // set of schools, and when: the reads of audit.data_access_log and the
 // changes of the Audit ledgers that record an actor on personal data. The
 // Träger-Portal's access log reads it inside the Träger projection's
-// administrative transaction (ADR 0084 section 7, ADR 0111); every statement
+// administrative transaction (ADR 0084 section 7, ADR 0109); every statement
 // filters on the given school set, so the trail never reaches a school
 // outside it.
 

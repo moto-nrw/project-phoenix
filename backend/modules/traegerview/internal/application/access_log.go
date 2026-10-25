@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The access log of the Träger-Portal (#4655, ADR 0111). It reads the access
+// The access log of the Träger-Portal (#4655, ADR 0109). It reads the access
 // trail of the Träger's schools in the projection's administrative unit and,
 // after that unit ends, writes each answer to the access log of every school
 // it shows, in that school's tenant transaction (ADR 0084 section 7). A

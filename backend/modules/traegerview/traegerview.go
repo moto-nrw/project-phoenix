@@ -28,6 +28,10 @@ var (
 	ErrAccessLogExportTooLarge = errors.New("traeger view: the access log export has too many entries")
 )
 
+// ErrTraegerUnavailable reports a Träger that is deactivated, deleted or
+// unknown: its session reaches no school any more (#4657).
+var ErrTraegerUnavailable = errors.New("traeger view: the Träger is deactivated or deleted")
+
 // School is one school of the Träger in the school list (#4649). It carries
 // no personal data.
 type School struct {
@@ -39,8 +43,9 @@ type School struct {
 }
 
 // SchoolIDs resolves the schools of a Träger at Organisation & Tenancy: the
-// undeleted schools of an active Träger, none for any other. It joins the
-// projection's administrative transaction.
+// undeleted schools of an active Träger. Any other Träger is
+// ErrTraegerUnavailable. It joins the projection's administrative
+// transaction.
 type SchoolIDs interface {
 	ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
 }
@@ -76,7 +81,7 @@ type Overview interface {
 	AccessLogPeople(ctx context.Context, viewer Viewer, from, to calendar.Date) ([]AccessLogPerson, error)
 }
 
-// The access log of the Träger-Portal (#4655, ADR 0084 section 7, ADR 0111):
+// The access log of the Träger-Portal (#4655, ADR 0084 section 7, ADR 0109):
 // who read or changed personal data at a school of the Träger, and when.
 // Reading it is itself a read of personal data (the names of the people), so
 // every answer is written to the access log of each school it shows.

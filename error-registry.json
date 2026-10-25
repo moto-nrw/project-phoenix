@@ -1125,6 +1125,30 @@
       "legacy": "enrollment.guardian_phone_required"
     },
     {
+      "code": "enrollment.holiday_host_school_outside_traeger",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_host_school_outside_traeger"
+    },
+    {
+      "code": "enrollment.holiday_period_incomplete",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_period_incomplete"
+    },
+    {
+      "code": "enrollment.holiday_period_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_period_invalid"
+    },
+    {
+      "code": "enrollment.holiday_period_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_period_not_found"
+    },
+    {
       "code": "enrollment.invalid_email",
       "class": "input",
       "parameters": [],
@@ -2163,6 +2187,15 @@
       "legacy": "meal_registration_disabled"
     },
     {
+      "code": "module.not_booked",
+      "class": "permission",
+      "parameters": [
+        "module",
+        "module_label"
+      ],
+      "legacy": "module.not_booked"
+    },
+    {
       "code": "operator.audit_unavailable",
       "class": "unavailable",
       "parameters": [],
@@ -2393,6 +2426,30 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "provisioning.school_subdomain_taken"
+    },
+    {
+      "code": "provisioning.traeger_active",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "provisioning.traeger_active"
+    },
+    {
+      "code": "provisioning.traeger_erasure_order_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "provisioning.traeger_erasure_order_not_found"
+    },
+    {
+      "code": "provisioning.traeger_erasure_order_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "provisioning.traeger_erasure_order_open"
+    },
+    {
+      "code": "provisioning.traeger_erasure_started",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "provisioning.traeger_erasure_started"
     },
     {
       "code": "rollover.deadline_required",
@@ -4012,6 +4069,24 @@
         "limit"
       ],
       "legacy": "traeger.access_log_export_too_large"
+    },
+    {
+      "code": "traeger.already_member",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "traeger.already_member"
+    },
+    {
+      "code": "traeger.last_administrator",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "traeger.last_administrator"
+    },
+    {
+      "code": "traeger.member_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.member_not_found"
     },
     {
       "code": "traeger.no_membership",

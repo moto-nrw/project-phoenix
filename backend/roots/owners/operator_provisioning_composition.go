@@ -303,6 +303,13 @@ func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizatio
 	return err
 }
 
+// EndTraegerSessions ends the Träger sessions on the operator's transaction
+// and reports their number in the provisioning vocabulary.
+func (p ProvisioningIdentity) EndTraegerSessions(ctx context.Context, organizationID int64) (int, error) {
+	ended, err := p.Traeger.EndTraegerSessions(ctx, organizationID)
+	return int(ended), err
+}
+
 // ListTraegerAccounts reads address and Träger roles of the members.
 func (p ProvisioningIdentity) ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]organizationtenancy.TraegerAccount, error) {
 	accounts, err := p.Traeger.ListTraegerAccounts(ctx, organizationID, accountIDs)

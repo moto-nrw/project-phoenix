@@ -210,7 +210,7 @@ func reads(db DB, schools []int64, query string) {
 }
 
 // auditAccessTrailFile is the Audit Platform's access trail (#4655, ADR
-// 0111): the Träger projection calls it inside its administrative unit, so
+// 0109): the Träger projection calls it inside its administrative unit, so
 // it carries the same boundary as the projection's own queries.
 const auditAccessTrailFile = "modules/auditlog/internal/adapters/auditpostgres/access_trail.go"
 

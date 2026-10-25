@@ -7,8 +7,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -21,10 +24,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// TraegerIdentity is what the Träger-Portal needs from Identity & Access:
-// the sign-in and the Träger-Büro members' addresses.
-type TraegerIdentity interface {
+// TraegerPortalIdentity is what the Träger-Portal serves of Identity &
+// Access: the sign-in, the Träger-Büro account management and the
+// Träger-Büro members' addresses.
+type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
+	identityaccess.TraegerAccountManagement
 	identityaccess.TraegerRoles
 }
 
@@ -53,7 +58,7 @@ type TraegerAudit struct {
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit) error {
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit) error {
 	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit)
 	if err != nil {
 		return err
@@ -62,21 +67,40 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 	return nil
 }
 
-// NewTraegerPortalHTTP binds the Träger sign-in and the Träger projection to
-// the portal's route ports.
-func NewTraegerPortalHTTP(identity TraegerIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit) (*traegerportal.Resource, error) {
+// NewTraegerPortalHTTP binds the Träger sign-in, the account management, the
+// Träger projection and the holiday periods of Enrollment to the portal's
+// route ports.
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit) (*traegerportal.Resource, error) {
 	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil {
 		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail and the access log are required")
 	}
 	overview, err := traegerViewCompose.New(traegerview.Ports{
-		SchoolIDs: organizations, Trail: traegerAccessTrail{trail: audit.Trail},
+		SchoolIDs: traegerSchoolIDs{organizations: organizations}, Trail: traegerAccessTrail{trail: audit.Trail},
 		Recorder: traegerAccessRecorder{log: audit.Log}, Persons: traegerPersonDirectory{persons: persons}, Staff: traegerStaffDirectory{staff: staff},
 		Bureau: traegerBureauAddresses{roles: identity},
 	})
 	if err != nil {
 		return nil, err
 	}
-	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview), traegerViewHTTP.NewAccessLogResource(overview)), nil
+	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(),
+		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
+	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview), holidayPeriods,
+		traegerViewHTTP.NewAccessLogResource(overview), identity), nil
+}
+
+// traegerSchoolIDs binds the Träger projection's school set to Organisation &
+// Tenancy and translates a deactivated, deleted or unknown Träger into the
+// projection's contract (#4657).
+type traegerSchoolIDs struct {
+	organizations organizationtenancy.TraegerMembershipQuery
+}
+
+func (s traegerSchoolIDs) ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
+	ids, err := s.organizations.ListTraegerSchoolIDs(ctx, organizationID)
+	if errors.Is(err, organizationtenancy.ErrOrganizationInactive) || errors.Is(err, organizationtenancy.ErrOrganizationNotFound) {
+		return nil, traegerview.ErrTraegerUnavailable
+	}
+	return ids, err
 }
 
 // traegerAccessTrail binds the Audit Platform's access trail to the Träger

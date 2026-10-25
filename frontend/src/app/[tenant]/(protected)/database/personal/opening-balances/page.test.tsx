@@ -11,6 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import OpeningBalanceImportPage from "./page";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { MODULE_KEYS } from "~/lib/modules";
+import type { TenantInfo } from "~/lib/tenant-api";
+import { useBookedModules, useTenantSafe } from "~/lib/tenant-context";
 
 // Fehler einer Aktion ohne Formular kommen als Toast (#2517).
 function render(ui: ReactElement) {
@@ -41,6 +44,7 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 
 vi.mock("~/lib/auth-utils", () => ({
   hasPermission: () => true,
+  leadsSchool: () => false,
 }));
 
 vi.mock("~/lib/tenant-router", () => ({
@@ -82,6 +86,8 @@ function fillParams() {
     target: { value: "Übernahme aus Altsystem" },
   });
 }
+
+const TENANT = { tenantId: 1, slug: "demo" } as TenantInfo;
 
 function previewResponse(overrides: Record<string, unknown> = {}) {
   return {
@@ -128,6 +134,12 @@ describe("OpeningBalanceImportPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
+    vi.mocked(useTenantSafe).mockReturnValue({
+      tenantSlug: "demo",
+      tenant: TENANT,
+      routingMode: "subdomain",
+    });
+    vi.mocked(useBookedModules).mockReturnValue(MODULE_KEYS);
   });
 
   afterEach(() => {
@@ -140,6 +152,19 @@ describe("OpeningBalanceImportPage", () => {
     expect(
       screen.getByRole("link", { name: "Zurück zum Personal" }),
     ).toHaveAttribute("href", expect.stringMatching(/\/database\/personal$/));
+  });
+
+  it("sperrt den Import vor seinen Daten-Hooks ohne Zeiterfassung", () => {
+    vi.mocked(useBookedModules).mockReturnValue(
+      MODULE_KEYS.filter((key) => key !== "zeiterfassung"),
+    );
+
+    render(<OpeningBalanceImportPage />);
+
+    // Anker: Der gesperrte Seitenzustand ist gerendert.
+    expect(screen.getByText("Zeiterfassung ist nicht gebucht")).toBeVisible();
+    expect(screen.queryByTestId("upload-section")).not.toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it("rendert die vier Schritte der Seite", () => {

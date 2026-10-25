@@ -2,33 +2,33 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 
-const { mockSignOut, mockPermissions } = vi.hoisted(() => ({
+const { mockSignOut, mockPush, sessionUser } = vi.hoisted(() => ({
   mockSignOut: vi.fn(),
-  mockPermissions: { current: [] as string[] },
+  mockPush: vi.fn(),
+  sessionUser: {
+    email: "buero@traeger.example",
+    permissions: [] as string[],
+  },
+}));
+
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  usePathname: () => "/",
+  useRouter: () => ({ push: mockPush }),
 }));
 
 vi.mock("next-auth/react", () => ({
   signOut: mockSignOut,
   useSession: () => ({
-    data: {
-      user: {
-        email: "buero@traeger.example",
-        permissions: mockPermissions.current,
-      },
-    },
+    data: { user: sessionUser },
     status: "authenticated",
   }),
-}));
-vi.mock("next/navigation", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("next/navigation")>()),
-  usePathname: () => "/access-log",
 }));
 
 import { TraegerShell } from "./traeger-shell";
 
 describe("TraegerShell", () => {
   beforeEach(() => {
-    mockPermissions.current = [];
     mockSignOut.mockReset();
     mockSignOut.mockResolvedValue(undefined);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null)));
@@ -66,22 +66,75 @@ describe("TraegerShell", () => {
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
   });
 
-  // #4655: the access log is a link only for those who may read it.
-  it("links the access log only with the right to read it", () => {
+  it("offers the holiday periods only to a role that manages enrollment", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
     const { unmount } = render(
       <TraegerShell>
         <p>Inhalt</p>
       </TraegerShell>,
     );
-    const nav = screen.getByRole("navigation", { name: "Bereiche" });
-    expect(screen.getByRole("link", { name: "Schulen" })).toHaveAttribute(
-      "href",
-      "/",
-    );
-    expect(nav).not.toHaveTextContent("Zugriffsprotokoll");
+    expect(screen.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ferien" })).toBeNull();
     unmount();
 
-    mockPermissions.current = [
+    sessionUser.permissions = ["traeger_enrollment:manage"];
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Ferien" })[0]!);
+    expect(mockPush).toHaveBeenCalledWith("/ferien");
+    sessionUser.permissions = [];
+  });
+
+  // #4650: the page "Personen" exists only for the right to manage accounts.
+  it("offers the page Personen only with the right to manage accounts", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    expect(screen.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Personen" })).toBeNull();
+    unmount();
+
+    sessionUser.permissions = [
+      "traeger_overview:read",
+      "traeger_accounts:manage",
+    ];
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Personen" })[0]!);
+    expect(mockPush).toHaveBeenLastCalledWith("/accounts");
+    expect(screen.queryByRole("button", { name: "Ferien" })).toBeNull();
+    sessionUser.permissions = [];
+  });
+
+  // #4655: the access log is a tab only for those who may read it.
+  it("offers the access log only with the right to read it", () => {
+    sessionUser.permissions = [
+      "traeger_overview:read",
+      "traeger_enrollment:manage",
+    ];
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    expect(
+      screen.getAllByRole("button", { name: "Ferien" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Zugriffsprotokoll" }),
+    ).toBeNull();
+    unmount();
+
+    sessionUser.permissions = [
       "traeger_overview:read",
       "traeger_access_log:read",
     ];
@@ -90,8 +143,10 @@ describe("TraegerShell", () => {
         <p>Inhalt</p>
       </TraegerShell>,
     );
-    const link = screen.getByRole("link", { name: "Zugriffsprotokoll" });
-    expect(link).toHaveAttribute("href", "/access-log");
-    expect(link).toHaveAttribute("aria-current", "page");
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Zugriffsprotokoll" })[0]!,
+    );
+    expect(mockPush).toHaveBeenLastCalledWith("/access-log");
+    sessionUser.permissions = [];
   });
 });
