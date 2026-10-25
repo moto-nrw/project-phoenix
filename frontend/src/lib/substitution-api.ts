@@ -178,27 +178,7 @@ class SubstitutionService {
     activeGroupId: string,
     targetStaffId: string,
   ): Promise<{ id: string; targetName: string }> {
-    const response = await sessionFetch("/api/substitutions", {
-      method: "POST",
-      credentials: "include",
-      body: JSON.stringify({
-        type: "additional_supervision",
-        additional_supervision: {
-          active_group_id: activeGroupId,
-          target_staff_id: targetStaffId,
-        },
-      }),
-    });
-    if (!response.ok) {
-      throw await apiErrorFromResponse(
-        response,
-        "additional supervision failed",
-      );
-    }
-    const envelope =
-      (await response.json()) as SubstitutionProxyEnvelope<BackendAdditionalSupervisionResult>;
-    const body = unwrapSubstitutionProxyEnvelope(envelope);
-    return { id: body.id.toString(), targetName: body.target.full_name };
+    return this.postAdditionalSupervision(activeGroupId, targetStaffId, false);
   }
 
   /**
@@ -210,6 +190,14 @@ class SubstitutionService {
     activeGroupId: string,
     targetStaffId: string,
   ): Promise<{ id: string; targetName: string }> {
+    return this.postAdditionalSupervision(activeGroupId, targetStaffId, true);
+  }
+
+  private async postAdditionalSupervision(
+    activeGroupId: string,
+    targetStaffId: string,
+    handOver: boolean,
+  ): Promise<{ id: string; targetName: string }> {
     const response = await sessionFetch("/api/substitutions", {
       method: "POST",
       credentials: "include",
@@ -218,12 +206,17 @@ class SubstitutionService {
         additional_supervision: {
           active_group_id: activeGroupId,
           target_staff_id: targetStaffId,
-          hand_over: true,
+          ...(handOver ? { hand_over: true } : {}),
         },
       }),
     });
     if (!response.ok) {
-      throw await apiErrorFromResponse(response, "supervision handover failed");
+      throw await apiErrorFromResponse(
+        response,
+        handOver
+          ? "supervision handover failed"
+          : "additional supervision failed",
+      );
     }
     const envelope =
       (await response.json()) as SubstitutionProxyEnvelope<BackendAdditionalSupervisionResult>;

@@ -127,6 +127,8 @@ func TestSupervisionHandOverMovesOnlyTheRunningSupervision(t *testing.T) {
 	commit()
 
 	require.Equal(t, []int64{f.targetStaff}, f.currentSupervisors(t))
+	require.Equal(t, "supervisor", testpkg.GroupSupervisorRowByID(t, f.db, result.ID).Role,
+		"the target takes over the role the owner held")
 	owner := testpkg.GroupSupervisorRowByID(t, f.db, f.ownerRow)
 	require.NotNil(t, owner.EndDate, "the hand-over ends the owner's supervision instead of deleting it")
 	f.requireSessionUntouched(t)
@@ -190,6 +192,10 @@ func TestSupervisionHandOverAndReleaseNeedOwnSupervision(t *testing.T) {
 	ownerCaller := substitutionCaller(t, f.ownerAccount, false)
 	_, err := f.handOver(t, ctx, ownerCaller, f.ownerStaff)
 	require.ErrorIs(t, err, ErrSelfAssignment)
+	// Only someone „Betreuer hinzufügen“ could add may take over.
+	unverified := testpkg.CreateTestStaff(t, f.db, "Unverified", "Staff")
+	_, err = f.handOver(t, ctx, ownerCaller, unverified.ID)
+	require.ErrorIs(t, err, ErrNotFound)
 	_, err = f.handOver(t, ctx, ownerCaller, f.targetStaff)
 	require.ErrorIs(t, err, ErrAlreadyAssigned)
 
@@ -215,4 +221,47 @@ func TestSupervisionReleaseWithoutPresenceBindingIsRefused(t *testing.T) {
 	err := testpkg.TenantCommand2(t, testpkg.Ctx(t), db, module.End, substitutionCaller(t, accountID, false),
 		EndRequest{Type: TargetAdditionalSupervision, ID: 1})
 	require.ErrorIs(t, err, ErrInvalidTarget)
+}
+
+func TestSupervisionReleaseSerializesConcurrentReleases(t *testing.T) {
+	t.Parallel()
+	f := newSupervisionHandoverFixture(t)
+	testpkg.CreateTestGroupSupervisor(t, f.db, f.targetStaff, f.running, "additional_supervisor")
+
+	holder, err := f.db.BeginTx(testpkg.Ctx(t), nil)
+	require.NoError(t, err)
+	var lockedID int64
+	require.NoError(t, holder.NewSelect().TableExpr(`active.groups AS "group"`).
+		ColumnExpr(`"group".id`).Where(`"group".id = ?`, f.running).
+		For("UPDATE").Scan(testpkg.Ctx(t), &lockedID))
+
+	results := make(chan error, 2)
+	for _, accountID := range []int64{f.ownerAccount, f.targetAcct} {
+		caller := substitutionCaller(t, accountID, false)
+		go func() { results <- f.release(t, testpkg.Ctx(t), caller) }()
+	}
+	select {
+	case err := <-results:
+		t.Fatalf("a release returned while the session row was locked: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+	require.NoError(t, holder.Commit())
+
+	var released, refused int
+	for range 2 {
+		select {
+		case err := <-results:
+			if err == nil {
+				released++
+				continue
+			}
+			require.ErrorIs(t, err, schoolStructureCompose.ErrConflict)
+			refused++
+		case <-time.After(5 * time.Second):
+			t.Fatal("a release did not resume after the lock was released")
+		}
+	}
+	require.Equal(t, 1, released, "exactly one supervisor may leave")
+	require.Equal(t, 1, refused, "the other stays as the last supervisor")
+	require.Len(t, f.currentSupervisors(t), 1)
 }

@@ -1552,9 +1552,9 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         // #4763: ändert nur die laufende Aufsicht, nie die Planung.
         title: "Die Aufsicht übergeben oder abgeben",
         steps: [
-          "Wählen Sie in Ihrer laufenden Aufsicht `Aufsicht abgeben`.",
-          "Übernimmt eine andere Person? Wählen Sie `An jemanden übergeben`, dann die Person unter `An wen übergeben Sie?` und `Übergeben`.",
-          "Es bleibt schon jemand im Raum? Wählen Sie `Ohne Übergabe abgeben` und dann `Abgeben`.",
+          "Wählen Sie in Ihrer laufenden Aufsicht `Aufsicht übergeben`.",
+          "Übernimmt eine andere Person? Wählen Sie `An Person übergeben`, dann die Person unter `An wen übergeben Sie?` und `Übergeben`.",
+          "Bleibt schon jemand anderes als Aufsicht im Raum? Wählen Sie `Aufsicht abgeben` und dann `Abgeben`.",
           "Die Kinder bleiben im Raum und die Aktivität läuft weiter. Die Planung ändert sich nicht.",
         ],
       },

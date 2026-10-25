@@ -72,7 +72,10 @@ vi.mock("~/components/ui/custom-select", () => ({
   ),
 }));
 
-import { HandOverSupervisionModal } from "./hand-over-supervision-modal";
+import {
+  HandOverSupervisionButton,
+  HandOverSupervisionModal,
+} from "./hand-over-supervision-modal";
 
 const overview = {
   id: "41",
@@ -103,10 +106,29 @@ function renderModal(props: { onDone?: () => Promise<unknown> } = {}) {
 }
 
 function chooseRelease() {
-  fireEvent.click(
-    screen.getByRole("button", { name: "Ohne Übergabe abgeben" }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: "Aufsicht abgeben" }));
 }
+
+describe("HandOverSupervisionButton", () => {
+  it("opens the dialog for the supervised session only", () => {
+    const onHandOver = vi.fn();
+    const { rerender } = render(
+      <HandOverSupervisionButton activeGroupId="41" onHandOver={onHandOver} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Aufsicht übergeben" }));
+    expect(onHandOver).toHaveBeenCalledWith("41");
+
+    rerender(
+      <HandOverSupervisionButton
+        activeGroupId={null}
+        onHandOver={onHandOver}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Aufsicht übergeben" }),
+    ).not.toBeInTheDocument();
+  });
+});
 
 describe("HandOverSupervisionModal", () => {
   beforeEach(() => {
@@ -149,7 +171,9 @@ describe("HandOverSupervisionModal", () => {
 
     await screen.findByLabelText("An wen übergeben Sie?");
     chooseRelease();
-    expect(screen.getByText(/Bea Bleibt/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Weiter in der Aufsicht:/).closest("p"),
+    ).toHaveTextContent("Weiter in der Aufsicht: Bea Bleibt");
     expect(screen.queryByText(/Alex Alt/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Abgeben" }));
 
@@ -189,7 +213,7 @@ describe("HandOverSupervisionModal", () => {
 
     expect(
       await screen.findByText(
-        "Sie beaufsichtigen diese Aktivität nicht mehr. Deshalb können Sie die Aufsicht nicht abgeben.",
+        "Sie beaufsichtigen diese Aktivität nicht mehr. Deshalb können Sie die Aufsicht nicht übergeben.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Übergeben" })).toBeDisabled();

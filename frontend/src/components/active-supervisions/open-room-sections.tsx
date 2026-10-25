@@ -6,7 +6,7 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { ArrowLeftRight, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import { ActiveSupervisionLoadingView } from "~/components/active-supervisions/states";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
+import { HandOverSupervisionButton } from "~/components/active-supervisions/hand-over-supervision-modal";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
 import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
 import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
@@ -55,7 +56,7 @@ export type OpenRoomBlockContext = Omit<
   /** The school-wide overview lets the caller read every running roster. */
   readonly overviewEnabled: boolean;
   readonly onAddSupervisor: (activeGroupId: string) => void;
-  /** Opens „Aufsicht abgeben“ for a session the caller supervises (#4763). */
+  /** Opens „Aufsicht übergeben“ for a session the caller supervises (#4763). */
   readonly onHandOver: (activeGroupId: string) => void;
   /** Makes each loaded block's groups available to the page's common filters. */
   readonly onRosterGroups?: (
@@ -230,31 +231,9 @@ function AddSupervisorButton({
   );
 }
 
-function HandOverButton({
-  activeGroupId,
-  onHandOver,
-}: Readonly<{
-  activeGroupId: string | null;
-  onHandOver: (activeGroupId: string) => void;
-}>) {
-  if (!activeGroupId) return null;
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="md"
-      className="bg-white"
-      onClick={() => onHandOver(activeGroupId)}
-    >
-      <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-      Aufsicht abgeben
-    </Button>
-  );
-}
-
 /**
  * The section's head actions: „Betreuer hinzufügen“ where the caller may
- * assign, „Aufsicht abgeben“ where they supervise the session (#4763).
+ * assign, „Aufsicht übergeben“ where they supervise the session (#4763).
  */
 function sectionActions(
   assignableSessionId: string | null,
@@ -269,9 +248,10 @@ function sectionActions(
         activeGroupId={assignableSessionId}
         onAddSupervisor={onAddSupervisor}
       />
-      <HandOverButton
+      <HandOverSupervisionButton
         activeGroupId={supervisedSessionId}
         onHandOver={onHandOver}
+        className="bg-white"
       />
     </>
   );
@@ -498,8 +478,8 @@ function OpenRoomOccupancy({
       actions={
         sectionActions(
           section.assignableSessionId,
-          // The room's own session („Ohne Angebot“) keeps its own head
-          // actions; a single other session is handed over here.
+          // „Ohne Angebot“ collects several stays and names no single
+          // session to hand over; another session is handed over here.
           !section.independent && section.isOwn
             ? (section.activeGroupIds[0] ?? null)
             : null,

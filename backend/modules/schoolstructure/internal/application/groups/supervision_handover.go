@@ -46,8 +46,9 @@ func (s *substitutionModule) handOverSupervision(
 	if actor.StaffID == request.TargetStaffID {
 		return nil, ErrSelfAssignment
 	}
-	// Without admin access the lock requires the caller to supervise the
-	// session; a caller who does not is refused as forbidden.
+	// The target takes over the caller's role. Without admin access the lock
+	// requires the caller to supervise the session; a caller who does not is
+	// refused as forbidden.
 	created, target, err := s.assignAdditionalSupervisionLocked(ctx, caller, substitutionAccess{actor: actor}, true, request)
 	if err != nil {
 		return nil, err

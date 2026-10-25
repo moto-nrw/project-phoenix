@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
-import { ArrowLeftRight, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
@@ -91,7 +91,10 @@ import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
-import { HandOverSupervisionModal } from "~/components/active-supervisions/hand-over-supervision-modal";
+import {
+  HandOverSupervisionButton,
+  HandOverSupervisionModal,
+} from "~/components/active-supervisions/hand-over-supervision-modal";
 import { OwnSupervisionView } from "~/components/active-supervisions/own-supervision-view";
 
 function hasSameGroupNames(
@@ -508,16 +511,11 @@ function MeinRaumPageContent() {
       ? additionalSupervisionActiveGroupId
       : null;
   const handOverButton = handOverActiveGroupId ? (
-    <Button
-      type="button"
-      variant="outline"
-      size="md"
-      onClick={() => setHandOverTarget(handOverActiveGroupId)}
+    <HandOverSupervisionButton
+      activeGroupId={handOverActiveGroupId}
+      onHandOver={setHandOverTarget}
       className="gap-2"
-    >
-      <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-      Aufsicht abgeben
-    </Button>
+    />
   ) : null;
 
   const addSupervisorButton = additionalSupervisionActiveGroupId ? (

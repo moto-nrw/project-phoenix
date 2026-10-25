@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeftRight } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -15,23 +16,23 @@ import {
   SegmentedControl,
   type SegmentedControlItem,
 } from "~/components/ui/segmented-control";
-import {
-  useApiFormError,
-  useApiLoadError,
-  useToast,
-} from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { externalStaffNote } from "~/lib/staff-helpers";
 import { substitutionService } from "~/lib/substitution-api";
 import type { RunningSupervision } from "~/lib/substitution-helpers";
+import {
+  supervisionTargetLabel,
+  useRunningSupervision,
+  type SupervisionTarget,
+} from "~/components/active-supervisions/running-supervision";
 
 const logger = createLogger({ component: "HandOverSupervisionModal" });
 
 type Mode = "hand-over" | "release";
 
 const MODE_ITEMS: readonly SegmentedControlItem<Mode>[] = [
-  { value: "hand-over", label: "An jemanden übergeben" },
-  { value: "release", label: "Ohne Übergabe abgeben" },
+  { value: "hand-over", label: "An Person übergeben" },
+  { value: "release", label: "Aufsicht abgeben" },
 ];
 
 interface HandOverSupervisionModalProps {
@@ -42,51 +43,6 @@ interface HandOverSupervisionModalProps {
   readonly onClose: () => void;
   /** Reloads the page and the sidebar after the caller left the session. */
   readonly onDone: () => Promise<unknown>;
-}
-
-type SupervisionTarget = RunningSupervision["availableTargets"][number];
-
-function useRunningSupervision(activeGroupId: string | null, isOpen: boolean) {
-  const [overview, setOverview] = useState<RunningSupervision | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  // Erhöht von „Wiederholen“: lädt die Aufsicht erneut.
-  const [attempt, setAttempt] = useState(0);
-  const {
-    error: loadError,
-    show: showLoadError,
-    clear: clearLoadError,
-  } = useApiLoadError();
-  useEffect(() => {
-    if (!isOpen || !activeGroupId) return;
-    let current = true;
-    setOverview(null);
-    clearLoadError();
-    setIsLoading(true);
-    void substitutionService
-      .fetchRunningSupervision(activeGroupId)
-      .then((result) => current && setOverview(result))
-      .catch((cause: unknown) => {
-        logger.error("running_supervision_load_failed", {
-          error: cause instanceof Error ? cause.message : String(cause),
-        });
-        if (current)
-          void showLoadError(cause, {
-            object: "die laufende Aufsicht",
-            retry: () => setAttempt((value) => value + 1),
-          });
-      })
-      .finally(() => current && setIsLoading(false));
-    return () => {
-      current = false;
-    };
-  }, [activeGroupId, isOpen, attempt, showLoadError, clearLoadError]);
-  return { overview, loadError, isLoading };
-}
-
-// Wie in „Betreuer hinzufügen“: „Name (Extern · Musikschule)“.
-function targetLabel(target: SupervisionTarget): string {
-  const note = externalStaffNote(target);
-  return note ? `${target.fullName} (${note})` : target.fullName;
 }
 
 function useSupervisionChange(
@@ -186,7 +142,7 @@ function HandOverFields({
         placeholder="Person auswählen..."
         options={targets.map((target) => ({
           value: target.id,
-          label: targetLabel(target),
+          label: supervisionTargetLabel(target),
         }))}
       />
     </div>
@@ -203,9 +159,7 @@ function ReleaseFields({ others }: { others: readonly string[] }) {
     );
   return (
     <p className="text-sm text-gray-700">
-      <span className="font-medium text-gray-900">
-        Die Aufsicht führen weiter:
-      </span>{" "}
+      <span className="font-medium text-gray-900">Weiter in der Aufsicht:</span>{" "}
       {others.join(", ")}
     </p>
   );
@@ -235,7 +189,7 @@ function ModalBody(props: {
       {overview && !overview.isCurrentUserSupervising ? (
         <Alert
           type="info"
-          message="Sie beaufsichtigen diese Aktivität nicht mehr. Deshalb können Sie die Aufsicht nicht abgeben."
+          message="Sie beaufsichtigen diese Aktivität nicht mehr. Deshalb können Sie die Aufsicht nicht übergeben."
         />
       ) : null}
       {overview?.isCurrentUserSupervising ? (
@@ -302,12 +256,44 @@ function ModalFooter(props: {
 }
 
 /**
- * „Aufsicht abgeben“ in a running room supervision (#4763): hand it over to
+ * The head and section action that opens the dialog below, for a session the
+ * caller supervises (#4763).
+ */
+export function HandOverSupervisionButton({
+  activeGroupId,
+  onHandOver,
+  className,
+}: Readonly<{
+  activeGroupId: string | null;
+  onHandOver: (activeGroupId: string) => void;
+  className?: string;
+}>) {
+  if (!activeGroupId) return null;
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      className={className}
+      onClick={() => onHandOver(activeGroupId)}
+    >
+      <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+      Aufsicht übergeben
+    </Button>
+  );
+}
+
+/**
+ * „Aufsicht übergeben“ in a running room supervision (#4763): hand it over to
  * someone „Betreuer hinzufügen“ could add, or leave while another supervisor
  * stays. Only the running supervision changes, never the planning.
  */
 export function HandOverSupervisionModal(props: HandOverSupervisionModalProps) {
-  const state = useRunningSupervision(props.activeGroupId, props.isOpen);
+  const state = useRunningSupervision(
+    props.activeGroupId,
+    props.isOpen,
+    "die laufende Aufsicht",
+  );
   const [mode, setMode] = useState<Mode>("hand-over");
   const [selectedStaffId, setSelectedStaffId] = useState("");
   useEffect(() => {
@@ -328,7 +314,7 @@ export function HandOverSupervisionModal(props: HandOverSupervisionModalProps) {
     <Modal
       isOpen={props.isOpen}
       onClose={props.onClose}
-      title="Aufsicht abgeben"
+      title="Aufsicht übergeben"
       mobileSheet
       footer={
         <ModalFooter

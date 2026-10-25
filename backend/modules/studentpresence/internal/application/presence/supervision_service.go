@@ -179,6 +179,11 @@ func (s *service) ReleaseSupervision(ctx context.Context, activeGroupID, staffID
 // releaseSupervisionLocked ends the staff member's supervision under the
 // session row lock and re-reads the ended row.
 func (s *service) releaseSupervisionLocked(ctx context.Context, activeGroupID, staffID int64) (*ports.GroupSupervisor, error) {
+	// Outside a unit of work the row lock would not hold, and two releases
+	// could both pass the last-supervisor check.
+	if err := tenant.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
 	if _, err := s.lockActiveGroupOpenForUpdate(ctx, activeGroupID); err != nil {
 		if IsNoRows(err) {
 			return nil, ErrActiveGroupNotFound
@@ -187,7 +192,7 @@ func (s *service) releaseSupervisionLocked(ctx context.Context, activeGroupID, s
 	}
 	supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
 	if err != nil {
-		return nil, ErrDatabaseOperation
+		return nil, fmt.Errorf("%w: read supervisors: %w", ErrDatabaseOperation, err)
 	}
 	own, others := releasedSupervision(supervisors, staffID)
 	if own == nil {
@@ -200,8 +205,11 @@ func (s *service) releaseSupervisionLocked(ctx context.Context, activeGroupID, s
 		return nil, fmt.Errorf("end supervision failed: %w", err)
 	}
 	ended, err := s.SupervisorRepo.FindByID(ctx, own.ID)
-	if err != nil || ended == nil {
+	if err != nil {
 		return nil, fmt.Errorf("reread ended supervision: %w", err)
+	}
+	if ended == nil {
+		return nil, ErrGroupSupervisorNotFound
 	}
 	return ended, nil
 }
