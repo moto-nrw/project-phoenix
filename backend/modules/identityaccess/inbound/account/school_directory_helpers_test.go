@@ -28,7 +28,12 @@ func (d testSchoolDirectory) GetSchoolByID(ctx context.Context, id int64) (*auth
 
 func (d testSchoolDirectory) GetSchoolBySubdomain(ctx context.Context, subdomain string) (*authAPI.TenantSchool, error) {
 	ctx = tenant.WithUnitOfWork(ctx, d.runtime)
-	return d.find(ctx, func() (organizationtenancy.School, error) { return d.schools.FindSchoolBySubdomain(ctx, subdomain) })
+	school, err := d.find(ctx, func() (organizationtenancy.School, error) { return d.schools.FindSchoolBySubdomain(ctx, subdomain) })
+	if err != nil || school == nil {
+		return school, err
+	}
+	school.TraegerName, err = d.schools.FindVisibleTraegerName(ctx, school.OrganizationID)
+	return school, err
 }
 
 func (d testSchoolDirectory) ListPublicSchools(ctx context.Context) ([]authAPI.TenantSchool, error) {

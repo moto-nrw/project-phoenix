@@ -8,7 +8,8 @@ import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import { HomeCardLink } from "~/components/home/home-card-rows";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
-import { useTenantSafe } from "~/lib/tenant-context";
+import { isScopeBooked, PAGE_MODULES } from "~/lib/module-register";
+import { useBookedModules, useTenantSafe } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 /**
@@ -22,7 +23,10 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 export function MessagesBlock() {
   const tenantPath = useTenantAwarePath();
   const tenant = useTenantSafe()?.tenant;
-  const parentsEnabled = tenant?.messagingEnabled === true;
+  const bookedModules = useBookedModules();
+  const parentsEnabled =
+    tenant?.messagingEnabled === true &&
+    isScopeBooked(PAGE_MODULES["/messages"], bookedModules);
   const teamEnabled = tenant?.staffMessagingEnabled === true;
   const parents = useMessagesUnread();
   const team = useStaffMessagesUnread();

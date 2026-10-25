@@ -122,6 +122,9 @@ type Dependencies struct {
 	// SupervisionSheets serves the per-child supervision sheet of the school
 	// portal (#2527). Only SchoolSupervisionRouter consumes it.
 	SupervisionSheets SupervisionSheets
+	// HomeworkFeedback stores the OGS feedback on a child's homework from a
+	// Lernzeit roster (#4796); without it the feedback route answers 500.
+	HomeworkFeedback HomeworkFeedbackRecorder
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
 	PlanExportService planexport.Service
 	PlanningTracks    timetable.PlanningTrackAdministration

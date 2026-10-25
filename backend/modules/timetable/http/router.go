@@ -282,6 +282,10 @@ func (rs *Resource) mountOperationRoutes(r chi.Router, withTx common.Middleware)
 			Post("/instances/{id}/students/{student_id}/check-out", rs.operationsCheckOutStudent)
 		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))).
 			Patch("/instances/{id}/students/{student_id}/attendance", rs.operationsPatchAttendance)
+		// Homework feedback of a Lernzeit block (#4796): bounded by the
+		// roster the caller may see, like the supervision sheet.
+		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
+			Put("/instances/{id}/students/{student_id}/homework-feedback", rs.operationsPutHomeworkFeedback)
 	})
 }
 

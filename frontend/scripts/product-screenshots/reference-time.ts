@@ -4,19 +4,20 @@ import {
   parseISODate,
 } from "../../src/lib/date-helpers";
 
-// Der Referenzzeitpunkt der Produkt-Screenshots (#3759): ein Werktag, 10:15 Uhr
-// Berlin. Die Browser-Uhr steht bei jedem Bild darauf, damit Datum und Uhrzeit
-// überall gleich und plausibel sind. Das Seed-Profil `marketing` legt seine
-// Wochenpläne relativ zu dieser Uhrzeit an (marketingReferenceClock in
-// backend/seed/api); beide Werte ändern sich nur gemeinsam.
-const REFERENCE_CLOCK = "10:15";
+// Der Referenzzeitpunkt der Produkt-Screenshots (#3759): ein Werktag, 13:30 Uhr
+// Berlin, mitten im Nachmittag der OGS. Die Browser-Uhr steht bei jedem Bild
+// darauf, damit Datum und Uhrzeit überall gleich und plausibel sind. Der
+// Workflow stellt die Uhr der VM vor dem Seed auf Dienstag 12:00; Anwesenheit
+// und Nachrichten tragen dann Zeiten von kurz nach 12 Uhr, wenn die Kinder
+// laut Wochenplan nach dem Unterricht ankommen.
+const REFERENCE_CLOCK = "13:30";
 
 function isWeekend(day: Date): boolean {
   return day.getDay() === 0 || day.getDay() === 6;
 }
 
 /**
- * Der heutige Berliner Werktag um 10:15, auch wenn 10:15 noch bevorsteht.
+ * Der heutige Berliner Werktag um 13:30, auch wenn 13:30 noch bevorsteht.
  * Am Wochenende der Freitag davor.
  *
  * Warum der heutige Tag: Der Server rendert mit seiner echten Uhr, die

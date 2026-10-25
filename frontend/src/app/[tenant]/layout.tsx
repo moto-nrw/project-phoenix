@@ -27,6 +27,7 @@ interface TenantResolveResponse {
   subdomain: string;
   organization_id: number;
   organization_name: string;
+  traeger_name?: string;
   hidden?: boolean;
   settings: TenantSettings;
   presence_mode?: string;
@@ -119,6 +120,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     subdomain: data.subdomain,
     organizationId: data.organization_id,
     organizationName: data.organization_name,
+    traegerName: data.traeger_name,
     hidden: data.hidden === true,
     settings: data.settings ?? {},
     presenceMode: normalizePresenceMode(data.presence_mode),

@@ -14,6 +14,12 @@ export interface PlanningSubPage {
   readonly legacyPrefixes: readonly string[];
   readonly showInMobileNav: boolean;
   readonly nonAdminPermission?: string;
+  /**
+   * Die Seite gehört zum Betreuungsplan und verschwindet, wenn die Schule
+   * ihn ausschaltet (`timetable.enabled`). Dienstplan und Abrechnung hängen
+   * nicht daran: sie folgen ihren Modulen (#4894).
+   */
+  readonly requiresTimetable: boolean;
 }
 
 /**
@@ -34,6 +40,7 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Betreuungsplan",
     legacyPrefixes: ["/timetables"],
     showInMobileNav: true,
+    requiresTimetable: true,
     // Der Planungsbereich gehört der Leitung: wer den Plan bearbeiten darf
     // (schedules:manage, das Recht der Schreibrouten), sieht den Eintrag, ob
     // Admin oder eine eigene Leitungsrolle der Schule (#3469). Alle anderen
@@ -46,6 +53,7 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Dienstplan",
     legacyPrefixes: ["/staff/dienstplan"],
     showInMobileNav: true,
+    requiresTimetable: false,
     // Schichten schreibt das Backend mit time_tracking:manage; dieselbe
     // Schranke öffnet den Eintrag und das Bearbeiten in der Ansicht.
     nonAdminPermission: "time_tracking:manage",
@@ -59,6 +67,7 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Vertretungsplan",
     legacyPrefixes: ["/vertretungsplan"],
     showInMobileNav: true,
+    requiresTimetable: true,
     nonAdminPermission: "schedules:manage",
   },
   {
@@ -71,6 +80,7 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Tageslisten",
     legacyPrefixes: [],
     showInMobileNav: true,
+    requiresTimetable: true,
     nonAdminPermission: "schedules:manage",
   },
   {
@@ -83,6 +93,7 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Schuljahr und Kalender",
     legacyPrefixes: [],
     showInMobileNav: true,
+    requiresTimetable: false,
     nonAdminPermission: "schedules:manage",
   },
   {
@@ -94,6 +105,7 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     label: "Abrechnung",
     legacyPrefixes: [],
     showInMobileNav: true,
+    requiresTimetable: false,
     nonAdminPermission: "config:manage",
   },
 ];

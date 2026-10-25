@@ -286,6 +286,12 @@ func (s *AccountAuthentication) createRefreshSession(ctx context.Context, accoun
 func (s *AccountAuthentication) createRefreshSessionGuarded(ctx context.Context, account domain.LoginAccount, tenantID int64, scope string, guard mintGuard, retireFamilyID string, verified ...bool) (domain.AccountSession, error) {
 	session := s.newRefreshSession(account.ID, scope)
 	session.MFAVerified = len(verified) > 0 && verified[0]
+	return s.persistNewSession(ctx, account, session, tenantID, guard, retireFamilyID)
+}
+
+// persistNewSession writes a freshly minted session, retrying with a new
+// family only for token-family collisions of concurrent logins.
+func (s *AccountAuthentication) persistNewSession(ctx context.Context, account domain.LoginAccount, session domain.AccountSession, tenantID int64, guard mintGuard, retireFamilyID string) (domain.AccountSession, error) {
 	const maxRetries = 3
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		stored, err := s.persistSessionInTransaction(ctx, account, session, tenantID, guard, retireFamilyID)
@@ -590,8 +596,8 @@ func (s *AccountAuthentication) resolveAccountTenant(ctx context.Context, accoun
 }
 
 // resolveAccountTenantBySlug resolves the school by subdomain and verifies
-// access: an org-scope caller reaches every school of its organization, a
-// tenant-scope caller needs an active mapping.
+// access: the account needs an active mapping. A Träger session reaches no
+// school this way (ADR 0084); its switch into a school is #4654.
 func (s *AccountAuthentication) resolveAccountTenantBySlug(ctx context.Context, accountID int64, tenantSlug string) (int64, int64, error) {
 	school, found, err := s.schools.FindSchoolBySubdomain(ctx, tenantSlug)
 	if err != nil {
@@ -620,19 +626,6 @@ func (s *AccountAuthentication) resolveAccountTenantBySlug(ctx context.Context, 
 			slog.String("tenant_slug", tenantSlug),
 			slog.Int64("tenant_id", school.ID))
 		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantNotFound)
-	}
-	callerScope := s.runtime.Scope(ctx)
-	callerOrgID := s.runtime.OrgID(ctx)
-	if callerScope == domain.ScopeOrg && callerOrgID > 0 {
-		if school.OrganizationID == callerOrgID {
-			return school.ID, school.OrganizationID, nil
-		}
-		s.logger.Warn("org-scope account tried to access school outside their organization",
-			slog.Int64("account_id", accountID),
-			slog.Int64("school_org_id", school.OrganizationID),
-			slog.Int64("caller_org_id", callerOrgID),
-			slog.String("tenant_slug", tenantSlug))
-		return 0, 0, failed("resolve tenant", identityaccess.ErrTenantAccessDenied)
 	}
 	exists, _, err := s.store.HasActiveAccountTenant(ctx, accountID, school.ID)
 	if err != nil {
@@ -703,6 +696,7 @@ func buildClaims(account domain.LoginAccount, session domain.AccountSession, met
 		AccountID: account.ID,
 		Token:     session.Token,
 		TenantID:  metadata.TenantID,
+		OrgID:     session.OrganizationID,
 		Scope:     metadata.Scope,
 		ExpiresAt: session.Expiry.Unix(),
 	}

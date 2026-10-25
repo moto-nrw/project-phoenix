@@ -106,7 +106,19 @@ function schoolTitleForPath(pathname: string): string | null {
   ) {
     return "Tagesinformationen";
   }
+  // Kalender in moto schule (#4798).
+  if (pathname === "/kalender" || pathname === "/school/kalender") {
+    return "Kalender";
+  }
   return null;
+}
+
+// In moto schule arbeiten Lehrkräfte und die Schulverwaltung (#4789);
+// Sekretariat und Schulleitung sollen nicht als Lehrkraft beschriftet sein.
+function schoolRoleLabel(roles: readonly string[]): string {
+  return roles.some((role) => role.trim().toLowerCase() === "schulverwaltung")
+    ? "Schulverwaltung"
+    : "Lehrkraft";
 }
 
 export function Header() {
@@ -238,7 +250,7 @@ export function Header() {
       : mode === "parent"
         ? tParentNav("role")
         : mode === "school"
-          ? "Lehrkraft"
+          ? schoolRoleLabel(userRoles)
           : getAccountRoleLabel(userRoles, user?.roleIsSystem);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
@@ -337,6 +349,7 @@ export function Header() {
                 href={homeUrl}
                 label={brandLabel}
                 hideLabelBelow="md"
+                traegerName={tenantContext?.tenant?.traegerName}
               />
             ) : (
               <BrandLink

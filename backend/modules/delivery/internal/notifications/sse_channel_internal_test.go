@@ -40,6 +40,8 @@ func (f *fakeGuardianAccess) FilterAccountsWithStudentAccess(_ context.Context, 
 // an internal test of this package cannot reach without an import cycle.
 type recordingGuardianBroadcaster struct {
 	guardians []int64
+	staff     []int64
+	schools   []int64
 	err       error
 }
 
@@ -63,10 +65,12 @@ func (b *recordingGuardianBroadcaster) BroadcastParentMessage(int64, int64, real
 	return nil
 }
 
-func (b *recordingGuardianBroadcaster) BroadcastToStaffAccounts(int64, []int64, realtime.Event) error {
+func (b *recordingGuardianBroadcaster) BroadcastToStaffAccounts(_ int64, accountIDs []int64, _ realtime.Event) error {
+	b.staff = append(b.staff, accountIDs...)
 	return nil
 }
-func (b *recordingGuardianBroadcaster) BroadcastToSchoolAccounts(int64, []int64, realtime.Event) error {
+func (b *recordingGuardianBroadcaster) BroadcastToSchoolAccounts(_ int64, accountIDs []int64, _ realtime.Event) error {
+	b.schools = append(b.schools, accountIDs...)
 	return nil
 }
 
@@ -184,4 +188,24 @@ func TestSSEGuardianFanOutReportsLookupFailure(t *testing.T) {
 
 	require.ErrorContains(t, err, "access lookup failed")
 	assert.Empty(t, broadcaster.guardians)
+}
+
+func TestSSESchoolPortalFanOutSkipsAnUnbookedModule(t *testing.T) {
+	t.Parallel()
+
+	event := Event{
+		Type:     TypeStaffMessage,
+		Audience: Audience{TenantID: 41, Scope: ScopeStaff, StaffAccountIDs: []int64{7}},
+	}
+	closed := &router{settings: moduleSwitchStub{"module.unterricht_vormittag": false}}
+	deliver, err := closed.applyModuleBooking(context.Background(), &event)
+	require.NoError(t, err)
+	require.True(t, deliver, "the staff portal remains open")
+
+	broadcaster := &recordingGuardianBroadcaster{}
+	channel := newMockSSEChannel(t, broadcaster)
+	require.NoError(t, channel.Deliver(context.Background(), event))
+
+	assert.Equal(t, []int64{7}, broadcaster.staff)
+	assert.Empty(t, broadcaster.schools, "the school portal must not receive events after its module is cancelled")
 }

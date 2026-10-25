@@ -31,6 +31,7 @@ type dayReports struct {
 	accessLog         AccessLog
 	hints             dayHints
 	morning           morningAttendance
+	homework          homework
 	handover          classHandover
 }
 
@@ -39,7 +40,7 @@ func newDayReports(deps ClassDayDependencies) *dayReports {
 		rosters: deps.Rosters, statusDays: deps.StatusDays, times: deps.Times, careDays: deps.CareDays,
 		classExceptions: deps.ClassArrivalExceptions, companions: deps.Companions,
 		students: deps.Students, emergencyContacts: deps.EmergencyContacts,
-		accessLog: deps.AccessLog, morning: newMorningAttendance(deps), handover: newClassHandover(deps),
+		accessLog: deps.AccessLog, morning: newMorningAttendance(deps), homework: newHomework(deps), handover: newClassHandover(deps),
 	}
 }
 
@@ -143,7 +144,7 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date cale
 			return nil, err
 		}
 	}
-	if err := s.applyWriteSeams(ctx, report, date, actor.AccountID); err != nil {
+	if err := s.applyClassDayEntries(ctx, report, date, actor.AccountID); err != nil {
 		return nil, err
 	}
 	if !report.EnrollmentKnown {
@@ -156,19 +157,6 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date cale
 		return nil, err
 	}
 	return report, nil
-}
-
-// applyWriteSeams puts on the report what the Lehrkraft writes through moto
-// schule: the day hints (#4795), the morning attendance (#4790) and the class
-// handover (#4794).
-func (s *dayReports) applyWriteSeams(ctx context.Context, report *classday.DayReport, date calendar.Date, actorAccountID int64) error {
-	if err := s.hints.attachDayHints(ctx, report, date, actorAccountID); err != nil {
-		return err
-	}
-	if err := s.morning.applyMorningAttendance(ctx, report, date); err != nil {
-		return err
-	}
-	return s.handover.applyClassHandover(ctx, report, date)
 }
 
 // classDaySchoolDayFacts loads the day facts of a school day: statuses,
@@ -304,4 +292,21 @@ func newAccessRecord(errPrefix string, actorAccountID int64, actorRole string, r
 		RangeEnd:       rangeEnd,
 		AccessedAt:     accessedAt,
 	}, nil
+}
+
+// applyClassDayEntries folds the teacher's entries and the OGS feedback into
+// the report, preserving the first failed read: the day hints (#4795), the
+// morning attendance (#4790), the homework (#4796) and the class handover
+// (#4794).
+func (s *dayReports) applyClassDayEntries(ctx context.Context, report *classday.DayReport, date calendar.Date, actorAccountID int64) error {
+	if err := s.hints.attachDayHints(ctx, report, date, actorAccountID); err != nil {
+		return err
+	}
+	if err := s.morning.applyMorningAttendance(ctx, report, date); err != nil {
+		return err
+	}
+	if err := s.homework.applyHomework(ctx, report, date); err != nil {
+		return err
+	}
+	return s.handover.applyClassHandover(ctx, report, date)
 }

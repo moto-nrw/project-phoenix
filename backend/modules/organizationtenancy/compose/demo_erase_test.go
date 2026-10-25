@@ -338,8 +338,8 @@ func TestDemoSchoolQueueAnonymizesExclusiveVisitorAccounts(t *testing.T) {
 		VALUES (?, ?, ?), (?, ?, ?)`, accounts.caregiver, roleID, schoolID, accounts.parent, roleID, schoolID).Exec(ctx)
 	require.NoError(t, err)
 	_, err = db.NewRaw(`INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope)
-		VALUES (?, 'visitor-session-caregiver', NOW() + INTERVAL '1 day', ?, 'tenant'),
-			(?, 'visitor-session-parent', NOW() + INTERVAL '1 day', ?, 'parent')`,
+		VALUES (?, encode(sha256('visitor-session-caregiver'::bytea), 'hex'), NOW() + INTERVAL '1 day', ?, 'tenant'),
+			(?, encode(sha256('visitor-session-parent'::bytea), 'hex'), NOW() + INTERVAL '1 day', ?, 'parent')`,
 		accounts.caregiver, schoolID, accounts.parent, schoolID).Exec(ctx)
 	require.NoError(t, err)
 	slug := orderDemoSchool(t, db, "OGS Nord")
@@ -402,8 +402,8 @@ func TestDemoSchoolQueueRevokesSharedVisitorAccessOnlyInRetiredSchools(t *testin
 			accountID, permissionID, schoolID, accountID, permissionID, outsideID).Exec(ctx)
 		require.NoError(t, err)
 		_, err = db.NewRaw(`INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope) VALUES
-			(?, 'hidden-' || ?::text || '-' || ?::text, NOW() + INTERVAL '1 day', ?, 'tenant'),
-			(?, 'outside-' || ?::text || '-' || ?::text, NOW() + INTERVAL '1 day', ?, 'tenant')`,
+			(?, encode(sha256(convert_to('hidden-' || ?::text || '-' || ?::text, 'UTF8')), 'hex'), NOW() + INTERVAL '1 day', ?, 'tenant'),
+			(?, encode(sha256(convert_to('outside-' || ?::text || '-' || ?::text, 'UTF8')), 'hex'), NOW() + INTERVAL '1 day', ?, 'tenant')`,
 			accountID, accountID, schoolID, schoolID, accountID, accountID, outsideID, outsideID).Exec(ctx)
 		require.NoError(t, err)
 	}

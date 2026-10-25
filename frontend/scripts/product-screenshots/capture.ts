@@ -108,12 +108,17 @@ const LOADING_SELECTOR = '[aria-busy="true"], .animate-pulse';
  */
 const STATUS_DOT_MAX_PX = 8;
 
-/** Sichtbare Ladeanzeigen auf der Seite, ohne Status-Punkte. */
+/**
+ * Sichtbare Ladeanzeigen auf der Seite, ohne Status-Punkte und ohne
+ * pulsierende Symbole: Ein Symbol (svg) pulsiert, wenn eine Ankunft oder
+ * Abholung bald fällig ist; Skelette sind Flächen, keine Symbole.
+ */
 function countLoadingIndicators(page: Page): Promise<number> {
   return page.evaluate(
     ({ selector, dotMax }) =>
       Array.from(document.querySelectorAll(selector)).filter((element) => {
         if (element.matches('[aria-busy="true"]')) return true;
+        if (element instanceof SVGElement) return false;
         const { width, height } = element.getBoundingClientRect();
         return width > dotMax || height > dotMax;
       }).length,
@@ -170,9 +175,9 @@ async function sessionFor(
 }
 
 /**
- * Bilder im Ausschnitt, die noch nicht geladen sind. Avatare laden über
+ * Bilder im Ausschnitt, die noch nicht geladen sind. Bilder laden über
  * next/image mit loading="lazy"; ohne dieses Warten zeigte ein Shot leere
- * Kreise statt Fotos. Ein Bild, das nicht lädt, ersetzt die Avatar-Komponente
+ * Flächen. Ein Avatarbild, das nicht lädt, ersetzt die Avatar-Komponente
  * durch Initialen; es zählt hier also nur, solange es unterwegs ist.
  */
 function countUnloadedImages(page: Page): Promise<number> {

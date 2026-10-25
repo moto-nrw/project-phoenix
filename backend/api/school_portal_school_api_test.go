@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable/http"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -53,6 +54,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 	timetableResource := timetable.NewResource(timetable.Dependencies{
 		OperationsService: timetableOwner.TimetableOperations,
 		SupervisionSheets: NewTimetableSupervisionSheets(classDay.ClassDay),
+		HomeworkFeedback:  owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, db)),
 		SettingsService:   NewActiveTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...).Settings,
 		Now:               firstSchoolClock(clocks),
 	})
@@ -62,6 +64,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 		emptySchoolMessagingRouter{},
 		nil,
 		newSchoolNotificationsForTests(delivery),
+		nil,
 	)
 
 	tenantID, subdomain := testpkg.CreateTestTenant(t, db)
@@ -133,7 +136,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	testpkg.CreateTestClassTeacherForTenant(t, db, tenantID, staff.ID, className)
 
 	classDayResource := classdayhttp.NewResource(resource.ClassDay.(*classdayhttp.Resource).ClassDay, nil)
-	schoolRouter := NewSchoolPortalHTTP(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router(SchoolSessionChain, ProtectedSchoolRoutes)
+	schoolRouter := NewSchoolPortalHTTP(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil, nil).Router(SchoolSessionChain, ProtectedSchoolRoutes)
 
 	schoolClaims := sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email,

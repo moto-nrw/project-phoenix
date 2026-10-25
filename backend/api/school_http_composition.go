@@ -3,6 +3,7 @@ package api
 import (
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	notificationsHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
+	calendarHTTP "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	timetableHTTP "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -20,6 +21,7 @@ func NewSchoolPortalHTTP(
 	staffMessaging schoolportal.StaffMessagingRouter,
 	staffNotices schoolportal.StaffNoticesRouter,
 	notifications *notificationsHTTP.Resource,
+	calendar *calendarHTTP.Resource,
 ) *schoolportal.Resource {
 	var supervision schoolportal.SupervisionsRouter
 	if timetable != nil {
@@ -29,5 +31,9 @@ func NewSchoolPortalHTTP(
 	if notifications != nil {
 		notificationRoutes = notifications
 	}
-	return schoolportal.NewResource(auth, mfa, resets, classDay, supervision, staffMessaging, staffNotices, notificationRoutes, tenant.WithTenantID)
+	resource := schoolportal.NewResource(auth, mfa, resets, classDay, supervision, staffMessaging, staffNotices, notificationRoutes, tenant.WithTenantID)
+	if calendar != nil {
+		resource.Calendar = calendar
+	}
+	return resource
 }

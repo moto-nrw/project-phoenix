@@ -10,7 +10,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -41,6 +44,7 @@ func newProductionEnvironment(logger *slog.Logger, publicAPIURL string) (owners.
 func mountServeMiddleware(
 	router chi.Router, unit tenant.UnitOfWork, logger *slog.Logger, config ServeConfig, tracer *observability.Tracer,
 	metrics *httpMetrics, tracker analytics.Tracker, settings settingsCompose.SettingsService, policy analytics.CollectionPolicy,
+	consent identityaccess.AccountAnalyticsConsent, guardianSchools identityaccess.GuardianSchools,
 ) (*sessiontoken.TokenAuth, error) {
 	router.Use(requestIDs(tracer))
 	router.Use(apiCommon.ProblemResponseMiddleware)
@@ -80,13 +84,34 @@ func mountServeMiddleware(
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
 	router.Use(sessionAuth.Verifier())
+	// Classifies each path by module; TenantScopeMiddleware and
+	// SchoolScopeMiddleware refuse a module the bound school has not booked
+	// (#4893, #4895), ParentScopeMiddleware a parents portal none of the
+	// account's schools books (#4895).
+	booking, err := settingsModule.NewModuleBooking(settings)
+	if err != nil {
+		return nil, err
+	}
+	router.Use(moduleRoutesMiddleware(booking, guardianSchools))
 	// Sentry events name the session they affect (#3643).
 	router.Use(SentrySessionContext)
 	// Core actions of the portals reach the usage analytics once their
 	// response is 2xx (#3602). After the verifier, which names the session.
-	router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(settings, logger), policy))
+	router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(settings, logger), analyticsConsent(consent), policy))
 	router.Get("/analytics-policy", analytics.PolicyHandler(policy, analyticsRequestActor))
+	mountAnalyticsConsent(router, consent)
 	return sessionAuth, nil
+}
+
+// mountAnalyticsConsent serves each account's analytics choice in every portal.
+func mountAnalyticsConsent(router chi.Router, consent identityaccess.AccountAnalyticsConsent) {
+	// The account's own consent to the usage analytics (#4901) serves every
+	// portal session, like the policy above: the Authenticator verifies the
+	// access token, the preview middleware blocks writes, and the resource
+	// refuses operator and preview sessions itself.
+	router.Mount("/analytics-consent", meAPI.NewAnalyticsConsentResource(consent).Router(func(r chi.Router) {
+		r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware)
+	}))
 }
 
 // registerRuntimeStatsProviders hands the live streams and the PWA usage to

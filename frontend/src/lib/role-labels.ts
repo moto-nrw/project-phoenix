@@ -6,7 +6,13 @@
 // same names.
 
 export type SystemRoleName =
-  "admin" | "user" | "lehrkraft" | "guardian" | "guest" | "ag-leitung";
+  | "admin"
+  | "user"
+  | "lehrkraft"
+  | "schulverwaltung"
+  | "guardian"
+  | "guest"
+  | "ag-leitung";
 
 export const SYSTEM_ROLE_LABELS: Record<
   SystemRoleName,
@@ -23,6 +29,11 @@ export const SYSTEM_ROLE_LABELS: Record<
   lehrkraft: {
     name: "Lehrkraft",
     description: "Sieht die Tagesansicht der eigenen Klassen.",
+  },
+  // #4789: Sekretariat und Schulleitung in moto schule, alle Klassen.
+  schulverwaltung: {
+    name: "Schulverwaltung",
+    description: "Sekretariat und Schulleitung. Sieht alle Klassen der Schule.",
   },
   guardian: {
     name: "Eltern",

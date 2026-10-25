@@ -156,8 +156,8 @@ func TestOperatorSessionRotationHandoff(t *testing.T) {
 	stored, err := lockedOperatorSession(t, ctx, db, access, predecessor.Token)
 	require.NoError(t, err)
 	require.NotNil(t, stored.RotatedAt)
-	require.NotNil(t, stored.ReplacementToken)
-	assert.Equal(t, successor.Token, *stored.ReplacementToken)
+	require.NotNil(t, stored.ReplacementTokenHash)
+	assert.Equal(t, testpkg.TokenHash(t, db, successor.Token), *stored.ReplacementTokenHash, "the hand-off names its successor by hash only")
 	assert.Equal(t, proof, stored.RecoveryProofHash)
 
 	// A rotated predecessor stays as replay evidence until its refresh JWT
@@ -379,7 +379,7 @@ func TestOperatorRefreshRollsBackAfterEachWrite(t *testing.T) {
 			stored, err := lockedOperatorSession(t, testpkg.Ctx(t), db, access, predecessor.Token)
 			require.NoError(t, err, "the predecessor must survive the rollback")
 			assert.Nil(t, stored.RotatedAt, "the rolled-back hand-off must not be recorded")
-			assert.Nil(t, stored.ReplacementToken)
+			assert.Nil(t, stored.ReplacementTokenHash)
 			if state.successor.Token != "" {
 				_, err = lockedOperatorSession(t, testpkg.Ctx(t), db, access, state.successor.Token)
 				require.ErrorIs(t, err, identityaccess.ErrOperatorSessionNotFound, "the rolled-back successor must not exist")

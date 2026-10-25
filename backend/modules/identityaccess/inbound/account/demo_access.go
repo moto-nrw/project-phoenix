@@ -224,5 +224,11 @@ func (rs *DemoResource) renderError(w http.ResponseWriter, r *http.Request, err 
 	if errors.As(err, &limited) {
 		w.Header().Set("Retry-After", strconv.Itoa(limited.RetryAfterSeconds(time.Now())))
 	}
+	// The demo school has not booked Eltern-App (#4895): the parent demo
+	// issues no session.
+	if notBooked, ok := identityaccess.PortalNotBooked(err); ok {
+		common.RenderError(w, r, common.ErrorModuleNotBooked(notBooked, notBooked.Module, notBooked.ModuleLabel))
+		return
+	}
 	common.RenderError(w, r, common.RenderWithRules(err, demoAccessErrorRules, common.ErrorInternalServer))
 }

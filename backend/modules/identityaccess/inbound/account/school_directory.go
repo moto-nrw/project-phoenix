@@ -16,6 +16,10 @@ type TenantSchool struct {
 	Active   bool
 	Hidden   bool
 	Deleted  bool
+	// TraegerName is the Träger the school portal shows (#4656). Only
+	// GetSchoolBySubdomain fills it, and only while the Träger runs more
+	// than one operational school; otherwise it is empty.
+	TraegerName string
 }
 
 // SchoolDirectory reads schools for the auth routes. Organisation & Tenancy

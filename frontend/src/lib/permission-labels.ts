@@ -63,9 +63,12 @@ export const actionLabels: Record<string, string> = {
   health: "Gesundheitsdaten",
   legal: "Sorgerecht",
   arrival_exception_write: "Ankunftszeit ändern",
+  all_classes: "Alle Klassen",
+  school: "In moto schule",
   class_trip_write: "Ausflug melden",
   day_hint_write: "Hinweis für die OGS",
   morning_attendance_write: "Anwesenheit am Vormittag eintragen",
+  homework_write: "Hausaufgaben eintragen",
   handover_write: "Klasse an die OGS übergeben",
   "*": "Alle",
 };
@@ -241,12 +244,15 @@ const permissionDescriptions: Record<string, string> = {
 
   // Schul-Portal (moto schule)
   "class_day:read": "Tagesansicht der eigenen Klassen ansehen",
+  "class_day:all_classes": "Alle Klassen der Schule sehen, auch ohne Zuweisung",
   "class_day:arrival_exception_write":
     "Für eine eigene Klasse an einem Tag eine andere Ankunftszeit eintragen",
   "class_day:class_trip_write":
     "Für eine eigene Klasse einen Ausflug oder eine Klassenfahrt melden",
   "class_day:day_hint_write":
     "Für eine eigene Klasse oder eines ihrer Kinder einen Hinweis für heute an die OGS schreiben",
+  "class_day:homework_write":
+    "Für eine eigene Klasse Hausaufgaben eintragen, ändern und löschen",
   "class_day:morning_attendance_write":
     "Für eine eigene Klasse heute eintragen, wer am Vormittag da ist",
   "class_day:handover_write":
@@ -261,6 +267,8 @@ const permissionDescriptions: Record<string, string> = {
   // Calendar
   "calendar:own": "Eigenen Kalender nutzen und Einladungen beantworten",
   "calendar:manage": "Termine und Einladungen erstellen und verwalten",
+  "calendar:school":
+    "Kalender in moto schule nutzen und Schultermine eintragen",
 
   // Grade Transitions
   "grade_transitions:read": "Schuljahreswechsel ansehen",

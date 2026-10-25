@@ -34,7 +34,7 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	if errors.As(err, &identityErr) && identityErr.Err != nil {
 		return provisioningIdentityRenderer(identityErr)
 	}
-	if renderer, ok := deviceErrorRenderer(err); ok {
+	if renderer, ok := deviceOrTraegerErrorRenderer(err); ok {
 		return renderer
 	}
 

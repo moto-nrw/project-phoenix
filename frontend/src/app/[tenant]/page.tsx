@@ -88,9 +88,9 @@ const WRONG_PORTAL_COPY = {
   },
   school: {
     redirecting:
-      "Dieses Konto ist ein Lehrkraft-Konto. Sie werden weitergeleitet.",
+      "Dieses Konto gehört zu moto schule. Sie werden weitergeleitet.",
     manual:
-      "Dieses Konto ist ein Lehrkraft-Konto. Bitte melden Sie sich bei moto schule an.",
+      "Dieses Konto gehört zu moto schule. Bitte melden Sie sich dort an.",
     action: "Jetzt zu moto schule",
   },
 } as const;

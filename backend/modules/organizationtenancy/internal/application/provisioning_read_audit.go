@@ -23,6 +23,8 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 		resource = domain.AuditResourceInvitation
 	case organizationtenancy.ReadUnregisteredTagScans:
 		resource = domain.AuditResourceTagScan
+	case organizationtenancy.ReadTraegerMembers:
+		resource = domain.AuditResourceTraegerMember
 	case organizationtenancy.ReadSchoolPersons, organizationtenancy.ReadOrganizationPersons:
 		resource = domain.AuditResourcePerson
 	case organizationtenancy.ReadAnnouncementViews, organizationtenancy.ReadAnnouncements, organizationtenancy.ReadAnnouncement:

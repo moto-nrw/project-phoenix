@@ -310,7 +310,10 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 			return failed(opGuardianInviteResend, fmt.Errorf("guardian profile not found"))
 		}
 		// The delivery bookkeeping starts over; the previous attempt's outcome
-		// says nothing about the send that follows.
+		// says nothing about the send that follows. Only the hash of a token
+		// is stored (#4902), so the mail carries a new link and the previous
+		// one stops working.
+		invitation.Token = uuid.Must(uuid.NewV4()).String()
 		invitation.EmailSentAt = nil
 		invitation.EmailError = nil
 		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {

@@ -526,7 +526,7 @@ func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 
-	for i := 90; i < len(rt.State.Students) && i < 100; i++ {
+	for i := 96; i < len(rt.State.Students) && i < 100; i++ { // four fall ill: with the seed's, under one child in ten
 		student := rt.State.Students[i]
 		body := map[string]any{"sick": true}
 		_, err := rt.Client.Put(fmt.Sprintf("/api/students/%d", student.ID), body)

@@ -2,8 +2,11 @@ package owners
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	realtime "github.com/moto-nrw/project-phoenix/realtime"
 
@@ -87,6 +90,7 @@ func BuildDeliveryNotifications(
 func BuildDeliveryWorker(
 	db transactionruntime.Database, env RootEnvironment, mailSender email.Mailer, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, mailIdentity email.ReplyToResolver,
 	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer, reminders CalendarReminderSource,
+	modules settingsValues.ModuleBookingReader,
 ) (*deliveryModule.Worker, error) {
 	defaultFrom := mailFrom
 	renderers := map[string]deliveryCompose.MailRenderer{
@@ -99,8 +103,22 @@ func BuildDeliveryWorker(
 		calendarService.EmailKindAppointmentCancelled: appointments,
 		calendarService.EmailKindAppointmentReminder:  appointments,
 	}
+	enrollmentKinds := []string{}
 	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom) {
 		renderers[kind] = renderer
+		enrollmentKinds = append(enrollmentKinds, kind)
+	}
+	moduleGate, err := newDeliveryModuleGate(modules, []string{
+		communication.MailKindParentAnnouncement, communication.MailKindParentMessage,
+		calendarService.EmailKindAppointmentPublished, calendarService.EmailKindAppointmentUpdated,
+		calendarService.EmailKindAppointmentCancelled, calendarService.EmailKindAppointmentReminder,
+		identityaccess.MailKindGuardianInvitation, identityaccess.MailKindGuardianWelcome,
+	}, enrollmentKinds, []string{TransactionalMailKind, identityaccess.MailKindStaffWelcome})
+	if err != nil {
+		return nil, err
+	}
+	if err := moduleGate.requireClassified(slices.Collect(maps.Keys(renderers))); err != nil {
+		return nil, err
 	}
 	for kind, renderer := range identityRenderers {
 		renderers[kind] = renderer
@@ -116,6 +134,7 @@ func BuildDeliveryWorker(
 		Logger: env.Logger.With("service", "delivery"), Tenants: tenants,
 		PushAuthorized: deliveryCompose.NewPushAuthorizationChecker(tenants, pushSubscriptions),
 		DeferredPush:   reminderRecovery(db, reminders),
+		Deliverable:    moduleGate.deliverable,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("initialize delivery module: %w", err)

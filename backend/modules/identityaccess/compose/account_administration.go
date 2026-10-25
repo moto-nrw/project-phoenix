@@ -24,12 +24,11 @@ func newAccountAdministration(
 	if auth == nil || sessions == nil {
 		return nil, errors.New("identity access compose: the administration flows require the session dependencies")
 	}
-	if sessions.Schools == nil || sessions.Passwords == nil {
-		return nil, errors.New("identity access compose: the administration flows require the school directory and the password verifier")
+	if sessions.Passwords == nil {
+		return nil, errors.New("identity access compose: the administration flows require the password verifier")
 	}
 	return application.NewAccountAdministration(auth, application.AccountAdministrationDependencies{
 		Store:     store,
-		Schools:   application.SchoolDirectory{SchoolDirectory: sessions.Schools},
 		Verifier:  sessions.Passwords,
 		Passwords: deps.Passwords,
 		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()},

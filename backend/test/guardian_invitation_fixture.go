@@ -15,7 +15,8 @@ import (
 
 // InsertTestGuardianInvitation writes the invitation and fills in the
 // identifiers the database assigns. Every field the caller left unset keeps
-// the table's default.
+// the table's default. The row stores TokenHash(invitation.Token); the
+// fixture keeps the raw link.
 func InsertTestGuardianInvitation(t *testing.T, db *bun.DB, invitation *GuardianInvitation) *GuardianInvitation {
 	t.Helper()
 	require.NotNil(t, invitation)
@@ -28,11 +29,14 @@ func InsertTestGuardianInvitation(t *testing.T, db *bun.DB, invitation *Guardian
 	if invitation.ApprovalStatus == "" {
 		invitation.ApprovalStatus = "not_required"
 	}
+	raw := invitation.Token
+	invitation.Token = TokenHash(t, db, raw)
 	_, err := db.NewInsert().
 		Model(invitation).
 		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
 		Returning("*").
 		Exec(context.Background())
+	invitation.Token = raw
 	require.NoError(t, err, "insert guardian invitation fixture")
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
@@ -45,6 +49,7 @@ func InsertTestGuardianInvitation(t *testing.T, db *bun.DB, invitation *Guardian
 
 // GuardianInvitationByID reads the stored row so a test can assert what a
 // flow wrote. It reads administratively, so a row of any school is visible.
+// Token holds the stored hash, not the link.
 func GuardianInvitationByID(t *testing.T, db *bun.DB, id int64) *GuardianInvitation {
 	t.Helper()
 	invitation := new(GuardianInvitation)
@@ -58,6 +63,7 @@ func GuardianInvitationByID(t *testing.T, db *bun.DB, id int64) *GuardianInvitat
 }
 
 // GuardianInvitationsByProfile reads the contact's invitations, newest first.
+// Token holds the stored hash, not the link.
 func GuardianInvitationsByProfile(t *testing.T, db *bun.DB, guardianProfileID int64) []*GuardianInvitation {
 	t.Helper()
 	var invitations []*GuardianInvitation

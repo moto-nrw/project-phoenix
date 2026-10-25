@@ -632,6 +632,7 @@ func provisionTestSchool(t *testing.T, db *bun.DB, graph organizationtenancy.Pro
 	schoolInput.Name = fmt.Sprintf("Schule %s %d", label, suffix)
 	schoolInput.Slug = fmt.Sprintf("schule-%s-%d", label, suffix)
 	schoolInput.Subdomain = fmt.Sprintf("schule-%s-%d", label, suffix)
+	schoolInput.Email = fmt.Sprintf("kontakt-%s-%d@example.test", label, suffix)
 	schoolInput.Active = true
 	school, err := service.CreateSchool(ctx, schoolInput, operatorID, provisioningTestClientIP)
 	require.NoError(t, err)
@@ -995,6 +996,7 @@ func TestOperatorProvisioningIntegration_TransferDevice_ArchivesSourceAndMovesKe
 	targetInput.Name = fmt.Sprintf("Zielschule %d", sourceSchoolID)
 	targetInput.Slug = fmt.Sprintf("ziel-%d", sourceSchoolID)
 	targetInput.Subdomain = fmt.Sprintf("ziel-%d", sourceSchoolID)
+	targetInput.Email = fmt.Sprintf("ziel-%d@example.test", sourceSchoolID)
 	targetInput.Active = true
 	targetSchool, err := service.CreateSchool(ctx, targetInput, operatorID, provisioningTestClientIP)
 	require.NoError(t, err)

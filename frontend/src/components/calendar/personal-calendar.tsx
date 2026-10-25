@@ -16,10 +16,11 @@ import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type {
-  CalendarAppointmentOverview,
-  CalendarEvent,
-  CalendarResponseStatus,
+import {
+  SCHOOL_EVENT_TYPE_LABELS,
+  type CalendarAppointmentOverview,
+  type CalendarEvent,
+  type CalendarResponseStatus,
 } from "~/lib/personal-calendar-api";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import {
@@ -97,6 +98,17 @@ const sourceTone = {
     bar: LOCATION_COLORS.SCHOOLYARD,
     bg: MOTO_COLOR_PALETTE.orange.soft,
   },
+  // Schließtage und Ferien zeigt nur moto schule (#4798).
+  closing_day: {
+    label: "Schließtag",
+    bar: MOTO_COLOR_PALETTE.red.base,
+    bg: MOTO_COLOR_PALETTE.red.soft,
+  },
+  holiday: {
+    label: "Ferien",
+    bar: MOTO_COLOR_PALETTE.gold.base,
+    bg: MOTO_COLOR_PALETTE.gold.soft,
+  },
 } satisfies Record<
   CalendarEvent["source"],
   { label: string; bar: string; bg: string }
@@ -110,10 +122,28 @@ const dutyTone = {
   bg: MOTO_COLOR_PALETTE.navy.soft,
 };
 
+// Einen Schultermin legt eine Lehrkraft in moto schule an (#4798). Er trägt
+// eine eigene Farbe, damit die OGS ihn von ihren eigenen Terminen trennt.
+const schoolEventTone = {
+  label: "Schultermin",
+  bar: MOTO_COLOR_PALETTE.purple.base,
+  bg: MOTO_COLOR_PALETTE.purple.soft,
+};
+
 function toneOf(event: CalendarEvent) {
+  if (event.source === "appointment" && event.school_event_type) {
+    return schoolEventTone;
+  }
   return event.source === "timetable" && event.activity_type === "duty"
     ? dutyTone
     : sourceTone[event.source];
+}
+
+/** „Ausflug“, „Pädagogischer Tag“ … für einen Schultermin, sonst nichts. */
+function schoolEventTypeLabel(event: CalendarEvent): string | undefined {
+  return event.school_event_type
+    ? SCHOOL_EVENT_TYPE_LABELS[event.school_event_type]
+    : undefined;
 }
 
 /**
@@ -141,7 +171,35 @@ const calendarLegendEntries: readonly PlanLegendEntry[] = [
     label: sourceTone.shift.label,
     color: sourceTone.shift.bar,
   },
+  {
+    key: "source-school-event",
+    label: schoolEventTone.label,
+    color: schoolEventTone.bar,
+  },
+  {
+    key: "source-closing-day",
+    label: sourceTone.closing_day.label,
+    color: sourceTone.closing_day.bar,
+  },
+  {
+    key: "source-holiday",
+    label: sourceTone.holiday.label,
+    color: sourceTone.holiday.bar,
+  },
 ];
+
+/**
+ * Die Legende nennt nur die Arten, die im Zeitraum vorkommen. Sonst stünden
+ * im OGS-Portal „Schließtag“ und „Ferien“, die dort nie im Raster liegen.
+ */
+function legendEntriesFor(
+  events: readonly CalendarEvent[],
+): readonly PlanLegendEntry[] {
+  const colors = new Set<string>(events.map((event) => toneOf(event).bar));
+  return calendarLegendEntries.filter(
+    (entry) => entry.color !== undefined && colors.has(entry.color),
+  );
+}
 
 const responseLabel: Record<string, string> = {
   pending: "Offen",
@@ -384,6 +442,23 @@ function monthGridDays(referenceDate: Date): Date[] {
   return days;
 }
 
+/**
+ * Der Zeitraum, den eine Kalenderseite laden muss: ein Tag, die Woche oder
+ * das ganze 42-Tage-Raster des Monats. Sonst fehlen im Monat die Termine an
+ * den Tagen des Vor- und Folgemonats.
+ */
+export function calendarFetchRange(
+  referenceDate: Date,
+  viewMode: CalendarViewMode,
+): { from: Date; to: Date } {
+  if (viewMode === "day") return { from: referenceDate, to: referenceDate };
+  if (viewMode === "month") {
+    const days = monthGridDays(referenceDate);
+    return { from: days[0] ?? referenceDate, to: days[41] ?? referenceDate };
+  }
+  return getWeekRange(referenceDate);
+}
+
 function periodLabel(
   referenceDate: Date,
   viewMode: CalendarViewMode,
@@ -516,7 +591,7 @@ export function PersonalCalendar({
     visibleSortedEvents.length > 0 ? (
       <div className="border-t border-gray-200 bg-white px-3 py-2">
         <PlanLegend
-          entries={calendarLegendEntries}
+          entries={legendEntriesFor(visibleSortedEvents)}
           aria-label="Legende Terminarten"
         />
       </div>
@@ -1015,6 +1090,7 @@ function AgendaRow({
       : null;
   const subtitle = [
     tone.label,
+    schoolEventTypeLabel(event),
     event.location,
     event.student_name,
     event.school_name,
@@ -1195,6 +1271,11 @@ function CalendarEventDetail({
         >
           {tone.label}
         </span>
+        {schoolEventTypeLabel(event) ? (
+          <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+            {schoolEventTypeLabel(event)}
+          </span>
+        ) : null}
         {cancelled ? (
           <span className="bg-moto-red/10 text-moto-red-strong rounded-md px-2 py-0.5 text-[11px] font-semibold">
             Abgesagt

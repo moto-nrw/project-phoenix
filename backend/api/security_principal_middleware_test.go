@@ -18,7 +18,7 @@ func TestSecurityPrincipalMiddlewareResolvesPortalScopes(t *testing.T) {
 		scope  string
 	}{
 		{name: "tenant", claims: sessiontoken.AppClaims{ID: 1, TenantID: 11}, scope: ""},
-		{name: "organization", claims: sessiontoken.AppClaims{ID: 2, TenantID: 11, OrgID: 7, Scope: "org"}, scope: "org"},
+		{name: "organization", claims: sessiontoken.AppClaims{ID: 2, OrgID: 7, Scope: "org"}, scope: "org"},
 		{name: "platform", claims: sessiontoken.AppClaims{ID: 3, Scope: "platform"}, scope: "platform"},
 		{name: "parent", claims: sessiontoken.AppClaims{ID: 4, Scope: "parent"}, scope: "parent"},
 		{name: "school", claims: sessiontoken.AppClaims{ID: 5, TenantID: 11, Scope: "school"}, scope: "school"},

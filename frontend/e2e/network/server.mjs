@@ -138,6 +138,7 @@ const env = {
   NEXT_PUBLIC_OPERATOR_HOSTNAME: `operator.localhost:${frontendPort}`,
   NEXT_PUBLIC_PARENTS_HOSTNAME: `eltern.localhost:${frontendPort}`,
   NEXT_PUBLIC_SCHOOL_HOSTNAME: `${sharedTenantCookie ? "schule.mfa.localhost" : "schule.localhost"}:${frontendPort}`,
+  NEXT_PUBLIC_TRAEGER_HOSTNAME: `traeger.localhost:${frontendPort}`,
   NEXT_PUBLIC_POSTHOG_KEY: "network-evidence-placeholder",
   // SaaS-shaped, nonfunctional placeholder so the real SDK uses /monitoring.
   NEXT_PUBLIC_SENTRY_DSN: "https://network_evidence@o0.ingest.sentry.io/1",

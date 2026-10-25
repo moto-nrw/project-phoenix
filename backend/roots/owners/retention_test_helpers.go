@@ -80,7 +80,7 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	contentSteps, err := newSchoolContentRetentionSteps(db, settings.Settings, announcements)
+	contentSteps, err := newSchoolContentRetentionSteps(db, settings.Settings, announcements, MustNewUnobservedTimetable(db))
 	if err != nil {
 		return nil, nil, nil, err
 	}

@@ -4,7 +4,7 @@ import { matchesPathPrefix } from "~/lib/section-navigation";
  * Wer die Anleitung liest. Steht hier und nicht bei den Inhalten, damit die
  * Navigation eine Hilfe-Adresse bauen kann, ohne die Artikeltexte zu laden.
  */
-export type HelpRole = "caregiver" | "lead" | "parent" | "teacher";
+export type HelpRole = "caregiver" | "lead" | "parent" | "teacher" | "traeger";
 
 /** Die drei Einstellungen, die einen Ablauf in der Anleitung veraendern. */
 export interface HelpUrlContext {
@@ -73,6 +73,7 @@ export const HELP_TOPICS = {
   transferGroup: "gruppe-uebergeben",
   rooms: "raeume-und-belegung",
   activeSupervision: "aktuelle-aufsicht",
+  homeworkFeedback: "rueckmeldung-zu-hausaufgaben-geben",
   manageActivity: "aktivitaet-anlegen-oder-aendern",
   absences: "abwesenheiten",
   emergency: "notfall",
@@ -98,6 +99,8 @@ export const HELP_TOPICS = {
   nfcProblem: "nfc-tablet-funktioniert-nicht",
   loginProblem: "anmeldung-funktioniert-nicht",
   errorMessages: "fehlermeldungen",
+  // Eigene Einwilligung zur Nutzungsanalyse (#4901), in allen drei Portalen.
+  analyticsConsent: "nutzungsanalyse-erlauben-oder-ablehnen",
   dataManagement: "datenverwaltung",
   enrollments: "anmeldungen-pruefen",
   settings: "einstellungen-ueberblick",
@@ -158,6 +161,7 @@ export const HELP_TOPICS = {
   leadInfoDisplays: "info-display-verwalten",
   leadBirthdays: "geburtstage-auf-der-startseite",
   leadMissingMenu: "person-sieht-einen-menuepunkt-nicht",
+  leadModules: "welche-module-hat-meine-schule",
 
   // Eltern-Portal. Das Gerüst folgt der echten Navigation der Eltern-App
   // (`PARENT_PRIMARY_NAV` und `PARENT_MORE_NAV` in
@@ -195,10 +199,16 @@ export const HELP_TOPICS = {
   // Schritt für Schritt gegen die App geprüft.
   teacherAccess: "zugang-zu-moto-schule-einrichten",
   teacherLogin: "bei-moto-schule-anmelden",
+  traegerLogin: "traeger-anmelden",
+  traegerInvitation: "einladung-ins-traeger-buero-annehmen",
+  traegerAccounts: "personen-ins-traeger-buero-einladen",
+  traegerHolidayPeriod: "traeger-ferienzeitraum",
+  traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",
   teacherMorningAttendance: "anwesenheit-am-vormittag-eintragen",
+  teacherHomework: "hausaufgaben-eintragen",
   teacherClassHandover: "klasse-an-die-ogs-uebergeben",
   teacherChildDetails: "als-lehrkraft-angaben-zu-einem-kind-ansehen",
   teacherArrivalChange: "ankunftszeit-meiner-klasse-aendern",
@@ -209,6 +219,7 @@ export const HELP_TOPICS = {
   teacherSupervisionRoster: "kinder-meiner-aufsicht-sehen",
   teacherMessages: "als-lehrkraft-nachrichten-lesen",
   teacherNotices: "als-lehrkraft-tagesinformationen-lesen",
+  teacherCalendar: "als-lehrkraft-den-kalender-nutzen",
   teacherLoginProblem: "anmeldung-bei-moto-schule-klappt-nicht",
   teacherNoClasses: "mir-wird-keine-klasse-angezeigt",
   teacherFeatureMissing: "als-lehrkraft-fehlt-mir-ein-bereich",
@@ -342,6 +353,7 @@ const SCHOOL_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/klasse": HELP_TOPICS.teacherClassList,
   "/aufsichten": HELP_TOPICS.teacherSupervision,
   "/tagesinformationen": HELP_TOPICS.teacherNotices,
+  "/kalender": HELP_TOPICS.teacherCalendar,
   "/einstellungen": HELP_TOPICS.teacherSettings,
 };
 

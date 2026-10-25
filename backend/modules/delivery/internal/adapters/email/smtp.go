@@ -62,8 +62,8 @@ func NewMailer(cfg mailcontract.MailerConfig) (mailcontract.Mailer, error) {
 }
 
 // buildMessage turns a Message into the go-mail message that goes on the
-// wire. Split out of Send so the header contract (From, Reply-To,
-// List-Unsubscribe) is testable without an SMTP dial.
+// wire. Split out of Send so the header contract (From, Reply-To) is
+// testable without an SMTP dial.
 func (m *SMTPMailer) buildMessage(message mailcontract.Message) (*mail.Msg, error) {
 	email := renderedMessage{Message: message}
 	if err := email.parse(m.templates); err != nil {
@@ -90,8 +90,8 @@ func (m *SMTPMailer) buildMessage(message mailcontract.Message) (*mail.Msg, erro
 	}
 	msg.Subject(email.Subject)
 	msg.SetMessageID()
-	msg.SetGenHeader(mail.HeaderListUnsubscribe, fmt.Sprintf("<mailto:%s?subject=unsubscribe>", email.From.Address))
-	msg.SetGenHeader(mail.HeaderListUnsubscribePost, "List-Unsubscribe=One-Click")
+	// No List-Unsubscribe: the mail is transactional, and a mailto on the
+	// central noreply sender would lead nowhere (#2872).
 	msg.SetBodyString(mail.TypeTextPlain, email.text)
 	msg.AddAlternativeString(mail.TypeTextHTML, email.html)
 	return msg, nil

@@ -50,6 +50,9 @@ func resolveServiceLinks(cfg owners.ServiceConfig) (owners.ServiceLinks, error) 
 		// Lehrkraft invitation links land on the school portal, where the
 		// accept flow lives (#2207).
 		{"SCHOOL_URL", cfg.SchoolURL, &links.SchoolURL},
+		// Träger-Büro invitation links land on the Träger-Portal (ADR
+		// 0084): a required value without a default.
+		{"TRAEGER_URL", cfg.TraegerURL, &links.TraegerURL},
 	} {
 		value, err := requiredLink(link.name, link.raw, production)
 		if err != nil {

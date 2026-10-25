@@ -29,7 +29,7 @@ unverändert. Der Next-Unterprozess behält seine eigene Egress-Sperre;
 die Bereitschaftsprüfung des Playwright-Elternprozesses muss unabhängig
 davon funktionieren.
 
-Die Suite prüft zehn Produktfälle in frischen Browserkontexten und eine
+Die Suite prüft zwölf Produktfälle in frischen Browserkontexten und eine
 zusätzliche Kontrolle der Netzwerksperre:
 
 - OGS (`proof-off.localhost`/`proof-on.localhost`), Elternportal
@@ -38,8 +38,16 @@ zusätzliche Kontrolle der Netzwerksperre:
   Geschützte Prüfseiten: OGS-Profil, Eltern-Einstellungen und
   Schul-Einstellungen. Der API-Stub akzeptiert ausschließlich synthetische
   Testabläufe; er prüft keine echten Berechtigungen oder Zugangsdaten.
+  Vor der Anmeldung sendet seit #4901 kein Portal, auch bei „an“. Nach der
+  Anmeldung antwortet der Stub bei „an“ mit gespeicherter Einwilligung.
+- OGS (`proof-on.localhost`) mit unentschiedenem Konto (#4901): Nach der
+  Anmeldung erscheint der Dialog „Nutzungsanalyse erlauben?“. Bis zur Antwort
+  gibt es keinen `/ingest`-Versuch. Nach `Erlauben` folgt einer, nach
+  `Ablehnen` keiner, auch nicht nach einem neuen Seitenaufruf. Das OGS-Profil
+  zeigt danach den gespeicherten Stand des Schalters.
 - Öffentliche Online-Anmeldung (`/anmeldung/1`), alle vier Kombinationen
-  Analyse aus/an und Captcha aus/an. Bei ausgeschaltetem Captcha bleibt der
+  Analyse aus/an und Captcha aus/an. Ohne Konto gibt es keine Einwilligung:
+  seit #4901 ist `/ingest` dort in allen vier Fällen ein Verstoß. Bei ausgeschaltetem Captcha bleibt der
   öffentliche Test-Site-Key absichtlich gesetzt. Das prüft den historischen
   Fehler mit widersprüchlicher Konfiguration.
 - Im OGS-Profil wird ein im Browser erzeugtes PNG über die echte Fotoauswahl,
@@ -270,6 +278,52 @@ je Portal. Ein lokaler Test bestätigt keine produktive Abschaltung.
 Anbieter erst nach bestätigter Abschaltung aus Vertragsunterlagen streichen.
 Rechtsgrundlagen, Rollen und § 25 TDDDG bleiben Recht-Slice 3843-e; der folgende
 lit.-f-Entwurf bleibt unverändert und ist keine Freigabe.
+
+## Einwilligung der Person (§ 25 TDDDG, #4901)
+
+**Im Code umgesetzt:** Das PostHog-SDK greift auch ohne Cookies auf das Gerät
+zu (EDPB-Leitlinien 2/2023, Rn. 33). Es startet deshalb nur, wenn die Schule
+die Nutzungsanalyse erlaubt **und** die angemeldete Person eingewilligt hat.
+Die Freigabe der Schule ersetzt die Einwilligung nicht. Die Antwort gehört
+zum Konto (`auth.accounts.analytics_consent`, Zeitpunkt in
+`analytics_consent_decided_at`) und gilt in allen Portalen und Schulen.
+`GET`/`PUT /analytics-consent/` bedient jede Portalsitzung; Operator- und
+Vorschausitzungen werden abgewiesen.
+
+- Nach dem Login fragt ein Dialog einmalig, solange das Konto nicht
+  entschieden hat und die Schule die Analyse erlaubt. Er nennt den Kontobezug
+  und im OGS-Portal, dass die Wahl auch für Aufzeichnungen gilt. `Erlauben` und
+  `Ablehnen` sind gleich gestaltet, der Fokus liegt auf dem Titel. Schließen
+  entscheidet nichts; der Dialog kommt beim nächsten Seitenaufruf wieder.
+- Widerruf jederzeit: OGS-Profil, Eltern-Einstellungen und
+  Schul-Einstellungen, Karte `Nutzungsanalyse`. Ein Widerruf stoppt Erfassung,
+  Aufzeichnung und den Header `X-POSTHOG-SESSION-ID` sofort, noch vor dem
+  Speichern; scheitert das Speichern, bleibt diese Seite trotzdem aus. Eine
+  Einwilligung wirkt erst nach dem Speichern. Andere offene Tabs lesen die
+  Antwort neu, sobald sie wieder sichtbar werden, sonst alle fünf Minuten.
+- Ein bereits geladenes SDK bleibt nach Widerruf oder Abmeldung bis zum
+  nächsten Seitenaufruf im Speicher. Es ist abgemeldet (`opt_out`), sendet
+  nichts und setzt keinen Header mehr.
+- Ohne Einwilligung: kein SDK, kein Sitzungs-Header. Das Backend entfernt
+  zusätzlich `$session_id` und die pseudonyme Person aus Kernaktionen, deren
+  Konto nicht eingewilligt hat; die Kernaktion zählt nur noch für die Schule.
+  Das gilt auch für die Sitzungsaufzeichnung mit Analyse-Freigabe.
+- Anonyme Seiten (Login, öffentliche Anmeldung, Statusseiten) erfassen
+  außerhalb der Demo nichts mehr: Dort gibt es kein Konto, das einwilligen
+  kann. Die Trichter der öffentlichen Anmeldung enthalten ab Auslieferung
+  keine neuen Browser-Ereignisse; die Kernaktionen des Backends ohne
+  Sitzungsbezug bleiben.
+- Die öffentliche Demo bleibt unverändert und fragt nicht. Ob die Demo eine
+  eigene Einwilligung braucht, ist Teil der Rechtsprüfung (3843-e).
+
+**Lokal geprüft:** Komponenten-, Store-, Richtlinien- und Backend-Tests; die
+Netzwerksuite oben mit dem Dialogfall.
+
+**Offen:** Der Datenschutztext unten nennt noch berechtigtes Interesse
+(Art. 6 Abs. 1 lit. f DSGVO) und „keine Speicher im Browser“. Für den Zugriff
+auf das Gerät ist jetzt die Einwilligung die Grundlage. Den Text passt
+Recht-Slice 3843-e an; hier bleibt er unverändert. Produktiver Nachweis je
+Portal nach Auslieferung.
 
 ## PostHog project settings (EU project)
 

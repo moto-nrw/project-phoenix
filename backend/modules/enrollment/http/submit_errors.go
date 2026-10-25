@@ -61,6 +61,8 @@ func submitEligibilityErrorRules() []common.ErrorRule {
 // contact and the day choices, then the generic invalid submission.
 func submitSelectionErrorRules() []common.ErrorRule {
 	return []common.ErrorRule{
+		invalidWithCode(capability.ErrSignatureRequired, common.CodeEnrollmentSignatureRequired),
+		invalidWithCode(capability.ErrSignatureInvalid, common.CodeEnrollmentSignatureInvalid),
 		// Wraps ErrCareOfferingRule and so ErrInvalidSubmission (#4514).
 		invalidWithCode(capability.ErrCareOfferingDayConflict, common.CodeEnrollmentCareOfferingDayConflict),
 		invalidWithCode(capability.ErrCareOfferingUnavailable, common.CodeEnrollmentCareOfferingUnavailable),

@@ -33,7 +33,7 @@ func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *schoolportal.
 	t.Helper()
 	db, services, classDayModule, _ := setupSchoolPortalModule(t)
 	classDay := classdayhttp.NewResource(classDayModule.ClassDay, nil)
-	return db, NewSchoolPortalHTTP(services.SchoolAuth, services.SchoolMFA, schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil)
+	return db, NewSchoolPortalHTTP(services.SchoolAuth, services.SchoolMFA, schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil, nil)
 }
 
 func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {

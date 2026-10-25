@@ -27,6 +27,7 @@ import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { requestSchoolPasswordReset } from "~/lib/auth-api";
 import { schoolPath } from "~/lib/school-url";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
@@ -77,6 +78,7 @@ function LoginForm() {
   const resetFormRef = useRef<HTMLFormElement>(null);
   const resetErrors = useApiFormError(resetFormRef);
   const [noPortalRole, setNoPortalRole] = useState(false);
+  const [portalNotBooked, setPortalNotBooked] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -182,6 +184,7 @@ function LoginForm() {
     formErrors.clear();
     setSessionExpired(false);
     setNoPortalRole(false);
+    setPortalNotBooked(false);
 
     try {
       const response = await loginApi("school", {
@@ -223,6 +226,11 @@ function LoginForm() {
         setNoPortalRole(true);
         return;
       }
+      // Die Schule nutzt moto schule nicht (#4895): erklärt, kein Fehler.
+      if (err instanceof ApiError && err.code === "module.not_booked") {
+        setPortalNotBooked(true);
+        return;
+      }
 
       // Ein falsches Passwort, ein ausgeschaltetes Konto oder zu viele
       // Versuche haben eigene Katalogtexte (#3376). Vor der Anmeldung heißt
@@ -256,7 +264,7 @@ function LoginForm() {
         eyebrow="Schulportal"
         eyebrowClassName="text-moto-blue"
         title="Willkommen im Schulportal"
-        subtitle="Melden Sie sich mit Ihrem Lehrkraft-Konto an."
+        subtitle="Melden Sie sich mit Ihrem Konto für moto schule an."
         variant="tenant"
         brand={<MotoBrand />}
       >
@@ -311,7 +319,12 @@ function LoginForm() {
               noValidate
               className="space-y-6"
             >
-              {noPortalRole ? (
+              {portalNotBooked ? (
+                <Alert
+                  type="info"
+                  message={portalNotBookedExplanation("school", "de")}
+                />
+              ) : noPortalRole ? (
                 <Alert
                   type="info"
                   message="Dieses Konto hat keinen Zugang zum Schul-Portal. Bitte wenden Sie sich an Ihre OGS-Verwaltung."
@@ -441,7 +454,7 @@ export default function SchoolLoginPage() {
           eyebrow="Schulportal"
           eyebrowClassName="text-moto-blue"
           title="Willkommen im Schulportal"
-          subtitle="Melden Sie sich mit Ihrem Lehrkraft-Konto an."
+          subtitle="Melden Sie sich mit Ihrem Konto für moto schule an."
           variant="tenant"
           brand={<MotoBrand />}
         >

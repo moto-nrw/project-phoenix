@@ -607,6 +607,22 @@
     "appInstallGenericDescription": "Shtoni moto në ekranin kryesor të telefonit dhe hapeni si aplikacion.",
     "appInstallGuide": "Hap udhëzuesin"
   },
+  "analyticsConsent": {
+    "title": "Analiza e përdorimit",
+    "promptTitle": "Të lejohet analiza e përdorimit?",
+    "promptIntro": "moto dëshiron të numërojë cilat faqe dhe butona përdorni. Kështu e përmirësojmë moto-n.",
+    "promptPrivacy": "moto nuk sheh emra apo atë që shkruani.",
+    "promptNoDisadvantage": "Nëse refuzoni, mund ta përdorni moto-n njësoj.",
+    "promptChangeLater": "Zgjedhja juaj vlen për llogarinë tuaj. Mund ta ndryshoni në çdo kohë te „Cilësimet“.",
+    "allow": "Lejo",
+    "refuse": "Refuzo",
+    "saving": "Po ruhet…",
+    "closeLabel": "Vendos më vonë",
+    "sectionDescription": "A mund të numërojë moto cilat faqe dhe butona përdorni? moto nuk sheh emra apo atë që shkruani. Vendosni vetëm ju.",
+    "switchLabel": "Lejo analizën e përdorimit",
+    "schoolOff": "Shkolla juaj e ka çaktivizuar analizën e përdorimit. Zgjedhja juaj vlen sapo shkolla ta aktivizojë sërish.",
+    "errorObject": "cilësimi i analizës së përdorimit"
+  },
   "pwaInstallHint": {
     "title": "Përdorni moto si aplikacion",
     "samsungDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome dhe hyni aty.",
@@ -1369,6 +1385,25 @@
       "tooMany": "Këtu mund të ngarkoni më së shumti {count} skedarë.",
       "pendingSubmit": "Prisni derisa të ngarkohen të gjithë skedarët.",
       "previewDisabled": "Në pamjen paraprake nuk mund të ngarkoni skedarë."
+    },
+    "signature": {
+      "label": "Nënshkrimi juaj",
+      "hint": "Nënshkruani në fushë me gisht, me laps ose me mi.",
+      "canvas": "Fusha për nënshkrimin",
+      "clear": "Pastro fushën",
+      "typeInstead": "Shkruani emrin",
+      "drawInstead": "Vizato në vend të kësaj",
+      "typedName": "Emri dhe mbiemri juaj",
+      "confirm": "Konfirmo nënshkrimin",
+      "confirmed": "Nënshkrimi juaj është gati.",
+      "confirmedTyped": "Emri i shkruar është gati.",
+      "change": "Nënshkruani përsëri",
+      "preview": "Nënshkrimi juaj",
+      "emptyDrawing": "Ju lutemi nënshkruani në fushë.",
+      "nameTooShort": "Ju lutemi shkruani emrin tuaj.",
+      "title": "Nënshkrimi",
+      "description": "Ju lutemi nënshkruani regjistrimin. Pa nënshkrim ai nuk i dërgohet shkollës ditore.",
+      "required": "Ju lutemi nënshkruani regjistrimin."
     }
   },
   "enrollmentStatus": {
@@ -1571,7 +1606,17 @@
     "noAccountHelp": "Nuk e gjeni emailin? Shikoni edhe te dosja e spamit. Emaili mungon ose lidhja nuk funksionon më? Ju lutemi kontaktoni OGS-në.",
     "unavailableAccountTitle": "Nuk mund të hyni në aplikacionin për prindër",
     "unavailableAccountHelp": "Ju lutemi kontaktoni OGS-në. OGS-ja do t'ju ndihmojë.",
-    "noAccessFallback": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në."
+    "noAccessFallback": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në.",
+    "signatureTitle": "Nënshkrimi",
+    "signatureSigned": "Nënshkruar nga {name} më {date}.",
+    "signatureDrawn": "Vizatuar me gisht, laps ose maus.",
+    "signatureTyped": "Emri i shtypur: {name}",
+    "signatureChanged": "Kujdes: Dëshmia e ruajtur është ndryshuar më vonë. Ju lutemi kontaktoni shkollën ditore.",
+    "signatureDownload": "Dëshmia si PDF",
+    "signatureDownloading": "Dëshmia po ngarkohet …",
+    "signatureEditHint": "Nëse e ndryshoni regjistrimin, e nënshkruani përsëri.",
+    "errorObjectProof": "dëshmia",
+    "signatureEyebrow": "Dëshmi"
   },
   "parentRequestEdit": {
     "title": "Ndrysho kërkesën",
@@ -2331,6 +2376,7 @@
         "day_hint_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "day_hint_not_today": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "day_hint_student_not_in_class": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "homework_not_found": "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
         "morning_attendance_no_school_day": "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
         "morning_attendance_not_today": "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
         "morning_attendance_unknown_child": "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
@@ -2470,7 +2516,14 @@
         "submission_rate_limited": "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
         "waitlist_disabled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "window_closed": "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
-        "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën."
+        "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",
+        "signature_required": "Ju lutemi nënshkruani regjistrimin.",
+        "signature_invalid": "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
+        "signature_not_found": "Për këtë regjistrim nuk ka nënshkrim.",
+        "holiday_host_school_outside_traeger": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_period_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "holiday_period_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_period_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "files": {
         "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2773,6 +2826,9 @@
         "guardian_notice_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "guardian_notice_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "guardian_notice_text_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "homework_feedback_child_not_in_supervision": "Ky fëmijë nuk i përket këtij mbikëqyrjeje. Ringarkoni faqen.",
+        "homework_feedback_not_allowed": "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
+        "homework_feedback_without_homework": "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
         "idempotency_key_reused": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "instance_end_before_start": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "instance_in_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2950,6 +3006,10 @@
         "organization_not_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "organization_has_schools": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "organization_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_active": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_erasure_order_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_erasure_order_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_erasure_started": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "school_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "school_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "school_already_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2978,6 +3038,9 @@
         "module_requires": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "module_required_by": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
+      "module": {
+        "not_booked": "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto."
+      },
       "devices": {
         "tag_scan_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "tag_scan_already_resolved": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
@@ -3001,6 +3064,13 @@
       },
       "operator": {
         "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
+      },
+      "traeger": {
+        "access_log_export_too_large": "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
+        "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "last_administrator": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "member_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       }
     },
     "actions": {

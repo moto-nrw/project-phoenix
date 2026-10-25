@@ -83,6 +83,9 @@ func (r *router) NotifySynchronously(ctx context.Context, event Event) error {
 	if err := r.requireDispatch(ctx, event.Audience.TenantID, event.Type != TypeTest); err != nil {
 		return err
 	}
+	if err := r.requireEventModules(ctx, &event); err != nil {
+		return err
+	}
 	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	// The durable producer waits for one channel, not for all of them. Every
 	// other channel stays fire-and-forget exactly as in Notify — a parent with

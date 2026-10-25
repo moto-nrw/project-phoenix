@@ -18,6 +18,8 @@ const (
 	defaultSeedSchoolSubdomain  = "demo-school"
 	seedTokenHeader             = "X-Phoenix-Seed-Token"
 	defaultSeedParentPassword   = "ParentSeed1234%"
+	seedAdminFirstName          = "Ines" // the invited school admin, shown as the sender in demo threads
+	seedAdminLastName           = "Lindner"
 	seedPasswordAlphabet        = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%"
 	seedPasswordLength          = 12
 )
@@ -30,7 +32,7 @@ type SeedOptions struct {
 	AdminEmail    string // Optional bootstrap school admin email override
 	Randomize     bool   // Append unique suffixes and generate admin credentials
 	SchoolName    string // Optional school name override
-	OnlyProfile   string // Restrict the run to one profile; empty seeds all five
+	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
 	StandingDemo  bool   // Keep simulation devices but disable their user interface
 	// VisitorFirstName and VisitorLastName put a prospect of the public demo
@@ -188,7 +190,7 @@ func (s *Seeder) bootstrapTenant(ctx context.Context) (*bootstrapSeedState, erro
 	if err != nil {
 		return nil, err
 	}
-	adminName := "Seed Admin"
+	adminName := seedAdminFirstName + " " + seedAdminLastName
 	adminPosition := "OGS-Büro"
 	if err := s.inviteSeedAdmin(schoolID, adminEmail, adminPassword, adminPosition); err != nil {
 		return nil, err
@@ -292,8 +294,8 @@ func (s *Seeder) profileAdminCredentialsFor(definition demoProfileDefinition) (s
 func (s *Seeder) inviteSeedAdmin(schoolID int64, email, password, position string) error {
 	inviteResp, err := s.client.PostWithHeaders(fmt.Sprintf("/operator/schools/%d/invite-admin", schoolID), map[string]any{
 		"email":      email,
-		"first_name": "Seed",
-		"last_name":  "Admin",
+		"first_name": seedAdminFirstName,
+		"last_name":  seedAdminLastName,
 		"position":   position,
 	}, map[string]string{
 		seedTokenHeader: "true",
@@ -382,6 +384,7 @@ func (s *Seeder) retireAbandonedSchool(subdomain string) error {
 			OrganizationID int64  `json:"organization_id"`
 			Name           string `json:"name"`
 			Subdomain      string `json:"subdomain"`
+			Email          string `json:"email"`
 		} `json:"data"`
 	}
 	if err := parseJSON(resp, &payload); err != nil {
@@ -395,7 +398,7 @@ func (s *Seeder) retireAbandonedSchool(subdomain string) error {
 		path := fmt.Sprintf("/operator/schools/%d", school.ID)
 		if _, err := s.client.Put(path, map[string]any{
 			"organization_id": school.OrganizationID, "name": school.Name,
-			"slug": retired, "subdomain": retired, "active": false, "hidden": true,
+			"slug": retired, "subdomain": retired, "email": school.Email, "active": false, "hidden": true,
 		}); err != nil {
 			return fmt.Errorf("rename abandoned school: %w", err)
 		}
@@ -413,6 +416,8 @@ func (s *Seeder) createSeedSchool(organizationID int64, name, slug, subdomain st
 		"name":            name,
 		"slug":            slug,
 		"subdomain":       subdomain,
+		// Every school needs a contact address for replies from parents (#2872).
+		"email": fmt.Sprintf("kontakt@%s.example.test", subdomain),
 	})
 	if err != nil {
 		return 0, "", fmt.Errorf("create school: %w", err)

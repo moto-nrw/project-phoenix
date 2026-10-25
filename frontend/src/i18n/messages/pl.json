@@ -607,6 +607,22 @@
     "appInstallGenericDescription": "Dodaj moto do ekranu głównego telefonu i otwieraj je jak aplikację.",
     "appInstallGuide": "Otwórz instrukcję"
   },
+  "analyticsConsent": {
+    "title": "Analiza korzystania",
+    "promptTitle": "Zezwolić na analizę korzystania?",
+    "promptIntro": "moto chce liczyć, z których stron i przycisków Pan/Pani korzysta. Dzięki temu ulepszamy moto.",
+    "promptPrivacy": "moto nie widzi przy tym imion ani wpisywanych treści.",
+    "promptNoDisadvantage": "Jeśli Pan/Pani odmówi, może Pan/Pani korzystać z moto tak samo.",
+    "promptChangeLater": "Wybór dotyczy Pana/Pani konta. Można go zmienić w każdej chwili w „Ustawieniach”.",
+    "allow": "Zezwól",
+    "refuse": "Odmów",
+    "saving": "Zapisywanie…",
+    "closeLabel": "Zdecyduj później",
+    "sectionDescription": "Czy moto może liczyć, z których stron i przycisków Pan/Pani korzysta? moto nie widzi przy tym imion ani wpisywanych treści. Decyduje tylko Pan/Pani.",
+    "switchLabel": "Zezwól na analizę korzystania",
+    "schoolOff": "Szkoła wyłączyła analizę korzystania. Pana/Pani wybór zacznie obowiązywać, gdy szkoła ją ponownie włączy.",
+    "errorObject": "ustawienie analizy korzystania"
+  },
   "pwaInstallHint": {
     "title": "moto jako aplikacja",
     "samsungDescription": "Proszę nie instalować moto przez Samsung Internet. Proszę otworzyć moto w Chrome i tam się zalogować.",
@@ -1369,6 +1385,25 @@
       "tooMany": "Tutaj możesz przesłać najwyżej {count} plików.",
       "pendingSubmit": "Poczekaj, aż wszystkie pliki zostaną przesłane.",
       "previewDisabled": "W podglądzie nie można przesyłać plików."
+    },
+    "signature": {
+      "label": "Twój podpis",
+      "hint": "Podpisz się w polu palcem, rysikiem lub myszą.",
+      "canvas": "Pole na podpis",
+      "clear": "Wyczyść pole",
+      "typeInstead": "Wpisz imię i nazwisko",
+      "drawInstead": "Narysuj zamiast tego",
+      "typedName": "Twoje imię i nazwisko",
+      "confirm": "Potwierdź podpis",
+      "confirmed": "Twój podpis jest gotowy.",
+      "confirmedTyped": "Wpisane imię i nazwisko jest gotowe.",
+      "change": "Podpisz ponownie",
+      "preview": "Twój podpis",
+      "emptyDrawing": "Podpisz się w polu.",
+      "nameTooShort": "Wpisz swoje imię i nazwisko.",
+      "title": "Podpis",
+      "description": "Prosimy podpisać zgłoszenie. Bez podpisu nie trafi ono do świetlicy.",
+      "required": "Prosimy podpisać zgłoszenie."
     }
   },
   "enrollmentStatus": {
@@ -1571,7 +1606,17 @@
     "noAccountHelp": "Nie mogą Państwo znaleźć e-maila? Proszę sprawdzić też folder spam. Brak e-maila albo link już nie działa? Proszę skontaktować się z OGS.",
     "unavailableAccountTitle": "Brak dostępu do aplikacji dla rodziców",
     "unavailableAccountHelp": "Proszę skontaktować się z OGS. OGS pomoże Państwu dalej.",
-    "noAccessFallback": "Nie mają Państwo jeszcze dostępu? Proszę otworzyć e-mail „Einladung zum Eltern-Portal”. Nie dostali Państwo e-maila? Proszę skontaktować się z OGS."
+    "noAccessFallback": "Nie mają Państwo jeszcze dostępu? Proszę otworzyć e-mail „Einladung zum Eltern-Portal”. Nie dostali Państwo e-maila? Proszę skontaktować się z OGS.",
+    "signatureTitle": "Podpis",
+    "signatureSigned": "Podpisano przez {name} dnia {date}.",
+    "signatureDrawn": "Narysowany palcem, rysikiem lub myszą.",
+    "signatureTyped": "Wpisane imię i nazwisko: {name}",
+    "signatureChanged": "Uwaga: zapisane potwierdzenie zostało później zmienione. Prosimy skontaktować się ze świetlicą.",
+    "signatureDownload": "Potwierdzenie jako PDF",
+    "signatureDownloading": "Ładowanie potwierdzenia …",
+    "signatureEditHint": "Jeśli zmienią Państwo zgłoszenie, podpisują je Państwo ponownie.",
+    "errorObjectProof": "potwierdzenie",
+    "signatureEyebrow": "Potwierdzenie"
   },
   "parentRequestEdit": {
     "title": "Edytuj prośbę",
@@ -2331,6 +2376,7 @@
         "day_hint_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "day_hint_not_today": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "day_hint_student_not_in_class": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "homework_not_found": "Tego zadania domowego już nie ma. Odśwież stronę.",
         "morning_attendance_no_school_day": "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
         "morning_attendance_not_today": "Obecność można wpisać tylko na dziś. Otwórz dzisiejszy dzień.",
         "morning_attendance_unknown_child": "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
@@ -2470,7 +2516,14 @@
         "submission_rate_limited": "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
         "waitlist_disabled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "window_closed": "Termin zapisów minął lub jeszcze się nie zaczął. Skontaktuj się ze szkołą.",
-        "withdraw_not_allowed": "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą."
+        "withdraw_not_allowed": "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą.",
+        "signature_required": "Prosimy podpisać zgłoszenie.",
+        "signature_invalid": "Nie udało się odczytać podpisu. Prosimy podpisać jeszcze raz.",
+        "signature_not_found": "To zgłoszenie nie ma podpisu.",
+        "holiday_host_school_outside_traeger": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "holiday_period_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "holiday_period_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "holiday_period_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "files": {
         "announcement_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2773,6 +2826,9 @@
         "guardian_notice_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "guardian_notice_past": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "guardian_notice_text_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "homework_feedback_child_not_in_supervision": "To dziecko nie należy do tej opieki. Odśwież stronę.",
+        "homework_feedback_not_allowed": "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
+        "homework_feedback_without_homework": "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
         "idempotency_key_reused": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "instance_end_before_start": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "instance_in_past": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -2950,6 +3006,10 @@
         "organization_not_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "organization_has_schools": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "organization_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "traeger_active": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "traeger_erasure_order_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "traeger_erasure_order_open": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "traeger_erasure_started": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "school_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "school_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "school_already_deleted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2978,6 +3038,9 @@
         "module_requires": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "module_required_by": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
+      "module": {
+        "not_booked": "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto."
+      },
       "devices": {
         "tag_scan_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "tag_scan_already_resolved": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
@@ -3001,6 +3064,13 @@
       },
       "operator": {
         "audit_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie."
+      },
+      "traeger": {
+        "access_log_export_too_large": "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
+        "already_member": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "last_administrator": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "member_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "no_membership": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       }
     },
     "actions": {

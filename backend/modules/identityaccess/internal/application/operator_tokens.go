@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -128,18 +129,25 @@ func (t *OperatorTokens) RevokeInvitationsForEmail(ctx context.Context, email st
 	return result, err
 }
 
-// ExtendInvitation moves the expiry of a still redeemable invitation. An
+// ExtendInvitation moves the expiry of a still redeemable invitation and
+// issues a new link token, returned raw: only its hash is stored, so the
+// previous link cannot be mailed again and stops working (#4902). An
 // invitation that expired or was spent in the meantime is not revived.
-func (t *OperatorTokens) ExtendInvitation(ctx context.Context, id int64, expiresAt time.Time) error {
-	return t.run(ctx, "extend_operator_invitation", func(txCtx context.Context, stats *domain.OperationStats) error {
+func (t *OperatorTokens) ExtendInvitation(ctx context.Context, id int64, expiresAt time.Time) (token string, err error) {
+	err = t.run(ctx, "extend_operator_invitation", func(txCtx context.Context, stats *domain.OperationStats) error {
 		now := t.now()
 		if !expiresAt.After(now) {
 			return identityaccess.ErrOperatorInvitationNotFound
 		}
-		changed, queryStats, err := t.store.ExtendOperatorInvitation(txCtx, id, expiresAt, now)
+		token = uuid.Must(uuid.NewV4()).String()
+		changed, queryStats, err := t.store.ExtendOperatorInvitation(txCtx, id, expiresAt, now, token)
 		stats.Add(queryStats)
 		return stateChange(changed, err, identityaccess.ErrOperatorInvitationNotFound)
 	})
+	if err != nil {
+		return "", err
+	}
+	return token, nil
 }
 
 func (t *OperatorTokens) RecordInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {
@@ -296,11 +304,12 @@ func (t *OperatorTokens) RevokeOperatorInvitationsForEmail(ctx context.Context, 
 	return revoked, nil
 }
 
-func (t *OperatorTokens) ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt time.Time) error {
-	if err := t.ExtendInvitation(ctx, id, expiresAt); err != nil {
-		return fmt.Errorf("identity access: extend operator invitation: %w", MapError(err))
+func (t *OperatorTokens) ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt time.Time) (string, error) {
+	token, err := t.ExtendInvitation(ctx, id, expiresAt)
+	if err != nil {
+		return "", fmt.Errorf("identity access: extend operator invitation: %w", MapError(err))
 	}
-	return nil
+	return token, nil
 }
 
 func (t *OperatorTokens) RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error {

@@ -87,13 +87,17 @@ type AuthRuntime struct {
 	MFAUnavailable func(error) bool
 	// InvalidSession reports a source session without a live MFA proof.
 	InvalidSession func(error) bool
+	// PortalNotBooked reports a school that has not booked the module
+	// Unterricht am Vormittag (#4895), with the module key and its name.
+	PortalNotBooked func(error) (module, moduleLabel string, ok bool)
 }
 
 func (rt *AuthRuntime) complete() bool {
 	return rt != nil && rt.Login != nil && rt.LoginAtSchool != nil && rt.IssueTokens != nil &&
 		rt.SwitchSchool != nil && rt.Cause != nil && rt.InvalidCredentials != nil &&
 		rt.AccountInactive != nil && rt.NoSchoolPortalRole != nil && rt.SchoolNotFound != nil &&
-		rt.SchoolAccessDenied != nil && rt.MFABlocked != nil && rt.MFAUnavailable != nil && rt.InvalidSession != nil
+		rt.SchoolAccessDenied != nil && rt.MFABlocked != nil && rt.MFAUnavailable != nil && rt.InvalidSession != nil &&
+		rt.PortalNotBooked != nil
 }
 
 // MFARuntime is the school portal's second-factor port. Every challenge call

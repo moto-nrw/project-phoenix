@@ -1866,6 +1866,10 @@ func TestFeedbackSettings(t *testing.T) {
 	assert.Equal(t, "feedback", def.Category)
 	assert.Equal(t, false, def.Default, "feedback should default to false (opt-in)")
 	assert.Equal(t, "config:manage", def.WritePermission)
+	// #4903: the switch also unlocks meal ratings (is_mensa_feedback), so an
+	// admin consenting to it must read that, not only the smiley at checkout.
+	assert.Contains(t, def.Label, "Essen")
+	assert.Contains(t, def.Description, "Essen")
 }
 
 // TestNachHauseSettingsShareOneBlock pins #1252: every setting that decides

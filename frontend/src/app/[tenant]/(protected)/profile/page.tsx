@@ -12,7 +12,6 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { Camera, Pencil } from "lucide-react";
-import { AnalyseFreigabeNotice } from "~/components/analytics/analyse-freigabe-notice";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -33,6 +32,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
+import { TenantAnalyticsConsentSection } from "~/components/settings/analytics-consent-section";
 import { MessageCountSection } from "~/components/settings/message-count-section";
 import { BirthdayVisibilitySection } from "~/components/settings/birthday-visibility-section";
 import { PushNotificationSection } from "~/components/settings/push-notification-section";
@@ -333,8 +333,9 @@ function ProfileContent() {
       <PushNotificationSection />
       <PasskeySettingsSection />
       <TrustedDevicesSection />
-      {/* Nur solange die Schule die Analyse-Freigabe erteilt hat (#3603). */}
-      <AnalyseFreigabeNotice />
+      {/* Eigene Einwilligung zur Nutzungsanalyse (#4901), mit Hinweis auf
+          Aufzeichnungen, solange die Schule die Analyse-Freigabe erteilt hat. */}
+      <TenantAnalyticsConsentSection />
 
       {showPasswordModal && (
         <TenantPasswordChangeModal

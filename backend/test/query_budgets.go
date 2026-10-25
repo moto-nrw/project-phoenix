@@ -46,6 +46,29 @@ var queryBudgets = map[string]queryBudget{
 	// organization summaries, and one device read through the Device Fleet
 	// owner. Flat in the number of devices.
 	"repositories.operator.device_rows": {max: 3},
+	// modules/traegerview — GET /traeger/schools (ADR 0084, #4649): the Träger
+	// row, the school IDs of the Träger and the school rows of that set, in
+	// one administrative transaction. Flat in the number of schools.
+	"api.traeger.schools":  {max: 3, exact: true},
+	"api.traeger.accounts": {max: 8, exact: true},
+	// modules/enrollment — GET /traeger/holiday-periods (#4659): the Träger
+	// binding of the Träger transaction, then the periods of the Träger,
+	// their weeks and their time models. Flat in the number of periods and
+	// weeks.
+	"api.traeger.holiday_periods": {max: 4, exact: true},
+	// modules/traegerview — GET /traeger/access-log (#4655, ADR 0109): the
+	// Träger row, the school IDs of the Träger, one access trail read of the
+	// Audit Platform, the school rows, the staff members behind staff IDs and
+	// their persons, the persons of the accounts and one Träger-Büro address
+	// read, in one administrative transaction; then the tenant binding of
+	// each shown school's transaction, which writes the read to that
+	// school's access log (two schools in the scenario). Flat in the number
+	// of entries.
+	"api.traeger.access_log": {max: 10, exact: true},
+	// organizationtenancy Provisioning.ListTraegerMembers (#4649): the Träger
+	// row, its memberships and one read of address and Träger roles for all
+	// members. Flat in the number of members.
+	"api.operator.traeger_members": {max: 3, exact: true},
 	// services — the operator school listing (#3568), organizationtenancy
 	// Provisioning.ListSchoolSummaries: the school rows plus one aggregate
 	// each for accounts, devices, persons and the Kontingentzahl, eight

@@ -310,26 +310,42 @@ func (s *OperatorAuthentication) resolveRefreshHandoff(ctx context.Context, pres
 		if current.RotatedAt == nil {
 			return current, current.ID != presented.ID, nil
 		}
-		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
+		if current.ReplacementTokenHash == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
 			return current, false, identityaccess.ErrOperatorRefreshTokenInvalid
 		}
 		if err := s.requireOperatorRecoveryProof(ctx, current.RecoveryProofHash, proofValidated); err != nil {
 			return current, false, err
 		}
 		proofValidated = true
-		next, err := s.operators.findOperatorSessionForUpdate(ctx, *current.ReplacementToken)
-		if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
-			return current, false, identityaccess.ErrOperatorRefreshTokenInvalid
-		}
+		next, err := s.handoffSuccessor(ctx, current)
 		if err != nil {
-			return current, false, fmt.Errorf("failed to follow operator refresh-token handoff: %w", err)
-		}
-		if next.FamilyID != current.FamilyID || next.OperatorID != current.OperatorID || next.Generation != current.Generation+1 {
-			return current, false, identityaccess.ErrOperatorRefreshTokenInvalid
+			return current, false, err
 		}
 		current = next
 	}
 	return current, false, identityaccess.ErrOperatorRefreshTokenInvalid
+}
+
+// handoffSuccessor locks the session a rotated one handed off to. Only the
+// hash of the successor is stored, so its raw value is recomputed from the
+// token this hop was presented with (#4902); a hand-off recorded before
+// #4902 named a random successor and is not recoverable.
+func (s *OperatorAuthentication) handoffSuccessor(ctx context.Context, current domain.OperatorSession) (domain.OperatorSession, error) {
+	successorToken := domain.SuccessorRefreshToken(current.Token)
+	if domain.HashToken(successorToken) != *current.ReplacementTokenHash {
+		return domain.OperatorSession{}, identityaccess.ErrOperatorRefreshTokenInvalid
+	}
+	next, err := s.operators.findOperatorSessionForUpdate(ctx, successorToken)
+	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
+		return domain.OperatorSession{}, identityaccess.ErrOperatorRefreshTokenInvalid
+	}
+	if err != nil {
+		return domain.OperatorSession{}, fmt.Errorf("failed to follow operator refresh-token handoff: %w", err)
+	}
+	if next.FamilyID != current.FamilyID || next.OperatorID != current.OperatorID || next.Generation != current.Generation+1 {
+		return domain.OperatorSession{}, identityaccess.ErrOperatorRefreshTokenInvalid
+	}
+	return next, nil
 }
 
 func (s *OperatorAuthentication) logRefreshRejected(reason string, operatorID int64, generation int) {
@@ -609,7 +625,10 @@ func (s *OperatorAuthentication) mintRotatedOperatorSession(txCtx context.Contex
 		accessToken, refreshToken, err = s.mintTokenPair(operator, session)
 		return accessToken, refreshToken, err
 	}
+	// The successor follows from the presented token, so a lost response
+	// can be recomputed although only hashes are stored (#4902).
 	successor := s.newRefreshSession(operator.ID, session.FamilyID, session.Generation+1)
+	successor.Token = domain.SuccessorRefreshToken(session.Token)
 	accessToken, refreshToken, err = s.mintTokenPair(operator, successor)
 	if err != nil {
 		return accessToken, refreshToken, err
