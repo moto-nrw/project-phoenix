@@ -87,14 +87,17 @@ function TimeModelRow({
         onChange={(event) => onChange({ ...model, price: event.target.value })}
       />
       <div className="flex sm:pt-7">
+        {/* Icon only next to the row on wide screens; on a phone the row
+            stacks, so the button names what it removes. */}
         <Button
           type="button"
           variant="ghost"
-          size="icon"
+          size="compact"
           aria-label={`Zeitmodell ${model.name || "ohne Namen"} entfernen`}
           onClick={onRemove}
         >
           <X className="h-4 w-4" aria-hidden="true" />
+          <span className="sm:hidden">Zeitmodell entfernen</span>
         </Button>
       </div>
     </div>

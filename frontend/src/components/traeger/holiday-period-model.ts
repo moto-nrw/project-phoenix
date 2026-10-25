@@ -223,10 +223,14 @@ function checkTimeModels(
     const startsValid = WALL_CLOCK.test(model.startsAt);
     const endsValid = WALL_CLOCK.test(model.endsAt);
     if (!startsValid) {
-      errors[`${field}.starts_at`] = "Bitte im Format 08:00 eingeben.";
+      errors[`${field}.starts_at`] = model.startsAt
+        ? "Bitte im Format 08:00 eingeben."
+        : "Bitte tragen Sie den Beginn ein.";
     }
     if (!endsValid) {
-      errors[`${field}.ends_at`] = "Bitte im Format 13:00 eingeben.";
+      errors[`${field}.ends_at`] = model.endsAt
+        ? "Bitte im Format 13:00 eingeben."
+        : "Bitte tragen Sie das Ende ein.";
     } else if (startsValid && model.endsAt <= model.startsAt) {
       errors[`${field}.ends_at`] = "Das Ende liegt nicht nach dem Beginn.";
     }
