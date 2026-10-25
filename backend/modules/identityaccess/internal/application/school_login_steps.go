@@ -10,36 +10,47 @@ import (
 )
 
 func (s *AccountAuthentication) schoolLoginTenant(ctx context.Context, account domain.LoginAccount, targetTenantSlug, ipAddress, userAgent string) (int64, error) {
-	portalTenantID := int64(0)
-	hasPortalRole := false
 	if targetTenantSlug != "" {
-		metadata, metadataErr := s.loadAccountMetadata(ctx, account, targetTenantSlug)
-		if metadataErr != nil {
-			return 0, metadataErr
-		}
-		portalTenantID = metadata.TenantID
-		hasPortalRole = domain.HasSchoolPortalRole(metadata.Roles)
-		if !hasPortalRole {
-			s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at requested school")
-			return 0, failed("school login", identityaccess.ErrAccountNoSchoolPortalRole)
-		}
-	} else {
-		var resolvedTenantID int64
-		var findErr error
-		hasPortalRole, resolvedTenantID, findErr = s.findSchoolPortalTenantForAccount(ctx, account.ID)
-		if findErr != nil {
-			return 0, failed("school login: enumerate tenants", findErr)
-		}
-		if hasPortalRole {
-			portalTenantID = resolvedTenantID
-		}
+		return s.requestedSchoolLoginTenant(ctx, account, targetTenantSlug, ipAddress, userAgent)
+	}
+	return s.implicitSchoolLoginTenant(ctx, account, ipAddress, userAgent)
+}
+
+func (s *AccountAuthentication) requestedSchoolLoginTenant(ctx context.Context, account domain.LoginAccount, targetTenantSlug, ipAddress, userAgent string) (int64, error) {
+	metadata, err := s.loadAccountMetadata(ctx, account, targetTenantSlug)
+	if err != nil {
+		return 0, err
+	}
+	if !domain.HasSchoolPortalRole(metadata.Roles) {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at requested school")
+		return 0, failed("school login", identityaccess.ErrAccountNoSchoolPortalRole)
+	}
+	if err := s.requireSchoolPortal(ctx, "school login", account.ID, metadata.TenantID); err != nil {
+		s.logFailedLogin(s.runtime.WithTenantID(ctx, metadata.TenantID), account.ID, ipAddress, userAgent, "School portal not booked")
+		return 0, err
+	}
+	return metadata.TenantID, nil
+}
+
+func (s *AccountAuthentication) implicitSchoolLoginTenant(ctx context.Context, account domain.LoginAccount, ipAddress, userAgent string) (int64, error) {
+	hasPortalRole, portalTenantID, err := s.findSchoolPortalTenantForAccount(ctx, account.ID, true)
+	if err != nil {
+		return 0, s.implicitSchoolLoginError(ctx, account.ID, portalTenantID, ipAddress, userAgent, err)
 	}
 	if !hasPortalRole || portalTenantID == 0 {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at any school")
 		return 0, failed("school login", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
-
 	return portalTenantID, nil
+}
+
+func (s *AccountAuthentication) implicitSchoolLoginError(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string, err error) error {
+	if _, notBooked := identityaccess.PortalNotBooked(err); notBooked {
+		s.logPortalRefusal("school login", accountID, tenantID, err)
+		s.logFailedLogin(s.runtime.WithTenantID(ctx, tenantID), accountID, ipAddress, userAgent, "School portal not booked")
+		return failed("school login", err)
+	}
+	return failed("school login: enumerate tenants", err)
 }
 
 func (s *AccountAuthentication) schoolLoginMFAVerdict(ctx context.Context, accountID, portalTenantID int64, permissions []string) (mfaRequired, enrolled bool, err error) {
@@ -153,4 +164,37 @@ func (s *AccountAuthentication) firstSchoolPortalTenant(adminCtx context.Context
 		return hasPortalRole, firstPortalTenantID, lastSchoolLookupErr
 	}
 	return hasPortalRole, firstPortalTenantID, nil
+}
+
+// schoolPortalTenants lists the active, live schools where the account has a
+// school-portal role. School lookup failures only surface when no school
+// qualifies, so one unreadable mapping does not mask a later valid school.
+func (s *AccountAuthentication) schoolPortalTenants(adminCtx context.Context, accountID int64) ([]int64, error) {
+	tenantIDs, _, listErr := s.store.ListActiveTenantIDs(adminCtx, accountID)
+	if listErr != nil {
+		return nil, listErr
+	}
+	var lastSchoolLookupErr error
+	portalTenantIDs := make([]int64, 0, len(tenantIDs))
+	for _, tenantID := range tenantIDs {
+		school, found, schoolErr := s.schools.FindSchool(adminCtx, tenantID)
+		if schoolErr != nil {
+			lastSchoolLookupErr = schoolErr
+			continue
+		}
+		if !found || !school.Live() {
+			continue
+		}
+		roles, _, roleErr := s.store.ListAccountRolesAtTenant(adminCtx, accountID, tenantID, false)
+		if roleErr != nil {
+			return nil, roleErr
+		}
+		if domain.HasSchoolPortalRole(roles) {
+			portalTenantIDs = append(portalTenantIDs, tenantID)
+		}
+	}
+	if len(portalTenantIDs) == 0 && lastSchoolLookupErr != nil {
+		return nil, lastSchoolLookupErr
+	}
+	return portalTenantIDs, nil
 }

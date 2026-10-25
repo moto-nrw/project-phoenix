@@ -100,7 +100,7 @@ func serveThroughModuleLock(t *testing.T, switches moduleSwitches, tenantID int6
 	booking, err := settings.NewModuleBooking(switches)
 	require.NoError(t, err)
 	reached := false
-	handler := moduleRoutesMiddleware(booking)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := moduleRoutesMiddleware(booking, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if tenantID > 0 {
 			r = r.WithContext(tenant.WithTenantID(r.Context(), tenantID))
 		}

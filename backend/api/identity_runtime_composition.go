@@ -133,6 +133,7 @@ func SchoolPortalAuth(sessions identityaccess.SchoolAccountLogin) schoolPortal.A
 		SchoolAccessDenied: identityIs(identityaccess.ErrTenantAccessDenied),
 		MFABlocked:         identityMFABlocked,
 		MFAUnavailable:     identityIs(identityaccess.ErrMFAStatusUnavailable),
+		PortalNotBooked:    identityPortalNotBooked,
 	}
 }
 
@@ -192,8 +193,19 @@ func parentPortalLogin(sessions identityaccess.ParentAccountLogin) parentAPI.Log
 		InvalidCredentials: identityInvalidCredentials,
 		AccountInactive:    identityIs(identityaccess.ErrAccountInactive),
 		NotAGuardian:       identityIs(identityaccess.ErrAccountNoGuardianRole),
+		PortalNotBooked:    identityPortalNotBooked,
 		ConfirmPassword:    sessions.ConfirmAccountPassword,
 	}
+}
+
+// identityPortalNotBooked reports a portal session refused because the
+// school has not booked the portal's module (#4895).
+func identityPortalNotBooked(err error) (module, moduleLabel string, ok bool) {
+	notBooked, ok := identityaccess.PortalNotBooked(err)
+	if !ok {
+		return "", "", false
+	}
+	return notBooked.Module, notBooked.ModuleLabel, true
 }
 
 // identityIs reports the outcome by its owner sentinel.

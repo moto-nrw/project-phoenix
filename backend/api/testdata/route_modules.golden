@@ -766,12 +766,12 @@ mittagessen
 eltern_app
 	DELETE /api/announcement-attachments/{announcementId}/{attachmentId}
 	DELETE /api/parent-announcements/{announcementId}
-	DELETE /parent/me/children/{studentId}/care-exception  (#4895 Elternportal, an der Eltern-Sitzung)
-	DELETE /parent/me/children/{studentId}/consents/photo  (#4895 Elternportal, an der Eltern-Sitzung)
-	DELETE /parent/me/children/{studentId}/meal-participation/{date}  (#4895 Elternportal, an der Eltern-Sitzung)
-	DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	DELETE /parent/me/notification-preferences/  (#4895 Elternportal, an der Eltern-Sitzung)
-	DELETE /parent/me/push/subscriptions  (#4895 Elternportal, an der Eltern-Sitzung)
+	DELETE /parent/me/children/{studentId}/care-exception  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	DELETE /parent/me/children/{studentId}/consents/photo  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	DELETE /parent/me/children/{studentId}/meal-participation/{date}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	DELETE /parent/me/notification-preferences/  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	DELETE /parent/me/push/subscriptions  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /api/announcement-attachments/{announcementId}
 	GET /api/announcement-attachments/{announcementId}/{attachmentId}/download
 	GET /api/guardians/invitable
@@ -797,50 +797,50 @@ eltern_app
 	GET /api/parent-announcements/{announcementId}/poll-results
 	GET /api/parent-announcements/{announcementId}/recipients
 	GET /api/parent-announcements/{announcementId}/stats
-	GET /auth/guardian-invitations/{token}  (#4895 Elternportal: Einladung annehmen stellt die Eltern-Sitzung aus)
-	GET /parent-news-attachments/{announcementId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent-news-attachments/{announcementId}/{attachmentId}/download  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent-sse/events  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/calendar  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/calendar/appointments/{appointmentId}/ics  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/calendar/appointments/{appointmentId}/overview  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/calendar/feed  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/care-exception  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/care-offerings  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/care-offerings/catalog  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/care-schedule  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/consents  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/courses  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/excused-requests  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/features  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/guardians  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/master-data  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/master-data/requests  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/meal-participation  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/meal-plan  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/pickup-change-requests  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/related-accounts  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/request-sharing-options  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/requests/{requestType}/{requestId}/events  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/sick-note  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/children/{studentId}/today  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/enrollable-schools  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/enrollments  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/messages  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/messages/children/{studentId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/messages/children/{studentId}/threads  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/messages/group-threads  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/messages/group-threads/{groupThreadId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/messages/unread-count  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/news  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/news/unread-count  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/news/{announcementId}/declaration/proof  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/notification-preferences/  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/profile  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/me/push/public-key  (#4895 Elternportal, an der Eltern-Sitzung)
-	PATCH /parent/me/children/{studentId}/master-data/{target}/{field}  (#4895 Elternportal, an der Eltern-Sitzung)
+	GET /auth/guardian-invitations/{token}  (#4895 Elternportal: Einladung annehmen stellt keine Sitzung aus, der Login sperrt)
+	GET /parent-news-attachments/{announcementId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent-news-attachments/{announcementId}/{attachmentId}/download  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent-sse/events  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/calendar  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/calendar/appointments/{appointmentId}/ics  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/calendar/appointments/{appointmentId}/overview  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/calendar/feed  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/care-exception  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/care-offerings  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/care-offerings/catalog  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/care-schedule  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/consents  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/courses  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/excused-requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/features  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/guardians  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/master-data  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/master-data/requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/meal-participation  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/meal-plan  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/pickup-change-requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/related-accounts  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/request-sharing-options  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/requests/{requestType}/{requestId}/events  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/sick-note  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/today  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/enrollable-schools  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/enrollments  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/messages  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/messages/children/{studentId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/messages/children/{studentId}/threads  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/messages/group-threads  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/messages/group-threads/{groupThreadId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/messages/unread-count  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/news  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/news/unread-count  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/news/{announcementId}/declaration/proof  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/notification-preferences/  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/profile  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/push/public-key  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PATCH /parent/me/children/{studentId}/master-data/{target}/{field}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /api/announcement-attachments/{announcementId}
 	POST /api/guardians/bulk-invite
 	POST /api/guardians/invitations/{invitationId}/approve
@@ -860,45 +860,45 @@ eltern_app
 	POST /api/parent-announcements/{announcementId}/remind
 	POST /api/parent-announcements/{announcementId}/resend-failed
 	POST /api/parent-announcements/{announcementId}/unpublish
-	POST /auth/guardian-invitations/{id}/resend  (#4895 Elternportal: Einladung annehmen stellt die Eltern-Sitzung aus)
-	POST /auth/guardian-invitations/{token}/accept  (#4895 Elternportal: Einladung annehmen stellt die Eltern-Sitzung aus)
-	POST /parent/auth/login  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/auth/password-reset  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/auth/password-reset/confirm  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/calendar/feed/rotate  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/calendar/recipients/{recipientId}/response  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/children/{studentId}/care-exception  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/children/{studentId}/care-offerings/requests  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/children/{studentId}/care-schedule/requests  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/children/{studentId}/courses/requests  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/children/{studentId}/courses/requests/{requestId}/withdraw  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/children/{studentId}/guardians  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/children/{studentId}/master-data/requests  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/children/{studentId}/related-accounts  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/children/{studentId}/sick-note  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/messages/children/{studentId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/news/{announcementId}/acknowledge  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/news/{announcementId}/declaration  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/news/{announcementId}/read  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/news/{announcementId}/respond  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/push/subscriptions  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/me/pwa-usage  (#4895 Elternportal, an der Eltern-Sitzung)
+	POST /auth/guardian-invitations/{id}/resend
+	POST /auth/guardian-invitations/{token}/accept  (#4895 Elternportal: Einladung annehmen stellt keine Sitzung aus, der Login sperrt)
+	POST /parent/auth/login  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/auth/password-reset  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/auth/password-reset/confirm  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/calendar/feed/rotate  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/calendar/recipients/{recipientId}/response  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/care-exception  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/care-offerings/requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/care-schedule/requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/courses/requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/courses/requests/{requestId}/withdraw  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/guardians  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/master-data/requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/related-accounts  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/sick-note  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/messages/children/{studentId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/news/{announcementId}/acknowledge  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/news/{announcementId}/declaration  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/news/{announcementId}/read  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/news/{announcementId}/respond  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/push/subscriptions  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/pwa-usage  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /api/messages/count-scope
 	PUT /api/parent-announcements/{announcementId}
 	PUT /api/parent-announcements/{announcementId}/reminder
-	PUT /parent/me/children/{studentId}/care-offerings/requests/{requestId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/children/{studentId}/care-schedule/requests/{requestId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/children/{studentId}/consents/photo  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/children/{studentId}/excused-requests/{requestId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/children/{studentId}/master-data/requests/{requestId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/children/{studentId}/meal-participation  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/children/{studentId}/meal-participation/{date}  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/notification-preferences/{type}  (#4895 Elternportal, an der Eltern-Sitzung)
-	PUT /parent/me/profile  (#4895 Elternportal, an der Eltern-Sitzung)
+	PUT /parent/me/children/{studentId}/care-offerings/requests/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/care-schedule/requests/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/consents/photo  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/excused-requests/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/master-data/requests/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/meal-participation  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/meal-participation/{date}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/notification-preferences/{type}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/profile  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 
 online_anmeldung
 	DELETE /api/enrollment/admin/requests/{id}/
@@ -947,8 +947,8 @@ online_anmeldung
 	GET /api/enrollment/schema/public/{tenantSlug}/{phaseId}  (Anmeldung: Formularaufbau einer Phase, keine Personendaten)
 	GET /api/enrollment/schema/versions
 	GET /api/enrollment/schema/{id}
-	GET /parent/enrollments/{tenantSlug}/bootstrap/{phaseId}  (#4895 Elternportal, an der Eltern-Sitzung)
-	GET /parent/enrollments/{tenantSlug}/profile  (#4895 Elternportal, an der Eltern-Sitzung)
+	GET /parent/enrollments/{tenantSlug}/bootstrap/{phaseId}  (#4895 Elternportal: Eltern-Sitzung, Anmeldung über enrollment.enabled)
+	GET /parent/enrollments/{tenantSlug}/profile  (#4895 Elternportal: Eltern-Sitzung, Anmeldung über enrollment.enabled)
 	GET /public/enrollment-form-legal-documents/{filename}  (Anmeldung: Rechtstexte der Schule, keine Personendaten)
 	GET /public/enrollment-legal-documents/{filename}  (Anmeldung: Rechtstexte der Schule, keine Personendaten)
 	PATCH /api/enrollment/requests/{statusToken}  (Anmeldung: Statuslink schließt mit dem Modul)
@@ -978,8 +978,8 @@ online_anmeldung
 	POST /api/enrollment/schema/
 	POST /api/enrollment/{tenantSlug}/submit  (Anmeldung: enrollment.enabled nur mit gebuchtem Modul)
 	POST /api/enrollment/{tenantSlug}/uploads  (Anmeldung: enrollment.enabled nur mit gebuchtem Modul)
-	POST /parent/enrollments/{tenantSlug}/submit  (#4895 Elternportal, an der Eltern-Sitzung)
-	POST /parent/enrollments/{tenantSlug}/uploads  (#4895 Elternportal, an der Eltern-Sitzung)
+	POST /parent/enrollments/{tenantSlug}/submit  (#4895 Elternportal: Eltern-Sitzung, Anmeldung über enrollment.enabled)
+	POST /parent/enrollments/{tenantSlug}/uploads  (#4895 Elternportal: Eltern-Sitzung, Anmeldung über enrollment.enabled)
 	PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
 	PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings
 	PUT /api/enrollment/admin/requests/{id}/read
@@ -989,59 +989,59 @@ online_anmeldung
 	PUT /api/enrollment/schema/{id}
 
 unterricht_vormittag
-	DELETE /school/calendar/appointments/{appointmentId}  (#4895 Schulportal, an der Schul-Sitzung)
-	DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
-	DELETE /school/class-day/handover/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
-	DELETE /school/class-day/homework/{schoolClass}/{homeworkId}  (#4895 Schulportal, an der Schul-Sitzung)
-	DELETE /school/notifications/preferences/  (#4895 Schulportal, an der Schul-Sitzung)
-	DELETE /school/notifications/push/subscriptions  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school-sse/events  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/calendar/feed  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/calendar/my  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/class-day/  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/class-day/arrival-exceptions  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/class-day/arrival-exceptions/block-start  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/class-day/classes  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/notifications/preferences/  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/notifications/push/public-key  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/staff-messages/  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/staff-messages/recipients  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/staff-messages/threads/{threadID}  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/staff-messages/unread-count  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/staff-notices/today  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/supervisions/  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/supervisions/{id}/roster  (#4895 Schulportal, an der Schul-Sitzung)
-	GET /school/supervisions/{id}/students/{student_id}/sheet  (#4895 Schulportal, an der Schul-Sitzung)
-	PATCH /school/supervisions/{id}/students/{student_id}/attendance  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/auth/login  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/auth/mfa/enroll/confirm  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/auth/mfa/enroll/start  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/auth/mfa/resend  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/auth/mfa/verify  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/auth/password-reset  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/auth/password-reset/confirm  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/auth/switch-school  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/calendar/appointments  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/calendar/feed/rotate  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/calendar/recipients/{recipientId}/response  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/class-day/class-trips/{schoolClass}  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/class-day/homework/{schoolClass}  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/notifications/push/subscriptions  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/notifications/test  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/staff-messages/threads/open  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/staff-messages/threads/{threadID}  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/staff-notices/{noticeId}/acknowledge  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/supervisions/{id}/complete  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/supervisions/{id}/start  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/supervisions/{id}/students/{student_id}/check-in  (#4895 Schulportal, an der Schul-Sitzung)
-	POST /school/supervisions/{id}/students/{student_id}/check-out  (#4895 Schulportal, an der Schul-Sitzung)
-	PUT /school/calendar/appointments/{appointmentId}  (#4895 Schulportal, an der Schul-Sitzung)
-	PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
-	PUT /school/class-day/handover/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
-	PUT /school/class-day/homework/{schoolClass}/{homeworkId}  (#4895 Schulportal, an der Schul-Sitzung)
-	PUT /school/class-day/morning-attendance/{schoolClass}/{date}  (#4895 Schulportal, an der Schul-Sitzung)
-	PUT /school/notifications/preferences/{type}  (#4895 Schulportal, an der Schul-Sitzung)
-	PUT /school/supervisions/{id}/students/{student_id}/homework-feedback  (#4895 Schulportal, an der Schul-Sitzung)
+	DELETE /school/calendar/appointments/{appointmentId}
+	DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
+	DELETE /school/class-day/handover/{schoolClass}/{date}
+	DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
+	DELETE /school/notifications/preferences/
+	DELETE /school/notifications/push/subscriptions
+	GET /school-sse/events
+	GET /school/calendar/feed
+	GET /school/calendar/my
+	GET /school/class-day/
+	GET /school/class-day/arrival-exceptions
+	GET /school/class-day/arrival-exceptions/block-start
+	GET /school/class-day/classes
+	GET /school/notifications/preferences/
+	GET /school/notifications/push/public-key
+	GET /school/staff-messages/
+	GET /school/staff-messages/recipients
+	GET /school/staff-messages/threads/{threadID}
+	GET /school/staff-messages/unread-count
+	GET /school/staff-notices/today
+	GET /school/supervisions/
+	GET /school/supervisions/{id}/roster
+	GET /school/supervisions/{id}/students/{student_id}/sheet
+	PATCH /school/supervisions/{id}/students/{student_id}/attendance
+	POST /school/auth/login  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+	POST /school/auth/mfa/enroll/confirm  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+	POST /school/auth/mfa/enroll/start  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+	POST /school/auth/mfa/resend  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+	POST /school/auth/mfa/verify  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+	POST /school/auth/password-reset  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+	POST /school/auth/password-reset/confirm  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+	POST /school/auth/switch-school  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
+	POST /school/calendar/appointments
+	POST /school/calendar/feed/rotate
+	POST /school/calendar/recipients/{recipientId}/response
+	POST /school/class-day/class-trips/{schoolClass}
+	POST /school/class-day/homework/{schoolClass}
+	POST /school/notifications/push/subscriptions
+	POST /school/notifications/test
+	POST /school/staff-messages/threads/open
+	POST /school/staff-messages/threads/{threadID}
+	POST /school/staff-notices/{noticeId}/acknowledge
+	POST /school/supervisions/{id}/complete
+	POST /school/supervisions/{id}/start
+	POST /school/supervisions/{id}/students/{student_id}/check-in
+	POST /school/supervisions/{id}/students/{student_id}/check-out
+	PUT /school/calendar/appointments/{appointmentId}
+	PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
+	PUT /school/class-day/handover/{schoolClass}/{date}
+	PUT /school/class-day/homework/{schoolClass}/{homeworkId}
+	PUT /school/class-day/morning-attendance/{schoolClass}/{date}
+	PUT /school/notifications/preferences/{type}
+	PUT /school/supervisions/{id}/students/{student_id}/homework-feedback
 
 dienstplan
 	DELETE /api/shift-types/{id}

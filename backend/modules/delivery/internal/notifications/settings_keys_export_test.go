@@ -16,4 +16,6 @@ var RestatedSettingKeys = []string{
 	settingParentNotesEnabled,
 	settingStaffMessagingEnabled,
 	settingCalendarAppointmentReminder,
+	settingModuleElternApp,
+	settingModuleUnterrichtVormittag,
 }

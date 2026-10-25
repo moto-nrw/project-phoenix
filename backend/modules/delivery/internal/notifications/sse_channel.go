@@ -115,7 +115,7 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 				return err
 			}
 		}
-		if deliversToSchoolPortal(event) {
+		if deliversToOpenSchoolPortal(event) {
 			return c.broadcaster.BroadcastToSchoolAccounts(event.Audience.TenantID, accountIDs, sseEvent)
 		}
 		return nil
@@ -123,6 +123,10 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 		return fmt.Errorf("sse channel cannot route audience scope %q (tenant %s)",
 			event.Audience.Scope, strconv.FormatInt(event.Audience.TenantID, 10))
 	}
+}
+
+func deliversToOpenSchoolPortal(event Event) bool {
+	return deliversToSchoolPortal(event) && !event.schoolPortalClosed
 }
 
 // permittedGuardians narrows the resolved recipients to the accounts that still

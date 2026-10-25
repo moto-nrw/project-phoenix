@@ -420,6 +420,26 @@ describe("ParentLoginPage i18n", () => {
       ).not.toBeInTheDocument();
     });
 
+    // None of the guardian's schools booked Eltern-App (#4895): the page
+    // says who decides, in the parent's language, instead of an error.
+    it("explains a parents portal the school does not use", async () => {
+      mocks.signIn.mockResolvedValue({
+        error: "CredentialsSignin",
+        code: "portal_not_booked",
+      });
+
+      await submitLogin();
+
+      expect(
+        screen.getByText(
+          /Your school is not using the parent portal at the moment/,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Please check your credentials/),
+      ).not.toBeInTheDocument();
+    });
+
     it("keeps a wrong password generic and offers no staff link", async () => {
       mocks.signIn.mockResolvedValue({
         error: "CredentialsSignin",

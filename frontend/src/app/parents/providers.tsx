@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { ParentPortalAnalyticsSession } from "~/components/analytics/parent-portal-analytics-session";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
+import { ModulePortalProvider } from "~/lib/module-portal-context";
 import { ParentLocaleProvider } from "~/lib/parent-locale-context";
 
 /**
@@ -33,7 +34,9 @@ export function ParentProviders({
       <PushSubscriptionSync portal="parent" />
       <ParentPortalAnalyticsSession />
       <SentrySessionContext portal="parent" />
-      <ParentLocaleProvider>{children}</ParentLocaleProvider>
+      <ParentLocaleProvider>
+        <ModulePortalProvider portal="parent">{children}</ModulePortalProvider>
+      </ParentLocaleProvider>
     </SessionProvider>
   );
 }
