@@ -36,7 +36,7 @@ type CareScheduleRequestService struct {
 	// PickupPermissionCommands writes the frozen previous permission when a
 	// correction reverts an approved pickup permission request (#4780).
 	PickupPermissionCommands careplan.GuardianPickupPermissions
-	// PickupPermissionApprovals coordinates the live People Directory contact
+	// PickupPermissionApprovals coordinates the locked People Directory contact
 	// check and Care Plan write of an approved pickup permission request.
 	carerequests.PickupPermissionApprovals
 	// PickupPermissions serves the pickup permission requests from the native
@@ -81,8 +81,8 @@ func WithPickupPermissions(permissions careplan.GuardianPickupPermissions) CareR
 	}
 }
 
-// WithPickupPermissionApprovals wires the Parent Portal workflow's
-// review-time contact guard. It shares the request decision's tenant unit.
+// WithPickupPermissionApprovals wires the review workflow's contact guard. It
+// shares the request decision's tenant unit.
 func WithPickupPermissionApprovals(approvals carerequests.PickupPermissionApprovals) CareRequestOption {
 	return func(o *careRequestOptions) {
 		o.service = append(o.service, func(s *CareScheduleRequestService) { s.PickupPermissionApprovals = approvals })

@@ -27,8 +27,8 @@ const KindPickupPerson = "pickup_person"
 var ErrPickupPermissionContactGone = errors.New("schedule: pickup permission contact is no longer linked")
 
 // PickupPermissionApproval is the permission state an approved request may
-// grant. The parent-portal workflow checks the current People Directory
-// contact under its row locks before delegating the Care Plan write.
+// grant. The review workflow checks the current People Directory contact
+// under its row locks before delegating the Care Plan write.
 type PickupPermissionApproval struct {
 	TenantID          int64
 	StudentID         int64
@@ -43,6 +43,12 @@ type PickupPermissionApproval struct {
 // dated pickup note.
 type PickupPermissionApprovals interface {
 	ApplyPickupPermission(context.Context, PickupPermissionApproval) error
+	PickupPersonValidators
+}
+
+// PickupPersonValidators rechecks a stored one-day collector before its
+// approval writes a dated pickup note.
+type PickupPersonValidators interface {
 	ValidatePickupPerson(context.Context, int64, int64) error
 }
 

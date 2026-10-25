@@ -53,14 +53,18 @@ func (a requestDecisionAdapter) ApplyPickup(ctx context.Context, request *carere
 // so its relationship belongs to this child; a link removed since then
 // refuses the approval.
 func (a requestDecisionAdapter) ApplyPickupPermission(ctx context.Context, request *carerequests.Request) error {
-	if a.s.PickupPermissionApprovals == nil {
+	return applyPickupPermissionApproval(ctx, a.s.PickupPermissionApprovals, request)
+}
+
+func applyPickupPermissionApproval(ctx context.Context, approvals carerequests.PickupPermissionApprovals, request *carerequests.Request) error {
+	if approvals == nil {
 		return errors.New("schedule: pickup permission approvals not configured")
 	}
 	permission, err := carerequests.ParsePickupPermission(request.Payload)
 	if err != nil {
 		return err
 	}
-	return a.s.ApplyPickupPermission(ctx, carerequests.PickupPermissionApproval{
+	return approvals.ApplyPickupPermission(ctx, carerequests.PickupPermissionApproval{
 		TenantID: request.TenantID, StudentID: request.StudentID,
 		GuardianProfileID: permission.GuardianProfileID, RelationshipID: permission.RelationshipID,
 		Weekdays: permission.Weekdays,

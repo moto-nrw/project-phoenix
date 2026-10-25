@@ -18,7 +18,6 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // CarePlanRequests are the parent request queues of Care Plan: the
@@ -65,7 +64,7 @@ func BuildCarePlanRequests(
 	if err != nil {
 		return CarePlanRequests{}, fmt.Errorf("compose care plan pickup permissions: %w", err)
 	}
-	pickupPermissionApprovals := parentportal.NewPickupPermissionApprovals(
+	pickupPermissionApprovals := NewPickupPermissionApprovals(
 		NewParentGuardianProfileReads(people.GuardianProfiles),
 		NewParentStudentGuardianReads(people.StudentGuardians),
 		NewParentGuardianPolicy(), pickupPermissions,

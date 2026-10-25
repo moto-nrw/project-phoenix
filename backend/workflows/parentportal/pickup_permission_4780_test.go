@@ -61,7 +61,7 @@ func buildPickupPermissionService(t *testing.T) pickupPermissionFixture {
 	require.NoError(t, err)
 	permissions, err := careplanCompose.NewGuardianPickupPermissions(db, func(careplanCompose.Observation) {})
 	require.NoError(t, err)
-	pickupPermissionApprovals := parentService.NewPickupPermissionApprovals(
+	pickupPermissionApprovals := owners.NewPickupPermissionApprovals(
 		owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
 		owners.NewParentGuardianPolicy(), permissions,
