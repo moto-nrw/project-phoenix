@@ -21,7 +21,8 @@ import {
  * Träger-portal route wrapper ("moto träger", #4649). Mirrors
  * lib/school/route-wrapper.server.ts, but reads the Träger NextAuth session
  * (traeger.session-token) so a Träger route can never forward a tenant,
- * parent, or school token. The Träger-Büro account routes (#4650) write.
+ * parent, or school token. Reads, the holiday period writes (#4659) and the
+ * Träger-Büro account routes (#4650) go through the same proxy factories.
  */
 
 async function traegerServerFetch<T>(

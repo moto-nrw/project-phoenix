@@ -202,6 +202,7 @@ export const HELP_TOPICS = {
   traegerLogin: "traeger-anmelden",
   traegerInvitation: "einladung-ins-traeger-buero-annehmen",
   traegerAccounts: "personen-ins-traeger-buero-einladen",
+  traegerHolidayPeriod: "traeger-ferienzeitraum",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",

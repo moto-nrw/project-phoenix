@@ -41884,13 +41884,24 @@
     {
       "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayPeriodResource.TraegerRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayPeriodResource.TraegerRouter",
+      "target_owner": "enrollment",
+      "binding_digest": "23f977aa9d13d51b67537d27c300b725",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment/http.HolidayPeriodResource.TraegerRouter mounts the Träger holiday period routes behind the Träger right and the Träger transaction (#4659, ADR 0105). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerRouter",
       "target": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerRouter",
       "target_owner": "traeger-view",
-      "binding_digest": "3814c9411ca17bd574034c093b0ec604",
+      "binding_digest": "5ea4091e13912f081ce1ffafa162489d",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/traegerview/http.Resource.TraegerRouter mounts the Träger school list (ADR 0084, #4649). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/traegerview/http.Resource.TraegerRouter mounts the Träger school list (ADR 0084, #4649); it takes and ignores the Träger transaction middleware the route group offers (ADR 0105). May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "meal-plan",

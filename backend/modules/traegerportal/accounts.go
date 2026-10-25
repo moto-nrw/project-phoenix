@@ -25,9 +25,9 @@ import (
 var errAccountsUnavailable = errors.New("the Träger account management is not composed")
 
 // accountRouter returns the routes mounted at /traeger/accounts.
-func (rs *Resource) accountRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router {
+func (rs *Resource) accountRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
-	protectedTraegerRoutes(r, func(r chi.Router) {
+	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.Use(common.RequiresPermission(identityaccess.TraegerRightAccountsManage))
 		r.Get("/", rs.listAccounts)
 		r.Post("/invitations", rs.inviteAccount)

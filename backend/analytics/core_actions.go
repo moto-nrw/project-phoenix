@@ -562,6 +562,9 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/accounts/{accountId}/roles"}:             notCaptured,
 	{http.MethodDelete, "/traeger/accounts/{accountId}"}:                notCaptured,
 	{http.MethodPost, "/traeger/invitations/{token}/accept"}:            notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/"}:                      notCaptured,
+	{http.MethodPut, "/traeger/holiday-periods/{id}"}:                   notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}:          notCaptured,
 
 	// School portal (Lehrkräfte).
 	{http.MethodPost, "/school/auth/login"}:                                               session("login_success"),

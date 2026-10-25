@@ -20,7 +20,7 @@ vi.mock("~/lib/analytics-session-header.server", () => ({
 
 global.fetch = mockFetch as typeof fetch;
 
-import { proxyDelete, proxyGet } from "./route-wrapper.server";
+import { proxyDelete, proxyGet, proxyPut } from "./route-wrapper.server";
 
 const context = { params: Promise.resolve({}) };
 
@@ -171,5 +171,61 @@ describe("Träger proxy", () => {
 
     expect(response.status).toBe(409);
     expect(await response.text()).toBe(body);
+  });
+
+  it("forwards a write with its body (#4659)", async () => {
+    mockFetch.mockResolvedValueOnce(
+      Response.json({ status: "success", data: { id: 5 }, message: "ok" }),
+    );
+    const write = new NextRequest(
+      "http://localhost:3000/api/traeger/holiday-periods/5",
+      { method: "PUT", body: JSON.stringify({ name: "Ferien" }) },
+    );
+
+    const response = await proxyPut("/traeger/holiday-periods/5")(
+      write,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { id: 5 } });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/traeger/holiday-periods/5",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ name: "Ferien" }),
+        headers: expect.objectContaining({ Authorization: "Bearer org-token" }),
+      }),
+    );
+  });
+
+  it("keeps a business refusal of the retried request instead of ending the session", async () => {
+    const conflict =
+      '{"type":"about:blank","title":"Conflict","status":409,"detail":"incomplete","code":"enrollment.holiday_period_incomplete"}';
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          '{"status":401,"detail":"expired","code":"general.permission"}',
+          {
+            status: 401,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(conflict, {
+          status: 409,
+          headers: { "Content-Type": "application/problem+json" },
+        }),
+      );
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+
+    const response = await proxyGet("/traeger/holiday-periods/5")(
+      request(),
+      context,
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toBe(conflict);
   });
 });

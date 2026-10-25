@@ -1727,6 +1727,16 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				},
 			})
 
+		case "/traeger/auth/login":
+			// The Träger-Portal sign-in of the holiday period step (#4659).
+			_, _ = fmt.Fprint(w, `{"status":"authenticated","access_token":"traeger-token","refresh_token":"traeger-refresh"}`)
+
+		case "/traeger/schools/":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   []map[string]any{{"id": idCounter}},
+			})
+
 		case "/api/enrollment/vollbetrieb/submit", "/parent/enrollments/vollbetrieb/submit":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",

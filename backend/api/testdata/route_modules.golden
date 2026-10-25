@@ -368,6 +368,8 @@ basis
 	GET /public/request-feed/{token}
 	GET /ready
 	GET /traeger/accounts/
+	GET /traeger/holiday-periods/
+	GET /traeger/holiday-periods/{id}
 	GET /traeger/invitations/{token}
 	GET /traeger/schools/
 	HEAD /.well-known/caldav
@@ -608,6 +610,8 @@ basis
 	POST /operator/unregistered-tag-scans/{id}/resolve
 	POST /traeger/accounts/invitations
 	POST /traeger/auth/login
+	POST /traeger/holiday-periods/
+	POST /traeger/holiday-periods/{id}/publish
 	POST /traeger/invitations/{token}/accept
 	PUT /.well-known/caldav
 	PUT /analytics-consent/
@@ -687,6 +691,7 @@ basis
 	PUT /operator/schools/{id}/accounts/{accountId}/mfa/override
 	PUT /operator/schools/{id}/settings/values/{key}
 	PUT /traeger/accounts/{accountId}/roles
+	PUT /traeger/holiday-periods/{id}
 	QUERY /.well-known/caldav
 	QUERY /api/caldav
 	QUERY /api/caldav/*

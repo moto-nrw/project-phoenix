@@ -171,6 +171,9 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
 export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/",
   "/accounts",
+  "/ferien",
+  "/ferien/:id",
+  "/ferien/neu",
   "/invite",
   "/login",
 ] as const;

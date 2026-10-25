@@ -164,6 +164,9 @@
     "/traeger": 518137,
     "/traeger/accounts": 536273,
     "/traeger/invite": 515756,
+    "/traeger/ferien": 518416,
+    "/traeger/ferien/[id]": 576536,
+    "/traeger/ferien/neu": 568613,
     "/traeger/login": 518937
   }
 }

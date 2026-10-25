@@ -2,20 +2,25 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 
-const { mockSignOut, session } = vi.hoisted(() => ({
+const { mockSignOut, mockPush, sessionUser } = vi.hoisted(() => ({
   mockSignOut: vi.fn(),
-  session: { permissions: [] as string[] },
+  mockPush: vi.fn(),
+  sessionUser: {
+    email: "buero@traeger.example",
+    permissions: [] as string[],
+  },
+}));
+
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  usePathname: () => "/",
+  useRouter: () => ({ push: mockPush }),
 }));
 
 vi.mock("next-auth/react", () => ({
   signOut: mockSignOut,
   useSession: () => ({
-    data: {
-      user: {
-        email: "buero@traeger.example",
-        permissions: session.permissions,
-      },
-    },
+    data: { user: sessionUser },
     status: "authenticated",
   }),
 }));
@@ -61,31 +66,52 @@ describe("TraegerShell", () => {
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
   });
 
-  // #4650: the page "Personen" exists only for the right to manage accounts.
-  it("offers the page Personen only with the right to manage accounts", () => {
-    session.permissions = ["traeger_overview:read"];
+  it("offers the holiday periods only to a role that manages enrollment", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
     const { unmount } = render(
       <TraegerShell>
         <p>Inhalt</p>
       </TraegerShell>,
     );
-    expect(screen.getByRole("link", { name: "Schulen" })).toHaveAttribute(
-      "href",
-      "/",
-    );
-    expect(screen.queryAllByRole("link", { name: "Personen" })).toEqual([]);
+    expect(screen.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ferien" })).toBeNull();
     unmount();
 
-    session.permissions = ["traeger_overview:read", "traeger_accounts:manage"];
+    sessionUser.permissions = ["traeger_enrollment:manage"];
     render(
       <TraegerShell>
         <p>Inhalt</p>
       </TraegerShell>,
     );
-    expect(screen.getByRole("link", { name: "Personen" })).toHaveAttribute(
-      "href",
-      "/accounts",
+    fireEvent.click(screen.getAllByRole("button", { name: "Ferien" })[0]!);
+    expect(mockPush).toHaveBeenCalledWith("/ferien");
+    sessionUser.permissions = [];
+  });
+
+  // #4650: the page "Personen" exists only for the right to manage accounts.
+  it("offers the page Personen only with the right to manage accounts", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
     );
-    session.permissions = [];
+    expect(screen.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Personen" })).toBeNull();
+    unmount();
+
+    sessionUser.permissions = [
+      "traeger_overview:read",
+      "traeger_accounts:manage",
+    ];
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Personen" })[0]!);
+    expect(mockPush).toHaveBeenLastCalledWith("/accounts");
+    expect(screen.queryByRole("button", { name: "Ferien" })).toBeNull();
+    sessionUser.permissions = [];
   });
 });
