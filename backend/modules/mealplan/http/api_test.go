@@ -3,7 +3,6 @@ package mealplan_test
 import (
 	"context"
 	"errors"
-	"net/http"
 	"reflect"
 	"strings"
 	"testing"
@@ -21,8 +20,16 @@ import (
 type engine struct {
 	available bool
 	entries   []mealplanModule.Entry
-	// changes records the team's participation changes.
-	changes *[]mealplanModule.StaffParticipationChange
+	// dayChange records the last day change: account, date, participating,
+	// by school.
+	dayChange *dayChange
+}
+
+type dayChange struct {
+	accountID     int64
+	date          string
+	participating bool
+	bySchool      bool
 }
 
 var moduleFailures = map[error]struct {
@@ -57,22 +64,25 @@ func TestStaffRoutesKeepProtectedPermissionBoundaries(t *testing.T) {
 		},
 		Success:        routetest.RespondSuccess,
 		InvalidRequest: routetest.RespondInvalidRequest,
-		Account:        func(*http.Request) (int64, error) { return 7, nil },
 		ParseIDParam:   testpkg.ParseHTTPIDParam,
 		ModuleFailure:  routetest.ErrorResponder(resolveModuleFailure),
-		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
+		RenderList: func(mealplanModule.ListExport, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
-		ExportWeeklyList: func(mealplanModule.WeeklyList, string) (mealplanHTTP.ExportFile, error) {
-			return mealplanHTTP.ExportFile{}, nil
-		},
+		CurrentAccountID: func(context.Context) int64 { return 9 },
+		Allowed:          func(context.Context, mealplanHTTP.Access) bool { return true },
 	})
 
 	resource.Router()
 	if !protected {
 		t.Fatal("routes were registered outside the protected tenant boundary")
 	}
-	want := []mealplanHTTP.Access{mealplanHTTP.AccessRead, mealplanHTTP.AccessWrite, mealplanHTTP.AccessWrite, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipantsWrite, mealplanHTTP.AccessParticipantsWrite}
+	// #3873: the school's changes of a child's registration need a
+	// permission of their own; seeing the lists with names opens no change.
+	want := []mealplanHTTP.Access{mealplanHTTP.AccessRead, mealplanHTTP.AccessWrite, mealplanHTTP.AccessWrite, mealplanHTTP.AccessDailyParticipants, mealplanHTTP.AccessParticipants,
+		mealplanHTTP.AccessParticipants, mealplanHTTP.AccessParticipants,
+		mealplanHTTP.AccessRead, mealplanHTTP.AccessParticipants,
+		mealplanHTTP.AccessRegister, mealplanHTTP.AccessRegister, mealplanHTTP.AccessRegister, mealplanHTTP.AccessRegister}
 	if !reflect.DeepEqual(accesses, want) {
 		t.Fatalf("permission boundaries = %v, want %v", accesses, want)
 	}
@@ -96,44 +106,66 @@ func (e engine) RegistrationAvailable(context.Context) (bool, error) { return e.
 func (e engine) Participation(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.ParticipationPlan, error) {
 	return mealplanModule.ParticipationPlan{}, nil
 }
+func (e engine) ParticipationBySchool(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.ParticipationPlan, error) {
+	return mealplanModule.ParticipationPlan{}, nil
+}
 func (e engine) ReplaceParticipationSchedule(context.Context, mealplanModule.ReplaceParticipationSchedule) (mealplanModule.Date, error) {
 	return "2026-09-07", nil
 }
-func (e engine) SetParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error {
+func (e engine) ReplaceScheduleBySchool(context.Context, mealplanModule.SchoolSchedule) (mealplanModule.Date, error) {
+	return "2026-09-07", nil
+}
+func (e engine) SetParticipationForDay(_ context.Context, command mealplanModule.SetParticipationDay) error {
+	e.record(command.GuardianAccountID, command.Date, command.Participating, false)
 	return nil
+}
+func (e engine) SetParticipationBySchool(_ context.Context, command mealplanModule.SchoolChange) error {
+	e.record(command.StaffAccountID, command.Date, command.Participating, true)
+	return nil
+}
+func (e engine) record(accountID int64, date mealplanModule.Date, participating, bySchool bool) {
+	if e.dayChange != nil {
+		*e.dayChange = dayChange{accountID: accountID, date: string(date), participating: participating, bySchool: bySchool}
+	}
+}
+func (e engine) SetParticipationForWeek(context.Context, mealplanModule.SetParticipationWeek) (mealplanModule.WeekChange, error) {
+	return mealplanModule.WeekChange{}, nil
 }
 func (e engine) ClearParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error {
 	return nil
 }
+func (e engine) ClearParticipationBySchool(context.Context, mealplanModule.SchoolChange) error {
+	return nil
+}
 func (e engine) DailyList(context.Context, mealplanModule.Date) (mealplanModule.DailyList, error) {
-	return mealplanModule.DailyList{
-		Cutoffs: mealplanModule.Cutoffs{CutoffTime: "09:00"}, Date: "2026-09-07",
-		Participants: []mealplanModule.DailyParticipant{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}},
-		Available:    []mealplanModule.DailyParticipant{{StudentID: 43, FirstName: "Ben", LastName: "Beispiel", SchoolClass: "3b"}},
-	}, nil
+	return mealplanModule.DailyList{Date: "2026-09-07", CutoffTime: "09:00", Deadline: time.Date(2026, 9, 7, 7, 0, 0, 0, time.UTC), Participants: []mealplanModule.DailyParticipant{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}},
+		Others: []mealplanModule.DailyParticipant{{StudentID: 43, FirstName: "Ben", LastName: "Bauer", SchoolClass: "3b"}}}, nil
 }
 
 func (e engine) WeeklyList(context.Context, mealplanModule.Date) (mealplanModule.WeeklyList, error) {
 	days := make([]mealplanModule.DailyList, 0, 5)
 	for _, date := range []mealplanModule.Date{"2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11"} {
-		days = append(days, mealplanModule.DailyList{Cutoffs: weeklyCutoffs, Date: date})
+		days = append(days, mealplanModule.DailyList{Date: date, CutoffTime: "09:00"})
 	}
 	days[1].Participants = []mealplanModule.DailyParticipant{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}}
-	days[2].Closed = true
-	return mealplanModule.WeeklyList{Cutoffs: weeklyCutoffs, WeekStart: "2026-09-07", Days: days}, nil
+	return mealplanModule.WeeklyList{WeekStart: "2026-09-07", Days: days}, nil
 }
 
-var weeklyCutoffs = mealplanModule.Cutoffs{CutoffTime: "09:00", CutoffWeekday: mealplanModule.Wednesday, CancellationCutoffTime: "16:00", CancellationCutoffLeadDays: 1}
-
 func resource(available bool) *mealplanHTTP.Resource {
+	return resourceAllowing(available, true)
+}
+
+// resourceAllowing builds the resource for a caller who passes every access
+// level (registering) or only those below a school's change.
+func resourceAllowing(available, registering bool) *mealplanHTTP.Resource {
 	date, _ := mealplanModule.ParseDate("2026-09-07")
 	module := engine{available: available, entries: []mealplanModule.Entry{{
 		Date: date, Position: 0, Dish: "Nudeln",
 	}}}
-	return resourceFor(module)
+	return resourceFor(module, registering)
 }
 
-func resourceFor(module mealplanModule.Capability) *mealplanHTTP.Resource {
+func resourceFor(module mealplanModule.Capability, registering bool) *mealplanHTTP.Resource {
 	return mealplanHTTP.NewResource(module, mealplanHTTP.Runtime{
 		Protected: routetest.UnprotectedGroupFunc(),
 		Permission: func(mealplanHTTP.Access) mealplanHTTP.Middleware {
@@ -141,14 +173,14 @@ func resourceFor(module mealplanModule.Capability) *mealplanHTTP.Resource {
 		},
 		Success:        routetest.RespondSuccess,
 		InvalidRequest: routetest.RespondInvalidRequest,
-		Account:        func(*http.Request) (int64, error) { return 7, nil },
 		ParseIDParam:   testpkg.ParseHTTPIDParam,
 		ModuleFailure:  routetest.ErrorResponder(resolveModuleFailure),
-		ExportDailyList: func(mealplanModule.DailyList, string) (mealplanHTTP.ExportFile, error) {
+		RenderList: func(mealplanModule.ListExport, string) (mealplanHTTP.ExportFile, error) {
 			return mealplanHTTP.ExportFile{}, nil
 		},
-		ExportWeeklyList: func(mealplanModule.WeeklyList, string) (mealplanHTTP.ExportFile, error) {
-			return mealplanHTTP.ExportFile{}, nil
+		CurrentAccountID: func(context.Context) int64 { return 9 },
+		Allowed: func(_ context.Context, access mealplanHTTP.Access) bool {
+			return registering || access != mealplanHTTP.AccessRegister
 		},
 	})
 }
@@ -159,31 +191,7 @@ func TestStaffDailyListResponseContract(t *testing.T) {
 	if response.Code != 200 {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	assert.JSONEq(t, `{"status":"success","data":{"date":"2026-09-07","cutoff_time":"09:00","cutoff_lead_days":0,"cutoff_weekday":0,"cancellation_cutoff_lead_days":0,"closed":false,"participants":[{"student_id":"42","first_name":"Mia","last_name":"Muster","school_class":"2a"}],"available":[{"student_id":"43","first_name":"Ben","last_name":"Beispiel","school_class":"3b"}]},"message":"Meal participation list retrieved successfully"}`, response.Body.String())
-}
-
-func TestStaffWeeklyListResponseContract(t *testing.T) {
-	t.Parallel()
-	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants/week?week_start=2026-09-07", nil))
-	if response.Code != 200 {
-		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
-	}
-	assert.JSONEq(t, `{"status":"success","data":{"week_start":"2026-09-07","cutoff_time":"09:00","cutoff_lead_days":0,"cutoff_weekday":3,"cancellation_cutoff_time":"16:00","cancellation_cutoff_lead_days":1,"days":[
-		{"date":"2026-09-07","closed":false,"participants":[]},
-		{"date":"2026-09-08","closed":false,"participants":[{"student_id":"42","first_name":"Mia","last_name":"Muster","school_class":"2a"}]},
-		{"date":"2026-09-09","closed":true,"participants":[]},
-		{"date":"2026-09-10","closed":false,"participants":[]},
-		{"date":"2026-09-11","closed":false,"participants":[]}
-	]},"message":"Weekly meal participation list retrieved successfully"}`, response.Body.String())
-
-	malformed := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants/week?week_start=07.09.2026", nil))
-	if malformed.Code != 400 {
-		t.Fatalf("malformed week status = %d, body = %s", malformed.Code, malformed.Body.String())
-	}
-	unsupported := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants/week/export?week_start=2026-09-07&format=csv", nil))
-	if unsupported.Code != 400 {
-		t.Fatalf("unsupported format status = %d, body = %s", unsupported.Code, unsupported.Body.String())
-	}
+	assert.JSONEq(t, `{"status":"success","data":{"date":"2026-09-07","cutoff_time":"09:00","deadline":"2026-09-07T07:00:00Z","closed":false,"participants":[{"student_id":"42","first_name":"Mia","last_name":"Muster","school_class":"2a"}]},"message":"Meal participation list retrieved successfully"}`, response.Body.String())
 }
 
 func TestStaffWeekResponseContract(t *testing.T) {
@@ -228,18 +236,22 @@ func TestStaffWeekendWriteKeepsItsErrorContract(t *testing.T) {
 	t.Parallel()
 
 	enabled := func(context.Context) (bool, error) { return true, nil }
-	settings, err := mealplanCompose.NewBoundSettings(enabled, enabled, func(context.Context) (mealplanModule.Cutoffs, error) {
-		return mealplanModule.Cutoffs{CutoffTime: "09:00"}, nil
+	settings, err := mealplanCompose.NewBoundSettings(enabled, enabled, func(context.Context) (mealplanCompose.OrderingSettings, error) {
+		return mealplanCompose.OrderingSettings{}, nil
 	})
 	require.NoError(t, err)
 	module, err := mealplanCompose.New(mealplanCompose.Dependencies{
-		DB: testpkg.SetupTestDB(t), Settings: settings, Calendar: noClosedDays{},
+		DB: testpkg.SetupTestDB(t), Settings: settings,
 		Observe: func(mealplanCompose.Observation) {}, Now: time.Now,
 		Participants: func(context.Context, string) ([]mealplanModule.ParticipantCandidate, error) { return nil, nil },
+		StudentNames: func(context.Context, []int64) ([]mealplanModule.ParticipantCandidate, error) { return nil, nil },
+		Calendar: func(context.Context, string, string) (map[string]bool, []mealplanModule.HolidayPeriod, error) {
+			return nil, nil, nil
+		},
 	})
 	require.NoError(t, err)
 
-	response := routetest.ExecuteRequest(resourceFor(module).Router(), routetest.NewRequest(
+	response := routetest.ExecuteRequest(resourceFor(module, true).Router(), routetest.NewRequest(
 		"PUT", "/2026-09-05", strings.NewReader(`{"dishes":[{"dish":"Suppe"}]}`),
 	))
 	if response.Code != 400 {
@@ -251,42 +263,112 @@ func TestStaffWeekendWriteKeepsItsErrorContract(t *testing.T) {
 	}
 }
 
-type noClosedDays struct{}
-
-func (noClosedDays) NonWorkingDayDates(context.Context, string, string) (map[string]bool, error) {
-	return map[string]bool{}, nil
-}
-
-func (e engine) ChangeParticipationAsStaff(_ context.Context, change mealplanModule.StaffParticipationChange) error {
-	if e.changes != nil {
-		*e.changes = append(*e.changes, change)
-	}
-	return nil
-}
-
-func TestStaffParticipantDayRoutesPassTheTeamChange(t *testing.T) {
+func TestStaffDailyListListsTheOthersOnRequest(t *testing.T) {
 	t.Parallel()
-	var changes []mealplanModule.StaffParticipationChange
-	router := resourceFor(engine{available: true, changes: &changes}).Router()
-
-	signUp := routetest.ExecuteRequest(router, routetest.NewRequest("PUT", "/participants/43/2026-09-07", strings.NewReader(`{"participating":true}`)))
-	require.Equal(t, 200, signUp.Code, signUp.Body.String())
-	reset := routetest.ExecuteRequest(router, routetest.NewRequest("DELETE", "/participants/43/2026-09-07", nil))
-	require.Equal(t, 200, reset.Code, reset.Body.String())
-
-	participating := true
-	assert.Equal(t, []mealplanModule.StaffParticipationChange{
-		{StudentID: 43, AccountID: 7, Date: "2026-09-07", Participating: &participating},
-		{StudentID: 43, AccountID: 7, Date: "2026-09-07"},
-	}, changes)
-
-	for name, request := range map[string]*http.Request{
-		"missing participating": routetest.NewRequest("PUT", "/participants/43/2026-09-07", strings.NewReader(`{}`)),
-		"bad student":           routetest.NewRequest("PUT", "/participants/abc/2026-09-07", strings.NewReader(`{"participating":true}`)),
-		"bad date":              routetest.NewRequest("DELETE", "/participants/43/07.09.2026", nil),
-	} {
-		response := routetest.ExecuteRequest(router, request)
-		assert.Equal(t, 400, response.Code, name)
+	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants?date=2026-09-07&include=all", nil))
+	if response.Code != 200 {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	assert.Len(t, changes, 2, "refused requests change nothing")
+	assert.Contains(t, response.Body.String(), `"others":[{"student_id":"43","first_name":"Ben","last_name":"Bauer","school_class":"3b"}]`)
+
+	// Without the right to register a child, the children who do not eat
+	// stay out of the list.
+	reader := routetest.ExecuteRequest(resourceAllowing(true, false).Router(), routetest.NewRequest("GET", "/participants?date=2026-09-07&include=all", nil))
+	assert.Equal(t, 200, reader.Code)
+	assert.NotContains(t, reader.Body.String(), "others")
+	assert.NotContains(t, reader.Body.String(), "Ben")
+}
+
+func TestStaffDayChangeIsTheSchools(t *testing.T) {
+	t.Parallel()
+	recorded := &dayChange{}
+	module := engine{available: true, dayChange: recorded}
+	router := mealplanHTTP.NewResource(module, mealplanHTTP.Runtime{
+		Protected:  routetest.UnprotectedGroupFunc(),
+		Permission: func(mealplanHTTP.Access) mealplanHTTP.Middleware { return routetest.IdentityMiddleware },
+		Success:    routetest.RespondSuccess, InvalidRequest: routetest.RespondInvalidRequest, ParseIDParam: testpkg.ParseHTTPIDParam,
+		ModuleFailure: routetest.ErrorResponder(resolveModuleFailure),
+		RenderList: func(mealplanModule.ListExport, string) (mealplanHTTP.ExportFile, error) {
+			return mealplanHTTP.ExportFile{}, nil
+		},
+		CurrentAccountID: func(context.Context) int64 { return 9 },
+		Allowed:          func(context.Context, mealplanHTTP.Access) bool { return true },
+	}).Router()
+
+	response := routetest.ExecuteRequest(router, routetest.NewRequest("PUT", "/participation/42/days/2026-09-10", strings.NewReader(`{"participating":false}`)))
+	if response.Code != 200 {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	assert.Equal(t, dayChange{accountID: 9, date: "2026-09-10", participating: false, bySchool: true}, *recorded)
+
+	missing := routetest.ExecuteRequest(router, routetest.NewRequest("PUT", "/participation/42/days/2026-09-10", strings.NewReader(`{}`)))
+	assert.Equal(t, 400, missing.Code)
+	badStudent := routetest.ExecuteRequest(router, routetest.NewRequest("PUT", "/participation/abc/days/2026-09-10", strings.NewReader(`{"participating":true}`)))
+	assert.Equal(t, 400, badStudent.Code)
+}
+
+func (e engine) SettleOrders(context.Context) error { return nil }
+
+func (e engine) CatererOrders(context.Context, time.Time, mealplanModule.Date, mealplanModule.Date) (mealplanModule.OrderWeek, error) {
+	return mealplanModule.OrderWeek{}, nil
+}
+
+func (e engine) ConfirmOrder(context.Context, int64, time.Time, int64) error { return nil }
+
+func (e engine) Orders(_ context.Context, from, _ mealplanModule.Date) (mealplanModule.OrderWeek, error) {
+	confirmed := time.Date(2026, 9, 7, 9, 30, 0, 0, time.UTC)
+	return mealplanModule.OrderWeek{Rhythm: "daily", Detail: "by_class", Days: []mealplanModule.OrderDay{{
+		Date: from, Deadline: time.Date(2026, 9, 7, 7, 0, 0, 0, time.UTC), Status: mealplanModule.OrderConfirmed, OrderID: 12, ConfirmedAt: &confirmed, Total: 1,
+		Classes:  []mealplanModule.ClassCount{{SchoolClass: "2a", Count: 1}},
+		Children: []mealplanModule.OrderChild{{StudentID: 42, FirstName: "Mia", LastName: "Muster", SchoolClass: "2a"}},
+		Changes:  []mealplanModule.OrderChange{{Sequence: 3, Date: from, Child: mealplanModule.OrderChild{StudentID: 43, FirstName: "Ben", SchoolClass: "3b"}, Delta: -1, DetectedAt: time.Date(2026, 9, 7, 8, 0, 0, 0, time.UTC)}},
+	}}}, nil
+}
+
+// #3873: the school's order view carries numbers and classes, never a name.
+func TestStaffOrdersResponseContract(t *testing.T) {
+	t.Parallel()
+	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/orders?from=2026-09-07&to=2026-09-07", nil))
+	if response.Code != 200 {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	assert.JSONEq(t, `{"status":"success","data":{"format_version":1,"rhythm":"daily","detail":"by_class","days":[{"date":"2026-09-07","closed":false,"deadline":"2026-09-07T07:00:00Z","status":"confirmed","order_id":"12","confirmed_at":"2026-09-07T09:30:00Z","total":1,"classes":[{"school_class":"2a","count":1}],"changes":[{"sequence":3,"school_class":"3b","delta":-1,"detected_at":"2026-09-07T08:00:00Z"}]}]},"message":"Meal orders retrieved successfully"}`, response.Body.String())
+	assert.NotContains(t, response.Body.String(), "Mia")
+
+	bad := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/orders?from=7.9.2026&to=2026-09-07", nil))
+	assert.Equal(t, 400, bad.Code)
+}
+
+func TestStaffMonthExportRefusesBadInput(t *testing.T) {
+	t.Parallel()
+	for _, query := range []string{"month=2026-13&format=pdf", "month=2026-09&format=docx"} {
+		response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/orders/month/export?"+query, nil))
+		assert.Equal(t, 400, response.Code, query)
+	}
+	ok := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/orders/month/export?month=2026-09&format=xlsx", nil))
+	assert.Equal(t, 200, ok.Code)
+}
+
+func TestStaffWeeklyListResponseContract(t *testing.T) {
+	t.Parallel()
+	response := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants/week?week_start=2026-09-07", nil))
+	if response.Code != 200 {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	assert.JSONEq(t, `{"status":"success","data":{"week_start":"2026-09-07","days":[
+		{"date":"2026-09-07","deadline":"0001-01-01T00:00:00Z","closed":false,"participants":[]},
+		{"date":"2026-09-08","deadline":"0001-01-01T00:00:00Z","closed":false,"participants":[{"student_id":"42","first_name":"Mia","last_name":"Muster","school_class":"2a"}]},
+		{"date":"2026-09-09","deadline":"0001-01-01T00:00:00Z","closed":false,"participants":[]},
+		{"date":"2026-09-10","deadline":"0001-01-01T00:00:00Z","closed":false,"participants":[]},
+		{"date":"2026-09-11","deadline":"0001-01-01T00:00:00Z","closed":false,"participants":[]}
+	]},"message":"Weekly meal participation list retrieved successfully"}`, response.Body.String())
+
+	malformed := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants/week?week_start=07.09.2026", nil))
+	if malformed.Code != 400 {
+		t.Fatalf("malformed week status = %d, body = %s", malformed.Code, malformed.Body.String())
+	}
+	unsupported := routetest.ExecuteRequest(resource(true).Router(), routetest.NewRequest("GET", "/participants/week/export?week_start=2026-09-07&format=csv", nil))
+	if unsupported.Code != 400 {
+		t.Fatalf("unsupported format status = %d, body = %s", unsupported.Code, unsupported.Body.String())
+	}
 }

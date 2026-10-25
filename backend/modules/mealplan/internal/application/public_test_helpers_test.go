@@ -22,14 +22,6 @@ func (s seamStore) ReplaceDay(ctx context.Context, date domain.Date, values []me
 	}
 	return domain.OperationStats{}, s.e.Replace(ctx, date.String(), dishes)
 }
-func (s seamStore) InsertParticipationSchedule(ctx context.Context, studentID, accountID int64, date domain.Date, values []domain.Weekday) (domain.OperationStats, error) {
-	weekdays := make([]mealplan.Weekday, 0, len(values))
-	for _, v := range values {
-		weekdays = append(weekdays, mealplan.Weekday(v))
-	}
-	_, err := s.e.ReplaceParticipationSchedule(ctx, studentID, accountID, weekdays)
-	return domain.OperationStats{}, err
-}
 
 type seamTransaction struct{}
 
@@ -39,15 +31,9 @@ type seamSettings struct{ e *recordingEngine }
 
 func (s seamSettings) MealPlanEnabled(context.Context) (bool, error)       { return s.e.available, nil }
 func (seamSettings) MealRegistrationEnabled(context.Context) (bool, error) { return true, nil }
-func (seamSettings) MealParticipationCutoffs(context.Context) (mealplan.Cutoffs, error) {
-	return mealplan.Cutoffs{CutoffTime: "09:00"}, nil
-}
-
-type seamCalendar struct{}
-
-func (seamCalendar) NonWorkingDayDates(context.Context, string, string) (map[string]bool, error) {
-	return map[string]bool{}, nil
+func (seamSettings) MealOrderingSettings(context.Context) (ports.OrderingSettings, error) {
+	return ports.OrderingSettings{}, nil
 }
 func newTestModule(e *recordingEngine) *Service {
-	return New(seamStore{e: e}, struct{ ports.Directory }{}, seamSettings{e}, seamCalendar{}, seamTransaction{}, func(ports.Observation) {}, func() time.Time { return time.Date(2026, 9, 7, 8, 0, 0, 0, calendar.Berlin) })
+	return New(seamStore{e: e}, struct{ ports.Directory }{}, struct{ ports.Calendar }{}, seamSettings{e}, seamTransaction{}, func(ports.Observation) {}, func() time.Time { return time.Date(2026, 9, 7, 8, 0, 0, 0, calendar.Berlin) })
 }

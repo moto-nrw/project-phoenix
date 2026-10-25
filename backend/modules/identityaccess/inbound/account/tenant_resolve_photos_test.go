@@ -42,6 +42,8 @@ type resolveResp struct {
 	Status string `json:"status"`
 	Data   struct {
 		StudentPhotosEnabled bool   `json:"student_photos_enabled"`
+		MealPlanEnabled      bool   `json:"meal_plan_enabled"`
+		MealRegistration     bool   `json:"meal_registration_enabled"`
 		Slug                 string `json:"slug"`
 		GradeLevelMax        int    `json:"grade_level_max"`
 	} `json:"data"`
@@ -92,6 +94,9 @@ func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 		"registry default for student_photos_enabled is false; resolver must surface that")
 	assert.Equal(t, 4, resp.Data.GradeLevelMax,
 		"tenant resolve must surface the enrollment grade cap without config:read")
+	assert.True(t, resp.Data.MealPlanEnabled,
+		"the meal plan is on by default; a kitchen role without config:read must learn it here (#3873)")
+	assert.False(t, resp.Data.MealRegistration, "the meal registration is off by default")
 }
 
 // TestResolveTenant_StudentPhotosEnabled_OverrideTrue verifies that a
@@ -108,8 +113,12 @@ func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 	require.NoError(t,
 		tenantSettings.SetValue(ctx, settings.KeyStudentPhotosEnabled, true, nil, nil),
 		"enable student_photos_enabled for the isolated tenant")
+	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyMealPlanEnabled, false, nil, nil))
+	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyMealRegistrationEnabled, true, nil, nil))
 	t.Cleanup(func() {
 		require.NoError(t, tenantSettings.ResetValue(ctx, settings.KeyStudentPhotosEnabled, nil, nil))
+		require.NoError(t, tenantSettings.ResetValue(ctx, settings.KeyMealPlanEnabled, nil, nil))
+		require.NoError(t, tenantSettings.ResetValue(ctx, settings.KeyMealRegistrationEnabled, nil, nil))
 	})
 
 	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
@@ -128,6 +137,8 @@ func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.True(t, resp.Data.StudentPhotosEnabled,
 		"override of true must round-trip through resolveTenant")
+	assert.False(t, resp.Data.MealPlanEnabled, "a switched-off meal plan round-trips too")
+	assert.True(t, resp.Data.MealRegistration)
 	assert.NotEmpty(t, resp.Data.Slug,
 		"resolver must return the canonical slug")
 }

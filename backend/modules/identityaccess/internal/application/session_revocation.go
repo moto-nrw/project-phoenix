@@ -429,6 +429,9 @@ func pushPortalsForScope(portalScope string) []string {
 		return []string{pushPortalParent}
 	case domain.PortalScopeSchool:
 		return []string{pushPortalSchool}
+	case domain.PortalScopeCaterer:
+		// The caterer portal has no push messages.
+		return nil
 	case domain.PortalScopeUnknown, "":
 		return []string{pushPortalStaff, pushPortalParent, pushPortalSchool}
 	default:

@@ -33,6 +33,8 @@ func findLoginAccountByEmail(ctx context.Context, runtime ports.Runtime, store p
 // globalIdentityRead is the existing global credential unit of work. Despite
 // its historical name, password-reset and login-attempt commands also use it
 // to commit counters independently of a subsequent authentication refusal.
+// One school-RLS table is read through it: CatererSchools reads a caterer's
+// rows of auth.caterer_schools, filtered on that caterer (ADR 0077 point 4).
 func globalIdentityRead(ctx context.Context, runtime ports.Runtime, read func(context.Context) error) error {
 	if runtime.HasTransaction(ctx) {
 		return read(ctx)

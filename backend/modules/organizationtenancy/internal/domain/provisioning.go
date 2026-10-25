@@ -33,6 +33,9 @@ const (
 	AuditResourceAnnouncement  = "announcement"
 	AuditResourceTagScan       = "unregistered_tag_scan"
 	AuditResourceTraegerMember = "traeger_member"
+	// AuditResourceSampleChildren is the sample children of a test Träger
+	// (#4658); the resource ID is the Träger.
+	AuditResourceSampleChildren = "sample_children"
 )
 
 // Device vocabulary shared with Device Fleet.

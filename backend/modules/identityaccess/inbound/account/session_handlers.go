@@ -253,6 +253,9 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, common.ErrorNotFound(authErr.Err))
 			case errors.Is(authErr.Err, identityaccess.ErrAccountInactive):
 				common.RenderError(w, r, common.ErrorConflict(authErr.Err))
+			case errors.Is(authErr.Err, identityaccess.ErrEmailAlreadyExists):
+				// A caterer account joins no school (ADR 0077).
+				common.RenderError(w, r, common.ErrorConflictOnField(identityaccess.ErrEmailAlreadyExists, common.CodeIdentityEmailAlreadyExists, "email"))
 			case errors.Is(authErr.Err, identityaccess.ErrRoleNotAssignable),
 				errors.Is(authErr.Err, identityaccess.ErrRoleForeignTenant),
 				errors.Is(authErr.Err, identityaccess.ErrRoleGuardianNotAssignable),

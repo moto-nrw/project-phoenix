@@ -35,7 +35,7 @@ func TestOperatorAssignsTheFirstPersonOfATraegerBuero(t *testing.T) {
 
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	operator := chi.NewRouter()
-	mountOperatorProvisioningRoutes(operator, resource)
+	mountOperatorProvisioningRoutes(operator, resource, nil)
 	call := func(method, path string, body any) *httptest.ResponseRecorder {
 		var payload bytes.Buffer
 		if body != nil {
@@ -103,7 +103,7 @@ func TestOperatorTraegerMemberListQueryBudgetIsFlat(t *testing.T) {
 	organizationID, _ := provisionTestSchool(t, db, service, operatorID, "traeger-budget")
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	operator := chi.NewRouter()
-	mountOperatorProvisioningRoutes(operator, resource)
+	mountOperatorProvisioningRoutes(operator, resource, nil)
 	member := func() {
 		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("buero-%d@test.local", testpkg.UniqueTestTenantID(t)))
 		testpkg.CreateTestTraegerMember(t, db, organizationID, account.ID, "read_only")
@@ -141,7 +141,7 @@ func TestOperatorTraegerGrantLosesToAConcurrentErasure(t *testing.T) {
 
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	operator := chi.NewRouter()
-	mountOperatorProvisioningRoutes(operator, resource)
+	mountOperatorProvisioningRoutes(operator, resource, nil)
 
 	erasure, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
@@ -195,7 +195,7 @@ func TestOperatorTraegerGrantsOfOneAccountQueueWithoutDeadlock(t *testing.T) {
 
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	operator := chi.NewRouter()
-	mountOperatorProvisioningRoutes(operator, resource)
+	mountOperatorProvisioningRoutes(operator, resource, nil)
 
 	first, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)

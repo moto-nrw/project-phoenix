@@ -3,6 +3,7 @@ package presenceprojectionhttp
 import (
 	context "context"
 	errors "errors"
+	fmt "fmt"
 	slog "log/slog"
 	http "net/http"
 
@@ -205,7 +206,43 @@ func (rs *Resource) finishStudentListPage(ctx context.Context, page studentListP
 	if err := rs.enrichWithCompanions(ctx, responses, params, plan.departureDate.BerlinMidnight()); err != nil {
 		return nil, 0, err
 	}
+	if err := rs.enrichWithTeacherHints(ctx, responses, plan); err != nil {
+		return nil, 0, err
+	}
 	return responses, totalCount, nil
+}
+
+// enrichWithTeacherHints attaches today's hints of the Lehrkraft (#4795) to
+// the returned page. A hint is a note about the child, so it needs users:read
+// and full access to the row; it is a message for today, so another planning
+// date shows none.
+func (rs *Resource) enrichWithTeacherHints(ctx context.Context, responses []StudentResponse, plan studentListPlan) error {
+	if !plan.isToday || !canReadSensitiveStudentData(ctx) || rs.PeopleDirectory == nil {
+		return nil
+	}
+	index := make(map[int64]int, len(responses))
+	studentIDs := make([]int64, 0, len(responses))
+	for i := range responses {
+		if responses[i].HasFullAccess {
+			index[responses[i].ID] = i
+			studentIDs = append(studentIDs, responses[i].ID)
+		}
+	}
+	if len(studentIDs) == 0 {
+		return nil
+	}
+	hints, err := rs.PeopleDirectory.ListSchoolDayHints(ctx, plan.planningDate, studentIDs)
+	if err != nil {
+		return fmt.Errorf("load teacher hints: %w", err)
+	}
+	for _, hint := range hints {
+		if i, ok := index[hint.StudentID]; ok {
+			responses[i].TeacherHints = append(responses[i].TeacherHints, TeacherHint{
+				Body: hint.Body, AuthorName: hint.AuthorName, SchoolClass: hint.SchoolClass,
+			})
+		}
+	}
+	return nil
 }
 
 // enrichPaginatedPlanningTimes layers the planning-date time data onto the final

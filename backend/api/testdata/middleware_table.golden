@@ -6,8 +6,13 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /ready
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.#
+	GET /caterer/invitations/{schoolId}/{token}
 	GET /traeger/invitations/{token}
 	POST /api/enrollment/{tenantSlug}/uploads
+	POST /caterer/auth/login
+	POST /caterer/auth/password-reset
+	POST /caterer/auth/password-reset/confirm
+	POST /caterer/invitations/{schoolId}/{token}/accept
 	POST /traeger/auth/login
 	POST /traeger/auth/mfa/resend
 	POST /traeger/auth/mfa/verify
@@ -18,7 +23,9 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa
 	GET /operator/organizations/{id}/erasure-order
 	GET /operator/organizations/{id}/traeger-members
+	POST /operator/organizations/test-traeger
 	POST /operator/organizations/{id}/erasure-order
+	POST /operator/organizations/{id}/sample-children
 	POST /operator/organizations/{id}/traeger-members
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/jwtauth/v5.Verify# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > modules/identityaccess/inbound/operator.RequiresOperatorScope > api.SecurityPrincipalMiddleware > modules/identityaccess/inbound/operator.RequiresActiveOperator# > api.TenantScopeMiddleware > api/common.TenantTxMiddleware
@@ -36,10 +43,14 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	PUT /school/supervisions/{id}/students/{student_id}/homework-feedback
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.SchoolScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.# > api/common.TenantTxMiddleware
+	DELETE /school/class-day/day-hints/{schoolClass}/{date}
+	DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 	DELETE /school/class-day/handover/{schoolClass}/{date}
 	DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 	POST /school/class-day/class-trips/{schoolClass}
 	POST /school/class-day/homework/{schoolClass}
+	PUT /school/class-day/day-hints/{schoolClass}/{date}
+	PUT /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 	PUT /school/class-day/handover/{schoolClass}/{date}
 	PUT /school/class-day/homework/{schoolClass}/{homeworkId}
 	PUT /school/class-day/morning-attendance/{schoolClass}/{date}
@@ -48,6 +59,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /traeger/access-log/
 	GET /traeger/access-log/export
 	GET /traeger/access-log/people
+	GET /traeger/organization/
 	GET /traeger/schools/
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TraegerScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions.# > api/common.TraegerTxMiddleware
@@ -61,14 +73,24 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /parent/me/messages/group-threads
 	GET /parent/me/messages/group-threads/{groupThreadId}
 	POST /parent/enrollments/{tenantSlug}/uploads
+	PUT /parent/me/children/{studentId}/meal-participation/weeks/{date}
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.# > api/common.TenantTxMiddleware
-	DELETE /api/meal-plan/participants/{studentId}/{date}
+	DELETE /api/meal-caterer/invitations/{invitationId}
+	DELETE /api/meal-caterer/supply
+	DELETE /api/meal-plan/participation/{studentId}/days/{date}
+	GET /api/meal-caterer/
+	GET /api/meal-caterer/orders/export
+	GET /api/meal-plan/orders
+	GET /api/meal-plan/orders/month/export
 	GET /api/meal-plan/participants/week
 	GET /api/meal-plan/participants/week/export
+	GET /api/meal-plan/participation/{studentId}
 	GET /api/students/{id}/note-subjects
+	POST /api/meal-caterer/invitations
 	POST /api/staff/externals/{id}/invitation
-	PUT /api/meal-plan/participants/{studentId}/{date}
+	PUT /api/meal-plan/participation/{studentId}/days/{date}
+	PUT /api/meal-plan/participation/{studentId}/schedule
 	PUT /api/timetable/operations/instances/{id}/students/{student_id}/homework-feedback
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions#
@@ -80,6 +102,12 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /traeger/accounts/
 	POST /traeger/accounts/invitations
 	PUT /traeger/accounts/{accountId}/roles
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > modules/identityaccess/sessiontoken.CatererMiddleware.# > api.SecurityPrincipalMiddleware
+	GET /caterer/orders/export
+	GET /caterer/schools
+	GET /caterer/schools/{schoolId}/orders
+	POST /caterer/schools/{schoolId}/orders/{orderId}/confirm
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.MFAEnrollmentAuthenticator
 	POST /traeger/auth/mfa/enroll/confirm

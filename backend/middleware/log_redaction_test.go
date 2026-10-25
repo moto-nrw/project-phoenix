@@ -22,6 +22,9 @@ func TestRedactFeedToken(t *testing.T) {
 		"/public/calendar/":                                 "/public/calendar/", // no token segment
 		"/api/calendar/appointments/5/ics":                  "/api/calendar/appointments/5/ics",
 		"nothing sensitive here":                            "nothing sensitive here",
+		"POST /caterer/invitations/42/secret/accept":        "POST /caterer/invitations/42/[REDACTED]/accept",
+		"/caterer/einladung/42/secret":                      "/caterer/einladung/42/[REDACTED]",
+		"/caterer/invitations/42":                           "/caterer/invitations/42",
 	}
 	for in, want := range cases {
 		if got := RedactFeedToken(in); got != want {

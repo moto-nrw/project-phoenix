@@ -14,6 +14,9 @@ type SignInDataRetentionStore interface {
 	// DeleteExpiredGuardianInvitations removes the invitations redeemed, or
 	// else expired, before the instant.
 	DeleteExpiredGuardianInvitations(ctx context.Context, before time.Time) (int, domain.OperationStats, error)
+	// DeleteExpiredCatererInvitations removes the caterer invitations
+	// accepted, revoked or else expired before the instant.
+	DeleteExpiredCatererInvitations(ctx context.Context, before time.Time) (int, domain.OperationStats, error)
 	DeleteExpiredAccountMFAEmailChallenges(ctx context.Context, before time.Time) (int, domain.OperationStats, error)
 	DeleteExpiredOperatorMFAEmailChallenges(ctx context.Context, before time.Time) (int, domain.OperationStats, error)
 	DeleteExpiredAccountPasskeySessions(ctx context.Context, before time.Time) (int, domain.OperationStats, error)

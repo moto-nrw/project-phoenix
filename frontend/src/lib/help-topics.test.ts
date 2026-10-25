@@ -550,10 +550,12 @@ describe("getParentHelpTopicForPath", () => {
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
     // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
-    // 86 seit #4796: die Rückmeldung zu Hausaufgaben in der Lernzeit.
-    // 87 seit #4894: Welche Module hat meine Schule?
-    // 88 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
-    expect(leadTopics).toHaveLength(88);
+    // 85 mit den Gruppennachrichten.
+    // 87 mit den neuen Einstellungs- und Mittagessen-Artikeln.
+    // 88 seit #4796: die Rückmeldung zu Hausaufgaben in der Lernzeit.
+    // 89 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
+    // 90 seit #4894: Welche Module hat meine Schule?
+    expect(leadTopics).toHaveLength(90);
     expect(
       leadTopics.every(
         (topic) =>
@@ -613,12 +615,13 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    // 22 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
-    expect(teacherTopics).toHaveLength(22);
+    // 23 seit #4795: der Hinweis für heute an die OGS (22 seit #4901).
+    expect(teacherTopics).toHaveLength(23);
     expect([...visible]).toEqual(
       expect.arrayContaining([
         HELP_TOPICS.teacherHomework,
         HELP_TOPICS.teacherClassHandover,
+        HELP_TOPICS.teacherDayHint,
       ]),
     );
     expect(visible.has(HELP_TOPICS.teacherCalendar)).toBe(true);
@@ -657,6 +660,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(traegerTopics.map((topic) => topic.id)).toEqual([
       HELP_TOPICS.traegerInvitation,
       HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerTestSystem,
       HELP_TOPICS.traegerAccounts,
       HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.traegerAccessLog,

@@ -20,7 +20,7 @@ import (
 func TestLifecycleDependenciesRequireEveryDependency(t *testing.T) {
 	t.Parallel()
 
-	_, err := LifecycleDependencies(LifecycleRepositories{}, nil, CaregiverProfiles{}, UnsentGuardianMail{}, nil, slog.Default())
+	_, err := LifecycleDependencies(LifecycleRepositories{}, nil, CaregiverProfiles{}, UnsentGuardianMail{}, nil, nil, slog.Default())
 	require.EqualError(t, err, "identity access composition: every lifecycle repository and owner command, the audit command and the caregiver profiles are required")
 }
 

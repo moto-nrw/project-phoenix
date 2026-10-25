@@ -45,7 +45,7 @@ func newTraegerLifecycleFixture(t *testing.T, label string) (traegerLifecycleFix
 	organizationID, _ := provisionTestSchool(t, db, service, operatorID, label)
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	operator := chi.NewRouter()
-	mountOperatorProvisioningRoutes(operator, resource)
+	mountOperatorProvisioningRoutes(operator, resource, nil)
 	return traegerLifecycleFixture{
 		db: db, ctx: provisioningContext(t, db),
 		operatorID: operatorID, organizationID: organizationID, operator: operator,

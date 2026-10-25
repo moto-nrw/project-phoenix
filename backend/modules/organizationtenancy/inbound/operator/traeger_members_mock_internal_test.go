@@ -33,3 +33,11 @@ func (m *mockProvisioningService) RecordTraegerErasureOrder(context.Context, org
 func (m *mockProvisioningService) WithdrawTraegerErasureOrder(context.Context, int64, int64, net.IP) error {
 	return nil
 }
+
+func (m *mockProvisioningService) CreateTestTraeger(context.Context, organizationtenancy.CreateTestTraeger, int64, net.IP) (*organizationtenancy.TestTraeger, error) {
+	return &organizationtenancy.TestTraeger{}, nil
+}
+
+func (m *mockProvisioningService) RecordSampleChildrenRequest(context.Context, int64, int64, net.IP) ([]int64, error) {
+	return nil, nil
+}

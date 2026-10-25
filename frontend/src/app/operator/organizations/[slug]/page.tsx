@@ -52,6 +52,8 @@ import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organiza
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
 import { TraegerErasureOrderSection } from "./traeger-erasure-order-section";
+import { TestTraegerSection } from "./test-traeger-section";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { traegerMemberColumns } from "./traeger-member-columns";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
@@ -437,6 +439,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   const orgHeaderActions = useMemo(
     () => (
       <>
+        {organization?.testSystem ? (
+          <StatusBadge label="Test-Träger" tone="orange" />
+        ) : null}
         <button
           type="button"
           onClick={() =>
@@ -585,6 +590,16 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       />
 
       <LoadErrorAlert error={organizationsLoadError} className="mt-3" />
+
+      {organization.testSystem ? (
+        <div className="mt-6">
+          <TestTraegerSection
+            organizationId={organization.id}
+            organizationActive={organization.active}
+            onChanged={refreshOrganizationDrillIn}
+          />
+        </div>
+      ) : null}
 
       <div className="mt-6">
         <Tabs value={activeTab} onValueChange={handleTabValueChange}>

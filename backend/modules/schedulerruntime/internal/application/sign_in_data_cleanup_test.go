@@ -19,6 +19,11 @@ func (f *fakeSignInDataCleaner) DeleteExpiredGuardianInvitations(context.Context
 	return 1, nil
 }
 
+func (f *fakeSignInDataCleaner) DeleteExpiredCatererInvitations(context.Context) (int, error) {
+	f.calls = append(f.calls, "caterer invitations")
+	return 5, nil
+}
+
 func (f *fakeSignInDataCleaner) DeleteExpiredMFAEmailChallenges(context.Context) (int, error) {
 	f.calls = append(f.calls, "mfa email challenges")
 	return 2, nil
@@ -51,8 +56,8 @@ func TestTokenCleanupRunsTheSignInDataRetention(t *testing.T) {
 		deleted += count
 	}
 
-	assert.Equal(t, []string{"guardian invitations", "mfa email challenges", "passkey sessions", "operator sessions"}, cleaner.calls)
-	assert.Equal(t, 10, deleted)
+	assert.Equal(t, []string{"guardian invitations", "caterer invitations", "mfa email challenges", "passkey sessions", "operator sessions"}, cleaner.calls)
+	assert.Equal(t, 15, deleted)
 	require.Len(t, cleaner.operatorCutoffs, 1)
 	assert.WithinDuration(t, before, cleaner.operatorCutoffs[0], time.Minute, "operator sessions go at their expiry")
 }
@@ -71,6 +76,6 @@ func TestTokenCleanupRegistersTheSignInDataRetention(t *testing.T) {
 	}
 	assert.Subset(t, descriptions, []string{
 		"Operator invitation token cleanup",
-		"Guardian invitation cleanup", "MFA email code cleanup", "Passkey session cleanup", "Operator session cleanup",
+		"Guardian invitation cleanup", "Caterer invitation cleanup", "MFA email code cleanup", "Passkey session cleanup", "Operator session cleanup",
 	})
 }

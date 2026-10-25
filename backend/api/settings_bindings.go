@@ -53,6 +53,12 @@ func schoolPortalWriteScopeIncludes(ctx context.Context, settings classDayWriteS
 	return configModels.SchoolPortalWriteScopeIncludes(value, scope), nil
 }
 
+// SchoolMayWriteDayHints reports whether a Lehrkraft may leave today's hint
+// for the OGS through the school portal (#4795).
+func (b ClassDayWriteScope) SchoolMayWriteDayHints(ctx context.Context) (bool, error) {
+	return schoolPortalWriteScopeIncludes(ctx, b.Settings, configModels.SchoolPortalWriteScopeDayHints)
+}
+
 // newClassDayWriteScope binds the write scope; nil settings leave it unbound.
 func newClassDayWriteScope(settings classDayWriteScopeSettings) classdayCompose.SchoolWriteScope {
 	if settings == nil {

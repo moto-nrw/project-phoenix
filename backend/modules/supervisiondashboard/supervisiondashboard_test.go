@@ -895,6 +895,7 @@ func TestProjectionWireShape(t *testing.T) {
 	projection.TrackingIndicators = TrackingIndicators{Labels: []string{"Hausaufgaben"}, Results: map[int64][]bool{1: {true}}}
 	projection.PickupTimes = []PickupTime{{StudentID: 1, Date: "2026-08-19", WeekdayName: "Mittwoch", PickupTime: &clock, IsException: true, Notes: "Oma", DayNotes: []DayNote{{ID: 3, Content: "Klingeln"}}}}
 	projection.ArrivalTimes = []ArrivalTime{{StudentID: 1, Date: "2026-08-19", WeekdayName: "Mittwoch"}}
+	projection.TeacherHints = []TeacherHint{{StudentID: 1, Body: "Heute Sportzeug vergessen", AuthorName: "Frau Kurz", SchoolClass: "4a"}}
 
 	got, err := json.Marshal(projection)
 	require.NoError(t, err)
@@ -919,12 +920,13 @@ func TestProjectionWireShape(t *testing.T) {
 		`"visits":[{"student_id":"1","student_name":"Erika Muster","school_class":"4a","group_name":"Bären","active_group_id":"11","check_in_time":"2026-08-19T06:00:00Z","actual_arrival_time":"08:00","sick":false,"excused":false,"photo_url":"/api/students/1/photo/p.jpg"}],` +
 		`"tracking_indicators":{"labels":["Hausaufgaben"],"results":{"1":[true]}},` +
 		`"pickup_times":[{"student_id":"1","date":"2026-08-19","weekday_name":"Mittwoch","pickup_time":"08:00","is_exception":true,"notes":"Oma","day_notes":[{"id":"3","content":"Klingeln"}]}],` +
-		`"arrival_times":[{"student_id":"1","date":"2026-08-19","weekday_name":"Mittwoch","is_exception":false}]}`
+		`"arrival_times":[{"student_id":"1","date":"2026-08-19","weekday_name":"Mittwoch","is_exception":false}],` +
+		`"teacher_hints":[{"student_id":"1","body":"Heute Sportzeug vergessen","author_name":"Frau Kurz","school_class":"4a"}]}`
 	assert.JSONEq(t, want, string(got))
 	assert.Equal(t, want, string(got), "key order is part of the golden contract")
 
 	empty, err := json.Marshal(emptyProjection())
 	require.NoError(t, err)
 	assert.Equal(t, `{"business_day":"","spontaneous_start_availability":{"available":false},"groups":[],"unclaimed_groups":[],"educational_groups":[],"schulhof_status":null,`+
-		`"open_rooms":[],"capabilities":{"web_spontaneous_activities_enabled":false},"active_sessions":[],"planned_now":[],"visits":[],"tracking_indicators":{"labels":[],"results":{}},"pickup_times":[],"arrival_times":[]}`, string(empty))
+		`"open_rooms":[],"capabilities":{"web_spontaneous_activities_enabled":false},"active_sessions":[],"planned_now":[],"visits":[],"tracking_indicators":{"labels":[],"results":{}},"pickup_times":[],"arrival_times":[],"teacher_hints":[]}`, string(empty))
 }

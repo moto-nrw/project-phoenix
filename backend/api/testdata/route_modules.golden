@@ -375,6 +375,7 @@ basis
 	GET /traeger/holiday-periods/
 	GET /traeger/holiday-periods/{id}
 	GET /traeger/invitations/{token}
+	GET /traeger/organization/
 	GET /traeger/schools/
 	HEAD /.well-known/caldav
 	HEAD /api/caldav
@@ -600,8 +601,10 @@ basis
 	POST /operator/operators/{id}/deactivate
 	POST /operator/operators/{id}/reactivate
 	POST /operator/organizations/
+	POST /operator/organizations/test-traeger
 	POST /operator/organizations/{id}/erasure-order
 	POST /operator/organizations/{id}/restore
+	POST /operator/organizations/{id}/sample-children
 	POST /operator/organizations/{id}/traeger-members
 	POST /operator/profile/email-change
 	POST /operator/profile/password
@@ -758,14 +761,32 @@ nfc_anwesenheit
 	PUT /api/iot/session/{sessionId}/supervisors  (#4896 Geräte und PyrePortal)
 
 mittagessen
-	DELETE /api/meal-plan/participants/{studentId}/{date}
+	DELETE /api/meal-caterer/invitations/{invitationId}
+	DELETE /api/meal-caterer/supply
+	DELETE /api/meal-plan/participation/{studentId}/days/{date}
 	DELETE /api/meal-plan/{date}
+	GET /api/meal-caterer/
+	GET /api/meal-caterer/orders/export
 	GET /api/meal-plan/
+	GET /api/meal-plan/orders
+	GET /api/meal-plan/orders/month/export
 	GET /api/meal-plan/participants
 	GET /api/meal-plan/participants/export
 	GET /api/meal-plan/participants/week
 	GET /api/meal-plan/participants/week/export
-	PUT /api/meal-plan/participants/{studentId}/{date}
+	GET /api/meal-plan/participation/{studentId}
+	GET /caterer/invitations/{schoolId}/{token}  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	GET /caterer/orders/export  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	GET /caterer/schools  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	GET /caterer/schools/{schoolId}/orders  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	POST /api/meal-caterer/invitations
+	POST /caterer/auth/login  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	POST /caterer/auth/password-reset  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	POST /caterer/auth/password-reset/confirm  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	POST /caterer/invitations/{schoolId}/{token}/accept  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	POST /caterer/schools/{schoolId}/orders/{orderId}/confirm  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	PUT /api/meal-plan/participation/{studentId}/days/{date}
+	PUT /api/meal-plan/participation/{studentId}/schedule
 	PUT /api/meal-plan/{date}
 
 eltern_app
@@ -899,6 +920,7 @@ eltern_app
 	PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/master-data/requests/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/meal-participation  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/meal-participation/weeks/{date}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/meal-participation/{date}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -996,6 +1018,8 @@ online_anmeldung
 unterricht_vormittag
 	DELETE /school/calendar/appointments/{appointmentId}
 	DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
+	DELETE /school/class-day/day-hints/{schoolClass}/{date}
+	DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 	DELETE /school/class-day/handover/{schoolClass}/{date}
 	DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 	DELETE /school/notifications/preferences/
@@ -1042,6 +1066,8 @@ unterricht_vormittag
 	POST /school/supervisions/{id}/students/{student_id}/check-out
 	PUT /school/calendar/appointments/{appointmentId}
 	PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
+	PUT /school/class-day/day-hints/{schoolClass}/{date}
+	PUT /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 	PUT /school/class-day/handover/{schoolClass}/{date}
 	PUT /school/class-day/homework/{schoolClass}/{homeworkId}
 	PUT /school/class-day/morning-attendance/{schoolClass}/{date}

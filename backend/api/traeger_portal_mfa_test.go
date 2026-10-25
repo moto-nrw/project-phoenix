@@ -174,7 +174,7 @@ func TestTraegerLockoutIsLiftedByTheOperatorReset(t *testing.T) {
 
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	operator := chi.NewRouter()
-	mountOperatorProvisioningRoutes(operator, resource)
+	mountOperatorProvisioningRoutes(operator, resource, nil)
 	reset := func(accountID int64, reason string) *httptest.ResponseRecorder {
 		var payload bytes.Buffer
 		require.NoError(t, json.NewEncoder(&payload).Encode(map[string]string{"reason": reason}))

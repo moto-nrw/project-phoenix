@@ -25,6 +25,9 @@ import (
 // Resource wires the class-day endpoints.
 type Resource struct {
 	ClassDay classday.ClassDay
+	// DayHints writes the day hints (#4795); the capability serves both
+	// facades. Without it the day-hint routes answer "not configured".
+	DayHints classday.DayHints
 	logger   *slog.Logger
 }
 
@@ -34,7 +37,8 @@ func NewResource(capability classday.ClassDay, logger *slog.Logger) *Resource {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Resource{ClassDay: capability, logger: logger}
+	hints, _ := capability.(classday.DayHints)
+	return &Resource{ClassDay: capability, DayHints: hints, logger: logger}
 }
 
 // SchoolRouter returns the class-day surface gated to school-scope tokens.
@@ -70,6 +74,14 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	// Class trips and day outings (#4799): the permission plus the school's
 	// setting (checked in the handler).
 	r.With(common.RequiresPermission(permissions.ClassDayClassTripWrite), withTx).Post("/class-trips/{schoolClass}", rs.postClassTrip)
+	// Day hints for the OGS (#4795): the Lehrkraft writes today's hint for an
+	// assigned class or one of its children; the setting, the class and the
+	// day are checked behind the permission.
+	hintWrite := common.RequiresPermission(permissions.ClassDayDayHintWrite)
+	r.With(hintWrite, withTx).Put("/day-hints/{schoolClass}/{date}", rs.putDayHint)
+	r.With(hintWrite, withTx).Delete("/day-hints/{schoolClass}/{date}", rs.deleteDayHint)
+	r.With(hintWrite, withTx).Put("/day-hints/{schoolClass}/{date}/students/{studentId}", rs.putDayHint)
+	r.With(hintWrite, withTx).Delete("/day-hints/{schoolClass}/{date}/students/{studentId}", rs.deleteDayHint)
 	// Morning attendance (#4790): the Lehrkraft marks today's school morning
 	// of an assigned class; the setting and the day are checked behind it.
 	morningWrite := common.RequiresPermission(permissions.ClassDayMorningAttendanceWrite)
@@ -176,6 +188,10 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	// The projection says whether the day and the school allow a day hint;
+	// the token decides whether this caller may write one (#4795).
+	report.CanWriteDayHints = report.CanWriteDayHints &&
+		common.HasPermission(permissions.ClassDayDayHintWrite, sessiontoken.PermissionsFromCtx(r.Context()))
 	// The projection says whether the day and the school allow the morning
 	// attendance; the token decides whether this caller may write it.
 	granted := sessiontoken.PermissionsFromCtx(r.Context())

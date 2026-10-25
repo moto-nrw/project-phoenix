@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync, symlinkSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -319,6 +319,36 @@ test('invalid base fails rather than selecting an empty check set', t => {
   assert.doesNotMatch(result.stdout, /quality checks passed/);
 });
 
+test('push checks use a private cache workspace when system temporary storage is unavailable', t => {
+  const f = fixture(t);
+  f.commit('README.md', 'documentation change\n');
+  f.write('.devbox/nix/profile/default/bin/mktemp', `#!/bin/bash
+if [[ $# -eq 0 ]]; then echo 'system temporary storage quota exceeded' >&2; exit 73; fi
+exec /usr/bin/mktemp "$@"
+`);
+  f.write('.devbox/nix/profile/default/bin/gitleaks', `#!/bin/bash
+[[ -d "$TMPDIR" ]] || exit 74
+printf '%s' "$TMPDIR" > "$(git rev-parse --git-path observed-temp)"
+exit "\${FAIL_SECRETS:-0}"
+`);
+  const cache = f.git('rev-parse', '--path-format=absolute', '--git-path', 'pre-push-cache');
+  const path = `${join(f.root, '.devbox/nix/profile/default/bin')}:${f.env.PATH}`;
+  for (const status of [0, 9]) {
+    const result = f.check({ TMPDIR: '', PATH: path, FAIL_SECRETS: String(status) });
+    assert.equal(result.status, status, result.stdout + result.stderr);
+    const observed = readFileSync(join(f.root, '.git/observed-temp'), 'utf8');
+    assert.ok(observed.startsWith(`${cache}/work.`), observed);
+    assert.deepEqual(readdirSync(cache).filter(name => name.startsWith('work.')), []);
+  }
+  const callerTemp = join(f.root, '.devbox/caller-temp');
+  mkdirSync(callerTemp);
+  const result = f.check({ TMPDIR: callerTemp, PATH: path });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(readFileSync(join(f.root, '.git/observed-temp'), 'utf8'), callerTemp);
+  assert.deepEqual(readdirSync(callerTemp), []);
+  assert.deepEqual(readdirSync(cache).filter(name => name.startsWith('work.')), []);
+});
+
 test('hook rejects pushing a revision other than the checkout', t => {
   const f = fixture(t);
   const old = f.git('rev-parse', 'HEAD');
@@ -347,7 +377,8 @@ test('shared backend quality fails when an analyzer executable is missing', t =>
   f.write('limited/gofmt', '#!/bin/bash\nexit 0\n');
   symlinkSync('/bin/bash', join(f.root, 'limited/bash'));
   const result = f.run('/bin/bash', ['scripts/check-quality.sh', 'backend'], {
-    env: { ...f.env, PATH: join(f.root, 'limited') },
+    // Keep the shell diagnostic below independent of the host locale.
+    env: { ...f.env, PATH: join(f.root, 'limited'), LC_ALL: 'C' },
   });
   assert.equal(result.status, 127);
   assert.match(result.stderr, /go: command not found/);

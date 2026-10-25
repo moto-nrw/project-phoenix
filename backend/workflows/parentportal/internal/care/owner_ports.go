@@ -26,7 +26,15 @@ type MealPlan interface {
 	Participation(ctx context.Context, studentID int64, from, to calendar.Date) (MealParticipationPlan, error)
 	ReplaceParticipationSchedule(context.Context, MealParticipationSchedule) (string, error)
 	SetParticipationForDay(context.Context, MealParticipationChange) error
+	SetParticipationForWeek(context.Context, MealParticipationChange) (MealWeekChange, error)
 	ClearParticipationForDay(context.Context, MealParticipationChange) error
+}
+
+// MealWeekChange lists the days a week change changed and the days whose
+// deadline had already passed.
+type MealWeekChange struct {
+	Changed []string
+	Locked  []string
 }
 
 // MealParticipationSchedule replaces a child's standing weekday participation.
