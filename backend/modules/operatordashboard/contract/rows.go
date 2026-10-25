@@ -16,6 +16,7 @@ type OrganizationSummary struct {
 	UpdatedAt    time.Time
 	DeletedAt    *time.Time
 	Settings     string
+	TestSystem   bool
 	SchoolCount  int
 	AccountCount int
 }

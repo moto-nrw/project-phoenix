@@ -30,6 +30,14 @@ Schulen; nach einem Restore den Trägerauftrag mit derselben Referenz erneut
 ausführen. Restore-Verfahren: siehe [Restore-Prüfung](daily-backup.md).
 Nebensystemfristen und deren produktive Nachweise: 3837-f.
 
+**Test-Träger (#4658, Migration `1.15.560`):** Ein Test-Träger mit seinen
+Test-Schulen und erfundenen Beispielkindern (Operator-Portal → Träger →
+„Test-Träger anlegen“, Kennzeichen `platform.organizations.test_system`) geht
+denselben Weg: deaktivieren, Löschauftrag erfassen, nach der Schonfrist
+`--organization`. Die schriftliche Bestätigung ist hier die interne Freigabe
+des moto-Teams, dass das Testsystem nicht mehr gebraucht wird. Einen eigenen
+Löschweg für Test-Träger gibt es nicht.
+
 ## Unabhängige Löschungsliste einrichten (3837-d, Mensch)
 
 1. Ein eigenes persistentes Hostverzeichnis außerhalb des DB-Volumes,

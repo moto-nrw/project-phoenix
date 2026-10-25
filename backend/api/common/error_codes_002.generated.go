@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeTimetableOnlySupervisorReplacementRequired   = "timetable.only_supervisor_replacement_required"
+	CodeTimetableOperationNotPlanned                 = "timetable.operation_not_planned"
 	CodeTimetableOperationStale                      = "timetable.operation_stale"
 	CodeTimetablePickupExtensionBlockGone            = "timetable.pickup_extension_block_gone"
 	CodeTimetablePickupExtensionInvalid              = "timetable.pickup_extension_invalid"
@@ -146,6 +148,8 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.only_supervisor_replacement_required":    "business_rejection",
+	"timetable.operation_not_planned":                   "permission",
 	"timetable.operation_stale":                         "business_rejection",
 	"timetable.pickup_extension_block_gone":             "business_rejection",
 	"timetable.pickup_extension_invalid":                "input",
