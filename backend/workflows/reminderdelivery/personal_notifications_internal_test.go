@@ -640,6 +640,42 @@ func TestPersonalRemindersMarkOccurrencesAfterCommit(t *testing.T) {
 	assert.Len(t, setup.notifier.notices, 1, "committed occurrence must not re-fire")
 }
 
+// The idempotency key names the notified occurrences, not just their count
+// (#4605). The push outbox drops a repeated key, so a count-only key silenced
+// a later reminder of the same kind and count on the same day, while a
+// restarted Worker repeating the same occurrences must still hit the key the
+// outbox already holds.
+func TestPersonalRemindersKeyIdentifiesTheNotifiedOccurrences(t *testing.T) {
+	t.Parallel()
+
+	consent := map[string][]int64{TypePickupUpcoming: {caregiverAccountID}}
+	setup := buildReminderProducer(t,
+		map[int64]*Result{caregiverStaffID: resultOf(pickupFixture("11", "10:00"))},
+		consent,
+	)
+	now := time.Now()
+
+	setup.notify(context.Background(), now)
+	setup.computer.results[caregiverStaffID] = resultOf(pickupFixture("12", "14:00"))
+	setup.notify(context.Background(), now)
+
+	require.Len(t, setup.notifier.notices, 2)
+	first, second := setup.notifier.notices[0], setup.notifier.notices[1]
+	assert.Equal(t, first.Body, second.Body, "both notices report one pickup")
+	assert.NotEqual(t, first.IdempotencyKey, second.IdempotencyKey,
+		"a later pickup of the same count must not reuse the earlier key")
+
+	restarted := buildReminderProducer(t,
+		map[int64]*Result{caregiverStaffID: resultOf(pickupFixture("12", "14:00"))},
+		consent,
+	)
+	restarted.notify(context.Background(), now)
+
+	require.Len(t, restarted.notifier.notices, 1, "a restart forgets the in-memory guard")
+	assert.Equal(t, second.IdempotencyKey, restarted.notifier.notices[0].IdempotencyKey,
+		"the same occurrences after a restart reuse the key the outbox deduplicates")
+}
+
 func TestPersonalRemindersRollbackLeavesOccurrencesUnmarked(t *testing.T) {
 	t.Parallel()
 
