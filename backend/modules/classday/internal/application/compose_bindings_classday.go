@@ -142,6 +142,14 @@ func (b DayTimeBinding) EffectiveArrivals(ctx context.Context, studentIDs []int6
 // the Caller port; CurrentStaffID below refuses an account without a staff row.
 type CallerBinding struct{ CallerReader }
 
+// NewCallerBinding returns no caller port until the root provides its reader.
+func NewCallerBinding(reader CallerReader) ports.Caller {
+	if reader == nil {
+		return nil
+	}
+	return CallerBinding{CallerReader: reader}
+}
+
 // CurrentStaffID resolves the caller's users.staff row (every school-portal account
 // has one, EnsureSchoolIdentity). An account without one is refused with the
 // sentinel: the entry would be attributed to nobody. Any other failure of the

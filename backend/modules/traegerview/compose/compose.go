@@ -4,8 +4,6 @@
 package compose
 
 import (
-	"errors"
-
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/traegerview/internal/application"
@@ -16,7 +14,7 @@ import (
 // Tenancy.
 func New(schoolIDs traegerview.SchoolIDs) (traegerview.Overview, error) {
 	if schoolIDs == nil {
-		return nil, errors.New("traeger view compose: the school IDs of Organisation & Tenancy are required")
+		return nil, traegerview.ErrSchoolIDsRequired
 	}
 	return application.New(schoolIDs, postgres.New(postgres.AmbientAdminDB), tenant.WithinAdmin), nil
 }

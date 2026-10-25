@@ -20,6 +20,9 @@ var ErrTraegerRequired = errors.New("traeger view: the Träger of the session is
 // unknown: its session reaches no school any more (#4657).
 var ErrTraegerUnavailable = errors.New("traeger view: the Träger is deactivated or deleted")
 
+// ErrSchoolIDsRequired reports composition without Organisation & Tenancy's school set.
+var ErrSchoolIDsRequired = errors.New("traeger view: the school IDs of Organisation & Tenancy are required")
+
 // School is one school of the Träger in the school list (#4649). It carries
 // no personal data.
 type School struct {
