@@ -110,23 +110,9 @@ func familyAccount(rt *Runtime, guardianIndex int, guardianID, accountID int64, 
 	}, true
 }
 
-// familyAppGuardians returns the primary guardian of each demo child whose
-// family has no app account yet, in DemoStudents order, leaving out
-// familiesWithoutApp.
-func familyAppGuardians(guardianIDs map[string]int64, parents []ParentCredentials) ([]int64, error) {
-	indexes, err := familyAppGuardianIndexes(guardianIDs, parents)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]int64, 0, len(indexes))
-	for _, index := range indexes {
-		guardian := DemoGuardians[index]
-		result = append(result, guardianIDs[guardian.FirstName+" "+guardian.LastName])
-	}
-	return result, nil
-}
-
-// familyAppGuardianIndexes is familyAppGuardians as DemoGuardians indexes.
+// familyAppGuardianIndexes returns the DemoGuardians index of the primary
+// guardian of each demo child whose family has no app account yet, in
+// DemoStudents order, leaving out familiesWithoutApp.
 func familyAppGuardianIndexes(guardianIDs map[string]int64, parents []ParentCredentials) ([]int, error) {
 	withAccount := make(map[int64]bool, len(parents))
 	for _, parent := range parents {
