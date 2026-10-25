@@ -3,6 +3,12 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 source "$root/scripts/quality-timing.sh"
 cd "$root/frontend"
+# Dependency scans run nightly, not per pull request (nightly.yml).
+if [[ "${1:-quality}" == dependencies ]]; then
+  quality_step npm-licenses npx --yes license-checker@25.0.1 --production --failOn \
+    'AGPL-1.0-only;AGPL-1.0-or-later;AGPL-3.0-only;AGPL-3.0-or-later;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0-only;GPL-3.0-or-later;LGPL-2.0-only;LGPL-2.0-or-later;LGPL-2.1-only;LGPL-2.1-or-later;LGPL-3.0-only;LGPL-3.0-or-later;SSPL-1.0;EUPL-1.2' --summary
+  exit 0
+fi
 if [[ "${1:-quality}" == react-doctor ]]; then
   npx --ignore-scripts -y react-doctor@0.8.1 . --yes --scope changed \
     --base "${2:?base revision is required}" --no-telemetry --no-supply-chain
@@ -25,5 +31,3 @@ quality_step frontend-types pnpm run typecheck
 quality_step dependency-graph pnpm depcruise
 quality_step unused-code pnpm knip
 quality_step production-unused-code pnpm knip:production
-quality_step npm-licenses npx --yes license-checker@25.0.1 --production --failOn \
-  'AGPL-1.0-only;AGPL-1.0-or-later;AGPL-3.0-only;AGPL-3.0-or-later;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0-only;GPL-3.0-or-later;LGPL-2.0-only;LGPL-2.0-or-later;LGPL-2.1-only;LGPL-2.1-or-later;LGPL-3.0-only;LGPL-3.0-or-later;SSPL-1.0;EUPL-1.2' --summary
