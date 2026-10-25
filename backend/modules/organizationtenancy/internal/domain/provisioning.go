@@ -18,6 +18,10 @@ const (
 	AuditActionSoftDelete   = "soft_delete"
 	AuditActionRestore      = "restore"
 	AuditActionGrant        = "grant"
+	// The Träger erasure order (#4657); the erasure CLI records "erase"
+	// itself when it deletes the Träger root (migration 1.15.533).
+	AuditActionRecordErasureOrder   = "record_erasure_order"
+	AuditActionWithdrawErasureOrder = "withdraw_erasure_order"
 
 	AuditResourceOrganization  = "organization"
 	AuditResourceSchool        = "school"

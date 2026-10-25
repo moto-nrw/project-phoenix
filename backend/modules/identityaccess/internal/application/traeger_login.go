@@ -199,3 +199,25 @@ func (s *AccountAuthentication) ListTraegerAccounts(ctx context.Context, organiz
 	}
 	return result, nil
 }
+
+// EndTraegerSessions deletes every Träger session of the Träger: the moto team
+// deactivated it (#4657). Refresh and hand-off of those sessions fail from
+// the commit on; a Träger access token still in flight reaches no school,
+// because the Träger projection serves only an active Träger. It participates
+// in the caller's administrative transaction and never opens one itself.
+func (s *AccountAuthentication) EndTraegerSessions(ctx context.Context, organizationID int64) (int64, error) {
+	if s == nil {
+		return 0, errAccountAuthenticationUnavailable
+	}
+	if organizationID <= 0 {
+		return 0, identityaccess.ErrInvalidToken
+	}
+	if !s.runtime.HasTransaction(ctx) || !s.runtime.IsAdminTx(ctx) {
+		return 0, identityaccess.ErrTraegerTransactionRequired
+	}
+	ended, _, err := s.store.DeleteTraegerSessions(ctx, organizationID)
+	if err != nil {
+		return 0, failed("end Träger sessions", err)
+	}
+	return ended, nil
+}
