@@ -3,11 +3,12 @@ import { Button } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
-import { SegmentedControl } from "~/components/ui/segmented-control";
+import { CustomSelect } from "~/components/ui/custom-select";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { generateSlug, isValidSlug } from "~/lib/operator/provisioning-helpers";
+import { FormField } from "./provisioning-shared";
 
 const logger = createLogger({ component: "CreateTestTraegerModal" });
 
@@ -196,20 +197,21 @@ export function CreateTestTraegerModal({
           Die Test-Schulen bekommen die Subdomains „{slug.trim() || "slug"}
           -test-1“ und so weiter.
         </p>
-        <div>
-          <p className="mb-1.5 text-sm font-medium text-gray-700">
-            Anzahl der Test-Schulen
-          </p>
-          <SegmentedControl
-            items={SCHOOL_COUNTS.map((count) => ({
+        <FormField
+          label="Anzahl der Test-Schulen"
+          htmlFor="test-traeger-school-count"
+        >
+          <CustomSelect
+            id="test-traeger-school-count"
+            ariaLabel="Anzahl der Test-Schulen"
+            value={schoolCount}
+            options={SCHOOL_COUNTS.map((count) => ({
               value: count,
               label: count,
             }))}
-            value={schoolCount}
-            onChange={setSchoolCount}
-            ariaLabel="Anzahl der Test-Schulen"
+            onChange={(next) => setSchoolCount(next as SchoolCount)}
           />
-        </div>
+        </FormField>
         <Input
           id="test-traeger-contact-email"
           name="contact_email"
