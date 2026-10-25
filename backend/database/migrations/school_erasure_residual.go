@@ -17,10 +17,33 @@ const schoolErasureResidualSQL = schoolErasureResidualPart1SQL + `    SELECT 1 F
     UNION ALL
 ` + schoolErasureResidualPart2SQL + `    UNION ALL
     SELECT 1 FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id
-` + schoolErasureResidualPart3SQL
+` + schoolErasureResidualPart3SQL + schoolErasureResidualSurveysSQL + schoolErasureResidualPart3bSQL
+
+// schoolErasureResidualWithoutSurveysSQL is the definition before 1.15.568 (#4781), without the
+// survey tables; the survey rollback reinstalls it.
+const schoolErasureResidualWithoutSurveysSQL = schoolErasureResidualPart1SQL + `    SELECT 1 FROM education.class_homework AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+` + schoolErasureResidualPart2SQL + `    UNION ALL
+    SELECT 1 FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id
+` + schoolErasureResidualPart3SQL + schoolErasureResidualPart3bSQL
 
 // The pre-1.15.510 definition shares the unchanged SQL sections.
-const schoolErasureResidualWithoutHomeworkSQL = schoolErasureResidualPart1SQL + schoolErasureResidualPart2SQL + schoolErasureResidualPart3SQL
+const schoolErasureResidualWithoutHomeworkSQL = schoolErasureResidualPart1SQL + schoolErasureResidualPart2SQL + schoolErasureResidualPart3SQL + schoolErasureResidualPart3bSQL
+
+// The survey tables of 1.15.568 (#4781).
+const schoolErasureResidualSurveysSQL = `    SELECT 1 FROM users.survey_answers AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.survey_responses AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.survey_participations AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.survey_question_options AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.survey_questions AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM users.surveys AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+`
 
 const schoolErasureResidualPart1SQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_assert_empty(p_school_id BIGINT,v_child_keys JSONB)
  RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
@@ -392,7 +415,9 @@ const schoolErasureResidualPart3SQL = `    UNION ALL
     UNION ALL
     SELECT 1 FROM users.notification_preferences AS r WHERE r.tenant_id = p_school_id
     UNION ALL
-    SELECT 1 FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id
+`
+
+const schoolErasureResidualPart3bSQL = `    SELECT 1 FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school_id
     UNION ALL
@@ -502,5 +527,10 @@ const schoolErasureResidualPart3SQL = `    UNION ALL
 
 func restoreSchoolErasureResidualBeforeHomework(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, schoolErasureResidualWithoutHomeworkSQL)
+	return err
+}
+
+func restoreSchoolErasureResidualBeforeSurveys(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasureResidualWithoutSurveysSQL)
 	return err
 }

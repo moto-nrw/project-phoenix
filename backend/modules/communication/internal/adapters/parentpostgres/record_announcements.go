@@ -31,6 +31,12 @@ type announcementRepository struct {
 	recordports.AnnouncementAudienceReads
 }
 
+// SurveyRecords is the survey store (#4781) over the announcements'
+// database: a parent survey is carried by one of these announcements.
+func (r *announcementRepository) SurveyRecords() communication.SurveyRecords {
+	return NewSurveyStore(r.store.database)
+}
+
 func (r *announcementRepository) Create(ctx context.Context, a *communication.PortalParentAnnouncement) error {
 	defer stampAnnouncementKind(a)
 	value := announcementValue(a)

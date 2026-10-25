@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetableOfferingSourceMixedPhases           = "timetable.offering_source_mixed_phases"
+	CodeTimetableOfferingSourceNotFound              = "timetable.offering_source_not_found"
+	CodeTimetableOfferingSourceOutsidePeriod         = "timetable.offering_source_outside_period"
+	CodeTimetableOfferingSourceTooMany               = "timetable.offering_source_too_many"
 	CodeTimetableOnlySupervisorReplacementRequired   = "timetable.only_supervisor_replacement_required"
 	CodeTimetableOperationNotPlanned                 = "timetable.operation_not_planned"
 	CodeTimetableOperationStale                      = "timetable.operation_stale"
@@ -156,6 +160,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.offering_source_mixed_phases":            "input",
+	"timetable.offering_source_not_found":               "business_rejection",
+	"timetable.offering_source_outside_period":          "business_rejection",
+	"timetable.offering_source_too_many":                "input",
 	"timetable.only_supervisor_replacement_required":    "business_rejection",
 	"timetable.operation_not_planned":                   "permission",
 	"timetable.operation_stale":                         "business_rejection",

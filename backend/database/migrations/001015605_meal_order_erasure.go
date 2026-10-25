@@ -18,7 +18,8 @@ func init() {
 		Description: mealOrderErasureDescription,
 		DependsOn: []string{
 			mealCaterersVersion,
-			classHomeworkVersion, // development's newest reinstall of the erasure functions
+			classHomeworkVersion,
+			surveysVersion, // newest reinstall of the erasure functions
 		},
 	})
 	Migrations.MustRegister(mealOrderErasureUp, mealOrderErasureDown)

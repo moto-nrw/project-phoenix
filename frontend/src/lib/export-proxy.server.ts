@@ -105,3 +105,79 @@ export function createFileExportRoute(options: {
     }
   };
 }
+
+/**
+ * GET counterpart of `createFileExportRoute` for exports whose backend path
+ * carries the object id (`/api/surveys/{id}/results/export`). Same steps:
+ * authenticate, fetch, retry once on a 401 with a refreshed token, pass the
+ * bytes with Content-Type and Content-Disposition through. Query strings are
+ * not forwarded; the path is the whole request.
+ */
+export function createFileDownloadRoute<
+  P extends Record<string, string>,
+>(options: {
+  /** Backend path built from the route params. Encode each segment. */
+  backendPath: (params: P) => string;
+  /** Logger component name, e.g. "SurveyResultsExportRoute". */
+  component: string;
+}) {
+  const logger = createLogger({ component: options.component });
+
+  async function proxy(request: NextRequest, token: string, path: string) {
+    const { getServerApiUrl } = await import("~/lib/server-api-url");
+    const response = await fetch(`${getServerApiUrl()}${path}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(await incomingAnalyticsSessionHeaders()),
+      },
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return forwardBackendResponse(response, request);
+    }
+
+    const contentType =
+      response.headers.get("content-type") ?? "application/octet-stream";
+    const disposition = response.headers.get("content-disposition");
+    const data = await response.arrayBuffer();
+    const headers = new Headers({
+      "Content-Type": contentType,
+      "Content-Length": String(data.byteLength),
+      "Cache-Control": "no-store",
+    });
+    if (disposition) headers.set("Content-Disposition", disposition);
+    return new NextResponse(data, { status: 200, headers });
+  }
+
+  return async function handler(
+    request: NextRequest,
+    context: { params: Promise<P> },
+  ) {
+    try {
+      const session = await auth();
+      if (!session?.user?.token) {
+        return problemResponse(401, "Unauthorized", request);
+      }
+
+      const path = options.backendPath(await context.params);
+      const response = await proxy(request, session.user.token, path);
+      if (response.status !== 401) return response;
+
+      const refreshed = await uncachedAuth();
+      if (
+        !refreshed?.user?.token ||
+        refreshed.user.token === session.user.token
+      ) {
+        return response;
+      }
+      return proxy(request, refreshed.user.token, path);
+    } catch (error) {
+      captureBffException(error, request);
+      const message = error instanceof Error ? error.message : "Export failed";
+      logger.error("file_download_route_failed", { error: message });
+      return problemResponse(500, message, request);
+    }
+  };
+}

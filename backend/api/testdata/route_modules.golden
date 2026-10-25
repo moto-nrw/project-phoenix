@@ -52,6 +52,7 @@ basis
 	DELETE /api/students/{id}/pickup-notes/{noteId}
 	DELETE /api/students/{id}/purge
 	DELETE /api/students/{id}/status-days/{statusDayId}
+	DELETE /api/surveys/{surveyId}
 	DELETE /api/timetable/closing-days/{id}
 	DELETE /api/timetable/conflict-acks/{fingerprint}
 	DELETE /api/timetable/instances/{id}
@@ -270,6 +271,13 @@ basis
 	GET /api/students/{id}/status-days
 	GET /api/students/{id}/visit-history
 	GET /api/substitutions/
+	GET /api/surveys/
+	GET /api/surveys/to-answer
+	GET /api/surveys/{surveyId}
+	GET /api/surveys/{surveyId}/form
+	GET /api/surveys/{surveyId}/respondents
+	GET /api/surveys/{surveyId}/results
+	GET /api/surveys/{surveyId}/results/export
 	GET /api/time-tracking/assignments
 	GET /api/time-tracking/closing-days
 	GET /api/time-tracking/holidays
@@ -516,6 +524,11 @@ basis
 	POST /api/students/{id}/status-days
 	POST /api/substitutions/
 	POST /api/substitutions/end
+	POST /api/surveys/
+	POST /api/surveys/{surveyId}/answers
+	POST /api/surveys/{surveyId}/close
+	POST /api/surveys/{surveyId}/publish
+	POST /api/surveys/{surveyId}/remind
 	POST /api/timetable/betreuungsplan/export
 	POST /api/timetable/closing-days/
 	POST /api/timetable/instances/
@@ -684,6 +697,7 @@ basis
 	PUT /api/students/{id}/pickup-notes/{noteId}
 	PUT /api/students/{id}/pickup-schedules
 	PUT /api/students/{id}/privacy-consent
+	PUT /api/surveys/{surveyId}
 	PUT /api/timetable/closing-days/{id}
 	PUT /api/timetable/conflict-acks/{fingerprint}
 	PUT /api/timetable/instances/{id}
@@ -875,6 +889,7 @@ eltern_app
 	GET /parent/me/news  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/news/unread-count  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/news/{announcementId}/declaration/proof  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/news/{announcementId}/survey  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/notification-preferences/  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/profile  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/push/public-key  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -919,6 +934,7 @@ eltern_app
 	POST /parent/me/news/{announcementId}/declaration  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/news/{announcementId}/read  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/news/{announcementId}/respond  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/news/{announcementId}/survey  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/push/subscriptions  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/pwa-usage  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /api/messages/count-scope

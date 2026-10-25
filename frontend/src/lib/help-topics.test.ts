@@ -332,7 +332,8 @@ describe("getParentHelpTopicForPath", () => {
     });
     // 42 seit #3821 („Eigenen Dienstplan ansehen“), 45 seit #4901
     // („Nutzungsanalyse erlauben oder ablehnen“, alle Rollen).
-    expect(caregiverTopics).toHaveLength(45);
+    // 46 seit #4781 („An einer Umfrage im Team teilnehmen“).
+    expect(caregiverTopics).toHaveLength(46);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -511,7 +512,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            45 -
+            46 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -555,7 +556,8 @@ describe("getParentHelpTopicForPath", () => {
     // 88 seit #4796: die Rückmeldung zu Hausaufgaben in der Lernzeit.
     // 89 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
     // 90 seit #4894: Welche Module hat meine Schule?
-    expect(leadTopics).toHaveLength(90);
+    // 92 seit #4781: Umfrage mit Fragebogen und das geteilte Teilnehmen.
+    expect(leadTopics).toHaveLength(92);
     expect(
       leadTopics.every(
         (topic) =>
@@ -581,7 +583,8 @@ describe("getParentHelpTopicForPath", () => {
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
     // 24 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
-    expect(parentTopics).toHaveLength(24);
+    // 25 seit #4781 („An einer Umfrage teilnehmen“).
+    expect(parentTopics).toHaveLength(25);
     expect(
       parentTopics.every(
         (topic) =>

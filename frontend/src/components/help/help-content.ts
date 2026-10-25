@@ -1817,6 +1817,46 @@ function parentGroupMessageTopic(): HelpTopic {
   };
 }
 
+/**
+ * `/umfragen`: Umfragen der Schule an das Team beantworten (#4781). Ob die
+ * Umfrage anonym ist, steht vor der ersten Frage.
+ */
+function staffSurveysTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.staffSurveys,
+    title: "An einer Umfrage im Team teilnehmen",
+    question: "Wie beantworte ich eine Umfrage meiner Schule?",
+    summary:
+      "Ihre Schule kann dem Team Fragen stellen. Sie antworten einmal, auf Wunsch der Schule auch anonym.",
+    group: "team",
+    audience: ["caregiver", "lead"],
+    icon: "CheckSquare",
+    steps: [
+      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Umfragen`.",
+      "Wählen Sie eine Umfrage mit `Antwort offen`.",
+      "Lesen Sie oben, ob die Umfrage `Anonym` oder `Nicht anonym` ist.",
+      "Beantworten Sie die Fragen. Pflichtfragen sind markiert.",
+      "Wählen Sie `Antwort absenden`.",
+    ],
+    result:
+      "Sie sehen `Danke, Ihre Antwort ist gespeichert.` Die Umfrage steht danach mit `Teilgenommen` in der Liste.",
+    notes: [
+      "`Anonym` heißt: Die Schule sieht nicht, wer was geantwortet hat. Sie sieht nur Summen, erst nach dem Ende und ab 5 Antworten.",
+      "`Nicht anonym` heißt: Die Schule sieht Ihren Namen bei Ihren Antworten.",
+      "Nach dem Absenden können Sie Ihre Antwort nicht mehr ändern.",
+      "Die Schule erfährt nie, wer noch nicht teilgenommen hat. Eine Erinnerung geht an alle, die noch offen sind.",
+    ],
+    differences: [
+      "Sehen Sie die Reiter `Alle Umfragen` und `Für Sie`? Dann dürfen Sie Umfragen auch anlegen. Ihre eigenen offenen Umfragen stehen unter `Für Sie`.",
+      "Steht dort `Keine offenen Umfragen`? Dann hat Ihre Schule gerade keine Umfrage an das Team.",
+    ],
+    image: "/help/screens/umfrage-beantworten.webp",
+    imageAlt:
+      "Fragebogen einer anonymen Umfrage. Oben steht, dass die Schule nicht sieht, wer was geantwortet hat.",
+    related: [HELP_TOPICS.teamChat, HELP_TOPICS.leadSurveys],
+  };
+}
+
 function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
   return {
     id: HELP_TOPICS.parentRequests,
@@ -2890,6 +2930,7 @@ function caregiverTopics(
     parentGroupMessageTopic(),
     parentRequestsTopic(groupMode),
     teamChatTopic(),
+    staffSurveysTopic(),
     findStaffTopic(presenceMode),
     sharedFilesTopic(),
     trackWorkTimeTopic(),
@@ -4089,7 +4130,7 @@ function parentLetterTopic(): HelpTopic {
 function parentSurveyTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadParentSurvey,
-    title: "Eine Umfrage erstellen",
+    title: "Eine kurze Elternumfrage erstellen",
     question: "Wie frage ich die Eltern nach ihrer Rückmeldung?",
     summary: "Eine Umfrage sammelt die Antworten der Eltern an einem Ort.",
     group: "elternarbeit",
@@ -4111,11 +4152,104 @@ function parentSurveyTopic(): HelpTopic {
     differences: ["Das erste Feld heißt hier `Frage`, nicht `Titel`."],
     troubleshootingDetails: [
       "Brauchen Sie keine Antwort? Nehmen Sie stattdessen eine Mitteilung.",
+      "Mehrere Fragen, eine Skala oder eine anonyme Befragung? Dafür gibt es den Bereich `Umfragen`.",
     ],
     related: [
       HELP_TOPICS.leadParentAnnouncement,
       HELP_TOPICS.leadParentLetter,
+      HELP_TOPICS.leadSurveys,
       HELP_TOPICS.parentRequests,
+    ],
+  };
+}
+
+/**
+ * `/umfragen` mit `surveys:manage`: Umfragen mit Fragebogen an Eltern oder
+ * das Team (#4781). Anonym nach Variante A: Teilnahme und Antwort getrennt,
+ * Auswertung erst nach dem Ende und ab 5 Antworten. Die kurze Frage je Kind bleibt die
+ * Elternumfrage unter `Mitteilungen` (`parentSurveyTopic`).
+ */
+function leadSurveysTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadSurveys,
+    title: "Eine Umfrage mit Fragebogen erstellen",
+    question: "Wie befrage ich Eltern oder das Team, auch anonym?",
+    summary:
+      "Unter `Umfragen` stellen Sie mehrere Fragen, auf Wunsch anonym. Die Auswertung zeigt Stärken und Verbesserungsbedarf.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "ChartPieSlice",
+    requirements: ["Sie haben die Berechtigung `Umfragen: Verwalten`."],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Eine Umfrage anlegen",
+        steps: [
+          "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Umfragen`.",
+          "Wählen Sie `Umfrage anlegen`.",
+          "Geben Sie einen `Titel` ein, bei Bedarf auch eine `Einleitung (optional)`.",
+          "Wählen Sie unter `Wer soll antworten?` `Eltern` oder `Mitarbeitende`.",
+          "Bei Eltern: Wählen Sie unter `Welche Eltern sollen antworten?` die ganze Schule, Klassen, Gruppen, AGs oder einzelne Kinder. Bei Bedarf wählen Sie `Zusätzlich per E-Mail benachrichtigen`.",
+          "Lassen Sie `Anonym` an oder schalten Sie es aus.",
+          "Wählen Sie bei `Teilnahme bis` das Datum und die `Uhrzeit`.",
+          "Geben Sie jede Frage ein und wählen Sie die Art: `Einfachauswahl`, `Mehrfachauswahl`, `Skala 1 bis 5` oder `Freitext`.",
+          "Weitere Fragen legen Sie mit `Frage hinzufügen` an. Mit `Pflichtfrage` muss jede Person die Frage beantworten.",
+          "Wählen Sie `Als Entwurf speichern`.",
+        ],
+      },
+      {
+        title: "Die Umfrage veröffentlichen",
+        description:
+          "Danach lässt sich nichts mehr ändern, auch nicht, ob die Umfrage anonym ist.",
+        steps: [
+          "Öffnen Sie die Umfrage in der Liste.",
+          "Öffnen Sie oben das Menü mit den drei Punkten.",
+          "Wählen Sie `Veröffentlichen` und prüfen Sie die Angaben.",
+          "Wählen Sie `Jetzt veröffentlichen`.",
+        ],
+      },
+      {
+        title: "Die Auswertung ansehen",
+        steps: [
+          "Öffnen Sie die Umfrage in der Liste.",
+          "Bei einer anonymen Umfrage erscheint die Auswertung, sobald die Umfrage beendet ist.",
+          "Im Reiter `Auswertung` sehen Sie je Frage die Verteilung: bei der Skala den Durchschnitt, den höchsten und den niedrigsten Wert, bei Auswahlfragen die am häufigsten und am seltensten gewählte Antwort, dazu die Freitexte.",
+          "Oben stehen `Stärken und Verbesserungsbedarf`: die Skalenfragen mit dem höchsten und dem niedrigsten Durchschnitt.",
+          "Für eine Datei öffnen Sie das Menü mit den drei Punkten und wählen `Auswertung als PDF`.",
+        ],
+      },
+      {
+        title: "Erinnern, beenden oder löschen",
+        steps: [
+          "Öffnen Sie die Umfrage und oben das Menü mit den drei Punkten.",
+          "`Erinnern` schickt allen eine Erinnerung, die noch nicht teilgenommen haben und Benachrichtigungen bekommen. Sie sehen nur die Zahl.",
+          "`Beenden` schließt die Teilnahme sofort. Die Auswertung bleibt.",
+          "`Löschen` entfernt die Umfrage mit allen Antworten.",
+        ],
+      },
+    ],
+    result:
+      "Die Eltern finden die Umfrage unter `Elternbriefe`, das Team unter `Umfragen`. Jede Person antwortet einmal, Eltern einmal je Elternkonto, nicht je Kind.",
+    notes: [
+      "Anonym heißt: Sie sehen nicht, wer was geantwortet hat. Sie sehen auch nicht, wer noch nicht teilgenommen hat. Die Auswertung zeigt nur Summen.",
+      "Die Auswertung einer anonymen Umfrage erscheint erst nach dem Ende und ab 5 Antworten. So ist niemand an seinen Antworten erkennbar. Bis dahin sehen Sie nur, wie viele teilgenommen haben.",
+      "Auch einzelne Fragen einer anonymen Umfrage zeigen ihr Ergebnis erst ab 5 Antworten. Bei weniger steht dort nur die Zahl.",
+      "Freitexte stehen ohne Namen und ohne Uhrzeit, in zufälliger Reihenfolge. Die PDF-Datei enthält dieselben Summen wie der Bildschirm.",
+      "Bei einer Umfrage, die nicht anonym ist, sehen Sie im Reiter `Antworten je Person` jede Antwort mit Namen.",
+      "Befragen Sie Mitarbeitende? Ein Fragebogen an Beschäftigte kann mitbestimmungspflichtig sein. Klären Sie das vorher mit Ihrem Betriebsrat oder Personalrat. moto prüft das nicht.",
+      "Nur eine kurze Frage zu jedem Kind, zum Beispiel zum Sommerfest? Dafür gibt es die Umfrage unter `Eltern` › `Mitteilungen`.",
+    ],
+    differences: [
+      "Sehen Sie `Umfrage anlegen` nicht? Dann fehlt Ihnen die Berechtigung `Umfragen: Verwalten`. Die Leitung vergibt sie über die Rollen.",
+      "Steht im Reiter `Auswertung` `Noch keine Auswertung`? Dann läuft die anonyme Umfrage noch, oder es haben weniger als 5 Personen geantwortet. Mit `Beenden` endet die Teilnahme sofort.",
+    ],
+    image: "/help/screens/umfrage-auswertung.webp",
+    imageAlt:
+      "Auswertung einer beendeten anonymen Umfrage mit Stärken, Verbesserungsbedarf und der Verteilung je Frage.",
+    related: [
+      HELP_TOPICS.leadParentSurvey,
+      HELP_TOPICS.staffSurveys,
+      HELP_TOPICS.leadStaffPermissions,
     ],
   };
 }
@@ -6405,6 +6539,7 @@ function leadTopics(
     parentAnnouncementTopic(),
     parentLetterTopic(),
     parentSurveyTopic(),
+    leadSurveysTopic(),
     parentDeclarationTopic(),
     mealPlanTopic(),
     mealOrderingTopic(),
@@ -7091,6 +7226,46 @@ function parentGroupMessagesTopic(): HelpTopic {
 }
 
 /**
+ * `/parents/news`: eine Umfrage mit Fragebogen der OGS beantworten (#4781).
+ * Eine Antwort je Elternkonto, nicht je Kind.
+ */
+function parentSurveysTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.parentSurveys,
+    title: "An einer Umfrage teilnehmen",
+    question: "Was bedeutet eine anonyme Umfrage?",
+    summary:
+      "Die OGS fragt nach Ihrer Meinung. Vor der ersten Frage steht, ob die Umfrage anonym ist.",
+    group: "nachrichten",
+    audience: "parent",
+    icon: "CheckSquare",
+    steps: [
+      "Tippen Sie unten auf `Mehr`.",
+      "Wählen Sie `Elternbriefe`.",
+      "Tippen Sie unter `Offen` auf den Eintrag mit `Umfrage`.",
+      "Lesen Sie den Hinweis `Anonym` oder `Nicht anonym`.",
+      "Beantworten Sie die Fragen.",
+      "Tippen Sie auf `Antwort absenden`.",
+    ],
+    result:
+      "Sie sehen `Danke, Ihre Antwort ist gespeichert.` Der Eintrag steht danach mit `Teilgenommen` unter `Erledigt`.",
+    notes: [
+      "`Anonym` heißt: Die Schule sieht nicht, wer was geantwortet hat. Sie sieht nur Summen, erst nach dem Ende und ab 5 Antworten.",
+      "`Nicht anonym` heißt: Die Schule sieht Ihren Namen bei Ihren Antworten.",
+      "Sie antworten einmal für Ihr Elternkonto, nicht für jedes Kind.",
+      "Nach dem Absenden können Sie Ihre Antwort nicht mehr ändern.",
+    ],
+    differences: [
+      "Steht dort `Die Teilnahme ist beendet.`? Dann ist die Frist vorbei. Antworten geht nicht mehr.",
+    ],
+    image: "/help/screens/umfrage-eltern.webp",
+    imageAlt:
+      "Umfrage im Elternportal. Vor der ersten Frage steht, ob sie anonym ist.",
+    related: [HELP_TOPICS.parentNews, HELP_TOPICS.parentNotifications],
+  };
+}
+
+/**
  * `/parents/news`: Elternbriefe, Mitteilungen und Umfragen. Manche verlangen
  * eine Lesebestaetigung, Umfragen eine Antwort.
  */
@@ -7156,6 +7331,7 @@ function parentNewsTopic(): HelpTopic {
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
     ],
     related: [
+      HELP_TOPICS.parentSurveys,
       HELP_TOPICS.parentMessages,
       HELP_TOPICS.parentNotifications,
       HELP_TOPICS.parentFeatureMissing,
@@ -7574,6 +7750,7 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
   parentMessagesTopic(),
   parentGroupMessagesTopic(),
   parentNewsTopic(),
+  parentSurveysTopic(),
   parentCalendarTopic(),
   parentMealPlanTopic(),
 

@@ -114,6 +114,10 @@ const (
 	CodeCommunicationStaffCounterpartUnavailable         = "communication.staff_counterpart_unavailable"
 	CodeCommunicationStaffMessagingDisabled              = "communication.staff_messaging_disabled"
 	CodeCommunicationStaffNoticeOutdated                 = "communication.staff_notice_outdated"
+	CodeCommunicationSurveyAlreadyAnswered               = "communication.survey_already_answered"
+	CodeCommunicationSurveyAnonymous                     = "communication.survey_anonymous"
+	CodeCommunicationSurveyNotDraft                      = "communication.survey_not_draft"
+	CodeCommunicationSurveyNotOpen                       = "communication.survey_not_open"
 	CodeCommunicationSystemAnnouncementImmutable         = "communication.system_announcement_immutable"
 	CodeDevicesTagScanAlreadyResolved                    = "devices.tag_scan_already_resolved"
 	CodeDevicesTagScanNotFound                           = "devices.tag_scan_not_found"
@@ -298,10 +302,6 @@ const (
 	CodeIdentityMfaStatusUnavailable                     = "identity.mfa_status_unavailable"
 	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
 	CodeIdentityOperatorSelfDeactivation                 = "identity.operator_self_deactivation"
-	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
-	CodeIdentityPasskeyNotFound                          = "identity.passkey_not_found"
-	CodeIdentityPasswordMismatch                         = "identity.password_mismatch"
-	CodeIdentityPasswordResetLinkInvalid                 = "identity.password_reset_link_invalid"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -417,6 +417,10 @@ var errorCodeClasses0 = map[string]string{
 	"communication.staff_counterpart_unavailable":          "unavailable",
 	"communication.staff_messaging_disabled":               "permission",
 	"communication.staff_notice_outdated":                  "business_rejection",
+	"communication.survey_already_answered":                "business_rejection",
+	"communication.survey_anonymous":                       "business_rejection",
+	"communication.survey_not_draft":                       "business_rejection",
+	"communication.survey_not_open":                        "business_rejection",
 	"communication.system_announcement_immutable":          "business_rejection",
 	"devices.tag_scan_already_resolved":                    "business_rejection",
 	"devices.tag_scan_not_found":                           "business_rejection",
@@ -601,10 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.mfa_status_unavailable":                      "unavailable",
 	"identity.operator_invitation_invalid":                 "business_rejection",
 	"identity.operator_self_deactivation":                  "business_rejection",
-	"identity.passkey_login_failed":                        "business_rejection",
-	"identity.passkey_not_found":                           "business_rejection",
-	"identity.password_mismatch":                           "input",
-	"identity.password_reset_link_invalid":                 "business_rejection",
 }
 
 func init() {

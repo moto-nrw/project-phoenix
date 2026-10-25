@@ -85,6 +85,7 @@ func demoRoleDefinitions() []demoRoleDefinition {
 				"student_documents:health", "student_documents:legal",
 				"substitutions:create", "substitutions:delete", "substitutions:list", "substitutions:manage", "substitutions:read", "substitutions:update",
 				"supervision:own",
+				"surveys:manage",
 				"time_tracking:manage", "time_tracking:own",
 				"users:absence", "users:checkin", "users:create", "users:delete", "users:list", "users:read", "users:update",
 				"vacation:approve",

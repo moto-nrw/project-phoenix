@@ -181,6 +181,14 @@ export const ERROR_CATALOG = {
         "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",
       "communication.group_thread_no_recipients":
         "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
+      "communication.survey_already_answered":
+        "Sie haben an dieser Umfrage schon teilgenommen. Die Antwort lässt sich nicht mehr ändern.",
+      "communication.survey_anonymous":
+        "Diese Umfrage ist anonym. Einzelne Antworten gibt es dafür nicht.",
+      "communication.survey_not_draft":
+        "Diese Umfrage ist schon veröffentlicht. Sie lässt sich nicht mehr ändern.",
+      "communication.survey_not_open":
+        "Diese Umfrage nimmt keine Antworten mehr an.",
       "communication.notifications_disabled":
         "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
       "communication.parent_news_disabled":
@@ -1471,6 +1479,9 @@ export const ERROR_CATALOG = {
         "This group message is closed. You can no longer reply.",
       "communication.group_thread_no_recipients":
         "No child in this group has parents with access to moto. The message was not sent.",
+      "communication.survey_already_answered":
+        "You have already taken part in this survey. Your answer cannot be changed.",
+      "communication.survey_not_open": "This survey no longer accepts answers.",
       "enrollment.captcha_failed":
         "The security check did not work. Please try again.",
       "enrollment.captcha_required": "Please complete the security check.",
@@ -1861,6 +1872,9 @@ export const ERROR_CATALOG = {
         "Это групповое сообщение закрыто. Ответить больше нельзя.",
       "communication.group_thread_no_recipients":
         "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
+      "communication.survey_already_answered":
+        "Вы уже участвовали в этом опросе. Ответ изменить нельзя.",
+      "communication.survey_not_open": "Этот опрос больше не принимает ответы.",
       "enrollment.captcha_failed":
         "Проверка безопасности не пройдена. Попробуйте ещё раз.",
       "enrollment.captcha_required": "Пройдите проверку безопасности.",
@@ -2204,6 +2218,9 @@ export const ERROR_CATALOG = {
         "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
       "communication.group_thread_no_recipients":
         "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
+      "communication.survey_already_answered":
+        "Ju keni marrë pjesë tashmë në këtë sondazh. Përgjigjja nuk mund të ndryshohet.",
+      "communication.survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
       "enrollment.captcha_failed":
         "Kontrolli i sigurisë nuk funksionoi. Ju lutemi provoni përsëri.",
       "enrollment.captcha_required":
@@ -2559,6 +2576,10 @@ export const ERROR_CATALOG = {
         "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
       "communication.group_thread_no_recipients":
         "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
+      "communication.survey_already_answered":
+        "Ta ankieta ma już Twoją odpowiedź. Nie można jej zmienić.",
+      "communication.survey_not_open":
+        "Ta ankieta nie przyjmuje już odpowiedzi.",
       "enrollment.captcha_failed":
         "Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie.",
       "enrollment.captcha_required": "Potwierdź weryfikację bezpieczeństwa.",
@@ -2903,6 +2924,9 @@ export const ERROR_CATALOG = {
         "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
       "communication.group_thread_no_recipients":
         "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
+      "communication.survey_already_answered":
+        "Bu ankete zaten katıldınız. Yanıtınız değiştirilemez.",
+      "communication.survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
       "enrollment.captcha_failed":
         "Güvenlik doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
       "enrollment.captcha_required":
@@ -3249,6 +3273,10 @@ export const ERROR_CATALOG = {
         "Це групове повідомлення закрито. Відповісти більше не можна.",
       "communication.group_thread_no_recipients":
         "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
+      "communication.survey_already_answered":
+        "Ви вже брали участь у цьому опитуванні. Відповідь змінити не можна.",
+      "communication.survey_not_open":
+        "Це опитування більше не приймає відповіді.",
       "enrollment.captcha_failed":
         "Перевірка безпеки не вдалася. Спробуйте ще раз.",
       "enrollment.captcha_required": "Пройдіть перевірку безпеки.",

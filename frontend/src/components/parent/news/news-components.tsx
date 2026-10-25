@@ -55,6 +55,12 @@ import {
   isDeclarationItem,
   isOpenDeclaration,
 } from "~/components/parent/news/declaration-section";
+import {
+  isOpenSurvey,
+  isSurveyItem,
+  ParentSurveySection,
+} from "~/components/parent/news/survey-section";
+import { useSurveyClosesAtLabel } from "~/components/surveys/survey-questionnaire";
 
 const logger = createLogger({ component: "ParentNews" });
 
@@ -75,7 +81,9 @@ function isStaleAnnouncementError(err: unknown): boolean {
 
 /** True when the announcement asks a question the parent can still answer. */
 function isPoll(item: ParentAnnouncement): boolean {
-  return item.response_type !== "none";
+  // An Umfrage with Fragebogen (#4781) has its own questions, never the
+  // per-child answer rows of a poll.
+  return item.response_type !== "none" && item.system_kind !== "survey";
 }
 
 function isPollClosed(item: ParentAnnouncement): boolean {
@@ -103,7 +111,8 @@ export function isOutstandingAnnouncement(item: ParentAnnouncement): boolean {
     !item.read ||
     (item.requires_acknowledgement && !item.acknowledged) ||
     isOpenPoll(item) ||
-    isOpenDeclaration(item)
+    isOpenDeclaration(item) ||
+    isOpenSurvey(item)
   );
 }
 
@@ -141,11 +150,12 @@ function NewsCardType({
       </span>
     );
   }
-  const type = isPoll(item)
-    ? t("newsPoll")
-    : isDeclarationItem(item)
-      ? t("newsDeclaration")
-      : null;
+  const type =
+    isPoll(item) || isSurveyItem(item)
+      ? t("newsPoll")
+      : isDeclarationItem(item)
+        ? t("newsDeclaration")
+        : null;
   if (type === null) return null;
   return (
     <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -179,6 +189,10 @@ function NewsCardState({
 
   if (isDeclarationItem(item)) {
     return <DeclarationCardState item={item} />;
+  }
+
+  if (isSurveyItem(item)) {
+    return <SurveyCardState item={item} />;
   }
 
   if (!isPoll(item)) {
@@ -258,6 +272,50 @@ function NewsCardState({
             date: formatBerlinDate(item.response_deadline, locale),
           })}
         </span>
+      )}
+    </>
+  );
+}
+
+/**
+ * The card line of an Umfrage with Fragebogen (#4781): whether this parent
+ * account took part, whether it is anonymous, and until when.
+ */
+function SurveyCardState({
+  item,
+}: Readonly<{
+  item: ParentAnnouncement & {
+    survey: NonNullable<ParentAnnouncement["survey"]>;
+  };
+}>): React.ReactNode {
+  const t = useTranslations("parentDashboard");
+  const ts = useTranslations("surveyForm");
+  const closesAtLabel = useSurveyClosesAtLabel();
+  const { survey } = item;
+  const closed = new Date(survey.closes_at) <= new Date();
+  return (
+    <>
+      {survey.participated ? (
+        <span className="text-moto-green-strong flex items-center gap-1.5 font-semibold">
+          <Check
+            className="text-moto-green-strong h-4 w-4 shrink-0"
+            aria-hidden="true"
+          />
+          {ts("participated")}
+        </span>
+      ) : closed ? (
+        <span className="text-gray-600">{ts("closed")}</span>
+      ) : (
+        <StatusBadge label={t("newsPollNeedsAnswer")} tone="orange" />
+      )}
+      <StatusBadge
+        label={
+          survey.anonymous ? ts("anonymousTitle") : ts("notAnonymousTitle")
+        }
+        tone={survey.anonymous ? "blue" : "gray"}
+      />
+      {!closed && !survey.participated && (
+        <span className="text-gray-500">{closesAtLabel(survey.closes_at)}</span>
       )}
     </>
   );
@@ -719,11 +777,12 @@ export function NewsCard({
   const t = useTranslations("parentDashboard");
   const locale = useLocale();
   const outstanding = isOutstandingAnnouncement(item);
-  const concept = isPoll(item)
-    ? "polls"
-    : item.requires_acknowledgement || isDeclarationItem(item)
-      ? "confirmations"
-      : "news";
+  const concept =
+    isPoll(item) || isSurveyItem(item)
+      ? "polls"
+      : item.requires_acknowledgement || isDeclarationItem(item)
+        ? "confirmations"
+        : "news";
 
   return (
     <ChoiceTile
@@ -1041,6 +1100,8 @@ export function NewsDetailModal({
   // An open Einverständnis confirmation sits on top of this dialog; Escape and the
   // backdrop must close only that one, never both.
   const [declarationBusy, setDeclarationBusy] = useState(false);
+  // Sending the answers of an Umfrage (#4781) must not be cut off by a close.
+  const [surveyBusy, setSurveyBusy] = useState(false);
 
   // Reset the per-version local flags when the id or published_at (the version
   // token) changes. On the stale-correction path the parent refetches the feed
@@ -1131,7 +1192,7 @@ export function NewsDetailModal({
   // so hide the button and surface the stale banner instead.
   const needsAck =
     item.requires_acknowledgement && !item.acknowledged && !stale;
-  const actionInProgress = busy || poll.saving || declarationBusy;
+  const actionInProgress = busy || poll.saving || declarationBusy || surveyBusy;
 
   return (
     <Modal
@@ -1197,6 +1258,14 @@ export function NewsDetailModal({
         <FormErrorAlert message={poll.error} />
 
         {isPoll(item) && <PollAnswerRows poll={poll} />}
+
+        {isSurveyItem(item) && !stale && (
+          <ParentSurveySection
+            item={item}
+            onUpdated={onUpdated}
+            onBusyChange={setSurveyBusy}
+          />
+        )}
 
         {isDeclarationItem(item) && (
           <DeclarationSection
