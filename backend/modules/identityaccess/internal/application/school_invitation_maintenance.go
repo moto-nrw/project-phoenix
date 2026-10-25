@@ -53,7 +53,8 @@ func (m *SchoolInvitationMaintenance) inUnitRevokeTenantInvitations(ctx context.
 	return revoked, nil
 }
 
-// CleanupExpiredInvitations removes invitations that are no longer useful.
+// CleanupExpiredInvitations removes invitations that are no longer useful:
+// the expired school invitations and the expired Träger invitations (#4650).
 func (m *SchoolInvitationMaintenance) DeleteExpiredSchoolInvitations(ctx context.Context) (value0 int, err error) {
 	defer func() { err = invitationError(err) }()
 	err = m.run(ctx, func(txCtx context.Context) error {
@@ -64,10 +65,16 @@ func (m *SchoolInvitationMaintenance) DeleteExpiredSchoolInvitations(ctx context
 }
 
 func (m *SchoolInvitationMaintenance) inUnitCleanupExpiredInvitations(ctx context.Context) (int, error) {
-	deleted, _, err := m.store.DeleteExpiredSchoolInvitations(ctx, m.now())
+	now := m.now()
+	deleted, _, err := m.store.DeleteExpiredSchoolInvitations(ctx, now)
 	if err != nil {
 		return 0, failed("cleanup invitations", err)
 	}
+	traeger, _, err := m.store.DeleteExpiredTraegerInvitations(ctx, now)
+	if err != nil {
+		return 0, failed("cleanup Träger invitations", err)
+	}
+	deleted += traeger
 	if deleted > 0 {
 		m.logger.Info("invitation cleanup completed",
 			slog.Int("records_deleted", deleted))

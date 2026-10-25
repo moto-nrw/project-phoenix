@@ -21,8 +21,8 @@ import {
  * Träger-portal route wrapper ("moto träger", #4649). Mirrors
  * lib/school/route-wrapper.server.ts, but reads the Träger NextAuth session
  * (traeger.session-token) so a Träger route can never forward a tenant,
- * parent, or school token. Reads and the holiday period writes (#4659) go
- * through the same proxy factories.
+ * parent, or school token. Reads, the holiday period writes (#4659) and the
+ * Träger-Büro account routes (#4650) go through the same proxy factories.
  */
 
 async function traegerServerFetch<T>(
@@ -61,34 +61,35 @@ async function traegerServerFetch<T>(
   return json as T;
 }
 
-const traegerApiGet = <T>(endpoint: string, token: string) =>
-  traegerServerFetch<T>(endpoint, token, { method: "GET" });
-const traegerApiPost = <T, B = unknown>(
-  endpoint: string,
-  token: string,
-  body?: B,
-) => traegerServerFetch<T>(endpoint, token, { method: "POST", body });
-const traegerApiPut = <T, B = unknown>(
-  endpoint: string,
-  token: string,
-  body?: B,
-) => traegerServerFetch<T>(endpoint, token, { method: "PUT", body });
-const traegerApiDelete = <T>(endpoint: string, token: string) =>
-  traegerServerFetch<T>(endpoint, token, { method: "DELETE" });
-
-/** Retries once with a refreshed Träger session after a backend 401. */
-async function retryWithRefreshedToken<T>(
-  originalToken: string,
-  retry: (token: string) => Promise<T>,
-): Promise<T | null> {
+/** A refreshed Träger session token, or null when there is none. */
+async function refreshedToken(originalToken: string): Promise<string | null> {
   const { uncachedTraegerAuth } = await import("~/server/auth/traeger");
   const updated = await uncachedTraegerAuth();
   if (!updated?.user?.token || updated.user.token === originalToken) {
     return null;
   }
-  return retry(updated.user.token);
+  return updated.user.token;
 }
 
+type NoBodyHandler<T> = (
+  request: NextRequest,
+  token: string,
+  params: Record<string, unknown>,
+) => Promise<T>;
+
+type WithBodyHandler<T, B> = (
+  request: NextRequest,
+  body: B,
+  token: string,
+  params: Record<string, unknown>,
+) => Promise<T>;
+
+/**
+ * Runs the request and, after a backend 401, once more with a refreshed
+ * session. Only a missing refresh or a second 401 counts as an expired
+ * session; any other answer of the retry (a business rejection, a null
+ * DELETE result) is the answer of the request.
+ */
 async function executeWithRetry<T>(
   request: NextRequest,
   token: string,
@@ -98,27 +99,25 @@ async function executeWithRetry<T>(
     return NextResponse.json(wrapInApiResponse(await execute(token)));
   } catch (error) {
     if (!isApiResponseError(error, 401)) throw error;
-    let retried: T | null;
-    try {
-      retried = await retryWithRefreshedToken(token, execute);
-    } catch (retryError) {
-      // Only a second 401 means the session is gone; any other refusal of
-      // the retried request (a 400 or 409 of the holiday period) is the answer.
-      if (!isApiResponseError(retryError, 401)) throw retryError;
-      retried = null;
+  }
+  let fresh: string | null = null;
+  try {
+    fresh = await refreshedToken(token);
+  } catch {
+    // The refresh itself failed: the session counts as expired.
+  }
+  if (fresh === null) return createTokenExpiredResponse(request);
+  try {
+    return NextResponse.json(wrapInApiResponse(await execute(fresh)));
+  } catch (retryError) {
+    if (isApiResponseError(retryError, 401)) {
+      return createTokenExpiredResponse(request);
     }
-    if (retried !== null) {
-      return NextResponse.json(wrapInApiResponse(retried));
-    }
-    return createTokenExpiredResponse(request);
+    throw retryError;
   }
 }
 
-type Params = Record<string, unknown>;
-
-function createTraegerNoBodyHandler<T>(
-  handler: (request: NextRequest, token: string, params: Params) => Promise<T>,
-) {
+function createNoBodyHandler<T>(handler: NoBodyHandler<T>) {
   return withTraegerAuth(async (request, context): Promise<NextResponse> => {
     try {
       const session = await traegerAuth();
@@ -134,14 +133,7 @@ function createTraegerNoBodyHandler<T>(
   });
 }
 
-function createTraegerWithBodyHandler<T, B>(
-  handler: (
-    request: NextRequest,
-    body: B,
-    token: string,
-    params: Params,
-  ) => Promise<T>,
-) {
+function createWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
   return withTraegerAuth(async (request, context): Promise<NextResponse> => {
     try {
       const session = await traegerAuth();
@@ -158,15 +150,23 @@ function createTraegerWithBodyHandler<T, B>(
   });
 }
 
-/** Proxy factories of the Träger portal: forward the query or body, unwrap `data`. */
-export const { proxyGet, proxyPost, proxyPut } = makeProxyFactories({
-  get: createTraegerNoBodyHandler,
-  post: createTraegerWithBodyHandler,
-  put: createTraegerWithBodyHandler,
-  del: createTraegerNoBodyHandler,
-  apiGet: traegerApiGet,
-  apiPost: traegerApiPost,
-  apiPut: traegerApiPut,
-  apiDelete: traegerApiDelete,
-  fetcherUnwrapsData: true,
-});
+/**
+ * Träger proxy factories: envelope-unwrapping pass-throughs on the Träger
+ * session. The fetchers already unwrap `data`.
+ */
+export const { proxyGet, proxyPost, proxyPut, proxyDelete } =
+  makeProxyFactories({
+    get: createNoBodyHandler,
+    post: createWithBodyHandler,
+    put: createWithBodyHandler,
+    del: createNoBodyHandler,
+    apiGet: (endpoint, token) =>
+      traegerServerFetch(endpoint, token, { method: "GET" }),
+    apiPost: (endpoint, token, body) =>
+      traegerServerFetch(endpoint, token, { method: "POST", body }),
+    apiPut: (endpoint, token, body) =>
+      traegerServerFetch(endpoint, token, { method: "PUT", body }),
+    apiDelete: (endpoint, token) =>
+      traegerServerFetch(endpoint, token, { method: "DELETE" }),
+    fetcherUnwrapsData: true,
+  });

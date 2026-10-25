@@ -14,7 +14,7 @@ func init() {
 		Version:     holidayRegistrationsVersion,
 		Description: "Öffentliche Ferienanmeldung ohne Elternkonto mit Feriengästen und Träger-Mail in der Outbox (#4661)",
 		DependsOn: []string{
-			traegerErasureOrderVersion,   // the last migration before this one
+			traegerInvitationsVersion,    // the last migration before this one
 			traegerHolidayPeriodsVersion, // the holiday periods the registrations book
 			systemEmailOutboxVersion,     // the idempotency index of the email outbox this migration widens
 		},
@@ -23,7 +23,7 @@ func init() {
 }
 
 // holidayRegistrationsUpSQL adds the public holiday registration (#4661, spec
-// #4611 user stories 26 and 28 to 31, ADR 0106):
+// #4611 user stories 26 and 28 to 31, ADR 0110):
 //
 //   - enrollment.holiday_periods.public_token: the one link of a period for
 //     all its schools, two random UUIDs without dashes.
@@ -89,7 +89,7 @@ CREATE TABLE enrollment.holiday_registrations (
 );
 CREATE INDEX idx_holiday_registrations_period ON enrollment.holiday_registrations (holiday_period_id);
 COMMENT ON TABLE enrollment.holiday_registrations IS
-	'Public holiday registration of a parent without an account (#4661); read and written in the Träger transaction (ADR 0106).';
+	'Public holiday registration of a parent without an account (#4661); read and written in the Träger transaction (ADR 0110).';
 
 CREATE TABLE enrollment.holiday_registration_children (
 	id BIGSERIAL PRIMARY KEY,

@@ -16,7 +16,7 @@ func NewHolidayPeriods() enrollment.HolidayPeriods {
 
 // NewHolidayRegistrations builds the public holiday registration (#4661):
 // the link resolves in the administrative transaction, the rest runs in the
-// Träger transaction the public route opens for the link's Träger (ADR 0106).
+// Träger transaction the public route opens for the link's Träger (ADR 0110).
 func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, logger *slog.Logger) enrollment.HolidayRegistrations {
 	return applicationNative.NewHolidayRegistrations(applicationNative.HolidayRegistrationDependencies{
 		Registrations: postgres.NewHolidayRegistrationStore(), Periods: postgres.NewHolidayPeriodStore(),

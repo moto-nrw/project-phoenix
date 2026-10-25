@@ -10,7 +10,7 @@ import (
 )
 
 // Public holiday registration (spec #4611 user stories 26 and 28 to 31,
-// #4661, ADR 0106): parents without an account register up to three siblings
+// #4661, ADR 0110): parents without an account register up to three siblings
 // for a published holiday period through its one public link. A child
 // without a school of the Träger is a holiday guest. A registration is no
 // enrollment request of a school and links no child to a student: typing a
@@ -165,7 +165,7 @@ const (
 )
 
 // TraegerMail is a mail of a Träger for Delivery's outbox: no school, the
-// Träger of the caller's Träger transaction (ADR 0106).
+// Träger of the caller's Träger transaction (ADR 0110).
 type TraegerMail struct {
 	OrganizationID int64
 	Kind           string

@@ -230,6 +230,9 @@ const (
 	CodeEnrollmentSchemaNameRequired                     = "enrollment.schema_name_required"
 	CodeEnrollmentSchemaNotFound                         = "enrollment.schema_not_found"
 	CodeEnrollmentSelectedDayNotAvailable                = "enrollment.selected_day_not_available"
+	CodeEnrollmentSignatureInvalid                       = "enrollment.signature_invalid"
+	CodeEnrollmentSignatureNotFound                      = "enrollment.signature_not_found"
+	CodeEnrollmentSignatureRequired                      = "enrollment.signature_required"
 	CodeEnrollmentStatusLinkInvalid                      = "enrollment.status_link_invalid"
 	CodeEnrollmentStudentExists                          = "enrollment.student_exists"
 	CodeEnrollmentSubmissionRateLimited                  = "enrollment.submission_rate_limited"
@@ -299,9 +302,6 @@ const (
 	CodeIdentityPasswordResetLinkInvalid                 = "identity.password_reset_link_invalid"
 	CodeIdentityPasswordResetRateLimited                 = "identity.password_reset_rate_limited"
 	CodeIdentityPasswordTooWeak                          = "identity.password_too_weak"
-	CodeIdentityPreviewTargetNotPreviewable              = "identity.preview_target_not_previewable"
-	CodeIdentityPreviewTargetSchoolPortal                = "identity.preview_target_school_portal"
-	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -533,6 +533,9 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.schema_name_required":                      "input",
 	"enrollment.schema_not_found":                          "business_rejection",
 	"enrollment.selected_day_not_available":                "input",
+	"enrollment.signature_invalid":                         "input",
+	"enrollment.signature_not_found":                       "business_rejection",
+	"enrollment.signature_required":                        "input",
 	"enrollment.status_link_invalid":                       "business_rejection",
 	"enrollment.student_exists":                            "business_rejection",
 	"enrollment.submission_rate_limited":                   "unavailable",
@@ -602,9 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.password_reset_link_invalid":                 "business_rejection",
 	"identity.password_reset_rate_limited":                 "unavailable",
 	"identity.password_too_weak":                           "input",
-	"identity.preview_target_not_previewable":              "permission",
-	"identity.preview_target_school_portal":                "permission",
-	"identity.preview_token_invalid":                       "permission",
 }
 
 func init() {

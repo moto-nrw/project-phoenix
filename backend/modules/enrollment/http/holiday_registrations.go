@@ -16,7 +16,7 @@ import (
 )
 
 // HolidayRegistrationResource serves the public holiday registration
-// (#4661, ADR 0106): parents without an account open the one link of a
+// (#4661, ADR 0110): parents without an account open the one link of a
 // published holiday period and register up to three siblings. There is no
 // session; the link names the Träger. The administrative transaction only
 // resolves the link, everything else runs in the Träger transaction of the

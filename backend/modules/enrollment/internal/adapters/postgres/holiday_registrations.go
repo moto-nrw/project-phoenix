@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// Public holiday registrations (#4661, ADR 0106). The link lookup runs in the
+// Public holiday registrations (#4661, ADR 0110). The link lookup runs in the
 // administrative transaction, like the school slug of the online
 // registration, and reads only the Träger and the period of a published
 // token. Every other statement runs in the Träger transaction of the Träger

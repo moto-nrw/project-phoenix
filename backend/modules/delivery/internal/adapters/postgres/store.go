@@ -283,7 +283,7 @@ func (s *Store) Enqueue(ctx context.Context, intent domain.Intent) (domain.Enque
 
 // enqueueEmailIntent inserts an e-mail intent or reads the one with its
 // idempotency key. A mail of no school is a system mail or, with a Träger,
-// a mail of that Träger (ADR 0106).
+// a mail of that Träger (ADR 0110).
 func enqueueEmailIntent(ctx context.Context, db bun.IDB, intent domain.Intent) (domain.Enqueued, error) {
 	var scope, organization any
 	if intent.TenantID != 0 {
@@ -342,7 +342,7 @@ func enqueuePushIntent(ctx context.Context, db bun.IDB, intent domain.Intent) (d
 }
 
 // intentDB resolves the caller's unit of an intent: the Träger transaction
-// for a mail of a Träger (ADR 0106), the tenant or administrative one
+// for a mail of a Träger (ADR 0110), the tenant or administrative one
 // otherwise.
 func (s *Store) intentDB(ctx context.Context, intent domain.Intent) (bun.IDB, error) {
 	if intent.OrganizationID > 0 {

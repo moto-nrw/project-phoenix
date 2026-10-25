@@ -17,5 +17,9 @@ const (
 	settingParentNotesEnabled              = "operations.parent_notes_enabled"
 	settingStaffMessagingEnabled           = "operations.staff_messaging_enabled"
 	settingCalendarAppointmentReminder     = "calendar.appointment_reminder_enabled"
-	guardianPermissionPortalAccess         = "parent_portal.access"
+	// Module switches (#4895): pushes to parents need Eltern-App, pushes to
+	// devices of the school portal need Unterricht am Vormittag.
+	settingModuleElternApp           = "module.eltern_app"
+	settingModuleUnterrichtVormittag = "module.unterricht_vormittag"
+	guardianPermissionPortalAccess   = "parent_portal.access"
 )

@@ -55,6 +55,7 @@ func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
 		schoolRepo:             dbTenantDirectory{db: db},
 		tenantRuntime:          dbTenantRuntime(t, db),
 		rolloverDeadlineRunner: probe,
+		settings:               bookedModules(),
 		logger:                 slog.Default()})
 
 	s.checkAndRunRolloverDeadline(context.Background(), &ScheduledTask{})

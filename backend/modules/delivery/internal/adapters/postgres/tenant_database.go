@@ -62,7 +62,7 @@ func (s *Store) inAdminTransaction(ctx context.Context, fn func(context.Context,
 }
 
 // RequireTraegerDatabase resolves only the caller's Träger transaction of
-// organizationID (ADR 0105, ADR 0106): a mail of a Träger commits with the
+// organizationID (ADR 0105, ADR 0110): a mail of a Träger commits with the
 // Träger write that causes it.
 func RequireTraegerDatabase(ctx context.Context, organizationID int64) (bun.IDB, error) {
 	raw, ok := tenant.TransactionFromContext(ctx)

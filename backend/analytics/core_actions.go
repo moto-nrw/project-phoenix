@@ -556,10 +556,15 @@ var coreActions = map[RouteKey]CoreAction{
 	// Träger-Portal (ADR 0084). It collects nothing until a collection
 	// decision for the Träger exists; a Träger session names no school, so
 	// ActorOf yields no actor either.
-	{http.MethodPost, "/traeger/auth/login"}:                   notCaptured,
-	{http.MethodPost, "/traeger/holiday-periods/"}:             notCaptured,
-	{http.MethodPut, "/traeger/holiday-periods/{id}"}:          notCaptured,
-	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}: notCaptured,
+	{http.MethodPost, "/traeger/auth/login"}:                            notCaptured,
+	{http.MethodPost, "/traeger/accounts/invitations"}:                  notCaptured,
+	{http.MethodDelete, "/traeger/accounts/invitations/{invitationId}"}: notCaptured,
+	{http.MethodPut, "/traeger/accounts/{accountId}/roles"}:             notCaptured,
+	{http.MethodDelete, "/traeger/accounts/{accountId}"}:                notCaptured,
+	{http.MethodPost, "/traeger/invitations/{token}/accept"}:            notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/"}:                      notCaptured,
+	{http.MethodPut, "/traeger/holiday-periods/{id}"}:                   notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}:          notCaptured,
 	// The public holiday registration of a Träger (#4661) has no session
 	// and no school, so no collection policy admits it yet.
 	{http.MethodPost, "/traeger/holiday-registrations/{token}"}: notCaptured,

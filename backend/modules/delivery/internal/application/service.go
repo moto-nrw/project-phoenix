@@ -90,7 +90,7 @@ func (s *Service) enqueueEmail(ctx context.Context, intent deliveryContract.Emai
 	}, deliveryContract.TransportEmail)
 }
 
-// validateEmailScope admits a school mail, a Träger mail (ADR 0106) or, on
+// validateEmailScope admits a school mail, a Träger mail (ADR 0110) or, on
 // the system path, a global mail with neither.
 func validateEmailScope(intent deliveryContract.EmailIntent, system bool) error {
 	switch {

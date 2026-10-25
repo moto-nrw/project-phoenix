@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // --- status / edit / withdraw handlers (token-gated, public) ---
@@ -45,6 +46,12 @@ type StatusResponse struct {
 	// invitation, or contact_ogs. It is sent with HasParentAccount only while
 	// a child is taken over into care.
 	ParentPortalAccess *string `json:"parent_portal_access,omitempty"`
+	// SignatureRequired: the form asks the parent to sign every edit
+	// (#4786), so the page offers the full form instead of the field edit.
+	SignatureRequired bool `json:"signature_required"`
+	// Signature describes the signature of the current version, without
+	// the image; the proof PDF carries it.
+	Signature *RequestSignatureResponse `json:"signature,omitempty"`
 }
 
 // StatusGuardianResponse is one additional guardian on the public status
@@ -131,6 +138,8 @@ type EditDraftOfferingDayResponse struct {
 
 // getStatus returns the per-child status for a token-bearing parent.
 // Public route — caller must wrap in admin-tx because there's no JWT.
+// With ?format=pdf it answers the proof of the parent's signature (#4786)
+// instead, for the request the same token names.
 func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	if rs.RequestService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment request service not configured")))
@@ -143,46 +152,133 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		req       *Request
-		children  []*RequestChild
-		guardians []*capability.RequestGuardian
-		editMode  string
-		statusErr error
+		view        statusView
+		invalidLink bool
+		statusErr   error
 	)
 	err := withinAdmin(r.Context(), func(adminCtx context.Context) error {
-		serviceReq, serviceChildren, err := rs.RequestService.GetByStatusToken(adminCtx, token)
-		if err != nil {
-			return err
-		}
-		req = serviceReq
-		children = serviceChildren
-		mode, modeErr := rs.RequestService.EditModeForStatus(adminCtx, req, children)
-		if modeErr != nil {
-			statusErr = fmt.Errorf("status: compute edit mode: %w", modeErr)
-			return statusErr
-		}
-		editMode = mode
-		// Best-effort: a failure here must not hide the request status, but a
-		// silent drop would mask a permission/RLS/DB problem behind a 200 with
-		// missing co-guardians. Log it so the failure is visible.
-		if g, gerr := rs.RequestService.GuardiansByStatusToken(adminCtx, token); gerr == nil {
-			guardians = g
-		} else {
-			rs.logger().Warn("enrollment status: load co-guardians failed",
-				slog.String("error", gerr.Error()))
-		}
-		return nil
+		view, invalidLink, statusErr = rs.loadPublicStatusView(adminCtx, token, wantsProofPDF(r))
+		return statusErr
 	})
 	if err != nil {
-		if statusErr != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment status", statusErr))
+		if invalidLink {
+			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
 			return
 		}
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load enrollment status", err))
 		return
 	}
+	if wantsProofPDF(r) {
+		rs.writeStatusSignatureProof(w, r, view)
+		return
+	}
+	rs.respondStatus(w, r, token, view)
+}
 
-	resp, anyLocked := newStatusResponse(req, editMode, children, guardians)
+// loadPublicStatusView completes the public status read in its administrative
+// transaction. Optional status data runs behind savepoints so a failed query
+// cannot abort the status response's transaction.
+func (rs *Resource) loadPublicStatusView(ctx context.Context, token string, proofRequested bool) (view statusView, invalidLink bool, err error) {
+	var lookupErr, statusErr error
+	view, lookupErr, statusErr = rs.loadStatusView(ctx, token)
+	if lookupErr != nil {
+		return view, true, lookupErr
+	}
+	if statusErr != nil {
+		return view, false, statusErr
+	}
+	if !proofRequested {
+		rs.loadStatusSignature(ctx, token, &view)
+		return view, false, nil
+	}
+	err = rs.loadStatusSignatureProof(ctx, token, &view)
+	return view, errors.Is(err, capability.ErrRequestNotFound), err
+}
+
+// statusView is everything the status page and its proof show.
+type statusView struct {
+	req       *Request
+	children  []*RequestChild
+	guardians []*capability.RequestGuardian
+	editMode  string
+	proof     *SignatureProof
+	signature *StatusSignature
+	// signatureUnavailable means the optional status read failed. The public
+	// response then fails closed and only offers the full edit form.
+	signatureUnavailable bool
+}
+
+// loadStatusView reads the request behind the token. A failed lookup
+// (unknown, expired or altered token) comes back as lookupErr; a failure
+// after the request was found is a server error.
+func (rs *Resource) loadStatusView(ctx context.Context, token string) (view statusView, lookupErr, serverErr error) {
+	view.req, view.children, lookupErr = rs.RequestService.GetByStatusToken(ctx, token)
+	if lookupErr != nil {
+		return view, lookupErr, nil
+	}
+	if view.editMode, serverErr = rs.RequestService.EditModeForStatus(ctx, view.req, view.children); serverErr != nil {
+		return view, nil, fmt.Errorf("status: compute edit mode: %w", serverErr)
+	}
+	rs.loadStatusGuardians(ctx, token, &view)
+	return view, nil, nil
+}
+
+// loadStatusGuardians adds the optional co-guardians without risking the
+// transaction that established the status link.
+func (rs *Resource) loadStatusGuardians(ctx context.Context, token string, view *statusView) {
+	var guardians []*capability.RequestGuardian
+	err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+		var loadErr error
+		guardians, loadErr = rs.RequestService.GuardiansByStatusToken(savepointCtx, token)
+		return loadErr
+	})
+	if err != nil {
+		rs.logger().Warn("enrollment status: load co-guardians failed",
+			slog.String("error", err.Error()))
+		return
+	}
+	view.guardians = guardians
+}
+
+// loadStatusSignature adds the small signature payload the status page shows.
+// Its failure is deliberately best-effort: the status link remains useful
+// when the optional signature read is temporarily unavailable.
+func (rs *Resource) loadStatusSignature(ctx context.Context, token string, view *statusView) {
+	var signature *StatusSignature
+	err := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+		var loadErr error
+		signature, loadErr = rs.RequestService.StatusSignature(savepointCtx, token)
+		return loadErr
+	})
+	if err != nil {
+		view.signatureUnavailable = true
+		rs.logger().Warn("enrollment status: load signature failed",
+			slog.String("error", err.Error()))
+		return
+	}
+	view.signature = signature
+}
+
+// loadStatusSignatureProof loads the complete proof model only for the PDF.
+func (rs *Resource) loadStatusSignatureProof(ctx context.Context, token string, view *statusView) error {
+	proof, err := rs.RequestService.SignatureProof(ctx, 0, token)
+	if err != nil {
+		return fmt.Errorf("status: load signature proof: %w", err)
+	}
+	view.proof = proof
+	return nil
+}
+
+// respondStatus answers the status page payload.
+func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, token string, view statusView) {
+	req := view.req
+	resp, anyLocked := newStatusResponse(req, view.editMode, view.children, view.guardians)
+	if view.signatureUnavailable {
+		resp.SignatureRequired = true
+	} else if view.signature != nil {
+		resp.SignatureRequired = view.signature.SignatureRequired
+		resp.Signature = newRequestSignatureResponse(view.signature.Signature, false)
+	}
 	if anyLocked {
 		resp.HasParentAccount, resp.ParentPortalAccess = rs.statusParentAccount(r.Context(), token, req.ID)
 	}
@@ -434,6 +530,8 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentEditNotAllowed))
 		case errors.Is(err, capability.ErrInvalidGuardianPhone):
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentInvalidPhone))
+		case errors.Is(err, capability.ErrSignatureRequired):
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentSignatureRequired))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServerWrap("enrollment operation failed", err))
 		}

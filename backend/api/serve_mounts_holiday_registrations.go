@@ -12,15 +12,14 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
 // mountTraegerRoutes serves the Träger-Portal at /traeger and the public
-// holiday registration (#4661, ADR 0106) at /traeger/holiday-registrations: the one
+// holiday registration (#4661, ADR 0110) at /traeger/holiday-registrations: the one
 // link of a published holiday period, without an account. Turnstile is
 // always required there.
-func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity identityaccess.TraegerAccountLogin, organizations organizationtenancy.Capability,
+func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.Capability,
 	delivery deliveryRuntime.Capability, keys TurnstileKeys, logger *slog.Logger) error {
 	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations); err != nil {
 		return err
@@ -47,7 +46,7 @@ func NewHolidayRegistrationHTTP(organizations HolidayOrganizations, delivery del
 }
 
 // holidayCaptchaSettings always require the captcha with the platform's
-// Turnstile keys: a Träger has no setting to switch it off yet (ADR 0106).
+// Turnstile keys: a Träger has no setting to switch it off yet (ADR 0110).
 type holidayCaptchaSettings TurnstileKeys
 
 func (s holidayCaptchaSettings) CaptchaRequired(context.Context) (bool, error) { return true, nil }

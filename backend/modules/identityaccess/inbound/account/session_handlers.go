@@ -423,40 +423,7 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 	recoveryProof := r.Header.Get(rotation.RecoveryProofHeader)
 	accessToken, newRefreshToken, err := rs.Sessions.RefreshTokenWithAudit(r.Context(), refreshToken, recoveryProof, ipAddress, userAgent)
 	if err != nil {
-		var authErr *identityaccess.AuthenticationError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
-				common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityMfaStatusUnavailable))
-			case errors.Is(err, identityaccess.ErrInvalidToken):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
-			case errors.Is(err, identityaccess.ErrTokenExpired):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTokenExpired))
-			case errors.Is(err, identityaccess.ErrTokenNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTokenNotFound))
-			case errors.Is(err, identityaccess.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountNotFound))
-			case errors.Is(err, identityaccess.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
-			case errors.Is(err, identityaccess.ErrTenantNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantNotFound))
-			case errors.Is(err, identityaccess.ErrTenantAccessDenied):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
-			case errors.Is(err, identityaccess.ErrNoTraegerMembership):
-				// The Träger membership ended or the Träger was switched off
-				// (#4649): the Träger session is over, like a revoked mapping.
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrNoTraegerMembership))
-			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
-				// The account is school-portal-only at this school (#2207).
-				// 401, not 403: the tenant session is simply over, and the
-				// frontend's refresh path turns a 401 into a clean logout.
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrMustUseSchoolPortal))
-			default:
-				common.RenderError(w, r, common.ErrorInternalServer(err))
-			}
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		renderRefreshError(w, r, err)
 		return
 	}
 
@@ -465,6 +432,51 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
 	})
+}
+
+// renderRefreshError maps a refused refresh onto its response.
+func renderRefreshError(w http.ResponseWriter, r *http.Request, err error) {
+	if notBooked, ok := identityaccess.PortalNotBooked(err); ok {
+		// The school no longer books the portal's module (#4895). The
+		// presented refresh token stays untouched; the portal's next sign-in
+		// explains the missing module.
+		common.RenderError(w, r, common.ErrorModuleNotBooked(notBooked, notBooked.Module, notBooked.ModuleLabel))
+		return
+	}
+	var authErr *identityaccess.AuthenticationError
+	if errors.As(err, &authErr) {
+		switch {
+		case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
+			common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityMfaStatusUnavailable))
+		case errors.Is(err, identityaccess.ErrInvalidToken):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
+		case errors.Is(err, identityaccess.ErrTokenExpired):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTokenExpired))
+		case errors.Is(err, identityaccess.ErrTokenNotFound):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTokenNotFound))
+		case errors.Is(err, identityaccess.ErrAccountNotFound):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountNotFound))
+		case errors.Is(err, identityaccess.ErrAccountInactive):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
+		case errors.Is(err, identityaccess.ErrTenantNotFound):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantNotFound))
+		case errors.Is(err, identityaccess.ErrTenantAccessDenied):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
+		case errors.Is(err, identityaccess.ErrNoTraegerMembership):
+			// The Träger membership ended or the Träger was switched off
+			// (#4649): the Träger session is over, like a revoked mapping.
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrNoTraegerMembership))
+		case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
+			// The account is school-portal-only at this school (#2207).
+			// 401, not 403: the tenant session is simply over, and the
+			// frontend's refresh path turns a 401 into a clean logout.
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrMustUseSchoolPortal))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServer(err))
 }
 
 // logout handles user logout

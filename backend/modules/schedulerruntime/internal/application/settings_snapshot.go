@@ -81,6 +81,10 @@ var schedulerPollingSettingKeys = []string{
 	settingEnrollmentCareOfferingsEnabled,
 	settingEnrollmentDefaultActivationMode,
 	settingEnrollmentNotifyPerDecision,
+	// The module switches of the module jobs (#4895).
+	settingModuleElternApp,
+	settingModuleOnlineAnmeldung,
+	settingModuleZeiterfassung,
 }
 
 // getMinuteSnapshot coalesces concurrent scheduler goroutines into one active

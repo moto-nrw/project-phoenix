@@ -80,8 +80,8 @@ func (s *Scheduler) forEachTenant(ctx context.Context, opName string, fn func(ct
 		s.observeTenantRuntime("transaction_failure")
 		return fmt.Errorf("load active tenants for %s: %w", opName, err)
 	}
-	result := s.runTenantBatches(ctx, minuteSnapshot.tenantIDs, opName, adaptTenantCommand(func(txCtx context.Context, _ int64) error {
-		return fn(txCtx)
+	result := s.runTenantBatches(ctx, minuteSnapshot.tenantIDs, opName, adaptTenantCommand(func(txCtx context.Context, tenantID int64) error {
+		return s.runIfModuleBooked(txCtx, opName, tenantID, func() error { return fn(txCtx) })
 	}))
 	return result.Err
 }
@@ -151,7 +151,9 @@ func (s *Scheduler) forEachTenantSettingsSnapshot(ctx context.Context, opName st
 		// Older unit-test fakes implement only the narrow per-key resolver.
 		// Production SettingsService always implements the batch loader.
 		if errors.Is(err, errSchedulerSettingsBatchUnsupported) && minuteSnapshot != nil {
-			return s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, fn)
+			return s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, tenantID int64) error {
+				return s.runIfModuleBooked(txCtx, opName, tenantID, func() error { return fn(txCtx, tenantID) })
+			})
 		}
 		recordJobCommandFailure(ctx, err)
 		s.observeTenantRuntime("transaction_failure")
@@ -172,7 +174,7 @@ func (s *Scheduler) forEachTenantSettingsSnapshot(ctx context.Context, opName st
 		if err != nil {
 			return fmt.Errorf("bind settings snapshot for tenant %d: %w", tenantID, err)
 		}
-		return fn(boundCtx, tenantID)
+		return s.runIfModuleBooked(boundCtx, opName, tenantID, func() error { return fn(boundCtx, tenantID) })
 	})
 }
 

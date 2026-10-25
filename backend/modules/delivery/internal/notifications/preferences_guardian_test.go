@@ -8,6 +8,7 @@ package notifications_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
@@ -40,6 +41,9 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	reminderEnabled := map[int64]bool{1: true, 2: true}
 	settings := &settingsDouble{
 		ResolveBoolFn: func(settingsCtx context.Context, key string) (bool, error) {
+			if strings.HasPrefix(key, "module.") {
+				return true, nil // module switches are booked by default (#4895)
+			}
 			if key == "notifications.dispatch_enabled" {
 				return true, nil
 			}

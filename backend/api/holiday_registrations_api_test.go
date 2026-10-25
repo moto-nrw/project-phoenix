@@ -1,4 +1,4 @@
-// Router-level tests for the public holiday registration (#4661, ADR 0106):
+// Router-level tests for the public holiday registration (#4661, ADR 0110):
 // one link per published period for all its schools, siblings and holiday
 // guests, the receipt in the Träger's outbox, no child data behind a name and
 // a date of birth, and the abuse protection of the online registration.

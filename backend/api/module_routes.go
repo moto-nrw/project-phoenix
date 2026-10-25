@@ -46,11 +46,14 @@ var moduleRouteRules = []moduleRouteRule{
 
 	// Portals and devices (#4895, #4896).
 	{"/auth/guardian-invitations", settings.ModuleElternApp},
+	// The team resends a parent's invitation in the tenant chain (#4895).
+	{"/auth/guardian-invitations/*/resend", settings.ModuleElternApp},
 	{"/parent", settings.ModuleElternApp},
 	{"/parent-sse", settings.ModuleElternApp},
 	{"/parent-news-attachments", settings.ModuleElternApp},
 	{"/parent/enrollments", settings.ModuleOnlineAnmeldung},
 	{"/school", settings.ModuleUnterrichtVormittag},
+	{"/school/auth", settings.ModuleUnterrichtVormittag},
 	{"/school-sse", settings.ModuleUnterrichtVormittag},
 	{"/traeger", moduleRouteBasis},
 	{"/api/iot", settings.ModuleNFCAnwesenheit},
@@ -163,13 +166,23 @@ var moduleRouteRules = []moduleRouteRule{
 // for the portals and devices, or the owner where the route resolves its
 // school from the path or a token rather than from a session.
 var moduleRoutesLockedElsewhere = map[string]string{
-	"/parent":                    "#4895 Elternportal, an der Eltern-Sitzung",
-	"/parent-sse":                "#4895 Elternportal, an der Eltern-Sitzung",
-	"/parent-news-attachments":   "#4895 Elternportal, an der Eltern-Sitzung",
-	"/parent/enrollments":        "#4895 Elternportal, an der Eltern-Sitzung",
-	"/auth/guardian-invitations": "#4895 Elternportal: Einladung annehmen stellt die Eltern-Sitzung aus",
-	"/school":                    "#4895 Schulportal, an der Schul-Sitzung",
-	"/school-sse":                "#4895 Schulportal, an der Schul-Sitzung",
+	// The parents portal spans schools: ParentScopeMiddleware locks the
+	// account once none of its guardian schools books Eltern-App, login and
+	// refresh refuse its session (#4895). Its enrollment routes additionally
+	// need Online-Anmeldung at the school: enrollment.enabled counts only
+	// while the module is booked.
+	"/parent":                  "#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware",
+	"/parent-sse":              "#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware",
+	"/parent-news-attachments": "#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware",
+	"/parent/enrollments":      "#4895 Elternportal: Eltern-Sitzung, Anmeldung über enrollment.enabled",
+	// The public sign-in of the school portal carries no session yet;
+	// Identity & Access refuses its login, second factor and switch for a
+	// school without Unterricht am Vormittag (#4895). Every other /school
+	// route passes SchoolScopeMiddleware.
+	"/school/auth": "#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access",
+	// Accepting an invitation creates the account, no session; the login
+	// afterwards refuses a school without Eltern-App (#4895).
+	"/auth/guardian-invitations": "#4895 Elternportal: Einladung annehmen stellt keine Sitzung aus, der Login sperrt",
 	// The device administration under /api/iot runs in the staff chain, but
 	// devices and their PyrePortal contract move as one in #4896.
 	"/api/iot":             "#4896 Geräte und PyrePortal",

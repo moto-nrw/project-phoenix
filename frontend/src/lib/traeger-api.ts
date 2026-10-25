@@ -5,6 +5,7 @@
  */
 
 import { apiErrorFromBody, transportFetch } from "./api-error";
+import { type TraegerRole, traegerRoles } from "./traeger-roles";
 
 /** A Träger the person can open, offered when they belong to several. */
 export interface TraegerChoice {
@@ -257,12 +258,74 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
   };
 }
 
-async function traegerData<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await transportFetch(url, {
+// --- Träger-Büro: Personen und Einladungen (#4650) ---
+
+/** An active person of the Träger-Büro. */
+export interface TraegerMember {
+  readonly accountId: string;
+  readonly email: string;
+  readonly roles: readonly TraegerRole[];
+}
+
+/** An open invitation into the Träger-Büro. */
+export interface TraegerInvitation {
+  readonly id: string;
+  readonly email: string;
+  readonly roles: readonly TraegerRole[];
+  /** Instant (RFC 3339) after which the link no longer works. */
+  readonly expiresAt: string;
+}
+
+export interface TraegerBuero {
+  readonly members: readonly TraegerMember[];
+  readonly invitations: readonly TraegerInvitation[];
+}
+
+/** What the invitation link shows before it is accepted. */
+export interface TraegerInvitationPreview {
+  readonly organizationName: string;
+  readonly email: string;
+  readonly roles: readonly TraegerRole[];
+  /** The address has a moto account: the invitee confirms its password. */
+  readonly requiresExistingPassword: boolean;
+  readonly expiresAt: string;
+}
+
+interface BackendMember {
+  account_id: number;
+  email: string;
+  roles?: string[] | null;
+}
+
+interface BackendInvitation {
+  id: number;
+  email: string;
+  roles?: string[] | null;
+  expires_at: string;
+}
+
+interface BackendPreview {
+  organization_name: string;
+  email: string;
+  roles?: string[] | null;
+  requires_existing_password: boolean;
+  expires_at: string;
+}
+
+/** Sends a request to a Träger BFF route and returns the `data` member. */
+async function traegerRequest<T>(
+  path: string,
+  init: { method: string; body?: unknown } = { method: "GET" },
+): Promise<T> {
+  const response = await transportFetch(path, {
+    method: init.method,
     credentials: "include",
     cache: "no-store",
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers:
+      init.body === undefined
+        ? undefined
+        : { "Content-Type": "application/json" },
+    body: init.body === undefined ? undefined : JSON.stringify(init.body),
   });
   const data = await readJson(response);
   if (!response.ok) {
@@ -275,12 +338,108 @@ async function traegerData<T>(url: string, init?: RequestInit): Promise<T> {
   return (data as { data?: T } | null)?.data as T;
 }
 
+function mapInvitation(invitation: BackendInvitation): TraegerInvitation {
+  return {
+    id: String(invitation.id),
+    email: invitation.email,
+    roles: traegerRoles(invitation.roles ?? []),
+    expiresAt: invitation.expires_at,
+  };
+}
+
+/** The people and the open invitations of the Träger-Büro. */
+export async function fetchTraegerBuero(): Promise<TraegerBuero> {
+  const data = await traegerRequest<{
+    members?: BackendMember[];
+    invitations?: BackendInvitation[];
+  } | null>("/api/traeger/accounts");
+  return {
+    members: (data?.members ?? []).map((member) => ({
+      accountId: String(member.account_id),
+      email: member.email,
+      roles: traegerRoles(member.roles ?? []),
+    })),
+    invitations: (data?.invitations ?? []).map(mapInvitation),
+  };
+}
+
+/** Invites a person by e-mail; the backend sends the link. */
+export async function inviteTraegerAccount(input: {
+  readonly email: string;
+  readonly roles: readonly TraegerRole[];
+}): Promise<void> {
+  await traegerRequest("/api/traeger/accounts/invitations", {
+    method: "POST",
+    body: { email: input.email, roles: input.roles },
+  });
+}
+
+export async function revokeTraegerInvitation(id: string): Promise<void> {
+  await traegerRequest(
+    `/api/traeger/accounts/invitations/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function changeTraegerRoles(
+  accountId: string,
+  roles: readonly TraegerRole[],
+): Promise<void> {
+  await traegerRequest(
+    `/api/traeger/accounts/${encodeURIComponent(accountId)}/roles`,
+    { method: "PUT", body: { roles } },
+  );
+}
+
+export async function removeTraegerMember(accountId: string): Promise<void> {
+  await traegerRequest(
+    `/api/traeger/accounts/${encodeURIComponent(accountId)}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+/** Reads a redeemable invitation behind the link token. */
+export async function fetchTraegerInvitation(
+  token: string,
+): Promise<TraegerInvitationPreview> {
+  const data = await traegerRequest<BackendPreview>(
+    `/api/traeger/invitations/${encodeURIComponent(token)}`,
+  );
+  return {
+    organizationName: data.organization_name,
+    email: data.email,
+    roles: traegerRoles(data.roles ?? []),
+    requiresExistingPassword: data.requires_existing_password,
+    expiresAt: data.expires_at,
+  };
+}
+
+/** Accepts the invitation and returns the address to sign in with. */
+export async function acceptTraegerInvitation(
+  token: string,
+  input: { readonly password: string; readonly confirmPassword?: string },
+): Promise<string> {
+  const data = await traegerRequest<{ email: string }>(
+    `/api/traeger/invitations/${encodeURIComponent(token)}/accept`,
+    {
+      method: "POST",
+      body: {
+        password: input.password,
+        confirm_password: input.confirmPassword ?? "",
+      },
+    },
+  );
+  return data.email;
+}
+
 const holidayPeriodsPath = "/api/traeger/holiday-periods";
 
 /** Every holiday period of the signed-in person's Träger, newest first. */
 export async function fetchHolidayPeriods(): Promise<HolidayPeriod[]> {
   const periods =
-    (await traegerData<BackendHolidayPeriod[] | null>(holidayPeriodsPath)) ??
+    (await traegerRequest<BackendHolidayPeriod[] | null>(holidayPeriodsPath)) ??
     [];
   return periods.map(holidayPeriodFromBackend);
 }
@@ -288,7 +447,7 @@ export async function fetchHolidayPeriods(): Promise<HolidayPeriod[]> {
 /** One holiday period of the Träger. */
 export async function fetchHolidayPeriod(id: string): Promise<HolidayPeriod> {
   return holidayPeriodFromBackend(
-    await traegerData<BackendHolidayPeriod>(
+    await traegerRequest<BackendHolidayPeriod>(
       `${holidayPeriodsPath}/${encodeURIComponent(id)}`,
     ),
   );
@@ -299,9 +458,9 @@ export async function createHolidayPeriod(
   input: HolidayPeriodInput,
 ): Promise<HolidayPeriod> {
   return holidayPeriodFromBackend(
-    await traegerData<BackendHolidayPeriod>(holidayPeriodsPath, {
+    await traegerRequest<BackendHolidayPeriod>(holidayPeriodsPath, {
       method: "POST",
-      body: JSON.stringify(holidayPeriodToBackend(input)),
+      body: holidayPeriodToBackend(input),
     }),
   );
 }
@@ -312,9 +471,9 @@ export async function updateHolidayPeriod(
   input: HolidayPeriodInput,
 ): Promise<HolidayPeriod> {
   return holidayPeriodFromBackend(
-    await traegerData<BackendHolidayPeriod>(
+    await traegerRequest<BackendHolidayPeriod>(
       `${holidayPeriodsPath}/${encodeURIComponent(id)}`,
-      { method: "PUT", body: JSON.stringify(holidayPeriodToBackend(input)) },
+      { method: "PUT", body: holidayPeriodToBackend(input) },
     ),
   );
 }
@@ -322,7 +481,7 @@ export async function updateHolidayPeriod(
 /** Publishes a complete period for registration. */
 export async function publishHolidayPeriod(id: string): Promise<HolidayPeriod> {
   return holidayPeriodFromBackend(
-    await traegerData<BackendHolidayPeriod>(
+    await traegerRequest<BackendHolidayPeriod>(
       `${holidayPeriodsPath}/${encodeURIComponent(id)}/publish`,
       { method: "POST" },
     ),

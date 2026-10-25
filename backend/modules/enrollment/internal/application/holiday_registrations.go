@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The public holiday registration (#4661, ADR 0106). The link resolution runs
+// The public holiday registration (#4661, ADR 0110). The link resolution runs
 // in the administrative transaction; the offer, the abuse counter and the
 // registration run in the Träger transaction of the link's Träger, which the
 // caller opens. The registration writes no school table and looks up no

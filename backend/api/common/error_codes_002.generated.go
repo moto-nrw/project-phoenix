@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeTimetablePresenceWouldOverstaff              = "timetable.presence_would_overstaff"
+	CodeTimetableReopenAttendanceChanged             = "timetable.reopen_attendance_changed"
+	CodeTimetableReopenStaffBusy                     = "timetable.reopen_staff_busy"
 	CodeTimetableReopenStudentActive                 = "timetable.reopen_student_active"
 	CodeTimetableReopenSupervisionChanged            = "timetable.reopen_supervision_changed"
 	CodeTimetableRoomOccupied                        = "timetable.room_occupied"
@@ -58,6 +61,9 @@ const (
 	CodeTimetableUnderstaffedStillStaffed            = "timetable.understaffed_still_staffed"
 	CodeTimetableWindowEndBeforeStart                = "timetable.window_end_before_start"
 	CodeTimetableWindowTooLarge                      = "timetable.window_too_large"
+	CodeTraegerAlreadyMember                         = "traeger.already_member"
+	CodeTraegerLastAdministrator                     = "traeger.last_administrator"
+	CodeTraegerMemberNotFound                        = "traeger.member_not_found"
 	CodeTraegerNoMembership                          = "traeger.no_membership"
 	CodeWorkforceAbsenceAllowanceExceeded            = "workforce.absence_allowance_exceeded"
 	CodeWorkforceAbsenceAlreadyDecided               = "workforce.absence_already_decided"
@@ -130,6 +136,9 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.presence_would_overstaff":                "business_rejection",
+	"timetable.reopen_attendance_changed":               "business_rejection",
+	"timetable.reopen_staff_busy":                       "business_rejection",
 	"timetable.reopen_student_active":                   "business_rejection",
 	"timetable.reopen_supervision_changed":              "business_rejection",
 	"timetable.room_occupied":                           "business_rejection",
@@ -186,6 +195,9 @@ var errorCodeClasses2 = map[string]string{
 	"timetable.understaffed_still_staffed":              "business_rejection",
 	"timetable.window_end_before_start":                 "input",
 	"timetable.window_too_large":                        "input",
+	"traeger.already_member":                            "business_rejection",
+	"traeger.last_administrator":                        "business_rejection",
+	"traeger.member_not_found":                          "input",
 	"traeger.no_membership":                             "permission",
 	"workforce.absence_allowance_exceeded":              "business_rejection",
 	"workforce.absence_already_decided":                 "business_rejection",

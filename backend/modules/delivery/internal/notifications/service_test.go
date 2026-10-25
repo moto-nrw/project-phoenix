@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strings"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
@@ -37,6 +38,9 @@ func (c *recordingChannel) Deliver(_ context.Context, event notifications.Event)
 func enabledSettings(enabled bool) *settingsDouble {
 	return &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
+			if strings.HasPrefix(key, "module.") {
+				return true, nil // module switches are booked by default (#4895)
+			}
 			if key == "notifications.dispatch_enabled" {
 				return enabled, nil
 			}

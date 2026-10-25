@@ -4459,6 +4459,16 @@ function enrollmentFormTopic(): HelpTopic {
         ],
       },
       {
+        title: "Eltern unterschreiben lassen",
+        description:
+          "Die Eltern unterschreiben am Ende des Formulars mit dem Finger, dem Stift oder der Maus. Das Verfahren heißt einfache elektronische Signatur mit gezeichneter Unterschrift.",
+        steps: [
+          "Öffnen Sie Ihre Vorlage.",
+          "Schalten Sie im Abschnitt `Unterschrift` den Schalter `Unterschrift erforderlich` ein.",
+          "Wählen Sie `Änderungen speichern`.",
+        ],
+      },
+      {
         title: "Die Vorlage in der Anmeldephase auswählen",
         description:
           "Eine Vorlage wirkt erst, wenn eine Phase sie benutzt. Ohne diesen Schritt sehen die Eltern weiter das Basisformular.",
@@ -4497,6 +4507,8 @@ function enrollmentFormTopic(): HelpTopic {
       "Auch bei Zustimmungen können Sie mehrere PDF-Dateien hinzufügen.",
       "Beim Verwerfen werden neue, ungespeicherte Dateien entfernt. Frühere Formularfassungen behalten ihre Dateien.",
       "Eine Frage vom Typ `Datei` gilt immer für die ganze Anmeldung, nicht pro Kind.",
+      "Mit `Unterschrift erforderlich` können Eltern die Anmeldung erst nach der Unterschrift absenden. Ändern sie die Anmeldung später, unterschreiben sie neu.",
+      "Statt zu zeichnen können Eltern ihren Namen tippen. Das steht im Nachweis als `Name getippt`.",
       "Hochgeladene Nachweise öffnet nur, wer das Recht `Nachweise aus Anmeldungen ansehen` hat. Die Leitung hat es immer.",
       "Nachweise werden nach einer festen Frist gelöscht. Die Frist legt das moto-Team fest.",
     ],
@@ -4547,6 +4559,7 @@ function enrollmentReviewTopic(): HelpTopic {
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
       "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",
       "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
+      "Hat die Vorlage `Unterschrift erforderlich`, steht die Unterschrift der Eltern im Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie den Anmeldenachweis mit der Unterschrift herunter.",
       "Mit `Statusseite öffnen` sehen Sie, was die Eltern sehen.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
       "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
@@ -4567,6 +4580,7 @@ function enrollmentReviewTopic(): HelpTopic {
       "Eine Anmeldung war versehentlich abgelehnt? Wählen Sie `Anmeldung wiederherstellen`.",
       "Bei einem Nachweis steht `Keine Berechtigung zum Öffnen`? Dann fehlt Ihnen das Recht `Nachweise aus Anmeldungen ansehen`. Fragen Sie Ihre Leitung.",
       "Bei einem Nachweis steht `Nachweis gelöscht (Löschfrist abgelaufen)`? Die Frist ist vorbei. Bitten Sie die Eltern bei Bedarf um einen neuen Nachweis.",
+      "Bei der Unterschrift steht `Der gespeicherte Eintrag wurde nachträglich verändert`? Dann passt die Unterschrift nicht mehr zu ihrer Prüfsumme. Wenden Sie sich an das moto-Team.",
       "Beim Bestätigen erscheint `Das Kinderkontingent Ihrer Schule ist voll`? Dann bleibt die Anmeldung offen. Für weitere Kinder melden Sie sich beim moto-Team.",
       "Kinder, die schon aktiv oder vorgemerkt sind, können Sie auch bei vollem Kinderkontingent verlängern.",
       "Bei einer Anmeldung steht `Wegen Kinderkontingent offen`? Beim Schuljahreswechsel war das Kinderkontingent voll. Das Kind wurde nicht automatisch verlängert. Entscheiden Sie selbst.",
@@ -6192,6 +6206,9 @@ function modulesTopic(): HelpTopic {
     notes: [
       "moto Basis hat jede OGS. Dazu gehören zum Beispiel Kinder, Gruppen, Räume, Anwesenheit und Kalender.",
       "Die Schalter sind nur zur Information. Welche Module Ihre OGS hat, steht im Vertrag mit moto.",
+      "Ohne `Eltern-App` gibt es kein Elternportal. Eltern können sich dort nicht anmelden. moto schickt ihnen keine E-Mails und Mitteilungen mehr, zum Beispiel zu Terminen.",
+      "Ohne `Unterricht am Vormittag` gibt es kein moto schule. Lehrkräfte können sich dort nicht anmelden.",
+      "Ohne `Online-Anmeldung` verschickt moto keine E-Mails zu Anmeldungen.",
     ],
     differences: [
       "Ein Menüpunkt hat ein Schloss? Dann gehört er zu einem Modul, das Ihre OGS nicht gebucht hat. Das Schloss sehen nur Sie als Leitung. Ihr Team sieht den Menüpunkt nicht.",
@@ -6413,6 +6430,7 @@ function parentLoginTopic(): HelpTopic {
       "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "moto sagt, das Konto gehöre zum Personal einer Schule? Dann melden Sie sich über die Schul-Anmeldung an.",
       "moto sagt, Ihr Konto sei deaktiviert? Wenden Sie sich an Ihre OGS.",
+      "moto sagt, Ihre Schule nutze das Elternportal zurzeit nicht? Dann bietet Ihre Schule das Elternportal nicht an. Fragen Sie bei Ihrer Schule nach.",
     ],
     related: [
       HELP_TOPICS.parentAccount,
@@ -7193,6 +7211,7 @@ function parentEnrollTopic(): HelpTopic {
       "Tippen Sie auf die passende Anmeldung. Das Formular öffnet sich sofort.",
       "Tragen Sie Ihre Kontaktdaten und die Angaben zum Kind ein.",
       "Wählen Sie unter `Zusätzlich wählen` mindestens ein Angebot. `Pflichtangebote` sind schon gesetzt.",
+      "Fragt das Formular unten nach Ihrer `Unterschrift`? Unterschreiben Sie im Feld und tippen Sie auf `Unterschrift bestätigen`.",
       "Tippen Sie auf `Anmeldung absenden`.",
     ],
     result:
@@ -7205,9 +7224,11 @@ function parentEnrollTopic(): HelpTopic {
       "Unter dem Knopf steht, welche Dateien erlaubt sind und wie groß sie sein dürfen. Meist sind es PDF, JPG oder PNG bis 10 MB.",
       "Auf dem Handy können Sie den Nachweis auch direkt fotografieren.",
       "Eine falsche Datei entfernen Sie mit dem Kreuz neben dem Dateinamen.",
+      "Statt zu zeichnen können Sie mit `Namen tippen` Ihren Vor- und Nachnamen eintippen.",
     ],
     differences: [
       "Manche Anmeldungen sind `Nur bereits angemeldete Kinder`.",
+      "Nicht jede Schule fragt nach einer Unterschrift. Ohne Feld `Unterschrift` senden Sie die Anmeldung direkt ab.",
       "An jeder Anmeldung steht `Anmeldung bis` mit der Frist.",
       "Über dem Formular steht `Zurück zu Neue Anmeldung`. Damit wählen Sie eine andere Anmeldung.",
     ],
@@ -7294,6 +7315,7 @@ function parentEnrollStatusTopic(): HelpTopic {
           "Öffnen Sie die Statusseite.",
           "Tippen Sie auf `Anmeldung bearbeiten`.",
           "Ändern Sie die Angaben.",
+          "Fragt das Formular nach Ihrer `Unterschrift`? Unterschreiben Sie neu und tippen Sie auf `Unterschrift bestätigen`.",
           "Tippen Sie auf `Änderungen speichern`.",
         ],
       },
@@ -7311,6 +7333,7 @@ function parentEnrollStatusTopic(): HelpTopic {
     notes: [
       "Zurückziehen können Sie nicht selbst rückgängig machen. Wenden Sie sich dann an die OGS.",
       "Bei Rückfragen meldet sich die OGS über die angegebene E-Mail-Adresse.",
+      "Haben Sie die Anmeldung unterschrieben, steht auf der Statusseite der Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie Ihren Anmeldenachweis herunter.",
     ],
     differences: [
       "Steht dort `Bestätigung erforderlich`? Dann müssen Sie mit `Anmeldung bestätigen` zusagen, sonst läuft die Anmeldung zur Frist ab.",
@@ -7543,6 +7566,7 @@ function teacherLoginTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, das Konto habe keinen Zugang zum Schul-Portal? Dann fehlt Ihnen die Rolle. Wenden Sie sich an die OGS-Verwaltung.",
+      "moto sagt, Ihre Schule nutze moto schule zurzeit nicht? Dann bietet Ihre Schule moto schule nicht an. Wenden Sie sich an die OGS-Verwaltung.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
     ],
     related: [
@@ -8332,6 +8356,38 @@ function traegerLoginTopic(): HelpTopic {
   };
 }
 
+/** `/traeger/invite` (#4650): Einladung aus der Mail annehmen. */
+function traegerInvitationTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerInvitation,
+    title: "Einladung ins Träger-Büro annehmen",
+    question: "Wie nehme ich eine Einladung ins Träger-Büro an?",
+    summary:
+      "Sie haben eine E-Mail mit einer Einladung bekommen. So kommen Sie ins Träger-Portal.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "UserRoundPlus",
+    requirements: ["Jemand aus dem Träger-Büro hat Sie per E-Mail eingeladen."],
+    steps: [
+      "Öffnen Sie die E-Mail `Einladung ins Träger-Portal von moto`.",
+      "Wählen Sie `Einladung annehmen`.",
+      "Haben Sie noch kein moto-Konto? Tragen Sie ein `Neues Passwort` ein und wiederholen Sie es.",
+      "Haben Sie schon ein moto-Konto? Tragen Sie das Passwort dieses Kontos ein.",
+      "Wählen Sie `Einladung annehmen`.",
+    ],
+    result:
+      "moto meldet Sie an und öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",
+    notes: [
+      "Mit derselben E-Mail-Adresse und demselben Passwort melden Sie sich später an.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, die Einladung sei abgelaufen? Bitten Sie die Person, die Sie eingeladen hat, um eine neue Einladung.",
+      "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Setzen Sie es in der Anmeldung Ihrer Schule über `Passwort vergessen?` zurück.",
+    ],
+    related: [HELP_TOPICS.traegerLogin],
+  };
+}
+
 /** `/traeger/ferien` (#4659): Ferienzeitraum mit Wochen und Zeitmodellen. */
 function traegerHolidayPeriodTopic(): HelpTopic {
   return {
@@ -8436,8 +8492,73 @@ function traegerHolidayRegistrationTopic(): HelpTopic {
   };
 }
 
+/** `/traeger/accounts` (#4650): Personen einladen, Rollen ändern, entfernen. */
+function traegerAccountsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerAccounts,
+    title: "Personen ins Träger-Büro einladen",
+    question:
+      "Wie lade ich Personen ins Träger-Büro ein und gebe ihnen Rollen?",
+    summary:
+      "Unter `Personen` laden Sie Kolleginnen und Kollegen ein. Die Rolle bestimmt, was eine Person darf.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "UsersThree",
+    requirements: ["Sie haben die Rolle `Verwaltung`."],
+    instructionGroups: [
+      {
+        title: "Person einladen",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Wählen Sie `Person einladen`.",
+          "Tragen Sie die `E-Mail-Adresse` ein.",
+          "Wählen Sie mindestens eine Rolle.",
+          "Wählen Sie `Einladung senden`.",
+        ],
+      },
+      {
+        title: "Rollen ändern",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
+          "Wählen Sie `Rollen ändern`.",
+          "Wählen Sie die Rollen und dann `Speichern`.",
+        ],
+      },
+      {
+        title: "Person entfernen",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
+          "Wählen Sie `Aus dem Träger-Büro entfernen`.",
+          "Wählen Sie `Ja, entfernen` und dann `Entfernen`.",
+        ],
+      },
+    ],
+    steps: [],
+    result:
+      "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
+    notes: [
+      "`Verwaltung` darf alles verwalten, auch Personen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
+      "Eine Person kann mehrere Rollen haben.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
+      "Geänderte Rollen gelten nach wenigen Minuten. Eine entfernte Person kann sich nicht mehr anmelden. Eine offene Sitzung endet nach wenigen Minuten.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, das Träger-Büro brauche mindestens eine Person mit der Rolle Verwaltung? Geben Sie die Rolle zuerst einer anderen Person.",
+      "Die Einladung ist abgelaufen? Laden Sie die Person noch einmal ein. Die alte Einladung gilt dann nicht mehr.",
+      "Eine Einladung soll nicht mehr gelten? Wählen Sie bei der Einladung `Einladung zurücknehmen`.",
+    ],
+    related: [HELP_TOPICS.traegerInvitation],
+  };
+}
+
 const TRAEGER_TOPICS: readonly HelpTopic[] = [
+  traegerInvitationTopic(),
   traegerLoginTopic(),
+  traegerAccountsTopic(),
   traegerHolidayPeriodTopic(),
   traegerHolidayRegistrationTopic(),
 ];

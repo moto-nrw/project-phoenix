@@ -12,7 +12,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// TestHolidayRegistrationsFollowTheTraegerPolicy pins ADR 0106 on the
+// TestHolidayRegistrationsFollowTheTraegerPolicy pins ADR 0110 on the
 // registration tables and the outbox: under the request role a Träger
 // transaction sees and writes only its own Träger's registrations and mails,
 // a school transaction sees none, only an undeleted school of the Träger is

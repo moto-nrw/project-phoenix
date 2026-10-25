@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
@@ -30,6 +31,9 @@ func (c *syncChannel) DeliverSynchronously(_ context.Context, event notification
 func windowSettings(enabled bool, start, end string) *settingsDouble {
 	return &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
+			if strings.HasPrefix(key, "module.") {
+				return true, nil // module switches are booked by default (#4895)
+			}
 			if key == "notifications.dispatch_enabled" {
 				return enabled, nil
 			}
@@ -221,7 +225,7 @@ func TestNotifySynchronouslyHonorsTenantGates(t *testing.T) {
 		windowErr := errors.New("window unavailable")
 		svc := notifications.NewService(&settingsDouble{
 			ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
-				return key == "notifications.dispatch_enabled", nil
+				return key == "notifications.dispatch_enabled" || strings.HasPrefix(key, "module."), nil
 			},
 			ResolveStringForTenantFn: func(context.Context, int64, string) (string, error) {
 				return "", windowErr

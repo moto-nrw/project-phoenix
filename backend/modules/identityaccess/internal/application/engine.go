@@ -29,6 +29,7 @@ type OwnerParts struct {
 	OperatorProvisioning  *OperatorProvisioning
 	InvitationMaintenance *SchoolInvitationMaintenance
 	SignInRetention       *SignInDataRetention
+	TraegerAccounts       *TraegerAccounts
 	AccountRetention      *AccountRetention
 	MFAFlows              MFAFlows
 	// DemoAccess is the demo-only capability; nil outside the demo
@@ -62,6 +63,7 @@ func NewOwner(parts OwnerParts) identityaccess.Owner {
 		OperatorProvisioning:        parts.OperatorProvisioning,
 		SchoolInvitationMaintenance: parts.InvitationMaintenance,
 		SignInDataRetention:         parts.SignInRetention,
+		TraegerAccounts:             parts.TraegerAccounts,
 		AccountRetention:            parts.AccountRetention,
 		OperatorMFAFlows:            parts.MFAFlows.Operator,
 		OperatorPasskeyFlows:        parts.MFAFlows.OperatorPasskey,
@@ -101,6 +103,7 @@ type engine struct {
 	*OperatorProvisioning
 	*SchoolInvitationMaintenance
 	*SignInDataRetention
+	*TraegerAccounts
 	identityaccess.OperatorMFAFlows
 	identityaccess.OperatorPasskeyFlows
 	identityaccess.AccountPasskeyFlows

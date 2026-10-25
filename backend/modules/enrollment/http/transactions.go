@@ -43,7 +43,7 @@ func (rs *Resource) runInTenantTx(r *http.Request, fn func(ctx context.Context) 
 }
 
 // withinTraeger runs fn in the Träger transaction of organizationID, for the
-// public holiday registration whose link names the Träger (ADR 0106).
+// public holiday registration whose link names the Träger (ADR 0110).
 func withinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
 	return tenant.WithinTraeger(ctx, organizationID, fn)
 }
