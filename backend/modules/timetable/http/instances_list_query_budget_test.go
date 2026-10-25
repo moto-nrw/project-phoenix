@@ -20,12 +20,15 @@ func TestListInstancesQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	s := buildListSetup(t)
+	rows, err := RootCompositions.Rows(s.db)
+	require.NoError(t, err)
+	s.res.BlockGroups = rows.Timetable
 
 	from, fromDate := listFutureDate(1)
 	to, _ := listFutureDate(7)
 	educationGroup := testpkg.CreateTestEducationGroup(t, s.db, "Budget-Gruppe")
 	template := testpkg.CreateTestActivityGroup(t, s.db, "Budget-Vorlage")
-	_, err := s.db.NewUpdate().
+	_, err = s.db.NewUpdate().
 		TableExpr("activities.groups").
 		Set("is_template = TRUE").
 		Set("education_group_id = ?", educationGroup.ID).
@@ -68,13 +71,30 @@ func TestListInstancesQueryBudget(t *testing.T) {
 
 	addInstances(3)
 	smallCount := run()
+	filteredSmallCount := func() int {
+		counter.Reset()
+		w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s&group_id=%d", from, to, educationGroup.ID))
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		require.Len(t, decodeList(t, w).Instances, created)
+		return counter.Total()
+	}()
 
 	addInstances(5)
 	largeCount := run()
+	testpkg.AssertQueryBudget(t, "api.timetable.instances.list", counter.Queries())
+	filteredLargeCount := func() int {
+		counter.Reset()
+		w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s&group_id=%d", from, to, educationGroup.ID))
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		require.Len(t, decodeList(t, w).Instances, created)
+		return counter.Total()
+	}()
 
-	t.Logf("query budget: 3 instances → %d queries, 8 instances → %d queries", smallCount, largeCount)
+	t.Logf("query budget: unfiltered 3 → %d, 8 → %d; group filter 3 → %d, 8 → %d", smallCount, largeCount, filteredSmallCount, filteredLargeCount)
 
 	assert.Equal(t, smallCount, largeCount,
 		"query count must be independent of the instance count (no per-instance N+1)")
-	testpkg.AssertQueryBudget(t, "api.timetable.instances.list", counter.Queries())
+	assert.Equal(t, filteredSmallCount, filteredLargeCount,
+		"group-filter query count must be independent of the instance count")
+	testpkg.AssertQueryBudget(t, "api.timetable.instances.list.group_filter", counter.Queries())
 }

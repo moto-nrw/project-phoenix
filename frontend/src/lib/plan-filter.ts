@@ -11,6 +11,8 @@ export interface PlanFilter {
 
 export const NO_PLAN_FILTER: PlanFilter = { groupId: null, staffId: null };
 
+const maxInt64 = "9223372036854775807";
+
 /**
  * Liest eine Filter-ID aus der URL. Nur positive ganze Zahlen zählen; alles
  * andere fällt still auf „nicht gefiltert“ zurück, wie ein ungültiges `d`.
@@ -18,7 +20,14 @@ export const NO_PLAN_FILTER: PlanFilter = { groupId: null, staffId: null };
 export function parsePlanFilterId(
   raw: string | null | undefined,
 ): string | null {
-  if (raw == null || !/^[1-9]\d{0,17}$/.test(raw)) return null;
+  if (
+    raw == null ||
+    !/^[1-9]\d*$/.test(raw) ||
+    raw.length > maxInt64.length ||
+    (raw.length === maxInt64.length && raw > maxInt64)
+  ) {
+    return null;
+  }
   return raw;
 }
 

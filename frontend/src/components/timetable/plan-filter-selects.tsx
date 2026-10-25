@@ -39,7 +39,7 @@ export function PlanFilterSelects({
             { value: "", label: "Alle Gruppen" },
             ...groups.map((group) => ({ value: group.id, label: group.name })),
           ]}
-          onChange={(value) => onGroupChange(value || null)}
+          onChange={(value) => onGroupChange(value === "" ? null : value)}
           ariaLabel="Nach Gruppe filtern"
           className="w-full shrink-0 sm:w-48"
           testId="plan-filter-group"
@@ -54,7 +54,7 @@ export function PlanFilterSelects({
             label: person.name,
           })),
         ]}
-        onChange={(value) => onStaffChange(value || null)}
+        onChange={(value) => onStaffChange(value === "" ? null : value)}
         ariaLabel="Nach Person filtern"
         className="w-full shrink-0 sm:w-48"
         testId="plan-filter-staff"

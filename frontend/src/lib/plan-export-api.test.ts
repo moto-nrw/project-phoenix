@@ -91,7 +91,7 @@ describe("exportPlan", () => {
   });
 
   // #4766: der Druck übernimmt den Gruppen- und Personenfilter des Plans.
-  it("sends the care plan's group and person filter as numeric ids", async () => {
+  it("sends the care plan's group and person filter as decimal strings", async () => {
     const fetchMock = vi.fn().mockResolvedValue(fileResponse());
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
@@ -100,7 +100,10 @@ describe("exportPlan", () => {
       {
         ...request,
         template: "offerings",
-        filter: { groupId: "41", staffId: "17" },
+        filter: {
+          groupId: "9007199254740993",
+          staffId: "9223372036854775807",
+        },
       },
       "pdf",
       "download",
@@ -111,8 +114,8 @@ describe("exportPlan", () => {
     expect(body).toEqual({
       ...request,
       template: "offerings",
-      group_id: 41,
-      staff_id: 17,
+      group_id: "9007199254740993",
+      staff_id: "9223372036854775807",
       format: "pdf",
     });
   });

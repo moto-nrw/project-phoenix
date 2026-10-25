@@ -563,11 +563,11 @@ function TimetablesContent() {
   );
   // Ohne users:read fehlt die Personalliste. Die Namen für die Blöcke (#3817)
   // kommen dann aus der Vertretungsübersicht, die nur schedules:read braucht.
-  // Die Monatsansicht zeigt keine Blöcke und lädt deshalb nichts.
+  // Auch die Monatsansicht braucht sie für die Personenauswahl.
   const { data: planStaffOverview, error: planStaffOverviewError } = useSWRAuth(
     status === "authenticated" &&
       !canReadTenantRosters &&
-      (view === "week" || view === "day")
+      view !== "series"
       ? `timetable-plan-staff-names-${fetchFromISO}-${fetchToISO}`
       : null,
     () => substitutionService.fetchScheduleOverview(fetchFromISO, fetchToISO),

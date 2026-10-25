@@ -2582,6 +2582,44 @@ describe("BetreuungsplanView", () => {
       }
     });
 
+    it("bietet im Monat auch ohne users:read Personen aus der Übersicht an", () => {
+      mockUseSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+      });
+      const defaultSWR = mockUseSWRAuth.getMockImplementation()!;
+      mockUseSWRAuth.mockImplementation((key: string | null) => {
+        if (
+          typeof key === "string" &&
+          key.startsWith("timetable-plan-staff-names-")
+        ) {
+          return {
+            data: {
+              appointments: [],
+              staff: [{ id: "11", name: "Ada Absent", isExternal: false }],
+            },
+          };
+        }
+        return defaultSWR(key);
+      });
+      setUrl("view=monat&d=2026-05-06");
+
+      render(<BetreuungsplanView />);
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Nach Person filtern" }),
+      );
+      fireEvent.click(screen.getByRole("option", { name: "Ada Absent" }));
+      expect(urlParams().get("staff")).toBe("11");
+      expect(
+        mockUseSWRAuth.mock.calls.some(
+          ([key]) =>
+            typeof key === "string" &&
+            key.startsWith("timetable-plan-staff-names-"),
+        ),
+      ).toBe(true);
+    });
+
     it("nennt einen leeren gefilterten Plan als leere Auswahl", () => {
       setupSWR({ instances: [] });
       setUrl("staff=11");

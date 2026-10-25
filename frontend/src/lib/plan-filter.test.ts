@@ -11,7 +11,20 @@ import {
 describe("plan filter (#4766)", () => {
   it("accepts only positive ids from the URL", () => {
     expect(parsePlanFilterId("17")).toBe("17");
-    for (const raw of [null, undefined, "", "0", "-3", "abc", "1.5", "07"]) {
+    expect(parsePlanFilterId("9223372036854775807")).toBe(
+      "9223372036854775807",
+    );
+    for (const raw of [
+      null,
+      undefined,
+      "",
+      "0",
+      "-3",
+      "abc",
+      "1.5",
+      "07",
+      "9223372036854775808",
+    ]) {
       expect(parsePlanFilterId(raw)).toBeNull();
     }
   });

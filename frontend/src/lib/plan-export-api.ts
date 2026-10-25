@@ -31,12 +31,12 @@ export interface PlanExportRequest {
   filter?: PlanFilter;
 }
 
-/** Der Filter im Body der Export-Anfrage; IDs reisen als Zahlen. */
-function filterBody(filter: PlanFilter | undefined): Record<string, number> {
+/** Der Filter im Body der Export-Anfrage; IDs reisen verlustfrei als Strings. */
+function filterBody(filter: PlanFilter | undefined): Record<string, string> {
   if (!filter) return {};
   return {
-    ...(filter.groupId ? { group_id: Number(filter.groupId) } : {}),
-    ...(filter.staffId ? { staff_id: Number(filter.staffId) } : {}),
+    ...(filter.groupId ? { group_id: filter.groupId } : {}),
+    ...(filter.staffId ? { staff_id: filter.staffId } : {}),
   };
 }
 

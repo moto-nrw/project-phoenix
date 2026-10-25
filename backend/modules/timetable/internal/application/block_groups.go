@@ -29,14 +29,24 @@ func (s *Service) BlockEducationGroups(ctx context.Context, instanceIDs []int64)
 
 func (s *Service) loadBlockEducationGroups(ctx context.Context, instanceIDs []int64, stats *domain.OperationStats) (map[int64][]int64, error) {
 	groups := blockGroupSets{}
-	templateGroups, err := s.templateEducationGroups(ctx, instanceIDs, stats)
+	candidates, candidateStats, err := s.store.ListBlockGroupCandidates(ctx, instanceIDs)
+	stats.Add(candidateStats)
 	if err != nil {
 		return nil, err
 	}
-	for instanceID, groupIDs := range templateGroups {
-		groups.add(instanceID, groupIDs...)
+	childrenByBlock := make(map[int64][]int64, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.TemplateEducationGroupID != nil {
+			groups.add(candidate.InstanceID, *candidate.TemplateEducationGroupID)
+		}
+		if candidate.TargetGroupType == timetable.TargetGroupTypeEducationGroup && candidate.TargetEducationGroupID != nil {
+			groups.add(candidate.InstanceID, *candidate.TargetEducationGroupID)
+		}
+		if candidate.StudentID != nil {
+			childrenByBlock[candidate.InstanceID] = append(childrenByBlock[candidate.InstanceID], *candidate.StudentID)
+		}
 	}
-	childGroups, err := s.plannedChildEducationGroups(ctx, instanceIDs, stats)
+	childGroups, err := s.plannedChildEducationGroups(ctx, childrenByBlock, stats)
 	if err != nil {
 		return nil, err
 	}
@@ -73,11 +83,9 @@ func (g blockGroupSets) sorted() map[int64][]int64 {
 
 // plannedChildEducationGroups maps each block to the current groups of the
 // children planned on it.
-func (s *Service) plannedChildEducationGroups(ctx context.Context, instanceIDs []int64, stats *domain.OperationStats) (map[int64][]int64, error) {
-	slots, slotStats, err := s.store.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: instanceIDs})
-	stats.Add(slotStats)
-	if err != nil || len(slots) == 0 {
-		return nil, err
+func (s *Service) plannedChildEducationGroups(ctx context.Context, childrenByBlock map[int64][]int64, stats *domain.OperationStats) (map[int64][]int64, error) {
+	if len(childrenByBlock) == 0 {
+		return map[int64][]int64{}, nil
 	}
 	students, studentStats, err := s.students.ListEnrolledStudents(ctx)
 	stats.Add(studentStats)
@@ -91,71 +99,12 @@ func (s *Service) plannedChildEducationGroups(ctx context.Context, instanceIDs [
 		}
 	}
 	result := map[int64][]int64{}
-	for _, slot := range slots {
-		if groupID, ok := groupOfStudent[slot.StudentID]; ok {
-			result[slot.InstanceID] = append(result[slot.InstanceID], groupID)
+	for instanceID, studentIDs := range childrenByBlock {
+		for _, studentID := range studentIDs {
+			if groupID, ok := groupOfStudent[studentID]; ok {
+				result[instanceID] = append(result[instanceID], groupID)
+			}
 		}
 	}
 	return result, nil
-}
-
-// templateEducationGroups maps each template-backed block to the group its
-// template targets and the groups of its "gruppe" participant sources.
-func (s *Service) templateEducationGroups(ctx context.Context, instanceIDs []int64, stats *domain.OperationStats) (map[int64][]int64, error) {
-	blocksOfTemplate, err := s.blocksOfTemplates(ctx, instanceIDs, stats)
-	if err != nil || len(blocksOfTemplate) == 0 {
-		return nil, err
-	}
-	templateIDs := make([]int64, 0, len(blocksOfTemplate))
-	for templateID := range blocksOfTemplate {
-		templateIDs = append(templateIDs, templateID)
-	}
-	templates, groupStats, err := s.store.ListGroups(ctx, timetable.GroupFilter{IDs: templateIDs})
-	stats.Add(groupStats)
-	if err != nil {
-		return nil, err
-	}
-	targets, targetStats, err := s.store.ListGroupTargets(ctx, templateIDs)
-	stats.Add(targetStats)
-	if err != nil {
-		return nil, err
-	}
-	result := map[int64][]int64{}
-	for _, template := range templates {
-		groupIDs := templateGroupIDs(template, targets[template.ID])
-		for _, instanceID := range blocksOfTemplate[template.ID] {
-			result[instanceID] = append(result[instanceID], groupIDs...)
-		}
-	}
-	return result, nil
-}
-
-// blocksOfTemplates groups the template-backed blocks by their template.
-func (s *Service) blocksOfTemplates(ctx context.Context, instanceIDs []int64, stats *domain.OperationStats) (map[int64][]int64, error) {
-	instances, instanceStats, err := s.store.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{IDs: instanceIDs})
-	stats.Add(instanceStats)
-	if err != nil {
-		return nil, err
-	}
-	blocks := map[int64][]int64{}
-	for _, instance := range instances {
-		if instance.ActivityGroupID != nil {
-			blocks[*instance.ActivityGroupID] = append(blocks[*instance.ActivityGroupID], instance.ID)
-		}
-	}
-	return blocks, nil
-}
-
-// templateGroupIDs is the template's own group and its "gruppe" sources.
-func templateGroupIDs(template timetable.Group, targets []timetable.GroupTarget) []int64 {
-	groupIDs := make([]int64, 0, 1+len(targets))
-	if template.EducationGroupID != nil {
-		groupIDs = append(groupIDs, *template.EducationGroupID)
-	}
-	for _, target := range targets {
-		if target.TargetGroupType == timetable.TargetGroupTypeEducationGroup && target.EducationGroupID != nil {
-			groupIDs = append(groupIDs, *target.EducationGroupID)
-		}
-	}
-	return groupIDs
 }
