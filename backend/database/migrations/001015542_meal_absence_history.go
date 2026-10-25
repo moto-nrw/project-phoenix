@@ -18,7 +18,8 @@ func init() {
 		Version:     mealAbsenceHistoryVersion,
 		Description: mealAbsenceHistoryDescription,
 		DependsOn: []string{
-			traegerErasureOrderVersion,     // after development's latest migration
+			traegerInvitationsVersion,      // after development's latest migration
+			traegerErasureOrderVersion,     // the Träger erasure order
 			accountAnalyticsConsentVersion, // the analytics consent
 			statusDayRetentionPurgeVersion, // the trigger function this one replaces
 			mealPlanAllergensVersion,       // development's latest migrations: meal plan allergens,
