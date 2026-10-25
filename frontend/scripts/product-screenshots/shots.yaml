@@ -293,7 +293,7 @@ shots:
     vorbereitung:
       - klicken: 'article:has-text("Anmeldung Schuljahr") >> role=link[name="Anmeldungen ansehen"]'
       - warten_auf: 'text=Freie Plätze je Angebot'
-  # Website: Platzentscheidung. Emil Graf ist im Seed noch offen; der Shot
+  # Website: Platzentscheidung. Luka Berisha ist im Seed noch offen; der Shot
   # zeigt nur die Auswahl und speichert nichts.
   - id: anmeldung-entscheiden
     titel: Über einen Platz entscheiden
@@ -303,7 +303,7 @@ shots:
     vorbereitung:
       - klicken: 'article:has-text("Anmeldung Schuljahr") >> role=link[name="Anmeldungen ansehen"]'
       - warten_auf: 'text=Freie Plätze je Angebot'
-      - klicken: 'tr:has-text("Emil Graf") >> role=link[name="Anmeldung ansehen"]'
+      - klicken: 'tr:has-text("Luka Berisha") >> role=link[name="Anmeldung ansehen"]'
       - warten_auf: 'text=Entscheidung speichern'
       - scrollen: 'role=heading[name="Angaben der Kinder"s]'
 

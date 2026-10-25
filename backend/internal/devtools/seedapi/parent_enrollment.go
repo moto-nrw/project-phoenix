@@ -493,7 +493,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				"ogs-kurz":    {"mon"},
 				"mittagessen": {"mon"},
 			}, "", ""),
-		// Emil wechselt die Betreuungszeit über die Woche: Ganztag am
+		// Luka wechselt die Betreuungszeit über die Woche: Ganztag am
 		// Montag und Mittwoch, Kurzbetreuung am Dienstag und Donnerstag.
 		// Beide gehören zur Gruppe mit der Regel „pro Tag eines“ (#4514).
 		seedSubmission("public", "Luka", "Berisha", "2016-08-21", 4,
