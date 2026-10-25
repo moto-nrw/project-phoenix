@@ -605,7 +605,9 @@ var moduleFuncLenAllowlist = map[string]int{
 	"roots/owners/root_identity.go:BuildIdentityAccess":                                      106,
 	// ADR 0078: the worker composes the Meal Plan whose orders it settles.
 	"roots/owners/root_worker.go:ComposeWorker": 347,
-	"roots/owners/worker.go:NewWorker":          90,
+	// ADR 0110: the worker passes the retention of the public holiday
+	// registrations.
+	"roots/owners/worker.go:NewWorker": 90,
 	// ADR 0087.
 	"test/booking_consistency_audit_fixture.go:VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows": 72,
 	// ADR 0087.
