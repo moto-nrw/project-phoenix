@@ -156,6 +156,7 @@ func newTimetableResource(
 		Deviations:              planning.Planning.Deviations,
 		TimetableData:           planning.Planning.Data,
 		ConflictDetection:       planning.Planning.ConflictDetection,
+		BlockGroups:             timetableOwner,
 		PlanningTracks:          planningTracks,
 		CareDayService:          schedules.CareDay,
 		UserContextService:      caller,

@@ -7,9 +7,10 @@
  * Planner surface for calendar periods, series, materialized instances,
  * one-off appointments, lifecycle actions, and plan-quality checks.
  *
- * URL-Vokabular: genau `d` (Berlin-Kalendertag; die angezeigte Woche/der Monat
+ * URL-Vokabular: `d` (Berlin-Kalendertag; die angezeigte Woche/der Monat
  * ist die Woche/der Monat, die/den `d` enthält), `view` ("woche" | "monat" |
- * "serien") und `block` (Instanz-ID des geöffneten InstanceDetailModal).
+ * "serien"), `block` (Instanz-ID des geöffneten InstanceDetailModal) und die
+ * Filter `group` (OGS-Gruppe) und `staff` (Person) aus #4766.
  * Ungültige Werte fallen still auf die Defaults zurück (heute, "woche"). Die
  * sieben Alt-Parameter (week/month/year/instance/day/period/Alt-view) entfallen
  * ersatzlos; die Jahresansicht ist nicht mehr verlinkbar. Der Dichte-Umschalter
@@ -77,6 +78,10 @@ import { TemplateList } from "~/components/timetable/template-list";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
+import {
+  PlanFilterSelects,
+  sortedFilterOptions,
+} from "~/components/timetable/plan-filter-selects";
 import { staffNamesFromOverview } from "~/components/timetable/block-staff-names";
 import { hasPermission } from "~/lib/auth-utils";
 import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
@@ -91,6 +96,13 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { getSettingValue } from "~/lib/settings-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
+import { fetchPlannerGroups } from "~/lib/planner-reference-api";
+import {
+  isPlanFilterActive,
+  parsePlanFilterId,
+  planFilterKey,
+  type PlanFilter,
+} from "~/lib/plan-filter";
 import { staffService } from "~/lib/staff-api";
 import { substitutionService } from "~/lib/substitution-api";
 import { listPhases } from "~/lib/enrollment-phase-api";
@@ -160,9 +172,17 @@ const LIFECYCLE_SUCCESS: Record<Exclude<LifecycleAction, "cancel">, string> = {
 // Das verbindliche Drei-Parameter-Vokabular (06 §2.1). updateUrlParams baut die
 // URL aus dieser Allowlist neu auf, damit fremde Params (?utm_source=…) nicht
 // jeden Wochen-/Ansichts-/Block-Wechsel überleben.
-const ALLOWED_URL_PARAMS = ["d", "view", "block"] as const;
+const ALLOWED_URL_PARAMS = ["d", "view", "block", "group", "staff"] as const;
 
 type ViewParam = "tag" | "woche" | "monat" | "serien";
+
+// Leerzustand eines gefilterten Plans (#4766): nichts geplant heißt hier
+// „nichts für diese Auswahl“, nicht „nichts in dieser Woche“.
+const FILTERED_EMPTY_STATE = {
+  title: "Für diese Auswahl ist nichts geplant",
+  description:
+    "Wählen Sie „Alle Gruppen“ und „Alle Personen“, um wieder den ganzen Plan zu sehen.",
+};
 type PeriodCoverage = "none" | "partial" | "full";
 
 /**
@@ -238,6 +258,9 @@ function TimetablesContent() {
   // Anmeldephasen (Bedarf-Chip) hängen am echten Endpunkt-Gate config:read,
   // Perioden-Bootstrap an schedules:create — keine Proxy-Permissions.
   const canReadEnrollmentPhases = hasPermission(session, "config:read");
+  // Gruppenfilter (#4766): die Auswahl braucht die Gruppenliste
+  // (GET /api/groups, groups:read).
+  const canFilterByGroup = hasPermission(session, "groups:read");
   const canBootstrapPeriods = hasPermission(session, "schedules:create");
   // Externe Person im Schritt „Personal“ eintragen (#4573): dasselbe Recht
   // wie POST /api/staff/externals.
@@ -275,6 +298,18 @@ function TimetablesContent() {
       ? careDayISO(requestedDayISO, weekendOpen)
       : requestedDayISO;
   const selectedInstanceId = params.block;
+  // Gruppen- und Personenfilter (#4766). Ungültige Werte fallen still weg;
+  // ohne Gruppenliste gibt es keine Auswahl und damit auch keinen
+  // unsichtbaren Gruppenfilter aus einem geteilten Link.
+  const groupFilterId = canFilterByGroup
+    ? parsePlanFilterId(params.group)
+    : null;
+  const staffFilterId = parsePlanFilterId(params.staff);
+  const planFilter = useMemo<PlanFilter>(
+    () => ({ groupId: groupFilterId, staffId: staffFilterId }),
+    [groupFilterId, staffFilterId],
+  );
+  const planFilterActive = isPlanFilterActive(planFilter);
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
   const todayISO = useMemo(() => berlinTodayISO(), []);
@@ -420,6 +455,22 @@ function TimetablesContent() {
     [requestedDayISO, updateUrlParams],
   );
 
+  // Filterwechsel (#4766) schließt den Slide-Over: der geöffnete Block kann
+  // nach dem Filter verschwunden sein. `d` bleibt mitgeschrieben, damit die
+  // Kalenderfläche (#2957) beim Tab bleibt.
+  const setGroupFilter = useCallback(
+    (groupId: string | null) => {
+      updateUrlParams({ group: groupId, block: null, d: requestedDayISO });
+    },
+    [requestedDayISO, updateUrlParams],
+  );
+  const setStaffFilter = useCallback(
+    (staffId: string | null) => {
+      updateUrlParams({ staff: staffId, block: null, d: requestedDayISO });
+    },
+    [requestedDayISO, updateUrlParams],
+  );
+
   // Fetch-Fenster. Woche/Monat leiten ihr Fenster aus `d` ab; die Serienansicht
   // lädt keine Instanzen. Die Jahresansicht ist ersatzlos entfallen.
   const fromISO = toISODate(weekRange.from);
@@ -479,7 +530,7 @@ function TimetablesContent() {
     isLoading: closingDaysLoading,
   } = useClosingDaysState(fetchFromISO, fetchToISO);
 
-  const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}`;
+  const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}${planFilterKey(planFilter)}`;
   const shouldLoadInstances = view !== "series";
   // Lücken sind vorwärtsgerichtet: der Endpunkt lehnt ein vergangenes `date`
   // ab, also den Fensterstart auf heute klemmen und vollständig vergangene
@@ -498,7 +549,7 @@ function TimetablesContent() {
   const gapsSWRKey = `timetable-gaps-${gapsFromISO}-${fetchToISO}`;
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
-    () => timetableService.getWeek(fetchFromISO, fetchToISO),
+    () => timetableService.getWeek(fetchFromISO, fetchToISO, planFilter),
   );
   const { data: gapsData, error: gapsError } = useSWRAuth(
     status === "authenticated" && shouldLoadGaps ? gapsSWRKey : null,
@@ -512,11 +563,11 @@ function TimetablesContent() {
   );
   // Ohne users:read fehlt die Personalliste. Die Namen für die Blöcke (#3817)
   // kommen dann aus der Vertretungsübersicht, die nur schedules:read braucht.
-  // Die Monatsansicht zeigt keine Blöcke und lädt deshalb nichts.
+  // Auch die Monatsansicht braucht sie für die Personenauswahl.
   const { data: planStaffOverview, error: planStaffOverviewError } = useSWRAuth(
     status === "authenticated" &&
       !canReadTenantRosters &&
-      (view === "week" || view === "day")
+      view !== "series"
       ? `timetable-plan-staff-names-${fetchFromISO}-${fetchToISO}`
       : null,
     () => substitutionService.fetchScheduleOverview(fetchFromISO, fetchToISO),
@@ -526,6 +577,14 @@ function TimetablesContent() {
       ? "timetable-student-list"
       : null,
     () => fetchStudents({ page_size: 500 }),
+  );
+  // Auswahl des Gruppenfilters (#4766). Die Serienansicht filtert nicht.
+  const { data: filterGroups } = useSWRAuth(
+    status === "authenticated" && canFilterByGroup && view !== "series"
+      ? "timetable-filter-groups"
+      : null,
+    () => fetchPlannerGroups(),
+    { revalidateOnFocus: false },
   );
   // Bedarfsquellen-Chip (06 §3.2): die Anmeldephasen für die clientseitige
   // Zuordnung.
@@ -666,7 +725,14 @@ function TimetablesContent() {
     () => buildPlanningTrackLegend(instances),
     [instances],
   );
-  const gaps = useMemo(() => gapsData?.gaps ?? [], [gapsData?.gaps]);
+  // Mit Filter zeigt die Lückenliste nur Lücken der sichtbaren Blöcke: ein
+  // Sprung auf einen ausgeblendeten Block fände ihn im Raster nicht.
+  const gaps = useMemo(() => {
+    const all = gapsData?.gaps ?? [];
+    if (!planFilterActive) return all;
+    const visibleIds = new Set(instances.map((inst) => inst.id));
+    return all.filter((gap) => visibleIds.has(gap.instanceId));
+  }, [gapsData?.gaps, instances, planFilterActive]);
   const gapInstanceIds = useMemo(
     () => new Set(gaps.map((gap) => gap.instanceId)),
     [gaps],
@@ -692,6 +758,41 @@ function TimetablesContent() {
     () => new Map(students.map((item) => [item.id, item.name])),
     [students],
   );
+  // Auswahl der Filter (#4766): Personen aus denselben Namen, die die Blöcke
+  // zeigen, Gruppen aus der Gruppenliste.
+  const personFilterOptions = useMemo(
+    () => sortedFilterOptions(blockStaffNames),
+    [blockStaffNames],
+  );
+  const groupFilterOptions = useMemo(
+    () =>
+      canFilterByGroup
+        ? sortedFilterOptions(
+            new Map(
+              (filterGroups ?? []).map((group) => [
+                String(group.id),
+                group.name,
+              ]),
+            ),
+          )
+        : null,
+    [canFilterByGroup, filterGroups],
+  );
+  // Was der Filter zeigt, in Worten: für den Druckdialog.
+  const planFilterLabel = useMemo(() => {
+    const parts: string[] = [];
+    if (planFilter.groupId) {
+      const name = groupFilterOptions?.find(
+        (group) => group.id === planFilter.groupId,
+      )?.name;
+      parts.push(name ? `„${name}“` : "die gewählte Gruppe");
+    }
+    if (planFilter.staffId) {
+      const name = blockStaffNames.get(planFilter.staffId);
+      parts.push(name ? `„${name}“` : "die gewählte Person");
+    }
+    return parts.join(" und ");
+  }, [blockStaffNames, groupFilterOptions, planFilter]);
   const periodsReady =
     status === "authenticated" &&
     !periodsLoading &&
@@ -987,6 +1088,7 @@ function TimetablesContent() {
   const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
   const weekEmptyState = useMemo(() => {
     if (instances.length > 0 || error) return undefined;
+    if (planFilterActive) return FILTERED_EMPTY_STATE;
     if (weekPeriodCoverage === "partial") {
       return {
         title: "Diese Woche hat noch keine Termine",
@@ -1009,7 +1111,13 @@ function TimetablesContent() {
         ? "Legen Sie zuerst einen aktiven Planungszeitraum an."
         : "Für diese Woche ist noch nichts geplant.",
     };
-  }, [canManageSchedules, error, instances.length, weekPeriodCoverage]);
+  }, [
+    canManageSchedules,
+    error,
+    instances.length,
+    planFilterActive,
+    weekPeriodCoverage,
+  ]);
 
   // Legende der Planungsspuren als Fussband IM Raster (BAUARTEN-SPEC Teil 3:
   // auf dem gemusterten Grund steht kein Text).
@@ -1801,6 +1909,8 @@ function TimetablesContent() {
           weekDay={dayISO}
           isWeekOnScreen={view === "week"}
           canExportInternal={canManageSchedules}
+          filter={planFilter}
+          filterLabel={planFilterLabel}
           onClose={() => setExportOpen(false)}
         />
       )}
@@ -1916,6 +2026,16 @@ function TimetablesContent() {
             />
           }
         >
+          {view !== "series" && (
+            <PlanFilterSelects
+              groups={groupFilterOptions}
+              persons={personFilterOptions}
+              groupId={planFilter.groupId}
+              staffId={planFilter.staffId}
+              onGroupChange={setGroupFilter}
+              onStaffChange={setStaffFilter}
+            />
+          )}
           {periodsReady && calendarPeriods.length > 0 && (
             <PeriodSwitcherDropdown
               periods={calendarPeriods}
@@ -2040,29 +2160,34 @@ function TimetablesContent() {
           staffNames={blockStaffNames}
           showDayHeader
           emptyState={
-            instances.length === 0 && !error
-              ? {
-                  // Der Schließtag ist der stärkste Grund und steht
-                  // deshalb vorn. Ohne Planungsrecht sagt der Text
-                  // nicht "Planungszeitraum": das ist ein Begriff aus
-                  // der Planung und für Lesende keine Auskunft.
-                  title: dayClosingReason
-                    ? "Schließtag"
-                    : dayHasPeriodCoverage || !canManageSchedules
-                      ? "An diesem Tag ist nichts geplant"
-                      : "Dieser Tag hat keinen Planungszeitraum",
-                  description: dayClosingReason
-                    ? `Die Betreuung entfällt: ${dayClosingReason}`
-                    : // Leseansicht (#2283): keine Handlungs-
-                      // aufforderung an Leute, die nicht planen dürfen
-                      // — stattdessen, wer den Tag plant.
-                      canManageSchedules
-                      ? dayHasPeriodCoverage
-                        ? "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an."
-                        : "Legen Sie zuerst einen aktiven Planungszeitraum an."
-                      : "Geplant wird von den Admins Ihrer Schule.",
-                }
-              : undefined
+            instances.length === 0 &&
+            !error &&
+            planFilterActive &&
+            !dayClosingReason
+              ? FILTERED_EMPTY_STATE
+              : instances.length === 0 && !error
+                ? {
+                    // Der Schließtag ist der stärkste Grund und steht
+                    // deshalb vorn. Ohne Planungsrecht sagt der Text
+                    // nicht "Planungszeitraum": das ist ein Begriff aus
+                    // der Planung und für Lesende keine Auskunft.
+                    title: dayClosingReason
+                      ? "Schließtag"
+                      : dayHasPeriodCoverage || !canManageSchedules
+                        ? "An diesem Tag ist nichts geplant"
+                        : "Dieser Tag hat keinen Planungszeitraum",
+                    description: dayClosingReason
+                      ? `Die Betreuung entfällt: ${dayClosingReason}`
+                      : // Leseansicht (#2283): keine Handlungs-
+                        // aufforderung an Leute, die nicht planen dürfen
+                        // — stattdessen, wer den Tag plant.
+                        canManageSchedules
+                        ? dayHasPeriodCoverage
+                          ? "Planen Sie Angebote als Regeltermin oder legen Sie einen einzelnen Termin an."
+                          : "Legen Sie zuerst einen aktiven Planungszeitraum an."
+                        : "Geplant wird von den Admins Ihrer Schule.",
+                  }
+                : undefined
           }
         />
       )}

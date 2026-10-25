@@ -29,6 +29,10 @@ type betreuungsplanExportRequest struct {
 	Template string `json:"template"`
 	Variant  string `json:"variant"`
 	Format   string `json:"format"`
+	// GroupID and StaffID carry the planner's group and person filter
+	// (#4766); omitted, the whole plan prints.
+	GroupID *common.JSONID `json:"group_id,omitempty"`
+	StaffID *common.JSONID `json:"staff_id,omitempty"`
 }
 
 // exportBetreuungsplan handles POST /api/timetable/betreuungsplan/export.
@@ -54,6 +58,10 @@ func (rs *Resource) exportBetreuungsplan(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, planExportInvalidRenderer(err))
 		return
 	}
+	params.Filter = planexport.BlockFilter{
+		EducationGroupID: exportFilterID(req.GroupID),
+		StaffID:          exportFilterID(req.StaffID),
+	}
 	if params.Variant == planexport.VariantInternal && !common.CanExportInternalPlan(sessiontoken.PermissionsFromCtx(r.Context())) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(errors.New("internal plan exports require schedules:manage"),
 			common.CodeTimetableExportInternalForbidden))
@@ -75,6 +83,14 @@ func (rs *Resource) exportBetreuungsplan(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
+}
+
+func exportFilterID(id *common.JSONID) *int64 {
+	if id == nil {
+		return nil
+	}
+	value := id.Int64()
+	return &value
 }
 
 // planExportInvalidRenderer names the range refusals with their own code

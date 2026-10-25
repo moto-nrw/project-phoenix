@@ -800,6 +800,7 @@ function setupSWR({
   closingDaysLoading = false,
   conflictAcks = [] as string[],
   instances = [instance],
+  filterGroups = [] as Array<{ id: string; name: string }>,
 }: {
   periods?: Array<typeof period>;
   periodsState?: "ready" | "loading" | "error";
@@ -815,6 +816,7 @@ function setupSWR({
   closingDaysLoading?: boolean;
   conflictAcks?: string[];
   instances?: (typeof instance)[];
+  filterGroups?: Array<{ id: string; name: string }>;
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -871,6 +873,9 @@ function setupSWR({
     }
     if (key === "timetable-conflict-acks") {
       return { data: conflictAcks };
+    }
+    if (key === "timetable-filter-groups") {
+      return { data: filterGroups };
     }
     if (key.startsWith("timetable-gaps")) {
       if (gapsState === "loading") return { isLoading: true };
@@ -2441,5 +2446,199 @@ describe("BetreuungsplanView", () => {
 
     expect(screen.getByText("add-instance")).toBeDisabled();
     expect(screen.getByText("add-series")).toBeDisabled();
+  });
+
+  // --- Gruppen- und Personenfilter (#4766) ---
+
+  describe("Filter Gruppe und Person (#4766)", () => {
+    function grantGroups() {
+      mockUseSession.mockReturnValue({
+        status: "authenticated",
+        data: {
+          user: {
+            permissions: [
+              "schedules:read",
+              "schedules:manage",
+              "schedules:create",
+              "users:read",
+              "config:read",
+              "groups:read",
+            ],
+          },
+        },
+      });
+    }
+
+    /** SWR-Schlüssel und Fetcher des Instanz-Abrufs der Ansicht. */
+    function instanceFetch(view: string) {
+      const call = [...mockUseSWRAuth.mock.calls]
+        .reverse()
+        .find(
+          ([key]) =>
+            typeof key === "string" && key.startsWith(`timetable-${view}-`),
+        ) as [string, () => Promise<unknown>] | undefined;
+      expect(call).toBeDefined();
+      return { key: call![0], fetcher: call![1] };
+    }
+
+    it("lädt Tag, Woche und Monat mit dem Filter aus der URL", async () => {
+      grantGroups();
+      const { timetableService } = await import("~/lib/timetable-api");
+
+      for (const [viewParam, view] of [
+        ["view=tag&", "day"],
+        ["", "week"],
+        ["view=monat&", "month"],
+      ] as const) {
+        setUrl(`${viewParam}group=5&staff=11`);
+        const { unmount } = render(<BetreuungsplanView />);
+        const { key, fetcher } = instanceFetch(view);
+        expect(key).toMatch(/-g5-p11$/);
+        void fetcher();
+        expect(timetableService.getWeek).toHaveBeenLastCalledWith(
+          expect.any(String),
+          expect.any(String),
+          { groupId: "5", staffId: "11" },
+        );
+        unmount();
+      }
+    });
+
+    it("lädt ohne Filter den ganzen Plan unter dem bisherigen Schlüssel", async () => {
+      const { timetableService } = await import("~/lib/timetable-api");
+      setUrl("staff=abc");
+      render(<BetreuungsplanView />);
+
+      const { key, fetcher } = instanceFetch("week");
+      expect(key).toBe("timetable-week-2026-05-04-2026-05-08");
+      void fetcher();
+      expect(timetableService.getWeek).toHaveBeenLastCalledWith(
+        "2026-05-04",
+        "2026-05-08",
+        { groupId: null, staffId: null },
+      );
+    });
+
+    it("bietet die Gruppe nur mit Gruppenliste an und ignoriert sonst den Parameter", () => {
+      setUrl("group=5&staff=11");
+      render(<BetreuungsplanView />);
+
+      expect(screen.getByTestId("plan-filter-staff")).toBeInTheDocument();
+      expect(screen.queryByTestId("plan-filter-group")).not.toBeInTheDocument();
+      expect(instanceFetch("week").key).toMatch(/-g-p11$/);
+    });
+
+    it("schreibt die gewählte Person und Gruppe in die URL und schließt den Block", () => {
+      grantGroups();
+      setupSWR({ filterGroups: [{ id: "5", name: "Sonnen" }] });
+      setUrl("block=42");
+      render(<BetreuungsplanView />);
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Nach Person filtern" }),
+      );
+      fireEvent.click(screen.getByRole("option", { name: "Ada Absent" }));
+      expect(urlParams().get("staff")).toBe("11");
+      expect(urlParams().get("block")).toBeNull();
+      expect(urlParams().get("d")).toBe("2026-05-06");
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Nach Gruppe filtern" }),
+      );
+      fireEvent.click(screen.getByRole("option", { name: "Sonnen" }));
+      expect(urlParams().get("group")).toBe("5");
+      expect(urlParams().get("staff")).toBe("11");
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Nach Person filtern" }),
+      );
+      fireEvent.click(screen.getByRole("option", { name: "Alle Personen" }));
+      expect(urlParams().get("staff")).toBeNull();
+      expect(urlParams().get("group")).toBe("5");
+    });
+
+    it("bietet dieselben Filter in Tag und Woche der Leseansicht", () => {
+      mockUseSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { permissions: ["schedules:read", "groups:read"] } },
+      });
+      setupSWR({ filterGroups: [{ id: "5", name: "Sonnen" }] });
+
+      for (const [viewParam, view] of [
+        ["view=tag&", "day"],
+        ["", "week"],
+      ] as const) {
+        setUrl(`${viewParam}group=5&staff=11`);
+        const { unmount } = render(<BetreuungsplanView />);
+        expect(screen.getByText("Nur ansehen")).toBeInTheDocument();
+        expect(
+          screen.getByRole("combobox", { name: "Nach Gruppe filtern" }),
+        ).toHaveTextContent("Sonnen");
+        expect(
+          screen.getByRole("combobox", { name: "Nach Person filtern" }),
+        ).toBeInTheDocument();
+        expect(instanceFetch(view).key).toMatch(/-g5-p11$/);
+        unmount();
+      }
+    });
+
+    it("bietet im Monat auch ohne users:read Personen aus der Übersicht an", () => {
+      mockUseSession.mockReturnValue({
+        status: "authenticated",
+        data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+      });
+      const defaultSWR = mockUseSWRAuth.getMockImplementation()!;
+      mockUseSWRAuth.mockImplementation((key: string | null) => {
+        if (
+          typeof key === "string" &&
+          key.startsWith("timetable-plan-staff-names-")
+        ) {
+          return {
+            data: {
+              appointments: [],
+              staff: [{ id: "11", name: "Ada Absent", isExternal: false }],
+            },
+          };
+        }
+        return defaultSWR(key);
+      });
+      setUrl("view=monat&d=2026-05-06");
+
+      render(<BetreuungsplanView />);
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Nach Person filtern" }),
+      );
+      fireEvent.click(screen.getByRole("option", { name: "Ada Absent" }));
+      expect(urlParams().get("staff")).toBe("11");
+      expect(
+        mockUseSWRAuth.mock.calls.some(
+          ([key]) =>
+            typeof key === "string" &&
+            key.startsWith("timetable-plan-staff-names-"),
+        ),
+      ).toBe(true);
+    });
+
+    it("nennt einen leeren gefilterten Plan als leere Auswahl", () => {
+      setupSWR({ instances: [] });
+      setUrl("staff=11");
+      render(<BetreuungsplanView />);
+
+      expect(screen.getByTestId("grid-empty-state")).toHaveTextContent(
+        "Für diese Auswahl ist nichts geplant",
+      );
+    });
+
+    it("zeigt mit Filter nur Lücken der sichtbaren Blöcke", () => {
+      setupSWR({ gaps: [gap, { ...gap, instanceId: "99" }] });
+      const { unmount } = render(<BetreuungsplanView />);
+      expect(screen.getByTestId("grid-gap-ids")).toHaveTextContent("42,99");
+      unmount();
+
+      setUrl("staff=11");
+      render(<BetreuungsplanView />);
+      expect(screen.getByTestId("grid-gap-ids")).toHaveTextContent(/^42$/);
+    });
   });
 });

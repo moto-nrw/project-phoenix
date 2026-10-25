@@ -282,6 +282,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[6]?.troubleshootingDetails).toEqual([
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
       "Steht dort `Noch kein Planungszeitraum`? Dann hat Ihre Leitung den Zeitraum noch nicht angelegt.",
+      "Steht dort `Für diese Auswahl ist nichts geplant`? Wählen Sie `Alle Gruppen` und `Alle Personen`.",
     ]);
     expect(caregiverTopics[6]?.differences).toEqual([
       "Steht oben rechts `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",

@@ -210,6 +210,10 @@ var queryBudgets = map[string]queryBudget{
 	// from one template with an education group: instances + one display-metadata
 	// projection + staff batch + student batch + one cutoff read per day.
 	"api.timetable.instances.list": {max: 7},
+	// Group filters use one Timetable-owned candidate read and one existing
+	// People Directory read for the planned children's current OGS groups.
+	// The scenario stays flat from three to eight planned blocks.
+	"api.timetable.instances.list.group_filter": {max: 9},
 	// modules/timetable/http — GET /templates: template rows, retained list enrichments,
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
