@@ -3062,6 +3062,7 @@
         "audit_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie."
       },
       "traeger": {
+        "access_log_export_too_large": "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
         "already_member": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "last_administrator": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "member_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

@@ -368,6 +368,9 @@ basis
 	GET /public/login-image/{filename}
 	GET /public/request-feed/{token}
 	GET /ready
+	GET /traeger/access-log/
+	GET /traeger/access-log/export
+	GET /traeger/access-log/people
 	GET /traeger/accounts/
 	GET /traeger/holiday-periods/
 	GET /traeger/holiday-periods/{id}

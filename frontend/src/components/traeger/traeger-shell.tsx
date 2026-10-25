@@ -21,6 +21,8 @@ const logger = createLogger({ component: "TraegerShell" });
 const ACCOUNTS_RIGHT = "traeger_accounts:manage";
 /** The Träger right that opens the holiday periods (#4659). */
 const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
+/** The Träger right that opens the access log (#4655). */
+const ACCESS_LOG_RIGHT = "traeger_access_log:read";
 /** The Träger right that reads the Träger settings (ADR 0086, #4652). */
 const OVERVIEW_RIGHT = "traeger_overview:read";
 
@@ -42,6 +44,12 @@ const NAV_ITEMS = [
     right: ACCOUNTS_RIGHT,
   },
   {
+    id: "zugriffsprotokoll",
+    label: "Zugriffsprotokoll",
+    path: "/traeger/access-log",
+    right: ACCESS_LOG_RIGHT,
+  },
+  {
     id: "einstellungen",
     label: "Einstellungen",
     path: "/traeger/einstellungen",
@@ -52,8 +60,8 @@ const NAV_ITEMS = [
 /**
  * The pages of the portal as header tabs. The holiday periods need the right
  * "Anmeldung verwalten", the page "Personen" the right to manage accounts,
- * the settings (#4652) the right to read the overview; a person with none of
- * them has one page and no tabs.
+ * the access log the right to read it, the settings (#4652) the right to
+ * read the overview; a person with none of them has one page and no tabs.
  */
 function TraegerNav({ session }: Readonly<{ session: Session | null }>) {
   const router = useRouter();
@@ -85,8 +93,9 @@ function TraegerNav({ session }: Readonly<{ session: Session | null }>) {
  * The shell of the Träger portal ("moto träger", #4649): the shared
  * PortalShell frame with a slim head bar. The portal has few pages, so there
  * is no sidebar; the head carries the pages, the help and the way out. The
- * pages "Ferien" (#4659), "Personen" (#4650) and "Einstellungen" (#4652)
- * show only with their rights. The help opens the article of the page.
+ * pages "Ferien" (#4659), "Personen" (#4650), "Zugriffsprotokoll" (#4655)
+ * and "Einstellungen" (#4652) show only with their rights. The help opens
+ * the article of the page.
  */
 export function TraegerShell({
   children,

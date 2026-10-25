@@ -38,8 +38,8 @@ legt das Bau-Ticket fest“).
    `durable_side_effect_notices.json` bleiben unverändert.
 3. **Budgets.** `moduleComposeBudgets` steigt um genau 14 Zeilen:
    `modules/settings/compose` von 308 auf 322 (Speicher, Runtime-Bindung und
-   Dienst der Träger-Ebene). `moduleComposeBudgetTotal` steigt von 12452 auf
-   12466. Kein anderer Eintrag wächst.
+   Dienst der Träger-Ebene). `moduleComposeBudgetTotal` steigt von 12450 auf
+   12464. Kein anderer Eintrag wächst.
 4. **Lesen der Schule.** Die Settings Platform liest `platform.schools` nie.
    In der Tenant-Transaktion einer Schule wählt die lesende Policy der Tabelle
    den Träger der Schule; die Abfrage verlangt zusätzlich, dass

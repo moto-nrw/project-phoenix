@@ -6,6 +6,7 @@
 
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import type { SettingsSchema } from "./settings-api";
+import { filenameFromDisposition } from "./file-download";
 import { type TraegerRole, traegerRoles } from "./traeger-roles";
 
 /** A Träger the person can open, offered when they belong to several. */
@@ -479,6 +480,145 @@ export async function publishHolidayPeriod(id: string): Promise<HolidayPeriod> {
       { method: "POST" },
     ),
   );
+}
+
+// --- Zugriffsprotokoll (#4655) ---
+
+/** Whether an access log entry read data or changed it. */
+export type TraegerAccessKind = "read" | "change";
+
+/** The filter of the access log (#4655). Days are `YYYY-MM-DD`, both included. */
+export interface TraegerAccessLogFilter {
+  readonly from: string;
+  readonly to: string;
+  /** Empty for every school. */
+  readonly schoolId: string;
+  /** Empty for every person. */
+  readonly accountId: string;
+  /** Empty for both kinds. */
+  readonly kind: TraegerAccessKind | "";
+}
+
+/** One read or change of personal data at a school of the Träger. */
+export interface TraegerAccessLogEntry {
+  /** Stable across pages. */
+  readonly id: string;
+  readonly occurredAt: string;
+  readonly schoolId: string;
+  readonly schoolName: string;
+  /** Null when no person is recorded, e.g. for an automatic step. */
+  readonly accountId: string | null;
+  readonly person: string;
+  readonly kind: TraegerAccessKind;
+  readonly dataLabel: string;
+}
+
+export interface TraegerAccessLogPage {
+  readonly entries: TraegerAccessLogEntry[];
+  readonly hasMore: boolean;
+  /** The instant the list reads up to; later pages of the list send it back. */
+  readonly asOf: string;
+}
+
+/** A person the access log can be filtered by. */
+export interface TraegerAccessLogPerson {
+  readonly accountId: string;
+  readonly name: string;
+}
+
+interface BackendAccessLogEntry {
+  id: string;
+  occurred_at: string;
+  school_id: number;
+  school_name: string;
+  account_id: number | null;
+  person: string;
+  kind: TraegerAccessKind;
+  data_label: string;
+}
+
+/** The query of a filter, as the backend reads it. */
+function traegerAccessLogQuery(
+  filter: TraegerAccessLogFilter,
+  page?: number,
+  asOf?: string,
+): string {
+  const params = new URLSearchParams({ from: filter.from, to: filter.to });
+  if (filter.schoolId) params.set("school_id", filter.schoolId);
+  if (filter.accountId) params.set("account_id", filter.accountId);
+  if (filter.kind) params.set("kind", filter.kind);
+  if (page !== undefined) params.set("page", String(page));
+  if (asOf) params.set("as_of", asOf);
+  return params.toString();
+}
+
+/**
+ * One page of the access log, newest first. Pages start at 1; the pages after
+ * the first pass the first page's `asOf`, so entries recorded meanwhile
+ * (including this read itself) never shift into a later page.
+ */
+export async function fetchTraegerAccessLog(
+  filter: TraegerAccessLogFilter,
+  page: number,
+  asOf?: string,
+): Promise<TraegerAccessLogPage> {
+  const data = await traegerRequest<{
+    entries?: BackendAccessLogEntry[];
+    has_more?: boolean;
+    as_of?: string;
+  } | null>(
+    `/api/traeger/access-log?${traegerAccessLogQuery(filter, page, asOf)}`,
+  );
+  return {
+    entries: (data?.entries ?? []).map((entry) => ({
+      id: entry.id,
+      occurredAt: entry.occurred_at,
+      schoolId: String(entry.school_id),
+      schoolName: entry.school_name,
+      accountId: entry.account_id === null ? null : String(entry.account_id),
+      person: entry.person,
+      kind: entry.kind,
+      dataLabel: entry.data_label,
+    })),
+    hasMore: data?.has_more ?? false,
+    asOf: data?.as_of ?? "",
+  };
+}
+
+/** The people with an entry between `from` and `to`, for the person filter. */
+export async function fetchTraegerAccessLogPeople(
+  from: string,
+  to: string,
+): Promise<TraegerAccessLogPerson[]> {
+  const query = new URLSearchParams({ from, to }).toString();
+  const data = await traegerRequest<
+    { account_id: number; name: string }[] | null
+  >(`/api/traeger/access-log/people?${query}`);
+  return (data ?? []).map((person) => ({
+    accountId: String(person.account_id),
+    name: person.name,
+  }));
+}
+
+/** The CSV export of a filter, with the file name the backend chose. */
+export async function downloadTraegerAccessLog(
+  filter: TraegerAccessLogFilter,
+): Promise<{ readonly blob: Blob; readonly filename: string | null }> {
+  const response = await transportFetch(
+    `/api/traeger/access-log/export?${traegerAccessLogQuery(filter)}`,
+    { credentials: "include", cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      await readJson(response),
+    );
+  }
+  return {
+    blob: await response.blob(),
+    filename: filenameFromDisposition(response),
+  };
 }
 
 // --- Träger-Einstellungen (ADR 0086, #4652) ---

@@ -659,12 +659,14 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerLogin,
       HELP_TOPICS.traegerAccounts,
       HELP_TOPICS.traegerHolidayPeriod,
+      HELP_TOPICS.traegerAccessLog,
       HELP_TOPICS.traegerSettings,
       HELP_TOPICS.errorMessages,
     ]);
     expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "anmeldeverwaltung",
+      "auswertung",
       "konfiguration",
       "probleme",
     ]);
@@ -676,15 +678,16 @@ describe("getParentHelpTopicForPath", () => {
         .map((id) => `${topic.id} -> ${id}`),
     );
     expect(unreachable).toEqual([]);
-    // Kein anderer Leser sieht den Träger-Artikel.
-    const login = traegerTopics.find(
-      (topic) => topic.id === HELP_TOPICS.traegerLogin,
-    );
-    expect(login?.audience).toBe("traeger");
-    const settings = traegerTopics.find(
-      (topic) => topic.id === HELP_TOPICS.traegerSettings,
-    );
-    expect(settings?.audience).toBe("traeger");
+    // Kein anderer Leser sieht die Träger-Artikel.
+    for (const id of [
+      HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerAccessLog,
+      HELP_TOPICS.traegerSettings,
+    ]) {
+      expect(traegerTopics.find((topic) => topic.id === id)?.audience).toBe(
+        "traeger",
+      );
+    }
   });
 
   it("hides every room-only article when attendance is simple", () => {

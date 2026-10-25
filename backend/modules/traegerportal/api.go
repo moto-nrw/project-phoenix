@@ -91,19 +91,20 @@ type Resource struct {
 	auth           AuthRuntime
 	schools        TraegerRouter
 	holidayPeriods TraegerRouter
+	accessLog      TraegerRouter
 	settings       TraegerRouter
 	accounts       identityaccess.TraegerAccountManagement
 }
 
-// NewResource builds the Träger-Portal resource: the school list of the
-// Träger projection, the holiday periods, and the Träger settings of the
+// NewResource builds the Träger-Portal resource: the school list, the
+// holiday periods, the access log (#4655) and the Träger settings of the
 // Settings Platform (ADR 0086). accounts serves the Träger-Büro account
 // routes (#4650); without it they answer 500.
-func NewResource(auth AuthRuntime, schools, holidayPeriods, settings TraegerRouter, accounts identityaccess.TraegerAccountManagement) *Resource {
-	if schools == nil || holidayPeriods == nil || settings == nil {
-		panic("traeger portal: the school list, holiday period and settings routes are required")
+func NewResource(auth AuthRuntime, schools, holidayPeriods, accessLog, settings TraegerRouter, accounts identityaccess.TraegerAccountManagement) *Resource {
+	if schools == nil || holidayPeriods == nil || accessLog == nil || settings == nil {
+		panic("traeger portal: the school list, holiday period, access log and settings routes are required")
 	}
-	return &Resource{auth: auth, schools: schools, holidayPeriods: holidayPeriods, settings: settings, accounts: accounts}
+	return &Resource{auth: auth, schools: schools, holidayPeriods: holidayPeriods, accessLog: accessLog, settings: settings, accounts: accounts}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -131,6 +132,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r.Mount("/holiday-periods", rs.holidayPeriods.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/settings", rs.settings.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/accounts", rs.accountRouter(protectedTraegerRoutes))
+	r.Mount("/access-log", rs.accessLog.TraegerRouter(protectedTraegerRoutes))
 	return r
 }
 
