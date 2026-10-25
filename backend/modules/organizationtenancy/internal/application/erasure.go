@@ -123,10 +123,13 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 	if err != nil {
 		return nil, err
 	}
-	ids, err := erasureSchoolIDs(ctx, s.store, r)
-	if err != nil {
-		return nil, err
+	if r.OrganizationID > 0 {
+		return s.runOrganization(ctx, r, kinds)
 	}
+	return s.runSchools(ctx, r, []int64{r.SchoolID}, kinds)
+}
+
+func (s *Erasure) runSchools(ctx context.Context, r organizationtenancy.ErasureRequest, ids []int64, kinds []organizationtenancy.LifecycleFileKind) ([]json.RawMessage, error) {
 	if err := s.checkLedger(r, ids); err != nil {
 		return nil, err
 	}
@@ -140,10 +143,90 @@ func (s *Erasure) Run(ctx context.Context, r organizationtenancy.ErasureRequest)
 			return results, err
 		}
 	}
-	if r.OrganizationID > 0 && !r.DryRun {
-		return results, errors.New("erasure: school phases finished; organization root deletion unsupported by DB contract, organization order remains open")
-	}
 	return results, nil
+}
+
+// runOrganization erases a Träger (#4657): only with its recorded erasure
+// order, after the grace period, every school first and then the Träger root.
+// A dry run previews the schools and reports the order check without changes.
+func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.ErasureRequest, kinds []organizationtenancy.LifecycleFileKind) ([]json.RawMessage, error) {
+	check, status, erased, err := s.organizationCheck(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	if status == "completed" {
+		if r.DryRun {
+			return []json.RawMessage{check}, nil
+		}
+		// The root is gone. A repeated run replays the file phase of every
+		// erased school, like a school retry after an upload restore, and
+		// returns the evidence.
+		results, err := s.runSchools(ctx, r, erased, kinds)
+		if err != nil {
+			return results, err
+		}
+		proof, err := s.eraseOrganizationRoot(ctx, r)
+		return append(results, proof...), err
+	}
+	if !r.DryRun && status != "due" {
+		return nil, fmt.Errorf("erasure: organization order is %s; it needs the written confirmation recorded in the operator portal, a deactivated organization and the end of the grace period; nothing erased", status)
+	}
+	ids, err := erasureSchoolIDs(ctx, s.store, r)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.beginOrganization(ctx, r, ids); err != nil {
+		return nil, err
+	}
+	results, err := s.runSchools(ctx, r, ids, kinds)
+	if err != nil {
+		return results, err
+	}
+	if r.DryRun {
+		return append(results, check), nil
+	}
+	proof, err := s.eraseOrganizationRoot(ctx, r)
+	return append(results, proof...), err
+}
+
+// beginOrganization runs the ledger preflight and then marks the order as
+// started. A refused preflight leaves the order withdrawable; from the mark
+// on, a run that fails halfway is resumed with the same order.
+func (s *Erasure) beginOrganization(ctx context.Context, r organizationtenancy.ErasureRequest, ids []int64) error {
+	if r.DryRun {
+		return nil
+	}
+	if err := s.checkLedger(r, ids); err != nil {
+		return err
+	}
+	_, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_begin", r.OrganizationID, r.OperatorID, r.OrderReference)
+	return err
+}
+
+// organizationCheck reads the order state of the Träger without changes, with
+// the schools the order already erased.
+func (s *Erasure) organizationCheck(ctx context.Context, r organizationtenancy.ErasureRequest) (json.RawMessage, string, []int64, error) {
+	raw, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_check", r.OrganizationID, r.OperatorID, r.OrderReference)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	var check struct {
+		Status    string  `json:"status"`
+		SchoolIDs []int64 `json:"school_ids"`
+	}
+	if err := json.Unmarshal(raw, &check); err != nil || check.Status == "" {
+		return nil, "", nil, errors.New("erasure: invalid organization order check")
+	}
+	return raw, check.Status, check.SchoolIDs, nil
+}
+
+// eraseOrganizationRoot deletes the Träger root after its schools.
+func (s *Erasure) eraseOrganizationRoot(ctx context.Context, r organizationtenancy.ErasureRequest) ([]json.RawMessage, error) {
+	proof, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_erase", r.OrganizationID, r.OperatorID, r.OrderReference)
+	if err != nil {
+		return nil, errors.New("erasure: organization root deletion failed; the order remains open, retry the same order")
+	}
+	return []json.RawMessage{proof}, nil
 }
 
 // A new namespace or changed layout needs explicit review, not an automatic

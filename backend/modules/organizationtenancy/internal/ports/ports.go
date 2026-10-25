@@ -33,6 +33,15 @@ type Store interface {
 	CountSchoolsByID(context.Context, []int64) (int, domain.OperationStats, error)
 	SetSchoolDeleted(context.Context, int64, bool) (domain.OperationStats, error)
 	TraegerMembershipStore
+	TraegerErasureOrderStore
+}
+
+// TraegerErasureOrderStore persists platform.organization_erasure_orders
+// (#4657). Every method runs on the caller's administrative transaction.
+type TraegerErasureOrderStore interface {
+	FindOpenTraegerErasureOrder(ctx context.Context, organizationID int64, lock string) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error)
+	InsertTraegerErasureOrder(ctx context.Context, order organizationtenancy.NewTraegerErasureOrder) (organizationtenancy.TraegerErasureOrder, domain.OperationStats, error)
+	WithdrawTraegerErasureOrder(ctx context.Context, orderID, operatorID int64) (bool, domain.OperationStats, error)
 }
 
 // TraegerMembershipStore persists platform.organization_accounts (ADR 0084).

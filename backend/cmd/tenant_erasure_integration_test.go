@@ -239,42 +239,118 @@ func TestErasureCLITimeoutAndRoleBoundaries(t *testing.T) {
 	require.Equal(t, "completed", proof.Status)
 }
 
-func TestErasureCLIOrganizationKeepsRootAndResumesSchoolReceipts(t *testing.T) {
+// TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot: a Träger is
+// erased only with the order the operator recorded, after its deactivation
+// and grace period (#4657). Then every school goes first and the Träger root
+// with its memberships, Träger roles and Träger sessions last; a repeated run
+// returns the evidence.
+func TestErasureCLIOrganizationNeedsItsDueOrderAndThenErasesTheRoot(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	// A single-connection pool also proves role/session cleanup between phases.
 	db.SetMaxOpenConns(1)
+	ctx := t.Context()
 	a := testpkg.Tenant(t)
 	b, _ := testpkg.CreateTestTenant(t, db)
 	var organizationID int64
-	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id=?`, a).Scan(t.Context(), &organizationID))
-	_, err := db.ExecContext(t.Context(), `UPDATE platform.schools SET organization_id=? WHERE id=?`, organizationID, b)
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id=?`, a).Scan(ctx, &organizationID))
+	_, err := db.ExecContext(ctx, `UPDATE platform.schools SET organization_id=? WHERE id=?`, organizationID, b)
 	require.NoError(t, err)
 	operator := testpkg.CreateTestOperator(t, db)
-	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(t.TempDir()), erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
+	member := testpkg.CreateTestAccount(t, db, "traeger-loeschung")
+	testpkg.CreateTestTraegerMember(t, db, organizationID, member.ID, "administration")
+	_, err = db.ExecContext(ctx, `INSERT INTO auth.tokens (account_id, token, expiry, portal_scope, organization_id)
+		VALUES (?, encode(sha256(gen_random_uuid()::text::bytea), 'hex'), NOW() + INTERVAL '1 hour', 'org', ?)`, member.ID, organizationID)
 	require.NoError(t, err)
+	uploads := t.TempDir()
+	service, err := tenancyCompose.NewErasure(db, objects.NewLocal(uploads), erasureledger.New(newTestErasureLedger(t), securityruntime.Fingerprint))
+	require.NoError(t, err)
+	count := func(query string, args ...any) int {
+		t.Helper()
+		var n int
+		require.NoError(t, db.NewRaw(query, args...).Scan(ctx, &n))
+		return n
+	}
 	request := organizationtenancy.ErasureRequest{OrganizationID: organizationID, OperatorID: operator.ID, OrderReference: "ORDER-ORGANIZATION", Confirmation: fmt.Sprintf("organization:%d", organizationID), PrerequisitesChecked: true, WritersStopped: true, LockTimeout: time.Second, StatementTimeout: time.Minute, DryRun: true}
-	results, err := service.Run(t.Context(), request)
-	require.NoError(t, err)
-	require.Len(t, results, 2)
+	results, err := service.Run(ctx, request)
+	require.NoError(t, err, "a dry run previews the schools without an order")
+	require.Len(t, results, 3)
+	require.Contains(t, string(results[2]), `"status": "missing"`)
+
 	request.DryRun = false
-	results, err = service.Run(t.Context(), request)
-	require.Error(t, err)
-	require.Len(t, results, 2)
-	for _, raw := range results {
+	_, err = service.Run(ctx, request)
+	require.ErrorContains(t, err, "missing", "without the recorded written confirmation nothing is erased")
+	_, err = db.ExecContext(ctx, `INSERT INTO platform.organization_erasure_orders (organization_id, order_reference, confirmed_on, erase_not_before, recorded_by)
+		VALUES (?, 'ORDER-ORGANIZATION', '2026-01-02', '2099-12-31', ?)`, organizationID, operator.ID)
+	require.NoError(t, err)
+	_, err = service.Run(ctx, request)
+	require.ErrorContains(t, err, "active", "an active Träger is not erased")
+	_, err = db.ExecContext(ctx, `UPDATE platform.organizations SET active = false WHERE id = ?`, organizationID)
+	require.NoError(t, err)
+	_, err = service.Run(ctx, request)
+	require.ErrorContains(t, err, "grace_period", "nothing is erased during the grace period")
+	require.Equal(t, 2, count(`SELECT count(*) FROM platform.schools WHERE organization_id = ?`, organizationID))
+	require.Zero(t, count(`SELECT count(*) FROM platform.school_erasures WHERE organization_id = ?`, organizationID))
+	require.Zero(t, count(`SELECT count(*) FROM platform.organization_erasure_orders WHERE organization_id = ? AND started_at IS NOT NULL`, organizationID), "a refused run does not start the order")
+
+	_, err = db.ExecContext(ctx, `UPDATE platform.organization_erasure_orders SET erase_not_before = '2026-01-03' WHERE organization_id = ?`, organizationID)
+	require.NoError(t, err)
+	// An unfinished school erasure of the Träger, under another operator and
+	// reference, keeps the root: its files may still exist.
+	other := testpkg.CreateTestOperator(t, db)
+	_, err = db.ExecContext(ctx, `INSERT INTO platform.school_erasures (school_id, organization_id, operator_id, order_reference, status, failed_at, last_error_code)
+		VALUES (?, ?, ?, 'ORDER-OTHER', 'failed', clock_timestamp(), 'F0001')`, b+1000000, organizationID, other.ID)
+	require.NoError(t, err)
+	_, err = service.Run(ctx, request)
+	require.Error(t, err, "the root waits for every school erasure of the Träger")
+	require.Equal(t, 1, count(`SELECT count(*) FROM platform.organizations WHERE id = ?`, organizationID))
+	_, err = db.ExecContext(ctx, `DELETE FROM platform.school_erasures WHERE order_reference = 'ORDER-OTHER'`)
+	require.NoError(t, err)
+	results, err = service.Run(ctx, request)
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+	for _, raw := range results[:2] {
 		var proof organizationtenancy.ErasureProof
 		require.NoError(t, json.Unmarshal(raw, &proof))
 		require.Equal(t, "completed", proof.Status)
 	}
-	var roots int
-	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.organizations WHERE id=?`, organizationID).Scan(t.Context(), &roots))
-	require.Equal(t, 1, roots)
-	repeated, err := service.Run(t.Context(), request)
-	require.Error(t, err)
-	require.Len(t, repeated, 2)
-	for i := range results {
-		require.JSONEq(t, string(results[i]), string(repeated[i]))
+	var root struct {
+		CompletedAt *time.Time       `json:"completed_at"`
+		CompletedBy int64            `json:"completed_by"`
+		RowCounts   map[string]int64 `json:"row_counts"`
 	}
+	require.NoError(t, json.Unmarshal(results[2], &root))
+	require.NotNil(t, root.CompletedAt)
+	require.Equal(t, operator.ID, root.CompletedBy)
+	require.Equal(t, 1, count(`SELECT count(*) FROM platform.organization_erasure_orders WHERE organization_id = ? AND started_at IS NOT NULL`, organizationID), "the run marked the order as started")
+	require.Equal(t, map[string]int64{"platform.organizations": 1, "platform.organization_accounts": 1, "auth.organization_account_roles": 1, "auth.tokens": 1, "platform.school_erasures": 2}, root.RowCounts)
+	for _, query := range []string{
+		`SELECT count(*) FROM platform.organizations WHERE id = ?`,
+		`SELECT count(*) FROM platform.organization_accounts WHERE organization_id = ?`,
+		`SELECT count(*) FROM auth.organization_account_roles WHERE organization_id = ?`,
+		`SELECT count(*) FROM auth.tokens WHERE organization_id = ?`,
+	} {
+		require.Zero(t, count(query, organizationID), query)
+	}
+	require.Equal(t, 1, count(`SELECT count(*) FROM auth.accounts WHERE id = ?`, member.ID), "the global account is not erased with the Träger")
+	require.Equal(t, 1, count(`SELECT count(*) FROM platform.operator_audit_log
+		WHERE operator_id = ? AND action = 'erase' AND resource_type = 'organization' AND resource_id = ?`, operator.ID, organizationID), "the root deletion is in the operator audit")
+
+	// An upload restore may bring files back after the root is gone: a
+	// repeated run replays the file phase of every erased school.
+	restoredFile := filepath.Join(uploads, fmt.Sprintf("files/%d/restored.bin", a))
+	require.NoError(t, os.MkdirAll(filepath.Dir(restoredFile), 0700))
+	require.NoError(t, os.WriteFile(restoredFile, []byte("synthetic"), 0600))
+	repeated, err := service.Run(ctx, request)
+	require.NoError(t, err)
+	require.Len(t, repeated, 3)
+	require.NoFileExists(t, restoredFile)
+	require.JSONEq(t, string(results[2]), string(repeated[2]), "a repeated run returns the evidence")
+	request.DryRun = true
+	checked, err := service.Run(ctx, request)
+	require.NoError(t, err)
+	require.Len(t, checked, 1)
+	require.Contains(t, string(checked[0]), `"status": "completed"`)
 }
 
 func newTestErasureLedger(t *testing.T) string {

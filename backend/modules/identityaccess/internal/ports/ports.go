@@ -313,6 +313,7 @@ type TraegerRoleStore interface {
 	LockLiveTraegerAccount(ctx context.Context, accountID int64) (bool, domain.OperationStats, error)
 	InsertTraegerRole(ctx context.Context, organizationID, accountID int64, role string) (domain.OperationStats, error)
 	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]domain.TraegerAccount, domain.OperationStats, error)
+	DeleteTraegerSessions(ctx context.Context, organizationID int64) (int64, domain.OperationStats, error)
 }
 
 // SchoolDirectory is the consumer-owned port over the Organisation & Tenancy
