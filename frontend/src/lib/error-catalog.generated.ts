@@ -487,6 +487,10 @@ export const ERROR_CATALOG = {
         "Dieses Konto gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "identity.account_not_in_school":
         "Dieses Konto gehört nicht zu dieser Schule. Bitte laden Sie die Seite neu.",
+      "identity.caterer_address_taken":
+        "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
+      "identity.caterer_without_school":
+        "Sie beliefern zurzeit keine Schule über moto. Bitte fragen Sie die Schule.",
       "identity.current_password_wrong":
         "Das aktuelle Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
       "identity.demo_access_expired":
@@ -602,6 +606,13 @@ export const ERROR_CATALOG = {
         "Im Raum {room_name} ist kein Platz mehr. Bitte wählen Sie einen anderen Raum.",
       "iot.student_already_active":
         "{object} ist bereits im Raum {room_name}. Bitte prüfen Sie den aktuellen Aufenthalt.",
+      "meals.child_not_enrolled":
+        "{object} geht nicht. Das Kind ist an diesem Tag nicht in der Betreuung.",
+      "meals.day_closed":
+        "{object} geht nicht. An diesem Tag ist die Schule geschlossen.",
+      "meals.day_past": "{object} geht nicht mehr. Der Tag ist schon vorbei.",
+      "meals.delivery_range_too_long":
+        "Die Lieferliste umfasst höchstens sieben Tage. Bitte wählen Sie einen kürzeren Zeitraum.",
       "meals.invalid_allergens":
         "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
       "meals.invalid_dishes":
@@ -610,10 +621,16 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "meals.invalid_participation":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "meals.not_supplied":
+        "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
+      "meals.order_not_found":
+        "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
       "meals.plan_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "meals.registration_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "meals.supply_active":
+        "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung.",
       "module.not_booked":
         "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
       "operator.audit_unavailable":
@@ -1575,6 +1592,10 @@ export const ERROR_CATALOG = {
         "This person already has access to this school. You can find them in the staff list.",
       "identity.account_inactive":
         "Your account is blocked. Please contact moto.",
+      "identity.caterer_address_taken":
+        "This email address already belongs to another moto account. Please use a different address.",
+      "identity.caterer_without_school":
+        "You do not supply any school through moto at the moment. Please ask the school.",
       "identity.demo_access_expired":
         "The demo access has expired. Please request new access.",
       "identity.demo_access_invalid":
@@ -1615,14 +1636,28 @@ export const ERROR_CATALOG = {
         "The password is too weak. It needs at least 8 characters, upper and lower case letters, a number and a special character.",
       "identity.session_account_inactive":
         "Your account is switched off. Please contact your school's management.",
+      "meals.child_not_enrolled":
+        "{object} is not possible. The child is not in care on this day.",
+      "meals.day_closed":
+        "{object} is not possible. The school is closed on this day.",
+      "meals.day_past":
+        "{object} is no longer possible. The day is already over.",
+      "meals.delivery_range_too_long":
+        "The delivery list covers at most seven days. Please choose a shorter period.",
       "meals.invalid_allergens":
         "The allergens could not be saved. Please select them again.",
       "meals.invalid_participation":
         "{object} contains invalid details. Please check your entries.",
+      "meals.not_supplied":
+        "You no longer supply this school. Please ask the school.",
+      "meals.order_not_found":
+        "This order does not exist. Please reload the page.",
       "meals.plan_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
       "meals.registration_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "meals.supply_active":
+        "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
       "module.not_booked":
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "staff.external_access_invalid":
@@ -1923,6 +1958,10 @@ export const ERROR_CATALOG = {
         "У этого человека уже есть доступ к этой школе. Он есть в списке сотрудников.",
       "identity.account_inactive":
         "Ваш аккаунт заблокирован. Обратитесь в moto.",
+      "identity.caterer_address_taken":
+        "Этот адрес электронной почты уже принадлежит другой учётной записи moto. Пожалуйста, укажите другой адрес.",
+      "identity.caterer_without_school":
+        "Сейчас вы не снабжаете ни одну школу через moto. Пожалуйста, обратитесь в школу.",
       "identity.demo_access_expired":
         "Демо-доступ истёк. Запросите новый доступ.",
       "identity.demo_access_invalid":
@@ -1963,14 +2002,26 @@ export const ERROR_CATALOG = {
         "Пароль слишком простой. Нужно минимум 8 символов, заглавные и строчные буквы, цифра и специальный символ.",
       "identity.session_account_inactive":
         "Ваш аккаунт отключён. Обратитесь к руководству вашей школы.",
+      "meals.child_not_enrolled":
+        "Невозможно: {object}. В этот день ребёнок не находится под присмотром.",
+      "meals.day_closed": "Невозможно: {object}. В этот день школа закрыта.",
+      "meals.day_past": "Уже невозможно: {object}. Этот день уже прошёл.",
+      "meals.delivery_range_too_long":
+        "Список доставки охватывает не более семи дней. Пожалуйста, выберите более короткий период.",
       "meals.invalid_allergens":
         "Не удалось сохранить аллергены. Пожалуйста, выберите их заново.",
       "meals.invalid_participation":
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
+      "meals.not_supplied":
+        "Вы больше не снабжаете эту школу. Пожалуйста, обратитесь в школу.",
+      "meals.order_not_found":
+        "Такого заказа нет. Пожалуйста, обновите страницу.",
       "meals.plan_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "meals.registration_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "meals.supply_active":
+        "{object} сейчас невозможно. Школу ещё снабжает поставщик питания. Сначала завершите эти поставки.",
       "module.not_booked":
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "students.care_exception_raced":
@@ -2264,6 +2315,10 @@ export const ERROR_CATALOG = {
         "Ky person ka tashmë qasje në këtë shkollë. E gjeni në listën e personelit.",
       "identity.account_inactive":
         "Llogaria juaj është bllokuar. Kontaktoni moto.",
+      "identity.caterer_address_taken":
+        "Kjo adresë email i përket tashmë një llogarie tjetër moto. Ju lutemi përdorni një adresë tjetër.",
+      "identity.caterer_without_school":
+        "Aktualisht nuk furnizoni asnjë shkollë përmes moto. Ju lutemi pyesni shkollën.",
       "identity.demo_access_expired":
         "Qasja demo ka skaduar. Kërkoni një qasje të re.",
       "identity.demo_access_invalid":
@@ -2304,14 +2359,27 @@ export const ERROR_CATALOG = {
         "Fjalëkalimi është shumë i dobët. Duhen të paktën 8 karaktere, shkronja të mëdha dhe të vogla, një numër dhe një karakter special.",
       "identity.session_account_inactive":
         "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
+      "meals.child_not_enrolled":
+        "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
+      "meals.day_closed":
+        "Nuk është e mundur: {object}. Shkolla është e mbyllur në këtë ditë.",
+      "meals.day_past": "Nuk është më e mundur: {object}. Dita ka kaluar.",
+      "meals.delivery_range_too_long":
+        "Lista e dorëzimit përfshin të shumtën shtatë ditë. Ju lutemi zgjidhni një periudhë më të shkurtër.",
       "meals.invalid_allergens":
         "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
       "meals.invalid_participation":
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+      "meals.not_supplied":
+        "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
+      "meals.order_not_found":
+        "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
       "meals.plan_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "meals.registration_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "meals.supply_active":
+        "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
       "module.not_booked":
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "students.care_exception_raced":
@@ -2595,6 +2663,10 @@ export const ERROR_CATALOG = {
         "Ta osoba ma już dostęp do tej szkoły. Znajdziesz ją na liście personelu.",
       "identity.account_inactive":
         "Twoje konto jest zablokowane. Skontaktuj się z moto.",
+      "identity.caterer_address_taken":
+        "Ten adres e-mail należy już do innego konta moto. Proszę użyć innego adresu.",
+      "identity.caterer_without_school":
+        "Obecnie nie zaopatrujesz żadnej szkoły przez moto. Proszę zapytać szkołę.",
       "identity.demo_access_expired":
         "Dostęp demo wygasł. Poproś o nowy dostęp.",
       "identity.demo_access_invalid":
@@ -2635,14 +2707,27 @@ export const ERROR_CATALOG = {
         "Hasło jest zbyt słabe. Potrzeba co najmniej 8 znaków, wielkich i małych liter, cyfry i znaku specjalnego.",
       "identity.session_account_inactive":
         "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
+      "meals.child_not_enrolled":
+        "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
+      "meals.day_closed":
+        "Nie można: {object}. Tego dnia szkoła jest zamknięta.",
+      "meals.day_past": "Już nie można: {object}. Ten dzień już minął.",
+      "meals.delivery_range_too_long":
+        "Lista dostaw obejmuje maksymalnie siedem dni. Proszę wybrać krótszy okres.",
       "meals.invalid_allergens":
         "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
       "meals.invalid_participation":
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
+      "meals.not_supplied":
+        "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
+      "meals.order_not_found":
+        "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
       "meals.plan_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "meals.registration_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "meals.supply_active":
+        "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
       "module.not_booked":
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "students.care_exception_raced":
@@ -2930,6 +3015,10 @@ export const ERROR_CATALOG = {
         "Bu kişinin bu okula zaten erişimi var. Kişiyi personel listesinde bulabilirsiniz.",
       "identity.account_inactive":
         "Hesabınız engellendi. Lütfen moto ile iletişime geçin.",
+      "identity.caterer_address_taken":
+        "Bu e-posta adresi zaten başka bir moto hesabına ait. Lütfen başka bir adres kullanın.",
+      "identity.caterer_without_school":
+        "Şu anda moto üzerinden hiçbir okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
       "identity.demo_access_expired":
         "Demo erişiminin süresi doldu. Lütfen yeni bir erişim isteyin.",
       "identity.demo_access_invalid":
@@ -2970,14 +3059,26 @@ export const ERROR_CATALOG = {
         "Şifre çok zayıf. En az 8 karakter, büyük ve küçük harf, bir rakam ve bir özel karakter gerekir.",
       "identity.session_account_inactive":
         "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
+      "meals.child_not_enrolled":
+        "{object} mümkün değil. Çocuk bu gün bakımda değil.",
+      "meals.day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
+      "meals.day_past": "{object} artık mümkün değil. Bu gün geçti.",
+      "meals.delivery_range_too_long":
+        "Teslimat listesi en fazla yedi günü kapsar. Lütfen daha kısa bir dönem seçin.",
       "meals.invalid_allergens":
         "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
       "meals.invalid_participation":
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+      "meals.not_supplied":
+        "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
+      "meals.order_not_found":
+        "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
       "meals.plan_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "meals.registration_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "meals.supply_active":
+        "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
       "module.not_booked":
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "students.care_exception_raced":
@@ -3258,6 +3359,10 @@ export const ERROR_CATALOG = {
         "Ця особа вже має доступ до цієї школи. Її можна знайти в списку персоналу.",
       "identity.account_inactive":
         "Ваш обліковий запис заблоковано. Зверніться до moto.",
+      "identity.caterer_address_taken":
+        "Ця адреса електронної пошти вже належить іншому обліковому запису moto. Будь ласка, вкажіть іншу адресу.",
+      "identity.caterer_without_school":
+        "Зараз ви не постачаєте жодну школу через moto. Будь ласка, зверніться до школи.",
       "identity.demo_access_expired":
         "Демо-доступ закінчився. Запросіть новий доступ.",
       "identity.demo_access_invalid":
@@ -3298,14 +3403,26 @@ export const ERROR_CATALOG = {
         "Пароль надто простий. Потрібно щонайменше 8 символів, великі й малі літери, цифра і спеціальний символ.",
       "identity.session_account_inactive":
         "Ваш обліковий запис вимкнено. Зверніться до керівництва вашої школи.",
+      "meals.child_not_enrolled":
+        "Неможливо: {object}. Цього дня дитина не перебуває під доглядом.",
+      "meals.day_closed": "Неможливо: {object}. Цього дня школа зачинена.",
+      "meals.day_past": "Уже неможливо: {object}. Цей день уже минув.",
+      "meals.delivery_range_too_long":
+        "Список доставки охоплює щонайбільше сім днів. Будь ласка, виберіть коротший період.",
       "meals.invalid_allergens":
         "Не вдалося зберегти алергени. Будь ласка, виберіть їх знову.",
       "meals.invalid_participation":
         "Указано неправильні дані: {object}. Перевірте введені дані.",
+      "meals.not_supplied":
+        "Ви більше не постачаєте цю школу. Будь ласка, зверніться до школи.",
+      "meals.order_not_found":
+        "Такого замовлення немає. Будь ласка, оновіть сторінку.",
       "meals.plan_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "meals.registration_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "meals.supply_active":
+        "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання.",
       "module.not_booked":
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "students.care_exception_raced":

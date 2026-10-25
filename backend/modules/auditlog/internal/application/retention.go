@@ -54,7 +54,7 @@ func (c *Command) DeleteExpiredAuthEvents(ctx context.Context) (int, int, error)
 	if err != nil {
 		return 0, 0, err
 	}
-	cutoff := time.Now().In(calendar.Berlin).AddDate(0, 0, -AuthEventRetentionDays).Add(-auditModels.RetentionClockMargin)
+	cutoff := auditModels.RetentionDaysCutoff(time.Now(), AuthEventRetentionDays)
 	deleted, err := store.DeleteExpiredAuthEvents(ctx, cutoff)
 	return int(deleted), AuthEventRetentionDays, err
 }
@@ -109,8 +109,8 @@ func (c *Command) DeleteExpiredDeletionLog(ctx context.Context) (int, int, error
 	if err != nil {
 		return 0, 0, err
 	}
-	now := time.Now().In(calendar.Berlin)
-	cutoff := now.AddDate(-DeletionLogRetentionYears, 0, 0).Add(-auditModels.RetentionClockMargin)
+	now := time.Now()
+	cutoff := auditModels.RetentionYearsCutoff(now, DeletionLogRetentionYears)
 	deleted, err := store.DeleteExpiredDataDeletions(ctx, cutoff)
 	return int(deleted), int(now.Sub(cutoff).Hours() / 24), err
 }
@@ -152,8 +152,8 @@ func (c *Command) DeleteExpiredProtocol(ctx context.Context, kind string) (int, 
 	if err != nil {
 		return 0, 0, err
 	}
-	now := time.Now().In(calendar.Berlin)
-	cutoff := now.AddDate(-DeletionLogRetentionYears, 0, 0).Add(-auditModels.RetentionClockMargin)
+	now := time.Now()
+	cutoff := auditModels.RetentionYearsCutoff(now, DeletionLogRetentionYears)
 	if followingYearProtocols[kind] {
 		cutoff = followingYearCutoff(now)
 	}

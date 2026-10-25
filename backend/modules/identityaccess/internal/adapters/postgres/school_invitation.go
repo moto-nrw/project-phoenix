@@ -267,12 +267,11 @@ func (s *Store) InsertAccount(ctx context.Context, email, passwordHash string) (
 // EnsureAccountTenant activates the mapping and reactivates a deactivated
 // one, so accepting a re-invitation after offboarding restores access.
 func (s *Store) EnsureAccountTenant(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error) {
-	_, stats, err := s.exec(ctx, "ensure account tenant", func(db bun.IDB) executor {
-		return db.NewRaw(`INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, deactivated_at, created_at, updated_at)
-			VALUES (?, ?, 'active', NOW(), NULL, NOW(), NOW())
+	return s.bindAccountToSchool(ctx, "ensure account tenant", func(db bun.IDB) *bun.RawQuery {
+		return db.NewRaw(refuseCatererAccount+`INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, deactivated_at, created_at, updated_at)
+			SELECT ?, ?, 'active', NOW(), NULL::timestamptz, NOW(), NOW() FROM caterer WHERE NOT caterer.refused
 			ON CONFLICT (account_id, tenant_id) DO UPDATE
-			SET status = 'active', activated_at = NOW(), deactivated_at = NULL, updated_at = NOW()`,
-			accountID, tenantID)
+			SET status = 'active', activated_at = NOW(), deactivated_at = NULL, updated_at = NOW()
+			RETURNING 1`+reportCatererRefusal, accountID, accountID, tenantID)
 	})
-	return stats, err
 }

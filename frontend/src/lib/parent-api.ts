@@ -857,36 +857,49 @@ export async function getChildMealPlan(
   }));
 }
 
+// "absent": excused or on a class trip; "closed": a closing day or public
+// holiday, nobody eats (#3873).
 type MealParticipationSource =
-  | "none"
-  | "regular"
-  | "override"
-  | "sick"
-  /** Feiertag oder Schließtag: kein Essen, nicht änderbar. */
-  | "closed";
+  "none" | "regular" | "override" | "sick" | "absent" | "closed";
 
 interface MealParticipationDay {
   readonly date: string;
   readonly participating: boolean;
+  // What the regular days alone give on this day: false in school holidays
+  // and on closed days (#3873).
+  readonly regular_participating: boolean;
   readonly source: MealParticipationSource;
+  // True while the parent may still register or cancel the day (#3873).
   readonly changeable: boolean;
+  readonly can_register: boolean;
+  readonly can_cancel: boolean;
+  // RFC 3339 instants: the deadlines of this day.
+  readonly register_until: string;
+  readonly cancel_until: string;
 }
+
+// How the school's parents register (#3873): until one deadline per day, with
+// a separate cancellation deadline, or once for the school year.
+type MealRegistrationModel = "ongoing_single" | "ongoing_split" | "annual";
 
 export interface MealParticipation {
   readonly weekdays: number[];
   readonly effective_from?: string;
   readonly cutoff_time: string;
-  /** Werktage vor dem Essenstag, an denen die Frist gilt; 0 = am selben Tag. */
-  readonly cutoff_lead_days?: number;
-  /**
-   * 1-5 (Mo-Fr): Die Frist der ganzen nächsten Woche endet an diesem
-   * Wochentag; 0 = Vorlauf in Werktagen.
-   */
-  readonly cutoff_weekday?: number;
-  /** Spätere Abmeldefrist; fehlt, wenn sie der Änderungsfrist entspricht. */
-  readonly cancellation_cutoff_time?: string;
-  readonly cancellation_cutoff_lead_days?: number;
+  readonly model: MealRegistrationModel;
+  // False once the school year registration closed: only the school changes
+  // the regular days then.
+  readonly schedule_changeable: boolean;
+  // True when a sick note after the cancellation deadline still cancels.
+  readonly sick_cancels_after_deadline: boolean;
   readonly days: MealParticipationDay[];
+}
+
+// The days a week change changed, and the days it left because their
+// deadline had passed.
+export interface MealWeekChange {
+  readonly changed: string[];
+  readonly locked: string[];
 }
 
 export async function getMealParticipation(
@@ -916,6 +929,18 @@ export async function setMealParticipationDay(
 ): Promise<void> {
   await putJson<unknown>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation/${encodeURIComponent(date)}`,
+    { participating },
+  );
+}
+
+// Registers or cancels every remaining weekday of the week containing date.
+export async function setMealParticipationWeek(
+  studentId: string,
+  date: string,
+  participating: boolean,
+): Promise<MealWeekChange> {
+  return putJson<MealWeekChange>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation/weeks/${encodeURIComponent(date)}`,
     { participating },
   );
 }

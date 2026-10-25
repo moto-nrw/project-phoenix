@@ -146,6 +146,7 @@ func accountRetentionJobs(retention ports.AccountRetention) []CleanupJob {
 	return []CleanupJob{
 		{Description: "Unused account erasure", Run: retention.EraseUnusedAccounts},
 		{Description: "Erased account avatar cleanup", Run: retention.CleanupErasedAccountAvatars, OwnTransactions: true},
+		{Description: "Unused caterer deletion", Run: retention.DeleteUnusedCaterers},
 	}
 }
 
@@ -204,6 +205,7 @@ func buildCleanupJobs(authService ports.AuthCleanup, invitationService ports.Inv
 func signInDataCleanupJobs(cleaner ports.SignInDataCleaner) []CleanupJob {
 	return []CleanupJob{
 		{Description: "Guardian invitation cleanup", Run: cleaner.DeleteExpiredGuardianInvitations},
+		{Description: "Caterer invitation cleanup", Run: cleaner.DeleteExpiredCatererInvitations},
 		{Description: "MFA email code cleanup", Run: cleaner.DeleteExpiredMFAEmailChallenges},
 		{Description: "Passkey session cleanup", Run: cleaner.DeleteExpiredPasskeySessions},
 		{Description: "Operator session cleanup", Run: func(ctx context.Context) (int, error) {

@@ -31,7 +31,7 @@ var auditLedgerRetentions = []auditLedgerRetention{
 		name:             "auth events after 90 days",
 		function:         "audit.delete_expired_auth_events",
 		table:            "audit.auth_events",
-		allowedCutoffSQL: "CURRENT_TIMESTAMP - INTERVAL '90 days'",
+		allowedCutoffSQL: "(CURRENT_TIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '90 days') AT TIME ZONE 'UTC'",
 		seedSQL: `INSERT INTO audit.auth_events (tenant_id, account_id, event_type, success, ip_address, created_at)
 			VALUES (?, ?, 'login', true, '127.0.0.1', %s) RETURNING id`,
 		usesAccount: true,
@@ -53,7 +53,7 @@ var auditLedgerRetentions = []auditLedgerRetention{
 		name:             "deletion log after three years",
 		function:         "audit.delete_expired_data_deletions",
 		table:            "audit.data_deletions",
-		allowedCutoffSQL: "CURRENT_TIMESTAMP - INTERVAL '3 years'",
+		allowedCutoffSQL: "(CURRENT_TIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '3 years') AT TIME ZONE 'UTC'",
 		seedSQL: `INSERT INTO audit.data_deletions (tenant_id, deletion_type, records_deleted, deleted_by, deleted_at)
 			VALUES (?, 'auth_event_retention', 1, 'system', %s) RETURNING id`,
 		expiredSQL: "CURRENT_TIMESTAMP - INTERVAL '3 years 1 day'",

@@ -334,6 +334,36 @@ describe("DataTable stacked phone layout", () => {
     expect(screen.getByTestId("data-table-table")).toBeInTheDocument();
   });
 
+  it("drops a field line whose cell has no value for that row", () => {
+    render(
+      <DataTable
+        columns={[
+          {
+            key: "name",
+            header: "Name",
+            stacked: "title",
+            render: (row) => row.name,
+          },
+          {
+            key: "iban",
+            header: "IBAN",
+            render: (row) => (row.id === "1" ? row.iban : null),
+          },
+        ]}
+        rows={people}
+        getRowKey={(row) => row.id}
+        stackedOnMobile
+      />,
+    );
+
+    const items = within(screen.getByTestId("data-table-stacked")).getAllByRole(
+      "listitem",
+    );
+    expect(items[0]).toHaveTextContent("IBAN");
+    expect(items[1]).toHaveTextContent("Lea");
+    expect(items[1]).not.toHaveTextContent("IBAN");
+  });
+
   it("shares paging with the table instead of counting its own rows", () => {
     render(
       <DataTable

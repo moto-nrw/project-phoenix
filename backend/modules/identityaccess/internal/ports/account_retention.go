@@ -14,4 +14,8 @@ type AccountRetentionStore interface {
 	EraseUnusedAccounts(ctx context.Context) ([]domain.ErasedAccount, domain.OperationStats, error)
 	PendingAvatarCleanups(ctx context.Context) ([]domain.AvatarCleanup, error)
 	FinishAvatarCleanup(ctx context.Context, id int64, removed bool) error
+	// DeleteUnusedCaterers deletes the caterer businesses without a
+	// supply, without an account that is not erased and without an open
+	// invitation to one of their addresses, with their account links.
+	DeleteUnusedCaterers(ctx context.Context) (int, domain.OperationStats, error)
 }

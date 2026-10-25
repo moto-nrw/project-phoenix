@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
+
+	"context"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -20,8 +23,10 @@ const (
 	AccessRead Access = iota + 1
 	AccessWrite
 	AccessParticipants
-	// AccessParticipantsWrite lets the team change a child's day.
-	AccessParticipantsWrite
+	// AccessRegister changes a child's registration for the school (#3873).
+	AccessRegister
+	// AccessDailyParticipants reads the child list needed to change registrations.
+	AccessDailyParticipants
 )
 
 type ExportFile struct {
@@ -35,13 +40,17 @@ type Runtime struct {
 	Permission     func(Access) Middleware
 	Success        func(http.ResponseWriter, *http.Request, int, any, string)
 	InvalidRequest func(http.ResponseWriter, *http.Request, error)
-	// Account is the caller's account ID.
-	Account func(*http.Request) (int64, error)
 	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
-	ParseIDParam     func(*http.Request, string) (int64, error)
-	ModuleFailure    func(http.ResponseWriter, *http.Request, error, string)
-	ExportDailyList  func(mealplanModule.DailyList, string) (ExportFile, error)
-	ExportWeeklyList func(mealplanModule.WeeklyList, string) (ExportFile, error)
+	ParseIDParam  func(*http.Request, string) (int64, error)
+	ModuleFailure func(http.ResponseWriter, *http.Request, error, string)
+	// RenderList renders a list export as PDF or XLSX.
+	RenderList func(mealplanModule.ListExport, string) (ExportFile, error)
+	// CurrentAccountID is the staff account of the request, recorded on a
+	// school's change.
+	CurrentAccountID func(context.Context) int64
+	// Allowed reports whether the caller passes an access level, for a
+	// response part only some readers see.
+	Allowed func(context.Context, Access) bool
 }
 
 type Resource struct {
@@ -50,7 +59,7 @@ type Resource struct {
 }
 
 func NewResource(module mealplanModule.Capability, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.Account == nil || runtime.ParseIDParam == nil || runtime.ModuleFailure == nil || runtime.ExportDailyList == nil || runtime.ExportWeeklyList == nil {
+	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.RenderList == nil || runtime.CurrentAccountID == nil || runtime.Allowed == nil {
 		panic("meal plan HTTP: all dependencies are required")
 	}
 	return &Resource{module: module, runtime: runtime}
@@ -63,12 +72,16 @@ func (rs *Resource) Router() chi.Router {
 		protected.With(rs.runtime.Permission(AccessRead), withTx).Get("/", rs.getWeek)
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Put("/{date}", rs.setDay)
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Delete("/{date}", rs.deleteDay)
-		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants", rs.getParticipants)
+		protected.With(rs.runtime.Permission(AccessDailyParticipants), withTx).Get("/participants", rs.getParticipants)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/export", rs.exportParticipants)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/week", rs.getWeeklyParticipants)
 		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/week/export", rs.exportWeeklyParticipants)
-		protected.With(rs.runtime.Permission(AccessParticipantsWrite), withTx).Put("/participants/{studentId}/{date}", rs.setParticipantDay)
-		protected.With(rs.runtime.Permission(AccessParticipantsWrite), withTx).Delete("/participants/{studentId}/{date}", rs.resetParticipantDay)
+		protected.With(rs.runtime.Permission(AccessRead), withTx).Get("/orders", rs.getOrders)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/orders/month/export", rs.exportMonth)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Get("/participation/{studentId}", rs.getChildParticipation)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Put("/participation/{studentId}/days/{date}", rs.setChildDay)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Delete("/participation/{studentId}/days/{date}", rs.clearChildDay)
+		protected.With(rs.runtime.Permission(AccessRegister), withTx).Put("/participation/{studentId}/schedule", rs.replaceChildSchedule)
 	})
 	return router
 }
@@ -89,53 +102,23 @@ type DailyParticipantResponse struct {
 	SchoolClass string `json:"school_class"`
 }
 
-// CutoffsResponse are the school's change cutoffs.
-type CutoffsResponse struct {
-	CutoffTime     string `json:"cutoff_time"`
-	CutoffLeadDays int    `json:"cutoff_lead_days"`
-	// CutoffWeekday 1-5 ends the changes of a week on that weekday of the
-	// week before; 0 uses CutoffLeadDays.
-	CutoffWeekday int `json:"cutoff_weekday"`
-	// CancellationCutoffTime is empty unless parents may cancel later.
-	CancellationCutoffTime     string `json:"cancellation_cutoff_time,omitempty"`
-	CancellationCutoffLeadDays int    `json:"cancellation_cutoff_lead_days"`
-}
-
 type DailyListResponse struct {
-	CutoffsResponse
 	Date         string                     `json:"date"`
+	CutoffTime   string                     `json:"cutoff_time"`
+	Deadline     time.Time                  `json:"deadline"`
 	Closed       bool                       `json:"closed"`
 	Participants []DailyParticipantResponse `json:"participants"`
-	// Available are the day's children who are not participating.
-	Available []DailyParticipantResponse `json:"available"`
+	Others       []DailyParticipantResponse `json:"others,omitempty"`
 }
-
 type WeeklyDayResponse struct {
 	Date         string                     `json:"date"`
+	Deadline     time.Time                  `json:"deadline"`
 	Closed       bool                       `json:"closed"`
 	Participants []DailyParticipantResponse `json:"participants"`
 }
-
 type WeeklyListResponse struct {
-	CutoffsResponse
 	WeekStart string              `json:"week_start"`
 	Days      []WeeklyDayResponse `json:"days"`
-}
-
-// SetParticipantDayRequest signs a child up for a day or takes it off.
-type SetParticipantDayRequest struct {
-	Participating *bool `json:"participating"`
-}
-
-func (request *SetParticipantDayRequest) Bind(*http.Request) error {
-	if request.Participating == nil {
-		return errors.New("participating is required")
-	}
-	return nil
-}
-
-func cutoffsResponse(cutoffs mealplanModule.Cutoffs) CutoffsResponse {
-	return CutoffsResponse{CutoffTime: cutoffs.CutoffTime, CutoffLeadDays: cutoffs.CutoffLeadDays, CutoffWeekday: int(cutoffs.CutoffWeekday), CancellationCutoffTime: cutoffs.CancellationCutoffTime, CancellationCutoffLeadDays: cutoffs.CancellationCutoffLeadDays}
 }
 
 type DishRequest struct {
@@ -223,7 +206,13 @@ func (rs *Resource) getParticipants(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	rs.runtime.Success(w, r, http.StatusOK, DailyListResponse{CutoffsResponse: cutoffsResponse(list.Cutoffs), Date: string(list.Date), Closed: list.Closed, Participants: participantResponses(list.Participants), Available: participantResponses(list.Available)}, "Meal participation list retrieved successfully")
+	response := DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Closed: list.Closed, Participants: participantResponses(list.Participants)}
+	// The children who do not eat are there to register them, so only a
+	// caller who may change a registration sees them.
+	if r.URL.Query().Get("include") == "all" && rs.runtime.Allowed(r.Context(), AccessRegister) {
+		response.Others = participantResponses(list.Others)
+	}
+	rs.runtime.Success(w, r, http.StatusOK, response, "Meal participation list retrieved successfully")
 }
 
 func (rs *Resource) getWeeklyParticipants(w http.ResponseWriter, r *http.Request) {
@@ -233,48 +222,9 @@ func (rs *Resource) getWeeklyParticipants(w http.ResponseWriter, r *http.Request
 	}
 	days := make([]WeeklyDayResponse, 0, len(week.Days))
 	for _, day := range week.Days {
-		days = append(days, WeeklyDayResponse{Date: string(day.Date), Closed: day.Closed, Participants: participantResponses(day.Participants)})
+		days = append(days, WeeklyDayResponse{Date: string(day.Date), Deadline: day.Deadline, Closed: day.Closed, Participants: participantResponses(day.Participants)})
 	}
-	rs.runtime.Success(w, r, http.StatusOK, WeeklyListResponse{CutoffsResponse: cutoffsResponse(week.Cutoffs), WeekStart: string(week.WeekStart), Days: days}, "Weekly meal participation list retrieved successfully")
-}
-
-func (rs *Resource) setParticipantDay(w http.ResponseWriter, r *http.Request) {
-	request := &SetParticipantDayRequest{}
-	if err := render.Bind(r, request); err != nil {
-		rs.runtime.InvalidRequest(w, r, err)
-		return
-	}
-	rs.changeParticipantDay(w, r, request.Participating)
-}
-
-func (rs *Resource) resetParticipantDay(w http.ResponseWriter, r *http.Request) {
-	rs.changeParticipantDay(w, r, nil)
-}
-
-// changeParticipantDay applies the team's change; participating nil
-// returns the day to the child's fixed days.
-func (rs *Resource) changeParticipantDay(w http.ResponseWriter, r *http.Request, participating *bool) {
-	studentID, err := rs.runtime.ParseIDParam(r, "studentId")
-	if err != nil || studentID <= 0 {
-		rs.runtime.InvalidRequest(w, r, errors.New("invalid student ID"))
-		return
-	}
-	date, err := mealplanModule.ParseDate(chi.URLParam(r, "date"))
-	if err != nil {
-		rs.runtime.InvalidRequest(w, r, errors.New("date must be in YYYY-MM-DD format"))
-		return
-	}
-	accountID, err := rs.runtime.Account(r)
-	if err != nil {
-		rs.runtime.ModuleFailure(w, r, err, "failed to resolve the caller")
-		return
-	}
-	change := mealplanModule.StaffParticipationChange{StudentID: studentID, AccountID: accountID, Date: date, Participating: participating}
-	if err := rs.module.ChangeParticipationAsStaff(r.Context(), change); err != nil {
-		rs.runtime.ModuleFailure(w, r, err, "failed to change meal participation")
-		return
-	}
-	rs.runtime.Success(w, r, http.StatusOK, nil, "Meal participation changed successfully")
+	rs.runtime.Success(w, r, http.StatusOK, WeeklyListResponse{WeekStart: string(week.WeekStart), Days: days}, "Weekly meal participation list retrieved successfully")
 }
 
 func participantResponses(participants []mealplanModule.DailyParticipant) []DailyParticipantResponse {
@@ -294,7 +244,12 @@ func (rs *Resource) exportParticipants(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	file, err := rs.runtime.ExportDailyList(list, format)
+	export, err := list.Export()
+	if err != nil {
+		rs.writeExport(w, r, ExportFile{}, err)
+		return
+	}
+	file, err := rs.runtime.RenderList(export, format)
 	rs.writeExport(w, r, file, err)
 }
 
@@ -307,7 +262,12 @@ func (rs *Resource) exportWeeklyParticipants(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	file, err := rs.runtime.ExportWeeklyList(week, format)
+	export, err := week.Export()
+	if err != nil {
+		rs.writeExport(w, r, ExportFile{}, err)
+		return
+	}
+	file, err := rs.runtime.RenderList(export, format)
 	rs.writeExport(w, r, file, err)
 }
 
@@ -328,11 +288,7 @@ func (rs *Resource) writeExport(w http.ResponseWriter, r *http.Request, file Exp
 		rs.runtime.ModuleFailure(w, r, err, "failed to export meal participation list")
 		return
 	}
-	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
-	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(file.Data)
+	writeFile(w, file)
 }
 
 func (rs *Resource) weeklyList(w http.ResponseWriter, r *http.Request) (mealplanModule.WeeklyList, bool) {

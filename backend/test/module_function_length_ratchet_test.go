@@ -75,7 +75,7 @@ const moduleFuncLenThreshold = 60
 // ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
 var moduleFuncLenAllowlist = map[string]int{
 	"api/active_test_helpers.go:buildActiveTestModule":                   185,
-	"api/auth_test_helpers.go:NewAuthTestModule":                         169,
+	"api/auth_test_helpers.go:NewAuthTestModule":                         164,
 	"api/calendar_test_helpers.go:NewCalendarTestModule":                 63,
 	"api/guardian_invitation_test_helpers.go:lifecycleTestModule":        61,
 	"api/guardians_composition.go:newGuardiansResource":                  108,
@@ -517,10 +517,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/student_owner_backfill_verify.go:(*studentOwnerTenantRun).verifySnapshot": 85,
 	// ADR 0087.
-	"database/migrations/student_owner_compatibility.go:ValidateStudentOwnerForeignKeys": 68,
-	// ADR 0087.
-	"database/migrations/student_owner_compatibility.go:repointStudentForeignKeys": 176,
-	// ADR 0087.
 	"database/migrations/student_owner_contract.go:studentOwnerContractDataPreflight": 65,
 	// ADR 0087.
 	"internal/architecture/composition_owners.go:rootStructInventoryWith": 89,
@@ -584,8 +580,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedStudents": 119,
 	// ADR 0087.
-	"internal/devtools/seedapi/workflow_steps.go:fullDemoWorkflow": 77,
-	// ADR 0087.
 	"internal/devtools/simulate/demo.go:(*DemoTicker).Tick": 84,
 	// ADR 0087.
 	"internal/devtools/simulate/demo_day.go:(*demoDay).move": 66,
@@ -607,8 +601,9 @@ var moduleFuncLenAllowlist = map[string]int{
 	"realtime/hub.go:(*Hub).Unregister": 67,
 	"roots/owners/parent_messaging_announcement_access_port.go:BindParentAnnouncementAccess": 125,
 	"roots/owners/root_identity.go:BuildIdentityAccess":                                      106,
-	"roots/owners/root_worker.go:ComposeWorker":                                              345,
-	"roots/owners/worker.go:NewWorker":                                                       91,
+	// ADR 0078: the worker composes the Meal Plan whose orders it settles.
+	"roots/owners/root_worker.go:ComposeWorker": 347,
+	"roots/owners/worker.go:NewWorker":          89,
 	// ADR 0087.
 	"test/booking_consistency_audit_fixture.go:VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows": 72,
 	// ADR 0087.

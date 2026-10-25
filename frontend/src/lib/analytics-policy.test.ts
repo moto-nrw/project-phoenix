@@ -398,6 +398,26 @@ const CONTEXTS: ReadonlyArray<{
     template: "/nachrichten/:threadID",
   },
   {
+    name: "caterer portal",
+    context: {
+      deployment: "moto-app.de",
+      surface: "caterer",
+      enabled: true,
+      consent: true,
+      analyseFreigabe: true,
+      recordingSamplePercent: 100,
+      person: PERSON,
+    },
+    elementText: false,
+    recording: null,
+    person: false,
+    personProfiles: "never",
+    surface: "caterer",
+    origin: "https://caterer.moto-app.de",
+    page: "/einladung/42/geheimer-link",
+    template: "/einladung/:schoolId/:token",
+  },
+  {
     name: "unknown surface",
     context: {
       deployment: "demo",
@@ -1028,6 +1048,7 @@ describe("analyticsSurfaceForHost", () => {
     operator: "operator.moto-app.de",
     parents: "eltern.moto-app.de",
     school: "schule.moto-app.de",
+    caterer: "caterer.moto-app.de",
     traeger: "traeger.moto-app.de",
     tenantDomain: "moto-app.de",
   };
@@ -1036,6 +1057,7 @@ describe("analyticsSurfaceForHost", () => {
     ["school-a.moto-app.de", "ogs"],
     ["eltern.moto-app.de", "parents"],
     ["schule.moto-app.de", "school"],
+    ["caterer.moto-app.de", "caterer"],
     ["traeger.moto-app.de", "traeger"],
     ["moto-app.de", "public"],
     ["operator.moto-app.de", null],

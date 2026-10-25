@@ -27,6 +27,7 @@ export interface DataTableColumn<T> {
   // of direction.
   sortValue?: (row: T) => string | number | null;
   // Role this column plays in the stacked phone layout (`stackedOnMobile`).
+  // A "field" whose render returns null for a row has no line in that row.
   // "title" is the headline of a stacked row, "meta" the muted value beside
   // it, "field" a labelled line below, "hidden" is dropped on phones.
   // Defaults to "field".
@@ -408,11 +409,16 @@ function StackedRows<T>({
                   </div>
                   {fields.length > 0 && (
                     <dl className="mt-2 space-y-1 text-sm">
-                      {fields.map((col) => (
-                        <StackedField key={col.key} label={col.header}>
-                          {col.render(row)}
-                        </StackedField>
-                      ))}
+                      {fields.map((col) => {
+                        // A cell without a value for this row (null) drops
+                        // its line instead of showing a bare label.
+                        const value = col.render(row);
+                        return value === null ? null : (
+                          <StackedField key={col.key} label={col.header}>
+                            {value}
+                          </StackedField>
+                        );
+                      })}
                     </dl>
                   )}
                 </>

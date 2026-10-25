@@ -158,7 +158,14 @@ func TestClassHomeworkRollbackPreservesSchoolErasure(t *testing.T) {
 	student := testpkg.CreateTestStudentForTenant(t, db, school, "Haus", "Aufgabe", "3a")
 	operator := testpkg.CreateTestOperator(t, db)
 
-	// Later migrations that extend the erasure plan roll back first.
+	// Roll back the later survey and meal migrations first: their foreign
+	// keys extend the erasure fingerprint restored by the homework rollback.
+	require.NoError(t, mealOrderErasureDown(t.Context(), db))
+	require.NoError(t, mealCaterersDown(t.Context(), db))
+	require.NoError(t, mealRegistrationLogDown(t.Context(), db))
+	require.NoError(t, mealOrdersDown(t.Context(), db))
+	require.NoError(t, mealPermissionsDown(t.Context(), db))
+	require.NoError(t, mealAbsenceHistoryDown(t.Context(), db))
 	require.NoError(t, surveysDown(t.Context(), db))
 	require.NoError(t, classHomeworkDown(t.Context(), db))
 	var data string
