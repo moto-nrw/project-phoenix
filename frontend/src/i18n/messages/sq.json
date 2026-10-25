@@ -2616,7 +2616,9 @@
         "file_type_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "file_unreadable": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "import_batch_failed": "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
-        "mode_forbidden": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
+        "mode_forbidden": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "not_test_traeger": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "test_traeger_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "iot": {
         "activity_capacity_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

@@ -582,6 +582,10 @@ export const ERROR_CATALOG = {
         "Die Datei konnte nicht gelesen werden. Bitte nutzen Sie die Vorlage.",
       "import.mode_forbidden":
         "Bestehende Einträge dürfen Sie nicht ändern. Bitte wählen Sie „Nur neue anlegen“ oder fragen Sie die Leitung.",
+      "import.not_test_traeger":
+        "Das geht nur bei einem Test-Träger. Echte Träger bekommen keine Beispieldaten.",
+      "import.test_traeger_inactive":
+        "Der Test-Träger ist deaktiviert. Bitte aktivieren Sie ihn zuerst.",
       "iot.activity_capacity_exceeded":
         "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",
       "iot.deviation_reason_required":

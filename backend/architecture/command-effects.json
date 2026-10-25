@@ -41772,10 +41772,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListAccountTraegerOrganizations",
       "target_owner": "organization-tenancy",
-      "binding_digest": "c360e2e2775d28f069f3ad7e77bf495b",
+      "binding_digest": "7af32766e38160ff5cc16fa7e5d07f73",
       "effect": "query",
       "classification": "query",
-      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal. #4658: the binding maps ID and name explicitly, so the test mark stays out of the sign-in choice."
     },
     {
       "source_owner": "identity-access",
@@ -41783,10 +41783,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListAccountTraegerOrganizations",
       "target_owner": "organization-tenancy",
-      "binding_digest": "93b5098616e6ca7f505bf1f6f9bde907",
+      "binding_digest": "4e34d9e54ed38e1534aa31c5e5c55e7f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal. #4658: the binding maps ID and name explicitly, so the test mark stays out of the sign-in choice."
     },
     {
       "source_owner": "identity-access",
@@ -41794,10 +41794,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMembershipQuery.ListAccountTraegerOrganizations",
       "target_owner": "organization-tenancy",
-      "binding_digest": "611dd8397429b556736228cba9b4dd4f",
+      "binding_digest": "ac21c6807fef2f4d7305dbbb43ff86d7",
       "effect": "query",
       "classification": "query",
-      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal. #4658: the binding maps ID and name explicitly, so the test mark stays out of the sign-in choice."
     },
     {
       "source_owner": "identity-access",
@@ -42098,6 +42098,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveStringForTenant (settings-platform) through modules/settings/records.SettingsService.ResolveStringForTenant. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerOrganizationRouter.TraegerOrganizationRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerOrganizationRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerOrganizationRouter",
+      "target_owner": "traeger-view",
+      "binding_digest": "9ab28bf5d123e6b43539bf6bc53221b8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/traegerview/http.Resource.TraegerOrganizationRouter mounts the read of the session's Träger with its test mark (#4658). May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",

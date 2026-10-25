@@ -20,7 +20,7 @@ const schoolErasurePreflightSQL = schoolErasurePreflightPart1SQL + `    educatio
     SELECT 1 FROM education.class_homework AS c JOIN users.staff_school_memberships AS p ON c."created_by_staff_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
 ` + schoolErasurePreflightPart5SQL + schoolErasurePreflightSurveyScopeSQL + schoolErasurePreflightPart5bSQL
 
-// schoolErasurePreflightWithoutSurveysSQL is the definition before 1.15.553 (#4781), without the
+// schoolErasurePreflightWithoutSurveysSQL is the definition before 1.15.568 (#4781), without the
 // survey tables; the survey rollback reinstalls it.
 const schoolErasurePreflightWithoutSurveysSQL = schoolErasurePreflightPart1SQL + `    education.class_homework,
 ` + schoolErasurePreflightPart2SQL + `    education.homework_feedback,
@@ -33,7 +33,7 @@ const schoolErasurePreflightWithoutSurveysSQL = schoolErasurePreflightPart1SQL +
 const schoolErasurePreflightWithoutHomeworkSQL = schoolErasurePreflightPart1SQL + schoolErasurePreflightPart2SQL + schoolErasurePreflightPart3SQL + schoolErasurePreflightPart3bSQL + `    ) AS edge) <> '8441a2b4fec5eb071bb272598938d610b4678ab580a53e83885ded63e284409b' THEN
 ` + schoolErasurePreflightPart4SQL + schoolErasurePreflightPart5SQL + schoolErasurePreflightPart5bSQL
 
-// The survey tables of 1.15.553 (#4781).
+// The survey tables of 1.15.568 (#4781).
 const schoolErasurePreflightSurveyTablesSQL = `    users.survey_answers,
     users.survey_responses,
     users.survey_participations,

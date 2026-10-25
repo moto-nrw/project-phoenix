@@ -561,7 +561,7 @@ func composeServeRoot(
 		},
 		func() error {
 			operator, err := newOperatorRouter(db, logger, sessionAuth, limiters, iot, organizations, settings.Service, hub,
-				active, settingsWrites, identity, provisioning, services.CaregiverCapability, schedules.Lifecycle, communication)
+				active, settingsWrites, identity, provisioning, services.CaregiverCapability, schedules.Lifecycle, communication, dataImports.Student)
 			if err != nil {
 				return err
 			}

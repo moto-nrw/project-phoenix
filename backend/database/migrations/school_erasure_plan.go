@@ -18,7 +18,7 @@ const schoolErasurePlanSQL = schoolErasurePlanPart1SQL + `  {"name": "education.
 ` + schoolErasurePlanPart2SQL + `  {"name": "education.homework_feedback","predicate": "r.tenant_id = $1"},
 ` + schoolErasurePlanPart3SQL + schoolErasurePlanSurveysSQL + schoolErasurePlanPart3bSQL
 
-// schoolErasurePlanWithoutSurveysSQL is the definition before 1.15.553 (#4781), without the
+// schoolErasurePlanWithoutSurveysSQL is the definition before 1.15.568 (#4781), without the
 // survey tables; the survey rollback reinstalls it.
 const schoolErasurePlanWithoutSurveysSQL = schoolErasurePlanPart1SQL + `  {"name": "education.class_homework","predicate": "r.tenant_id = $1"},
 ` + schoolErasurePlanPart2SQL + `  {"name": "education.homework_feedback","predicate": "r.tenant_id = $1"},
@@ -27,7 +27,7 @@ const schoolErasurePlanWithoutSurveysSQL = schoolErasurePlanPart1SQL + `  {"name
 // The pre-1.15.510 definition shares the unchanged SQL sections.
 const schoolErasurePlanWithoutHomeworkSQL = schoolErasurePlanPart1SQL + schoolErasurePlanPart2SQL + schoolErasurePlanPart3SQL + schoolErasurePlanPart3bSQL
 
-// The survey tables of 1.15.553 (#4781).
+// The survey tables of 1.15.568 (#4781).
 const schoolErasurePlanSurveysSQL = `  {"name": "users.survey_answers","predicate": "r.tenant_id = $1"},
   {"name": "users.survey_responses","predicate": "r.tenant_id = $1"},
   {"name": "users.survey_participations","predicate": "r.tenant_id = $1"},

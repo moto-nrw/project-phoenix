@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// restoreSchoolErasureBeforeSurveys reinstalls the frozen pre-1.15.553
+// restoreSchoolErasureBeforeSurveys reinstalls the frozen pre-1.15.568
 // definitions, including the previous plan and FK fingerprint, in the same
 // transaction that drops the survey tables.
 func restoreSchoolErasureBeforeSurveys(ctx context.Context, tx bun.Tx) error {

@@ -37,4 +37,5 @@ type Organization struct {
 	Active        bool       `bun:"active,notnull,default:true"`
 	DeletedAt     *time.Time `bun:"deleted_at"`
 	Settings      string     `bun:"settings,default:'{}'"`
+	TestSystem    bool       `bun:"test_system,notnull,default:false"`
 }

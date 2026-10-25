@@ -17,7 +17,7 @@ const schoolErasurePreviewSQL = schoolErasurePreviewPart1SQL + ` v_counts := v_c
 ` + schoolErasurePreviewPart2SQL + ` v_counts := v_counts || jsonb_build_object('education.homework_feedback',(SELECT count(*) FROM education.homework_feedback AS r WHERE r.tenant_id = p_school));
 ` + schoolErasurePreviewPart3SQL + schoolErasurePreviewSurveysSQL + schoolErasurePreviewPart3bSQL
 
-// schoolErasurePreviewWithoutSurveysSQL is the definition before 1.15.553 (#4781), without the
+// schoolErasurePreviewWithoutSurveysSQL is the definition before 1.15.568 (#4781), without the
 // survey tables; the survey rollback reinstalls it.
 const schoolErasurePreviewWithoutSurveysSQL = schoolErasurePreviewPart1SQL + ` v_counts := v_counts || jsonb_build_object('education.class_homework',(SELECT count(*) FROM education.class_homework AS r WHERE r.tenant_id = p_school));
 ` + schoolErasurePreviewPart2SQL + ` v_counts := v_counts || jsonb_build_object('education.homework_feedback',(SELECT count(*) FROM education.homework_feedback AS r WHERE r.tenant_id = p_school));
@@ -26,7 +26,7 @@ const schoolErasurePreviewWithoutSurveysSQL = schoolErasurePreviewPart1SQL + ` v
 // The pre-1.15.510 definition shares the unchanged SQL sections.
 const schoolErasurePreviewWithoutHomeworkSQL = schoolErasurePreviewPart1SQL + schoolErasurePreviewPart2SQL + schoolErasurePreviewPart3SQL + schoolErasurePreviewPart3bSQL
 
-// The survey tables of 1.15.553 (#4781).
+// The survey tables of 1.15.568 (#4781).
 const schoolErasurePreviewSurveysSQL = ` v_counts := v_counts || jsonb_build_object('users.survey_answers',(SELECT count(*) FROM users.survey_answers AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.survey_responses',(SELECT count(*) FROM users.survey_responses AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('users.survey_participations',(SELECT count(*) FROM users.survey_participations AS r WHERE r.tenant_id = p_school));

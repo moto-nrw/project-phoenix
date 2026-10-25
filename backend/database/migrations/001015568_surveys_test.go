@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSurveysKeepEarlierDeletionKinds pins the subject check of 1.15.553
+// TestSurveysKeepEarlierDeletionKinds pins the subject check of 1.15.568
 // (#4781): it adds both survey kinds and keeps the homework kind of 1.15.510;
 // the rollback restores the check of 1.15.510.
 func TestSurveysKeepEarlierDeletionKinds(t *testing.T) {
@@ -33,11 +33,11 @@ func TestSurveysKeepEarlierDeletionKinds(t *testing.T) {
 
 	require.NoError(t, surveysDown(ctx, db))
 	require.NoError(t, logRow(homeworkRetentionKind), "the restored check keeps the homework kind")
-	assert.ErrorContains(t, logRow(parentSurveyRetentionKind), "chk_data_deletions_subject", "before 1.15.553 the survey kind needs a subject")
+	assert.ErrorContains(t, logRow(parentSurveyRetentionKind), "chk_data_deletions_subject", "before 1.15.568 the survey kind needs a subject")
 }
 
 // TestSurveysRollbackPreservesSchoolErasure proves that the rollback of
-// 1.15.553 reinstalls the erasure functions without the survey tables: the
+// 1.15.568 reinstalls the erasure functions without the survey tables: the
 // plan, the preview and a whole erasure still work after the tables are gone.
 func TestSurveysRollbackPreservesSchoolErasure(t *testing.T) {
 	t.Parallel()

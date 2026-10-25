@@ -31,7 +31,7 @@ func TestOperatorAuditSensitiveResponseRoutesFailClosed(t *testing.T) {
 	require.NoError(t, err)
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	router := chi.NewRouter()
-	mountOperatorProvisioningRoutes(router, resource)
+	mountOperatorProvisioningRoutes(router, resource, nil)
 	mountOperatorSchoolRoutes(router, resource, nil, &operatorSchoolSettings{
 		values: settingsAPI.NewSettingsResource(settingsAPI.SettingsConfig{
 			Settings: module.OperatorSchoolSettings(module.SettingsSideEffects.Dispatch), OperatorID: operatorIDFromSession,

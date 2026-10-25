@@ -27,6 +27,8 @@ const (
 	CodeImportFileUnreadable                           = "import.file_unreadable"
 	CodeImportImportBatchFailed                        = "import.import_batch_failed"
 	CodeImportModeForbidden                            = "import.mode_forbidden"
+	CodeImportNotTestTraeger                           = "import.not_test_traeger"
+	CodeImportTestTraegerInactive                      = "import.test_traeger_inactive"
 	CodeIotActivityCapacityExceeded                    = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                     = "iot.deviation_reason_required"
 	CodeIotDeviceApiKeyFormatInvalid                   = "iot.device_api_key_format_invalid"
@@ -300,8 +302,6 @@ const (
 	CodeTimetableOperationStale                        = "timetable.operation_stale"
 	CodeTimetablePickupExtensionBlockGone              = "timetable.pickup_extension_block_gone"
 	CodeTimetablePickupExtensionInvalid                = "timetable.pickup_extension_invalid"
-	CodeTimetablePickupExtensionNotFound               = "timetable.pickup_extension_not_found"
-	CodeTimetablePickupExtensionTooManyBlocks          = "timetable.pickup_extension_too_many_blocks"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -330,6 +330,8 @@ var errorCodeClasses1 = map[string]string{
 	"import.file_unreadable":                               "input",
 	"import.import_batch_failed":                           "server",
 	"import.mode_forbidden":                                "permission",
+	"import.not_test_traeger":                              "business_rejection",
+	"import.test_traeger_inactive":                         "business_rejection",
 	"iot.activity_capacity_exceeded":                       "business_rejection",
 	"iot.deviation_reason_required":                        "input",
 	"iot.device_api_key_format_invalid":                    "permission",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.operation_stale":                            "business_rejection",
 	"timetable.pickup_extension_block_gone":                "business_rejection",
 	"timetable.pickup_extension_invalid":                   "input",
-	"timetable.pickup_extension_not_found":                 "business_rejection",
-	"timetable.pickup_extension_too_many_blocks":           "input",
 }
 
 func init() {

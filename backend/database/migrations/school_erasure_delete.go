@@ -21,7 +21,7 @@ const schoolErasureDeleteSQL = schoolErasureDeletePart1SQL + `   SELECT count(*)
    v_counts := v_counts || jsonb_build_object('education.homework_feedback', v_count);
 ` + schoolErasureDeletePart2SQL + schoolErasureDeleteSurveysSQL + schoolErasureDeletePart2bSQL
 
-// schoolErasureDeleteWithoutSurveysSQL is the definition before 1.15.553 (#4781), without the
+// schoolErasureDeleteWithoutSurveysSQL is the definition before 1.15.568 (#4781), without the
 // survey tables; the survey rollback reinstalls it.
 const schoolErasureDeleteWithoutSurveysSQL = schoolErasureDeletePart1SQL + `   SELECT count(*) INTO v_count FROM education.class_homework AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM education.class_homework AS r WHERE r.tenant_id = p_school_id;
@@ -34,7 +34,7 @@ const schoolErasureDeleteWithoutSurveysSQL = schoolErasureDeletePart1SQL + `   S
 // The pre-1.15.510 definition shares the unchanged SQL sections.
 const schoolErasureDeleteWithoutHomeworkSQL = schoolErasureDeletePart1SQL + schoolErasureDeletePart2SQL + schoolErasureDeletePart2bSQL
 
-// The survey tables of 1.15.553 (#4781).
+// The survey tables of 1.15.568 (#4781).
 const schoolErasureDeleteSurveysSQL = `   SELECT count(*) INTO v_count FROM users.survey_answers AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM users.survey_answers AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('users.survey_answers', v_count);

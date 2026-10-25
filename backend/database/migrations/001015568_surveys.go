@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	surveysVersion     = "1.15.553"
+	surveysVersion     = "1.15.568"
 	surveysDescription = "Umfragen an Eltern oder Mitarbeitende, wahlweise anonym: Teilnahme und Antwort getrennt gespeichert (#4781)"
 
 	surveysManagePermissionName = "surveys:manage"
@@ -23,7 +23,7 @@ func init() {
 		Version:     surveysVersion,
 		Description: surveysDescription,
 		DependsOn: []string{
-			traegerInvitationsVersion,  // the last migration before this one
+			testTraegerVersion,         // the last migration before this one
 			classHomeworkVersion,       // previous subject check of audit.data_deletions; its erasure plan entries stay in the refreshed plan
 			signaturesVersion,          // its erasure plan entries stay in the refreshed plan
 			classHandoverVersion,       // its erasure plan entries stay in the refreshed plan
