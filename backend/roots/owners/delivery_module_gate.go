@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
@@ -20,12 +21,13 @@ import (
 type deliveryModuleGate struct {
 	booking     *settingsValues.ModuleBooking
 	mailModules map[string]settingsValues.ModuleKey
+	basisMail   map[string]bool
 }
 
 // newDeliveryModuleGate classifies the mail kinds of the delivery worker:
 // parentMailKinds belong to Eltern-App, enrollmentMailKinds to
-// Online-Anmeldung.
-func newDeliveryModuleGate(reader settingsValues.ModuleBookingReader, parentMailKinds, enrollmentMailKinds []string) (deliveryModuleGate, error) {
+// Online-Anmeldung, basisMailKinds to Basis.
+func newDeliveryModuleGate(reader settingsValues.ModuleBookingReader, parentMailKinds, enrollmentMailKinds, basisMailKinds []string) (deliveryModuleGate, error) {
 	booking, err := settingsValues.NewModuleBooking(reader)
 	if err != nil {
 		return deliveryModuleGate{}, fmt.Errorf("delivery module gate: %w", err)
@@ -37,7 +39,28 @@ func newDeliveryModuleGate(reader settingsValues.ModuleBookingReader, parentMail
 	for _, kind := range enrollmentMailKinds {
 		modules[kind] = settingsValues.ModuleOnlineAnmeldung
 	}
-	return deliveryModuleGate{booking: booking, mailModules: modules}, nil
+	basis := make(map[string]bool, len(basisMailKinds))
+	for _, kind := range basisMailKinds {
+		basis[kind] = true
+	}
+	return deliveryModuleGate{booking: booking, mailModules: modules, basisMail: basis}, nil
+}
+
+// requireClassified refuses a worker with a mail kind the gate does not
+// classify: a new kind must say whether it belongs to a module or to Basis,
+// or a cancelled module would keep mailing through it.
+func (g deliveryModuleGate) requireClassified(kinds []string) error {
+	var unclassified []string
+	for _, kind := range kinds {
+		if _, module := g.mailModules[kind]; !module && !g.basisMail[kind] {
+			unclassified = append(unclassified, kind)
+		}
+	}
+	if len(unclassified) > 0 {
+		slices.Sort(unclassified)
+		return fmt.Errorf("delivery module gate: mail kinds without module or Basis: %v", unclassified)
+	}
+	return nil
 }
 
 // moduleOf returns the module of an intent; false for Basis.

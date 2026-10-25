@@ -2,6 +2,8 @@ package owners
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -111,8 +113,11 @@ func BuildDeliveryWorker(
 		calendarService.EmailKindAppointmentPublished, calendarService.EmailKindAppointmentUpdated,
 		calendarService.EmailKindAppointmentCancelled, calendarService.EmailKindAppointmentReminder,
 		identityaccess.MailKindGuardianInvitation, identityaccess.MailKindGuardianWelcome,
-	}, enrollmentKinds)
+	}, enrollmentKinds, []string{TransactionalMailKind, identityaccess.MailKindStaffWelcome})
 	if err != nil {
+		return nil, err
+	}
+	if err := moduleGate.requireClassified(slices.Collect(maps.Keys(renderers))); err != nil {
 		return nil, err
 	}
 	for kind, renderer := range identityRenderers {

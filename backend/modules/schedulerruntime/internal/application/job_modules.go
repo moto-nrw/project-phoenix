@@ -84,8 +84,8 @@ var errModuleSettingsRequired = errors.New("module switch cannot be read without
 // running worker job. Jobs without a module answer true. A failed read is an
 // error: the scheduler skips the school as failed and tries again on the
 // next tick, never treating an unreadable switch as booked.
-func (s *Scheduler) jobModuleBooked(ctx context.Context, fallback string) (bool, error) {
-	jobID := workerJobID(ctx, ports.JobID(fallback))
+func (s *Scheduler) jobModuleBooked(ctx context.Context, opName string) (bool, error) {
+	jobID := workerJobID(ctx, ports.JobID(opName))
 	scope := workerJobScopes[jobID]
 	if scope.moduleSettingKey == "" {
 		return true, nil

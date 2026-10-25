@@ -27,7 +27,7 @@ func (c cancelledModules) ResolveBoolForTenant(_ context.Context, tenantID int64
 
 func newTestDeliveryGate(t *testing.T, reader cancelledModules) deliveryModuleGate {
 	t.Helper()
-	gate, err := newDeliveryModuleGate(reader, []string{"parent_announcement"}, []string{"enrollment_approved"})
+	gate, err := newDeliveryModuleGate(reader, []string{"parent_announcement"}, []string{"enrollment_approved"}, []string{"transactional_mail"})
 	require.NoError(t, err)
 	return gate
 }
@@ -85,4 +85,13 @@ func TestDeliveryGateRetriesOnReadErrors(t *testing.T) {
 
 	_, err := gate.deliverable(context.Background(), mailIntent(42, "parent_announcement"))
 	require.ErrorIs(t, err, readErr, "an unreadable switch is neither booked nor cancelled")
+}
+
+// A mail kind nobody classified stops the worker at startup (#4895).
+func TestDeliveryGateRefusesUnclassifiedMailKinds(t *testing.T) {
+	t.Parallel()
+	gate := newTestDeliveryGate(t, cancelledModules{})
+
+	require.NoError(t, gate.requireClassified([]string{"parent_announcement", "enrollment_approved", "transactional_mail"}))
+	require.ErrorContains(t, gate.requireClassified([]string{"parent_announcement", "new_parent_digest"}), "new_parent_digest")
 }
