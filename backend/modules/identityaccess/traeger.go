@@ -144,10 +144,12 @@ type TraegerAccount struct {
 	Roles     []string
 }
 
-// TraegerRoles grants and lists Träger roles. Both join the caller's
-// administrative transaction: the Träger membership command of Organisation &
-// Tenancy owns the unit of work (ADR 0067, command participation).
+// TraegerRoles grants and lists Träger roles and ends the Träger sessions of
+// a deactivated Träger (#4657). All join the caller's administrative
+// transaction: the Träger command of Organisation & Tenancy owns the unit of
+// work (ADR 0067, command participation).
 type TraegerRoles interface {
 	AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error
 	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]TraegerAccount, error)
+	EndTraegerSessions(ctx context.Context, organizationID int64) (int64, error)
 }

@@ -811,3 +811,58 @@ export interface AssignTraegerMemberRequest {
   email: string;
   role: TraegerRole;
 }
+
+// Löschauftrag eines deaktivierten Trägers (#4657). Kalenderdaten bleiben
+// "YYYY-MM-DD"-Strings.
+export interface BackendTraegerErasureOrder {
+  id: number;
+  organization_id: number;
+  order_reference: string;
+  confirmed_on: string;
+  erase_not_before: string;
+  recorded_by: number;
+  recorded_at: string;
+  started_at?: string | null;
+}
+
+export interface TraegerErasureOrder {
+  id: string;
+  organizationId: string;
+  orderReference: string;
+  confirmedOn: string;
+  eraseNotBefore: string;
+  recordedAt: string;
+  /** Set once the internal erasure began; then the order stays. */
+  startedAt: string | null;
+}
+
+export function mapTraegerErasureOrder(
+  data: BackendTraegerErasureOrder,
+): TraegerErasureOrder {
+  return {
+    id: data.id.toString(),
+    organizationId: data.organization_id.toString(),
+    orderReference: data.order_reference,
+    confirmedOn: data.confirmed_on,
+    eraseNotBefore: data.erase_not_before,
+    recordedAt: data.recorded_at,
+    startedAt: data.started_at ?? null,
+  };
+}
+
+/** The backend answers without `data` when no order is open. */
+export function isBackendTraegerErasureOrder(
+  data: unknown,
+): data is BackendTraegerErasureOrder {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    typeof (data as { id?: unknown }).id === "number"
+  );
+}
+
+export interface RecordTraegerErasureOrderRequest {
+  order_reference: string;
+  confirmed_on: string;
+  erase_not_before: string;
+}
