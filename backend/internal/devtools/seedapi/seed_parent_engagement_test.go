@@ -14,64 +14,54 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 	t.Parallel()
 
 	var paths []string
-	var message map[string]any
-	var mealException map[string]any
+	var childMessages []map[string]any
+	var staffReplies []map[string]any
+	var mealException, contact, masterDataRequest map[string]any
 	var appointments []map[string]any
 	var groupThreads []map[string]any
-	var groupAnswer map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/parent/me/children/44/meal-participation" {
+		decode := func() map[string]any {
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			return body
+		}
+		switch {
+		case r.URL.Path == "/parent/me/children/44/meal-participation":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"effective_from":"2026-10-12"}}`)
-			return
-		}
-		if r.URL.Path == "/parent/me/children/44/meal-participation/2026-10-14" {
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&mealException))
+		case r.URL.Path == "/parent/me/children/44/meal-participation/2026-10-14":
+			mealException = decode()
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
-			return
-		}
-		if r.URL.Path == "/api/students/44" && r.Method == seedHTTPMethodGet {
+		case r.URL.Path == "/api/students/44" && r.Method == seedHTTPMethodGet:
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"group_id":"7"}}`)
-			return
-		}
-		if r.URL.Path == "/api/groups/7" {
+		case r.URL.Path == "/api/groups/7":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"name":"Sternengruppe"}}`)
-			return
-		}
-		if r.URL.Path == "/api/messages/group-threads" && r.Method == seedHTTPMethodPost {
-			var thread map[string]any
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&thread))
-			groupThreads = append(groupThreads, thread)
+		case r.URL.Path == "/api/messages/group-threads" && r.Method == seedHTTPMethodPost:
+			groupThreads = append(groupThreads, decode())
 			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"thread":{"id":"%d"}}}`, 60+len(groupThreads))
-			return
-		}
-		if r.URL.Path == "/parent/me/messages/children/44" && r.Method == seedHTTPMethodPost && message != nil {
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&groupAnswer))
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"thread_id":"91","messages":[{"id":"94"}]}}`)
-			return
-		}
-		if r.URL.Path == "/api/calendar/appointments" {
-			var appointment map[string]any
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&appointment))
-			appointments = append(appointments, appointment)
+		case r.URL.Path == "/parent/me/messages/children/44" && r.Method == seedHTTPMethodPost:
+			childMessages = append(childMessages, decode())
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"thread_id":"91","messages":[{"id":"90"},{"id":"%d"}]}}`, 91+len(childMessages))
+		case r.URL.Path == "/api/messages/threads/91":
+			staffReplies = append(staffReplies, decode())
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
-			return
-		}
-		if r.URL.Path == "/parent/auth/login" {
+		case r.URL.Path == "/api/calendar/appointments":
+			appointments = append(appointments, decode())
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+		case r.URL.Path == "/parent/auth/login":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"access_token":"parent-token"}}`)
-			return
-		}
-		if r.URL.Path == "/parent/me/messages/children/44" && r.Method == seedHTTPMethodPost {
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&message))
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"thread_id":"91","messages":[{"id":"92"}]}}`)
-			return
-		}
-		if r.URL.Path == "/parent/me/children/44/guardians" {
+		case r.URL.Path == "/parent/me/children/44/guardians":
+			contact = decode()
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian_profile_id":"93"}}`)
-			return
+		case r.URL.Path == "/parent/me/children/44/master-data" && r.Method == seedHTTPMethodGet:
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"allowed_departure_modes":{"mon":["pickup"],"tue":["pickup"],"wed":["pickup"],"thu":["pickup"],"fri":["pickup"]}}}`)
+		case r.URL.Path == "/parent/me/children/44/master-data/requests":
+			masterDataRequest = decode()
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+		default:
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 		}
-		_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 	})
 	defer srv.Close()
 
@@ -88,10 +78,10 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 	assert.Equal(t, []string{
 		"/parent/auth/login",
 		"/parent/me/notification-preferences/parent_message",
-		"/parent/me/messages/children/44",
-		"/api/messages/threads/91",
-		"/api/messages/threads/91/unread",
-		"/parent/me/messages/children/44",
+		"/parent/me/notification-preferences/parent_announcement",
+		"/parent/me/notification-preferences/parent_appointment",
+		"/parent/me/notification-preferences/parent_request_decided",
+		"/parent/me/notification-preferences/parent_care_cancelled",
 		"/api/students/44",
 		"/api/groups/7",
 		"/api/messages/group-threads",
@@ -108,29 +98,56 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/api/students/44",
 		"/parent/me/children/44/consents/photo",
 		"/parent/me/children/44/master-data/guardian_profile/preferred_contact_method",
+		"/parent/me/children/44/master-data",
 		"/parent/me/children/44/master-data/requests",
 		"/parent/me/children/44/meal-participation",
 		"/parent/me/children/44/meal-participation/2026-10-14",
+		// The conversation comes after every step that leaves a note in the
+		// chat, so it ends with the OGS's answer.
+		"/parent/me/messages/children/44", "/api/messages/threads/91",
+		"/parent/me/messages/children/44", "/api/messages/threads/91",
+		"/parent/me/messages/children/44", "/api/messages/threads/91",
+		"/api/messages/threads/91/unread",
+		"/parent/me/messages/children/44",
 		"/api/students/44",
-		"/api/calendar/appointments",
-		"/api/calendar/appointments",
-		"/api/calendar/appointments",
-		"/api/calendar/appointments",
+		"/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments",
+		"/api/calendar/appointments", "/api/calendar/appointments", "/api/calendar/appointments",
 	}, paths)
-	assert.Equal(t, "Können Sie bitte prüfen, ob die neue Abholzeit eingetragen ist?", message["body"])
+
+	require.Len(t, childMessages, 4)
+	assert.Equal(t, "61", childMessages[0]["group_thread_id"], "the parent answers the open group thread")
+	conversation := childMessages[1:]
+	require.Len(t, staffReplies, len(conversation), "the OGS answers every message of the conversation")
+	for i, message := range conversation {
+		assert.Equal(t, seedParentConversationTurns[i].parent, message["body"])
+		assert.Nil(t, message["group_thread_id"])
+		assert.Equal(t, seedParentConversationTurns[i].staff, staffReplies[i]["body"])
+		assert.Equal(t, fmt.Sprint(93+i), staffReplies[i]["handled_up_to_message_id"], "the answer covers the newest parent message")
+	}
 	assert.Equal(t, map[string]any{"participating": false}, mealException)
 	require.Len(t, groupThreads, 2)
 	assert.Equal(t, "group", groupThreads[0]["target_type"])
 	assert.Equal(t, "7", groupThreads[0]["target_id"])
 	assert.Equal(t, "Gruppe Sternengruppe", groupThreads[0]["target_label"])
-	assert.Equal(t, "61", groupAnswer["group_thread_id"], "the parent answers the open group thread")
+	assert.Equal(t, "Laternen basteln", groupThreads[0]["title"])
+
+	assert.Equal(t, "gisela.hahn@mail.example", contact["email"])
+	assert.Equal(t, []any{map[string]any{"phone_number": "+49 172 5550778", "phone_type": "mobile", "is_primary": true}}, contact["phones"],
+		"a mobile number without a second label")
+	assert.Equal(t, []any{map[string]any{
+		"target": "departure", "field_key": "allowed_departure_modes",
+		"value": map[string]any{"mon": []any{"pickup"}, "tue": []any{"pickup"}, "wed": []any{"pickup"}, "thu": []any{"pickup"}, "fri": []any{"alone"}},
+	}}, masterDataRequest["changes"])
 
 	titles := make([]any, 0, len(appointments))
 	for _, appointment := range appointments {
 		titles = append(titles, appointment["title"])
 		assert.Equal(t, false, appointment["send_email"])
 	}
-	assert.Equal(t, []any{"Elternabend der Gruppe", "Ausflug in den Zoo", "Pädagogischer Tag: OGS geschlossen", "Laternenfest"}, titles)
+	assert.Equal(t, []any{
+		"Elternabend der Gruppe", "Ausflug in den Zoo", "Der Schulfotograf kommt", "Elterncafé in der OGS",
+		"Anmeldeschluss für die Ferienbetreuung", "Pädagogischer Tag: OGS geschlossen", "Laternenfest",
+	}, titles)
 	assert.Equal(t, []any{
 		map[string]any{"type": "parents_by_group", "id": float64(7)},
 		map[string]any{"type": "all_staff"},

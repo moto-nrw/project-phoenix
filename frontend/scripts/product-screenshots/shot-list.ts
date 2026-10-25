@@ -23,6 +23,10 @@ const stepSchema = z.union([
   z.strictObject({
     scrollen: z.union([z.number().int().nonnegative(), z.string().min(1)]),
   }),
+  z.strictObject({
+    tippen: z.strictObject({ feld: z.string().min(1), text: z.string() }),
+  }),
+  z.strictObject({ zeichnen: z.string().min(1) }),
 ]);
 
 const ROLES_BY_PORTAL: Readonly<Record<Portal, readonly string[]>> = {

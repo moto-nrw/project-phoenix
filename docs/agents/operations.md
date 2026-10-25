@@ -333,11 +333,15 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   (`reference-time.ts`). The server renders with its real clock, so the
   reference day must be the server's day; on a weekend a local run aborts on the
   resulting hydration error instead of printing an inconsistent image. The
-  workflow sets the runner's clock to the last Tuesday, 12:00 Berlin, after its
-  downloads and before migrating and seeding, and restores it before uploading,
-  so every release shows a Tuesday with presence stamped shortly after 12:00,
-  when the `vollbetrieb` weekly plans expect the children after their lessons.
-  A local run stamps presence with the real time of the seed.
+  workflow sets the runner's clock to the last Tuesday, 07:20 Berlin, after its
+  downloads and before migrating and seeding, and restores it before uploading.
+  `simulate full-day --clock-command "$RUNNER_TEMP/set-clock"` then moves the
+  clock forward wave by wave (`backend/internal/devtools/simulate/fullday_clock.go`):
+  early care from 07:45, staff stamping in at their shift start (08:00, 11:30),
+  sessions from 11:52, children class by class from 12:00, 12:15 and 12:35,
+  pickups at 12:45. Every stamp lies before the browser's 13:30, and `set-clock`
+  keeps the shift to the real time in `clock-shift` for the restore. Without
+  `--clock-command` (a local run) all waves run at once and carry the real time.
   Text that depends on the time of day must therefore not be rendered on the
   server: the home greeting uses `useTimeBasedGreeting` (`src/lib/greeting.ts`).
 - Adding a shot: the list follows the help flows and PostHog usage (#3764),

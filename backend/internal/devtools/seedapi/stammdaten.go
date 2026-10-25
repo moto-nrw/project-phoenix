@@ -287,9 +287,9 @@ func (s *FixedSeeder) seedClassArrivalTimes(_ context.Context, result *FixedResu
 	return nil
 }
 
-// seedClassArrivalException gives the first class a class-wide arrival day
+// seedClassArrivalException gives the last class a class-wide arrival day
 // exception on the next school day (#2962), so the Klassen-Modal and the
-// roster show one on every dev machine.
+// roster show one on every dev machine; lists sorted by class keep the rest.
 func (s *FixedSeeder) seedClassArrivalException(_ context.Context, result *FixedResult) error {
 	classNames := make([]string, 0)
 	seen := make(map[string]struct{})
@@ -312,17 +312,17 @@ func (s *FixedSeeder) seedClassArrivalException(_ context.Context, result *Fixed
 	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 		date = date.AddDate(0, 0, 1)
 	}
-	isoDate := date.Format("2006-01-02")
-	path := fmt.Sprintf("/api/students/class-arrival-exceptions/%s/%s", url.PathEscape(classNames[0]), isoDate)
+	isoDate, className := date.Format("2006-01-02"), classNames[len(classNames)-1]
+	path := fmt.Sprintf("/api/students/class-arrival-exceptions/%s/%s", url.PathEscape(className), isoDate)
 	if _, err := s.client.Put(path, map[string]any{
 		"arrival_time": "11:00",
 		"reason":       "Unterricht fällt aus",
 	}); err != nil {
-		return fmt.Errorf("seed class arrival exception for %s: %w", classNames[0], err)
+		return fmt.Errorf("seed class arrival exception for %s: %w", className, err)
 	}
 	result.ClassArrivalExceptionCount++
 	if s.verbose {
-		fmt.Printf("  ✓ class arrival exception seeded for %s on %s\n", classNames[0], isoDate)
+		fmt.Printf("  ✓ class arrival exception seeded for %s on %s\n", className, isoDate)
 	}
 	return nil
 }
@@ -521,7 +521,7 @@ func (s *FixedSeeder) retireFormerStaff() error {
 	}
 	// Keep visible examples for the invitation's three carryover choices.
 	for section, data := range map[string]map[string]any{
-		"kontakt":         {"address_city": "Osnabrück", "phone": "+49 541 1234567", "note": "Frühere Kontaktdaten für die Wiederaufnahme"},
+		"kontakt":         {"address_city": "Köln", "phone": "+49 221 4605318", "note": "Frühere Kontaktdaten für die Wiederaufnahme"},
 		"qualifikationen": {"qualifikationen": []map[string]any{{"name": "Erste Hilfe"}}, "note": "Frühere Qualifikation für die Wiederaufnahme"},
 	} {
 		if _, err := s.client.Put(fmt.Sprintf("/api/staff/%d/stammdaten/%s", formerStaffID, section), data); err != nil {
@@ -663,9 +663,9 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 			"birthday":     birthday,
 		}
 		if i%3 == 0 {
-			body["address_street"] = fmt.Sprintf("Schulstraße %d", i+1)
-			body["address_postal_code"] = "49074"
-			body["address_city"] = "Osnabrück"
+			street, postalCode, city := demoKoelnAddress(i)
+			body["address_street"], body["address_postal_code"] = street, postalCode
+			body["address_city"] = city
 		}
 		if i%4 == 0 {
 			body["photo_consent_given"] = true
@@ -826,10 +826,10 @@ func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) erro
 		if guardian.MobilePhone != "" {
 			body["mobile_phone"] = guardian.MobilePhone
 		}
-		if index%3 == 0 {
-			body["address_street"] = fmt.Sprintf("Familienweg %d", index+1)
-			body["address_postal_code"] = "49074"
-			body["address_city"] = "Osnabrück"
+		if guardian.StudentIndex%3 == 0 {
+			street, postalCode, city := demoKoelnAddress(guardian.StudentIndex)
+			body["address_street"], body["address_postal_code"] = street, postalCode
+			body["address_city"] = city
 		}
 
 		respBody, err := s.client.Post("/api/guardians", body)

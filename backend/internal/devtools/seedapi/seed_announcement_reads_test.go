@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -33,17 +35,19 @@ func TestSeedParentLetterMarksLetterReadByParent(t *testing.T) {
 	t.Parallel()
 
 	var paths []string
-	createdAnnouncements := 0
+	var created []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
-		switch r.URL.Path {
-		case "/api/parent-announcements/":
-			createdAnnouncements++
-			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d"}}`, 70+createdAnnouncements)
-		case "/parent/auth/login":
+		switch {
+		case r.URL.Path == "/api/parent-announcements/":
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			created = append(created, body)
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d"}}`, 70+len(created))
+		case r.URL.Path == "/parent/auth/login":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"access_token":"parent-token"}}`)
-		case "/api/parent-announcements/71/publish", "/api/parent-announcements/72/publish":
+		case strings.HasSuffix(r.URL.Path, "/publish"):
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"published_at":"2026-08-31T00:00:00Z"}}`)
 		default:
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
@@ -57,19 +61,55 @@ func TestSeedParentLetterMarksLetterReadByParent(t *testing.T) {
 		Parents: []ParentCredentials{{Email: "parent@example.test", Password: "Parent1234%"}},
 	}
 	require.NoError(t, seedParentLetter(rt))
-	// The attachment upload sits between create and publish on purpose
-	// (#2890): a published announcement is immutable, so an upload after the
-	// publish call would be refused with 409 and the demo letter would ship
-	// without its file.
-	// The step ends with the announcement that carries a scheduled reminder
-	// (#3162): created and published, nothing else — the reminder is a field
-	// of the announcement, not a further call.
+	// Three earlier notices come first, each read by the first parent, so the
+	// portal lists read mail below the letter. The attachment upload sits
+	// between create and publish on purpose (#2890): a published
+	// announcement is immutable, so an upload after the publish call would be
+	// refused with 409 and the demo letter would ship without its file.
+	// Then the announcement with a scheduled reminder (#3162): created and
+	// published, nothing else — the reminder is a field of the announcement,
+	// not a further call. The draft is created and never published.
 	assert.Equal(t, []string{
-		"/api/parent-announcements/", "/api/announcement-attachments/71",
-		"/api/parent-announcements/71/publish",
-		"/parent/auth/login", "/parent/me/news/71/read",
-		"/api/parent-announcements/", "/api/parent-announcements/72/publish",
+		"/parent/auth/login",
+		"/api/parent-announcements/", "/api/parent-announcements/71/publish", "/parent/me/news/71/read",
+		"/api/parent-announcements/", "/api/parent-announcements/72/publish", "/parent/me/news/72/read",
+		"/api/parent-announcements/", "/api/parent-announcements/73/publish", "/parent/me/news/73/read",
+		"/api/parent-announcements/", "/api/announcement-attachments/74",
+		"/api/parent-announcements/74/publish", "/parent/me/news/74/read",
+		"/api/parent-announcements/", "/api/parent-announcements/75/publish",
+		"/api/parent-announcements/",
 	}, paths)
+	require.Len(t, created, 6)
+	assert.Equal(t, seedParentLetterTitle, created[3]["title"])
+	assert.Equal(t, "letter", created[3]["delivery_mode"])
+	assert.Contains(t, created[3]["body"], "Laternenfest")
+	assert.NotContains(t, created[3]["body"], "Elternportal", "the letter is read inside the portal")
+	assert.Equal(t, "Weihnachtsbasteln: Wer hilft mit?", created[5]["title"])
+}
+
+func TestSeedParentLetterSharesTheCalendarDates(t *testing.T) {
+	t.Parallel()
+
+	tuesday, err := parseSeedDate("2026-10-20")
+	require.NoError(t, err)
+	festival := seedLanternFestivalDate(tuesday)
+	assert.Equal(t, "2026-11-20", festival.String())
+	assert.Contains(t, seedLanternLetterBody(festival), "am Freitag, 20. November feiern wir unser Laternenfest")
+	assert.Equal(t, "Wann: Freitag, 20. November, 17:00 bis 19:00 Uhr", seedLanternFlyerLines(festival)[0])
+	assert.Equal(t, "2026-10-26", seedParentsEveningDate(tuesday).String())
+}
+
+func TestDemoIllustratedPDFHasTheSizeOfAFlyer(t *testing.T) {
+	t.Parallel()
+
+	pdf := demoIllustratedPDF("Unser Laternenfest", lanternPicture(), []string{"Treffpunkt: Schulhof"})
+	assert.True(t, bytes.HasPrefix(pdf, []byte("%PDF-1.4\n")))
+	assert.True(t, bytes.HasSuffix(pdf, []byte("%%EOF\n")))
+	assert.Contains(t, string(pdf), "/Subtype /Image")
+	assert.Greater(t, len(pdf), 20<<10, "tens of kilobytes, not a few hundred bytes")
+	assert.Less(t, len(pdf), 200<<10)
+	assert.Equal(t, pdf, demoIllustratedPDF("Unser Laternenfest", lanternPicture(), []string{"Treffpunkt: Schulhof"}),
+		"the same input gives the same file")
 }
 
 func TestSeedParentPollCreatesSixtyAppointmentOptions(t *testing.T) {
@@ -101,8 +141,12 @@ func TestSeedParentPollCreatesSixtyAppointmentOptions(t *testing.T) {
 	assert.Equal(t, []string{"/api/parent-announcements/", "/api/parent-announcements/73/publish"}, paths)
 	assert.Equal(t, "multi_choice", poll.ResponseType)
 	require.Len(t, poll.Options, 60)
-	assert.Equal(t, "Mittwoch, 14. Oktober, 14:00 Uhr", poll.Options[0])
-	assert.Equal(t, "Freitag, 16. Oktober, 18:45 Uhr", poll.Options[len(poll.Options)-1])
+	option := regexp.MustCompile(`^(Dienstag|Mittwoch|Donnerstag), \d{1,2}\. \p{L}+, \d{2}:\d{2} Uhr$`)
+	for _, o := range poll.Options {
+		assert.Regexp(t, option, o)
+	}
+	assert.True(t, strings.HasPrefix(poll.Options[0], "Dienstag, "), poll.Options[0])
+	assert.True(t, strings.HasSuffix(poll.Options[0], ", 14:00 Uhr"), poll.Options[0])
 	distinct := make(map[string]struct{}, len(poll.Options))
 	for _, option := range poll.Options {
 		distinct[option] = struct{}{}
@@ -110,24 +154,79 @@ func TestSeedParentPollCreatesSixtyAppointmentOptions(t *testing.T) {
 	assert.Len(t, distinct, len(poll.Options), "each appointment option must be distinct")
 }
 
+// The appointments lie in the coming week on every seed day, never in the
+// past, and the weekday matches the date.
+func TestSeedParentPollOptionsFollowNextWeek(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct{ today, first, last string }{
+		{"2026-10-20", "Dienstag, 27. Oktober, 14:00 Uhr", "Donnerstag, 29. Oktober, 18:45 Uhr"}, // Tuesday
+		{"2026-10-25", "Dienstag, 27. Oktober, 14:00 Uhr", "Donnerstag, 29. Oktober, 18:45 Uhr"}, // Sunday
+		{"2026-10-26", "Dienstag, 3. November, 14:00 Uhr", "Donnerstag, 5. November, 18:45 Uhr"}, // Monday
+	}
+	for _, tc := range cases {
+		today, err := parseSeedDate(tc.today)
+		require.NoError(t, err)
+		options := seedParentPollOptions(today)
+		require.Len(t, options, 60, tc.today)
+		assert.Equal(t, tc.first, options[0], tc.today)
+		assert.True(t, strings.HasSuffix(options[1], ", 14:15 Uhr"), options[1])
+		assert.Equal(t, tc.last, options[59], tc.today)
+	}
+}
+
+// The answers spread over the first twelve appointments with a believable
+// weighting, one to three adjacent appointments each, the same on every run.
+func TestSeedParentPollChoiceSpreadsOverTheFirstAfternoon(t *testing.T) {
+	t.Parallel()
+
+	options := make([]seedParentPollOption, 60)
+	index := make(map[string]int, len(options))
+	for i := range options {
+		options[i].ID = fmt.Sprintf("o%d", i)
+		index[options[i].ID] = i
+	}
+	firstSlots := map[int]int{}
+	for answer := range 60 {
+		choice := seedParentPollChoice(options, answer)
+		require.NotEmpty(t, choice)
+		require.LessOrEqual(t, len(choice), 3)
+		assert.Equal(t, choice, seedParentPollChoice(options, answer), "deterministic")
+		for k, id := range choice {
+			assert.Less(t, index[id], len(seedParentPollSlotWeights), "only the first afternoon's slots")
+			assert.Equal(t, index[choice[0]]+k, index[id], "adjacent appointments")
+		}
+		firstSlots[index[choice[0]]]++
+	}
+	assert.GreaterOrEqual(t, len(firstSlots), 8, "the answers spread over most of the slots")
+	assert.Greater(t, firstSlots[7]+firstSlots[8], firstSlots[0]+firstSlots[1], "after work is more popular than 14:00")
+}
+
 func TestSeedParentDeclarationDeclaresThroughTheParentAPI(t *testing.T) {
 	t.Parallel()
 
 	var paths []string
-	var declared map[string]any
+	var declared, read map[string]any
+	var created []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/api/parent-announcements/":
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"81"}}`)
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			created = append(created, body)
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d"}}`, 80+len(created))
 		case "/parent/auth/login":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"access_token":"parent-token"}}`)
 		case "/parent/me/news":
-			_, _ = fmt.Fprintf(w, `{"status":"success","data":[{"id":"81","title":%q,"declaration":{"version":{"id":"5"},"children":[{"student_id":"9","can_submit":false},{"student_id":"10","can_submit":true}]}}]}`, seedDeclarationTitle)
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":[{"id":"81","title":%q,"published_at":"2026-10-20T10:00:00Z","declaration":{"version":{"id":"5"},"children":[{"student_id":"9","can_submit":false},{"student_id":"10","can_submit":true}]}}]}`, seedDeclarationTitle)
 		case "/parent/me/news/81/declaration":
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&declared))
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"created":true}}`)
+		case "/parent/me/news/81/read":
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&read))
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 		default:
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 		}
@@ -141,12 +240,23 @@ func TestSeedParentDeclarationDeclaresThroughTheParentAPI(t *testing.T) {
 	}
 	require.NoError(t, (seedParentDeclarationStep{}).Run(t.Context(), rt))
 	// The document is attached before the first publication: after it the
-	// attachments of an Erklärung are fixed.
+	// attachments of an Erklärung are fixed. The parent reads the Erklärung
+	// after consenting, so the portal does not list it as unread.
 	assert.Equal(t, []string{
 		"/api/parent-announcements/", "/api/announcement-attachments/81",
 		"/api/parent-announcements/81/publish",
+		"/api/parent-announcements/", "/api/parent-announcements/82/publish",
 		"/parent/auth/login", "/parent/me/news", "/parent/me/news/81/declaration",
+		"/parent/me/news/81/read",
 	}, paths)
+	require.Len(t, created, 2)
+	assert.Equal(t, seedDeclarationTitle, created[0]["title"])
+	assert.Equal(t, seedSwimDeclarationTitle, created[1]["title"])
+	for _, c := range created {
+		assert.Equal(t, "declaration", c["delivery_mode"])
+		assert.Equal(t, true, c["declaration_requires_signature"])
+	}
+	assert.Equal(t, map[string]any{"published_at": "2026-10-20T10:00:00Z"}, read)
 	signature, ok := declared["signature"].(map[string]any)
 	require.True(t, ok, "the seeded consent is signed (#4785)")
 	delete(declared, "signature")

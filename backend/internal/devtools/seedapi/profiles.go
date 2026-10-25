@@ -52,12 +52,14 @@ type demoProfileDefinition struct {
 
 func fullOperationProfileDefinition() demoProfileDefinition {
 	return demoProfileDefinition{
-		Key:                 DefaultProfileKey,
-		OrganizationName:    "Ganztag Nord e. V.",
-		OrganizationSlug:    "demo-traeger-nord",
-		SchoolName:          "OGS Sonnenhof",
-		SchoolSlug:          DefaultProfileKey,
-		SchoolAdminEmail:    "vollbetrieb-admin@example.test",
+		Key:              DefaultProfileKey,
+		OrganizationName: "Ganztag Nord e. V.",
+		OrganizationSlug: "demo-traeger-nord",
+		SchoolName:       "OGS Sonnenhof",
+		SchoolSlug:       DefaultProfileKey,
+		// A personal address: the Träger-Portal shows it as its
+		// first person; the reserved TLD .example never receives mail.
+		SchoolAdminEmail:    "ines.lindner@ganztag-nord.example",
 		SchoolAdminPassword: "Vollbetrieb1234%",
 		Settings:            fullOperationSettings(),
 		Expected:            fullOperationExpectedState(),

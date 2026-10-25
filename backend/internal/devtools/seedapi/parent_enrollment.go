@@ -1177,24 +1177,24 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 		body       map[string]any
 	}{
 		{sick, "sick-note", "sick-note", map[string]any{
-			"dates":  []string{time.Now().AddDate(0, 0, 2).Format("2006-01-02")},
-			"reason": "Fieber seit heute Nacht, wir bleiben zu Hause.",
+			"dates":  []string{seedWeekdayOnOrAfter(todaySeedDate().AddDays(1)).String()},
+			"reason": "Fieber seit heute Mittag. Wir bleiben zur Sicherheit zu Hause und gehen zum Kinderarzt.",
 		}},
 		{excused, "excused-note", "sick-note", map[string]any{
-			"dates":  []string{todaySeedDate().AddDays(4).String()},
+			"dates":  []string{seedWeekdayOnOrAfter(todaySeedDate().AddDays(4)).String()},
 			"status": "excused",
 			"reason": "Familienfeier bei den Großeltern.",
 		}},
 		{first, "care-exception", "care-exception", map[string]any{
-			"date":        time.Now().AddDate(0, 0, 3).Format("2006-01-02"),
+			"date":        seedWeekdayOnOrAfter(todaySeedDate().AddDays(3)).String(),
 			"pickup_time": "14:30",
 			"reason":      "Das Training fällt aus, ich hole früher ab.",
 		}},
-		{first, "related-account", "related-accounts", map[string]any{
-			"email":      "oma.schneider@example.test",
-			"first_name": "Elke",
-			"last_name":  "Schneider",
-		}},
+		// Another family than Felix's: an open invitation shows a contact card
+		// without details, and Felix's contacts are a product screenshot.
+		{requestParent(parents, 5), "related-account", "related-accounts",
+			relatedAccountInvite(requestParent(parents, 5)),
+		},
 	}
 
 	out := make([]SeedParentPortalAction, 0, len(actions))

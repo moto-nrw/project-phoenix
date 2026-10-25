@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -24,6 +26,7 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 
 	var mu sync.Mutex
 	requests := map[string]seedTraegerRequest{}
+	var invitations []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		raw, err := io.ReadAll(r.Body)
@@ -32,6 +35,9 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 		assert.NoError(t, json.Unmarshal(raw, &body))
 		mu.Lock()
 		requests[r.URL.Path] = seedTraegerRequest{authorization: r.Header.Get("Authorization"), body: body}
+		if r.URL.Path == "/traeger/accounts/invitations" {
+			invitations = append(invitations, body)
+		}
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -63,7 +69,10 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	assert.Equal(t, map[string]any{"email": "admin@example.test", "password": "Geheim1234%", "organization_id": float64(12)}, login.body)
 	invite := requests["/traeger/accounts/invitations"]
 	assert.Equal(t, "Bearer traeger-token", invite.authorization, "the invitation uses the Träger session")
-	assert.Equal(t, map[string]any{"email": seedTraegerInvitee, "roles": []any{"billing"}}, invite.body)
+	assert.Equal(t, []map[string]any{
+		{"email": "jana.krause@ganztag-nord.example", "roles": []any{"billing"}},
+		{"email": "tobias.engel@ganztag-nord.example", "roles": []any{"personnel"}},
+	}, invitations, "one colleague per role besides the Verwaltung, with personal addresses")
 	assert.Equal(t, tenantAuth, client.auth, "the step restores the client's own session")
 }
 
@@ -108,4 +117,24 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	require.Len(t, weeks, 2)
 	assert.Equal(t, float64(31), weeks[0].(map[string]any)["host_school_id"])
 	assert.Equal(t, float64(32), weeks[1].(map[string]any)["host_school_id"], "the weeks take turns at the Träger's schools")
+}
+
+// The Träger plans the two Herbstferien weeks the school plans around, under
+// the name of that period, and opens registration on the day it publishes.
+func TestSeedHolidayPeriodCoversTheSeededHerbstferien(t *testing.T) {
+	t.Parallel()
+
+	today := calendar.NewDate(2026, time.September, 23)
+	period := seedHolidayPeriod(today, []int64{31, 32})
+	assert.Equal(t, "Ferienbetreuung Herbstferien 2026", period["name"])
+	assert.Equal(t, "2026-09-23", period["registration_opens_on"])
+	assert.Equal(t, "2026-10-05", period["registration_closes_on"], "a week before the Ferien")
+	weeks := period["weeks"].([]map[string]any)
+	require.Len(t, weeks, 2)
+	ferienStart, ferienEnd := seedHerbstferien(seedDate{Time: today.UTCMidnight()})
+	assert.Equal(t, ferienStart.String(), weeks[0]["starts_on"])
+	assert.Equal(t, "2026-10-12", weeks[0]["starts_on"])
+	assert.Equal(t, "2026-10-16", weeks[0]["ends_on"])
+	assert.Equal(t, "2026-10-19", weeks[1]["starts_on"])
+	assert.Equal(t, ferienEnd.String(), weeks[1]["ends_on"])
 }

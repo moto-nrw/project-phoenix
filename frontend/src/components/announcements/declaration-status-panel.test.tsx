@@ -151,6 +151,18 @@ describe("DeclarationStatusPanel (#3430)", () => {
     downloadMock.mockResolvedValue(undefined);
   });
 
+  // Die Produkt-Screenshots warten, solange ein Element aria-busy trägt
+  // (scripts/product-screenshots/capture.ts).
+  it("marks the loading line as busy", () => {
+    statusMock.mockReturnValue(new Promise(() => undefined));
+    render(<DeclarationStatusPanel announcementId="42" canAct />);
+
+    expect(screen.getByText("Stand wird geladen …")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+  });
+
   it("counts per child and names who acted", async () => {
     render(<DeclarationStatusPanel announcementId="42" canAct />);
 

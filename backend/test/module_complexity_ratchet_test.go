@@ -276,8 +276,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_planning.go:selectRecurringPlanningInstances": 16,
 	// ADR 0087.
-	"internal/devtools/seedapi/seed_staff_messaging.go:(seedStaffMessagingStep).Run": 21,
-	// ADR 0087.
 	"internal/devtools/seedapi/seed_time_tracking.go:(seedTimeTrackingHistoryStep).Run": 35,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_time_tracking.go:(timeTrackingHistoryPlan).seedStaff": 31,

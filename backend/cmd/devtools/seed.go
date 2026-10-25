@@ -99,7 +99,7 @@ further schools, --school-name for the name, and --state for its own state file.
 
 Usage:
   docker compose run server go run ./cmd/devtools seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080
-  docker compose run server go run ./cmd/devtools seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 --tenant-slug vollbetrieb --staff-password 'Test1234%' --admin-email vollbetrieb-admin@example.test`,
+  docker compose run server go run ./cmd/devtools seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 --tenant-slug vollbetrieb --staff-password 'Test1234%' --admin-email ines.lindner@ganztag-nord.example`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		email, _ := cmd.Flags().GetString("email")
 		password, _ := cmd.Flags().GetString("password")

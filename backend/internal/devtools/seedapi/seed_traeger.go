@@ -8,16 +8,24 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// seedTraegerInvitee is the colleague the seeded Träger-Büro has invited
-// (#4650); the address receives no mail outside the dev mail catcher.
-const seedTraegerInvitee = "traeger-abrechnung@example.test"
+// seedTraegerInvitees are the colleagues the seeded Träger-Büro has invited
+// (#4650), one per role it hands out besides the Verwaltung. The Träger-Portal
+// shows people by address only; the reserved TLD .example receives no mail.
+var seedTraegerInvitees = []struct {
+	email string
+	role  string
+}{
+	{"jana.krause@ganztag-nord.example", "billing"},
+	{"tobias.engel@ganztag-nord.example", "personnel"},
+}
 
 // seedTraegerBueroStep makes the bootstrap school admin the first person of
 // the Träger-Büro (ADR 0084, #4649) through the operator route, so every dev
 // and demo database can sign in to the Träger-Portal with the admin's
 // credentials and sees the Träger's schools. Signed in to the Träger-Portal,
-// the admin then invites a colleague with the role Abrechnung (#4650), so the
-// page "Personen" shows a person and an open invitation.
+// the admin then invites a colleague for the Abrechnung and one for the
+// Personal (#4650), so the page "Personen" shows a person and open
+// invitations.
 type seedTraegerBueroStep struct{}
 
 func (seedTraegerBueroStep) Name() string { return "Seeding the Träger-Büro" }
@@ -38,7 +46,7 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 }
 
 // seedTraegerInvitation signs the admin in to the Träger-Portal and invites
-// the seeded colleague through the Träger route.
+// the seeded colleagues through the Träger route.
 func seedTraegerInvitation(rt *Runtime) error {
 	raw, err := rt.Client.PostWithAuth(AuthRef{Kind: AuthBearer}, "/traeger/auth/login", map[string]any{
 		"email": rt.Bootstrap.AdminEmail, "password": rt.Bootstrap.AdminPassword, "organization_id": rt.Bootstrap.OrganizationID,
@@ -53,20 +61,23 @@ func seedTraegerInvitation(rt *Runtime) error {
 		return fmt.Errorf("sign in to the Träger-Portal: no session in %q", raw)
 	}
 	traeger := AuthRef{Kind: AuthBearer, Token: login.AccessToken, Label: "traeger"}
-	if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
-		"email": seedTraegerInvitee, "roles": []string{"billing"},
-	}); err != nil {
-		return fmt.Errorf("invite into the Träger-Büro: %w", err)
+	for _, invitee := range seedTraegerInvitees {
+		if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
+			"email": invitee.email, "roles": []string{invitee.role},
+		}); err != nil {
+			return fmt.Errorf("invite into the Träger-Büro: %w", err)
+		}
 	}
-	fmt.Println("  Träger-Büro: colleague invited with role Abrechnung")
+	fmt.Printf("  Träger-Büro: %d colleagues invited\n", len(seedTraegerInvitees))
 	return nil
 }
 
 // seedTraegerHolidayPeriodStep plans a published holiday period for the
 // Träger-Büro (#4659) through the Träger-Portal, signed in as the bootstrap
-// school admin the previous step assigned: two weeks at the Träger's schools,
-// each with a morning and a full-day time model. Registration is open from a
-// week ago for a month; the weeks follow six weeks from now.
+// school admin the previous step assigned: the two Herbstferien weeks the
+// school plans around (seedHerbstferien), hosted in turn by the Träger's
+// schools, each with a morning and a full-day time model. Published today, it
+// opens registration today and closes it a week before the Ferien.
 type seedTraegerHolidayPeriodStep struct{}
 
 func (seedTraegerHolidayPeriodStep) Name() string { return "Seeding a Träger holiday period" }
@@ -132,10 +143,12 @@ func seedTraegerSchoolIDs(client *Client, auth AuthRef) ([]int64, error) {
 	return ids, nil
 }
 
-// seedHolidayPeriod is the request body: two Monday-to-Friday weeks, hosted
-// in turn by the Träger's schools, with prices in whole cent.
+// seedHolidayPeriod is the request body: the two Herbstferien weeks, Monday
+// to Friday, hosted in turn by the Träger's schools, with prices in whole
+// cent.
 func seedHolidayPeriod(today calendar.Date, schools []int64) map[string]any {
-	firstMonday := today.AddDays(42).StartOfISOWeek()
+	ferienStart, _ := seedHerbstferien(seedDate{Time: today.UTCMidnight()})
+	firstMonday := calendar.NewDate(ferienStart.Year(), ferienStart.Month(), ferienStart.Day())
 	weeks := make([]map[string]any, 0, 2)
 	for i := range 2 {
 		monday := firstMonday.AddDays(7 * i)
@@ -148,8 +161,9 @@ func seedHolidayPeriod(today calendar.Date, schools []int64) map[string]any {
 		})
 	}
 	return map[string]any{
-		"name": "Ferienbetreuung", "registration_opens_on": today.AddDays(-7).String(),
-		"registration_closes_on": today.AddDays(30).String(), "binding": true,
+		"name":                   fmt.Sprintf("Ferienbetreuung Herbstferien %d", firstMonday.Year()),
+		"registration_opens_on":  today.String(),
+		"registration_closes_on": firstMonday.AddDays(-7).String(), "binding": true,
 		"notes": "Mittagessen gibt es vor Ort. Bitte geben Sie Ihrem Kind ein Frühstück und etwas zu trinken mit.",
 		"weeks": weeks,
 	}

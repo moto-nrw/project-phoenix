@@ -3,6 +3,7 @@ package simulate
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 type Client interface {
@@ -45,7 +46,19 @@ type Runtime struct {
 	// OpenRoomBlockInstanceID is the block started in a released room (#3281),
 	// 0 when none runs.
 	OpenRoomBlockInstanceID int64
-	Counts                  RuntimeCounts
+	// SupervisorStaffIDs supervise the sessions started at midday.
+	SupervisorStaffIDs []int64
+	// Present holds the children whose attendance is recorded today.
+	Present map[int64]bool
+	// ClockedInStaff holds the staff members the run stamped in or found on
+	// leave, so a later shift check leaves them alone.
+	ClockedInStaff map[int64]bool
+	// StaffOnLeave remembers, per checked staff member, whether an approved
+	// absence covers today.
+	StaffOnLeave map[int64]bool
+	// adminLoginAt is when the admin last signed in, on the shared clock.
+	adminLoginAt time.Time
+	Counts       RuntimeCounts
 }
 
 type RuntimeCounts struct {
@@ -64,6 +77,14 @@ type RuntimeCounts struct {
 	// OpenRoomBlockChildren counts children checked into the block running in
 	// a released room (#3281).
 	OpenRoomBlockChildren int
+	// EarlyCareChildren counts the children of the Frühbetreuung.
+	EarlyCareChildren int
+	// EarlyPickups counts the children sent home at midday.
+	EarlyPickups int
+	// StaffClockedIn and StaffAbsent count the shift clock-ins and the staff
+	// members skipped for approved leave.
+	StaffClockedIn int
+	StaffAbsent    int
 }
 
 type Action interface {
@@ -109,10 +130,13 @@ func (s Scenario) Run(ctx context.Context, rt *Runtime) error {
 
 func newRuntime(state *SeedState, client Client, opts FullDayOptions) *Runtime {
 	return &Runtime{
-		State:    state,
-		Client:   client,
-		Options:  opts,
-		RFIDTags: make(map[int64]string),
+		State:          state,
+		Client:         client,
+		Options:        opts,
+		RFIDTags:       make(map[int64]string),
+		Present:        make(map[int64]bool),
+		ClockedInStaff: make(map[int64]bool),
+		StaffOnLeave:   make(map[int64]bool),
 	}
 }
 

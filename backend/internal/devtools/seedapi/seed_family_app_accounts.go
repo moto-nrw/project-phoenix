@@ -42,7 +42,7 @@ func (s seedFamilyAppAccountsStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	guardians, err := familyAppGuardians(rt.FixedSeeder.guardianIDs, rt.Parents)
+	guardians, err := familyAppGuardianIndexes(rt.FixedSeeder.guardianIDs, rt.Parents)
 	if err != nil {
 		return err
 	}
@@ -50,14 +50,8 @@ func (s seedFamilyAppAccountsStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	for _, guardianID := range guardians {
-		token, err := step.inviteGuardian(rt, adminAuth, guardianID)
-		if err != nil {
-			return fmt.Errorf("invite guardian %d: %w", guardianID, err)
-		}
-		if _, err := step.acceptGuardianInvitation(rt, token, password); err != nil {
-			return fmt.Errorf("accept guardian invitation %d: %w", guardianID, err)
-		}
+	if err := createFamilyAccounts(rt, step, adminAuth, guardians, password); err != nil {
+		return err
 	}
 	// The approval's own link is stored as hash only (#4902) and reaches
 	// nobody but the parent's mailbox: the seeder accepts a fresh invitation
@@ -75,10 +69,65 @@ func (s seedFamilyAppAccountsStep) Run(ctx context.Context, rt *Runtime) error {
 	return nil
 }
 
+// createFamilyAccounts invites and accepts an account for each guardian and
+// keeps the credentials of those with full parent rights in the runtime.
+func createFamilyAccounts(rt *Runtime, step parentEnrollmentSeedStep, adminAuth AuthRef, guardians []int, password string) error {
+	rt.FamilyAccounts = rt.FamilyAccounts[:0]
+	for _, index := range guardians {
+		guardian := DemoGuardians[index]
+		guardianID := rt.FixedSeeder.guardianIDs[guardian.FirstName+" "+guardian.LastName]
+		token, err := step.inviteGuardian(rt, adminAuth, guardianID)
+		if err != nil {
+			return fmt.Errorf("invite guardian %d: %w", guardianID, err)
+		}
+		accountID, err := step.acceptGuardianInvitation(rt, token, password)
+		if err != nil {
+			return fmt.Errorf("accept guardian invitation %d: %w", guardianID, err)
+		}
+		if account, ok := familyAccount(rt, index, guardianID, accountID, password); ok {
+			rt.FamilyAccounts = append(rt.FamilyAccounts, account)
+		}
+	}
+	return nil
+}
+
+// familyAccount returns the credentials of a family app account, so later
+// steps can act as the family. Guardians with a limited role (pickup only,
+// custom) have an account but no full parent rights; they stay out.
+func familyAccount(rt *Runtime, guardianIndex int, guardianID, accountID int64, password string) (ParentCredentials, bool) {
+	guardian := DemoGuardians[guardianIndex]
+	studentID := rt.FixedSeeder.studentIDByIndex[guardian.StudentIndex]
+	if demoGuardianHasLimitedRole(guardianIndex) || studentID == 0 {
+		return ParentCredentials{}, false
+	}
+	return ParentCredentials{
+		Email:      scopedEmail(guardian.Email, rt.FixedSeeder.accountScope),
+		Password:   password,
+		Name:       guardian.FirstName + " " + guardian.LastName,
+		AccountID:  accountID,
+		GuardianID: guardianID,
+		StudentIDs: []int64{studentID},
+	}, true
+}
+
 // familyAppGuardians returns the primary guardian of each demo child whose
 // family has no app account yet, in DemoStudents order, leaving out
 // familiesWithoutApp.
 func familyAppGuardians(guardianIDs map[string]int64, parents []ParentCredentials) ([]int64, error) {
+	indexes, err := familyAppGuardianIndexes(guardianIDs, parents)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]int64, 0, len(indexes))
+	for _, index := range indexes {
+		guardian := DemoGuardians[index]
+		result = append(result, guardianIDs[guardian.FirstName+" "+guardian.LastName])
+	}
+	return result, nil
+}
+
+// familyAppGuardianIndexes is familyAppGuardians as DemoGuardians indexes.
+func familyAppGuardianIndexes(guardianIDs map[string]int64, parents []ParentCredentials) ([]int, error) {
 	withAccount := make(map[int64]bool, len(parents))
 	for _, parent := range parents {
 		withAccount[parent.GuardianID] = true
@@ -89,17 +138,16 @@ func familyAppGuardians(guardianIDs map[string]int64, parents []ParentCredential
 			covered[guardian.StudentIndex] = true
 		}
 	}
-	result := make([]int64, 0, len(DemoStudents))
-	for _, guardian := range DemoGuardians {
+	result := make([]int, 0, len(DemoStudents))
+	for index, guardian := range DemoGuardians {
 		if !guardian.IsPrimary || covered[guardian.StudentIndex] || familiesWithoutApp[guardian.StudentIndex] {
 			continue
 		}
 		key := guardian.FirstName + " " + guardian.LastName
-		guardianID, ok := guardianIDs[key]
-		if !ok || guardianID == 0 {
+		if guardianIDs[key] == 0 {
 			return nil, fmt.Errorf("guardian %s was not created", key)
 		}
-		result = append(result, guardianID)
+		result = append(result, index)
 		covered[guardian.StudentIndex] = true
 	}
 	return result, nil

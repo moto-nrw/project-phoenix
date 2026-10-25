@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 )
 
 // seedParentPollStep creates a full 60-option poll so the staff editor and
@@ -22,10 +21,10 @@ func (seedParentPollStep) Run(_ context.Context, rt *Runtime) error {
 func seedParentPoll(rt *Runtime) error {
 	raw, err := rt.Client.Post("/api/parent-announcements/", map[string]any{
 		"title":         seedParentPollTitle,
-		"body":          "Bitte wählen Sie passende Termine.",
+		"body":          seedParentPollBody,
 		"priority":      "info",
 		"response_type": "multi_choice",
-		"options":       seedParentPollOptions(),
+		"options":       seedParentPollOptions(todaySeedDate()),
 		"targets": []map[string]any{
 			{"target_type": "school_all"},
 		},
@@ -53,13 +52,17 @@ func seedParentPoll(rt *Runtime) error {
 
 const seedParentPollTitle = "Termine für den Elternsprechtag"
 
+const seedParentPollBody = "Liebe Eltern, beim Elternsprechtag sprechen wir 15 Minuten mit Ihnen über Ihr Kind in der OGS. " +
+	"Bitte kreuzen Sie alle Termine an, die Ihnen passen. Wir schicken Ihnen danach Ihren festen Termin."
+
 type seedParentPollItem struct {
 	ID          string                 `json:"id"`
 	Title       string                 `json:"title"`
 	PublishedAt string                 `json:"published_at"`
 	Options     []seedParentPollOption `json:"options"`
 	Children    []struct {
-		StudentID string `json:"student_id"`
+		StudentID       string   `json:"student_id"`
+		SelectedOptions []string `json:"selected_options"`
 	} `json:"children"`
 }
 
@@ -68,20 +71,18 @@ type seedParentPollOption struct {
 }
 
 // seedParentPollAnswers lets the other demo families answer the poll through
-// the parent API, so the staff results show answers (#3759). The first parent
-// and every child they share stay unanswered: the parent portal shows them
-// the open poll.
+// the parent API, so the staff results show answers (#3759): the scripted
+// parents and three of four family app accounts. The first parent and every
+// child they share stay unanswered: the parent portal shows them the open
+// poll.
 func seedParentPollAnswers(rt *Runtime) (int, error) {
 	defer rt.Client.BindAuth(rt.TenantAuth)
 	if len(rt.Parents[0].StudentIDs) == 0 {
 		return 0, errors.New("the first demo parent has no children to keep the poll open for")
 	}
-	firstFamily := map[string]bool{}
-	for _, id := range rt.Parents[0].StudentIDs {
-		firstFamily[strconv.FormatInt(id, 10)] = true
-	}
+	firstFamily := firstFamilyChildren(rt)
 	answered := 0
-	for _, parent := range rt.Parents[1:] {
+	for _, parent := range respondingFamilies(rt) {
 		count, err := seedParentPollAnswer(rt, parent, firstFamily, answered)
 		if err != nil {
 			return answered, err
@@ -105,7 +106,7 @@ func seedParentPollAnswer(rt *Runtime, parent ParentCredentials, firstFamily map
 	}
 	count := 0
 	for _, child := range poll.Children {
-		if firstFamily[child.StudentID] {
+		if firstFamily[child.StudentID] || len(child.SelectedOptions) > 0 {
 			continue
 		}
 		if _, err := rt.Client.PostWithAuth(auth, "/parent/me/news/"+poll.ID+"/respond", map[string]any{
@@ -139,37 +140,61 @@ func seedParentPollFor(rt *Runtime, auth AuthRef) (seedParentPollItem, error) {
 	return seedParentPollItem{}, nil
 }
 
-// seedParentPollSpread is how many appointments the answers spread over: the
-// first afternoon, the slots the results list shows first.
-const seedParentPollSpread = 8
+// seedParentPollSlotWeights is how popular the first twelve appointments of
+// the first afternoon (14:00 to 16:45) are: few families make it at two,
+// most come after work.
+var seedParentPollSlotWeights = []int{1, 1, 2, 2, 3, 3, 4, 5, 5, 4, 3, 2}
 
-// seedParentPollChoice picks two of the first appointments for the given
-// answer, so the families' answers spread over them.
+// seedParentPollChoice picks one to three adjacent appointments among the
+// first ones for the given answer, weighted by seedParentPollSlotWeights,
+// so the results show a believable spread. The same answer number always
+// picks the same appointments.
 func seedParentPollChoice(options []seedParentPollOption, answer int) []string {
-	spread := min(seedParentPollSpread, len(options))
-	first := options[(answer*3)%spread].ID
-	second := options[(answer*3+1)%spread].ID
-	if first == second {
-		return []string{first}
+	weights := seedParentPollSlotWeights[:min(len(seedParentPollSlotWeights), len(options))]
+	total := 0
+	for _, weight := range weights {
+		total += weight
 	}
-	return []string{first, second}
+	spread := seedSpread(answer)
+	pick := int(spread % uint64(total))
+	first := 0
+	for first < len(weights)-1 && pick >= weights[first] {
+		pick -= weights[first]
+		first++
+	}
+	count := 1 + int((spread>>20)%3)
+	ids := make([]string, 0, count)
+	for slot := first; slot < first+count && slot < len(weights); slot++ {
+		ids = append(ids, options[slot].ID)
+	}
+	return ids
 }
 
-func seedParentPollOptions() []string {
-	days := []struct {
-		weekday string
-		date    string
-	}{
-		{weekday: "Mittwoch", date: "14. Oktober"},
-		{weekday: "Donnerstag", date: "15. Oktober"},
-		{weekday: "Freitag", date: "16. Oktober"},
-	}
+// seedSpread mixes a counter into well-spread bits (SplitMix64), for choices
+// that look random but repeat on every run.
+func seedSpread(n int) uint64 {
+	z := uint64(n) + 0x9e3779b97f4a7c15
+	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
+	z = (z ^ (z >> 27)) * 0x94d049bb133111eb
+	return z ^ (z >> 31)
+}
+
+// seedParentPollDays are Tuesday to Thursday of next week: always ahead of
+// the seed day, and close enough that families plan them now.
+func seedParentPollDays(today seedDate) []seedDate {
+	tuesday := seedWeekMonday(today).AddDays(8)
+	return []seedDate{tuesday, tuesday.AddDays(1), tuesday.AddDays(2)}
+}
+
+// seedParentPollOptions offers twenty quarter hours from 14:00 on each poll
+// day: "Dienstag, 27. Oktober, 14:00 Uhr".
+func seedParentPollOptions(today seedDate) []string {
 	options := make([]string, 0, 60)
-	for _, day := range days {
+	for _, day := range seedParentPollDays(today) {
 		for slot := range 20 {
 			hour := 14 + slot/4
 			minute := 15 * (slot % 4)
-			options = append(options, fmt.Sprintf("%s, %s, %02d:%02d Uhr", day.weekday, day.date, hour, minute))
+			options = append(options, fmt.Sprintf("%s, %02d:%02d Uhr", germanDate(day), hour, minute))
 		}
 	}
 	return options

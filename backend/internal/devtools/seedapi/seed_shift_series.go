@@ -6,19 +6,25 @@ import (
 	"time"
 )
 
-// seedShiftSeriesStep shows Dienstplan series around a week of Ferien
-// (#3820): one person without holiday care, whose series leaves the Ferien
-// out, and one who also works in the Ferien. Everybody else who records time
-// works the regular Dienst, so the staff overview expects the people the
-// simulation clocks in (#3892); seedTodaysShiftsStep plans today.
+// seedShiftSeriesStep shows Dienstplan series around two weeks of
+// Herbstferien (#3820): one person without holiday care, whose series leaves
+// the Ferien out, and one who also works in the Ferien. Everybody else who
+// records time works the regular Dienst, so the staff overview expects the
+// people the simulation clocks in (#3892); seedTodaysShiftsStep plans the
+// current week up to today.
 type seedShiftSeriesStep struct{}
 
 // The regular Dienst nets the 480 minutes of the seeded Soll, the same day
-// the time-tracking history records.
+// the time-tracking history records. The Früh- and Spätdienst net the same
+// Soll half an hour earlier or later.
 const (
 	regularDutyStart        = "08:00"
 	regularDutyEnd          = "16:30"
 	regularDutyBreakMinutes = 30
+	earlyDutyStart          = "07:30"
+	earlyDutyEnd            = "16:00"
+	lateDutyStart           = "08:30"
+	lateDutyEnd             = "17:00"
 )
 
 func (seedShiftSeriesStep) Name() string { return "Seeding shift series around the Ferien" }
@@ -32,6 +38,15 @@ type seedCalendarPeriod struct {
 	WeekCycleLength int     `json:"week_cycle_length"`
 	WeekCycleAnchor *string `json:"week_cycle_anchor"`
 	IsActive        bool    `json:"is_active"`
+}
+
+// seedHerbstferien are the two Ferien weeks the seed plans around: Monday to
+// Friday, starting on the first Monday two weeks from today, like NRW's two
+// weeks of Herbstferien. The school's holiday period, its Ferienbetreuung
+// and the Träger's holiday period all use them.
+func seedHerbstferien(today seedDate) (seedDate, seedDate) {
+	start := seedDate{Time: nextWeekday(today.AddDays(14).UTCMidnight(), time.Monday)}
+	return start, start.AddDays(11)
 }
 
 func (seedShiftSeriesStep) Run(_ context.Context, rt *Runtime) error {
@@ -53,8 +68,11 @@ func (seedShiftSeriesStep) Run(_ context.Context, rt *Runtime) error {
 		fmt.Println("  no school year covers tomorrow, shift series skipped")
 		return nil
 	}
-	ferienStart := seedDate{Time: nextWeekday(tomorrow.AddDays(13).UTCMidnight(), time.Monday)}
-	ferienEnd := ferienStart.AddDays(4)
+	types, err := seedDutyShiftTypes(rt)
+	if err != nil {
+		return err
+	}
+	ferienStart, ferienEnd := seedHerbstferien(todaySeedDate())
 	if _, err := rt.Client.Post("/api/timetable/periods", map[string]any{
 		"name": "Herbstferien", "period_type": "holiday",
 		"start_date": ferienStart.String(), "end_date": ferienEnd.String(),
@@ -69,7 +87,7 @@ func (seedShiftSeriesStep) Run(_ context.Context, rt *Runtime) error {
 	if periodEnd, err := time.Parse(seedDateLayout, schoolYear.EndDate); err == nil && validUntil.After(periodEnd.AddDate(0, 0, 1)) {
 		validUntil = seedDate{Time: periodEnd.AddDate(0, 0, 1)}
 	}
-	series := dutySeries(rt.FixedSeeder, staffIDs)
+	series := dutySeries(rt.FixedSeeder, staffIDs, types)
 	for _, payload := range series {
 		payload["weekdays"] = []int{1, 2, 3, 4, 5}
 		payload["calendar_period_id"] = schoolYear.ID
@@ -79,46 +97,62 @@ func (seedShiftSeriesStep) Run(_ context.Context, rt *Runtime) error {
 			return fmt.Errorf("seed shift series: %w", err)
 		}
 	}
-	fmt.Printf("  1 Ferien week and %d shift series created\n", len(series))
+	fmt.Printf("  2 Ferien weeks and %d shift series created\n", len(series))
 	return nil
 }
 
-// dutySeries are the Dienste the series plan from tomorrow on: two around the
-// Ferien, and the regular Dienst for everybody else who records time. The
-// first staff member has single shifts next week (seedStaffShift), so a series
-// would collide with them; that person is planned for today only.
-func dutySeries(fs *FixedSeeder, staffIDs []int64) []map[string]any {
+// dutySeries are the Dienste the series plan from tomorrow on. The
+// Frühbetreuung (07:30) is led by people in the Frühdienst: the third staff
+// member, who has no holiday care, the second, and the fifth, who stands in
+// when somebody is ill (seedTodaysAbsencesStep). The fourth works the
+// Spätdienst up to the Busaufsicht and also in the Ferien. Everybody else
+// who records time works the regular Dienst. The first staff member has
+// single shifts next week (seedStaffShift), so a series would collide with
+// them; that person is planned day by day (currentWeekShifts).
+func dutySeries(fs *FixedSeeder, staffIDs []int64, types seedDutyTypes) []map[string]any {
+	early := func(staffID int64) map[string]any {
+		return map[string]any{
+			"staff_id": staffID, "start_time": earlyDutyStart, "end_time": earlyDutyEnd,
+			"break_minutes": regularDutyBreakMinutes, "shift_type_id": types.early, "include_school_breaks": true,
+		}
+	}
+	noFerien := early(staffIDs[2])
+	noFerien["notes"], noFerien["include_school_breaks"] = "Keine Ferienbetreuung", false
 	series := []map[string]any{
+		noFerien,
 		{
-			"staff_id": staffIDs[2], "start_time": "08:00", "end_time": "13:00",
-			"notes": "Keine Ferienbetreuung", "include_school_breaks": false,
-		},
-		{
-			"staff_id": staffIDs[3], "start_time": "11:30", "end_time": "16:30", "break_minutes": 30,
+			"staff_id": staffIDs[3], "start_time": lateDutyStart, "end_time": lateDutyEnd,
+			"break_minutes": regularDutyBreakMinutes, "shift_type_id": types.late,
 			"notes": "Arbeitet auch in den Ferien", "include_school_breaks": true,
 		},
+		early(staffIDs[1]),
 	}
-	planned := map[int64]bool{staffIDs[0]: true, staffIDs[2]: true, staffIDs[3]: true}
+	planned := map[int64]bool{staffIDs[0]: true, staffIDs[1]: true, staffIDs[2]: true, staffIDs[3]: true}
+	if len(staffIDs) > substituteTodayStaffIndex {
+		series = append(series, early(staffIDs[substituteTodayStaffIndex]))
+		planned[staffIDs[substituteTodayStaffIndex]] = true
+	}
 	for _, staffID := range timeTrackingSeedStaffIDs(fs) {
 		if planned[staffID] {
 			continue
 		}
 		series = append(series, map[string]any{
 			"staff_id": staffID, "start_time": regularDutyStart, "end_time": regularDutyEnd,
-			"break_minutes": regularDutyBreakMinutes, "include_school_breaks": true,
+			"break_minutes": regularDutyBreakMinutes, "shift_type_id": types.care, "include_school_breaks": true,
 		})
 	}
 	return series
 }
 
-// seedTodaysShiftsStep plans today for everybody who has a Dienst. A series
-// starts tomorrow at the earliest, but a demo school's simulation clocks
-// people in from the first minute (#3892). It runs after the seed's own live
-// stamps: their instant check-out would deviate from a planned day and need a
-// reason.
+// seedTodaysShiftsStep plans the current week up to today for everybody who
+// has a Dienst. A series starts tomorrow at the earliest, but the Dienstplan
+// and the calendar open on the whole week, and a demo school's simulation
+// clocks people in from the first minute (#3892). It runs after the seed's
+// own live stamps: their instant check-out would deviate from a planned day
+// and need a reason.
 type seedTodaysShiftsStep struct{}
 
-func (seedTodaysShiftsStep) Name() string { return "Seeding today's shifts" }
+func (seedTodaysShiftsStep) Name() string { return "Seeding this week's shifts" }
 
 func (seedTodaysShiftsStep) Run(_ context.Context, rt *Runtime) error {
 	if rt == nil || rt.Client == nil || rt.FixedSeeder == nil {
@@ -129,7 +163,18 @@ func (seedTodaysShiftsStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("today's shifts need 4 staff members, got %d", len(staffIDs))
 	}
 	rt.Client.BindAuth(rt.TenantAuth)
-	return seedTodaysShifts(rt, todaySeedDate(), staffIDs, dutySeries(rt.FixedSeeder, staffIDs))
+	types, err := seedDutyShiftTypes(rt)
+	if err != nil {
+		return err
+	}
+	shifts := currentWeekShifts(todaySeedDate(), staffIDs, dutySeries(rt.FixedSeeder, staffIDs, types), types)
+	for _, body := range shifts {
+		if _, err := rt.Client.Post("/api/staff-shifts", body); err != nil {
+			return fmt.Errorf("seed shift on %s: %w", body["date"], err)
+		}
+	}
+	fmt.Printf("  %d shifts planned for this week up to today\n", len(shifts))
+	return nil
 }
 
 // timeTrackingSeedStaffIDs are the staff members who record their time: all
@@ -145,28 +190,42 @@ func timeTrackingSeedStaffIDs(fs *FixedSeeder) []int64 {
 	return ids
 }
 
-// seedTodaysShifts plans today for everybody a series covers, and the regular
-// Dienst for the first staff member.
-func seedTodaysShifts(rt *Runtime, today seedDate, staffIDs []int64, series []map[string]any) error {
-	if today.Weekday() == time.Saturday || today.Weekday() == time.Sunday {
-		return nil
-	}
-	shifts := append([]map[string]any{{
-		"staff_id": staffIDs[0], "start_time": regularDutyStart, "end_time": regularDutyEnd,
-		"break_minutes": regularDutyBreakMinutes,
+// currentWeekShifts are the single shifts from Monday of today's week up to
+// today, Friday at the latest: the series' hours for everybody a series
+// covers, and the Spätdienst for the first staff member, whose Freies Spiel
+// runs until 17:00. The person on vacation today is not planned today
+// (seedTodaysAbsencesStep). On a weekend they fill the week that just ended.
+func currentWeekShifts(today seedDate, staffIDs []int64, series []map[string]any, types seedDutyTypes) []map[string]any {
+	plan := append([]map[string]any{{
+		"staff_id": staffIDs[0], "start_time": lateDutyStart, "end_time": lateDutyEnd,
+		"break_minutes": regularDutyBreakMinutes, "shift_type_id": types.late,
 	}}, series...)
-	for _, shift := range shifts {
-		body := map[string]any{"date": today.String()}
-		for _, key := range []string{"staff_id", "start_time", "end_time", "break_minutes", "notes"} {
-			if value, ok := shift[key]; ok {
-				body[key] = value
+	monday := seedDate{Time: mostRecentWeekday(today.UTCMidnight(), time.Monday)}
+	onVacation := int64(0)
+	if len(staffIDs) > vacationTodayStaffIndex {
+		onVacation = staffIDs[vacationTodayStaffIndex]
+	}
+	var shifts []map[string]any
+	for day := monday; !day.After(today.UTCMidnight()) && day.Weekday() != time.Saturday; day = day.AddDays(1) {
+		for _, shift := range plan {
+			if day.String() != today.String() || shift["staff_id"] != onVacation {
+				shifts = append(shifts, singleShiftBody(day, shift))
 			}
 		}
-		if _, err := rt.Client.Post("/api/staff-shifts", body); err != nil {
-			return fmt.Errorf("seed today's shift: %w", err)
+	}
+	return shifts
+}
+
+// singleShiftBody is one day of a planned Dienst, without the series-only
+// fields.
+func singleShiftBody(day seedDate, shift map[string]any) map[string]any {
+	body := map[string]any{"date": day.String()}
+	for _, key := range []string{"staff_id", "start_time", "end_time", "break_minutes", "shift_type_id", "notes"} {
+		if value, ok := shift[key]; ok {
+			body[key] = value
 		}
 	}
-	return nil
+	return body
 }
 
 // seedSchoolYearPeriod returns the active school year containing day, which

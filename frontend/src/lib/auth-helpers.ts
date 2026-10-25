@@ -123,12 +123,25 @@ export function mapPermissionResponse(
   };
 }
 
+// Labels of school roles that are not system roles. The demo school seeds
+// both (backend/internal/devtools/seedapi/demo_roles.go); role names are
+// stored lowercase, so "ogs-leitung" would otherwise read as „Ogs-leitung“
+// in the header and as "ogs-leitung" in every role list.
+const SCHOOL_ROLE_LABELS: Record<string, string> = {
+  "ogs-leitung": "OGS-Leitung",
+  betreuungskraft: "Betreuungskraft",
+};
+
 /**
- * Get the German display name for a system role (`~/lib/role-labels`).
- * Falls back to the original name if no translation exists.
+ * Get the German display name for a system role (`~/lib/role-labels`) or a
+ * demo school role. Falls back to the original name if no translation exists.
  */
 export function getRoleDisplayName(roleName: string): string {
-  return systemRoleLabel(roleName) ?? roleName;
+  return (
+    systemRoleLabel(roleName) ??
+    SCHOOL_ROLE_LABELS[roleName.toLowerCase()] ??
+    roleName
+  );
 }
 
 /**
@@ -147,14 +160,6 @@ export function getRoleDisplayDescription(
 ): string {
   return systemRoleDescription(roleName) ?? originalDescription;
 }
-
-// Labels of school roles that are not system roles. The demo school seeds
-// both (backend/seed/api/demo_roles.go); role names are stored lowercase, so
-// "ogs-leitung" would otherwise read as „Ogs-leitung".
-const SCHOOL_ROLE_LABELS: Record<string, string> = {
-  "ogs-leitung": "OGS-Leitung",
-  betreuungskraft: "Betreuungskraft",
-};
 
 /**
  * The role label next to the name in the staff portal's header (#3891). An

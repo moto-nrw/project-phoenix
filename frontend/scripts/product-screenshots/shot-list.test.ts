@@ -22,6 +22,8 @@ shots:
       - klicken: "text=Filter"
       - scrollen: 400
       - scrollen: "footer"
+      - tippen: { feld: "#email", text: "jonas@example.org" }
+      - zeichnen: "canvas"
 `;
 
 describe("Shot-Liste", () => {
@@ -36,6 +38,8 @@ describe("Shot-Liste", () => {
       { klicken: "text=Filter" },
       { scrollen: 400 },
       { scrollen: "footer" },
+      { tippen: { feld: "#email", text: "jonas@example.org" } },
+      { zeichnen: "canvas" },
     ]);
   });
 
@@ -69,7 +73,24 @@ describe("Shot-Liste", () => {
   it("weist unbekannte Felder in Vorbereitungsschritten ab", () => {
     expect(() =>
       parseShotList(
-        "shots:\n  - {id: a, titel: A, portal: tenant, rolle: admin, pfad: /, vorbereitung: [{tippen: x}]}",
+        "shots:\n  - {id: a, titel: A, portal: tenant, rolle: admin, pfad: /, vorbereitung: [{druecken: x}]}",
+      ),
+    ).toThrow(/Ungültige Shot-Liste/);
+  });
+
+  it.each([
+    ["ohne Text", "{tippen: {feld: '#email'}}"],
+    ["mit leerem Feld", "{tippen: {feld: '', text: a}}"],
+    [
+      "mit unbekanntem Feld",
+      "{tippen: {feld: '#email', text: a, enter: true}}",
+    ],
+    ["als bloßer Text", "{tippen: '#email'}"],
+    ["mit leerem Selektor", "{zeichnen: ''}"],
+  ])("weist einen Schritt tippen/zeichnen %s ab", (_name, step) => {
+    expect(() =>
+      parseShotList(
+        `shots:\n  - {id: a, titel: A, portal: tenant, rolle: admin, pfad: /, vorbereitung: [${step}]}`,
       ),
     ).toThrow(/Ungültige Shot-Liste/);
   });

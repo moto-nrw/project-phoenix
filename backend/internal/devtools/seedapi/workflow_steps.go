@@ -254,11 +254,15 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	return Workflow{Name: "full-demo", Steps: steps}
 }
 
-// deferredPastSteps fill the past only: the time-tracking history, the export
-// that audits it, and past course dates. No later step reads them.
+// deferredPastSteps fill the past: the time-tracking history, today's
+// absences priced against it, the export that audits it, and past course
+// dates. No later step reads them.
 func deferredPastSteps() []Step {
 	return []Step{
 		seedTimeTrackingHistoryStep{},
+		// Nach der Historie und den Diensten der Woche: Die Krankmeldung
+		// sagt den Dienst ab und braucht die Sollzeiten der Historie.
+		seedTodaysAbsencesStep{},
 		seedDataAccessAuditStep{},
 		// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
 		// vergangene Kurstermine samt Anwesenheit an (#2891).

@@ -275,7 +275,40 @@ async function waitForSettled(
   };
 }
 
-async function runStep(
+/**
+ * Zieht mit der Maus einen Schriftzug über die Fläche: eine Wellenlinie über
+ * gut zwei Drittel der Breite, wie eine schnelle Unterschrift. Feste Punkte,
+ * damit jedes Gerät dieselbe Form bekommt.
+ */
+async function drawSignature(page: Page, selector: string): Promise<void> {
+  const target = page.locator(selector).first();
+  await target.scrollIntoViewIfNeeded({ timeout: 10_000 });
+  const box = await target.boundingBox({ timeout: 10_000 });
+  if (!box) throw new Error(`${selector} hat keine sichtbare Fläche`);
+  const at = (x: number, y: number) => ({
+    x: box.x + box.width * x,
+    y: box.y + box.height * y,
+  });
+  const steps = 48;
+  const points = Array.from({ length: steps + 1 }, (_, index) => {
+    const t = index / steps;
+    return at(
+      0.15 + 0.7 * t,
+      0.55 - 0.18 * Math.sin(t * Math.PI * 5) * (1 - 0.4 * t),
+    );
+  });
+  const [first, ...rest] = points;
+  if (!first) return;
+  await page.mouse.move(first.x, first.y);
+  await page.mouse.down();
+  for (const point of rest) {
+    await page.mouse.move(point.x, point.y, { steps: 2 });
+  }
+  await page.mouse.up();
+}
+
+/** Ein Schritt der Vorbereitung; exportiert für steps.pw.ts. */
+export async function runStep(
   page: Page,
   network: NetworkActivity,
   step: Step,
@@ -297,15 +330,68 @@ async function runStep(
         `${step.warten_auf} nach ${seconds} s nicht sichtbar (${network.state().inFlight} Anfragen offen)`,
       );
     }
+  } else if ("tippen" in step) {
+    // Nur ins Feld schreiben: Ein Formular abzuschicken bleibt ein eigener,
+    // bewusster Klick (und im Shot verboten, siehe shots.yaml).
+    await page
+      .locator(step.tippen.feld)
+      .first()
+      .fill(step.tippen.text, { timeout: 10_000 });
+  } else if ("zeichnen" in step) {
+    await drawSignature(page, step.zeichnen);
   } else if (typeof step.scrollen === "number") {
     const offset = step.scrollen;
     await page.evaluate((top) => window.scrollTo(0, top), offset);
   } else {
-    await page
-      .locator(step.scrollen)
-      .first()
-      .scrollIntoViewIfNeeded({ timeout: 10_000 });
+    await scrollToTop(page, step.scrollen);
   }
+}
+
+/**
+ * Abstand zwischen fester Kopfleiste und dem Element, zu dem `scrollen`
+ * führt: Die Überschrift klebt nicht an der Leiste.
+ */
+const SCROLL_GAP_PX = 16;
+
+/**
+ * Bringt das Element an den oberen Rand, direkt unter die Kopfleisten, die
+ * beim Scrollen stehen bleiben (sticky oder fixed, oben, mindestens halb so
+ * breit wie das Fenster). `scrollIntoViewIfNeeded` täte bei einem schon
+ * angeschnittenen Element nichts, und der Shot zeigte je nach Gerät einen
+ * anderen Ausschnitt. Liegt das Element in einem Dialog, scrollt dessen
+ * eigener Bereich. Am Seitenende bleibt die Seite stehen, das Element liegt
+ * dann tiefer.
+ */
+async function scrollToTop(page: Page, selector: string): Promise<void> {
+  const target = page.locator(selector).first();
+  await target.waitFor({ state: "attached", timeout: 10_000 });
+  await target.evaluate((element, gap) => {
+    // Im Dialog zählen nur dessen eigene Kopfzeilen; die Leiste der Seite
+    // liegt dahinter.
+    const scope = element.closest('[role="dialog"], dialog') ?? document.body;
+    const headerBottom = Array.from(scope.querySelectorAll("*"))
+      .filter((candidate) => {
+        if (candidate.contains(element)) return false;
+        const { position } = getComputedStyle(candidate);
+        if (position !== "sticky" && position !== "fixed") return false;
+        const rect = candidate.getBoundingClientRect();
+        return (
+          rect.top <= 1 &&
+          rect.height > 0 &&
+          rect.height < window.innerHeight / 3 &&
+          rect.width >= window.innerWidth / 2
+        );
+      })
+      .reduce(
+        (bottom, candidate) =>
+          Math.max(bottom, candidate.getBoundingClientRect().bottom),
+        0,
+      );
+    if (element instanceof HTMLElement || element instanceof SVGElement) {
+      element.style.scrollMarginTop = `${headerBottom + gap}px`;
+    }
+    element.scrollIntoView({ block: "start", behavior: "instant" });
+  }, SCROLL_GAP_PX);
 }
 
 async function captureOne(
