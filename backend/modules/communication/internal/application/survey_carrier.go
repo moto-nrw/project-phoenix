@@ -67,8 +67,10 @@ func (s *service) publishSurveyCarrier(ctx context.Context, survey *communicatio
 	if err := s.notifyAnnouncementGuardians(ctx, a); err != nil {
 		return 0, fmt.Errorf("survey: carrier push: %w", err)
 	}
-	if err := s.enqueueAnnouncementEmails(ctx, a); err != nil {
-		return 0, fmt.Errorf("survey: carrier e-mails: %w", err)
+	if a.SendEmail {
+		if err := s.enqueueAnnouncementEmails(ctx, a); err != nil {
+			return 0, fmt.Errorf("survey: carrier e-mails: %w", err)
+		}
 	}
 	return a.ID, nil
 }

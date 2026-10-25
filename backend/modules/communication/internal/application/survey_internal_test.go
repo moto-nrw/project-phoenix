@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -219,6 +220,28 @@ func TestSurveyInputRules(t *testing.T) {
 		if _, err := normalizeSurveyInput(in, now); !errors.Is(err, communication.ErrSurveyInvalid) {
 			t.Errorf("case %d: err = %v, want ErrSurveyInvalid", i, err)
 		}
+	}
+}
+
+func TestPublishSurveyCarrierSkipsEmailsWhenDisabled(t *testing.T) {
+	t.Parallel()
+	repo := &fakeAnnouncementRepo{recipients: []*StaffAnnouncementRecipient{{AccountID: 1, Email: "parent@example.test"}}}
+	outbox := &fakeOutbox{}
+	svc := newTestService(repo, outbox).(*service)
+	closesAt := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	survey := &communication.Survey{
+		Title: "Rückmeldung", Audience: communication.SurveyAudienceParents, SendEmail: false, ClosesAt: closesAt,
+		Targets: []communication.SurveyTarget{{TargetType: "school_all"}},
+	}
+
+	if _, err := svc.publishSurveyCarrier(context.Background(), survey, 1, closesAt.Add(-time.Hour)); err != nil {
+		t.Fatalf("publish survey carrier: %v", err)
+	}
+	if repo.announcement.SendEmail {
+		t.Fatal("carrier must preserve the disabled e-mail option")
+	}
+	if len(outbox.requests) != 0 {
+		t.Fatalf("disabled survey e-mail queued %d message(s)", len(outbox.requests))
 	}
 }
 
