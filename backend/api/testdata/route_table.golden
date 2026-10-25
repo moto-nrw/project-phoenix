@@ -604,6 +604,9 @@ GET /school/staff-notices/today
 GET /school/supervisions/
 GET /school/supervisions/{id}/roster
 GET /school/supervisions/{id}/students/{student_id}/sheet
+GET /traeger/access-log/
+GET /traeger/access-log/export
+GET /traeger/access-log/people
 GET /traeger/accounts/
 GET /traeger/holiday-periods/
 GET /traeger/holiday-periods/{id}

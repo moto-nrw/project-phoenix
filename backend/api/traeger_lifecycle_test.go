@@ -126,6 +126,8 @@ func TestOperatorDeactivationEndsEveryTraegerSessionAndReactivationLetsInAgain(t
 
 	listed, _ = traegerSchools(t, traeger, session.AccessToken)
 	assert.Equal(t, http.StatusUnauthorized, listed.Code, "an access token still in flight reaches no school: %s", listed.Body.String())
+	logged := accessLogRequest(t, traeger, session.AccessToken, "/traeger/access-log/", accessLogWindow(nil))
+	assert.Equal(t, http.StatusUnauthorized, logged.Code, "nor the access log of a school: %s", logged.Body.String())
 	_, _, err := identity.RefreshTokenWithAudit(tenant.WithUnitOfWork(context.Background(), unit), session.RefreshToken, "", "", "")
 	assert.Error(t, err, "the ended session cannot be refreshed")
 	code, _ = traegerLogin(t, traeger, account.Email, password, 0)

@@ -22,6 +22,8 @@ const logger = createLogger({ component: "TraegerShell" });
 const ACCOUNTS_RIGHT = "traeger_accounts:manage";
 /** The Träger right that opens the holiday periods (#4659). */
 const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
+/** The Träger right that opens the access log (#4655). */
+const ACCESS_LOG_RIGHT = "traeger_access_log:read";
 
 const navLinkClassName =
   "rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
@@ -40,12 +42,19 @@ const NAV_ITEMS = [
     path: "/traeger/accounts",
     right: ACCOUNTS_RIGHT,
   },
+  {
+    id: "zugriffsprotokoll",
+    label: "Zugriffsprotokoll",
+    path: "/traeger/access-log",
+    right: ACCESS_LOG_RIGHT,
+  },
 ] as const;
 
 /**
  * The pages of the portal as header tabs. The holiday periods need the right
- * "Anmeldung verwalten", the page "Personen" the right to manage accounts; a
- * person with neither has one page and no tabs.
+ * "Anmeldung verwalten", the page "Personen" the right to manage accounts,
+ * the access log the right to read it; a person with none of them has one
+ * page and no tabs.
  */
 function TraegerNav({ session }: Readonly<{ session: Session | null }>) {
   const router = useRouter();
@@ -77,7 +86,8 @@ function TraegerNav({ session }: Readonly<{ session: Session | null }>) {
  * The shell of the Träger portal ("moto träger", #4649): the shared
  * PortalShell frame with a slim head bar. The portal has few pages, so there
  * is no sidebar; the head carries the pages, the help and the way out. The
- * pages "Ferien" (#4659) and "Personen" (#4650) show only with their rights.
+ * pages "Ferien" (#4659), "Personen" (#4650) and "Zugriffsprotokoll" (#4655)
+ * show only with their rights.
  */
 export function TraegerShell({
   children,
