@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -56,7 +56,8 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
   const [working, setWorking] = useState(false);
   const loadErrors = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = loadErrors;
-  const formRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const formId = useId();
   const formErrors = useApiFormError(formRef);
   const { show: showActionError } = useApiErrorDisplay();
   const toast = useToast();
@@ -92,7 +93,9 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
     setInviteOpen(true);
   }
 
-  async function handleSubmit() {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (sending || !form.email.trim() || !form.catererName.trim()) return;
     setSending(true);
     formErrors.clear();
     try {
@@ -276,10 +279,10 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
               Abbrechen
             </Button>
             <Button
-              type="button"
+              type="submit"
+              form={formId}
               variant="primary"
               size="md"
-              onClick={() => void handleSubmit()}
               isLoading={sending}
               loadingText="Wird gesendet …"
               disabled={
@@ -293,7 +296,12 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
           </div>
         }
       >
-        <div ref={formRef} className="space-y-4">
+        <form
+          id={formId}
+          ref={formRef}
+          onSubmit={handleSubmit}
+          className="space-y-4"
+        >
           <p className="text-sm text-gray-600">
             Ihr Caterer bekommt eine E-Mail mit einem Link. Damit legt er sein
             Passwort fest.
@@ -335,7 +343,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
               />
             </div>
           </div>
-        </div>
+        </form>
       </FormModal>
 
       <ConfirmationModal

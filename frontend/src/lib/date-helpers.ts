@@ -120,7 +120,8 @@ export function formatWeekLabel(from: Date, to: Date): string {
   const toDay = String(to.getDate()).padStart(2, "0");
   const toMonth = String(to.getMonth() + 1).padStart(2, "0");
   const year = to.getFullYear();
-  return `KW ${kw} · ${fromDay}.${fromMonth}.–${toDay}.${toMonth}.${year}`;
+  const fromYear = from.getFullYear() === year ? "" : from.getFullYear();
+  return `KW ${kw} · ${fromDay}.${fromMonth}.${fromYear}–${toDay}.${toMonth}.${year}`;
 }
 
 /** Today's calendar date in the user's local timezone as "YYYY-MM-DD". */

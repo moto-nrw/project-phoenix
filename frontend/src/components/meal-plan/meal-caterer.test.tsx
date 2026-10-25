@@ -108,6 +108,39 @@ describe("MealCaterer", () => {
     ).toBeInTheDocument();
   });
 
+  it("connects the footer submit button and fields to the invitation form", async () => {
+    mocks.getMealCaterer.mockResolvedValue({ supply: null, invitations: [] });
+    render(<MealCaterer canManageSupply />, { wrapper: ToastProvider });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Caterer einladen" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const name =
+      within(dialog).getByLabelText<HTMLInputElement>(/Name des Caterers/);
+    const email = within(dialog).getByLabelText<HTMLInputElement>(
+      /E-Mail-Adresse des Caterers/,
+    );
+    const submit = within(dialog).getByRole<HTMLButtonElement>("button", {
+      name: "Einladung senden",
+    });
+    fireEvent.change(name, { target: { value: "Küche am Markt" } });
+    fireEvent.change(email, { target: { value: "kueche@example.com" } });
+    expect(submit).toHaveAttribute("type", "submit");
+    expect(name.form).toBeInstanceOf(HTMLFormElement);
+    expect(email.form).toBe(name.form);
+    expect(submit.form).toBe(name.form);
+    // Happy DOM's keyboard simulation does not find external submit buttons.
+    // Exercise the native submission event after checking form ownership.
+    fireEvent.submit(name.form!);
+    await waitFor(() =>
+      expect(mocks.inviteMealCaterer).toHaveBeenCalledExactlyOnceWith({
+        email: "kueche@example.com",
+        catererName: "Küche am Markt",
+        deliveryAddress: "",
+      }),
+    );
+  });
+
   it("keeps a failed invitation in the open dialog with the field error", async () => {
     mocks.getMealCaterer.mockResolvedValue({ supply: null, invitations: [] });
     mocks.inviteMealCaterer.mockRejectedValueOnce(
@@ -127,7 +160,7 @@ describe("MealCaterer", () => {
     });
     fireEvent.change(
       within(form).getByLabelText(/E-Mail-Adresse des Caterers/),
-      { target: { value: "kueche" } },
+      { target: { value: "kueche@example.com" } },
     );
     fireEvent.click(
       within(form).getByRole("button", { name: "Einladung senden" }),

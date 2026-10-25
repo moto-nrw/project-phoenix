@@ -1414,7 +1414,82 @@ describe("ParentMealPlanPage", () => {
           { exact: false },
         ),
       ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(mocks.setMealParticipationWeek).toHaveBeenCalledTimes(2);
+      expect(mocks.setMealParticipationWeek).toHaveBeenLastCalledWith(
+        "child-1",
+        "2026-08-10",
+        true,
+      );
     });
+
+    it.each(["child", "school", "week"])(
+      "invalidates a failed registration retry after changing %s",
+      async (context) => {
+        mocks.listMyChildren.mockResolvedValue([
+          {
+            student_id: "child-1",
+            tenant_id: "school-1",
+            first_name: "Mia",
+            last_name: "Muster",
+            school_name: "OGS Am Berg",
+          },
+          {
+            student_id: "child-2",
+            tenant_id: context === "school" ? "school-2" : "school-1",
+            first_name: "Noah",
+            last_name: "Beispiel",
+            school_name: "OGS Am Park",
+          },
+        ]);
+        mocks.getMealParticipation.mockResolvedValue(
+          plan({
+            days: [
+              day("2026-08-13", {
+                participating: false,
+                regular_participating: false,
+                source: "none",
+              }),
+            ],
+          }),
+        );
+        mocks.setMealParticipationWeek.mockRejectedValue(unavailable());
+        render(<ParentMealPlanPage />);
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Woche anmelden" }),
+        );
+        const retry = await screen.findByRole("button", {
+          name: "Wiederholen",
+        });
+        if (context === "week") {
+          fireEvent.click(
+            screen.getByRole("button", { name: "Nächste Woche" }),
+          );
+          await waitFor(() =>
+            expect(mocks.getChildMealPlan).toHaveBeenLastCalledWith(
+              "child-1",
+              "2026-08-17",
+            ),
+          );
+        } else {
+          fireEvent.click(screen.getByRole("combobox", { name: "Kind" }));
+          fireEvent.click(
+            await screen.findByRole("option", {
+              name: "Noah Beispiel · OGS Am Park",
+            }),
+          );
+          await waitFor(() =>
+            expect(mocks.getMealParticipation).toHaveBeenLastCalledWith(
+              "child-2",
+              "2026-08-10",
+              "2026-09-04",
+            ),
+          );
+        }
+        fireEvent.click(retry);
+        expect(mocks.setMealParticipationWeek).toHaveBeenCalledTimes(1);
+      },
+    );
 
     it("names absent and closed days without a change button", async () => {
       mocks.getMealParticipation.mockResolvedValue(

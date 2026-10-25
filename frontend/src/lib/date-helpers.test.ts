@@ -13,6 +13,7 @@ import {
   parseISODate,
   isValidISODate,
   isoWeekNumber,
+  formatWeekLabel,
   todayISO,
   berlinTodayISO,
   berlinDayStart,
@@ -94,6 +95,20 @@ describe("isoWeekNumber", () => {
     expect(isoWeekNumber("2027-01-01")).toBe(53);
     // 04.01.2027 ist der Montag der ersten Kalenderwoche.
     expect(isoWeekNumber("2027-01-04")).toBe(1);
+  });
+});
+
+describe("formatWeekLabel", () => {
+  it("keeps same-year labels compact", () => {
+    expect(
+      formatWeekLabel(new Date(2026, 11, 21), new Date(2026, 11, 25)),
+    ).toBe("KW 52 · 21.12.–25.12.2026");
+  });
+
+  it("includes both years when the week crosses New Year", () => {
+    expect(formatWeekLabel(new Date(2026, 11, 28), new Date(2027, 0, 1))).toBe(
+      "KW 53 · 28.12.2026–01.01.2027",
+    );
   });
 });
 

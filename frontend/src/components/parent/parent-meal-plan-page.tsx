@@ -453,6 +453,16 @@ function ParticipationWeek({
     clear: clearWeekCancelError,
   } = useApiFormError();
   const { show: showWeekRegisterError } = useApiErrorDisplay();
+  const weekRetryContextRef = useRef({ active: true });
+  useLayoutEffect(() => {
+    const context = { active: true };
+    weekRetryContextRef.current = context;
+    // Toasts outlive this child. Never retry an old child or week, even if
+    // the family switches away and then back to the same selection.
+    return () => {
+      context.active = false;
+    };
+  }, [studentId, mondayISO]);
   // Retry sends the draft as it is now, not as it was when saving failed.
   const retrySaveRef = useRef<() => void>(() => undefined);
   const dayEditorRef = useRef<HTMLFieldSetElement | null>(null);
@@ -665,6 +675,7 @@ function ParticipationWeek({
   // Registers or cancels every day of the week the family may still change;
   // the backend leaves out the days whose deadline has passed.
   async function saveWeek(participating: boolean) {
+    const retryContext = weekRetryContextRef.current;
     setSaving(true);
     clearWeekCancelError();
     try {
@@ -682,7 +693,9 @@ function ParticipationWeek({
       logger.error("parent_meal_participation_week_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      const retry = () => void saveWeek(participating);
+      const retry = () => {
+        if (retryContext.active) void saveWeek(participating);
+      };
       if (participating) {
         void showWeekRegisterError(err, {
           object: t("errorObjectWeekRegister"),
