@@ -49,6 +49,11 @@ func (a seedCommandAdapter) LoginParent(ctx context.Context, email, password str
 	return commandSeedAuth(auth), commandSeedWrappedError(err, "parent login request failed")
 }
 
+func (a seedCommandAdapter) LoginTraeger(ctx context.Context, email, password string, organizationID int64) (seedapi.AuthRef, error) {
+	auth, err := a.inner.LoginTraeger(ctx, email, password, organizationID)
+	return commandSeedAuth(auth), commandSeedWrappedError(err, "traeger login request failed")
+}
+
 func (a seedCommandAdapter) Raw(ctx context.Context, auth seedapi.AuthRef, method, path string, body any, headers map[string]string) ([]byte, int, error) {
 	raw, status, err := a.inner.Raw(ctx, commandAPIAuth(auth), method, path, body, headers)
 	return raw, status, commandSeedError(err)
