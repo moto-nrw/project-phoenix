@@ -67,6 +67,9 @@ type Config struct {
 	ParentRequestEvents RequestEventWriter
 	// StudentPhotos unlinks the stored photo a withdrawal leaves behind.
 	StudentPhotos StudentPhotoUnlinker
+	// ChildDataAccess records the reads of the holiday registration prefill
+	// (#4662) in the school's data access log.
+	ChildDataAccess ChildDataAccessLog
 
 	// Owner commands. Care Plan records absences, the guardian leg of a
 	// day's pickup exception and the Stammdaten requests; People Directory

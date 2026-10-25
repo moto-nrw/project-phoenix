@@ -80,6 +80,12 @@ func (rs *Resource) mountEnrollmentRoutes(r chi.Router) {
 	// submission the public path uses.
 	r.Post("/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
 	r.Post("/enrollments/{tenantSlug}/uploads", rs.uploadParentEnrollment)
+
+	// Prefill of the holiday registration of a Träger (#4662): the
+	// children of the account at the Träger's schools the parent may
+	// register, and the guardian's contact data. The Träger comes from the
+	// link only; the registration itself stays the public submit.
+	r.Get("/holiday-registrations/{token}/family", rs.getHolidayRegistrationFamily)
 }
 
 func (rs *Resource) mountChildStatusRoutes(r chi.Router) {

@@ -70,6 +70,7 @@ type Dependencies struct {
 	StudentAudit        care.StudentChangeRecorder
 	StudentConsents     care.StudentConsentService
 	StudentPhotos       care.StudentPhotoUnlinker
+	ChildDataAccess     care.ChildDataAccessLog
 	ParentRequestEvents messaging.RequestEvents
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
@@ -123,7 +124,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		ExcusedRequests: deps.ExcusedRequests, CarePlanPolicy: deps.CarePlanPolicy,
 		CarePeriods: deps.CarePeriods, OfferingHistory: deps.OfferingHistory,
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
-		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos,
+		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos, ChildDataAccess: deps.ChildDataAccess,
 		ParentRequestEvents: deps.ParentRequestEvents,
 		GuardianChanges:     newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
 		GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,

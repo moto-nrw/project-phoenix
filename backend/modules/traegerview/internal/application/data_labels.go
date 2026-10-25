@@ -26,6 +26,7 @@ var dataLabels = map[string]string{
 	"time_tracking_export":        "Arbeitszeiten des Personals (Export)",
 	"traeger_access_log":          "Zugriffsprotokoll im Träger-Portal",
 	"traeger_access_log_export":   "Zugriffsprotokoll im Träger-Portal (Export)",
+	"holiday_prefill":             "Angaben eines Kindes für die Ferienanmeldung",
 	"student_record":              "Angaben zu einem Kind",
 	"guardian_record":             "Angaben zu Eltern",
 	"guardian_bank_details":       "Bankverbindung von Eltern",

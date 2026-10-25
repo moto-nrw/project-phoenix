@@ -552,6 +552,15 @@ The parents portal serves `/parents/anmeldung/{slug}/{phaseId}` with the same
 stamp `enrollment.requests.guardian_account_id`; decisions prefer attachment by
 that ID over email matching.
 
+The holiday registration page `/parents/ferienanmeldung/{token}` (ADR 0110)
+stays public. With a parent session it also reads
+`GET /parent/holiday-registrations/{token}/family` (#4662, ADR 0113): the
+account's children at the link's Träger schools whose relationship grants
+`parent_portal.enrollment.submit`, and the parent's contact data. Each read
+child gets an `audit.data_access_log` row (`holiday_prefill`) at its school.
+The submission stays the public, captcha-gated
+`POST /traeger/holiday-registrations/{token}` and names no student.
+
 A form template with `core_requirements.signature` requires the parent's
 signature on every parent submission and form edit (#4786); the server refuses
 a missing one with `enrollment.signature_required`. The status token is the
