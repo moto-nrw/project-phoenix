@@ -209,8 +209,7 @@ func (s *surveyService) DeleteExpiredSurveys(ctx context.Context, audience strin
 	if retentionDays <= 0 {
 		return 0, fmt.Errorf("survey: retention window must be positive, got %d", retentionDays)
 	}
-	cutoff := s.now().Add(-time.Duration(retentionDays) * 24 * time.Hour)
-	expired, err := s.store.ExpiredSurveys(ctx, audience, cutoff)
+	expired, err := s.store.ExpiredSurveys(ctx, audience, surveyRetentionCutoff(s.now(), retentionDays))
 	if err != nil {
 		return 0, err
 	}
@@ -225,6 +224,14 @@ func (s *surveyService) DeleteExpiredSurveys(ctx context.Context, audience strin
 		}
 	}
 	return len(expired), nil
+}
+
+// surveyRetentionCutoff is the start of the Berlin calendar day retentionDays
+// before now, like the window of the parent announcements: a survey closed
+// before it is due. The day count does not shift by an hour across a change
+// of daylight saving time, whatever the zone of the process.
+func surveyRetentionCutoff(now time.Time, retentionDays int) time.Time {
+	return calendar.DateFromTime(now).AddDays(-retentionDays).BerlinMidnight()
 }
 
 // namedRespondents labels the stored answers of a named survey for the

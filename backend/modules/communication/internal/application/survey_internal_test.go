@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func scaleQuestion(id int64, prompt string) communication.SurveyQuestion {
@@ -218,5 +219,19 @@ func TestSurveyInputRules(t *testing.T) {
 		if _, err := normalizeSurveyInput(in, now); !errors.Is(err, communication.ErrSurveyInvalid) {
 			t.Errorf("case %d: err = %v, want ErrSurveyInvalid", i, err)
 		}
+	}
+}
+
+func TestSurveyRetentionCutoffCountsBerlinDays(t *testing.T) {
+	t.Parallel()
+	// The day after daylight saving time ended (25.10.2026): 30 days back
+	// is still summer time, the cutoff is that day's Berlin midnight.
+	now := time.Date(2026, 10, 26, 0, 30, 0, 0, calendar.Berlin)
+	cutoff := surveyRetentionCutoff(now.UTC(), 30)
+	if want := time.Date(2026, 9, 26, 0, 0, 0, 0, calendar.Berlin); !cutoff.Equal(want) {
+		t.Fatalf("cutoff = %s, want %s", cutoff, want)
+	}
+	if got := cutoff.UTC().Format(time.RFC3339); got != "2026-09-25T22:00:00Z" {
+		t.Fatalf("cutoff in UTC = %s, want 2026-09-25T22:00:00Z", got)
 	}
 }
