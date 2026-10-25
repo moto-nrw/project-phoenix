@@ -3032,6 +3032,9 @@
         "audit_unavailable": "{object} şu anda kullanılamıyor. Yeniden deneyin."
       },
       "traeger": {
+        "already_member": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "last_administrator": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "member_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "no_membership": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       }
     },

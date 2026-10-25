@@ -6192,6 +6192,9 @@ function modulesTopic(): HelpTopic {
     notes: [
       "moto Basis hat jede OGS. Dazu gehören zum Beispiel Kinder, Gruppen, Räume, Anwesenheit und Kalender.",
       "Die Schalter sind nur zur Information. Welche Module Ihre OGS hat, steht im Vertrag mit moto.",
+      "Ohne `Eltern-App` gibt es kein Elternportal. Eltern können sich dort nicht anmelden. moto schickt ihnen keine E-Mails und Mitteilungen mehr, zum Beispiel zu Terminen.",
+      "Ohne `Unterricht am Vormittag` gibt es kein moto schule. Lehrkräfte können sich dort nicht anmelden.",
+      "Ohne `Online-Anmeldung` verschickt moto keine E-Mails zu Anmeldungen.",
     ],
     differences: [
       "Ein Menüpunkt hat ein Schloss? Dann gehört er zu einem Modul, das Ihre OGS nicht gebucht hat. Das Schloss sehen nur Sie als Leitung. Ihr Team sieht den Menüpunkt nicht.",
@@ -6413,6 +6416,7 @@ function parentLoginTopic(): HelpTopic {
       "Ein Passwortwechsel verkürzt diese Wartezeit nicht.",
       "moto sagt, das Konto gehöre zum Personal einer Schule? Dann melden Sie sich über die Schul-Anmeldung an.",
       "moto sagt, Ihr Konto sei deaktiviert? Wenden Sie sich an Ihre OGS.",
+      "moto sagt, Ihre Schule nutze das Elternportal zurzeit nicht? Dann bietet Ihre Schule das Elternportal nicht an. Fragen Sie bei Ihrer Schule nach.",
     ],
     related: [
       HELP_TOPICS.parentAccount,
@@ -7500,6 +7504,7 @@ function teacherLoginTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, das Konto habe keinen Zugang zum Schul-Portal? Dann fehlt Ihnen die Rolle. Wenden Sie sich an die OGS-Verwaltung.",
+      "moto sagt, Ihre Schule nutze moto schule zurzeit nicht? Dann bietet Ihre Schule moto schule nicht an. Wenden Sie sich an die OGS-Verwaltung.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
     ],
     related: [
@@ -8289,6 +8294,38 @@ function traegerLoginTopic(): HelpTopic {
   };
 }
 
+/** `/traeger/invite` (#4650): Einladung aus der Mail annehmen. */
+function traegerInvitationTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerInvitation,
+    title: "Einladung ins Träger-Büro annehmen",
+    question: "Wie nehme ich eine Einladung ins Träger-Büro an?",
+    summary:
+      "Sie haben eine E-Mail mit einer Einladung bekommen. So kommen Sie ins Träger-Portal.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "UserRoundPlus",
+    requirements: ["Jemand aus dem Träger-Büro hat Sie per E-Mail eingeladen."],
+    steps: [
+      "Öffnen Sie die E-Mail `Einladung ins Träger-Portal von moto`.",
+      "Wählen Sie `Einladung annehmen`.",
+      "Haben Sie noch kein moto-Konto? Tragen Sie ein `Neues Passwort` ein und wiederholen Sie es.",
+      "Haben Sie schon ein moto-Konto? Tragen Sie das Passwort dieses Kontos ein.",
+      "Wählen Sie `Einladung annehmen`.",
+    ],
+    result:
+      "moto meldet Sie an und öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",
+    notes: [
+      "Mit derselben E-Mail-Adresse und demselben Passwort melden Sie sich später an.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, die Einladung sei abgelaufen? Bitten Sie die Person, die Sie eingeladen hat, um eine neue Einladung.",
+      "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Setzen Sie es in der Anmeldung Ihrer Schule über `Passwort vergessen?` zurück.",
+    ],
+    related: [HELP_TOPICS.traegerLogin],
+  };
+}
+
 /** `/traeger/ferien` (#4659): Ferienzeitraum mit Wochen und Zeitmodellen. */
 function traegerHolidayPeriodTopic(): HelpTopic {
   return {
@@ -8384,9 +8421,74 @@ function traegerTestSystemTopic(): HelpTopic {
   };
 }
 
+/** `/traeger/accounts` (#4650): Personen einladen, Rollen ändern, entfernen. */
+function traegerAccountsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerAccounts,
+    title: "Personen ins Träger-Büro einladen",
+    question:
+      "Wie lade ich Personen ins Träger-Büro ein und gebe ihnen Rollen?",
+    summary:
+      "Unter `Personen` laden Sie Kolleginnen und Kollegen ein. Die Rolle bestimmt, was eine Person darf.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "UsersThree",
+    requirements: ["Sie haben die Rolle `Verwaltung`."],
+    instructionGroups: [
+      {
+        title: "Person einladen",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Wählen Sie `Person einladen`.",
+          "Tragen Sie die `E-Mail-Adresse` ein.",
+          "Wählen Sie mindestens eine Rolle.",
+          "Wählen Sie `Einladung senden`.",
+        ],
+      },
+      {
+        title: "Rollen ändern",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
+          "Wählen Sie `Rollen ändern`.",
+          "Wählen Sie die Rollen und dann `Speichern`.",
+        ],
+      },
+      {
+        title: "Person entfernen",
+        steps: [
+          "Wählen Sie oben `Personen`.",
+          "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
+          "Wählen Sie `Aus dem Träger-Büro entfernen`.",
+          "Wählen Sie `Ja, entfernen` und dann `Entfernen`.",
+        ],
+      },
+    ],
+    steps: [],
+    result:
+      "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
+    notes: [
+      "`Verwaltung` darf alles verwalten, auch Personen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
+      "Eine Person kann mehrere Rollen haben.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
+      "Geänderte Rollen gelten nach wenigen Minuten. Eine entfernte Person kann sich nicht mehr anmelden. Eine offene Sitzung endet nach wenigen Minuten.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, das Träger-Büro brauche mindestens eine Person mit der Rolle Verwaltung? Geben Sie die Rolle zuerst einer anderen Person.",
+      "Die Einladung ist abgelaufen? Laden Sie die Person noch einmal ein. Die alte Einladung gilt dann nicht mehr.",
+      "Eine Einladung soll nicht mehr gelten? Wählen Sie bei der Einladung `Einladung zurücknehmen`.",
+    ],
+    related: [HELP_TOPICS.traegerInvitation],
+  };
+}
+
 const TRAEGER_TOPICS: readonly HelpTopic[] = [
+  traegerInvitationTopic(),
   traegerLoginTopic(),
   traegerTestSystemTopic(),
+  traegerAccountsTopic(),
   traegerHolidayPeriodTopic(),
 ];
 

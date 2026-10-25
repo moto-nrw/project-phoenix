@@ -106,6 +106,31 @@ func (s *Service) ActivateTraegerMembership(ctx context.Context, organizationID,
 	return membership, err
 }
 
+// DeactivateTraegerMembership ends an active membership. The Träger row is
+// share-locked like at activation, so the change cannot race the Träger's
+// deletion; the Träger itself may be inactive, a person leaves the
+// Träger-Büro of a deactivated Träger as well.
+func (s *Service) DeactivateTraegerMembership(ctx context.Context, organizationID, accountID int64) (deactivated bool, err error) {
+	if organizationID <= 0 || accountID <= 0 {
+		return false, organizationtenancy.ErrInvalidOrganization
+	}
+	err = s.run(ctx, "deactivate_traeger_membership", func(txCtx context.Context, stats *domain.OperationStats) error {
+		_, found, findStats, findErr := s.store.FindByID(txCtx, organizationID, "SHARE")
+		stats.Add(findStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return organizationtenancy.ErrOrganizationNotFound
+		}
+		var queryStats domain.OperationStats
+		deactivated, queryStats, err = s.store.DeactivateTraegerMembership(txCtx, organizationID, accountID)
+		stats.Add(queryStats)
+		return err
+	})
+	return deactivated, err
+}
+
 // liveTraeger fails for an unknown, deleted or deactivated Träger.
 func liveTraeger(organization organizationtenancy.Organization, found bool, err error) error {
 	switch {

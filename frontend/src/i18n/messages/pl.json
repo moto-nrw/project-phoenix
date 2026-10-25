@@ -3032,6 +3032,9 @@
         "audit_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie."
       },
       "traeger": {
+        "already_member": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "last_administrator": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "member_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "no_membership": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       }
     },

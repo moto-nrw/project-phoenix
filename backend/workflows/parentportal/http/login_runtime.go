@@ -25,6 +25,9 @@ type LoginRuntime struct {
 	// NotAGuardian reports an account without guardian access at any
 	// school — a staff account at the parents login.
 	NotAGuardian func(error) bool
+	// PortalNotBooked reports that none of the guardian's schools booked the
+	// module Eltern-App (#4895), with the module key and its name.
+	PortalNotBooked func(error) (module, moduleLabel string, ok bool)
 	// ConfirmPassword re-checks the signed-in guardian's password before a
 	// binding Erklärung (#3430). A wrong password satisfies InvalidCredentials.
 	ConfirmPassword func(ctx context.Context, accountID int64, password string) error
@@ -32,7 +35,7 @@ type LoginRuntime struct {
 
 func (rt *LoginRuntime) complete() bool {
 	return rt != nil && rt.Login != nil && rt.InvalidCredentials != nil &&
-		rt.AccountInactive != nil && rt.NotAGuardian != nil
+		rt.AccountInactive != nil && rt.NotAGuardian != nil && rt.PortalNotBooked != nil
 }
 
 var (

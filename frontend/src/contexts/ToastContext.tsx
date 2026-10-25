@@ -14,6 +14,8 @@ import { useFormError, type FormErrorDetail } from "~/components/ui/form-error";
 import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
+import { useModulePortal } from "~/lib/module-portal-context";
+import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { ApiError } from "~/lib/api-error";
 import {
   announceModuleBookingStale,
@@ -666,23 +668,28 @@ function useApiErrorCore(
 export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
   const toast = useToast();
   const seesLocked = useContext(ModuleBookingAudienceContext);
+  const portal = useModulePortal();
   const deliver = useCallback(
-    (shown: DisplayedError) => {
+    (shown: DisplayedError, locale: AppLocale) => {
       const options = {
         action: shown.retry,
         requestId: shown.requestId,
         requestIdLabel: shown.requestIdLabel,
       };
       if (shown.notBookedModule) {
+        // The parents and the school portal follow a module of their own
+        // (#4895); their readers cannot book anything.
         toast.info(
-          moduleNotBookedExplanation(shown.notBookedModule, seesLocked),
+          portal === "staff"
+            ? moduleNotBookedExplanation(shown.notBookedModule, seesLocked)
+            : portalNotBookedExplanation(portal, locale),
           options,
         );
         return;
       }
       toast.error(shown.message, options);
     },
-    [toast, seesLocked],
+    [toast, seesLocked, portal],
   );
   const core = useApiErrorCore(formRef, deliver, "toast");
   /**

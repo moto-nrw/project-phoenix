@@ -1,3 +1,5 @@
+import { isTraegerRole, type TraegerRole } from "~/lib/traeger-roles";
+
 // Backend response types (snake_case, int64 ids)
 
 export interface BackendProvisioningStats {
@@ -818,22 +820,11 @@ export const API_KEY_COPY_FAILED_MESSAGE =
 
 // --- Träger-Büro (#4649) ---
 
-/** The fixed Träger roles (ADR 0084); each bundles Träger rights. */
-export const TRAEGER_ROLES = [
-  "administration",
-  "billing",
-  "personnel",
-  "read_only",
-] as const;
-
-export type TraegerRole = (typeof TRAEGER_ROLES)[number];
-
-export const TRAEGER_ROLE_LABELS: Readonly<Record<TraegerRole, string>> = {
-  administration: "Verwaltung",
-  billing: "Abrechnung",
-  personnel: "Personal",
-  read_only: "Nur lesen",
-};
+export {
+  TRAEGER_ROLES,
+  TRAEGER_ROLE_LABELS,
+  type TraegerRole,
+} from "~/lib/traeger-roles";
 
 export type TraegerMemberStatus = "active" | "pending" | "inactive";
 
@@ -859,10 +850,6 @@ export interface TraegerMember {
   status: TraegerMemberStatus;
   roles: TraegerRole[];
   activatedAt: string | null;
-}
-
-function isTraegerRole(value: string): value is TraegerRole {
-  return (TRAEGER_ROLES as readonly string[]).includes(value);
 }
 
 export function mapTraegerMember(data: BackendTraegerMember): TraegerMember {

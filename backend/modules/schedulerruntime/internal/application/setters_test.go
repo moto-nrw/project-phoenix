@@ -47,6 +47,7 @@ func TestCheckAndRunBreakAutoEnd_HappyPath(t *testing.T) {
 	ender := &countingBreakAutoEnder{count: 3}
 	s := unitScheduler(&unitSchedulerDependencies{
 		breakAutoEnder: ender,
+		settings:       bookedModules(),
 		logger:         slog.Default()})
 
 	task := &ScheduledTask{Name: "break-auto-end", Schedule: "60s-poll"}
@@ -62,6 +63,7 @@ func TestCheckAndRunBreakAutoEnd_ServiceError(t *testing.T) {
 	ender := &countingBreakAutoEnder{err: errors.New("db broke")}
 	s := unitScheduler(&unitSchedulerDependencies{
 		breakAutoEnder: ender,
+		settings:       bookedModules(),
 		logger:         slog.Default()})
 
 	task := &ScheduledTask{Name: "break-auto-end", Schedule: "60s-poll"}
@@ -81,6 +83,7 @@ func TestCheckAndRunBreakAutoEnd_AlreadyRunning(t *testing.T) {
 	ender := &countingBreakAutoEnder{}
 	s := unitScheduler(&unitSchedulerDependencies{
 		breakAutoEnder: ender,
+		settings:       bookedModules(),
 		logger:         slog.Default()})
 
 	task := &ScheduledTask{Name: "break-auto-end", Running: true}
@@ -97,6 +100,7 @@ func TestCheckAndRunBreakAutoEnd_ZeroCount(t *testing.T) {
 	ender := &countingBreakAutoEnder{count: 0}
 	s := unitScheduler(&unitSchedulerDependencies{
 		breakAutoEnder: ender,
+		settings:       bookedModules(),
 		logger:         slog.Default()})
 
 	task := &ScheduledTask{Name: "break-auto-end"}

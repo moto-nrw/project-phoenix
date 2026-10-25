@@ -655,8 +655,10 @@ describe("getParentHelpTopicForPath", () => {
     const visible = new Set(traegerTopics.map((topic) => topic.id));
 
     expect(traegerTopics.map((topic) => topic.id)).toEqual([
+      HELP_TOPICS.traegerInvitation,
       HELP_TOPICS.traegerLogin,
       HELP_TOPICS.traegerTestSystem,
+      HELP_TOPICS.traegerAccounts,
       HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.errorMessages,
     ]);

@@ -3032,6 +3032,9 @@
         "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
       },
       "traeger": {
+        "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "last_administrator": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "member_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       }
     },

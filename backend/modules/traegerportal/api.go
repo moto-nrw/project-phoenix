@@ -1,5 +1,6 @@
 // Package traegerportal is the HTTP layer of the Träger-Portal ("moto
-// träger", ADR 0084, #4649): its sign-in and the mount of the Träger routes.
+// träger", ADR 0084, #4649): its sign-in, the Träger-Büro account routes
+// (#4650) and the mount of the Träger routes.
 //
 // Every route below /traeger shares two properties:
 //
@@ -29,6 +30,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 const headerUserAgent = "User-Agent"
@@ -95,15 +97,18 @@ type Resource struct {
 	auth           AuthRuntime
 	schools        TraegerRouter
 	holidayPeriods TraegerRouter
+	accounts       identityaccess.TraegerAccountManagement
 	organization   TraegerOrganizationRouter
 }
 
-// NewResource builds the Träger-Portal resource.
-func NewResource(auth AuthRuntime, schools, holidayPeriods TraegerRouter, organization TraegerOrganizationRouter) *Resource {
+// NewResource builds the Träger-Portal resource. accounts serves the
+// Träger-Büro account routes (#4650); without it they answer 500.
+// organization serves the Träger of the session (#4658).
+func NewResource(auth AuthRuntime, schools, holidayPeriods TraegerRouter, accounts identityaccess.TraegerAccountManagement, organization TraegerOrganizationRouter) *Resource {
 	if schools == nil || holidayPeriods == nil || organization == nil {
 		panic("traeger portal: the school list, holiday period and Träger routes are required")
 	}
-	return &Resource{auth: auth, schools: schools, holidayPeriods: holidayPeriods, organization: organization}
+	return &Resource{auth: auth, schools: schools, holidayPeriods: holidayPeriods, accounts: accounts, organization: organization}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -126,8 +131,10 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		}
 		r.Post("/login", rs.login)
 	})
+	r.Mount("/invitations", rs.invitationRouter(authRateLimiter))
 	r.Mount("/schools", rs.schools.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/holiday-periods", rs.holidayPeriods.TraegerRouter(protectedTraegerRoutes))
+	r.Mount("/accounts", rs.accountRouter(protectedTraegerRoutes))
 	r.Mount("/organization", rs.organization.TraegerOrganizationRouter(protectedTraegerRoutes))
 	return r
 }
