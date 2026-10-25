@@ -29,17 +29,24 @@ func TestFamilyAppGuardiansCoverEveryOtherChildOnce(t *testing.T) {
 	guardians, err := familyAppGuardians(ids, parents)
 	require.NoError(t, err)
 
-	byID := make(map[int64]DemoGuardian, len(DemoGuardians))
+	// A guardian of siblings has one entry per child and one account for all.
+	entriesByID := make(map[int64][]DemoGuardian, len(DemoGuardians))
 	for _, guardian := range DemoGuardians {
-		byID[ids[guardian.FirstName+" "+guardian.LastName]] = guardian
+		id := ids[guardian.FirstName+" "+guardian.LastName]
+		entriesByID[id] = append(entriesByID[id], guardian)
 	}
 	children := map[int]bool{}
+	listed := map[int64]bool{}
 	for _, id := range guardians {
-		guardian, ok := byID[id]
+		assert.False(t, listed[id], "guardian %d is listed once", id)
+		listed[id] = true
+		entries, ok := entriesByID[id]
 		require.True(t, ok, "guardian %d is a demo guardian", id)
-		assert.True(t, guardian.IsPrimary, "%s %s", guardian.FirstName, guardian.LastName)
-		assert.False(t, children[guardian.StudentIndex], "child %d gets one account", guardian.StudentIndex)
-		children[guardian.StudentIndex] = true
+		for _, guardian := range entries {
+			assert.True(t, guardian.IsPrimary, "%s %s", guardian.FirstName, guardian.LastName)
+			assert.False(t, children[guardian.StudentIndex], "child %d gets one account", guardian.StudentIndex)
+			children[guardian.StudentIndex] = true
+		}
 	}
 	assert.False(t, children[0], "child 0 already has a parent in the app")
 	for index := range familiesWithoutApp {
