@@ -20,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -58,9 +59,15 @@ func traegerPortalOn(t *testing.T, db *bun.DB, unit tenant.UnitOfWork) (*traeger
 // traegerPortalRouter builds the /traeger router over identity.
 func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork) http.Handler {
 	t.Helper()
-	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	database := testpkg.NewDatabase(t, db)
+	organizations, err := owners.NewOrganizationTenancy(database)
 	require.NoError(t, err)
-	portal, err := NewTraegerPortalHTTP(identity, organizations)
+	audit, err := auditCompose.NewTenantPersistence(db)
+	require.NoError(t, err)
+	membership, err := owners.ComposeSchoolMembership(database)
+	require.NoError(t, err)
+	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), membership,
+		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog})
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {

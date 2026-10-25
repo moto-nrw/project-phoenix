@@ -20,7 +20,12 @@ vi.mock("~/lib/analytics-session-header.server", () => ({
 
 global.fetch = mockFetch as typeof fetch;
 
-import { proxyDelete, proxyGet, proxyPut } from "./route-wrapper.server";
+import {
+  proxyDelete,
+  proxyFile,
+  proxyGet,
+  proxyPut,
+} from "./route-wrapper.server";
 
 const context = { params: Promise.resolve({}) };
 
@@ -227,5 +232,103 @@ describe("Träger proxy", () => {
 
     expect(response.status).toBe(409);
     expect(await response.text()).toBe(conflict);
+  });
+});
+
+describe("Träger file proxy (#4655)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTraegerAuth.mockResolvedValue({ user: { token: "org-token" } });
+  });
+
+  function exportRequest() {
+    return new NextRequest(
+      "http://localhost:3000/api/traeger/access-log/export?from=2026-09-01&to=2026-09-09",
+    );
+  }
+
+  it("streams the file with its name and the query forwarded", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response("﻿Datum;Uhrzeit\n", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="zugriffsprotokoll.csv"',
+        },
+      }),
+    );
+
+    const response = await proxyFile("/traeger/access-log/export")(
+      exportRequest(),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "text/csv; charset=utf-8",
+    );
+    expect(response.headers.get("content-disposition")).toContain(
+      "zugriffsprotokoll.csv",
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/traeger/access-log/export?from=2026-09-01&to=2026-09-09",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer org-token" }),
+      }),
+    );
+  });
+
+  it("keeps the problem body of a refused export", async () => {
+    mockFetch.mockResolvedValueOnce(
+      Response.json(
+        {
+          status: 400,
+          code: "traeger.access_log_export_too_large",
+          detail: "x",
+        },
+        {
+          status: 400,
+          headers: { "Content-Type": "application/problem+json" },
+        },
+      ),
+    );
+
+    const response = await proxyFile("/traeger/access-log/export")(
+      exportRequest(),
+      context,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: "traeger.access_log_export_too_large",
+    });
+  });
+
+  it("retries once with a refreshed Träger session after a backend 401", async () => {
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+    mockFetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(
+        new Response("ok", {
+          status: 200,
+          headers: { "Content-Type": "text/csv" },
+        }),
+      );
+
+    const response = await proxyFile("/traeger/access-log/export")(
+      exportRequest(),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer fresh-token",
+        }),
+      }),
+    );
   });
 });

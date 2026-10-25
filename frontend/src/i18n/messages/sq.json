@@ -3062,6 +3062,7 @@
         "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
       },
       "traeger": {
+        "access_log_export_too_large": "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
         "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "last_administrator": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "member_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
