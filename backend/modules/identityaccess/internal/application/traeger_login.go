@@ -72,6 +72,18 @@ func (s *AccountAuthentication) LoginTraeger(ctx context.Context, email, passwor
 	return &identityaccess.TraegerLoginResult{Status: identityaccess.TraegerLoginAuthenticated, AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
+// CheckPasswordLogin checks an account's password like the login does, with
+// its attempt counting and lockout, and returns the account. The Träger
+// invitation proves an existing account with it (#4650). It must run outside
+// the caller's transaction: a refused attempt commits on its own.
+func (s *AccountAuthentication) CheckPasswordLogin(ctx context.Context, email, password, ipAddress, userAgent string) (int64, error) {
+	if s == nil {
+		return 0, errAccountAuthenticationUnavailable
+	}
+	account, err := s.validateLoginCredentials(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent)
+	return account.ID, err
+}
+
 // traegerMintGuard re-checks the Träger membership and loads the Träger roles
 // inside the session transaction, under the account lock: the claims and the
 // session commit together or not at all.

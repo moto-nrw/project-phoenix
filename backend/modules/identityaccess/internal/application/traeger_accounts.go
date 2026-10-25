@@ -34,7 +34,9 @@ type TraegerAccounts struct {
 	delivery    identityPorts.TraegerInvitationDelivery
 	audit       identityPorts.TraegerAccountAudit
 	passwords   identityPorts.PasswordPolicy
-	verifier    ports.PasswordVerifier
+	// credentials checks the password of an existing account with the
+	// login's attempt counting and lockout, in a unit of its own.
+	credentials func(ctx context.Context, email, password, ipAddress, userAgent string) (int64, error)
 	// runAdmin opens the administrative unit, or joins an ambient one.
 	runAdmin func(context.Context, func(context.Context) error) error
 	expiry   time.Duration
@@ -49,7 +51,9 @@ type TraegerAccountsDependencies struct {
 	Delivery    identityPorts.TraegerInvitationDelivery
 	Audit       identityPorts.TraegerAccountAudit
 	Passwords   identityPorts.PasswordPolicy
-	Verifier    ports.PasswordVerifier
+	// Credentials is the login's protected password check
+	// (AccountAuthentication.CheckPasswordLogin).
+	Credentials func(ctx context.Context, email, password, ipAddress, userAgent string) (int64, error)
 	// Unit is the administrative unit New binds for the global identity
 	// operations (newCommandTransactions().RunAdmin): it joins an ambient
 	// transaction or opens one.
@@ -61,7 +65,7 @@ type TraegerAccountsDependencies struct {
 // NewTraegerAccounts composes the account management.
 func NewTraegerAccounts(deps TraegerAccountsDependencies) (*TraegerAccounts, error) {
 	if deps.Store == nil || deps.Memberships == nil || deps.Delivery == nil || deps.Audit == nil ||
-		deps.Passwords == nil || deps.Verifier == nil || deps.Unit == nil {
+		deps.Passwords == nil || deps.Credentials == nil || deps.Unit == nil {
 		return nil, errors.New("identity access: every Träger account dependency is required")
 	}
 	if deps.Expiry <= 0 {
@@ -73,7 +77,7 @@ func NewTraegerAccounts(deps TraegerAccountsDependencies) (*TraegerAccounts, err
 	}
 	return &TraegerAccounts{
 		store: deps.Store, memberships: deps.Memberships, delivery: deps.Delivery, audit: deps.Audit,
-		passwords: deps.Passwords, verifier: deps.Verifier, runAdmin: deps.Unit,
+		passwords: deps.Passwords, credentials: deps.Credentials, runAdmin: deps.Unit,
 		expiry: deps.Expiry, now: time.Now, logger: logger.With("flow", "traeger_accounts"),
 	}, nil
 }
@@ -355,16 +359,22 @@ func (t *TraegerAccounts) PreviewTraegerInvitation(ctx context.Context, token st
 
 // AcceptTraegerInvitation creates the account or proves the existing one,
 // grants the invited roles, activates the membership and spends the link,
-// all in one unit.
+// all in one unit. An existing account proves itself first, through the
+// login's password check with its attempt counting and lockout; that check
+// commits in its own unit, so a refused guess stays counted.
 func (t *TraegerAccounts) AcceptTraegerInvitation(ctx context.Context, token string, acceptance identityaccess.TraegerInvitationAcceptance) (string, error) {
 	if t == nil {
 		return "", identityaccess.ErrTraegerAccountsUnavailable
 	}
+	verified, err := t.proveExistingAccount(ctx, token, acceptance)
+	if err != nil {
+		return "", err
+	}
 	var actor identityaccess.TraegerActor
 	var email string
-	err := t.runAdmin(ctx, func(txCtx context.Context) error {
+	err = t.runAdmin(ctx, func(txCtx context.Context) error {
 		var err error
-		actor, email, err = t.accept(txCtx, token, acceptance)
+		actor, email, err = t.accept(txCtx, token, verified, acceptance)
 		return err
 	})
 	if err != nil {
@@ -376,14 +386,34 @@ func (t *TraegerAccounts) AcceptTraegerInvitation(ctx context.Context, token str
 	return email, nil
 }
 
+// proveExistingAccount returns the account behind the invited address after
+// the protected password check, or zero for an address without an account.
+func (t *TraegerAccounts) proveExistingAccount(ctx context.Context, token string, acceptance identityaccess.TraegerInvitationAcceptance) (int64, error) {
+	var email string
+	var exists bool
+	err := t.runAdmin(ctx, func(txCtx context.Context) error {
+		invitation, _, err := t.redeemable(txCtx, token, false)
+		if err != nil {
+			return err
+		}
+		email = invitation.Email
+		_, exists, _, err = t.store.FindLoginAccountByEmail(txCtx, email)
+		return err
+	})
+	if err != nil || !exists {
+		return 0, err
+	}
+	return t.credentials(ctx, email, acceptance.Password, acceptance.IPAddress, acceptance.UserAgent)
+}
+
 // accept runs the acceptance on the administrative unit and returns the new
 // member and its address.
-func (t *TraegerAccounts) accept(ctx context.Context, token string, acceptance identityaccess.TraegerInvitationAcceptance) (identityaccess.TraegerActor, string, error) {
+func (t *TraegerAccounts) accept(ctx context.Context, token string, verified int64, acceptance identityaccess.TraegerInvitationAcceptance) (identityaccess.TraegerActor, string, error) {
 	invitation, _, err := t.redeemable(ctx, token, true)
 	if err != nil {
 		return identityaccess.TraegerActor{}, "", err
 	}
-	account, err := t.invitedAccount(ctx, invitation.Email, acceptance)
+	account, err := t.invitedAccount(ctx, invitation.Email, verified, acceptance)
 	if err != nil {
 		return identityaccess.TraegerActor{}, "", err
 	}
@@ -440,24 +470,21 @@ func (t *TraegerAccounts) redeemable(ctx context.Context, token string, forUpdat
 	return invitation, traeger, nil
 }
 
-// invitedAccount proves the existing account with its password or creates
-// the account with the password chosen twice. The address row lock
-// serializes with account retention.
-func (t *TraegerAccounts) invitedAccount(ctx context.Context, email string, acceptance identityaccess.TraegerInvitationAcceptance) (domain.LoginAccount, error) {
+// invitedAccount takes the existing account the password check proved, or
+// creates the account with the password chosen twice. The address row lock
+// serializes with account retention; an account that appeared or vanished
+// since the check is refused like a wrong password.
+func (t *TraegerAccounts) invitedAccount(ctx context.Context, email string, verified int64, acceptance identityaccess.TraegerInvitationAcceptance) (domain.LoginAccount, error) {
 	account, found, _, err := t.store.LockLoginAccountByEmail(ctx, email)
 	if err != nil {
 		return domain.LoginAccount{}, err
 	}
-	if found {
-		if !account.Active {
-			return domain.LoginAccount{}, identityaccess.ErrAccountInactive
-		}
-		ok, err := t.verifier.VerifyPassword(acceptance.Password, account.PasswordHash)
-		if err != nil {
-			return domain.LoginAccount{}, err
-		}
-		if !ok {
+	if found || verified != 0 {
+		switch {
+		case !found || account.ID != verified:
 			return domain.LoginAccount{}, identityaccess.ErrInvalidCredentials
+		case !account.Active:
+			return domain.LoginAccount{}, identityaccess.ErrAccountInactive
 		}
 		return account, nil
 	}

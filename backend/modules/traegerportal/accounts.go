@@ -223,6 +223,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	address, err := rs.accounts.AcceptTraegerInvitation(r.Context(), chi.URLParam(r, "token"), identityaccess.TraegerInvitationAcceptance{
 		Password: req.Password, ConfirmPassword: req.ConfirmPassword,
+		IPAddress: common.GetClientIPString(r), UserAgent: r.Header.Get(headerUserAgent),
 	})
 	if err != nil {
 		common.RenderError(w, r, renderAccountError(err))

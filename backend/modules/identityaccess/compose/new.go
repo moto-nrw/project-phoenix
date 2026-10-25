@@ -183,19 +183,19 @@ func newRegistrationFlows(auth *application.AccountAuthentication, store *postgr
 // newPortalAccess composes the public demo access and the Träger-Büro
 // account management (#4650) over the global administrative unit; each is
 // nil without its dependencies. The account management requires Sessions:
-// their password verifier proves an existing account at acceptance.
+// the login's password check proves an existing account at acceptance.
 func newPortalAccess(dependencies Dependencies, auth *application.AccountAuthentication, store *postgres.Store, runAdmin func(context.Context, func(context.Context) error) error) (*identityaccess.DemoAccess, *application.TraegerAccounts, error) {
 	demoAccess, err := composeDemoAccess(dependencies.DB, auth, dependencies.Demo)
 	deps := dependencies.Traeger
 	if err != nil || deps == nil {
 		return demoAccess, nil, err
 	}
-	if dependencies.Sessions == nil || dependencies.Sessions.Passwords == nil {
+	if dependencies.Sessions == nil || auth == nil {
 		return nil, nil, errors.New("identity access compose: the Träger account management requires the session dependencies")
 	}
 	traegerAccounts, err := application.NewTraegerAccounts(application.TraegerAccountsDependencies{
 		Store: store, Memberships: deps.Memberships, Delivery: deps.Delivery, Audit: deps.Audit, Passwords: deps.Passwords,
-		Verifier: dependencies.Sessions.Passwords, Unit: runAdmin, Expiry: deps.Expiry, Logger: deps.Logger,
+		Credentials: auth.CheckPasswordLogin, Unit: runAdmin, Expiry: deps.Expiry, Logger: deps.Logger,
 	})
 	return demoAccess, traegerAccounts, err
 }

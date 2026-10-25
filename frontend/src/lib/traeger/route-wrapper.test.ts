@@ -138,4 +138,38 @@ describe("Träger proxy", () => {
       }),
     );
   });
+
+  // Quorum #4937: after a refresh, a business rejection is the answer, not
+  // an expired session.
+  it("keeps a business rejection of the retried request", async () => {
+    const body =
+      '{"type":"about:blank","title":"Conflict","status":409,"detail":"last","code":"traeger.last_administrator"}';
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          '{"status":401,"detail":"expired","code":"general.permission"}',
+          {
+            status: 401,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(body, {
+          status: 409,
+          headers: { "Content-Type": "application/problem+json" },
+        }),
+      );
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+
+    const response = await proxyDelete("/traeger/accounts/7")(
+      new NextRequest("http://localhost:3000/api/traeger/accounts/7", {
+        method: "DELETE",
+      }),
+      context,
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toBe(body);
+  });
 });

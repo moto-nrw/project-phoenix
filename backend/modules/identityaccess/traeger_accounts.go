@@ -82,10 +82,13 @@ type TraegerInvitationPreview struct {
 }
 
 // TraegerInvitationAcceptance is what the invitee supplies: the password of
-// the existing account, or a new password twice.
+// the existing account, or a new password twice. IPAddress and UserAgent
+// reach the login's record of a refused password.
 type TraegerInvitationAcceptance struct {
 	Password        string
 	ConfirmPassword string
+	IPAddress       string
+	UserAgent       string
 }
 
 // TraegerAccountChange is one entry of the Träger account ledger.

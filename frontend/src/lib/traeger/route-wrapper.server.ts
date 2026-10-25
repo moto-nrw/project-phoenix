@@ -60,21 +60,14 @@ async function traegerServerFetch<T>(
   return json as T;
 }
 
-/**
- * Retries once with a refreshed Träger session after a backend 401. The
- * result is wrapped: a retried DELETE answers null, which is a success and
- * must not read as "no fresh session".
- */
-async function retryWithRefreshedToken<T>(
-  originalToken: string,
-  retry: (token: string) => Promise<T>,
-): Promise<{ readonly value: T } | null> {
+/** A refreshed Träger session token, or null when there is none. */
+async function refreshedToken(originalToken: string): Promise<string | null> {
   const { uncachedTraegerAuth } = await import("~/server/auth/traeger");
   const updated = await uncachedTraegerAuth();
   if (!updated?.user?.token || updated.user.token === originalToken) {
     return null;
   }
-  return { value: await retry(updated.user.token) };
+  return updated.user.token;
 }
 
 type NoBodyHandler<T> = (
@@ -90,6 +83,12 @@ type WithBodyHandler<T, B> = (
   params: Record<string, unknown>,
 ) => Promise<T>;
 
+/**
+ * Runs the request and, after a backend 401, once more with a refreshed
+ * session. Only a missing refresh or a second 401 counts as an expired
+ * session; any other answer of the retry (a business rejection, a null
+ * DELETE result) is the answer of the request.
+ */
 async function executeWithRetry<T>(
   request: NextRequest,
   token: string,
@@ -99,15 +98,21 @@ async function executeWithRetry<T>(
     return NextResponse.json(wrapInApiResponse(await execute(token)));
   } catch (error) {
     if (!isApiResponseError(error, 401)) throw error;
-    try {
-      const retried = await retryWithRefreshedToken(token, execute);
-      if (retried !== null) {
-        return NextResponse.json(wrapInApiResponse(retried.value));
-      }
-    } catch {
-      // The retry failed as well: the session counts as expired.
+  }
+  let fresh: string | null = null;
+  try {
+    fresh = await refreshedToken(token);
+  } catch {
+    // The refresh itself failed: the session counts as expired.
+  }
+  if (fresh === null) return createTokenExpiredResponse(request);
+  try {
+    return NextResponse.json(wrapInApiResponse(await execute(fresh)));
+  } catch (retryError) {
+    if (isApiResponseError(retryError, 401)) {
+      return createTokenExpiredResponse(request);
     }
-    return createTokenExpiredResponse(request);
+    throw retryError;
   }
 }
 

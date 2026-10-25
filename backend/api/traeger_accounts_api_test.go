@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -405,4 +406,29 @@ func TestTraegerSwitchedOffAdministratorDoesNotCount(t *testing.T) {
 
 	rec = traegerCall(t, router, http.MethodDelete, fmt.Sprintf("/traeger/accounts/%d", switchedOff.ID), session.AccessToken, nil)
 	assert.Equal(t, http.StatusNoContent, rec.Code, "the switched-off account itself can be removed")
+}
+
+// The invitation link is no way around the login's lockout: refused
+// passwords count like failed logins and lock the account (quorum #4937).
+func TestTraegerInvitationCountsRefusedPasswordsLikeTheLogin(t *testing.T) {
+	t.Parallel()
+	db, router, _, _ := newTraegerAccountsPortal(t)
+	organizationID := traegerBuero(t, db, "Träger Sperre")
+	_, admin := traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleAdministration)
+	password := testpkg.NewTestPassword()
+	existing := traegerAccount(t, db, password)
+	token := traegerInvite(t, db, router, admin.AccessToken, existing.Email, identityaccess.TraegerRoleReadOnly)
+
+	for range 5 {
+		rec := traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"password": testpkg.NewTestPassword()})
+		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+	}
+	var lockedUntil *time.Time
+	require.NoError(t, db.NewRaw(`SELECT password_locked_until FROM auth.accounts WHERE id = ?`, existing.ID).Scan(context.Background(), &lockedUntil))
+	assert.NotNil(t, lockedUntil, "five refused passwords lock the account like five failed logins")
+
+	rec := traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"password": password})
+	assert.Equal(t, http.StatusUnauthorized, rec.Code, "a locked account is not accepted even with its password")
+	rec = traegerCall(t, router, http.MethodGet, "/traeger/invitations/"+token, "", nil)
+	assert.Equal(t, http.StatusOK, rec.Code, "the link stays open for a later try")
 }
