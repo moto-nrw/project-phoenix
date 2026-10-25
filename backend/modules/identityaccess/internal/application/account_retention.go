@@ -48,6 +48,23 @@ func (r *AccountRetention) EraseUnusedAccounts(ctx context.Context) (int, error)
 	return len(erased), nil
 }
 
+// DeleteUnusedCaterers joins the hourly cleanup's administrative transaction
+// after the account erasure (ADR 0077). A caterer stays while a school's
+// supply names it, running or ended (the ended one is the school's record
+// until the school is erased), while one of its accounts is not erased or an
+// invitation to one of their addresses is open. Business names are no
+// personal data, so only the count is logged.
+func (r *AccountRetention) DeleteUnusedCaterers(ctx context.Context) (int, error) {
+	deleted, _, err := r.store.DeleteUnusedCaterers(r.attach(ctx))
+	if err != nil {
+		return 0, fmt.Errorf("identity access: delete unused caterers: %w", failed("delete unused caterers", err))
+	}
+	if deleted > 0 {
+		r.logger.InfoContext(ctx, "unused caterers deleted", slog.Int("records_deleted", deleted))
+	}
+	return deleted, nil
+}
+
 // CleanupErasedAccountAvatars owns its administrative transaction. File failures
 // are returned after commit so successful acknowledgements and retry ordering
 // survive a partial failure. A crash before acknowledgement is safe: a missing

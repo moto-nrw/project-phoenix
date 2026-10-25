@@ -12,6 +12,8 @@
 set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
+# shellcheck source=scripts/go-test-workspace.sh
+source "$repo_root/scripts/go-test-workspace.sh"
 
 FAST=false
 if [ "${1:-}" = --fast ]; then
@@ -61,6 +63,7 @@ if [ "${#affected[@]}" -gt 0 ]; then
     fi
     [ -n "${PHX_TEST_RUN_LOCK:-}" ] && rm -f "$PHX_TEST_RUN_LOCK"
     rm -f "$backend_go_log"
+    if ! cleanup_go_test_workspace && [ "$status" -eq 0 ]; then status=1; fi
     return "$status"
   }
   # Stabile Run-ID pro Worktree (Cache-Hebel) plus Overlap-Lock; Details im
@@ -69,6 +72,7 @@ if [ "${#affected[@]}" -gt 0 ]; then
   # shellcheck source=scripts/test-run-id.sh
   source "$repo_root/scripts/test-run-id.sh"
   trap backend_sweep EXIT
+  prepare_go_test_workspace
   # Handshake einmal pro Lauf statt einmal pro Binary. Jedes Binary liest
   # PHX_TEST_TEMPLATE, die Variable ist Teil des Go-Test-Cache-Keys und muss
   # deshalb zwischen beiden Wrappern uebereinstimmen (test-backend.sh setzt

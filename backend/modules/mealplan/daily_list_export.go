@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// DailyListExport is the kitchen's Tagesliste as an export renders it.
-type DailyListExport struct {
+// ListExport is a list of the meal plan as an export renders it: the
+// kitchen's Tagesliste or the monthly overview per child.
+type ListExport struct {
 	Title    string
 	Subtitle string
 	Filters  []string
-	Columns  []DailyListExportColumn
+	Columns  []ListExportColumn
 	// Lines hold one value per column: the child as "Last, First" and its
 	// class.
 	Lines [][]string
@@ -21,31 +24,27 @@ type DailyListExport struct {
 	Filename string
 }
 
-// DailyListExportColumn is one column of the Tagesliste.
-type DailyListExportColumn struct {
+// ListExportColumn is one column of a list export.
+type ListExportColumn struct {
 	ID    string
 	Label string
 }
 
 // Export lays out the Tagesliste of the day.
-func (l DailyList) Export() (DailyListExport, error) {
+func (l DailyList) Export() (ListExport, error) {
 	date, err := l.Date.German()
 	if err != nil {
-		return DailyListExport{}, err
+		return ListExport{}, err
 	}
 	lines := make([][]string, 0, len(l.Participants))
 	for _, participant := range l.Participants {
 		lines = append(lines, []string{participant.LastName + ", " + participant.FirstName, participant.SchoolClass})
 	}
-	filters := append(cutoffFilters(l.Cutoffs), fmt.Sprintf("%d Kinder", len(lines)))
-	if l.Closed {
-		filters = append(filters, closedDayNote)
-	}
-	return DailyListExport{
+	return ListExport{
 		Title:    "Mittagessen – Tagesliste",
 		Subtitle: "Tagesliste für den " + date,
-		Filters:  filters,
-		Columns:  []DailyListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}},
+		Filters:  []string{"Frist: " + l.Deadline.In(calendar.Berlin).Format("02.01.2006, 15:04") + " Uhr", fmt.Sprintf("%d Kinder", len(lines))},
+		Columns:  []ListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}},
 		Lines:    lines,
 		Footer:   "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
 		Filename: "mittagessen-" + string(l.Date),
@@ -54,27 +53,27 @@ func (l DailyList) Export() (DailyListExport, error) {
 
 // Export lays out the Wochenliste: one line per child registered on at least
 // one day, a mark per day, and the count of each day in the last line.
-func (w WeeklyList) Export() (DailyListExport, error) {
+func (w WeeklyList) Export() (ListExport, error) {
 	if len(w.Days) == 0 {
-		return DailyListExport{}, fmt.Errorf("meal plan: weekly list without days")
+		return ListExport{}, fmt.Errorf("meal plan: weekly list without days")
 	}
 	from, err := w.Days[0].Date.German()
 	if err != nil {
-		return DailyListExport{}, err
+		return ListExport{}, err
 	}
 	to, err := w.Days[len(w.Days)-1].Date.German()
 	if err != nil {
-		return DailyListExport{}, err
+		return ListExport{}, err
 	}
-	columns := []DailyListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}}
+	columns := []ListExportColumn{{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"}}
 	seen := make(map[int64]struct{})
 	var participants []DailyParticipant
 	for index, day := range w.Days {
 		label, err := day.Date.German()
 		if err != nil {
-			return DailyListExport{}, err
+			return ListExport{}, err
 		}
-		columns = append(columns, DailyListExportColumn{ID: "day_" + strconv.Itoa(index+1), Label: weekdayAbbreviations[index] + " " + label[:6]})
+		columns = append(columns, ListExportColumn{ID: "day_" + strconv.Itoa(index+1), Label: weekdayAbbreviations[index] + " " + label[:6]})
 		for _, participant := range day.Participants {
 			if _, exists := seen[participant.StudentID]; !exists {
 				seen[participant.StudentID] = struct{}{}
@@ -92,11 +91,19 @@ func (w WeeklyList) Export() (DailyListExport, error) {
 		line[1] = participant.SchoolClass
 		lines = append(lines, line)
 	}
-	lines = append(lines, markWeekDays(w.Days, lines, rowOf, len(columns)))
-	return DailyListExport{
+	total := make([]string, len(columns))
+	total[0] = "Summe"
+	for index, day := range w.Days {
+		for _, participant := range day.Participants {
+			lines[rowOf[participant.StudentID]][index+2] = "✓"
+		}
+		total[index+2] = strconv.Itoa(len(day.Participants))
+	}
+	lines = append(lines, total)
+	return ListExport{
 		Title:    "Mittagessen – Wochenliste",
 		Subtitle: "Wochenliste vom " + from + " bis " + to,
-		Filters:  append(cutoffFilters(w.Cutoffs), fmt.Sprintf("%d Kinder", len(participants))),
+		Filters:  []string{fmt.Sprintf("%d Kinder", len(participants))},
 		Columns:  columns,
 		Lines:    lines,
 		Footer:   "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
@@ -104,55 +111,7 @@ func (w WeeklyList) Export() (DailyListExport, error) {
 	}, nil
 }
 
-// markWeekDays ticks each child's days and returns the line with the count
-// of each day; a closed day counts no meal.
-func markWeekDays(days []DailyList, lines [][]string, rowOf map[int64]int, width int) []string {
-	total := make([]string, width)
-	total[0] = "Summe"
-	for index, day := range days {
-		for _, participant := range day.Participants {
-			lines[rowOf[participant.StudentID]][index+2] = "✓"
-		}
-		total[index+2] = strconv.Itoa(len(day.Participants))
-		if day.Closed {
-			total[index+2] = closedDayTotal
-		}
-	}
-	return total
-}
-
 var weekdayAbbreviations = [...]string{"Mo", "Di", "Mi", "Do", "Fr"}
-
-const (
-	closedDayNote  = "Kein Essen: Feiertag oder Schließtag"
-	closedDayTotal = "kein Essen"
-)
-
-var weekdayNames = [...]string{"Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag"}
-
-// cutoffFilters describe the change cutoff and, when parents may cancel
-// later, the cancellation cutoff.
-func cutoffFilters(cutoffs Cutoffs) []string {
-	filters := []string{"Änderungsfrist: " + cutoffText(cutoffs.CutoffTime, cutoffs.CutoffLeadDays, cutoffs.CutoffWeekday)}
-	if cutoffs.CancellationCutoffTime != "" {
-		filters = append(filters, "Abmeldefrist: "+cutoffText(cutoffs.CancellationCutoffTime, cutoffs.CancellationCutoffLeadDays, 0))
-	}
-	return filters
-}
-
-func cutoffText(cutoffTime string, leadDays int, weekday Weekday) string {
-	if weekday >= Monday && weekday <= Friday {
-		return fmt.Sprintf("%s Uhr, %s der Vorwoche", cutoffTime, weekdayNames[weekday-1])
-	}
-	switch leadDays {
-	case 0:
-		return cutoffTime + " Uhr"
-	case 1:
-		return cutoffTime + " Uhr, 1 Werktag vorher"
-	default:
-		return fmt.Sprintf("%s Uhr, %d Werktage vorher", cutoffTime, leadDays)
-	}
-}
 
 // SortDailyParticipants orders the kitchen list by class, last name, first
 // name and student ID.

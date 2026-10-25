@@ -32,6 +32,7 @@ type ServiceLinks struct {
 	PublicAPIURL string
 	ParentsURL   string
 	SchoolURL    string
+	CatererURL   string
 	// TraegerURL is the Träger-Portal base invitations link to (ADR 0084).
 	TraegerURL               string
 	InvitationTokenExpiry    time.Duration

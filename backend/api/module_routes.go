@@ -100,6 +100,8 @@ var moduleRouteRules = []moduleRouteRule{
 
 	// Mittagessen und Catering.
 	{"/api/meal-plan", settings.ModuleMittagessen},
+	{"/api/meal-caterer", settings.ModuleMittagessen},
+	{"/caterer", settings.ModuleMittagessen},
 
 	// Eltern-App: messages and letters to parents, parent-portal invitations.
 	{"/api/messages", settings.ModuleElternApp},
@@ -166,6 +168,9 @@ var moduleRouteRules = []moduleRouteRule{
 // for the portals and devices, or the owner where the route resolves its
 // school from the path or a token rather than from a session.
 var moduleRoutesLockedElsewhere = map[string]string{
+	// The caterer portal spans schools: its session belongs to no school and
+	// every school route re-checks the supply (ADR 0077).
+	"/caterer": "#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule",
 	// The parents portal spans schools: ParentScopeMiddleware locks the
 	// account once none of its guardian schools books Eltern-App, login and
 	// refresh refuse its session (#4895). Its enrollment routes additionally

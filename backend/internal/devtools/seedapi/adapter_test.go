@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -64,6 +65,23 @@ func (a *seedTestAdapter) LoginTenant(ctx context.Context, email, password, tena
 func (a *seedTestAdapter) LoginParent(ctx context.Context, email, password string) (AuthRef, error) {
 	auth, err := a.inner.Login(ctx, "/parent/auth/login", email, password, "")
 	return seedTestAuth(auth), seedTestLoginError(err, "parent login request failed")
+}
+
+// LoginTraeger reads the session of a test server that answers the Träger
+// sign-in directly; the second factor is the command adapter's.
+func (a *seedTestAdapter) LoginTraeger(ctx context.Context, email, password string, organizationID int64) (AuthRef, error) {
+	raw, _, err := a.inner.Raw(ctx, testpkg.APIAuth{}, seedHTTPMethodPost, "/traeger/auth/login",
+		map[string]any{"email": email, "password": password, "organization_id": organizationID}, nil)
+	if err != nil {
+		return AuthRef{}, seedTestLoginError(err, "traeger login request failed")
+	}
+	var login struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(raw, &login); err != nil || login.AccessToken == "" {
+		return AuthRef{}, fmt.Errorf("traeger login returned no session: %s", raw)
+	}
+	return AuthRef{Kind: AuthBearer, Label: "traeger", Token: login.AccessToken}, nil
 }
 
 func (a *seedTestAdapter) Raw(ctx context.Context, auth AuthRef, method, path string, body any, headers map[string]string) ([]byte, int, error) {

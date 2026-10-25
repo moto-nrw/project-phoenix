@@ -38,7 +38,7 @@ var (
 		"eltern": true, "schule": true, "school": true, "traeger": true, "grafana": true,
 		"pyreportal": true, "help": true, "admin": true, "app": true,
 		"dashboard": true, "analytics": true, "status": true, "mail": true,
-		"staging": true, "demo": true, "ingest": true,
+		"staging": true, "demo": true, "ingest": true, "caterer": true,
 	}
 
 	ErrOrganizationNotFound       = errors.New("organization not found")

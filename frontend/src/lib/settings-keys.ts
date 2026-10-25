@@ -8,6 +8,11 @@ import { MODULE_SETTING_KEYS } from "./modules";
 // The settings page also calls `router.refresh()` so the RSC tree pulls the
 // fresh layout data.
 export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
+  // The meal switches ride on /auth/tenant/resolve since #3873, so a kitchen
+  // role without config:read sees the meal pages. Without revalidation,
+  // switching them leaves the navigation stale for up to 300s.
+  "operations.meal_plan_enabled",
+  "operations.meal_registration_enabled",
   // Expire the analytics policy immediately so reloads and new tabs cannot
   // start capturing with a stale enabled value after the school opts out.
   "analytics.enabled",

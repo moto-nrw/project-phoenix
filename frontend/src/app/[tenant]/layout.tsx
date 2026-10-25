@@ -45,6 +45,8 @@ interface TenantResolveResponse {
   attendance_edit_scope?: string;
   timetable_enabled?: boolean;
   show_timetable_counts?: boolean;
+  meal_plan_enabled?: boolean;
+  meal_registration_enabled?: boolean;
   waitlist_enabled?: boolean;
   grade_level_max: number;
   analytics_enabled?: boolean;
@@ -142,6 +144,10 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     ),
     timetableEnabled: data.timetable_enabled !== false,
     showTimetableCounts: data.show_timetable_counts !== false,
+    // The meal plan pages read both from the tenant context on the first
+    // render; the client resolve only refreshes them later (#3873).
+    mealPlanEnabled: data.meal_plan_enabled === true,
+    mealRegistrationEnabled: data.meal_registration_enabled === true,
     waitlistEnabled: data.waitlist_enabled !== false,
     gradeLevelMax: data.grade_level_max,
     analyticsEnabled: data.analytics_enabled === true,

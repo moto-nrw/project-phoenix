@@ -1,8 +1,10 @@
 "use client";
 
 // Login des Träger-Portals ("moto träger", #4649). Spiegelt den Aufbau des
-// Schul-Logins, aber ohne zweiten Faktor (folgt mit #4651) und mit einem
-// Zwischenschritt: Wer zu mehreren Trägern gehört, wählt den Träger aus.
+// Schul-Logins mit einem Zwischenschritt: Wer zu mehreren Trägern gehört,
+// wählt den Träger aus. Danach ist der zweite Faktor immer Pflicht (#4651):
+// ein Code per E-Mail, beim ersten Mal mit Einrichtung. Ein Gerät merkt sich
+// das Träger-Portal nicht.
 
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
@@ -18,6 +20,8 @@ import {
   credentialError,
   LOGIN_REFUSALS,
 } from "~/components/auth/credential-error";
+import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
+import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -28,6 +32,7 @@ import { Radio } from "~/components/ui/radio";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
+import type { MFATokenResponse } from "~/lib/mfa-api";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { traegerLogin, type TraegerChoice } from "~/lib/traeger-api";
 import { traegerPath } from "~/lib/traeger-url";
@@ -53,6 +58,17 @@ function clearSessionErrorFromUrl() {
   );
 }
 
+interface MFAStep {
+  readonly challengeToken: string;
+  readonly maskedEmail: string;
+  readonly organizationId: string;
+}
+
+interface EnrollmentStep {
+  readonly enrollmentToken: string;
+  readonly organizationId: string;
+}
+
 function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +78,10 @@ function LoginForm() {
   const [awaitingRedirect, setAwaitingRedirect] = useState(false);
   const [choices, setChoices] = useState<readonly TraegerChoice[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
+  const [enrollmentStep, setEnrollmentStep] = useState<EnrollmentStep | null>(
+    null,
+  );
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const latestSubmitRef = useRef<() => void>(() => undefined);
@@ -107,6 +127,31 @@ function LoginForm() {
 
   const isSubmitting = isLoading || awaitingRedirect;
 
+  // Übergibt ein fertiges Token-Paar an NextAuth: nach dem Code oder nach
+  // der Einrichtung des zweiten Faktors.
+  const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
+    clearSessionErrorFromUrl();
+    const seeded = await signIn("traeger-credentials", {
+      redirect: false,
+      internalRefresh: "true",
+      token: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+    });
+    if (seeded?.error) {
+      logger.error("session_seed_failed", { error: seeded.error });
+      // Zurück zum Formular, damit der Fehlerkasten sichtbar ist.
+      setMfaStep(null);
+      setEnrollmentStep(null);
+      // Kein ApiError: der Weg zeigt den allgemeinen Text der Anmeldung.
+      void formErrors.show(new Error(seeded.error), {
+        object: "die Anmeldung",
+      });
+      return;
+    }
+    setAwaitingRedirect(true);
+    window.location.href = traegerPath("/traeger");
+  };
+
   const submit = async () => {
     setIsLoading(true);
     formErrors.clear();
@@ -122,23 +167,25 @@ function LoginForm() {
         setSelectedId(result.organizations[0]?.id ?? null);
         return;
       }
-      clearSessionErrorFromUrl();
-      const seeded = await signIn("traeger-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: result.accessToken,
-        refreshToken: result.refreshToken,
-      });
-      if (seeded?.error) {
-        logger.error("session_seed_failed", { error: seeded.error });
-        // Kein ApiError: der Weg zeigt den allgemeinen Text der Anmeldung.
-        void formErrors.show(new Error(seeded.error), {
-          object: "die Anmeldung",
+      if (result.status === "mfa_required") {
+        setMfaStep({
+          challengeToken: result.challengeToken,
+          maskedEmail: result.maskedEmail,
+          organizationId: result.organizationId,
         });
         return;
       }
-      setAwaitingRedirect(true);
-      window.location.href = traegerPath("/traeger");
+      if (result.status === "mfa_enrollment_required") {
+        setEnrollmentStep({
+          enrollmentToken: result.enrollmentToken,
+          organizationId: result.organizationId,
+        });
+        return;
+      }
+      await seedSessionWithTokens({
+        access_token: result.accessToken,
+        refresh_token: result.refreshToken,
+      });
     } catch (err) {
       // Ein falsches Passwort und ein ausgeschaltetes Konto haben eigene
       // Katalogtexte; vor der Anmeldung heißt 401 "abgelehnt". Ein Konto
@@ -163,6 +210,8 @@ function LoginForm() {
   const backToCredentials = () => {
     setChoices(null);
     setSelectedId(null);
+    setMfaStep(null);
+    setEnrollmentStep(null);
     setPassword("");
     formErrors.clear();
   };
@@ -171,6 +220,37 @@ function LoginForm() {
     return (
       <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
         <Loading fullPage={false} message="Sitzung wird überprüft …" />
+      </AuthShell>
+    );
+  }
+
+  if (mfaStep) {
+    return (
+      <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
+        <MFAChallengeForm
+          scope="traeger"
+          challengeToken={mfaStep.challengeToken}
+          maskedEmail={mfaStep.maskedEmail}
+          organizationId={mfaStep.organizationId}
+          trustedDeviceEnabled={false}
+          onSuccess={seedSessionWithTokens}
+          onCancel={backToCredentials}
+        />
+      </AuthShell>
+    );
+  }
+
+  if (enrollmentStep) {
+    return (
+      <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
+        <MFAEnrollmentScreen
+          scope="traeger"
+          bearerToken={enrollmentStep.enrollmentToken}
+          userEmail={email}
+          organizationId={enrollmentStep.organizationId}
+          onExit={backToCredentials}
+          onComplete={seedSessionWithTokens}
+        />
       </AuthShell>
     );
   }

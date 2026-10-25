@@ -70,7 +70,7 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"analytics/core_actions_middleware.go:CoreActionMiddleware":                                               19,
 	"api/active_test_helpers.go:buildActiveTestModule":                                                        31,
-	"api/auth_test_helpers.go:NewAuthTestModule":                                                              28,
+	"api/auth_test_helpers.go:NewAuthTestModule":                                                              25,
 	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).InsertRequestChildOffering": 18,
 	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).bookingCommandValues":       22,
 	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources":                                      19,
@@ -325,8 +325,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"internal/testdb/server.go:inspectTestContainer": 18,
 	// ADR 0087.
 	"internal/testdb/template.go:migrationsComplete": 17,
-	// ADR 0087.
-	"middleware/log_redaction.go:RedactFeedToken": 17,
 	// ADR 0087.
 	"observability/sentry_envelope.go:TagSentryEnvelope": 16,
 	// ADR 0087.
