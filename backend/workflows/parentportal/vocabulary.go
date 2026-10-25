@@ -49,6 +49,7 @@ type (
 	MasterDataFieldChange           = care.MasterDataFieldChange
 	MealParticipationDay            = care.MealParticipationDay
 	MealParticipationPlan           = care.MealParticipationPlan
+	MealWeekChange                  = care.MealWeekChange
 	MealPlanEntry                   = care.MealPlanEntry
 	MealWeekday                     = care.MealWeekday
 	ParentRequestEventView          = messaging.ParentRequestEventView

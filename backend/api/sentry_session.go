@@ -55,6 +55,8 @@ func tagSentrySession(scope *sentry.Scope, claims sessiontoken.AppClaims) {
 		portal, role = "operator", "operator"
 	case claims.Scope == "parent":
 		portal, role = "parent", "guardian"
+	case claims.IsCatererScope():
+		portal, role = "caterer", "caterer"
 	case claims.IsSchoolScope():
 		portal, role, schoolID = "school", "lehrkraft", claims.TenantID
 	default:

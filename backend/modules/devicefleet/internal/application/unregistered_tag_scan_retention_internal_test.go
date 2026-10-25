@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type retentionScanStore struct {
@@ -27,12 +26,11 @@ func (retentionTransaction) RunWrite(ctx context.Context, callback func(context.
 	return callback(ctx)
 }
 
-func TestDeleteUnregisteredTagScansAfterRetentionUsesBerlinCalendarWindow(t *testing.T) {
+func TestDeleteUnregisteredTagScansAfterRetentionUsesFixedUTCWindow(t *testing.T) {
 	t.Parallel()
 
-	// The October DST rollback makes a UTC calendar subtraction one hour
-	// younger than PostgreSQL's Europe/Berlin interval. The retention function
-	// rejects that younger cutoff, so the owner must derive it in Berlin too.
+	// Migration 1.15.606 evaluates the database guard in UTC. The October
+	// DST rollback must not shorten the fixed 90 times 24-hour window.
 	now := time.Date(2026, time.October, 25, 1, 30, 0, 0, time.UTC)
 	store := &retentionScanStore{}
 	service := &Service{deps: Dependencies{
@@ -51,7 +49,7 @@ func TestDeleteUnregisteredTagScansAfterRetentionUsesBerlinCalendarWindow(t *tes
 	if days != devicefleet.UnregisteredTagScanRetentionDays {
 		t.Fatalf("retention days = %d, want %d", days, devicefleet.UnregisteredTagScanRetentionDays)
 	}
-	want := now.In(calendar.Berlin).AddDate(0, 0, -devicefleet.UnregisteredTagScanRetentionDays).Add(-retentionClockMargin)
+	want := now.Add(-time.Duration(devicefleet.UnregisteredTagScanRetentionDays)*24*time.Hour - retentionClockMargin)
 	if !store.cutoff.Equal(want) {
 		t.Fatalf("cutoff = %s, want %s", store.cutoff, want)
 	}

@@ -38,6 +38,9 @@ func verifyPreloadSettingKeys(keys []string) error {
 // batch read, so one query per minute preloads the polling settings of every
 // school.
 func schedulerSettings(settings settingsCompose.BatchSettingsService) (schedulerPorts.SettingsResolver, error) {
+	if err := verifySchedulerSettingKeys(); err != nil {
+		return nil, err
+	}
 	snapshots, err := settingsCompose.NewTenantSnapshots(settings)
 	if err != nil {
 		return nil, fmt.Errorf("worker settings snapshots: %w", err)

@@ -25,7 +25,8 @@ var mealPlanAccess = map[mealplanAPI.Access]securityruntime.MealPlanAccess{
 	mealplanAPI.AccessRead:              securityruntime.MealPlanAccessRead,
 	mealplanAPI.AccessWrite:             securityruntime.MealPlanAccessWrite,
 	mealplanAPI.AccessParticipants:      securityruntime.MealPlanAccessParticipants,
-	mealplanAPI.AccessParticipantsWrite: securityruntime.MealPlanAccessParticipantsWrite,
+	mealplanAPI.AccessRegister:          securityruntime.MealPlanAccessRegister,
+	mealplanAPI.AccessDailyParticipants: securityruntime.MealPlanAccessDailyParticipants,
 }
 
 // accessGuard builds the route guard of a Security Runtime access rule.
@@ -42,6 +43,12 @@ func requireSettingsAccess(access settingsHTTP.Access) common.Middleware {
 
 func requireMealPlanAccess(access mealplanAPI.Access) common.Middleware {
 	return accessGuard(securityruntime.MealPlanAccessPermissions(mealPlanAccess[access]))
+}
+
+// mealPlanAllowed reports whether the caller passes a meal plan access level.
+func mealPlanAllowed(ctx context.Context, access mealplanAPI.Access) bool {
+	principal, err := common.CurrentPrincipal(ctx)
+	return err == nil && securityruntime.MealPlanAccessPermissions(mealPlanAccess[access]).AllowedBy(principal.HasPermission)
 }
 
 // canEditConfig reports whether the caller may change settings.

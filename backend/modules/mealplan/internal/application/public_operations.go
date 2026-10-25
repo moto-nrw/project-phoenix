@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -11,24 +12,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// maxOrderWindowDays bounds one read of the orders: a month and a few days.
+const maxOrderWindowDays = 42
+
 func (s *Service) Week(ctx context.Context, weekStart mealplan.Date) ([]mealplan.Entry, error) {
 	date, err := calendar.ParseDate(string(weekStart))
 	if err != nil {
 		return nil, mealplan.ErrInvalidMealDate
 	}
-	monday := date.StartOfISOWeek()
-	var entries []domain.Entry
-
-	err = s.run(ctx, "read_week", func(txCtx context.Context) (domain.OperationStats, error) {
-		if err := s.requireEnabled(txCtx); err != nil {
-			return domain.OperationStats{}, err
-		}
-		var stats domain.OperationStats
-		entries, stats, err = s.store.FindWeek(txCtx, monday, monday.AddDays(4))
-		return stats, err
-	})
+	entries, err := s.weekEntries(ctx, date.StartOfISOWeek())
 	if err != nil {
-		return nil, err
+		return nil, mapPublicError(err)
 	}
 	result := make([]mealplan.Entry, 0, len(entries))
 	for _, entry := range entries {
@@ -58,14 +52,7 @@ func (s *Service) ReplaceDay(ctx context.Context, command mealplan.ReplaceDay) e
 		}
 		dishes = append(dishes, mealplan.Dish{Dish: dish, Note: trimOptional(input.Note), Allergens: allergens})
 	}
-	values := dishes
-
-	return s.run(ctx, "replace_day", func(txCtx context.Context) (domain.OperationStats, error) {
-		if err := s.requireEnabled(txCtx); err != nil {
-			return domain.OperationStats{}, err
-		}
-		return s.store.ReplaceDay(txCtx, date, values)
-	})
+	return mapPublicError(s.replace(ctx, date, dishes))
 }
 
 func (s *Service) ClearDay(ctx context.Context, date mealplan.Date) error {
@@ -73,40 +60,35 @@ func (s *Service) ClearDay(ctx context.Context, date mealplan.Date) error {
 	if err != nil {
 		return mealplan.ErrInvalidMealDate
 	}
+	return mapPublicError(s.clear(ctx, parsed))
+}
 
-	return s.run(ctx, "clear_day", func(txCtx context.Context) (domain.OperationStats, error) {
-		if err := s.requireEnabled(txCtx); err != nil {
-			return domain.OperationStats{}, err
-		}
-		return s.store.ClearDay(txCtx, parsed)
-	})
+func (s *Service) RegistrationAvailable(ctx context.Context) (bool, error) {
+	available, err := s.registrationAvailable(ctx)
+	return available, mapPublicError(err)
 }
 
 func (s *Service) Participation(ctx context.Context, studentID int64, from, to mealplan.Date) (mealplan.ParticipationPlan, error) {
+	return s.publicParticipation(ctx, studentID, from, to, "")
+}
+
+// ParticipationBySchool returns the regular days active at the start of the
+// requested window. Parents instead edit the next unfixed ordering period.
+func (s *Service) ParticipationBySchool(ctx context.Context, studentID int64, from, to mealplan.Date) (mealplan.ParticipationPlan, error) {
+	return s.publicParticipation(ctx, studentID, from, to, domain.Date(from))
+}
+
+func (s *Service) publicParticipation(ctx context.Context, studentID int64, from, to mealplan.Date, scheduleDate domain.Date) (mealplan.ParticipationPlan, error) {
 	start, startErr := calendar.ParseDate(string(from))
 	end, endErr := calendar.ParseDate(string(to))
 	if studentID <= 0 || startErr != nil || endErr != nil || end.Before(start) || start.DaysUntil(end) > 31 {
 		return mealplan.ParticipationPlan{}, mealplan.ErrInvalidParticipation
 	}
-	var plan domain.ParticipationPlan
-	var cutoffs mealplan.Cutoffs
-	err := s.run(ctx, "read_participation", func(txCtx context.Context) (domain.OperationStats, error) {
-		rules, resolved, cutoffErr := s.requireRegistration(txCtx, start, end)
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		cutoffs = resolved
-		data, stats, findErr := s.store.FindParticipation(txCtx, studentID, start, end)
-		if findErr != nil {
-			return stats, findErr
-		}
-		plan = s.resolveParticipation(data, start, end, rules)
-		return stats, nil
-	})
+	plan, err := s.participationPlan(ctx, studentID, start, end, scheduleDate)
 	if err != nil {
-		return mealplan.ParticipationPlan{}, err
+		return mealplan.ParticipationPlan{}, mapPublicError(err)
 	}
-	return publicParticipationPlan(plan, cutoffs), nil
+	return publicParticipationPlan(plan), nil
 }
 
 func (s *Service) ReplaceParticipationSchedule(ctx context.Context, command mealplan.ReplaceParticipationSchedule) (mealplan.Date, error) {
@@ -117,21 +99,47 @@ func (s *Service) ReplaceParticipationSchedule(ctx context.Context, command meal
 	if !ok {
 		return "", mealplan.ErrInvalidParticipation
 	}
-	values := make([]domain.Weekday, 0, len(weekdays))
-	for _, day := range weekdays {
-		values = append(values, domain.Weekday(day))
+	return s.publicSchedule(ctx, command.StudentID, command.GuardianAccountID, weekdays, "")
+}
+
+// ReplaceScheduleBySchool sets a child's regular days for the school.
+func (s *Service) ReplaceScheduleBySchool(ctx context.Context, command mealplan.SchoolSchedule) (mealplan.Date, error) {
+	weekdays, ok := normalizeWeekdays(command.Weekdays)
+	effectiveFrom, err := calendar.ParseDate(string(command.EffectiveFrom))
+	if command.StudentID <= 0 || command.StaffAccountID <= 0 || !ok || err != nil {
+		return "", mealplan.ErrInvalidParticipation
 	}
-	var effectiveFrom domain.Date
-	err := s.run(ctx, "replace_participation_schedule", func(txCtx context.Context) (domain.OperationStats, error) {
-		today := calendar.DateFromTime(s.now())
-		rules, _, cutoffErr := s.requireRegistration(txCtx, today, today)
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		effectiveFrom = rules.Registration.NextEffectiveDate(s.now())
-		return s.store.InsertParticipationSchedule(txCtx, command.StudentID, command.GuardianAccountID, effectiveFrom, values)
-	})
-	return mealplan.Date(effectiveFrom.String()), err
+	return s.publicSchedule(ctx, command.StudentID, command.StaffAccountID, weekdays, effectiveFrom)
+}
+
+// publicSchedule replaces the regular days. The empty effective date is a
+// parent's change; a set one is the school's.
+func (s *Service) publicSchedule(ctx context.Context, studentID, accountID int64, weekdays []mealplan.Weekday, schoolFrom domain.Date) (mealplan.Date, error) {
+	values := make([]domain.Weekday, 0, len(weekdays))
+	for _, weekday := range weekdays {
+		values = append(values, domain.Weekday(weekday))
+	}
+	from, err := s.replaceSchedule(ctx, studentID, accountID, values, schoolFrom)
+	return mealplan.Date(from.String()), mapPublicError(err)
+}
+
+// SetParticipationBySchool registers or cancels a day for the school.
+func (s *Service) SetParticipationBySchool(ctx context.Context, command mealplan.SchoolChange) error {
+	date, err := participationDate(command.Date)
+	if command.StudentID <= 0 || command.StaffAccountID <= 0 || err != nil {
+		return mealplan.ErrInvalidParticipation
+	}
+	return mapPublicError(s.setParticipationDay(ctx, command.StudentID, command.StaffAccountID, date, command.Participating, true))
+}
+
+// ClearParticipationBySchool drops a day's exception for the school, so the
+// regular days apply again.
+func (s *Service) ClearParticipationBySchool(ctx context.Context, command mealplan.SchoolChange) error {
+	date, err := participationDate(command.Date)
+	if command.StudentID <= 0 || command.StaffAccountID <= 0 || err != nil {
+		return mealplan.ErrInvalidParticipation
+	}
+	return mapPublicError(s.clearParticipationDay(ctx, command.StudentID, command.StaffAccountID, date, true))
 }
 
 func (s *Service) SetParticipationForDay(ctx context.Context, command mealplan.SetParticipationDay) error {
@@ -139,19 +147,19 @@ func (s *Service) SetParticipationForDay(ctx context.Context, command mealplan.S
 	if command.StudentID <= 0 || command.GuardianAccountID <= 0 || err != nil {
 		return mealplan.ErrInvalidParticipation
 	}
+	return mapPublicError(s.setParticipationDay(ctx, command.StudentID, command.GuardianAccountID, date, command.Participating, false))
+}
 
-	return s.run(ctx, "set_participation_day", func(txCtx context.Context) (domain.OperationStats, error) {
-		rules, _, cutoffErr := s.requireRegistration(txCtx, date, date)
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		stats, err := s.requireChangeOpen(txCtx, rules, command.StudentID, date, &command.Participating)
-		if err != nil {
-			return stats, err
-		}
-		writeStats, err := s.store.UpsertParticipationOverride(txCtx, command.StudentID, command.GuardianAccountID, date, command.Participating)
-		return addStats(stats, writeStats), err
-	})
+func (s *Service) SetParticipationForWeek(ctx context.Context, command mealplan.SetParticipationWeek) (mealplan.WeekChange, error) {
+	date, err := calendar.ParseDate(string(command.WeekOf))
+	if command.StudentID <= 0 || command.GuardianAccountID <= 0 || err != nil {
+		return mealplan.WeekChange{}, mealplan.ErrInvalidParticipation
+	}
+	changed, locked, err := s.setParticipationWeek(ctx, command.StudentID, command.GuardianAccountID, date.StartOfISOWeek(), command.Participating)
+	if err != nil {
+		return mealplan.WeekChange{}, mapPublicError(err)
+	}
+	return mealplan.WeekChange{Changed: publicDates(changed), Locked: publicDates(locked)}, nil
 }
 
 func (s *Service) ClearParticipationForDay(ctx context.Context, command mealplan.SetParticipationDay) error {
@@ -159,19 +167,7 @@ func (s *Service) ClearParticipationForDay(ctx context.Context, command mealplan
 	if command.StudentID <= 0 || command.GuardianAccountID <= 0 || err != nil {
 		return mealplan.ErrInvalidParticipation
 	}
-
-	return s.run(ctx, "clear_participation_day", func(txCtx context.Context) (domain.OperationStats, error) {
-		rules, _, cutoffErr := s.requireRegistration(txCtx, date, date)
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		stats, err := s.requireChangeOpen(txCtx, rules, command.StudentID, date, nil)
-		if err != nil {
-			return stats, err
-		}
-		writeStats, err := s.store.DeleteParticipationOverride(txCtx, command.StudentID, date)
-		return addStats(stats, writeStats), err
-	})
+	return mapPublicError(s.clearParticipationDay(ctx, command.StudentID, command.GuardianAccountID, date, false))
 }
 
 func (s *Service) DailyList(ctx context.Context, date mealplan.Date) (mealplan.DailyList, error) {
@@ -179,79 +175,83 @@ func (s *Service) DailyList(ctx context.Context, date mealplan.Date) (mealplan.D
 	if err != nil {
 		return mealplan.DailyList{}, mealplan.ErrInvalidParticipation
 	}
-	var list mealplan.DailyList
-
-	err = s.run(ctx, "read_daily_participants", func(txCtx context.Context) (domain.OperationStats, error) {
-		rules, cutoffs, cutoffErr := s.requireRegistration(txCtx, parsed, parsed)
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		var stats domain.OperationStats
-		list, stats, err = s.dailyList(txCtx, parsed, rules, cutoffs)
-		return stats, err
-	})
+	list, err := s.dailyParticipants(ctx, parsed)
 	if err != nil {
-		return mealplan.DailyList{}, err
+		return mealplan.DailyList{}, mapPublicError(err)
 	}
-	return list, nil
+	result := mealplan.DailyList{Date: mealplan.Date(list.Date.String()), CutoffTime: list.CutoffTime, Deadline: list.Deadline, Closed: list.Closed, Participants: make([]mealplan.DailyParticipant, 0, len(list.Participants))}
+	for _, participant := range list.Participants {
+		result.Participants = append(result.Participants, mealplan.DailyParticipant(participant))
+	}
+	for _, other := range list.Others {
+		result.Others = append(result.Others, mealplan.DailyParticipant(other))
+	}
+	return result, nil
 }
 
-// WeeklyList is the kitchen list of each school day in the week of
-// weekStart, read in one transaction with one deadline.
+func (s *Service) SettleOrders(ctx context.Context) error {
+	return mapPublicError(s.settleDueOrders(ctx))
+}
+
+func (s *Service) Orders(ctx context.Context, from, to mealplan.Date) (mealplan.OrderWeek, error) {
+	start, end, err := readWindow(from, to)
+	if err != nil {
+		return mealplan.OrderWeek{}, err
+	}
+	view, err := s.orderView(ctx, start, end)
+	if err != nil {
+		return mealplan.OrderWeek{}, mapPublicError(err)
+	}
+	return publicOrderWeek(view), nil
+}
+
+func (s *Service) CatererOrders(ctx context.Context, since time.Time, from, to mealplan.Date) (mealplan.OrderWeek, error) {
+	start, end, err := readWindow(from, to)
+	if err != nil {
+		return mealplan.OrderWeek{}, err
+	}
+	return s.catererOrders(ctx, since, start.String(), end.String())
+}
+
+func (s *Service) ConfirmOrder(ctx context.Context, orderID int64, since time.Time, accountID int64) error {
+	if orderID <= 0 {
+		return mealplan.ErrOrderNotFound
+	}
+	return s.confirmOrder(ctx, orderID, since, accountID)
+}
+
+// readWindow parses one read of the orders, at most maxOrderWindowDays long.
+func readWindow(from, to mealplan.Date) (calendar.Date, calendar.Date, error) {
+	start, startErr := calendar.ParseDate(string(from))
+	end, endErr := calendar.ParseDate(string(to))
+	if startErr != nil || endErr != nil || end.Before(start) || start.DaysUntil(end) >= maxOrderWindowDays {
+		return "", "", mealplan.ErrInvalidParticipation
+	}
+	return start, end, nil
+}
+
+// WeeklyList reads each day's kitchen list with the school's ordering rules.
 func (s *Service) WeeklyList(ctx context.Context, weekStart mealplan.Date) (mealplan.WeeklyList, error) {
 	date, err := calendar.ParseDate(string(weekStart))
 	if err != nil {
 		return mealplan.WeeklyList{}, mealplan.ErrInvalidParticipation
 	}
 	monday := date.StartOfISOWeek()
-	var week mealplan.WeeklyList
-
+	week := mealplan.WeeklyList{WeekStart: mealplan.Date(monday.String()), Days: make([]mealplan.DailyList, 0, 5)}
 	err = s.run(ctx, "read_weekly_participants", func(txCtx context.Context) (domain.OperationStats, error) {
-		rules, cutoffs, cutoffErr := s.requireRegistration(txCtx, monday, monday.AddDays(4))
-		if cutoffErr != nil {
-			return domain.OperationStats{}, cutoffErr
-		}
-		week = mealplan.WeeklyList{Cutoffs: cutoffs, WeekStart: mealplan.Date(monday.String()), Days: make([]mealplan.DailyList, 0, 5)}
-		var stats domain.OperationStats
 		for offset := range 5 {
-			list, dayStats, dayErr := s.dailyList(txCtx, monday.AddDays(offset), rules, cutoffs)
-			stats = addStats(stats, dayStats)
-			if dayErr != nil {
-				return stats, dayErr
+			list, err := s.DailyList(txCtx, mealplan.Date(monday.AddDays(offset).String()))
+			if err != nil {
+				return domain.OperationStats{}, err
 			}
 			week.Days = append(week.Days, list)
 		}
-		return stats, nil
+		return domain.OperationStats{}, nil
 	})
 	if err != nil {
 		return mealplan.WeeklyList{}, err
 	}
 	return week, nil
-}
-
-func (s *Service) dailyList(ctx context.Context, date domain.Date, rules domain.Rules, cutoffs mealplan.Cutoffs) (mealplan.DailyList, domain.OperationStats, error) {
-	if rules.Closed(date) {
-		return mealplan.DailyList{Cutoffs: cutoffs, Date: mealplan.Date(date.String()), Closed: true, Participants: []mealplan.DailyParticipant{}, Available: []mealplan.DailyParticipant{}}, domain.OperationStats{}, nil
-	}
-	cutoff := rules.CancellationAt(date)
-	candidates, stats, err := s.directory.FindDailyCandidates(ctx, date)
-	if err != nil {
-		return mealplan.DailyList{}, stats, err
-	}
-	studentIDs := make([]int64, 0, len(candidates))
-	for _, candidate := range candidates {
-		studentIDs = append(studentIDs, candidate.StudentID)
-	}
-	participation, participationStats, err := s.store.FindDailyParticipation(ctx, studentIDs, date, cutoff)
-	stats = addStats(stats, participationStats)
-	if err != nil {
-		return mealplan.DailyList{}, stats, err
-	}
-	list := mealplan.DailyList{Cutoffs: cutoffs, Date: mealplan.Date(date.String()), Participants: make([]mealplan.DailyParticipant, 0, len(candidates)), Available: make([]mealplan.DailyParticipant, 0)}
-	appendDailyParticipants(&list, candidates, participation, cutoff)
-	mealplan.SortDailyParticipants(list.Participants)
-	mealplan.SortDailyParticipants(list.Available)
-	return list, stats, nil
 }
 
 func participationDate(value mealplan.Date) (calendar.Date, error) {
@@ -290,15 +290,90 @@ func trimOptional(value *string) *string {
 	return &trimmed
 }
 
-func publicParticipationPlan(plan domain.ParticipationPlan, cutoffs mealplan.Cutoffs) mealplan.ParticipationPlan {
-	result := mealplan.ParticipationPlan{Cutoffs: cutoffs, EffectiveFrom: mealplan.Date(plan.EffectiveFrom.String()), Weekdays: make([]mealplan.Weekday, 0, len(plan.Weekdays)), Days: make([]mealplan.ParticipationDay, 0, len(plan.Days))}
+func publicDates(dates []domain.Date) []mealplan.Date {
+	result := make([]mealplan.Date, 0, len(dates))
+	for _, date := range dates {
+		result = append(result, mealplan.Date(date.String()))
+	}
+	return result
+}
+
+func publicOrderWeek(view domain.OrderView) mealplan.OrderWeek {
+	week := mealplan.OrderWeek{Rhythm: string(view.Rules.Rhythm), Detail: string(view.Rules.Detail), Days: make([]mealplan.OrderDay, 0, len(view.Days))}
+	for _, day := range view.Days {
+		week.Days = append(week.Days, publicOrderDay(day, view.Names))
+	}
+	return week
+}
+
+func publicOrderDay(day domain.OrderDay, names map[int64]domain.DailyCandidate) mealplan.OrderDay {
+	child := func(studentID int64, schoolClass string) mealplan.OrderChild {
+		name := names[studentID]
+		return mealplan.OrderChild{StudentID: studentID, FirstName: name.FirstName, LastName: name.LastName, SchoolClass: schoolClass}
+	}
+	counts := day.Children
+	if day.Order != nil {
+		counts = day.FrozenChildren
+	}
+	result := mealplan.OrderDay{Date: mealplan.Date(day.Date.String()), Closed: day.Closed, Deadline: day.Deadline, Status: mealplan.OrderOpen, Total: len(counts)}
+	if day.Unordered {
+		result.Status = mealplan.OrderUnordered
+	}
+	if day.Order != nil {
+		result.Status, result.OrderID, result.ConfirmedAt = mealplan.OrderOrdered, day.Order.ID, day.Order.ConfirmedAt
+		if day.Order.ConfirmedAt != nil {
+			result.Status = mealplan.OrderConfirmed
+		}
+	}
+	for _, count := range domain.CountByClass(counts) {
+		result.Classes = append(result.Classes, mealplan.ClassCount(count))
+	}
+	for _, eating := range day.Eating {
+		result.Children = append(result.Children, mealplan.OrderChild(eating))
+	}
+	for _, change := range day.Changes {
+		result.Changes = append(result.Changes, mealplan.OrderChange{Sequence: change.Sequence, Date: result.Date, Child: child(change.StudentID, change.SchoolClass), Delta: change.Delta, DetectedAt: change.DetectedAt})
+	}
+	return result
+}
+
+func publicParticipationPlan(plan domain.ParticipationPlan) mealplan.ParticipationPlan {
+	result := mealplan.ParticipationPlan{EffectiveFrom: mealplan.Date(plan.EffectiveFrom.String()), CutoffTime: plan.CutoffTime, Model: mealplan.RegistrationModel(plan.Model), ScheduleChangeable: plan.ScheduleChangeable, SickCancels: plan.Sick == domain.SickCancelled, Weekdays: make([]mealplan.Weekday, 0, len(plan.Weekdays)), Days: make([]mealplan.ParticipationDay, 0, len(plan.Days))}
 	for _, weekday := range plan.Weekdays {
 		result.Weekdays = append(result.Weekdays, mealplan.Weekday(weekday))
 	}
 	for _, day := range plan.Days {
-		result.Days = append(result.Days, mealplan.ParticipationDay{Date: mealplan.Date(day.Date.String()), Participating: day.Participating, Source: mealplan.ParticipationSource(day.Source), Changeable: day.Changeable})
+		result.Days = append(result.Days, mealplan.ParticipationDay{
+			Date: mealplan.Date(day.Date.String()), Participating: day.Participating, Regular: day.Regular, Source: mealplan.ParticipationSource(day.Source),
+			Changeable: day.Changeable(), CanRegister: day.CanRegister, CanCancel: day.CanCancel,
+			RegisterUntil: day.RegisterUntil, CancelUntil: day.CancelUntil,
+		})
 	}
 	return result
+}
+
+// publicErrors maps the application's errors to the module's, first match
+// wins.
+var publicErrors = []struct{ from, to error }{
+	{ErrDisabled, mealplan.ErrDisabled},
+	{ErrRegistrationDisabled, mealplan.ErrRegistrationDisabled},
+	{ErrCutoffPassed, mealplan.ErrParticipationCutoff},
+	{ErrPastDay, mealplan.ErrPastDay},
+	{ErrDayClosed, mealplan.ErrDayClosed},
+	{ErrStudentNotFound, mealplan.ErrStudentNotFound},
+	{ErrNotEnrolled, mealplan.ErrChildNotEnrolled},
+	{ErrInvalidCutoff, mealplan.ErrInvalidParticipation},
+	{ErrTooFarAhead, mealplan.ErrInvalidParticipation},
+	{ErrOrderNotFound, mealplan.ErrOrderNotFound},
+}
+
+func mapPublicError(err error) error {
+	for _, mapping := range publicErrors {
+		if errors.Is(err, mapping.from) {
+			return mapping.to
+		}
+	}
+	return err
 }
 
 // storedAllergens returns the stored codes as the public list; an empty

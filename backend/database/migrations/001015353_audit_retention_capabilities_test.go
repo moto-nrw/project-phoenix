@@ -58,7 +58,7 @@ var auditRetentionCapabilities = []auditRetentionCapability{
 	{
 		name:             "unregistered tag scans",
 		function:         "audit.delete_expired_unregistered_tag_scans",
-		allowedCutoffSQL: "CURRENT_TIMESTAMP - INTERVAL '90 days'",
+		allowedCutoffSQL: "(CURRENT_TIMESTAMP AT TIME ZONE 'UTC' - INTERVAL '90 days') AT TIME ZONE 'UTC'",
 		bypassCutoffSQL:  "CURRENT_TIMESTAMP",
 		seedExpiredRowSQL: `INSERT INTO audit.unregistered_tag_scans
 			(tenant_id, tag_uid, scanned_at)

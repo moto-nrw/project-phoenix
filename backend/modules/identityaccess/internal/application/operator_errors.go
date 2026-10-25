@@ -34,6 +34,9 @@ var operatorSentinels = []struct {
 	{domain.ErrOperatorPasswordTooWeak, identityaccess.ErrOperatorPasswordTooWeak},
 	{domain.ErrOperatorDisplayNameRequired, identityaccess.ErrOperatorDisplayNameRequired},
 	{domain.ErrOperatorDisplayNameTooLong, identityaccess.ErrOperatorDisplayNameTooLong},
+	// A caterer account joins no school (ADR 0077); it answers like an
+	// address that is taken.
+	{domain.ErrCatererAccountJoinsNoSchool, identityaccess.ErrEmailAlreadyExists},
 }
 
 // operatorPublicSentinels are the operator outcomes the flows already report

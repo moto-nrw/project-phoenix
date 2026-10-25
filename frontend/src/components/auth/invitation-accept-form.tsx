@@ -13,9 +13,9 @@ import {
   credentialError,
   INVITATION_REFUSALS,
 } from "~/components/auth/credential-error";
+import { PasswordRequirements } from "~/components/auth/password-requirements";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { PasswordRequirements } from "~/components/auth/password-requirements";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { acceptInvitation } from "~/lib/invitation-api";

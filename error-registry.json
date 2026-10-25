@@ -1611,6 +1611,18 @@
       "legacy": "identity.account_not_in_school"
     },
     {
+      "code": "identity.caterer_address_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.caterer_address_taken"
+    },
+    {
+      "code": "identity.caterer_without_school",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.caterer_without_school"
+    },
+    {
       "code": "identity.current_password_wrong",
       "class": "input",
       "parameters": [],
@@ -2187,6 +2199,30 @@
       "legacy": "iot.wc_not_configured"
     },
     {
+      "code": "meals.child_not_enrolled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.child_not_enrolled"
+    },
+    {
+      "code": "meals.day_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.day_closed"
+    },
+    {
+      "code": "meals.day_past",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.day_past"
+    },
+    {
+      "code": "meals.delivery_range_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.delivery_range_too_long"
+    },
+    {
       "code": "meals.invalid_allergens",
       "class": "input",
       "parameters": [],
@@ -2209,6 +2245,18 @@
       "class": "input",
       "parameters": [],
       "legacy": "invalid_meal_participation"
+    },
+    {
+      "code": "meals.not_supplied",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "meals.not_supplied"
+    },
+    {
+      "code": "meals.order_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.order_not_found"
     },
     {
       "code": "meals.participation_cutoff_passed",
@@ -2239,6 +2287,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "meal_registration_disabled"
+    },
+    {
+      "code": "meals.supply_active",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.supply_active"
     },
     {
       "code": "module.not_booked",

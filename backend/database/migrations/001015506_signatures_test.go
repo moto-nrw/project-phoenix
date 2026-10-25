@@ -49,7 +49,11 @@ func TestSignatureSchoolErasureForeignKeyFingerprint(t *testing.T) {
    (SELECT item->>'name' FROM jsonb_array_elements(platform.school_erasure_plan()) AS item)
   GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
  ) AS edge`).Scan(t.Context(), &fingerprint))
-	assert.Contains(t, schoolErasurePreflightSQL, fingerprint)
+	// The installed preflight is the newest reinstall of the erasure
+	// functions: development's constant, or a later migration's copy of it.
+	var installed string
+	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.school_erasure_preflight(bigint,bigint)'::regprocedure)`).Scan(t.Context(), &installed))
+	assert.Contains(t, installed, fingerprint)
 }
 
 func TestSignaturesRollbackRestoresSchoolErasureWithoutSignatures(t *testing.T) {

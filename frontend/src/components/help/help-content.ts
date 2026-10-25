@@ -4213,25 +4213,113 @@ function mealPlanTopic(): HelpTopic {
       "Unter dem Plan steht die Liste für die Küche. Mit `Tag` und `Woche` wechseln Sie die Ansicht.",
       "Die Wochenliste zeigt jedes angemeldete Kind mit einem Haken je Tag. Darüber steht, wie viele Kinder an jedem Tag essen.",
       "Öffnen Sie `Tagesliste herunterladen` oder `Wochenliste herunterladen`. Wählen Sie `PDF` oder `Excel`.",
-      "Bis wann Eltern ändern können, legen Sie in den Einstellungen fest: `Änderungsfrist für das Mittagessen` und `Vorlauf für das Mittagessen (Werktage)`. Wochenende, Feiertage und Schließtage zählen beim Vorlauf nicht mit.",
-      "Bestellt Ihre Küche für eine ganze Woche? Dann wählen Sie `Wochenfrist für das Mittagessen`, zum Beispiel `Mittwoch der Vorwoche`.",
-      "Mit `Späteres Abmelden vom Mittagessen` können Eltern ihr Kind später abmelden als anmelden. Die Frist dafür stellen Sie unter `Abmeldefrist für das Mittagessen` und `Vorlauf für das Abmelden vom Mittagessen (Werktage)` ein.",
-      "Ruft eine Familie nach der Frist an? Mit `Kind anmelden` über der Tagesliste melden Sie ein Kind an. Über das Menü `⋮` in seiner Zeile melden Sie es ab. Das geht für heute und spätere Tage.",
-      "An Feiertagen und Schließtagen steht `Kein Essen an diesem Tag`. Die Wochenliste zeigt dort `kein Essen`.",
+      "Bis wann Eltern ändern können, legen Sie unter `Einstellungen` im Bereich `Mittagessen` fest.",
+      "An Feiertagen und Schließtagen gibt es kein Essen. Die Wochenliste zeigt dort `kein Essen`.",
     ],
     differences: [
       "Ihre Änderungen zählen erst mit `Speichern`. Vorher steht `Verwerfen` daneben.",
       "Beim Wechseln der Woche mit offenen Änderungen fragt moto nach.",
-      "Fehlt `Kind anmelden`? Dafür brauchen Sie das Recht, Einstellungen zu ändern und Kinder zu sehen. Für vergangene Tage gibt es den Knopf nicht.",
     ],
     troubleshootingDetails: [
-      "Fehlt `Speiseplan` in der Seitenleiste? Dann ist die Funktion für Ihre OGS ausgeschaltet.",
+      "Fehlt `Speiseplan` in der Seitenleiste? Dann ist die Funktion für Ihre OGS ausgeschaltet, oder Ihrer Rolle fehlt das Recht `Mittagessen: Lesen`.",
     ],
     related: [
       HELP_TOPICS.leadParentAnnouncement,
       HELP_TOPICS.leadParentVisibility,
       HELP_TOPICS.settings,
     ],
+  };
+}
+
+/**
+ * Anmeldemodell und Fristen fürs Mittagessen (#3873): Einstellungen, Reiter
+ * `Mittagessen`. Die Fristen gelten für Eltern; die Schule ändert jederzeit.
+ */
+function mealOrderingTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadMealOrdering,
+    title: "Fristen für das Mittagessen festlegen",
+    question: "Bis wann melden Eltern ihr Kind zum Essen an oder ab?",
+    summary:
+      "Sie legen fest, wie Eltern anmelden und bis wann sie ändern dürfen.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "Hourglass",
+    requirements: ["`Anmeldung zum Mittagessen` ist eingeschaltet."],
+    steps: [
+      "Wählen Sie unten in der Seitenleiste `Einstellungen`.",
+      "Wählen Sie oben den Reiter `Mittagessen`.",
+      "Wählen Sie bei `Wie Eltern anmelden` eine Möglichkeit.",
+      "Legen Sie unter `Fristen` die `Anmeldefrist` fest: Tage vor dem Essenstag oder ein Wochentag der Vorwoche, dazu die Uhrzeit.",
+      "Nutzen Sie eine eigene Abmeldefrist, legen Sie auch die `Abmeldefrist` fest.",
+      "Wählen Sie bei `Krank oder abwesend nach der Frist`, was mit dem Essen passiert.",
+    ],
+    result:
+      "Eltern sehen bei jedem Tag, bis wann sie an- oder abmelden können.",
+    notes: [
+      "`Laufend, eine Frist` ist der Standard: Bis zur Frist dürfen Eltern an- und abmelden.",
+      "`Laufend, mit eigener Abmeldefrist` passt, wenn der Caterer früh bestellt, Abmelden aber später noch geht.",
+      "`Für das Schuljahr`: Eltern melden bis zum `Anmeldeschluss für das Schuljahr` an. Danach meldet nur die Schule an.",
+      "Bei `Abmelden nach dem Anmeldeschluss` legen Sie fest, ob Eltern danach noch Tage oder Wochen abmelden.",
+      "An Schließtagen und Feiertagen isst niemand. In den Ferien gelten die festen Tage nicht, einzeln angemeldete Tage zählen.",
+      "`Entschuldigt` und `Klassenfahrt` melden das Essen ab wie eine Krankmeldung.",
+      "Für die Küche legen Sie eine Rolle mit den Rechten unter `Mittagessen` an. Sie braucht keinen Zugriff auf alle Kinderdaten.",
+      "Zur Frist friert moto die Bestellung ein. Unter `Speiseplan` zeigt `Bestellung` je Tag `Offen`, `Bestellt` oder `Vom Caterer bestätigt`, dazu die `Frist`, die Zahl der Essen und die `Nachmeldungen` danach.",
+      "Tage vor dem Start der Bestellung stehen auf `Nicht bestellt`. Sie zählen nicht.",
+      "Mit `… als Excel` oder `… als PDF` laden Sie die bestellten Essen je Kind für einen Monat herunter, zum Beispiel für die Essenspauschale. Liegt die Woche in zwei Monaten, wählen Sie vorher den Monat.",
+    ],
+    differences: [
+      "Wochenenden zählen bei `Tage vorher` mit. 1 heißt immer: am Tag davor.",
+      "Die Schule ändert eine Anmeldung auch nach der Frist: unter `Speiseplan` mit `Anmeldung ändern`. Das geht für einen Tag, zurück `Wie an festen Tagen` oder für die festen Tage ab einem Datum. moto hält jede Änderung mit Konto und Zeit fest.",
+    ],
+    troubleshootingDetails: [
+      "Fehlen die Fristen? Dann ist `Anmeldung zum Mittagessen` noch aus.",
+      "Fehlt `Anmeldung ändern`? Dann braucht Ihr Konto das Recht `Anmeldung eines Kindes ändern, auch nach der Frist`.",
+    ],
+    related: [HELP_TOPICS.leadMealPlan, HELP_TOPICS.settings],
+  };
+}
+
+/**
+ * Der Caterer der Schule (ADR 0077): Einladung per E-Mail unter
+ * `Speiseplan`, Ende der Belieferung, und was der Caterer sieht.
+ */
+function mealCatererTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadMealCaterer,
+    title: "Caterer einladen",
+    question: "Wie sieht unser Caterer die Bestellungen?",
+    summary:
+      "Sie laden Ihren Caterer per E-Mail ein. Er sieht dann die Bestellungen.",
+    group: "elternarbeit",
+    audience: "lead",
+    icon: "Truck",
+    requirements: [
+      "`Anmeldung zum Mittagessen` ist eingeschaltet.",
+      "Sie sind Admin Ihrer Schule. Nur Admins laden einen Caterer ein oder beenden die Belieferung.",
+    ],
+    steps: [
+      "Öffnen Sie in der Seitenleiste `Speiseplan`.",
+      "Gehen Sie unten zur Karte `Caterer`.",
+      "Tragen Sie `Name des Caterers` und `E-Mail-Adresse des Caterers` ein. Die Lieferadresse ist freiwillig.",
+      "Wählen Sie `Einladung senden`.",
+    ],
+    result:
+      "Der Caterer bekommt eine E-Mail mit einem Link. Damit legt er sein Passwort fest. Danach sieht er die Bestellungen Ihrer Schule.",
+    notes: [
+      "Den Link sieht nur der Caterer. Er gilt 14 Tage.",
+      "Der Caterer sieht nur Zahlen: je Tag und, wenn Sie so bestellen, je Klasse. Namen sieht er nur, wenn Sie unter `Einstellungen` → `Datenschutz` `Namen der Kinder für den Caterer` einschalten.",
+      "Der Caterer kann eine Bestellung nur bestätigen. Dann steht bei Ihnen `Vom Caterer bestätigt`.",
+      "Beliefert der Caterer schon andere Schulen, bestätigt er mit seinem Passwort. Ihre Schule kommt dann zu seinen Schulen dazu.",
+      "Mit `Belieferung beenden` sieht der Caterer Ihre Schule sofort nicht mehr. Danach können Sie einen neuen Caterer einladen.",
+      "Die Lieferliste der Woche bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten: `Lieferliste als PDF`, `Lieferliste als Excel` oder `Lieferliste als CSV`. Es ist dieselbe Liste, die Ihr Caterer sieht, ohne Namen.",
+    ],
+    troubleshootingDetails: [
+      "Kam keine E-Mail an? Nehmen Sie die Einladung mit `Zurücknehmen` zurück und senden Sie eine neue.",
+      "Fehlt die Karte `Caterer`? Dann ist `Anmeldung zum Mittagessen` aus, oder Ihr Konto darf den Speiseplan nicht bearbeiten.",
+      "Steht auf der Karte nur „Einen Caterer einladen können nur Admins Ihrer Schule.“? Dann bitten Sie einen Admin Ihrer Schule um die Einladung.",
+    ],
+    related: [HELP_TOPICS.leadMealOrdering, HELP_TOPICS.leadMealPlan],
   };
 }
 
@@ -5876,7 +5964,7 @@ function parentVisibilityTopic(): HelpTopic {
       "Wählen Sie bei `Krankmeldungen durch Eltern` die Möglichkeit `Erst bestätigen`, wenn Ihr Team jede Meldung freigeben soll.",
       "Bei `Wer gibt Änderungswünsche von Eltern frei?` wählen Sie, wer Anfragen zu Stammdaten, Abholung und Angeboten freigibt.",
       "`Berechtigtes Team` heißt: alle, die Kinderdaten bearbeiten dürfen. Das passt auch für ein gemeinsames Tablet.",
-      "Der Speiseplan ist ein eigener Schalter.",
+      "Speiseplan und Anmeldung zum Mittagessen stehen im Reiter `Mittagessen`.",
     ],
     differences: [
       "Ist ein Schalter aus, sehen Eltern den Bereich gar nicht. Er wird nicht ausgegraut.",
@@ -6313,6 +6401,8 @@ function leadTopics(
     parentSurveyTopic(),
     parentDeclarationTopic(),
     mealPlanTopic(),
+    mealOrderingTopic(),
+    mealCatererTopic(),
     bankDetailsTopic(),
 
     // --- Anmeldungen ---
@@ -7116,23 +7206,52 @@ function parentMealPlanTopic(): HelpTopic {
     group: "nachrichten",
     audience: "parent",
     icon: "UtensilsCrossed",
-    steps: [
-      "Tippen Sie unten auf `Mehr`.",
-      "Wählen Sie `Mittagessen`.",
-      "Wechseln Sie bei Bedarf mit den Pfeilen die Woche.",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Plan ansehen",
+        steps: [
+          "Tippen Sie unten auf `Mehr`.",
+          "Wählen Sie `Mittagessen`.",
+          "Wechseln Sie bei Bedarf mit den Pfeilen die Woche.",
+        ],
+      },
+      {
+        title: "Einen Tag an- oder abmelden",
+        description:
+          "Das geht nur, wenn Ihre OGS die Anmeldung zum Mittagessen nutzt.",
+        steps: [
+          "Wählen Sie beim Tag `Ändern`.",
+          "Wählen Sie `Anmelden` oder `Abmelden`.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Eine ganze Woche abmelden",
+        steps: [
+          "Wählen Sie mit den Pfeilen die Woche.",
+          "Wählen Sie `Woche abmelden`.",
+          "Bestätigen Sie mit `Abmelden`.",
+        ],
+      },
     ],
     result: "Sie sehen je Tag das Gericht und ob Ihr Kind mitisst.",
     notes: [
       "Steht am Gericht zum Beispiel `Allergene: A, G`, enthält es diese Allergene. Unter dem Plan steht, was die Buchstaben bedeuten.",
       "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Fragen Sie im Zweifel die OGS.",
       "Über dem Plan steht die Kalenderwoche, zum Beispiel `KW 38 · Diese Woche`.",
-      "Mit `Ganze Woche anmelden` oder `Ganze Woche abmelden` ändern Sie alle Tage der Woche auf einmal. Das gilt nur für Tage, die Sie noch ändern können.",
-      "Unter `Wann isst … mit?` steht, bis wann Sie ändern können. Manche Schulen erlauben das Abmelden länger als das Anmelden.",
+      "Bei jedem Tag steht, bis wann Sie ändern können, zum Beispiel `Abmelden bis Do., 17.09., 12:00`.",
+      "Mit `Woche anmelden` oder `Woche abmelden` ändern Sie alle Tage der Woche auf einmal, die Sie noch ändern können.",
+      "Die Anmeldung sehen Sie bis zu vier Wochen im Voraus. Den Speiseplan gibt es für diese und nächste Woche.",
     ],
     differences: [
       "Steht an einem Tag `Kein Essen eingetragen`, hat die OGS dafür nichts hinterlegt.",
-      "Steht an einem Tag `Kein Essen: Feiertag oder Schließtag`, gibt es an dem Tag kein Essen. Sie können ihn nicht ändern.",
       "Die Seite zeigt gleich `Nächste Woche`? Dann können Sie in dieser Woche nichts mehr ändern, zum Beispiel am Wochenende. Mit dem Pfeil nach links sehen Sie diese Woche.",
+      "Fehlt `Ändern` bei den festen Tagen? Dann ist die Anmeldung für das Schuljahr abgeschlossen. Die festen Tage ändert jetzt die Schule.",
+      "Nach `Woche abmelden` bleiben Tage angemeldet, deren Frist schon vorbei ist. moto nennt sie.",
+      "Nach `Woche anmelden` bleiben Tage abgemeldet, deren Anmeldefrist schon vorbei ist. moto nennt sie.",
+      "Steht `An diesem Tag ist die OGS zu`, gibt es an diesem Tag kein Essen.",
+      "In den Ferien gelten die festen Tage nicht. Für die Ferienbetreuung melden Sie einzelne Tage an.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Speiseplan sei nicht freigeschaltet? Dann nutzt Ihre OGS diese Funktion nicht.",

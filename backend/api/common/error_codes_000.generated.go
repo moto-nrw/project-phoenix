@@ -269,6 +269,8 @@ const (
 	CodeIdentityAccountInactive                          = "identity.account_inactive"
 	CodeIdentityAccountNotFound                          = "identity.account_not_found"
 	CodeIdentityAccountNotInSchool                       = "identity.account_not_in_school"
+	CodeIdentityCatererAddressTaken                      = "identity.caterer_address_taken"
+	CodeIdentityCatererWithoutSchool                     = "identity.caterer_without_school"
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
 	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
@@ -300,8 +302,6 @@ const (
 	CodeIdentityPasskeyNotFound                          = "identity.passkey_not_found"
 	CodeIdentityPasswordMismatch                         = "identity.password_mismatch"
 	CodeIdentityPasswordResetLinkInvalid                 = "identity.password_reset_link_invalid"
-	CodeIdentityPasswordResetRateLimited                 = "identity.password_reset_rate_limited"
-	CodeIdentityPasswordTooWeak                          = "identity.password_too_weak"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -572,6 +572,8 @@ var errorCodeClasses0 = map[string]string{
 	"identity.account_inactive":                            "permission",
 	"identity.account_not_found":                           "business_rejection",
 	"identity.account_not_in_school":                       "business_rejection",
+	"identity.caterer_address_taken":                       "business_rejection",
+	"identity.caterer_without_school":                      "permission",
 	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
 	"identity.demo_access_invalid":                         "input",
@@ -603,8 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.passkey_not_found":                           "business_rejection",
 	"identity.password_mismatch":                           "input",
 	"identity.password_reset_link_invalid":                 "business_rejection",
-	"identity.password_reset_rate_limited":                 "unavailable",
-	"identity.password_too_weak":                           "input",
 }
 
 func init() {

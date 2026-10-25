@@ -22,6 +22,9 @@ const SENSITIVE_LOG_KEYS = new Set([
 
 const SENSITIVE_PATH_SEGMENT_PATTERN =
   /((?:^|\/)(?:anmeldung\/status|enroll\/status|accept-guardian-invite|calendar-feed|request-feed|public\/calendar|public\/request-feed|enrollment\/requests|guardian-invitations)\/)[^/?#\s"']+/gi;
+// The caterer's mailed invitation names its school, then the token (ADR 0077).
+const SENSITIVE_CATERER_INVITATION_PATTERN =
+  /((?:^|\/)(?:einladung|caterer\/invitations)\/[^/?#\s"']+\/)[^/?#\s"']+/gi;
 const SENSITIVE_INVITATION_PATH_PATTERN =
   /((?:^|\/)auth\/invitations\/)(?!(?:accept|session|validate)(?:[/?#\s"']|$))[^/?#\s"']+/gi;
 const TEXT_FIELD_NAME = String.raw`[^\s"'=:,;{}\[\]&?#]+`;
@@ -128,6 +131,7 @@ export function redactSensitiveLogString(value: string): string {
   return value
     .replace(SENSITIVE_PATH_SEGMENT_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(SENSITIVE_INVITATION_PATH_PATTERN, `$1${REDACTED_LOG_VALUE}`)
+    .replace(SENSITIVE_CATERER_INVITATION_PATTERN, `$1${REDACTED_LOG_VALUE}`)
     .replace(SENSITIVE_QUERY_PARAMETER_PATTERN, redactSensitiveParameter)
     .replace(SENSITIVE_QUOTED_TEXT_FIELD_PATTERN, redactSensitiveQuotedField)
     .replace(SENSITIVE_UNQUOTED_TEXT_FIELD_PATTERN, redactSensitiveParameter)

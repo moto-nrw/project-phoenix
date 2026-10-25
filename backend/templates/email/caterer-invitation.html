@@ -1,0 +1,31 @@
+{{define "caterer-invitation.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>Einladung zum Mittagessen bei moto</h1>
+    <p>Guten Tag{{if .CatererName}}, {{.CatererName}}{{end}},</p>
+    <p>{{if .SchoolName}}<strong>{{.SchoolName}}</strong>{{else}}Eine Schule{{end}} bestellt das Mittagessen jetzt über moto.</p>
+    <p>In moto sehen Sie, wie viele Essen die Schule bestellt hat. Sie können die Liste herunterladen oder drucken.</p>
+    <p>Klicken Sie auf den Button. Dort legen Sie Ihr Passwort fest.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.InvitationURL}}">Einladung annehmen</a>
+    </div>
+
+    <div class="highlight-box">
+        <p><strong>Wichtig:</strong> Die Einladung gilt {{.ExpiryDays}} {{if eq .ExpiryDays 1}}Tag{{else}}Tage{{end}}.</p>
+    </div>
+
+    <p>Sie haben schon ein Konto für andere Schulen? Dann bestätigen Sie die Einladung mit Ihrem bisherigen Passwort.</p>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.InvitationURL}}">{{.InvitationURL}}</a>
+    </div>
+
+    <p class="security-note">Sie haben diese Einladung nicht erwartet? Dann können Sie diese E-Mail ignorieren.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

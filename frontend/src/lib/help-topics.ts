@@ -131,6 +131,8 @@ export const HELP_TOPICS = {
   leadParentSurvey: "elternumfrage-erstellen",
   leadParentDeclaration: "elternerklaerung-einholen",
   leadMealPlan: "essensplan-veroeffentlichen",
+  leadMealOrdering: "mittagessen-fristen-festlegen",
+  leadMealCaterer: "caterer-einladen",
   leadBankDetails: "bankverbindungen-einsehen",
   leadEnrollmentSetup: "anmeldung-vorbereiten",
   leadEnrollmentForm: "anmeldeformular-anlegen",
