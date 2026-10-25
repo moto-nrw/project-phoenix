@@ -53,6 +53,9 @@ export default function TraegerBriefkopfPage() {
   const [masterData, setMasterData] = useState<TraegerMasterData>(EMPTY);
   const [branding, setBranding] = useState<SchemaTab | null>(null);
   const [loading, setLoading] = useState(true);
+  // The cards show only after one complete read: empty forms after a failed
+  // load would overwrite stored values on save.
+  const [loaded, setLoaded] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
 
@@ -65,6 +68,7 @@ export default function TraegerBriefkopfPage() {
     setBranding(
       schema.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB) ?? null,
     );
+    setLoaded(true);
     clearLoadError();
   }, [clearLoadError]);
 
@@ -149,7 +153,9 @@ export default function TraegerBriefkopfPage() {
           <CardSkeleton rows={4} />
           <CardSkeleton rows={3} />
         </SkeletonRegion>
-      ) : (
+      ) : null}
+
+      {!loading && loaded ? (
         <>
           <SectionCard
             title="Vorschau"
@@ -197,7 +203,7 @@ export default function TraegerBriefkopfPage() {
             onChanged={refresh}
           />
         </>
-      )}
+      ) : null}
     </div>
   );
 }

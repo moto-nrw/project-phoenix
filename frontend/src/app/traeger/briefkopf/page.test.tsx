@@ -275,4 +275,21 @@ describe("TraegerBriefkopfPage", () => {
       expect(api.uploadTraegerLogo).toHaveBeenCalledWith(png),
     );
   });
+
+  it("shows no editable cards after a failed load and loads them on retry", async () => {
+    api.fetchTraegerMasterData.mockRejectedValueOnce(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "der Briefkopf"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByLabelText("Name")).toHaveValue("Petra Lindner");
+  });
 });
