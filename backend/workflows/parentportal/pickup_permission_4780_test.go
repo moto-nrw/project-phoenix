@@ -328,6 +328,36 @@ func TestPickupPermissionCorrectionRestoresThePreviousPermission(t *testing.T) {
 	assert.Empty(t, weekdays)
 }
 
+func TestPickupPermissionCorrectionKeepsAnApprovedPermission(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-correction-approved")
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	created, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{
+		Weekdays: []int{2, 4}, Signature: signedContactPermission(t, f, chain, []int{2, 4}),
+	})
+	require.NoError(t, err)
+	approveCareRequest(t, f, chain.TenantID, created.ID)
+
+	rows, err := f.svc.ListPickupPermissionRequests(ctx, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	staffCtx, staffID := staffDecisionContext(t, f.db, chain.TenantID)
+	corrector, ok := f.requests.(interface {
+		Correct(context.Context, int64, bool, string, string, int64) error
+	})
+	require.True(t, ok)
+	require.NoError(t, testpkg.WithTenantTx(t, staffCtx, f.db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return corrector.Correct(txCtx, created.ID, true, careplan.ParentRequestVersion(rows[0].UpdatedAt), "Bleibt bestätigt", staffID)
+	}))
+
+	canPickup, weekdays := pickupWeekdays(t, f.db, chain.StudentID, contactID)
+	assert.True(t, canPickup)
+	assert.Equal(t, []int{2, 4}, weekdays)
+}
+
 func TestPickupPermissionCorrectionKeepsALaterStaffChange(t *testing.T) {
 	t.Parallel()
 

@@ -1352,6 +1352,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/parent/me/children/") && strings.HasSuffix(r.URL.Path, "/pickup-signature-statement") && r.Method == seedHTTPMethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"statement": "Serverseitig erzeugte Abholerlaubnis."},
+			})
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/parent/me/children/") && strings.HasSuffix(r.URL.Path, "/care-exception") && r.Method == seedHTTPMethodPost {
 			pickupRequestIDs = append(pickupRequestIDs, idCounter)
 			_ = json.NewEncoder(w).Encode(map[string]any{

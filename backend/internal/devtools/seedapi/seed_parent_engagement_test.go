@@ -19,6 +19,8 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 	var appointments []map[string]any
 	var groupThreads []map[string]any
 	var groupAnswer map[string]any
+	var pickupStatements []map[string]any
+	var pickupSignatures []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
@@ -67,7 +69,17 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"thread_id":"91","messages":[{"id":"92"}]}}`)
 			return
 		}
+		if r.URL.Path == "/parent/me/children/44/pickup-signature-statement" {
+			var declaration map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&declaration))
+			pickupStatements = append(pickupStatements, declaration)
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"statement":"Erklärung %d"}}`, len(pickupStatements))
+			return
+		}
 		if r.URL.Path == "/parent/me/children/44/guardians" {
+			var guardian map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&guardian))
+			pickupSignatures = append(pickupSignatures, guardian["pickup_signature"].(map[string]any))
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian_profile_id":"93"}}`)
 			return
 		}
@@ -84,6 +96,9 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 			return
 		}
 		if r.URL.Path == "/parent/me/children/44/care-exception" {
+			var request map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+			pickupSignatures = append(pickupSignatures, request["signature"].(map[string]any))
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"96"}}`)
 			return
 		}
@@ -116,14 +131,17 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/api/messages/group-threads/62/close",
 		"/parent/me/messages/group-threads/61",
 		"/parent/me/messages/children/44",
+		"/parent/me/children/44/pickup-signature-statement",
 		"/parent/me/children/44/guardians",
 		"/parent/me/children/44/guardians/93/pickup",
 		"/parent/me/children/44/pickup-permission-requests",
 		"/api/students/change-requests",
 		"/api/students/care-schedule-change-requests/95/decide",
+		"/parent/me/children/44/pickup-signature-statement",
 		"/parent/me/children/44/care-exception",
 		"/api/students/change-requests",
 		"/api/students/care-schedule-change-requests/96/decide",
+		"/parent/me/children/44/pickup-signature-statement",
 		"/parent/me/children/44/care-exception",
 		"/api/settings/values/guardians.parent_invite_mode",
 		"/parent/me/children/44/related-accounts",
@@ -158,6 +176,18 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		map[string]any{"type": "parents_by_group", "id": float64(7)},
 		map[string]any{"type": "all_staff"},
 	}, appointments[0]["targets"])
+	require.Len(t, pickupStatements, 3)
+	assert.Equal(t, "pickup_permission", pickupStatements[0]["kind"])
+	assert.Equal(t, "Gisela Hahn", pickupStatements[0]["person_name"])
+	assert.Equal(t, []any{float64(2), float64(4)}, pickupStatements[0]["weekdays"])
+	assert.Equal(t, "day_pickup", pickupStatements[1]["kind"])
+	assert.Equal(t, "Gisela Hahn", pickupStatements[1]["person_name"])
+	assert.Equal(t, "day_pickup", pickupStatements[2]["kind"])
+	assert.Equal(t, "alone", pickupStatements[2]["departure_mode"])
+	require.Len(t, pickupSignatures, 3)
+	for i, signature := range pickupSignatures {
+		assert.Equal(t, fmt.Sprintf("Erklärung %d", i+1), signature["statement"])
+	}
 }
 
 // The lunch week the parents portal opens with mixes days with and without

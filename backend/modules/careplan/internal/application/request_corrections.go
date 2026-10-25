@@ -62,6 +62,9 @@ func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool
 func (s *RequestCorrections) applyCorrectionDecision(ctx context.Context, request *carerequests.Request, approve bool) (carerequests.PickupApplied, error) {
 	if request.RequestKind == carerequests.KindPickupPermission {
 		if approve {
+			if request.Status == carerequests.StatusApproved {
+				return carerequests.PickupApplied{}, nil
+			}
 			return carerequests.PickupApplied{}, s.Plans.ApplyPickupPermission(ctx, request)
 		}
 		if request.Status == carerequests.StatusApproved {

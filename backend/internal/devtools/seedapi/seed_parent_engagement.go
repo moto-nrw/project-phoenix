@@ -223,13 +223,19 @@ func seedParentConversation(rt *Runtime, auth AuthRef, studentID int64) error {
 }
 
 func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error {
+	pickupSignature, err := seedPickupSignature(rt, auth, studentID, map[string]any{
+		"kind": "pickup_permission", "person_name": "Gisela Hahn", "weekdays": []int{2, 4},
+	})
+	if err != nil {
+		return fmt.Errorf("load pickup permission signature: %w", err)
+	}
 	contactRaw, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/guardians", studentID), map[string]any{
 		"first_name": "Gisela", "last_name": "Hahn", "email": "gisela.hahn@example.test",
 		"address_street": "Nebenweg 3", "address_postal_code": "50667", "address_city": "Köln",
 		"phones":            []map[string]any{{"phone_number": "+49 221 555 778", "phone_type": "mobile", "label": "Privat", "is_primary": true}},
 		"relationship_type": "relative", "can_pickup": true, "is_emergency_contact": false,
 		// The pickup permission is a signed request the OGS confirms (#4780).
-		"pickup_weekdays": []int{2, 4}, "pickup_signature": map[string]any{"method": "drawn", "image_png": demoSignaturePNG()},
+		"pickup_weekdays": []int{2, 4}, "pickup_signature": pickupSignature,
 	})
 	if err != nil {
 		return fmt.Errorf("seed parent-managed pickup contact: %w", err)
@@ -338,12 +344,18 @@ func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID
 	if err := seedDecideCareRequest(rt, studentID, permissionID, "Danke, die Abholberechtigung ist eingetragen."); err != nil {
 		return err
 	}
-	signature := map[string]any{"method": "drawn", "image_png": demoSignaturePNG()}
+	collectorDate := seedWeekdayOnOrAfter(todaySeedDate())
+	collectorSignature, err := seedPickupSignature(rt, auth, studentID, map[string]any{
+		"kind": "day_pickup", "person_name": "Gisela Hahn", "date": collectorDate.String(),
+	})
+	if err != nil {
+		return fmt.Errorf("load one-day collector signature: %w", err)
+	}
 	collectorRaw, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/care-exception", studentID), map[string]any{
-		"date":                              seedWeekdayOnOrAfter(todaySeedDate()).String(),
+		"date":                              collectorDate.String(),
 		"pickup_person_guardian_profile_id": strconv.FormatInt(contactID, 10),
-		"reason":                            "Rita holt heute ab.",
-		"signature":                         signature,
+		"reason":                            "Gisela holt heute ab.",
+		"signature":                         collectorSignature,
 	})
 	if err != nil {
 		return fmt.Errorf("seed one-day collector: %w", err)
@@ -352,18 +364,48 @@ func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID
 	if err != nil {
 		return fmt.Errorf("parse one-day collector: %w", err)
 	}
-	if err := seedDecideCareRequest(rt, studentID, collectorID, "Alles klar, wir geben Ihr Kind Rita mit."); err != nil {
+	if err := seedDecideCareRequest(rt, studentID, collectorID, "Alles klar, wir geben Ihr Kind Gisela mit."); err != nil {
 		return err
 	}
+	aloneDate := seedWeekdayOnOrAfter(todaySeedDate().AddDays(4))
+	aloneSignature, err := seedPickupSignature(rt, auth, studentID, map[string]any{
+		"kind": "day_pickup", "date": aloneDate.String(), "departure_mode": "alone",
+	})
+	if err != nil {
+		return fmt.Errorf("load walking home alone signature: %w", err)
+	}
 	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/care-exception", studentID), map[string]any{
-		"date":           seedWeekdayOnOrAfter(todaySeedDate().AddDays(4)).String(),
+		"date":           aloneDate.String(),
 		"departure_mode": "alone",
 		"reason":         "Ab heute darf es allein nach Hause gehen.",
-		"signature":      signature,
+		"signature":      aloneSignature,
 	}); err != nil {
 		return fmt.Errorf("seed walking home alone request: %w", err)
 	}
 	return nil
+}
+
+// seedPickupSignature uses the same server-generated declaration that the
+// parent portal renders and verifies before storing a drawn signature.
+func seedPickupSignature(rt *Runtime, auth AuthRef, studentID int64, declaration map[string]any) (map[string]any, error) {
+	raw, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/pickup-signature-statement", studentID), declaration)
+	if err != nil {
+		return nil, err
+	}
+	var envelope struct {
+		Data struct {
+			Statement string `json:"statement"`
+		} `json:"data"`
+	}
+	if err := parseJSON(raw, &envelope); err != nil {
+		return nil, fmt.Errorf("parse pickup signature statement: %w", err)
+	}
+	if envelope.Data.Statement == "" {
+		return nil, fmt.Errorf("pickup signature statement is empty")
+	}
+	return map[string]any{
+		"method": "drawn", "image_png": demoSignaturePNG(), "statement": envelope.Data.Statement,
+	}, nil
 }
 
 // seedDecideCareRequest approves one parent care request as the OGS.
