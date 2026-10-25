@@ -17,9 +17,9 @@ afterEach(async () => {
 
 async function seedState(
   createdAt: string,
-  tenantSlug = "marketing",
+  tenantSlug = "vollbetrieb",
 ): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "marketing-seed-"));
+  const root = await mkdtemp(join(tmpdir(), "screenshot-seed-"));
   directories.push(root);
   const statePath = join(root, "seed-state.json");
   await writeFile(
@@ -28,10 +28,18 @@ async function seedState(
       version: "3",
       created_at: createdAt,
       profiles: {
-        marketing: {
+        vollbetrieb: {
           school: { tenant_slug: tenantSlug },
           credentials: {
-            school_admin: { email: "admin@example.test", password: "test" },
+            accounts: {
+              admin: [
+                {
+                  key: "thomas-schmidt",
+                  email: "admin@example.test",
+                  password: "test",
+                },
+              ],
+            },
           },
         },
       },
@@ -64,7 +72,7 @@ test("akzeptiert den am selben Berliner Tag erstellten Seed", async () => {
     env,
     now: new Date("2026-09-10T08:15:00Z"),
   });
-  expect(access.tenantOrigin).toBe("http://marketing.localhost:3000");
+  expect(access.tenantOrigin).toBe("http://vollbetrieb.localhost:3000");
   expect(access.parentsOrigin).toBe("http://eltern.localhost:3000");
 });
 
@@ -97,7 +105,7 @@ test.each([
 test("weist einen URL-Benutzeranteil im Tenant-Slug zurück", async () => {
   const statePath = await seedState(
     "2026-09-09T22:05:00Z",
-    "marketing.localhost@remote.example",
+    "vollbetrieb.localhost@remote.example",
   );
   expect(() =>
     loadStackAccess({
@@ -105,5 +113,5 @@ test("weist einen URL-Benutzeranteil im Tenant-Slug zurück", async () => {
       env,
       now: new Date("2026-09-10T08:15:00Z"),
     }),
-  ).toThrow(/Marketing-Tenant/);
+  ).toThrow(/Screenshot-Tenant/);
 });
