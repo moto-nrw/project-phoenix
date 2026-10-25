@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -104,4 +105,23 @@ func TestHolidayRegistrationAuditFollowsTheTraegerPolicy(t *testing.T) {
 	var left int
 	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM enrollment.holiday_registration_audit WHERE organization_id = ?`, own).Scan(ctx, &left))
 	assert.Equal(t, 1, left, "the history goes with its registration, the list entry stays with the period")
+}
+
+// TestHolidayRegistrationDuplicateLookupUsesItsIndex pins the index behind the
+// duplicate hint (#4663): the lookup of a period's children by name and date
+// of birth is an index scan, not a scan of every child of the period.
+func TestHolidayRegistrationDuplicateLookupUsesItsIndex(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	var plan []string
+	require.NoError(t, db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SET LOCAL enable_seqscan = off`); err != nil {
+			return err
+		}
+		return tx.NewRaw(`EXPLAIN (GENERIC_PLAN) SELECT holiday_registration_id FROM enrollment.holiday_registration_children
+			WHERE organization_id = $1 AND holiday_period_id = $2
+				AND lower(first_name) = $3 AND lower(last_name) = $4 AND birth_date = $5`).Scan(ctx, &plan)
+	}))
+	assert.Contains(t, strings.Join(plan, "\n"), "idx_holiday_registration_children_duplicate")
 }

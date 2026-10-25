@@ -30,6 +30,8 @@ func init() {
 //     registration deadline of its period a registration is frozen. 'frozen'
 //     freezes it at once, 'reopened' opens it again; NULL follows the
 //     deadline.
+//   - idx_holiday_registration_children_duplicate: the lookup of the
+//     duplicate hint by period, name and date of birth.
 //   - enrollment.holiday_registration_audit: the append-only trail of every
 //     read of the registrations' personal data and every change, written in
 //     the same Träger transaction. The changes of a registration form its
@@ -46,6 +48,11 @@ ALTER TABLE enrollment.holiday_registrations
 ALTER TABLE enrollment.holiday_registrations
 	ADD COLUMN freeze_override VARCHAR(16),
 	ADD CONSTRAINT chk_holiday_registrations_freeze_override CHECK (freeze_override IN ('frozen', 'reopened'));
+
+-- The duplicate hint looks up the children of a period by name and date of
+-- birth for every child it lists; the index keeps that lookup flat.
+CREATE INDEX idx_holiday_registration_children_duplicate ON enrollment.holiday_registration_children
+	(organization_id, holiday_period_id, lower(first_name), lower(last_name), birth_date);
 
 CREATE TABLE enrollment.holiday_registration_audit (
 	id BIGSERIAL PRIMARY KEY,
@@ -87,6 +94,7 @@ GRANT USAGE ON SEQUENCE enrollment.holiday_registration_audit_id_seq TO phoenix_
 
 const holidayRegistrationReviewDownSQL = `
 DROP TABLE IF EXISTS enrollment.holiday_registration_audit;
+DROP INDEX IF EXISTS enrollment.idx_holiday_registration_children_duplicate;
 UPDATE enrollment.holiday_registrations SET status = 'received' WHERE status <> 'received';
 ALTER TABLE enrollment.holiday_registrations DROP CONSTRAINT IF EXISTS chk_holiday_registrations_freeze_override;
 ALTER TABLE enrollment.holiday_registrations DROP COLUMN IF EXISTS freeze_override;
