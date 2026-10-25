@@ -259,7 +259,7 @@ func TestTraegerSchoolSessionsInTwoTabsStaySignedIn(t *testing.T) {
 	require.NoError(t, err, "the first school stays signed in after the second one opened")
 	_, err = identity.ValidateSessionTokens(ctx, secondAccess, secondRefresh, "tenant")
 	require.NoError(t, err)
-	firstAccess, firstRefresh, err = identity.RefreshTokenWithAudit(ctx, firstRefresh, "tab-1", "", "")
+	firstAccess, _, err = identity.RefreshTokenWithAudit(ctx, firstRefresh, "tab-1", "", "")
 	require.NoError(t, err)
 	assert.Equal(t, float64(first), traegerTokenClaims(t, firstAccess)["tenant_id"], "each session refreshes in its own school")
 	_, _, err = identity.RefreshTokenWithAudit(ctx, secondRefresh, "tab-2", "", "")

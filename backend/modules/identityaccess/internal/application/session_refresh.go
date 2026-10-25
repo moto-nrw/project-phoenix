@@ -59,18 +59,8 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 		s.logRefreshDecision("refresh_session_rejected", "invalid_format", 0, 0)
 		return nil, err
 	}
-	// A Träger school session has no mapping at its school; its guard
-	// re-checks the Träger instead (ADR 0084 section 5).
-	if claims.TenantID > 0 && !traegerSchoolRefresh(claims) {
-		if err := s.validateTenantAccess(ctx, claims); err != nil {
-			return nil, err
-		}
-	}
-	// A school token without a school is dead on arrival; refusing before
-	// the rotation keeps the caller's refresh token intact.
-	if claims.Scope == domain.ScopeSchool && claims.TenantID <= 0 {
-		s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", claims.AccountID, claims.TenantID)
-		return nil, failed("refresh school session", identityaccess.ErrTenantAccessDenied)
+	if err := s.validateRefreshSchool(ctx, claims); err != nil {
+		return nil, err
 	}
 	// A portal whose module the school no longer books renews no session
 	// (#4895). Refused before the rotation, like the checks above.
@@ -113,6 +103,24 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 		return nil, err
 	}
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
+}
+
+// validateRefreshSchool refuses a refresh whose school access is gone before
+// the rotation, so the caller's refresh token stays intact.
+func (s *AccountAuthentication) validateRefreshSchool(ctx context.Context, claims domain.RefreshClaims) error {
+	// A Träger school session has no mapping at its school; its guard
+	// re-checks the Träger instead (ADR 0084 section 5).
+	if claims.TenantID > 0 && !traegerSchoolRefresh(claims) {
+		if err := s.validateTenantAccess(ctx, claims); err != nil {
+			return err
+		}
+	}
+	// A school token without a school is dead on arrival.
+	if claims.Scope == domain.ScopeSchool && claims.TenantID <= 0 {
+		s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", claims.AccountID, claims.TenantID)
+		return failed("refresh school session", identityaccess.ErrTenantAccessDenied)
+	}
+	return nil
 }
 
 // refreshMintGuard selects the guard that re-authorizes the refresh of the
