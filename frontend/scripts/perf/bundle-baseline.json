@@ -71,7 +71,7 @@
     "/[tenant]/messages": 983590,
     "/[tenant]/messages/[threadId]": 982488,
     "/[tenant]/messages/groups": 972992,
-    "/[tenant]/messages/groups/[groupThreadId]": 961128,
+    "/[tenant]/messages/groups/[groupThreadId]": 980603,
     "/[tenant]/ogs-groups": 1116968,
     "/[tenant]/ogs-groups/overview": 977871,
     "/[tenant]/parent-announcements": 1053874,
