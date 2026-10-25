@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -196,23 +197,33 @@ func seedHolidayRegistrationPrefill(ctx context.Context, rt *Runtime, token stri
 	return nil
 }
 
-// seedHolidayDuplicate is a second parent's registration of the first
-// sibling of registration for the last booked week of the guest sibling.
 // seedContributionRules keeps the contribution rules of the Abrechnung
 // (#4664) from today on: half the base price from the second child on, and
-// no contribution for families receiving benefits.
+// no contribution for families receiving benefits. A Träger keeps one rule
+// of each kind at a time; when another demo school of the same Träger
+// already kept one, the backend refuses the second as an overlap and the
+// Träger keeps the first.
 func seedContributionRules(client *Client, auth AuthRef, today calendar.Date) error {
 	for _, rule := range []map[string]any{
 		{"kind": "sibling", "valid_from": today.String(), "sibling_from_child": 2, "discount_basis_points": 5000},
 		{"kind": "benefits_exemption", "valid_from": today.String(), "note": "Die Familie bezieht Leistungen für Bildung und Teilhabe."},
 	} {
-		if _, err := client.PostWithAuth(auth, "/traeger/contribution-rules/", rule); err != nil {
+		_, err := client.PostWithAuth(auth, "/traeger/contribution-rules/", rule)
+		var refused *APIError
+		if errors.As(err, &refused) && refused.Code == seedContributionRuleOverlap {
+			continue
+		}
+		if err != nil {
 			return fmt.Errorf("keep the contribution rules: %w", err)
 		}
 	}
 	fmt.Println("  Abrechnung: sibling rule and exemption for families receiving benefits")
 	return nil
 }
+
+// seedContributionRuleOverlap is the registered code of a second rule of one
+// kind valid at the same time.
+const seedContributionRuleOverlap = "parent_billing.contribution_rule_overlap"
 
 // seedHolidayQuote is the body of the form's contribution: the bookings of
 // every child, without personal data.
@@ -225,6 +236,8 @@ func seedHolidayQuote(registration map[string]any) map[string]any {
 	return map[string]any{"children": quoted, "benefits_declared": false}
 }
 
+// seedHolidayDuplicate is a second parent's registration of the first
+// sibling of registration for the last booked week of the guest sibling.
 func seedHolidayDuplicate(registration map[string]any) map[string]any {
 	children := registration["children"].([]map[string]any)
 	child := map[string]any{}

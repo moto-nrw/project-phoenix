@@ -360,3 +360,22 @@ func TestSeedTraegerStepsShareOneTraegerSession(t *testing.T) {
 		assert.Equal(t, "Bearer traeger-token", authorization, "every Träger request uses the shared session")
 	}
 }
+
+// A second demo school of the same Träger finds the Träger's rules already
+// kept (#4664): the overlap refusal leaves them as they are.
+func TestSeedContributionRulesKeepTheTraegersRules(t *testing.T) {
+	t.Parallel()
+
+	posts := 0
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		posts++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"status":409,"code":"parent_billing.contribution_rule_overlap","detail":"overlap"}`))
+	})
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	require.NoError(t, seedContributionRules(client, AuthRef{Kind: AuthBearer, Token: "traeger-token"}, calendar.NewDate(2026, time.September, 23)))
+	assert.Equal(t, 2, posts, "both kinds were offered once")
+}
