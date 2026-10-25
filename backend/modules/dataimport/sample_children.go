@@ -27,6 +27,10 @@ var ErrTestTraegerInactive = errors.New("data import: the test Träger is deacti
 // ErrTestTraegerNotFound reports an unknown Träger.
 var ErrTestTraegerNotFound = errors.New("data import: the Träger does not exist")
 
+// ErrSampleChildrenFailed reports sample rows the student import refused for
+// another reason than an existing child; the children that fit are written.
+var ErrSampleChildrenFailed = errors.New("data import: some sample children could not be created")
+
 // ErrSampleAuditUnavailable reports that the operator audit could not record
 // the request; no child is written then.
 var ErrSampleAuditUnavailable = errors.New("data import: the operator audit is unavailable")
@@ -40,12 +44,13 @@ type TestTraegerSchools interface {
 	RecordSampleChildrenRequest(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) ([]int64, error)
 }
 
-// SampleSchoolResult is the outcome in one test school: children created and
-// rows skipped because the child already exists.
+// SampleSchoolResult is the outcome in one test school: children created,
+// rows skipped because the child already exists, and rows that failed.
 type SampleSchoolResult struct {
 	SchoolID     int64 `json:"school_id"`
 	CreatedCount int   `json:"created_count"`
 	SkippedCount int   `json:"skipped_count"`
+	FailedCount  int   `json:"failed_count"`
 }
 
 // SampleChildrenResult is the outcome over every test school of the Träger.
@@ -114,7 +119,8 @@ func NewSampleChildren(
 // FillTestTraeger has the request recorded in the operator audit and then
 // imports the sample children into every test school. A child that already
 // exists is skipped, so a second run after a failure only adds what is
-// missing.
+// missing. Any other refused row is counted as failed and the run ends with
+// ErrSampleChildrenFailed after every school.
 func (s *sampleChildren) FillTestTraeger(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) (SampleChildrenResult, error) {
 	result := SampleChildrenResult{Schools: []SampleSchoolResult{}}
 	schoolIDs, err := s.schools.RecordSampleChildrenRequest(ctx, organizationID, operatorID, clientIP)
@@ -122,8 +128,9 @@ func (s *sampleChildren) FillTestTraeger(ctx context.Context, organizationID, op
 		return result, err
 	}
 	today := s.today()
-	for index, schoolID := range schoolIDs {
-		rows := SampleChildRows(index, today)
+	failed := 0
+	for _, schoolID := range schoolIDs {
+		rows := SampleChildRows(schoolID, today)
 		var imported *ImportResult[StudentImportRow]
 		err := s.withinSchool(ctx, schoolID, func(txCtx context.Context) error {
 			var err error
@@ -135,26 +142,61 @@ func (s *sampleChildren) FillTestTraeger(ctx context.Context, organizationID, op
 		if err != nil {
 			return result, fmt.Errorf("import sample children into school %d: %w", schoolID, err)
 		}
-		result.Schools = append(result.Schools, SampleSchoolResult{
-			SchoolID: schoolID, CreatedCount: imported.CreatedCount, SkippedCount: imported.ErrorCount,
-		})
+		skipped := existingChildRows(imported.Errors)
+		school := SampleSchoolResult{
+			SchoolID: schoolID, CreatedCount: imported.CreatedCount,
+			SkippedCount: skipped, FailedCount: imported.ErrorCount - skipped,
+		}
+		result.Schools = append(result.Schools, school)
 		result.CreatedCount += imported.CreatedCount
+		failed += school.FailedCount
+	}
+	if failed > 0 {
+		return result, fmt.Errorf("%w: %d rows", ErrSampleChildrenFailed, failed)
 	}
 	return result, nil
 }
 
-// SampleChildRows are the sample children of the test school at index: every
-// class with its children, named so that no name repeats within a school and
-// the schools differ. A child is as old as its grade suggests on today.
-func SampleChildRows(index int, today calendar.Date) []StudentImportRow {
+// sampleRowExists is the student import's code for a row whose child is
+// already there.
+const sampleRowExists = "already_exists"
+
+// existingChildRows counts the refused rows whose only reason is a child that
+// already exists.
+func existingChildRows(errs []ImportError[StudentImportRow]) int {
+	count := 0
+	for _, row := range errs {
+		blocking := 0
+		exists := false
+		for _, rowErr := range row.Errors {
+			if rowErr.Severity != ErrorSeverityError {
+				continue
+			}
+			blocking++
+			exists = exists || rowErr.Code == sampleRowExists
+		}
+		if exists && blocking == 1 {
+			count++
+		}
+	}
+	return count
+}
+
+// SampleChildRows are the sample children of a test school: every class with
+// its children, named so that no name repeats within a school. The names
+// follow the school's ID, so a later run builds the same rows for the same
+// school however the Träger's school list changed, and schools differ. A
+// child is as old as its grade suggests on today.
+func SampleChildRows(schoolID int64, today calendar.Date) []StudentImportRow {
+	offset := int(schoolID % int64(len(sampleFirstNames)*len(sampleLastNames)))
 	rows := make([]StudentImportRow, 0, len(sampleClasses)*sampleChildrenPerClass)
 	for classIndex, class := range sampleClasses {
 		for seat := range sampleChildrenPerClass {
 			number := classIndex*sampleChildrenPerClass + seat
 			birthYear := today.Year() - 5 - class.grade
 			rows = append(rows, StudentImportRow{
-				FirstName:         sampleFirstNames[(number+index*7)%len(sampleFirstNames)],
-				LastName:          sampleLastNames[(number+index*5)%len(sampleLastNames)],
+				FirstName:         sampleFirstNames[(number+offset)%len(sampleFirstNames)],
+				LastName:          sampleLastNames[(number+offset*5)%len(sampleLastNames)],
 				Birthday:          calendar.NewDate(birthYear, time.Month(number%12+1), number*5%28+1).String(),
 				SchoolClass:       class.name,
 				DataRetentionDays: sampleRetentionDays,

@@ -18,7 +18,7 @@ import type { DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState, PlusIcon } from "../provisioning/provisioning-shared";
 import { CreateOrganizationModal } from "../provisioning/create-organization-modal";
 import { CreateTestTraegerModal } from "../provisioning/create-test-traeger-modal";
-import { TestTraegerBadge } from "../provisioning/test-traeger-badge";
+import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useSoftDeletable,
   DeletedEntityCard,
@@ -156,14 +156,24 @@ export default function OperatorOrganizationsPage() {
   );
 
   const mobileActionButton = (
-    <button
-      type="button"
-      onClick={() => setCreateOrgOpen(true)}
-      className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
-      aria-label="Neuer Träger"
-    >
-      <PlusIcon />
-    </button>
+    <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="compact"
+        onClick={() => setCreateTestOpen(true)}
+      >
+        Test-Träger
+      </Button>
+      <button
+        type="button"
+        onClick={() => setCreateOrgOpen(true)}
+        className="rounded-full bg-gray-900 p-2 text-white transition-colors hover:bg-gray-700"
+        aria-label="Neuer Träger"
+      >
+        <PlusIcon />
+      </button>
+    </div>
   );
 
   const columns: DataTableColumn<OrganizationSummary>[] = useMemo(
@@ -175,7 +185,9 @@ export default function OperatorOrganizationsPage() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-semibold text-gray-900">{row.name}</span>
-              {row.testSystem ? <TestTraegerBadge /> : null}
+              {row.testSystem ? (
+                <StatusBadge label="Test-Träger" tone="orange" />
+              ) : null}
             </div>
             <div className="font-mono text-xs text-gray-500">{row.slug}</div>
           </div>
