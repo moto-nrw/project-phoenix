@@ -87,8 +87,14 @@ func (s *RequestEdits) payload(ctx context.Context, request carerequests.Request
 // that does not round-trip the collector fields. A signature never travels to
 // a changed day or departure mode: those need a freshly signed declaration.
 func preservePickupDeclaration(raw json.RawMessage, input *carerequests.EditInput) error {
+	if input.PickupPerson != nil || input.Signature != nil {
+		return carerequests.ErrInvalidPayload
+	}
 	terms, ok := carerequests.PickupTerms(raw)
 	if !ok || (terms.PickupPerson == nil && terms.DepartureMode != "alone") {
+		if input.DepartureMode == "alone" {
+			return carerequests.ErrInvalidPayload
+		}
 		return nil
 	}
 	signature := carerequests.StoredSignature(raw)

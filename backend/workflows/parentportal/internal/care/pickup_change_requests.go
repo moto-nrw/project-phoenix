@@ -41,8 +41,10 @@ type PickupChangeEdit struct {
 
 // EditPickupChange rewrites the caller's own pending one-day request.
 func (s *Service) EditPickupChange(ctx context.Context, accountID, studentID, requestID int64, edit PickupChangeEdit) (*carerequests.Request, error) {
-	if err := requireDaySignature(edit.DepartureMode, edit.PickupPersonID, edit.Signature); err != nil {
-		return nil, err
+	if !edit.PreservePickupDeclaration {
+		if err := requireDaySignature(edit.DepartureMode, edit.PickupPersonID, edit.Signature); err != nil {
+			return nil, err
+		}
 	}
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
 	if err != nil {
@@ -86,9 +88,13 @@ func (s *Service) editPickupChangeInTx(txCtx context.Context, child *Child, acco
 	if err != nil {
 		return nil, err
 	}
-	person, signed, err := s.signDayPickup(txCtx, child, accountID, studentID, edit.Date, edit.DepartureMode, edit.PickupPersonID, edit.Signature)
-	if err != nil {
-		return nil, err
+	var person *carerequests.PickupPerson
+	var signed *carerequests.SignedStatement
+	if !edit.PreservePickupDeclaration {
+		person, signed, err = s.signDayPickup(txCtx, child, accountID, studentID, edit.Date, edit.DepartureMode, edit.PickupPersonID, edit.Signature)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return s.CareRequests.EditRequest(txCtx, carerequests.EditInput{
 		PickupPerson:              person,

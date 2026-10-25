@@ -354,6 +354,29 @@ func TestPickupChangeEditPreservesAnOmittedSignedCollector(t *testing.T) {
 	assert.Equal(t, originalSignature, carerequests.StoredSignature(edited.Payload))
 }
 
+func TestPickupChangeEditPreservesAnOmittedSignedWalkingHomeAlone(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	created, err := f.svc.SubmitPickupChange(ctx, chain.AccountID, chain.StudentID, parentService.PickupChangeSubmission{
+		Date: pickupPermissionDay, DepartureMode: "alone", Reason: "Geht allein", Signature: signedDayAlone(t, f, chain),
+	})
+	require.NoError(t, err)
+	originalSignature := carerequests.StoredSignature(created.Payload)
+	require.NotNil(t, originalSignature)
+
+	edited, err := f.svc.EditPickupChange(ctx, chain.AccountID, chain.StudentID, created.ID, parentService.PickupChangeEdit{
+		Date: pickupPermissionDay, DepartureMode: "alone", Reason: "Geht weiter allein", PreservePickupDeclaration: true,
+	})
+	require.NoError(t, err)
+	terms := carerequests.StoredPickupTerms(edited.Payload)
+	require.NotNil(t, terms)
+	assert.Equal(t, "alone", terms.DepartureMode)
+	assert.Equal(t, originalSignature, carerequests.StoredSignature(edited.Payload))
+}
+
 func TestPickupPermissionCorrectionKeepsAnApprovedPermission(t *testing.T) {
 	t.Parallel()
 
