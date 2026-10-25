@@ -163,7 +163,7 @@ describe("SchoolCheckinSelectionBar", () => {
       expect(onSelectAll).toHaveBeenCalledOnce();
       expect(
         screen.getByText(
-          "3 ausgelassen: krank, entschuldigt oder „Kommt heute nicht“",
+          "3 ausgelassen: krank, entschuldigt, auf Klassenfahrt oder „Kommt heute nicht“",
         ),
       ).toBeInTheDocument();
     });

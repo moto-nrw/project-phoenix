@@ -449,7 +449,7 @@ describe("SchoolCheckinModeMobile", () => {
       expect(props.onSelectAll).toHaveBeenCalledOnce();
       expect(
         screen.getByText(
-          "2 ausgelassen: krank, entschuldigt oder „Kommt heute nicht“",
+          "2 ausgelassen: krank, entschuldigt, auf Klassenfahrt oder „Kommt heute nicht“",
         ),
       ).toBeInTheDocument();
     });
