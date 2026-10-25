@@ -263,7 +263,7 @@ export default function GuardianList({
               {guardian.canPickup && (
                 <span className="bg-moto-green/15 text-moto-green-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
                   <Shield className="h-3 w-3" />
-                  Abholberechtigt
+                  {pickupBadgeLabel(guardian.pickupWeekdays)}
                 </span>
               )}
               {guardian.isEmergencyContact && (
@@ -407,4 +407,18 @@ function InfoItem({
       <p className="text-sm font-medium break-words text-gray-900">{value}</p>
     </div>
   );
+}
+
+const PICKUP_WEEKDAY_SHORT = ["", "Mo", "Di", "Mi", "Do", "Fr"] as const;
+
+/** „Abholberechtigt“, bei Wochentagen mit den Tagen (#4780). */
+function pickupBadgeLabel(weekdays: readonly number[] | undefined): string {
+  if (!weekdays || weekdays.length === 0 || weekdays.length === 5) {
+    return "Abholberechtigt";
+  }
+  const days = weekdays
+    .map((day) => PICKUP_WEEKDAY_SHORT[day] ?? "")
+    .filter(Boolean)
+    .join(", ");
+  return `Abholberechtigt · nur ${days}`;
 }

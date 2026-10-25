@@ -408,6 +408,9 @@ func (s *requestStore) ListCareScheduleRequests(ctx context.Context, filter care
 	if filter.StudentID > 0 {
 		query = query.Where(`"care_schedule_change_request".student_id = ?`, filter.StudentID)
 	}
+	if len(filter.IDs) > 0 {
+		query = query.Where(`"care_schedule_change_request".id IN (?)`, bun.List(filter.IDs))
+	}
 	if len(filter.RequestKinds) > 0 {
 		query = query.Where(`"care_schedule_change_request".request_kind IN (?)`, bun.List(filter.RequestKinds))
 	}

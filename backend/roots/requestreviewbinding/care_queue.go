@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 )
@@ -74,7 +75,7 @@ func (q careScheduleQueue) History(ctx context.Context, filter requestreview.Que
 		rows = append(rows, requestreview.Row{Type: requestreview.TypeCareSchedule, SortTime: row.UpdatedAt,
 			ID: row.ID, StudentID: row.StudentID, StudentName: item.FirstName + " " + item.LastName, SubmittedBy: row.SubmittedBy, Status: row.Status,
 			Version: excusedrequests.ParentRequestVersion(row.UpdatedAt), DecidedAt: requestreview.HistoryDecidedAt(row.ReviewedAt, row.UpdatedAt),
-			CanCorrect: row.RequestKind == "pickup_change" && (row.Status == "approved" || row.Status == "rejected"), Data: requestreview.ToCareRequestHistoryResponse(item),
+			CanCorrect: (row.RequestKind == "pickup_change" || row.RequestKind == carerequests.KindPickupPermission) && (row.Status == "approved" || row.Status == "rejected"), Data: requestreview.ToCareRequestHistoryResponse(item),
 		})
 	}
 	return rows, careQueueCursor(cursor), nil

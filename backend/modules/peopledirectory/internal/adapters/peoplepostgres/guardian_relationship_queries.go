@@ -401,6 +401,7 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 		ColumnExpr(`"student_guardian".relationship_type`).
 		ColumnExpr(`"student_guardian".pickup_notes`).
 		ColumnExpr(`"student_guardian".can_pickup`).
+		ColumnExpr(`"student_guardian".pickup_weekdays`).
 		ColumnExpr(`"student_guardian".is_emergency_contact`).
 		Join(`JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id AND "guardian".tenant_id = "student_guardian".tenant_id`).
 		Join(`LEFT JOIN users.guardian_phone_numbers AS "phone" ON "phone".guardian_profile_id = "guardian".id AND "phone".tenant_id = "guardian".tenant_id`).

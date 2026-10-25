@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -42,6 +43,13 @@ func (a pickupApprovalAdapter) EnrolledUntil(ctx context.Context, id int64) (*ti
 
 func (a pickupApprovalAdapter) CurrentStaffID(ctx context.Context) (int64, bool, error) {
 	return a.s.UserContext.CurrentStaffID(ctx)
+}
+
+func (a pickupApprovalAdapter) ValidatePickupPerson(ctx context.Context, studentID, guardianProfileID int64) error {
+	if a.s.PickupPermissionApprovals == nil {
+		return errors.New("schedule: pickup permission approvals not configured")
+	}
+	return a.s.ValidatePickupPerson(ctx, studentID, guardianProfileID)
 }
 
 func (a pickupApprovalAdapter) LockStudentAttendance(ctx context.Context, id int64) error {

@@ -104,6 +104,9 @@ type declarationSignatureRequest struct {
 	Method    string `json:"method"`
 	ImagePNG  string `json:"image_png"`
 	TypedName string `json:"typed_name,omitempty"`
+	// Statement is the exact server-generated declaration rendered to the
+	// signer. Pickup-signature flows require it to match their fresh wording.
+	Statement string `json:"statement,omitempty"`
 }
 
 func (s *declarationSignatureRequest) input() *parentService.DeclarationSignatureInput {

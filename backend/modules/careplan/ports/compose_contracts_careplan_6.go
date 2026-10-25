@@ -19,6 +19,7 @@ type RequestCorrectionRecords interface {
 	DeletePickupException(context.Context, int64) error
 	ListDepartureExceptions(context.Context, careplan.StudentScheduleFilter) ([]careplan.DepartureException, error)
 	DeleteDepartureException(context.Context, int64) error
+	DeletePickupNote(context.Context, int64) error
 }
 
 type RequestDecisionRecords interface {

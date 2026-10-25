@@ -50,7 +50,8 @@ export interface RequestDiffEntry {
   // (1-5) + `care_kind` identify a care-schedule row. Absent on the staff side /
   // legacy payloads → fall back to `label`.
   readonly weekday?: number;
-  readonly care_kind?: "arrival" | "pickup" | "departure_mode";
+  readonly care_kind?:
+    "arrival" | "pickup" | "departure_mode" | "pickup_person";
   // Raw departure-mode keys behind `old`/`new` for `departure_mode` rows, so the
   // localized parents portal renders mode names in the guardian's language
   // instead of the German `old`/`new` strings. `old_modes` is the day's allowed

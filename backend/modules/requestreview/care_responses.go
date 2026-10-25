@@ -50,6 +50,7 @@ func ToCareRequestResponse(item *careplan.CareScheduleReviewItem) CareRequestRes
 		AffectedBlocks:  toAffectedCareBlocks(item.AffectedBlocks),
 		ImpactAvailable: item.ImpactAvailable,
 		ImpactToken:     careImpactToken(item),
+		Signed:          carerequests.StoredSignature(r.Payload) != nil,
 	}
 }
 
@@ -87,6 +88,7 @@ func ToCareRequestHistoryResponse(item *careplan.CareScheduleHistoryItem) CareRe
 		CreatedAt:      req.CreatedAt,
 		DecidedAt:      HistoryDecidedAt(req.ReviewedAt, req.UpdatedAt),
 		DecidedByName:  item.ReviewerName,
+		Signed:         carerequests.StoredSignature(req.Payload) != nil,
 	}
 }
 

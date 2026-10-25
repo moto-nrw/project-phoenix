@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 )
 
 type ScheduleReviewSchedules interface {
@@ -122,6 +123,11 @@ func (s *ScheduleReviews) careRequestDiff(ctx context.Context, row *careplan.Car
 	if row.RequestKind == "pickup_change" {
 		var err error
 		item.Diff, err = s.pickupDiff(ctx, row, student, item)
+		return err
+	}
+	if row.RequestKind == carerequests.KindPickupPermission {
+		var err error
+		item.Diff, err = permissionDiff(row, item)
 		return err
 	}
 	plan, err := s.cachedPlan(ctx, plans, student, today)

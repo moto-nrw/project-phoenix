@@ -59,6 +59,18 @@ export const ERROR_CATALOG = {
         "Die Unterschrift konnte nicht gespeichert werden. Bitte unterschreiben Sie noch einmal.",
       "care.declaration_signature_required":
         "Bitte unterschreiben Sie, bevor Sie zustimmen.",
+      "care.pickup_permission_request_required":
+        "Eine neue Abholerlaubnis braucht Ihre Unterschrift. Die OGS bestätigt sie dann.",
+      "care.pickup_permission_unchanged":
+        "Diese Person darf an diesen Tagen schon abholen.",
+      "care.pickup_person_not_linked":
+        "Diese Person ist kein Kontakt Ihres Kindes. Bitte tragen Sie sie zuerst bei den Kontakten ein.",
+      "care.pickup_proof_not_found":
+        "Zu dieser Anfrage gibt es keinen Nachweis mit Ihrer Unterschrift.",
+      "care.pickup_signature_invalid":
+        "Die Unterschrift ist nicht lesbar. Bitte unterschreiben Sie noch einmal.",
+      "care.pickup_signature_required":
+        "Bitte unterschreiben Sie die Erlaubnis und bestätigen Sie die Unterschrift.",
       "care.declaration_version_changed":
         "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und antworten Sie dann neu.",
       "care.excused_request_not_pending":
@@ -824,6 +836,10 @@ export const ERROR_CATALOG = {
         "{object} ist nicht mehr offen. Bitte laden Sie die Seite neu.",
       "students.change_request_stale":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "students.pickup_permission_contact_gone":
+        "Die Person ist nicht mehr als Kontakt des Kindes eingetragen. Bitte lehnen Sie die Anfrage ab.",
+      "students.pickup_proof_not_found":
+        "Zu dieser Anfrage gibt es keine Unterschrift.",
       "students.checkin_care_ended":
         "Die Betreuung dieses Kindes ist beendet. Bitte laden Sie die Seite neu.",
       "students.checkout_note_too_long":
@@ -1383,6 +1399,18 @@ export const ERROR_CATALOG = {
       "care.declaration_signature_invalid":
         "The signature could not be saved. Please sign again.",
       "care.declaration_signature_required": "Please sign before you agree.",
+      "care.pickup_permission_request_required":
+        "A new pickup permission needs your signature. The OGS then confirms it.",
+      "care.pickup_permission_unchanged":
+        "This person may already pick up on these days.",
+      "care.pickup_person_not_linked":
+        "This person is not a contact of your child. Please add them to your contacts first.",
+      "care.pickup_proof_not_found":
+        "There is no proof with your signature for this request.",
+      "care.pickup_signature_invalid":
+        "The signature cannot be read. Please sign again.",
+      "care.pickup_signature_required":
+        "Please sign the permission and confirm your signature.",
       "care.declaration_version_changed":
         "The school has changed the text. Please read it again and then answer again.",
       "care.excused_request_not_pending":
@@ -1697,6 +1725,10 @@ export const ERROR_CATALOG = {
         "{object} is not available here at the moment. Please ask your contact person.",
       "students.change_request_stale":
         "{object} has been changed in the meantime. Please reload the page.",
+      "students.pickup_permission_contact_gone":
+        "{object} could not be changed. Please check the current state.",
+      "students.pickup_proof_not_found":
+        "{object} could not be changed. Please check the current state.",
       "students.export_selection_too_large":
         "The selection has {total} children. A list can have at most {limit} children. Please narrow the selection, for example by group or class.",
       "students.offering_change_capacity_full":
@@ -1779,6 +1811,18 @@ export const ERROR_CATALOG = {
         "Не удалось сохранить подпись. Пожалуйста, распишитесь ещё раз.",
       "care.declaration_signature_required":
         "Пожалуйста, распишитесь, прежде чем согласиться.",
+      "care.pickup_permission_request_required":
+        "Для нового разрешения нужна ваша подпись. Затем OGS его подтвердит.",
+      "care.pickup_permission_unchanged":
+        "Этот человек уже может забирать ребёнка в эти дни.",
+      "care.pickup_person_not_linked":
+        "Этот человек не является контактом вашего ребёнка. Пожалуйста, сначала добавьте его в контакты.",
+      "care.pickup_proof_not_found":
+        "Для этого запроса нет подтверждения с вашей подписью.",
+      "care.pickup_signature_invalid":
+        "Подпись не читается. Пожалуйста, распишитесь ещё раз.",
+      "care.pickup_signature_required":
+        "Пожалуйста, подпишите разрешение и подтвердите подпись.",
       "care.declaration_version_changed":
         "Школа изменила текст. Прочитайте его ещё раз и затем ответьте заново.",
       "care.excused_request_not_pending":
@@ -2060,6 +2104,10 @@ export const ERROR_CATALOG = {
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "students.change_request_stale":
         "Данные изменились: {object}. Обновите страницу.",
+      "students.pickup_permission_contact_gone":
+        "{object}: изменить не удалось. Пожалуйста, проверьте текущее состояние.",
+      "students.pickup_proof_not_found":
+        "{object}: изменить не удалось. Пожалуйста, проверьте текущее состояние.",
       "students.export_selection_too_large":
         "Выбрано детей: {total}. В списке может быть не больше {limit} детей. Сузьте выбор, например по группе или классу.",
       "students.offering_change_capacity_full":
@@ -2129,6 +2177,18 @@ export const ERROR_CATALOG = {
         "Nënshkrimi nuk u ruajt dot. Ju lutemi nënshkruani përsëri.",
       "care.declaration_signature_required":
         "Ju lutemi nënshkruani para se të jepni pëlqimin.",
+      "care.pickup_permission_request_required":
+        "Një leje e re për marrjen e fëmijës kërkon nënshkrimin tuaj. Pastaj OGS e konfirmon.",
+      "care.pickup_permission_unchanged":
+        "Ky person e merr tashmë fëmijën në këto ditë.",
+      "care.pickup_person_not_linked":
+        "Ky person nuk është kontakt i fëmijës suaj. Ju lutemi shtojeni fillimisht te kontaktet.",
+      "care.pickup_proof_not_found":
+        "Për këtë kërkesë nuk ka dëshmi me nënshkrimin tuaj.",
+      "care.pickup_signature_invalid":
+        "Nënshkrimi nuk lexohet. Ju lutemi nënshkruani përsëri.",
+      "care.pickup_signature_required":
+        "Ju lutemi nënshkruani lejen dhe konfirmoni nënshkrimin.",
       "care.declaration_version_changed":
         "Shkolla e ka ndryshuar tekstin. Ju lutemi lexojeni përsëri dhe pastaj përgjigjuni sërish.",
       "care.excused_request_not_pending":
@@ -2424,6 +2484,10 @@ export const ERROR_CATALOG = {
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "students.change_request_stale":
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
+      "students.pickup_permission_contact_gone":
+        "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
+      "students.pickup_proof_not_found":
+        "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
       "students.export_selection_too_large":
         "Përzgjedhja ka {total} fëmijë. Një listë mund të ketë më së shumti {limit} fëmijë. Ju lutemi ngushtoni përzgjedhjen, p.sh. sipas grupit ose klasës.",
       "students.offering_change_capacity_full":
@@ -2494,6 +2558,18 @@ export const ERROR_CATALOG = {
         "Nie udało się zapisać podpisu. Podpisz się ponownie.",
       "care.declaration_signature_required":
         "Podpisz się, zanim wyrazisz zgodę.",
+      "care.pickup_permission_request_required":
+        "Nowa zgoda na odbiór wymaga Państwa podpisu. OGS ją potem potwierdzi.",
+      "care.pickup_permission_unchanged":
+        "Ta osoba już może odbierać dziecko w te dni.",
+      "care.pickup_person_not_linked":
+        "Ta osoba nie jest kontaktem Państwa dziecka. Proszę najpierw dodać ją do kontaktów.",
+      "care.pickup_proof_not_found":
+        "Dla tej prośby nie ma potwierdzenia z Państwa podpisem.",
+      "care.pickup_signature_invalid":
+        "Podpis jest nieczytelny. Proszę podpisać się jeszcze raz.",
+      "care.pickup_signature_required":
+        "Proszę podpisać zgodę i potwierdzić podpis.",
       "care.declaration_version_changed":
         "Szkoła zmieniła tekst. Przeczytaj go ponownie, a potem odpowiedz jeszcze raz.",
       "care.excused_request_not_pending":
@@ -2777,6 +2853,10 @@ export const ERROR_CATALOG = {
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "students.change_request_stale":
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
+      "students.pickup_permission_contact_gone":
+        "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
+      "students.pickup_proof_not_found":
+        "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
       "students.export_selection_too_large":
         "Wybrano {total} dzieci. Lista może mieć najwyżej {limit} dzieci. Zawęź wybór, na przykład według grupy lub klasy.",
       "students.offering_change_capacity_full":
@@ -2846,6 +2926,18 @@ export const ERROR_CATALOG = {
         "İmza kaydedilemedi. Lütfen yeniden imza atın.",
       "care.declaration_signature_required":
         "Lütfen onay vermeden önce imza atın.",
+      "care.pickup_permission_request_required":
+        "Yeni bir alma izni imzanızı gerektirir. Ardından OGS onaylar.",
+      "care.pickup_permission_unchanged":
+        "Bu kişi bu günlerde zaten çocuğu alabilir.",
+      "care.pickup_person_not_linked":
+        "Bu kişi çocuğunuzun kişileri arasında değil. Lütfen önce kişilerinize ekleyin.",
+      "care.pickup_proof_not_found":
+        "Bu talep için imzanızı içeren bir belge yok.",
+      "care.pickup_signature_invalid":
+        "İmza okunamıyor. Lütfen tekrar imzalayın.",
+      "care.pickup_signature_required":
+        "Lütfen izni imzalayın ve imzanızı onaylayın.",
       "care.declaration_version_changed":
         "Okul metni değiştirdi. Lütfen tekrar okuyun ve ardından yeniden yanıtlayın.",
       "care.excused_request_not_pending":
@@ -3134,6 +3226,10 @@ export const ERROR_CATALOG = {
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "students.change_request_stale":
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
+      "students.pickup_permission_contact_gone":
+        "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
+      "students.pickup_proof_not_found":
+        "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
       "students.export_selection_too_large":
         "Seçimde {total} çocuk var. Bir liste en fazla {limit} çocuk içerebilir. Lütfen seçimi daraltın, örneğin gruba veya sınıfa göre.",
       "students.offering_change_capacity_full":
@@ -3203,6 +3299,18 @@ export const ERROR_CATALOG = {
         "Не вдалося зберегти підпис. Будь ласка, підпишіться ще раз.",
       "care.declaration_signature_required":
         "Будь ласка, підпишіться, перш ніж погодитися.",
+      "care.pickup_permission_request_required":
+        "Для нового дозволу потрібен ваш підпис. Потім OGS його підтвердить.",
+      "care.pickup_permission_unchanged":
+        "Ця особа вже може забирати дитину в ці дні.",
+      "care.pickup_person_not_linked":
+        "Ця особа не є контактом вашої дитини. Будь ласка, спершу додайте її до контактів.",
+      "care.pickup_proof_not_found":
+        "Для цього запиту немає підтвердження з вашим підписом.",
+      "care.pickup_signature_invalid":
+        "Підпис неможливо прочитати. Будь ласка, підпишіться ще раз.",
+      "care.pickup_signature_required":
+        "Будь ласка, підпишіть дозвіл і підтвердьте підпис.",
       "care.declaration_version_changed":
         "Школа змінила текст. Будь ласка, прочитайте його ще раз і дайте відповідь заново.",
       "care.excused_request_not_pending":
@@ -3484,6 +3592,10 @@ export const ERROR_CATALOG = {
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "students.change_request_stale":
         "Дані змінилися: {object}. Оновіть сторінку.",
+      "students.pickup_permission_contact_gone":
+        "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
+      "students.pickup_proof_not_found":
+        "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
       "students.export_selection_too_large":
         "Вибрано дітей: {total}. У списку може бути не більше {limit} дітей. Звузьте вибір, наприклад за групою або класом.",
       "students.offering_change_capacity_full":

@@ -134,7 +134,18 @@ func (s *Service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 // parent_portal.request.submit and the field-level school settings. Messaging
 // is independent: notification pills are best-effort when messages are on.
 func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any) (*ChildCareSchedule, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
+	return s.CreateSignedCareScheduleRequest(ctx, accountID, studentID, payload, nil)
+}
+
+// CreateSignedCareScheduleRequest is CreateCareScheduleRequest with the
+// signature a weekday the child walks home alone needs (#4780). Such a
+// request also needs parent_portal.pickup.manage.
+func (s *Service) CreateSignedCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any, signature *PickupSignatureInput) (*ChildCareSchedule, error) {
+	payload, alone, err := weeklyAloneRequest(payload, signature)
+	if err != nil {
+		return nil, err
+	}
+	child, err := s.resolveWeeklyRequestChild(ctx, accountID, studentID, alone)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +170,15 @@ func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		if err := s.createLockedCareRequest(txCtx, studentID, accountID, raw); err != nil {
+		signed, err := s.signWeeklyAlone(txCtx, child, accountID, studentID, alone, signature)
+		if err != nil {
+			return err
+		}
+		signedRaw, err := carerequests.WithSignature(raw, signed)
+		if err != nil {
+			return err
+		}
+		if err := s.createLockedCareRequest(txCtx, studentID, accountID, signedRaw); err != nil {
 			return err
 		}
 		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
@@ -320,7 +339,20 @@ func (s *Service) EditCareScheduleRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 	payload map[string]any, expectedVersion string,
 ) (*ChildCareSchedule, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
+	return s.EditSignedCareScheduleRequest(ctx, accountID, studentID, requestID, payload, expectedVersion, nil)
+}
+
+// EditSignedCareScheduleRequest is EditCareScheduleRequest with the fresh
+// signature an edited request that lets the child walk home alone needs.
+func (s *Service) EditSignedCareScheduleRequest(
+	ctx context.Context, accountID, studentID, requestID int64,
+	payload map[string]any, expectedVersion string, signature *PickupSignatureInput,
+) (*ChildCareSchedule, error) {
+	payload, alone, err := weeklyAloneRequest(payload, signature)
+	if err != nil {
+		return nil, err
+	}
+	child, err := s.resolveWeeklyRequestChild(ctx, accountID, studentID, alone)
 	if err != nil {
 		return nil, err
 	}
@@ -347,12 +379,17 @@ func (s *Service) EditCareScheduleRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
+		signed, err := s.signWeeklyAlone(txCtx, child, accountID, studentID, alone, signature)
+		if err != nil {
+			return err
+		}
 		if _, editErr := s.CareRequests.EditRequest(txCtx, carerequests.EditInput{
 			RequestID:         requestID,
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
 			ExpectedVersion:   expectedVersion,
 			Payload:           raw,
+			Signature:         signed,
 		}); editErr != nil {
 			return editErr
 		}
@@ -458,4 +495,77 @@ func careScheduleTimes(arrivals []*ArrivalSchedule, pickups []*PickupSchedule) (
 		pickupByDay[p.Weekday] = p.PickupTime.Format("15:04")
 	}
 	return arrivalByDay, arrivalCareDays, pickupByDay
+}
+
+// weeklyAloneRequest drops a client-sent signature reference and returns the
+// weekdays the child walks home alone; those need a signature (#4780).
+func weeklyAloneRequest(payload map[string]any, signature *PickupSignatureInput) (map[string]any, []int, error) {
+	payload = withoutClientSignature(payload)
+	alone, err := weeklyAloneWeekdays(payload)
+	if err != nil {
+		return nil, nil, MapCareRequestError(err, "validate care schedule request")
+	}
+	if len(alone) > 0 && signature == nil {
+		return nil, nil, ErrPickupSignatureRequired
+	}
+	return payload, alone, nil
+}
+
+// resolveWeeklyRequestChild resolves the child for a weekly plan request;
+// weekdays alone also need parent_portal.pickup.manage (#4780).
+func (s *Service) resolveWeeklyRequestChild(ctx context.Context, accountID, studentID int64, alone []int) (*Child, error) {
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
+	if err != nil {
+		return nil, err
+	}
+	if len(alone) > 0 && !child.HasPermission(GuardianPermissionPickupManage) {
+		return nil, ErrGuardianPermissionDenied
+	}
+	return child, nil
+}
+
+// withoutClientSignature drops a signature reference a client sent inside the
+// plan payload: only the flow records one, after storing the signature.
+func withoutClientSignature(payload map[string]any) map[string]any {
+	if _, present := payload["signature"]; !present {
+		return payload
+	}
+	clean := make(map[string]any, len(payload))
+	for key, value := range payload {
+		if key != "signature" {
+			clean[key] = value
+		}
+	}
+	return clean
+}
+
+// weeklyAloneWeekdays lists the weekdays (1 = Monday) a weekly plan request
+// lets the child walk home alone. An invalid payload returns the parser's
+// error; the create path reports it the same way.
+func weeklyAloneWeekdays(payload map[string]any) ([]int, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, carerequests.ErrInvalidPayload
+	}
+	changes, err := carerequests.ParseWeekly(raw)
+	if err != nil {
+		return nil, err
+	}
+	var alone []int
+	for weekday, key := range []string{"mon", "tue", "wed", "thu", "fri"} {
+		if changes.Modes[key] == "alone" {
+			alone = append(alone, weekday+1)
+		}
+	}
+	return alone, nil
+}
+
+// signWeeklyAlone stores the signature of the weekdays the child walks home
+// alone; nil when the request asks for none.
+func (s *Service) signWeeklyAlone(txCtx context.Context, child *Child, accountID, studentID int64, alone []int, signature *PickupSignatureInput) (*carerequests.SignedStatement, error) {
+	statement := WeeklyAloneStatement(child.StudentName, alone)
+	if statement == "" {
+		return nil, nil
+	}
+	return s.recordPickupSignature(txCtx, studentID, accountID, statement, signature)
 }

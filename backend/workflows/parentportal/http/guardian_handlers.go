@@ -27,11 +27,14 @@ type childGuardianResponse struct {
 	IsPrimary          bool                    `json:"is_primary"`
 	IsEmergencyContact bool                    `json:"is_emergency_contact"`
 	CanPickup          bool                    `json:"can_pickup"`
-	PickupNotes        string                  `json:"pickup_notes,omitempty"`
-	HasAccount         bool                    `json:"has_account"`
-	IsSelf             bool                    `json:"is_self"`
-	CanEditContact     bool                    `json:"can_edit_contact"`
-	CanManagePickup    bool                    `json:"can_manage_pickup"`
+	// PickupWeekdays limits can_pickup to these weekdays (1 = Monday …
+	// 5 = Friday); absent means every day (#4780).
+	PickupWeekdays  []int  `json:"pickup_weekdays,omitempty"`
+	PickupNotes     string `json:"pickup_notes,omitempty"`
+	HasAccount      bool   `json:"has_account"`
+	IsSelf          bool   `json:"is_self"`
+	CanEditContact  bool   `json:"can_edit_contact"`
+	CanManagePickup bool   `json:"can_manage_pickup"`
 	// ContactLockedOwnAccount: this guardian's contact data is read-only to the
 	// caller because the guardian manages it through their own portal account.
 	ContactLockedOwnAccount bool `json:"contact_locked_own_account"`
@@ -87,10 +90,14 @@ type updateGuardianRelationshipRequest struct {
 // app access, which remains the responsibility of related-accounts invitations.
 type createGuardianContactRequest struct {
 	updateGuardianContactRequest
-	RelationshipType   string  `json:"relationship_type"`
-	CanPickup          bool    `json:"can_pickup"`
-	IsEmergencyContact bool    `json:"is_emergency_contact"`
-	PickupNotes        *string `json:"pickup_notes"`
+	RelationshipType string `json:"relationship_type"`
+	// CanPickup asks the OGS to let the new contact collect the child on
+	// PickupWeekdays (empty: every day), signed (#4780).
+	CanPickup          bool                         `json:"can_pickup"`
+	PickupWeekdays     []int                        `json:"pickup_weekdays"`
+	PickupSignature    *declarationSignatureRequest `json:"pickup_signature,omitempty"`
+	IsEmergencyContact bool                         `json:"is_emergency_contact"`
+	PickupNotes        *string                      `json:"pickup_notes"`
 }
 
 // listChildGuardians returns the guardians of the parent's child with contact +
@@ -140,6 +147,8 @@ func (rs *Resource) createGuardianContact(w http.ResponseWriter, r *http.Request
 		Contact:            guardianContactInput(body.updateGuardianContactRequest),
 		RelationshipType:   body.RelationshipType,
 		CanPickup:          body.CanPickup,
+		PickupWeekdays:     body.PickupWeekdays,
+		PickupSignature:    body.PickupSignature.pickupInput(),
 		IsEmergencyContact: body.IsEmergencyContact,
 		PickupNotes:        body.PickupNotes,
 	})
@@ -264,6 +273,7 @@ func guardianResponse(g *parentService.ChildGuardian) childGuardianResponse {
 		IsPrimary:                 g.IsPrimary,
 		IsEmergencyContact:        g.IsEmergencyContact,
 		CanPickup:                 g.CanPickup,
+		PickupWeekdays:            g.PickupWeekdays,
 		PickupNotes:               g.PickupNotes,
 		HasAccount:                g.HasAccount,
 		IsSelf:                    g.IsSelf,

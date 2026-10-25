@@ -26,6 +26,11 @@ func (s *excusalStoreSpy) SaveDepartureException(_ context.Context, row careplan
 	return row, nil
 }
 
+func (s *excusalStoreSpy) CreatePickupNote(_ context.Context, row careplan.PickupNote) (careplan.PickupNote, error) {
+	s.writes++
+	return row, nil
+}
+
 func (s *excusalStoreSpy) CreatePickupException(_ context.Context, row careplan.PickupException) (careplan.PickupException, error) {
 	s.writes++
 	return row, nil

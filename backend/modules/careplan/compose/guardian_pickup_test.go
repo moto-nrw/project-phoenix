@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -90,4 +91,51 @@ func TestGuardianPickupPermissionsWriteOnlyTheirSchool(t *testing.T) {
 	}))
 	require.Contains(t, operations, "create_guardian_pickup_permission")
 	require.Contains(t, operations, "change_guardian_pickup_permission")
+}
+
+func TestGuardianPickupPermissionsChangeRequiresExpectedState(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	permissions, err := NewGuardianPickupPermissions(db, func(Observation) {})
+	require.NoError(t, err)
+	relationshipID := guardianRelationshipFixture(t, db, tenantID, "pickup-expected-state")
+
+	grant := true
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(ctx context.Context, _ testpkg.Tx) error {
+		return permissions.CreateGuardianPickupPermission(ctx, careplan.GuardianPickupPermission{
+			TenantID: tenantID, RelationshipID: relationshipID,
+		})
+	}))
+	found, err := testpkg.TenantQuery1(t, ctx, db, permissions.ChangeGuardianPickupPermission, careplan.GuardianPickupPermissionChange{
+		TenantID: tenantID, RelationshipID: relationshipID, CanPickup: &grant, SetWeekdays: true, Weekdays: []int{2, 4},
+	})
+	require.NoError(t, err)
+	require.True(t, found)
+
+	// A staff change after approval must not be overwritten by a correction
+	// that still expects the approved Tuesday/Thursday permission.
+	found, err = testpkg.TenantQuery1(t, ctx, db, permissions.ChangeGuardianPickupPermission, careplan.GuardianPickupPermissionChange{
+		TenantID: tenantID, RelationshipID: relationshipID, SetWeekdays: true, Weekdays: []int{3},
+	})
+	require.NoError(t, err)
+	require.True(t, found)
+	revoke := false
+	found, err = testpkg.TenantQuery1(t, ctx, db, permissions.ChangeGuardianPickupPermission, careplan.GuardianPickupPermissionChange{
+		TenantID: tenantID, RelationshipID: relationshipID, CanPickup: &revoke, SetWeekdays: true,
+		Expected: &careplan.GuardianPickupPermissionState{CanPickup: true, Weekdays: []int{2, 4}},
+	})
+	require.NoError(t, err)
+	assert.False(t, found)
+
+	var row struct {
+		CanPickup bool  `bun:"can_pickup"`
+		Weekdays  []int `bun:"pickup_weekdays,array"`
+	}
+	require.NoError(t, db.NewSelect().TableExpr("users.student_guardian_pickup_permissions").
+		ColumnExpr("can_pickup, pickup_weekdays").Where("relationship_id = ?", relationshipID).
+		Scan(ctx, &row))
+	assert.True(t, row.CanPickup)
+	assert.Equal(t, []int{3}, row.Weekdays)
 }

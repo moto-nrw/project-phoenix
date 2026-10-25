@@ -130,6 +130,12 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 	if err := s.refuseRelationshipEdit(ctx, profile, link, edit, callerStudents); err != nil {
 		return nil, err
 	}
+	// Granting the pickup permission is a signed request the OGS confirms
+	// (#4780); this direct path only takes it away. Every eligibility guard
+	// above still answers first.
+	if edit.input.CanPickup != nil && *edit.input.CanPickup && !link.CanPickup {
+		return nil, ErrPickupPermissionRequestRequired
+	}
 	oldCanPickup := link.CanPickup
 	oldEmergency := link.IsEmergencyContact
 	if err := s.writeRelationshipEdit(ctx, link, edit.input); err != nil {

@@ -203,9 +203,12 @@ type GuardianWithRelationship struct {
 	IsEmergencyContact bool              `json:"is_emergency_contact"`
 	CanPickup          bool              `json:"can_pickup"`
 	PickupNotes        *string           `json:"pickup_notes,omitempty"`
-	EmergencyPriority  int               `json:"emergency_priority"`
-	IsPayer            bool              `json:"is_payer"`
-	AccountStatus      string            `json:"account_status"`
+	// PickupWeekdays limits can_pickup to these weekdays (1 = Monday …
+	// 5 = Friday); absent means every day (#4780).
+	PickupWeekdays    []int  `json:"pickup_weekdays,omitempty"`
+	EmergencyPriority int    `json:"emergency_priority"`
+	IsPayer           bool   `json:"is_payer"`
+	AccountStatus     string `json:"account_status"`
 }
 
 // guardianAccountStatus derives the staff-facing account status. An open

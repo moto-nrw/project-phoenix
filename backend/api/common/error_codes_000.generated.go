@@ -68,6 +68,12 @@ const (
 	CodeCarePhotoConsentNotWithdrawn                     = "care.photo_consent_not_withdrawn"
 	CodeCarePickupChangeCutoffPassed                     = "care.pickup_change_cutoff_passed"
 	CodeCarePickupChangeDisabled                         = "care.pickup_change_disabled"
+	CodeCarePickupPermissionRequestRequired              = "care.pickup_permission_request_required"
+	CodeCarePickupPermissionUnchanged                    = "care.pickup_permission_unchanged"
+	CodeCarePickupPersonNotLinked                        = "care.pickup_person_not_linked"
+	CodeCarePickupProofNotFound                          = "care.pickup_proof_not_found"
+	CodeCarePickupSignatureInvalid                       = "care.pickup_signature_invalid"
+	CodeCarePickupSignatureRequired                      = "care.pickup_signature_required"
 	CodeCarePollClosed                                   = "care.poll_closed"
 	CodeCarePrimaryGuardianProtected                     = "care.primary_guardian_protected"
 	CodeCareRemoveDisabled                               = "care.remove_disabled"
@@ -296,12 +302,6 @@ const (
 	CodeIdentityInvitationAccountMismatch                = "identity.invitation_account_mismatch"
 	CodeIdentityInvitationExpired                        = "identity.invitation_expired"
 	CodeIdentityInvitationNotFound                       = "identity.invitation_not_found"
-	CodeIdentityInvitationRateLimited                    = "identity.invitation_rate_limited"
-	CodeIdentityLehrkraftRoleImmutable                   = "identity.lehrkraft_role_immutable"
-	CodeIdentityMfaAlreadyEnrolled                       = "identity.mfa_already_enrolled"
-	CodeIdentityMfaBlocked                               = "identity.mfa_blocked"
-	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
-	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -371,6 +371,12 @@ var errorCodeClasses0 = map[string]string{
 	"care.photo_consent_not_withdrawn":                     "business_rejection",
 	"care.pickup_change_cutoff_passed":                     "business_rejection",
 	"care.pickup_change_disabled":                          "permission",
+	"care.pickup_permission_request_required":              "business_rejection",
+	"care.pickup_permission_unchanged":                     "business_rejection",
+	"care.pickup_person_not_linked":                        "input",
+	"care.pickup_proof_not_found":                          "business_rejection",
+	"care.pickup_signature_invalid":                        "input",
+	"care.pickup_signature_required":                       "input",
 	"care.poll_closed":                                     "business_rejection",
 	"care.primary_guardian_protected":                      "permission",
 	"care.remove_disabled":                                 "permission",
@@ -599,12 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.invitation_account_mismatch":                 "permission",
 	"identity.invitation_expired":                          "business_rejection",
 	"identity.invitation_not_found":                        "input",
-	"identity.invitation_rate_limited":                     "unavailable",
-	"identity.lehrkraft_role_immutable":                    "business_rejection",
-	"identity.mfa_already_enrolled":                        "business_rejection",
-	"identity.mfa_blocked":                                 "unavailable",
-	"identity.mfa_code_invalid":                            "input",
-	"identity.mfa_not_enrolled":                            "business_rejection",
 }
 
 func init() {

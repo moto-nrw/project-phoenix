@@ -131,6 +131,9 @@ export interface GuardianWithRelationship extends Guardian {
   isPrimary: boolean;
   isEmergencyContact: boolean;
   canPickup: boolean;
+  // Wochentage (1 = Montag … 5 = Freitag), an denen die Abholberechtigung
+  // gilt; fehlt: an allen Tagen (#4780).
+  pickupWeekdays?: number[];
   pickupNotes?: string;
   emergencyPriority: number;
   // Marks this guardian's bank account as the one charged for this child
@@ -152,6 +155,7 @@ export interface BackendGuardianWithRelationship {
   is_primary: boolean;
   is_emergency_contact: boolean;
   can_pickup: boolean;
+  pickup_weekdays?: number[];
   pickup_notes?: string;
   emergency_priority: number;
   is_payer?: boolean;
@@ -295,6 +299,9 @@ export function mapGuardianWithRelationshipResponse(
     isPrimary: data.is_primary,
     isEmergencyContact: data.is_emergency_contact,
     canPickup: data.can_pickup,
+    ...(data.pickup_weekdays?.length
+      ? { pickupWeekdays: data.pickup_weekdays }
+      : {}),
     isPayer: data.is_payer ?? false,
     pickupNotes: data.pickup_notes,
     emergencyPriority: data.emergency_priority,

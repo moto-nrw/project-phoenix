@@ -2471,6 +2471,12 @@
         "photo_consent_not_withdrawn": "{object} could not be changed. Please check its current status.",
         "pickup_change_cutoff_passed": "{object} could not be changed. Please check its current status.",
         "pickup_change_disabled": "{object} is not available here at the moment. Please ask your contact person.",
+        "pickup_permission_request_required": "A new pickup permission needs your signature. The OGS then confirms it.",
+        "pickup_permission_unchanged": "This person may already pick up on these days.",
+        "pickup_person_not_linked": "This person is not a contact of your child. Please add them to your contacts first.",
+        "pickup_proof_not_found": "There is no proof with your signature for this request.",
+        "pickup_signature_invalid": "The signature cannot be read. Please sign again.",
+        "pickup_signature_required": "Please sign the permission and confirm your signature.",
         "poll_closed": "{object} is no longer open. Please ask your contact person.",
         "primary_guardian_protected": "You cannot access {object}. Please contact the school.",
         "remove_disabled": "{object} is not available here at the moment. Please ask your contact person.",
@@ -2909,6 +2915,8 @@
         "pickup_change_conflict": "{object} could not be changed. Please check its current status.",
         "pickup_change_expired": "{object} could not be changed. Please check its current status.",
         "pickup_change_impact_changed": "{object} could not be changed. Please check its current status.",
+        "pickup_permission_contact_gone": "{object} could not be changed. Please check the current state.",
+        "pickup_proof_not_found": "{object} could not be changed. Please check the current state.",
         "pickup_reset_requires_offering": "{object} could not be changed. Please check its current status.",
         "reason_required": "A reason is missing for {object}. Please enter one.",
         "request_not_decided": "{object} could not be changed. Please check its current status.",
@@ -3232,6 +3240,54 @@
     "title": "The page could not be shown",
     "object": "the page",
     "home": "Go to the start page"
+  },
+  "parentPickupPermission": {
+    "days": {
+      "label": "On which days?",
+      "all": "Every day",
+      "some": "Only on certain days",
+      "pickOne": "Please choose at least one day."
+    },
+    "weekday": {
+      "1": "Mon",
+      "2": "Tue",
+      "3": "Wed",
+      "4": "Thu",
+      "5": "Fri"
+    },
+    "weekdayLong": {
+      "1": "Monday",
+      "2": "Tuesday",
+      "3": "Wednesday",
+      "4": "Thursday",
+      "5": "Friday"
+    },
+    "signature": {
+      "title": "Your permission",
+      "procedure": "You sign with a simple electronic signature with a drawn signature.",
+      "missing": "Please sign and tap “Confirm signature”."
+    },
+    "statement": {
+      "permissionAll": "I allow {person} to pick up the child from the OGS on every day.",
+      "permissionSome": "I allow {person} to pick up the child from the OGS on these days: {days}.",
+      "day": "I allow {person} to pick up the child from the OGS on {date}.",
+      "aloneDay": "I allow the child to walk home alone on {date}.",
+      "aloneWeekly": "I allow the child to walk home alone on these days: {days}."
+    },
+    "waitsForOgs": "The OGS confirms the permission. Until then it does not apply.",
+    "pendingBadge": "Waiting for the OGS",
+    "pending": "Waiting for the OGS: {days}",
+    "onlyDays": "Only {days}",
+    "requestSent": "Your request is with the OGS. You will see here when it is confirmed.",
+    "proofPdf": "Proof (PDF)",
+    "errorObjectProof": "The proof",
+    "errorObjectRequest": "The pickup permission",
+    "pickupPerson": {
+      "label": "Who picks up?",
+      "none": "As usual",
+      "hint": "Only people you have added to your contacts.",
+      "manageLink": "Add a new person to your contacts"
+    }
   },
   "surveyForm": {
     "anonymousTitle": "Anonymous",

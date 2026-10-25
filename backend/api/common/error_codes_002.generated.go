@@ -2,6 +2,14 @@
 package common
 
 const (
+	CodeTimetableInstanceOutsidePeriod               = "timetable.instance_outside_period"
+	CodeTimetableInstanceSelectionInvalid            = "timetable.instance_selection_invalid"
+	CodeTimetableInstanceWeekend                     = "timetable.instance_weekend"
+	CodeTimetableInstancesNotAssigned                = "timetable.instances_not_assigned"
+	CodeTimetableInstancesOtherDay                   = "timetable.instances_other_day"
+	CodeTimetableInstancesRequired                   = "timetable.instances_required"
+	CodeTimetableInvalidTransition                   = "timetable.invalid_transition"
+	CodeTimetableMoveOtherDay                        = "timetable.move_other_day"
 	CodeTimetableMoveSameInstance                    = "timetable.move_same_instance"
 	CodeTimetableNoStaffProfile                      = "timetable.no_staff_profile"
 	CodeTimetableOfferingSourceInactive              = "timetable.offering_source_inactive"
@@ -158,6 +166,14 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.instance_outside_period":                 "input",
+	"timetable.instance_selection_invalid":              "input",
+	"timetable.instance_weekend":                        "input",
+	"timetable.instances_not_assigned":                  "input",
+	"timetable.instances_other_day":                     "input",
+	"timetable.instances_required":                      "input",
+	"timetable.invalid_transition":                      "business_rejection",
+	"timetable.move_other_day":                          "input",
 	"timetable.move_same_instance":                      "input",
 	"timetable.no_staff_profile":                        "permission",
 	"timetable.offering_source_inactive":                "business_rejection",

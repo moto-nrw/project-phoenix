@@ -37,7 +37,10 @@ type StudentGuardian struct {
 	IsEmergencyContact bool    `bun:"is_emergency_contact,notnull" json:"is_emergency_contact"`
 	CanPickup          bool    `bun:"can_pickup,notnull" json:"can_pickup"`
 	PickupNotes        *string `bun:"pickup_notes" json:"pickup_notes,omitempty"`
-	EmergencyPriority  int     `bun:"emergency_priority,default:1" json:"emergency_priority"`
+	// PickupWeekdays are the plan weekdays Care Plan's pickup permission
+	// holds on (1 = Monday … 5 = Friday); nil means every day (#4780).
+	PickupWeekdays    []int `bun:"pickup_weekdays,array" json:"pickup_weekdays,omitempty"`
+	EmergencyPriority int   `bun:"emergency_priority,default:1" json:"emergency_priority"`
 	// IsPayer marks this guardian's bank account as the one charged for this
 	// child (#2608). At most one relationship per child carries it, enforced
 	// by a partial unique index. Deliberately separate from IsPrimary: the

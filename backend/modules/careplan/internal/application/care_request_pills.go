@@ -33,7 +33,7 @@ const careRequestRefTable = "schedule.care_schedule_change_requests"
 // a one-day pickup change must not travel as a permanent care_schedule
 // change.
 func careRequestPillType(requestKind string) string {
-	if requestKind == "pickup_change" {
+	if requestKind == "pickup_change" || requestKind == carerequests.KindPickupPermission {
 		return "pickup_change"
 	}
 	return "care_schedule"
@@ -62,6 +62,8 @@ func pickupPillBody(verb string, req *carerequests.Request) string {
 	switch {
 	case ok && change.PickupTime != nil && change.DepartureMode != "":
 		return "Abholzeit und Abholart " + verb
+	case ok && change.PickupTime == nil && change.DepartureMode == "" && change.PickupPerson != nil:
+		return "Abholperson " + verb
 	case ok && change.PickupTime == nil:
 		return "Abholart " + verb
 	default:
@@ -85,7 +87,21 @@ func pickupPillDetail(req *carerequests.Request) string {
 	if change.DepartureMode != "" {
 		detail += ", " + carerequests.DepartureModeLabel(change.DepartureMode)
 	}
+	if change.PickupPerson != nil {
+		detail += ", abgeholt von " + change.PickupPerson.Name
+	}
 	return detail
+}
+
+// permissionPillBody is the pill of a pickup permission request (#4780):
+// "Abholberechtigung angefragt: Erika Muster, Nur Mo, Mi".
+func permissionPillBody(verb string, req *carerequests.Request) string {
+	body := "Abholberechtigung " + verb
+	permission, err := carerequests.ParsePickupPermission(req.Payload)
+	if err != nil {
+		return body
+	}
+	return body + ": " + permission.PersonName + ", " + carerequests.WeekdayListLabel(permission.Weekdays)
 }
 
 // withPickupDetail appends the requested day and time to a pickup pill body.
@@ -120,12 +136,21 @@ func pickupPillPayload(req *carerequests.Request) map[string]any {
 	if terms.DepartureMode != "" {
 		payload["departure_mode"] = terms.DepartureMode
 	}
+	if terms.PickupPersonName != "" {
+		payload["pickup_person"] = terms.PickupPersonName
+	}
 	return payload
 }
 
 // careDecisionPill is the status and body of the pill that announces a
 // decision to the submitting guardian.
 func careDecisionPill(req *carerequests.Request, approve bool, reason string) (status, body string) {
+	if req.RequestKind == carerequests.KindPickupPermission {
+		if approve {
+			return careplan.ParentMessageRequestStatusDone, permissionPillBody(pickupRequestConfirmedVerb, req)
+		}
+		return careplan.ParentMessageRequestStatusReject, permissionPillBody(pickupRequestRejectedVerb, req) + ". Grund: " + reason
+	}
 	if approve {
 		if req.RequestKind == "pickup_change" {
 			return careplan.ParentMessageRequestStatusDone, withPickupDetail(pickupPillBody(pickupRequestConfirmedVerb, req), req)
@@ -153,6 +178,9 @@ func correctedCarePill(req *carerequests.Request, approve bool) (status, body st
 // A weekly plan has no single date, so it names the area alone — enough for a
 // co-guardian to know to look, which is the whole purpose of the line.
 func careCoGuardianNoticeBody(req *carerequests.Request) string {
+	if req.RequestKind == carerequests.KindPickupPermission {
+		return "Betreuungsstand geändert: Abholberechtigung"
+	}
 	if req.RequestKind != "pickup_change" {
 		return "Betreuungsstand geändert: Betreuungszeiten"
 	}
