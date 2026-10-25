@@ -262,12 +262,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 23,
 	// ADR 0087.
-	"internal/devtools/seedapi/marketing_daily_life.go:seedMarketingSessions": 22,
-	// ADR 0087.
-	"internal/devtools/seedapi/marketing_profile.go:seedMarketingAttendance": 16,
-	// ADR 0087.
-	"internal/devtools/seedapi/marketing_profile.go:seedMarketingChildren": 19,
-	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 53,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 26,
@@ -281,8 +275,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"internal/devtools/seedapi/seed_phase_periods.go:seedPhaseSchoolYear": 30,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_planning.go:selectRecurringPlanningInstances": 16,
-	// ADR 0087.
-	"internal/devtools/seedapi/seed_staff_messaging.go:(seedStaffMessagingStep).Run": 21,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_time_tracking.go:(seedTimeTrackingHistoryStep).Run": 35,
 	// ADR 0087.

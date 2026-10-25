@@ -255,10 +255,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	if !seeder.options.DeferHistory {
 		steps = append(steps, deferredPastSteps()...)
 	}
-	steps = append(steps, parentEnrollmentSeedStep{seeder: seeder})
-	if !seeder.options.DeferHistory {
-		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
-	}
+	steps = append(steps, enrollmentWorkflowSteps(seeder)...)
 	steps = append(steps,
 		seedParentEngagementStep{}, seedAnalyticsConsentStep{},
 		seedGradeTransitionStep{},
@@ -289,6 +286,20 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		printSummaryStep{seeder: seeder},
 	)
 	return Workflow{Name: "full-demo", Steps: steps}
+}
+
+func enrollmentWorkflowSteps(seeder *Seeder) []Step {
+	steps := []Step{parentEnrollmentSeedStep{seeder: seeder}}
+	if seeder.options.DeferHistory {
+		return steps
+	}
+	return append(steps,
+		parentRequestsSeedStep{seeder: seeder},
+		seedEnrollmentIncomeProofStep{},
+		seedEnrollmentSignatureStep{},
+		seedOfferingRosterStep{seeder: seeder},
+		seedFamilyAppAccountsStep{},
+	)
 }
 
 // deferredPastSteps fill the past only: the time-tracking history, the export

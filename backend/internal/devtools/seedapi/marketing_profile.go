@@ -384,33 +384,42 @@ func seedMarketingChildren(rt *Runtime, groups map[string]SeedEntityRef) (map[st
 		contactName := family.firstName + " " + family.lastName
 		var contactID int64
 		for _, source := range family.children {
-			group, ok := groups[source.group]
-			if !ok {
-				return nil, nil, fmt.Errorf("marketing group %s missing", source.group)
-			}
-			raw, err := rt.Client.Post("/api/students", marketingStudentPayload(source, index, group.ID, family, contactID))
-			if err != nil {
-				return nil, nil, fmt.Errorf("create marketing child %d: %w", index+1, err)
-			}
-			id, err := decodeSeedEntityID(raw)
-			if err != nil {
-				return nil, nil, fmt.Errorf("decode marketing child %d: %w", index+1, err)
-			}
-			guardian, err := readManualGuardian(rt, id, DemoGuardian{FirstName: family.firstName, LastName: family.lastName})
+			student, guardian, err := seedMarketingChild(rt, groups, family, source, index, contactID)
 			if err != nil {
 				return nil, nil, err
 			}
 			if contactID != 0 && guardian.ID != contactID {
-				return nil, nil, fmt.Errorf("marketing sibling %d is not linked to contact %d", id, contactID)
+				return nil, nil, fmt.Errorf("marketing sibling %d is not linked to contact %d", student.ID, contactID)
 			}
 			contactID = guardian.ID
 			guardians[semanticKey(contactName)] = guardian
-			key := semanticKey(source.firstName + " " + source.lastName)
-			students[key] = SeedStudent{Key: key, ID: id, FirstName: source.firstName, LastName: source.lastName, GroupKey: source.group, Class: source.class}
+			students[student.Key] = student
 			index++
 		}
 	}
 	return students, guardians, nil
+}
+
+func seedMarketingChild(rt *Runtime, groups map[string]SeedEntityRef, family marketingFamily, source marketingChild, index int, contactID int64) (SeedStudent, SeedEntityRef, error) {
+	group, ok := groups[source.group]
+	if !ok {
+		return SeedStudent{}, SeedEntityRef{}, fmt.Errorf("marketing group %s missing", source.group)
+	}
+	raw, err := rt.Client.Post("/api/students", marketingStudentPayload(source, index, group.ID, family, contactID))
+	if err != nil {
+		return SeedStudent{}, SeedEntityRef{}, fmt.Errorf("create marketing child %d: %w", index+1, err)
+	}
+	id, err := decodeSeedEntityID(raw)
+	if err != nil {
+		return SeedStudent{}, SeedEntityRef{}, fmt.Errorf("decode marketing child %d: %w", index+1, err)
+	}
+	guardian, err := readManualGuardian(rt, id, DemoGuardian{FirstName: family.firstName, LastName: family.lastName})
+	if err != nil {
+		return SeedStudent{}, SeedEntityRef{}, err
+	}
+	key := semanticKey(source.firstName + " " + source.lastName)
+	student := SeedStudent{Key: key, ID: id, FirstName: source.firstName, LastName: source.lastName, GroupKey: source.group, Class: source.class}
+	return student, guardian, nil
 }
 
 func marketingStudentPayload(source marketingChild, index int, groupID int64, family marketingFamily, contactID int64) map[string]any {
@@ -435,20 +444,25 @@ func seedMarketingAttendance(rt *Runtime, students map[string]SeedStudent) error
 	for _, family := range marketingFamilies() {
 		for _, source := range family.children {
 			student := students[semanticKey(source.firstName+" "+source.lastName)]
-			if source.presence == marketingNotArrived {
-				continue
-			}
-			if err := postSchoolAttendance(rt, student.ID, "in", "checked_in", ""); err != nil {
+			if err := seedMarketingChildAttendance(rt, student.ID, source.presence); err != nil {
 				return err
-			}
-			if source.presence == marketingPickedUp {
-				if err := postSchoolAttendance(rt, student.ID, "out", "checked_out", ""); err != nil {
-					return err
-				}
 			}
 		}
 	}
 	return nil
+}
+
+func seedMarketingChildAttendance(rt *Runtime, studentID int64, presence marketingPresence) error {
+	if presence == marketingNotArrived {
+		return nil
+	}
+	if err := postSchoolAttendance(rt, studentID, "in", "checked_in", ""); err != nil {
+		return err
+	}
+	if presence != marketingPickedUp {
+		return nil
+	}
+	return postSchoolAttendance(rt, studentID, "out", "checked_out", "")
 }
 
 func inviteMarketingParents(ctx context.Context, rt *Runtime, step parentEnrollmentSeedStep, data manualProfileData) ([]ParentCredentials, error) {

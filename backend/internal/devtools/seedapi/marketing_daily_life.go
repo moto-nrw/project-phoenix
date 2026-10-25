@@ -229,45 +229,49 @@ func seedMarketingSessions(rt *Runtime, data manualProfileData, staff []AccountC
 		staffByName[member.Name] = member
 	}
 	for _, session := range marketingSessions() {
-		leader, ok := staffByName[session.leader]
-		if !ok {
-			return fmt.Errorf("marketing session %s: caregiver %s missing", session.title, session.leader)
+		if err := seedMarketingSession(rt, data, staffByName, categories, rooms, sessionDate, session); err != nil {
+			return err
 		}
-		// Each block belongs to its own activity; without one, every block
-		// lands in the shared "Spontane Aktivität" and the running groups
-		// share one name.
-		activityRaw, err := rt.Client.Post("/api/activities", map[string]any{
-			"name": session.title, "max_participants": 20, "is_open": true,
-			"category_id": categories[session.category], "planned_room_id": rooms[session.room],
-		})
-		if err != nil {
-			return fmt.Errorf("create marketing activity %s: %w", session.title, err)
-		}
-		activityID, err := decodeSeedEntityID(activityRaw)
-		if err != nil {
-			return fmt.Errorf("decode marketing activity %s: %w", session.title, err)
-		}
-		children := marketingSessionChildren(data, session.group)
-		raw, err := rt.Client.Post("/api/timetable/instances", map[string]any{
-			"date": sessionDate.String(), "start_time": marketingClock(-45), "end_time": marketingClock(75),
-			"title": session.title, "room_id": rooms[session.room], "activity_group_id": activityID,
-			"staff_ids": []int64{leader.StaffID}, "student_ids": children,
-		})
-		if err != nil {
-			return fmt.Errorf("plan marketing session %s: %w", session.title, err)
-		}
-		instanceID, err := parseEnvelopeStringID(raw)
-		if err != nil {
-			return fmt.Errorf("decode marketing session %s: %w", session.title, err)
-		}
-		if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/start", instanceID), nil); err != nil {
-			return fmt.Errorf("start marketing session %s: %w", session.title, err)
-		}
-		for _, studentID := range children {
-			path := fmt.Sprintf("/api/timetable/operations/instances/%d/students/%d/check-in", instanceID, studentID)
-			if _, err := rt.Client.Post(path, map[string]any{}); err != nil {
-				return fmt.Errorf("check student %d into marketing session %s: %w", studentID, session.title, err)
-			}
+	}
+	return nil
+}
+
+func seedMarketingSession(rt *Runtime, data manualProfileData, staff map[string]AccountCredentials, categories, rooms map[string]int64, date seedDate, session marketingSession) error {
+	leader, ok := staff[session.leader]
+	if !ok {
+		return fmt.Errorf("marketing session %s: caregiver %s missing", session.title, session.leader)
+	}
+	activityRaw, err := rt.Client.Post("/api/activities", map[string]any{
+		"name": session.title, "max_participants": 20, "is_open": true,
+		"category_id": categories[session.category], "planned_room_id": rooms[session.room],
+	})
+	if err != nil {
+		return fmt.Errorf("create marketing activity %s: %w", session.title, err)
+	}
+	activityID, err := decodeSeedEntityID(activityRaw)
+	if err != nil {
+		return fmt.Errorf("decode marketing activity %s: %w", session.title, err)
+	}
+	children := marketingSessionChildren(data, session.group)
+	raw, err := rt.Client.Post("/api/timetable/instances", map[string]any{
+		"date": date.String(), "start_time": marketingClock(-45), "end_time": marketingClock(75),
+		"title": session.title, "room_id": rooms[session.room], "activity_group_id": activityID,
+		"staff_ids": []int64{leader.StaffID}, "student_ids": children,
+	})
+	if err != nil {
+		return fmt.Errorf("plan marketing session %s: %w", session.title, err)
+	}
+	instanceID, err := parseEnvelopeStringID(raw)
+	if err != nil {
+		return fmt.Errorf("decode marketing session %s: %w", session.title, err)
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/start", instanceID), nil); err != nil {
+		return fmt.Errorf("start marketing session %s: %w", session.title, err)
+	}
+	for _, studentID := range children {
+		path := fmt.Sprintf("/api/timetable/operations/instances/%d/students/%d/check-in", instanceID, studentID)
+		if _, err := rt.Client.Post(path, map[string]any{}); err != nil {
+			return fmt.Errorf("check student %d into marketing session %s: %w", studentID, session.title, err)
 		}
 	}
 	return nil

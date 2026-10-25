@@ -28,6 +28,8 @@ type parentSeedHandoff struct {
 
 const parentSeedHandoffKey = "parent.handoff"
 
+var parentAccountGuardianIndexes = []int{0, 1, 5, 19, 32, 54}
+
 // Run creates the parent accounts; the visitor enters the parent portal
 // through one of them, so a demo school cannot open before they exist.
 // parentRequestsSeedStep adds the enrollment requests and portal actions.
@@ -164,10 +166,9 @@ func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Ru
 		return nil, nil, err
 	}
 
-	guardianIndexes := []int{0, 1, 5, 19, 32, 54}
-	parents := make([]ParentCredentials, 0, len(guardianIndexes))
-	parentAuths := make(map[string]AuthRef, len(guardianIndexes))
-	for _, idx := range guardianIndexes {
+	parents := make([]ParentCredentials, 0, len(parentAccountGuardianIndexes))
+	parentAuths := make(map[string]AuthRef, len(parentAccountGuardianIndexes))
+	for _, idx := range parentAccountGuardianIndexes {
 		if idx < 0 || idx >= len(DemoGuardians) {
 			return nil, nil, fmt.Errorf("demo guardian index %d out of range", idx)
 		}
@@ -1151,83 +1152,6 @@ func (s parentEnrollmentSeedStep) decideEnrollmentChild(rt *Runtime, auth AuthRe
 		return fmt.Errorf("decide enrollment request %d child %d as %s: %w", requestID, childID, status, err)
 	}
 	return nil
-}
-
-func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAuth AuthRef, parent ParentCredentials) ([]SeedParentPortalAction, error) {
-	if len(parent.StudentIDs) == 0 {
-		return nil, nil
-	}
-	studentID := parent.StudentIDs[0]
-	if _, err := rt.Client.GetWithAuth(parentAuth, "/parent/me/profile"); err != nil {
-		return nil, fmt.Errorf("load parent profile: %w", err)
-	}
-	if _, err := rt.Client.GetWithAuth(parentAuth, "/parent/me/children"); err != nil {
-		return nil, fmt.Errorf("load parent children: %w", err)
-	}
-	if _, err := rt.Client.GetWithAuth(parentAuth, fmt.Sprintf("/parent/me/children/%d/features", studentID)); err != nil {
-		return nil, fmt.Errorf("load parent child features: %w", err)
-	}
-
-	actions := []struct {
-		actionType string
-		path       string
-		body       map[string]any
-	}{
-		{
-			actionType: "sick-note",
-			path:       fmt.Sprintf("/parent/me/children/%d/sick-note", studentID),
-			body: map[string]any{
-				"dates":  []string{time.Now().AddDate(0, 0, 2).Format("2006-01-02")},
-				"reason": "Demo-Krankmeldung aus dem Elternportal",
-			},
-		},
-		{
-			actionType: "excused-note",
-			path:       fmt.Sprintf("/parent/me/children/%d/sick-note", studentID),
-			body: map[string]any{
-				"dates":  []string{todaySeedDate().AddDays(4).String()},
-				"status": "excused",
-				"reason": "Demo-Entschuldigung aus dem Elternportal",
-			},
-		},
-		{
-			actionType: "care-exception",
-			path:       fmt.Sprintf("/parent/me/children/%d/care-exception", studentID),
-			body: map[string]any{
-				"date":        time.Now().AddDate(0, 0, 3).Format("2006-01-02"),
-				"pickup_time": "14:30",
-				"reason":      "Demo-Abholänderung aus dem Elternportal",
-			},
-		},
-		{
-			actionType: "related-account",
-			path:       fmt.Sprintf("/parent/me/children/%d/related-accounts", studentID),
-			body: map[string]any{
-				"email":      "oma.schneider@example.test",
-				"first_name": "Elke",
-				"last_name":  "Schneider",
-			},
-		},
-	}
-
-	out := make([]SeedParentPortalAction, 0, len(actions))
-	for _, action := range actions {
-		body, err := rt.Client.PostWithAuth(parentAuth, action.path, action.body)
-		if err != nil {
-			return nil, fmt.Errorf("create parent portal action %s: %w", action.actionType, err)
-		}
-		if action.actionType == "care-exception" {
-			if err := s.shareSeedPickupRequest(rt, parentAuth, parent, body); err != nil {
-				return nil, err
-			}
-		}
-		out = append(out, SeedParentPortalAction{
-			ParentEmail: parent.Email,
-			StudentID:   studentID,
-			Type:        action.actionType,
-		})
-	}
-	return out, nil
 }
 
 // seedDecidedPickupChange files a second one-day pickup change for the demo

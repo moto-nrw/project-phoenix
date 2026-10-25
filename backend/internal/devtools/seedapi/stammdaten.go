@@ -754,9 +754,7 @@ func (s *FixedSeeder) MarkStudentsSick(_ context.Context, result *FixedResult) e
 
 		// Mark student as sick
 		path := fmt.Sprintf("/api/students/%d", studentID)
-		body := map[string]any{
-			"sick": true,
-		}
+		body := map[string]any{"sick": true}
 
 		_, err := s.client.Put(path, body)
 		if err != nil {
