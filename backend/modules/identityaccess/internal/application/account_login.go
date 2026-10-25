@@ -691,6 +691,7 @@ func buildClaims(account domain.LoginAccount, session domain.AccountSession, met
 		TenantID:     metadata.TenantID,
 		OrgID:        metadata.OrgID,
 		FamilyID:     session.FamilyID,
+		ViaTraeger:   metadata.ViaTraeger,
 	}
 	refresh := domain.RefreshClaims{
 		AccountID: account.ID,

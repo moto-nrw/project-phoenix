@@ -92,15 +92,17 @@ type Resource struct {
 	schools        TraegerRouter
 	holidayPeriods TraegerRouter
 	accounts       identityaccess.TraegerAccountManagement
+	schoolSessions identityaccess.TraegerSchoolSessions
 }
 
 // NewResource builds the Träger-Portal resource. accounts serves the
-// Träger-Büro account routes (#4650); without it they answer 500.
-func NewResource(auth AuthRuntime, schools, holidayPeriods TraegerRouter, accounts identityaccess.TraegerAccountManagement) *Resource {
+// Träger-Büro account routes (#4650) and schoolSessions the Absprung into a
+// school (#4654); without them those routes answer 500.
+func NewResource(auth AuthRuntime, schools, holidayPeriods TraegerRouter, accounts identityaccess.TraegerAccountManagement, schoolSessions identityaccess.TraegerSchoolSessions) *Resource {
 	if schools == nil || holidayPeriods == nil {
 		panic("traeger portal: the school list and holiday period routes are required")
 	}
-	return &Resource{auth: auth, schools: schools, holidayPeriods: holidayPeriods, accounts: accounts}
+	return &Resource{auth: auth, schools: schools, holidayPeriods: holidayPeriods, accounts: accounts, schoolSessions: schoolSessions}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -127,6 +129,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r.Mount("/schools", rs.schools.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/holiday-periods", rs.holidayPeriods.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/accounts", rs.accountRouter(protectedTraegerRoutes))
+	r.Mount("/school-sessions", rs.schoolSessionRouter(protectedTraegerRoutes))
 	return r
 }
 

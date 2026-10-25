@@ -88,6 +88,7 @@ func (c *SessionCodec) IssueAccessToken(claims identityaccess.SessionClaims) (st
 	put(wire, "read_only", claims.ReadOnly, claims.ReadOnly)
 	put(wire, "acting_admin_id", claims.ActingAdminID, claims.ActingAdminID != 0)
 	put(wire, "preview_id", claims.PreviewID, claims.PreviewID != "")
+	put(wire, "via_traeger", claims.ViaTraeger, claims.ViaTraeger)
 	return c.sign(wire)
 }
 

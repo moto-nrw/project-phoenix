@@ -632,6 +632,47 @@ async function getRefreshAuditHeaders(): Promise<Record<string, string>> {
   }
 }
 
+/**
+ * Redeems the hand-off token of an Absprung from the Träger portal (#4654)
+ * on the school's host. The token is a short-lived refresh token of a new
+ * OGS session; its first rotation here makes it single-use and gives the
+ * session its normal lifetime. Null when the backend refuses it.
+ */
+export async function redeemTraegerHandoff(
+  handoffToken: string,
+): Promise<RefreshResult | null> {
+  if (
+    typeof handoffToken !== "string" ||
+    !handoffToken ||
+    handoffToken.length > 16000
+  ) {
+    return null;
+  }
+  try {
+    const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${handoffToken}`,
+        "Content-Type": "application/json",
+        "X-Refresh-Recovery-Proof": deriveRefreshRecoveryProof(handoffToken),
+        ...(await getRefreshAuditHeaders()),
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) {
+      logger.warn("traeger_handoff_refused", { status: response.status });
+      return null;
+    }
+    return (await response.json()) as RefreshResult;
+  } catch (err) {
+    logger.warn("traeger_handoff_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
 /** Evict expired entries so the maps don't leak memory. */
 function pruneRefreshCache(): void {
   const now = Date.now();

@@ -4087,6 +4087,12 @@
       "legacy": "traeger.no_membership"
     },
     {
+      "code": "traeger.school_not_found",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "traeger.school_not_found"
+    },
+    {
       "code": "workforce.absence_allowance_exceeded",
       "class": "business_rejection",
       "parameters": [],

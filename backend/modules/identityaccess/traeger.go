@@ -21,6 +21,12 @@ var (
 	// ErrTraegerTransactionRequired reports a participating Träger command
 	// called without the caller's transaction.
 	ErrTraegerTransactionRequired = errors.New("the Träger role command requires the caller's transaction")
+	// ErrTraegerSchoolSwitchForbidden reports Träger roles without the right
+	// "In OGS wechseln".
+	ErrTraegerSchoolSwitchForbidden = errors.New("the Träger roles do not grant the switch into a school")
+	// ErrTraegerSchoolNotFound reports a school that is unknown, inactive or
+	// deleted, or that belongs to another Träger.
+	ErrTraegerSchoolNotFound = errors.New("the school does not belong to the Träger")
 )
 
 // The Träger roles of ADR 0084 section 4. In version 1 each is a fixed bundle
@@ -152,4 +158,23 @@ type TraegerRoles interface {
 	AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error
 	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]TraegerAccount, error)
 	EndTraegerSessions(ctx context.Context, organizationID int64) (int64, error)
+}
+
+// TraegerSchoolSessionRequest asks for the Absprung into one school of the
+// Träger (ADR 0084 section 5, #4654). Account, Träger and the family of the
+// Träger session come from that session, never from the request body.
+type TraegerSchoolSessionRequest struct {
+	AccountID       int64
+	OrganizationID  int64
+	TraegerFamilyID string
+	SchoolID        int64
+	IPAddress       string
+	UserAgent       string
+}
+
+// TraegerSchoolSessions opens OGS sessions through the Träger. The answer is
+// the hand-off refresh token the school's host redeems through /auth/refresh;
+// it is short-lived and single-use.
+type TraegerSchoolSessions interface {
+	StartTraegerSchoolSession(ctx context.Context, request TraegerSchoolSessionRequest) (string, error)
 }

@@ -31,10 +31,12 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 }
 
 // TraegerPortalIdentity is what the Träger-Portal serves of Identity &
-// Access: the sign-in and the Träger-Büro account management.
+// Access: the sign-in, the Träger-Büro account management and the Absprung
+// into a school.
 type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
 	identityaccess.TraegerAccountManagement
+	identityaccess.TraegerSchoolSessions
 }
 
 // NewTraegerPortalHTTP binds the Träger sign-in, the account management, the
@@ -50,7 +52,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	}
 	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(),
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
-	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview), holidayPeriods, identity), nil
+	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview), holidayPeriods, identity, identity), nil
 }
 
 // traegerSchoolIDs binds the Träger projection's school set to Organisation &

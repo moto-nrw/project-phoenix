@@ -68,6 +68,9 @@ func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account 
 	if err := s.requireSessionMFA(ctx, account.ID, tenantID, session.PortalScope, session.MFAVerified); err != nil {
 		return time.Time{}, &mintGuardError{err: err}
 	}
+	if err := s.requireTraegerSchoolMFA(*session); err != nil {
+		return time.Time{}, &mintGuardError{err: err}
+	}
 	return loginTime, nil
 }
 
