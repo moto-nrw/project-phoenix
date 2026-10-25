@@ -163,6 +163,7 @@ export const HELP_TOPICS = {
   leadInfoDisplays: "info-display-verwalten",
   leadBirthdays: "geburtstage-auf-der-startseite",
   leadMissingMenu: "person-sieht-einen-menuepunkt-nicht",
+  leadModules: "welche-module-hat-meine-schule",
 
   // Eltern-Portal. Das Gerüst folgt der echten Navigation der Eltern-App
   // (`PARENT_PRIMARY_NAV` und `PARENT_MORE_NAV` in

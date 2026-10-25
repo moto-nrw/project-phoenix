@@ -131,6 +131,9 @@ type GuardianStudentAuthorizer interface {
 type IntakeSettings interface {
 	// EnrollmentEnabled defaults to false.
 	EnrollmentEnabled(ctx context.Context) bool
+	// OnlineAnmeldungBooked reports whether the school booked the module
+	// Online-Anmeldung (#4893); false on any failure.
+	OnlineAnmeldungBooked(ctx context.Context) bool
 	// AllowSubmissionEdit reports lookup failures instead of granting an edit.
 	AllowSubmissionEdit(ctx context.Context) (bool, error)
 	// StatusTokenTTLDays resolves the token lifetime or reports the read failure.

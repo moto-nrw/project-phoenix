@@ -4497,6 +4497,15 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "timetable.homework_feedback_without_homework"
+    },
+    {
+      "code": "module.not_booked",
+      "class": "permission",
+      "parameters": [
+        "module",
+        "module_label"
+      ],
+      "legacy": "module.not_booked"
     }
   ]
 }

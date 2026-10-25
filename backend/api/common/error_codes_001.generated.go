@@ -65,6 +65,7 @@ const (
 	CodeMealsPlanWeekOutOfRange                        = "meals.plan_week_out_of_range"
 	CodeMealsRegistrationDisabled                      = "meals.registration_disabled"
 	CodeMealsSupplyActive                              = "meals.supply_active"
+	CodeModuleNotBooked                                = "module.not_booked"
 	CodeOperatorAuditUnavailable                       = "operator.audit_unavailable"
 	CodePickupBulkExceptionConfirmationRequired        = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                        = "pickup.future_manual_reset"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableReopenStudentActive                   = "timetable.reopen_student_active"
 	CodeTimetableReopenSupervisionChanged              = "timetable.reopen_supervision_changed"
 	CodeTimetableRoomOccupied                          = "timetable.room_occupied"
-	CodeTimetableSeriesEndBeforeStart                  = "timetable.series_end_before_start"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -368,6 +368,7 @@ var errorCodeClasses1 = map[string]string{
 	"meals.plan_week_out_of_range":                         "input",
 	"meals.registration_disabled":                          "permission",
 	"meals.supply_active":                                  "business_rejection",
+	"module.not_booked":                                    "permission",
 	"operator.audit_unavailable":                           "unavailable",
 	"pickup.bulk_exception_confirmation_required":          "input",
 	"pickup.future_manual_reset":                           "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.reopen_student_active":                      "business_rejection",
 	"timetable.reopen_supervision_changed":                 "business_rejection",
 	"timetable.room_occupied":                              "business_rejection",
-	"timetable.series_end_before_start":                    "input",
 }
 
 func init() {

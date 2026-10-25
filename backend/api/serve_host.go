@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -83,12 +84,25 @@ func mountServeMiddleware(
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
 	router.Use(sessionAuth.Verifier())
+	// Classifies each path by module; TenantScopeMiddleware refuses a module
+	// the bound school has not booked (#4893).
+	booking, err := settingsModule.NewModuleBooking(settings)
+	if err != nil {
+		return nil, err
+	}
+	router.Use(moduleRoutesMiddleware(booking))
 	// Sentry events name the session they affect (#3643).
 	router.Use(SentrySessionContext)
 	// Core actions of the portals reach the usage analytics once their
 	// response is 2xx (#3602). After the verifier, which names the session.
 	router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(settings, logger), analyticsConsent(consent), policy))
 	router.Get("/analytics-policy", analytics.PolicyHandler(policy, analyticsRequestActor))
+	mountAnalyticsConsent(router, consent)
+	return sessionAuth, nil
+}
+
+// mountAnalyticsConsent serves each account's analytics choice in every portal.
+func mountAnalyticsConsent(router chi.Router, consent identityaccess.AccountAnalyticsConsent) {
 	// The account's own consent to the usage analytics (#4901) serves every
 	// portal session, like the policy above: the Authenticator verifies the
 	// access token, the preview middleware blocks writes, and the resource
@@ -96,7 +110,6 @@ func mountServeMiddleware(
 	router.Mount("/analytics-consent", meAPI.NewAnalyticsConsentResource(consent).Router(func(r chi.Router) {
 		r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware)
 	}))
-	return sessionAuth, nil
 }
 
 // registerRuntimeStatsProviders hands the live streams and the PWA usage to

@@ -554,7 +554,8 @@ describe("getParentHelpTopicForPath", () => {
     // 87 mit den neuen Einstellungs- und Mittagessen-Artikeln.
     // 88 seit #4796: die Rückmeldung zu Hausaufgaben in der Lernzeit.
     // 89 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
-    expect(leadTopics).toHaveLength(89);
+    // 90 seit #4894: Welche Module hat meine Schule?
+    expect(leadTopics).toHaveLength(90);
     expect(
       leadTopics.every(
         (topic) =>

@@ -16,7 +16,7 @@ func (s *Store) DeleteFinishedStudentDocumentFileCleanups(ctx context.Context, w
 		return 0, err
 	}
 	var deleted int64
-	if err := db.NewRaw(`SELECT users.delete_finished_student_document_file_cleanups(?, statement_timestamp() - (? * INTERVAL '1 second'))`, tenantID, window.Seconds()).Scan(ctx, &deleted); err != nil {
+	if err := db.NewRaw(`SELECT users.delete_finished_student_document_file_cleanups(?, statement_timestamp() - (? * INTERVAL '1 day'))`, tenantID, int(window/(24*time.Hour))).Scan(ctx, &deleted); err != nil {
 		return 0, fmt.Errorf("care plan postgres: delete finished student document file cleanups: %w", err)
 	}
 	return int(deleted), nil

@@ -69,27 +69,33 @@ func TestEnrollmentEnabledForTenantsPreservesOverrideAndDefault(t *testing.T) {
 	t.Parallel()
 	registry := config.NewRegistry()
 	registerTestSetting(registry, config.KeyEnrollmentEnabled, config.FieldBoolean, false)
+	registerTestSetting(registry, config.KeyModuleOnlineAnmeldung, config.FieldBoolean, true)
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
+	cancelled := testpkg.UniqueTestTenantID(t)
 
 	repository := newInMemoryValueRepo()
-	override := &config.SettingValue{
-		SettingKey: config.KeyEnrollmentEnabled,
-		Value:      json.RawMessage(`true`),
+	store := func(tenantID int64, key string, value string) {
+		override := &config.SettingValue{SettingKey: key, Value: json.RawMessage(value)}
+		override.SetTenantID(tenantID)
+		require.NoError(t, repository.Upsert(context.Background(), override))
 	}
-	override.SetTenantID(tenantA)
-	require.NoError(t, repository.Upsert(context.Background(), override))
+	store(tenantA, config.KeyEnrollmentEnabled, `true`)
+	// The school switch is on, but the module Online-Anmeldung is cancelled.
+	store(cancelled, config.KeyEnrollmentEnabled, `true`)
+	store(cancelled, config.KeyModuleOnlineAnmeldung, `false`)
 
 	service := NewSettingsService(repository, nil, nil, testSettingsRuntime{}, slog.Default(), registry)
-	values, err := service.EnrollmentEnabledForTenants(context.Background(), []int64{tenantA, tenantB})
+	values, err := service.EnrollmentEnabledForTenants(context.Background(), []int64{tenantA, tenantB, cancelled})
 	require.NoError(t, err)
-	assert.Equal(t, map[int64]bool{tenantA: true, tenantB: false}, values)
+	assert.Equal(t, map[int64]bool{tenantA: true, tenantB: false, cancelled: false}, values)
 }
 
 func TestEnrollmentEnabledForTenantsFailsWhenDefinitionIsMissing(t *testing.T) {
 	t.Parallel()
 	registry := config.NewRegistry()
+	registerTestSetting(registry, config.KeyModuleOnlineAnmeldung, config.FieldBoolean, true)
 
 	service := NewSettingsService(newInMemoryValueRepo(), nil, nil, testSettingsRuntime{}, slog.Default(), registry)
 

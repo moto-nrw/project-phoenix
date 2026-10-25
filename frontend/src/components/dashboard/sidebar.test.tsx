@@ -154,7 +154,9 @@ import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { MODULE_KEYS } from "~/lib/modules";
 import {
+  useBookedModules,
   useChildSearchOnlyNavigation,
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -204,6 +206,10 @@ const mockUseCareWithdrawalsPending = vi.mocked(useCareWithdrawalsPending);
 const mockUseEnrollmentsUnread = vi.mocked(useEnrollmentsUnread);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
+const mockUseBookedModules = vi.mocked(useBookedModules);
+/** Alle Module gebucht außer `missing` (#4894). */
+const bookedWithout = (...missing: string[]) =>
+  MODULE_KEYS.filter((key) => !missing.includes(key));
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
 const mockUseChildSearchOnlyNavigation = vi.mocked(
   useChildSearchOnlyNavigation,
@@ -301,6 +307,7 @@ describe("Sidebar", () => {
     });
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseNFCEnabled.mockReturnValue(true);
+    mockUseBookedModules.mockReturnValue(MODULE_KEYS);
     mockUseOpenCareGroupMode.mockReturnValue(false);
     mockUseStaffMessagingEnabled.mockReturnValue(false);
     mockUseTenantRoutingModeSafe.mockReturnValue("path");
@@ -2204,6 +2211,20 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
     });
 
+    it("hides locked NFC pages for school leads", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseBookedModules.mockReturnValue(bookedWithout("nfc_anwesenheit"));
+
+      render(<Sidebar />);
+
+      // Anker: die Navigation ist geladen.
+      expect(screen.getByText("Alle Kinder")).toBeInTheDocument();
+      expect(
+        document.querySelector('[data-setup-tour="nav-/activities"]'),
+      ).not.toBeInTheDocument();
+    });
+
     it("hides the Aktuelle-Aufsicht accordion for supervising staff", () => {
       // Give the user both groups and supervised rooms so detailed mode
       // would definitely render the accordion — then assert binary hides it.
@@ -2232,13 +2253,17 @@ describe("Sidebar", () => {
     });
   });
 
+  // Seit #4894 entscheidet das Modul NFC-Anwesenheit aus dem Modul-Register,
+  // nicht mehr ein eigener NFC-Sonderfall der Seitenleiste.
   describe("NFC mode", () => {
     beforeEach(() => {
       mockUseNFCEnabled.mockReturnValue(false);
+      mockUseBookedModules.mockReturnValue(bookedWithout("nfc_anwesenheit"));
     });
 
     afterEach(() => {
       mockUseNFCEnabled.mockReturnValue(true);
+      mockUseBookedModules.mockReturnValue(MODULE_KEYS);
     });
 
     it("hides the classic Aktivitäten nav item when NFC is disabled", () => {
@@ -2249,7 +2274,7 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
     });
 
-    it("hides NFC-only database sub-pages when NFC is disabled", () => {
+    it("zeigt der Leitung die NFC-Seiten der Datenverwaltung mit Schloss", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
       mockUsePathname.mockReturnValue("/database");
@@ -2257,9 +2282,140 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
-      expect(screen.getByText("Kinderdaten")).toBeInTheDocument();
-      expect(screen.queryByText("Geräte")).not.toBeInTheDocument();
-      expect(screen.queryByText("Aktivitäten")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Kinderdaten" }),
+      ).toBeInTheDocument();
+      // Der Eintrag führt auf die Seite, die das Modul erklärt.
+      expect(
+        screen.getByRole("link", { name: "Geräte , nicht gebucht" }),
+      ).toHaveAttribute("href", "/test-tenant/database/devices");
+    });
+  });
+
+  // Modul-Register (#4894): ein nicht gebuchtes Modul sieht die Leitung mit
+  // Schloss, alle anderen sehen es nicht. Die Schuleinstellung des Moduls
+  // zählt erst, wenn es gebucht ist.
+  describe("gebuchte Module (#4894)", () => {
+    afterEach(() => {
+      mockUseBookedModules.mockReturnValue(MODULE_KEYS);
+    });
+
+    it("zeigt der Leitung ein nicht gebuchtes Modul mit Schloss", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseBookedModules.mockReturnValue(bookedWithout("zeiterfassung"));
+
+      render(<Sidebar />);
+
+      const link = screen.getByRole("link", {
+        name: "Zeiterfassung , nicht gebucht",
+      });
+      expect(link).toHaveAttribute("href", "/time-tracking");
+    });
+
+    it("zeigt der Leitung gesperrte Datenverwaltung ohne Routenrecht", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockHasEffectiveAdminScope.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          permission === "config:manage",
+      );
+      mockUseBookedModules.mockReturnValue(bookedWithout("nfc_anwesenheit"));
+      try {
+        render(<Sidebar />);
+
+        expect(
+          screen.getByRole("link", { name: "Geräte , nicht gebucht" }),
+        ).toHaveAttribute("href", "/test-tenant/database/devices");
+      } finally {
+        restoreDefaultHasPermission();
+        mockHasEffectiveAdminScope.mockReturnValue(false);
+      }
+    });
+
+    it("blendet ein nicht gebuchtes Modul für Betreuungskräfte aus", () => {
+      // Standardsitzung: Betreuungskraft mit time_tracking:own.
+      mockUseBookedModules.mockReturnValue(bookedWithout("zeiterfassung"));
+
+      render(<Sidebar />);
+
+      // Anker: die Staff-Navigation ist geladen.
+      expect(screen.getByText("Mitarbeiter")).toBeInTheDocument();
+      expect(screen.queryByText("Zeiterfassung")).not.toBeInTheDocument();
+      expect(screen.queryByText(/nicht gebucht/)).not.toBeInTheDocument();
+    });
+
+    it("zeigt ein gebuchtes Modul ohne Schloss", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<Sidebar />);
+
+      expect(
+        screen.getByRole("link", { name: "Zeiterfassung" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/nicht gebucht/)).not.toBeInTheDocument();
+    });
+
+    it("zeigt den Speiseplan nur, wenn das Modul gebucht und die Einstellung an ist", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSWRDefault.mockReturnValue({
+        data: {
+          tabs: [
+            {
+              categories: [
+                {
+                  items: [
+                    { key: "operations.meal_plan_enabled", value: false },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        error: undefined,
+        isLoading: false,
+        isValidating: false,
+        mutate: vi.fn(),
+      } as unknown as ReturnType<typeof useSWR>);
+      try {
+        const { unmount } = render(<Sidebar />);
+        // Gebucht, Einstellung aus: kein Eintrag (Feinsteuerung).
+        expect(screen.getByText("Nachrichten")).toBeInTheDocument();
+        expect(screen.queryByText("Speiseplan")).not.toBeInTheDocument();
+        unmount();
+
+        // Nicht gebucht: die Leitung sieht das Schloss, auch wenn die
+        // Einstellung aus ist; sie bucht zuerst das Modul.
+        mockUseBookedModules.mockReturnValue(bookedWithout("mittagessen"));
+        render(<Sidebar />);
+        expect(
+          screen.getByRole("link", { name: "Speiseplan , nicht gebucht" }),
+        ).toBeInTheDocument();
+      } finally {
+        mockUseSWRDefault.mockReturnValue({
+          data: undefined,
+          error: undefined,
+          isLoading: true,
+          isValidating: false,
+          mutate: vi.fn(),
+        } as unknown as ReturnType<typeof useSWR>);
+      }
+    });
+
+    it("zeigt der Leitung die Anmeldungen ohne Online-Anmeldung als Zeile mit Schloss", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseBookedModules.mockReturnValue(bookedWithout("online_anmeldung"));
+
+      render(<Sidebar />);
+
+      expect(
+        screen.getByRole("link", { name: "Anmeldungen , nicht gebucht" }),
+      ).toHaveAttribute("href", "/admin/enrollments");
+      expect(screen.queryByText("Anmeldephasen")).not.toBeInTheDocument();
     });
   });
 
@@ -2479,7 +2635,9 @@ describe("Sidebar", () => {
       expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
     });
 
-    it("blendet „Mein Dienstplan“ aus, wenn die Schule keinen Betreuungsplan nutzt", () => {
+    // Der Dienstplan hängt seit #4894 am Modul Dienstplan, nicht mehr am
+    // Betreuungsplan (Entscheidung in #4812).
+    it("behält „Mein Dienstplan“, wenn die Schule keinen Betreuungsplan nutzt", () => {
       mockHasPermission.mockImplementation(
         (_session: unknown, permission: string) =>
           CAREGIVER_PERMISSIONS.has(permission) ||
@@ -2489,11 +2647,29 @@ describe("Sidebar", () => {
       try {
         render(<Sidebar />);
 
+        expect(
+          screen.getByRole("link", { name: "Mein Dienstplan" }),
+        ).toHaveAttribute("href", "/mein-dienstplan");
+      } finally {
+        vi.mocked(useTimetableEnabled).mockReturnValue(true);
+      }
+    });
+
+    it("blendet „Mein Dienstplan“ aus, wenn die Schule den Dienstplan nicht gebucht hat", () => {
+      mockHasPermission.mockImplementation(
+        (_session: unknown, permission: string) =>
+          CAREGIVER_PERMISSIONS.has(permission) ||
+          permission === "time_tracking:own",
+      );
+      mockUseBookedModules.mockReturnValue(bookedWithout("dienstplan"));
+      try {
+        render(<Sidebar />);
+
         // Anker: die Staff-Navigation ist geladen.
         expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
         expect(screen.queryByText("Mein Dienstplan")).not.toBeInTheDocument();
       } finally {
-        vi.mocked(useTimetableEnabled).mockReturnValue(true);
+        mockUseBookedModules.mockReturnValue(MODULE_KEYS);
       }
     });
 
@@ -2568,11 +2744,12 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Schuljahr und Ferien bleiben erreichbar — die Anmeldephasen hängen
-      // daran; nur die timetable-spezifischen Seiten verschwinden.
+      // daran; nur die timetable-spezifischen Seiten verschwinden. Der
+      // Dienstplan folgt seit #4894 seinem Modul und bleibt.
       expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Schuljahr und Kalender")).toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
+      expect(screen.getByText("Dienstplan")).toBeInTheDocument();
       expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
     });

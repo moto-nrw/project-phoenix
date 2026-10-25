@@ -16,6 +16,12 @@ import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
 import { ApiError } from "~/lib/api-error";
 import {
+  announceModuleBookingStale,
+  moduleNotBookedExplanation,
+  notBookedModuleOf,
+} from "~/lib/module-not-booked";
+import type { ModuleKey } from "~/lib/modules";
+import {
   errorLogFields,
   logDisplayedError,
   type ErrorSurface,
@@ -54,6 +60,26 @@ interface ToastAPI {
 }
 
 const ToastContext = createContext<ToastAPI | undefined>(undefined);
+const ModuleBookingAudienceContext = createContext(false);
+
+/**
+ * Supplies the module-booking audience from the tenant session. Toasts also
+ * render in auth-free shells and isolated components, where the safe default
+ * is the explanation for staff members.
+ */
+export function ModuleBookingAudienceProvider({
+  seesLockedModules,
+  children,
+}: Readonly<{
+  seesLockedModules: boolean;
+  children: React.ReactNode;
+}>) {
+  return (
+    <ModuleBookingAudienceContext.Provider value={seesLockedModules}>
+      {children}
+    </ModuleBookingAudienceContext.Provider>
+  );
+}
 
 const toastLabelsByLocale = {
   de: {
@@ -453,6 +479,8 @@ export function loginUrl(host: string, path: string): string {
 /** What one failed action shows, in a toast or in the form's alert. */
 interface DisplayedError {
   message: string;
+  /** Refused with `module.not_booked` (#4894): explained, not retried. */
+  notBookedModule?: ModuleKey;
   retry?: { label: string; onClick: () => void };
   requestId?: string;
   requestIdLabel?: string;
@@ -582,6 +610,21 @@ function useApiErrorCore(
         ...(presentation.fields.length > 0 && { fields: presentation.fields }),
       });
       const labels = errorDisplayLabels(locale);
+      const notBookedModule = notBookedModuleOf(error);
+      if (notBookedModule) {
+        announceModuleBookingStale();
+        setFieldErrors({});
+        deliver(
+          {
+            message: [presentation.message, options.messageSuffix]
+              .filter(Boolean)
+              .join(" "),
+            notBookedModule,
+          },
+          locale,
+        );
+        return presentation;
+      }
       setFieldErrors(
         markFields
           ? Object.fromEntries(
@@ -623,14 +666,24 @@ function useApiErrorCore(
 /** Opt-in display path for actions without a form (#2510). */
 export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
   const toast = useToast();
+  const seesLocked = useContext(ModuleBookingAudienceContext);
   const deliver = useCallback(
-    (shown: DisplayedError) =>
-      toast.error(shown.message, {
+    (shown: DisplayedError) => {
+      const options = {
         action: shown.retry,
         requestId: shown.requestId,
         requestIdLabel: shown.requestIdLabel,
-      }),
-    [toast],
+      };
+      if (shown.notBookedModule) {
+        toast.info(
+          moduleNotBookedExplanation(shown.notBookedModule, seesLocked),
+          options,
+        );
+        return;
+      }
+      toast.error(shown.message, options);
+    },
+    [toast, seesLocked],
   );
   const core = useApiErrorCore(formRef, deliver, "toast");
   /**
@@ -655,6 +708,7 @@ function toFormErrorDetail(
   const labels = toastLabelsByLocale[locale];
   return {
     message: shown.message,
+    notBookedModule: shown.notBookedModule,
     retry: shown.retry,
     requestId: shown.requestId
       ? {

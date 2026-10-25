@@ -7,6 +7,7 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )
 
@@ -112,11 +113,11 @@ func TestUnregisteredTagScanDeleteOlderThanUsesDefaultRetention(t *testing.T) {
 
 	repo := &fakeUnregisteredTagScanRepo{deleteResult: 3}
 	service := newUnregisteredTagScanService(t, repo)
-	before := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays)
+	before := time.Now().In(calendar.Berlin).AddDate(0, 0, -UnregisteredTagScanRetentionDays)
 
 	deleted, err := service.DeleteOlderThan(context.Background(), 0)
 
-	after := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays)
+	after := time.Now().In(calendar.Berlin).AddDate(0, 0, -UnregisteredTagScanRetentionDays)
 	require.NoError(t, err)
 	require.Equal(t, 3, deleted)
 	require.False(t, repo.deleteCutoff.Before(before))
@@ -129,11 +130,11 @@ func TestUnregisteredTagScanDeleteOlderThanUsesCustomDaysAndPropagatesError(t *t
 	wantErr := errors.New("delete failed")
 	repo := &fakeUnregisteredTagScanRepo{deleteErr: wantErr}
 	service := newUnregisteredTagScanService(t, repo)
-	before := time.Now().AddDate(0, 0, -7)
+	before := time.Now().In(calendar.Berlin).AddDate(0, 0, -7)
 
 	deleted, err := service.DeleteOlderThan(context.Background(), 7)
 
-	after := time.Now().AddDate(0, 0, -7)
+	after := time.Now().In(calendar.Berlin).AddDate(0, 0, -7)
 	require.ErrorIs(t, err, wantErr)
 	require.Zero(t, deleted)
 	require.False(t, repo.deleteCutoff.Before(before))

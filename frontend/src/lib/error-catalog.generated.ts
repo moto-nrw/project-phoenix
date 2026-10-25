@@ -1271,6 +1271,8 @@ export const ERROR_CATALOG = {
         "Eine Rückmeldung zu Hausaufgaben geht nur in einer Lernzeit, die Sie betreuen.",
       "timetable.homework_feedback_without_homework":
         "Für die Klasse dieses Kindes sind heute keine Hausaufgaben eingetragen.",
+      "module.not_booked":
+        "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
     },
   },
   en: {
@@ -1621,6 +1623,8 @@ export const ERROR_CATALOG = {
         "Homework feedback is only possible in a study time you supervise.",
       "timetable.homework_feedback_without_homework":
         "No homework is entered for this child's class today.",
+      "module.not_booked":
+        "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
     },
   },
   ru: {
@@ -1950,6 +1954,8 @@ export const ERROR_CATALOG = {
         "Отзыв о домашнем задании можно дать только на занятии, которое вы ведёте.",
       "timetable.homework_feedback_without_homework":
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
+      "module.not_booked":
+        "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
     },
   },
   sq: {
@@ -2294,6 +2300,8 @@ export const ERROR_CATALOG = {
         "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
       "timetable.homework_feedback_without_homework":
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
+      "module.not_booked":
+        "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
     },
   },
   pl: {
@@ -2625,6 +2633,8 @@ export const ERROR_CATALOG = {
         "Informację o zadaniach domowych można podać tylko w odrabianiu lekcji, które prowadzisz.",
       "timetable.homework_feedback_without_homework":
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
+      "module.not_booked":
+        "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
     },
   },
   tr: {
@@ -2962,6 +2972,8 @@ export const ERROR_CATALOG = {
         "Ev ödevi geri bildirimi yalnızca gözetiminizdeki etüt saatinde verilebilir.",
       "timetable.homework_feedback_without_homework":
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
+      "module.not_booked":
+        "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
     },
   },
   uk: {
@@ -3289,6 +3301,8 @@ export const ERROR_CATALOG = {
         "Відгук про домашнє завдання можна дати лише на занятті, яке ви ведете.",
       "timetable.homework_feedback_without_homework":
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
+      "module.not_booked":
+        "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
     },
   },
 } as const;
