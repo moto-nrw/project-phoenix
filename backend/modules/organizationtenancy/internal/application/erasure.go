@@ -171,15 +171,11 @@ func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.Era
 	if !r.DryRun && status != "due" {
 		return nil, fmt.Errorf("erasure: organization order is %s; it needs the written confirmation recorded in the operator portal, a deactivated organization and the end of the grace period; nothing erased", status)
 	}
-	if !r.DryRun {
-		// From here on the order cannot be withdrawn: a run that fails
-		// halfway is resumed with the same order.
-		if _, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_begin", r.OrganizationID, r.OperatorID, r.OrderReference); err != nil {
-			return nil, err
-		}
-	}
 	ids, err := erasureSchoolIDs(ctx, s.store, r)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.beginOrganization(ctx, r, ids); err != nil {
 		return nil, err
 	}
 	results, err := s.runSchools(ctx, r, ids, kinds)
@@ -191,6 +187,20 @@ func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.Era
 	}
 	proof, err := s.eraseOrganizationRoot(ctx, r)
 	return append(results, proof...), err
+}
+
+// beginOrganization runs the ledger preflight and then marks the order as
+// started. A refused preflight leaves the order withdrawable; from the mark
+// on, a run that fails halfway is resumed with the same order.
+func (s *Erasure) beginOrganization(ctx context.Context, r organizationtenancy.ErasureRequest, ids []int64) error {
+	if r.DryRun {
+		return nil
+	}
+	if err := s.checkLedger(r, ids); err != nil {
+		return err
+	}
+	_, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_begin", r.OrganizationID, r.OperatorID, r.OrderReference)
+	return err
 }
 
 // organizationCheck reads the order state of the Träger without changes, with
