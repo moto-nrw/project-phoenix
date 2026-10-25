@@ -554,8 +554,9 @@ if (!TRAEGER_HOSTNAME) {
 
 /** Paths the Träger subdomain serves (without /traeger prefix): the login,
  * the holiday periods (#4659), the Träger-Büro persons, the invitation
- * link, which opens /invite (#4650), the access log (#4655) and the Träger
- * settings (#4652). The school list itself lives at the root ("/" →
+ * link, which opens /invite (#4650), the access log (#4655), the
+ * letterhead (#4653) and the Träger settings (#4652). The school list
+ * itself lives at the root ("/" →
  * /traeger). The client guard sends a visitor without a session to the
  * login. */
 const TRAEGER_PUBLIC_PATHS = [
@@ -564,6 +565,7 @@ const TRAEGER_PUBLIC_PATHS = [
   "/invite",
   "/accounts",
   "/access-log",
+  "/briefkopf",
   "/einstellungen",
 ];
 

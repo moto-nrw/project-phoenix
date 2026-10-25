@@ -21,6 +21,7 @@ import {
   fetchTraegerSettingsSchema,
   saveTraegerSettingValue,
 } from "~/lib/traeger-api";
+import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
 
 const logger = createLogger({ component: "TraegerSettingsPage" });
 
@@ -102,7 +103,10 @@ export default function TraegerSettingsPage() {
     [refresh],
   );
 
-  const tabs = schema?.tabs ?? [];
+  // The branding has its own page "Briefkopf" with the preview (#4653).
+  const tabs = (schema?.tabs ?? []).filter(
+    (tab) => tab.key !== TRAEGER_BRANDING_TAB,
+  );
 
   return (
     <div className="w-full space-y-6">

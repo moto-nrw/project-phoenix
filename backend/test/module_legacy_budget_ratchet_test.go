@@ -163,7 +163,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // 14 LOC.
 // ADR 0110: the public holiday registration constructors of
 // modules/enrollment/compose (+18).
-const moduleComposeBudgetTotal = 12599
+// ADR 0112: the Träger master data constructor of
+// modules/organizationtenancy/compose adds exactly 13 LOC.
+const moduleComposeBudgetTotal = 12612
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -203,7 +205,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/identityaccess/compose": 1371, // raised by ADR 0077
 	"modules/mealplan/compose":       74,   // raised by ADR 0078
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
-	"modules/organizationtenancy/compose":         270,
+	// Raised by ADR 0112: the Träger master data constructor (+13).
+	"modules/organizationtenancy/compose":         283,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":       973,

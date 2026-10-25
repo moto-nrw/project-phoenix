@@ -3220,7 +3220,13 @@
       "traeger": {
         "access_log_export_too_large": "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
         "already_member": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "bank_account_label_taken": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "bank_account_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "last_administrator": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "logo_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "logo_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "logo_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "master_data_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "member_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "no_membership": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "school_not_found": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",

@@ -31,6 +31,7 @@ const (
 type schemaItem struct {
 	Key      string `json:"key"`
 	Writable bool   `json:"writable"`
+	Levels   string `json:"levels"`
 }
 
 type operatorSchema struct {
@@ -69,10 +70,19 @@ func TestOperatorSchoolSettings_SchemaShowsEverySharedSettingWritable(t *testing
 	require.NoError(t, json.Unmarshal(raw, &schema))
 	items := schema.items()
 	require.NotEmpty(t, items, "operators see every registered setting")
+	traegerOnly := 0
 	for _, item := range items {
-		assert.True(t, item.Writable, "operator should have writable=true on %s", item.Key)
 		assert.NotEqual(t, ogsDevicePINKey, item.Key, "the schema must not include the admin-only PIN")
+		// A Träger-only value has no school override: the moto team sees
+		// it read-only (ADR 0086 section 6), like the school.
+		if item.Levels == "traeger" {
+			traegerOnly++
+			assert.False(t, item.Writable, "operator must not write the Träger-only %s", item.Key)
+			continue
+		}
+		assert.True(t, item.Writable, "operator should have writable=true on %s", item.Key)
 	}
+	assert.Positive(t, traegerOnly, "the branding settings of the Träger (#4653) are in the schema")
 }
 
 func TestOperatorSchoolSettings_CheckOperatorWritable(t *testing.T) {

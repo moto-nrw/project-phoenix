@@ -153,7 +153,7 @@ func siblingsRegistration(offer holidayOfferBody, email string) map[string]any {
 	}
 }
 
-func refusalOf(t *testing.T, rec *httptest.ResponseRecorder) (string, []string) {
+func registrationRefusalOf(t *testing.T, rec *httptest.ResponseRecorder) (string, []string) {
 	t.Helper()
 	var refusal holidayErrorBody
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &refusal), rec.Body.String())
@@ -179,7 +179,7 @@ func TestHolidayRegistrationLinkServesThePublishedPeriodForAllSchools(t *testing
 
 	rec = publicJSON(t, f.public, http.MethodGet, registrationPath(link.PublicToken), nil)
 	require.Equal(t, http.StatusNotFound, rec.Code, "a draft has no open link: %s", rec.Body.String())
-	code, _ := refusalOf(t, rec)
+	code, _ := registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.holiday_registration_not_found", code)
 
 	rec = traegerJSON(t, f.traeger, office.token, http.MethodPost, holidayPeriodPath(draft.ID)+"/publish", nil)
@@ -321,7 +321,7 @@ func TestHolidayRegistrationRefusesInvalidClosedAndAbusiveSubmissions(t *testing
 	invalid["health_consent"] = false
 	rec := publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), invalid)
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	code, fields := refusalOf(t, rec)
+	code, fields := registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.holiday_registration_invalid", code)
 	assert.ElementsMatch(t, []string{"children.0.home_school_id", "children.1.bookings.0", "privacy_consent", "health_consent"}, fields)
 
@@ -330,14 +330,14 @@ func TestHolidayRegistrationRefusesInvalidClosedAndAbusiveSubmissions(t *testing
 	tooMany["children"] = []map[string]any{sibling, sibling, sibling, sibling}
 	rec = publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), tooMany)
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	_, fields = refusalOf(t, rec)
+	_, fields = registrationRefusalOf(t, rec)
 	assert.Equal(t, []string{"children"}, fields, "at most three siblings")
 
 	refused := siblingsRegistration(offer, "pruefung@example.org")
 	refused["captcha_token"] = failingCaptcha
 	rec = publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), refused)
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	code, _ = refusalOf(t, rec)
+	code, _ = registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.captcha_failed", code)
 
 	// Three attempts counted so far; the online registration's limit for an
@@ -348,7 +348,7 @@ func TestHolidayRegistrationRefusesInvalidClosedAndAbusiveSubmissions(t *testing
 	}
 	rec = publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), siblingsRegistration(offer, "pruefung@example.org"))
 	require.Equal(t, http.StatusTooManyRequests, rec.Code, rec.Body.String())
-	code, _ = refusalOf(t, rec)
+	code, _ = registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.submission_rate_limited", code)
 	assert.Equal(t, "3600", rec.Header().Get("Retry-After"))
 	var stored int
@@ -365,7 +365,7 @@ func TestHolidayRegistrationRefusesInvalidClosedAndAbusiveSubmissions(t *testing
 	assert.False(t, closedOffer.Open, "the link tells that the registration window is over")
 	rec = publicJSON(t, f.public, http.MethodPost, registrationPath(closedLink.PublicToken), siblingsRegistration(closedOffer, "spaet@example.org"))
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	code, _ = refusalOf(t, rec)
+	code, _ = registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.holiday_registration_closed", code)
 }
 
@@ -388,7 +388,7 @@ func TestHolidayWeekWithRegistrationsCannotBeRemoved(t *testing.T) {
 	withoutBookedWeek.Weeks = []holidayWeekBody{current.Weeks[1]}
 	rec = traegerJSON(t, f.traeger, office.token, http.MethodPut, holidayPeriodPath(period.ID), withoutBookedWeek)
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
-	code, _ := refusalOf(t, rec)
+	code, _ := registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.holiday_week_booked", code)
 
 	withoutBookedModel := current

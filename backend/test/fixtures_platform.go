@@ -220,6 +220,20 @@ func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
 	})
 }
 
+// OwnTraegerMasterData removes the master data a test creates for the Träger
+// (#4653) when the test ends: profile, bank accounts and their log. The rows
+// carry no tenant, so they need their own exact-key teardown like the
+// holiday periods.
+func OwnTraegerMasterData(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		for _, table := range []string{"platform.traeger_master_data_audit", "platform.traeger_bank_accounts", "platform.traeger_profiles"} {
+			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
+			require.NoError(tb, err, "Failed to clean up test Träger master data")
+		}
+	})
+}
+
 // SoftDeleteTestSchool marks a school deleted, as the operator's school
 // deletion does; its rows stay with its tenant cleanup.
 func SoftDeleteTestSchool(tb testing.TB, db *bun.DB, schoolID int64) {

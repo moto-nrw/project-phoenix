@@ -90,7 +90,13 @@ const (
 	CodeTimetableWindowTooLarge                      = "timetable.window_too_large"
 	CodeTraegerAccessLogExportTooLarge               = "traeger.access_log_export_too_large"
 	CodeTraegerAlreadyMember                         = "traeger.already_member"
+	CodeTraegerBankAccountLabelTaken                 = "traeger.bank_account_label_taken"
+	CodeTraegerBankAccountNotFound                   = "traeger.bank_account_not_found"
 	CodeTraegerLastAdministrator                     = "traeger.last_administrator"
+	CodeTraegerLogoInvalid                           = "traeger.logo_invalid"
+	CodeTraegerLogoNotFound                          = "traeger.logo_not_found"
+	CodeTraegerLogoTooLarge                          = "traeger.logo_too_large"
+	CodeTraegerMasterDataInvalid                     = "traeger.master_data_invalid"
 	CodeTraegerMemberNotFound                        = "traeger.member_not_found"
 	CodeTraegerNoMembership                          = "traeger.no_membership"
 	CodeTraegerSchoolNotFound                        = "traeger.school_not_found"
@@ -254,7 +260,13 @@ var errorCodeClasses2 = map[string]string{
 	"timetable.window_too_large":                        "input",
 	"traeger.access_log_export_too_large":               "input",
 	"traeger.already_member":                            "business_rejection",
+	"traeger.bank_account_label_taken":                  "input",
+	"traeger.bank_account_not_found":                    "input",
 	"traeger.last_administrator":                        "business_rejection",
+	"traeger.logo_invalid":                              "input",
+	"traeger.logo_not_found":                            "input",
+	"traeger.logo_too_large":                            "input",
+	"traeger.master_data_invalid":                       "input",
 	"traeger.member_not_found":                          "input",
 	"traeger.no_membership":                             "permission",
 	"traeger.school_not_found":                          "permission",
