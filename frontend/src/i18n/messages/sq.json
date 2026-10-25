@@ -3139,7 +3139,13 @@
       "traeger": {
         "access_log_export_too_large": "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
         "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "bank_account_label_taken": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "bank_account_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "last_administrator": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "logo_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "logo_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "logo_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "master_data_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "member_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "school_not_found": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",

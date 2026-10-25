@@ -131,7 +131,10 @@ func TestOperatorGetSchoolSettingsSchema_Success(t *testing.T) {
 	require.True(t, ok, "schema.tabs should be a non-null array")
 	require.NotEmpty(t, tabs, "operators should see all registered settings tabs")
 
-	// Spot-check: every item should be marked writable for operators.
+	// Spot-check: every item should be marked writable for operators, except
+	// a Träger-only value, which the moto team sees read-only (ADR 0086
+	// section 6).
+	traegerOnly := 0
 	for _, tabRaw := range tabs {
 		tab, ok := tabRaw.(map[string]interface{})
 		require.True(t, ok)
@@ -143,11 +146,17 @@ func TestOperatorGetSchoolSettingsSchema_Success(t *testing.T) {
 			for _, itemRaw := range items {
 				item, ok := itemRaw.(map[string]interface{})
 				require.True(t, ok)
+				if item["levels"] == "traeger" {
+					traegerOnly++
+					assert.False(t, item["writable"].(bool), "operator must not write the Träger-only %v", item["key"])
+					continue
+				}
 				assert.True(t, item["writable"].(bool),
 					"operator should have writable=true on all settings, got false for %v", item["key"])
 			}
 		}
 	}
+	assert.Positive(t, traegerOnly, "the branding settings of the Träger (#4653) are in the schema")
 }
 
 func TestOperatorGetSchoolSettingsSchema_InvalidSchoolID(t *testing.T) {

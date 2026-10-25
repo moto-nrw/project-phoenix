@@ -4257,10 +4257,46 @@
       "legacy": "traeger.already_member"
     },
     {
+      "code": "traeger.bank_account_label_taken",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.bank_account_label_taken"
+    },
+    {
+      "code": "traeger.bank_account_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.bank_account_not_found"
+    },
+    {
       "code": "traeger.last_administrator",
       "class": "business_rejection",
       "parameters": [],
       "legacy": "traeger.last_administrator"
+    },
+    {
+      "code": "traeger.logo_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.logo_invalid"
+    },
+    {
+      "code": "traeger.logo_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.logo_not_found"
+    },
+    {
+      "code": "traeger.logo_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.logo_too_large"
+    },
+    {
+      "code": "traeger.master_data_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.master_data_invalid"
     },
     {
       "code": "traeger.member_not_found",

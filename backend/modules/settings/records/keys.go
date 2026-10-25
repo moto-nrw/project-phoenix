@@ -736,3 +736,13 @@ const (
 	KeyModuleVertraege           = "module.vertraege"
 	KeyModuleElternbeitraege     = "module.elternbeitraege"
 )
+
+// Branding of the Träger (#4653, ADR 0086 sections 1 and 4): the colour and
+// the texts every document of the Träger prints. Only the Träger sets them
+// (LevelTraeger); its schools see them read-only. Logo, contact person and
+// bank accounts are master data of Organisation & Tenancy (ADR 0112).
+const (
+	KeyBrandingPrimaryColor   = "branding.primary_color"
+	KeyBrandingLetterheadText = "branding.letterhead_text"
+	KeyBrandingFooterText     = "branding.footer_text"
+)

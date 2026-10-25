@@ -15,6 +15,8 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	organizationTenancyTraeger "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
@@ -75,7 +77,8 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 
 // NewTraegerPortalHTTP binds the Träger sign-in, its second factor, the
 // account management, the Träger projection, the holiday periods of
-// Enrollment and the Träger settings to the portal's route ports.
+// Enrollment, the Träger settings and the master data of Organisation &
+// Tenancy to the portal's route ports.
 func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations) (*traegerportal.Resource, error) {
 	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil {
 		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log and the settings are required")
@@ -92,9 +95,11 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)
+	masterData := organizationTenancyTraeger.NewMasterDataResource(organizationTenancyCompose.NewTraegerMasterData(),
+		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity), overviewRoutes, holidayPeriods,
-		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, identity, overviewRoutes, identity), nil
+		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, overviewRoutes, identity), nil
 }
 
 // traegerSchoolIDs binds the Träger projection's school set to Organisation &

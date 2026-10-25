@@ -3139,7 +3139,13 @@
       "traeger": {
         "access_log_export_too_large": "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
         "already_member": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "bank_account_label_taken": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "bank_account_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "last_administrator": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "logo_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "logo_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "logo_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "master_data_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "member_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "no_membership": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "school_not_found": "{object} için erişim izniniz yok. Okulla iletişime geçin.",

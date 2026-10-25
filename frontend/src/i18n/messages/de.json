@@ -3139,7 +3139,13 @@
       "traeger": {
         "access_log_export_too_large": "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
         "already_member": "Diese Person gehört schon zum Träger-Büro.",
+        "bank_account_label_taken": "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
+        "bank_account_not_found": "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "last_administrator": "Das Träger-Büro braucht mindestens eine Person mit der Rolle Verwaltung. Geben Sie die Rolle zuerst einer anderen Person.",
+        "logo_invalid": "Das Logo muss ein PNG- oder JPG-Bild sein, höchstens 2000 Pixel breit und hoch. Bitte wählen Sie ein anderes Bild.",
+        "logo_not_found": "Es ist kein Logo hinterlegt. Bitte laden Sie die Seite neu.",
+        "logo_too_large": "Das Logo ist zu groß. Bitte wählen Sie ein Bild bis 1 MB.",
+        "master_data_invalid": "Einige Angaben stimmen nicht. Bitte prüfen Sie die markierten Felder.",
         "member_not_found": "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",
         "no_membership": "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
         "school_not_found": "Diese Schule gehört nicht zu Ihrem Träger. Bitte laden Sie die Seite neu.",

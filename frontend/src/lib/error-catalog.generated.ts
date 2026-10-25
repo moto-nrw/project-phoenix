@@ -1202,8 +1202,20 @@ export const ERROR_CATALOG = {
       "traeger.access_log_export_too_large":
         "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
       "traeger.already_member": "Diese Person gehört schon zum Träger-Büro.",
+      "traeger.bank_account_label_taken":
+        "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
+      "traeger.bank_account_not_found":
+        "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "traeger.last_administrator":
         "Das Träger-Büro braucht mindestens eine Person mit der Rolle Verwaltung. Geben Sie die Rolle zuerst einer anderen Person.",
+      "traeger.logo_invalid":
+        "Das Logo muss ein PNG- oder JPG-Bild sein, höchstens 2000 Pixel breit und hoch. Bitte wählen Sie ein anderes Bild.",
+      "traeger.logo_not_found":
+        "Es ist kein Logo hinterlegt. Bitte laden Sie die Seite neu.",
+      "traeger.logo_too_large":
+        "Das Logo ist zu groß. Bitte wählen Sie ein Bild bis 1 MB.",
+      "traeger.master_data_invalid":
+        "Einige Angaben stimmen nicht. Bitte prüfen Sie die markierten Felder.",
       "traeger.member_not_found":
         "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",
       "traeger.no_membership":
@@ -1735,8 +1747,19 @@ export const ERROR_CATALOG = {
         "The export has more than {limit} entries. Please choose a shorter period or more filters.",
       "traeger.already_member":
         "This person already belongs to the Träger office.",
+      "traeger.bank_account_label_taken":
+        "Another bank account already has this label. Please choose a different label.",
+      "traeger.bank_account_not_found":
+        "This bank account no longer exists. Please reload the page.",
       "traeger.last_administrator":
         "The Träger office needs at least one person with the role Verwaltung. Give this role to someone else first.",
+      "traeger.logo_invalid":
+        "The logo must be a PNG or JPG image of at most 2000 pixels in width and height. Please choose another image.",
+      "traeger.logo_not_found": "There is no logo. Please reload the page.",
+      "traeger.logo_too_large":
+        "The logo is too large. Please choose an image up to 1 MB.",
+      "traeger.master_data_invalid":
+        "Some details are not correct. Please check the marked fields.",
       "traeger.member_not_found":
         "This person no longer belongs to the Träger office. Please reload the page.",
       "traeger.no_membership":
