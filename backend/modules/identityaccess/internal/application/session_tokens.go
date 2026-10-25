@@ -92,7 +92,7 @@ func (c *SessionCodec) IssueAccessToken(claims identityaccess.SessionClaims) (st
 }
 
 func (c *SessionCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
-	if scope != "school" && scope != "platform" {
+	if scope != "school" && scope != "platform" && scope != "org" {
 		scope = "tenant"
 	}
 	now := time.Now()

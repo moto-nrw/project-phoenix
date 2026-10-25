@@ -103,6 +103,24 @@ func (c ComposedAccountMFA) DisableMFA(ctx context.Context, accountID int64) err
 	return MFAError(c.Flows.Disable(c.ctx(ctx), accountID))
 }
 
+// ResetMFAInTransaction is the Disable cascade as a participating command
+// (ADR 0067): the moto team resets the second factor of a Träger-Büro member
+// in the administrative unit of Organisation & Tenancy, which proves the
+// membership and writes the operator audit (#4651). It refuses without that
+// ambient administrative transaction and never opens one. The account sets
+// the factor up again at its next sign-in; its sessions lose their proof, so
+// a Träger session ends at its next refresh.
+func (c ComposedAccountMFA) ResetMFAInTransaction(ctx context.Context, accountID int64) error {
+	ctx = c.ctx(ctx)
+	if !c.Flows.runtime.HasTransaction(ctx) || !c.Flows.runtime.IsAdminTx(ctx) {
+		return identityaccess.ErrTraegerTransactionRequired
+	}
+	if accountID <= 0 {
+		return identityaccess.ErrAccountNotFound
+	}
+	return MFAError(c.Flows.disableCascade(ctx, accountID))
+}
+
 func (c ComposedAccountMFA) PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
 	issue, err := c.Flows.PrepareTrustedDevice(c.ctx(ctx), accountID, tenantID, userAgent, ip)
 	if err != nil || issue == nil {
@@ -226,8 +244,11 @@ func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID 
 		return "", errMFANotComposed
 	}
 	challengeScope := identityaccess.MFAChallengeScopeTenant
-	if scope == domain.ScopeSchool {
+	switch scope {
+	case domain.ScopeSchool:
 		challengeScope = identityaccess.MFAChallengeScopeSchool
+	case domain.ScopeOrg:
+		challengeScope = identityaccess.MFAChallengeScopeOrg
 	}
 	return g.Capability.StartMFAChallenge(ctx, accountID, tenantID, challengeScope, parseGateIP(ipAddress))
 }

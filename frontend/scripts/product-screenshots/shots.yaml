@@ -24,9 +24,9 @@
 # Seed-Profil `vollbetrieb` (backend/internal/devtools/seedapi), dem
 # Standardprofil des Seeders und der Demo, nach `simulate full-day`. Das erste
 # Elternkonto (Sabine Schneider) ist das Elternteil von Felix Schneider; die
-# Kinderakte zeigt Noah Richter. Kinder mit Elternkonto meldet der Seed nie
-# krank, beide sind anwesend. An Betreuungstagen hängt die Kinderkarte Noahs
-# Tagesänderung an den Namen („Noah Richter, … - Details öffnen“), daher der
+# Kinderakte zeigt Baran Amini. Kinder mit Elternkonto meldet der Seed nie
+# krank, beide sind anwesend. An Betreuungstagen hängt die Kinderkarte Barans
+# Tagesänderung an den Namen („Baran Amini, … - Details öffnen“), daher der
 # reguläre Ausdruck. Ins Träger-Portal meldet sich der Schul-Admin des Profils
 # an, den der Seed zur ersten Person des Träger-Büros macht.
 #
@@ -79,7 +79,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
+      - klicken: 'role=button[name=/^Baran Amini\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
   # Hilfe betreuungszeiten-eintragen, kind-angaben-aendern
   - id: betreuungszeiten-pflegen
@@ -88,7 +88,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
+      - klicken: 'role=button[name=/^Baran Amini\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: '[role="tab"][data-tab-value="betreuungszeiten"]'
       - scrollen: 'role=heading[name="Betreuungszeiten"s]'
@@ -99,17 +99,17 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
+      - klicken: 'role=button[name=/^Baran Amini\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: 'main button:has-text("Krank melden")'
       - warten_auf: '[role="dialog"]'
       # Ein Tag der Woche schaltet „Krankmelden“ frei; abgeschickt wird nicht.
-      # Der letzte freie Tag: Der Seed meldet Noah für den nächsten Werktag
+      # Der letzte freie Tag: Der Seed meldet Baran für den nächsten Werktag
       # schon krank, dessen Kachel ist gesperrt.
       - klicken: '[role="dialog"] div.grid-cols-5 > button:not([disabled]) >> nth=-1'
       - tippen:
           feld: '[role="dialog"] textarea'
-          text: 'Mutter hat angerufen: Noah hat Fieber.'
+          text: 'Mutter hat angerufen: Baran hat Fieber.'
   # Hilfe meine-gruppen; PostHog: Platz 3 (3933 Aufrufe), meist Betreuer am
   # Handy. Als Betreuerin: Julia Klein leitet die Sternengruppe; der Admin hat
   # keine eigene Gruppe, die Seitenleiste zeigte „Keine eigenen Gruppen“.

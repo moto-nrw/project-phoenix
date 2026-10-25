@@ -233,7 +233,7 @@ func traegerOrganizationFrame(t *testing.T, router http.Handler, token string) (
 
 func TestTraegerPortalMarksATestTraegerAndOnlyNamesTheSessionsTraeger(t *testing.T) {
 	t.Parallel()
-	db, router, _, _ := newTraegerPortal(t)
+	db, portal, _, _ := newTraegerPortal(t)
 	password := testpkg.NewTestPassword()
 	testTraeger := traegerOrganization(t, db, "Test-Träger Portal", true)
 	_, err := db.ExecContext(context.Background(), `UPDATE platform.organizations SET test_system = true WHERE id = ?`, testTraeger)
@@ -244,25 +244,25 @@ func TestTraegerPortalMarksATestTraegerAndOnlyNamesTheSessionsTraeger(t *testing
 	office := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, realTraeger, office.ID, identityaccess.TraegerRoleAdministration)
 
-	code, answer := traegerLogin(t, router, tester.Email, password, 0)
+	code, answer := traegerSignIn(t, portal, tester.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
-	rec, frame := traegerOrganizationFrame(t, router, answer.AccessToken)
+	rec, frame := traegerOrganizationFrame(t, portal, answer.AccessToken)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, traegerFrame{ID: testTraeger, Name: "Test-Träger Portal", TestSystem: true}, frame)
 
-	code, answer = traegerLogin(t, router, office.Email, password, 0)
+	code, answer = traegerSignIn(t, portal, office.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
-	rec, frame = traegerOrganizationFrame(t, router, answer.AccessToken)
+	rec, frame = traegerOrganizationFrame(t, portal, answer.AccessToken)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, traegerFrame{ID: realTraeger, Name: "Echter Träger Portal"}, frame, "a real Träger is not marked and never sees another Träger")
 
 	noRight := testpkg.MintTestJWT(t, sessiontoken.AppClaims{ID: int(office.ID), Sub: office.Email, Scope: "org", OrgID: realTraeger, Roles: []string{identityaccess.TraegerRoleBilling}})
-	rec, _ = traegerOrganizationFrame(t, router, noRight)
+	rec, _ = traegerOrganizationFrame(t, portal, noRight)
 	assert.Equal(t, http.StatusForbidden, rec.Code, "a role without the right gets 403")
 
 	_, err = db.ExecContext(context.Background(), `UPDATE platform.organizations SET active = false WHERE id = ?`, realTraeger)
 	require.NoError(t, err)
-	rec, _ = traegerOrganizationFrame(t, router, answer.AccessToken)
+	rec, _ = traegerOrganizationFrame(t, portal, answer.AccessToken)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code, "a deactivated Träger ends the session")
 }
 

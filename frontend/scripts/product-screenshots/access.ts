@@ -17,9 +17,9 @@ import type { Shot } from "./shot-list";
 const PROFILE = "vollbetrieb";
 // Der Admin auf den Bildern. Der Bootstrap-Admin des Profils heißt „Seed
 // Admin“, und accounts.admin[0] ist der Entwickler-Admin, der zwischen allen
-// Schulen wechselt. Thomas Schmidt ist ein gewöhnlicher Schul-Admin mit
+// Schulen wechselt. Katarzyna Schmidt ist eine gewöhnliche Schul-Admin mit
 // Personennamen; der Seed vergibt die Schlüssel stabil.
-const ADMIN_KEY = "thomas-schmidt";
+const ADMIN_KEY = "katarzyna-schmidt";
 
 export interface Credentials {
   readonly email: string;

@@ -64,8 +64,8 @@ type staffChatConversation struct {
 }
 
 // staffChatConversations are the demo team chats. The second staff member,
-// Thomas Schmidt, is the admin of the product screenshots: he takes part in
-// most and has two conversations with a new answer.
+// Katarzyna Schmidt, is the admin of the product screenshots: she takes part
+// in most and has two conversations with a new answer.
 var staffChatConversations = []staffChatConversation{
 	{first: 0, second: 1, messages: []string{
 		"Kannst du heute nach dem Mittagessen die Hausaufgaben der 2a übernehmen? Ich bin bis 14 Uhr im Elterngespräch.",

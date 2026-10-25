@@ -58,7 +58,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 	fs.groupIDs = map[string]int64{"sternengruppe": 23}
 	fs.roomIDs = map[string]int64{"OGS-Raum 1": 24, "Mensa": 44}
 	fs.categoryIDs = map[string]int64{"Gruppenraum": 25}
-	fs.staffIDs = map[string]int64{"Anna Müller": 26, "Thomas Schmidt": 27, "Sabine Weber": 28, "Michael Fischer": 29, "Claudia Wagner": 45}
+	fs.staffIDs = map[string]int64{"Anna Müller": 26, "Katarzyna Schmidt": 27, "Sabine Weber": 28, "Svenja Fischer": 29, "Claudia Wagner": 45}
 
 	err := (seedPlanningDemoStep{}).Run(t.Context(), &Runtime{FixedSeeder: fs, Client: fs.client})
 	require.NoError(t, err)

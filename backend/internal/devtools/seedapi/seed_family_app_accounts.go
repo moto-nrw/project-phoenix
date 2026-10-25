@@ -74,8 +74,7 @@ func (s seedFamilyAppAccountsStep) Run(ctx context.Context, rt *Runtime) error {
 func createFamilyAccounts(rt *Runtime, step parentEnrollmentSeedStep, adminAuth AuthRef, guardians []int, password string) error {
 	rt.FamilyAccounts = rt.FamilyAccounts[:0]
 	for _, index := range guardians {
-		guardian := DemoGuardians[index]
-		guardianID := rt.FixedSeeder.guardianIDs[guardian.FirstName+" "+guardian.LastName]
+		guardianID := rt.FixedSeeder.guardianIDs[demoGuardianKey(DemoGuardians[index])]
 		token, err := step.inviteGuardian(rt, adminAuth, guardianID)
 		if err != nil {
 			return fmt.Errorf("invite guardian %d: %w", guardianID, err)
@@ -92,12 +91,13 @@ func createFamilyAccounts(rt *Runtime, step parentEnrollmentSeedStep, adminAuth 
 }
 
 // familyAccount returns the credentials of a family app account, so later
-// steps can act as the family. Guardians with a limited role (pickup only,
-// custom) have an account but no full parent rights; they stay out.
+// steps can act as the family. A guardian of siblings reaches all of them.
+// Guardians with a limited role (pickup only, custom) have an account but no
+// full parent rights; they stay out.
 func familyAccount(rt *Runtime, guardianIndex int, guardianID, accountID int64, password string) (ParentCredentials, bool) {
 	guardian := DemoGuardians[guardianIndex]
-	studentID := rt.FixedSeeder.studentIDByIndex[guardian.StudentIndex]
-	if demoGuardianHasLimitedRole(guardianIndex) || studentID == 0 {
+	studentIDs, err := demoGuardianStudentIDs(rt.FixedSeeder.studentIDByIndex, guardianIndex)
+	if demoGuardianHasLimitedRole(guardianIndex) || err != nil || len(studentIDs) == 0 {
 		return ParentCredentials{}, false
 	}
 	return ParentCredentials{
@@ -106,13 +106,14 @@ func familyAccount(rt *Runtime, guardianIndex int, guardianID, accountID int64, 
 		Name:       guardian.FirstName + " " + guardian.LastName,
 		AccountID:  accountID,
 		GuardianID: guardianID,
-		StudentIDs: []int64{studentID},
+		StudentIDs: studentIDs,
 	}, true
 }
 
 // familyAppGuardianIndexes returns the DemoGuardians index of the primary
 // guardian of each demo child whose family has no app account yet, in
-// DemoStudents order, leaving out familiesWithoutApp.
+// DemoStudents order, leaving out familiesWithoutApp. A guardian of siblings
+// is listed once, with the index of their first child.
 func familyAppGuardianIndexes(guardianIDs map[string]int64, parents []ParentCredentials) ([]int, error) {
 	withAccount := make(map[int64]bool, len(parents))
 	for _, parent := range parents {
@@ -125,15 +126,20 @@ func familyAppGuardianIndexes(guardianIDs map[string]int64, parents []ParentCred
 		}
 	}
 	result := make([]int, 0, len(DemoStudents))
+	listed := map[int64]bool{}
 	for index, guardian := range DemoGuardians {
 		if !guardian.IsPrimary || covered[guardian.StudentIndex] || familiesWithoutApp[guardian.StudentIndex] {
 			continue
 		}
-		key := guardian.FirstName + " " + guardian.LastName
-		if guardianIDs[key] == 0 {
+		key := demoGuardianKey(guardian)
+		guardianID, ok := guardianIDs[key]
+		if !ok || guardianID == 0 {
 			return nil, fmt.Errorf("guardian %s was not created", key)
 		}
-		result = append(result, index)
+		if !listed[guardianID] {
+			listed[guardianID] = true
+			result = append(result, index)
+		}
 		covered[guardian.StudentIndex] = true
 	}
 	return result, nil

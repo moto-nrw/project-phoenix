@@ -179,9 +179,9 @@ func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Ru
 		if !ok || guardianID == 0 {
 			return nil, nil, fmt.Errorf("guardian %s was not created", guardianKey)
 		}
-		studentID, ok := rt.FixedSeeder.studentIDByIndex[guardian.StudentIndex]
-		if !ok || studentID == 0 {
-			return nil, nil, fmt.Errorf("student index %d for guardian %s was not created", guardian.StudentIndex, guardianKey)
+		studentIDs, err := demoGuardianStudentIDs(rt.FixedSeeder.studentIDByIndex, idx)
+		if err != nil {
+			return nil, nil, err
 		}
 
 		token, err := s.inviteGuardian(rt, adminAuth, guardianID)
@@ -204,7 +204,7 @@ func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Ru
 			Name:       guardianKey,
 			AccountID:  accountID,
 			GuardianID: guardianID,
-			StudentIDs: []int64{studentID},
+			StudentIDs: studentIDs,
 		}
 		parents = append(parents, parent)
 		parentAuths[parent.Email] = auth
@@ -353,11 +353,11 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		}
 	}
 	submissions := []enrollmentSubmission{
-		// Lea belegt den einzigen Platz der Theater-AG. Dadurch zeigt die
+		// Zeynep belegt den einzigen Platz der Theater-AG. Dadurch zeigt die
 		// Eltern-App bei den anderen Familien einen vollen Kurs — und eine
 		// Anfrage dort landet auf der Warteliste (#3075).
-		seedSubmission("public", "Lea", "Sommer", "2019-04-18", 1,
-			"Daniela", "Sommer", "daniela.sommer@example.test", "approved-3-days",
+		seedSubmission("public", "Zeynep", "Çelik", "2019-04-18", 1,
+			"Ayşe", "Çelik", "ayse.celik@example.test", "approved-3-days",
 			// Der Kurs steht ohne Tagesauswahl in der Liste: seine Tage legt
 			// die Schule fest (days_of_week_mode "fixed").
 			[]string{"ogs-ganztag", "mittagessen", "ag-theater"}, map[string][]string{
@@ -376,8 +376,8 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				"ogs-ganztag": {"fri"},
 				"mittagessen": {"fri"},
 			}, "approved", "Zusage: ein Betreuungstag"),
-		seedSubmission("public", "Mia", "Berger", "2018-05-17", 2,
-			"Julia", "Berger", "julia.berger@example.test", "approved-1-day",
+		seedSubmission("public", "Zofia", "Kowalczyk", "2018-05-17", 2,
+			"Agnieszka", "Kowalczyk", "agnieszka.kowalczyk@example.test", "approved-1-day",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue"},
 				"mittagessen": {"tue"},
@@ -394,14 +394,14 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				"ogs-ganztag": {"mon", "wed"},
 				"mittagessen": {"mon", "wed"},
 			}, "approved", "Zusage: zwei Betreuungstage"),
-		seedSubmission("public", "Paul", "Seidel", "2017-03-27", 3,
-			"Anja", "Seidel", "anja.seidel@example.test", "approved-2-days",
+		seedSubmission("public", "Artem", "Kovalenko", "2017-03-27", 3,
+			"Olena", "Kovalenko", "olena.kovalenko@example.test", "approved-2-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon", "fri"},
 				"mittagessen": {"mon", "fri"},
 			}, "approved", "Zusage: zwei Betreuungstage"),
-		seedSubmission("public", "Jonas", "Krüger", "2017-08-15", 2,
-			"Petra", "Krüger", "petra.krueger@example.test", "approved-3-days",
+		seedSubmission("public", "Omar", "Al-Hassan", "2017-08-15", 2,
+			"Rania", "Al-Hassan", "rania.al-hassan@example.test", "approved-3-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
@@ -412,8 +412,8 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				"ogs-ganztag": {"tue", "thu", "fri"},
 				"mittagessen": {"tue", "thu", "fri"},
 			}, "approved", "Zusage: drei Betreuungstage"),
-		seedSubmission("public", "Felix", "Braun", "2016-02-06", 4,
-			"Birgit", "Braun", "birgit.braun.eltern@example.test", "approved-3-days",
+		seedSubmission("public", "Felix", "Kovac", "2016-02-06", 4,
+			"Niko", "Kovac", "niko.kovac@example.test", "approved-3-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"mon", "tue", "wed"},
 				"mittagessen": {"mon", "tue", "wed"},
@@ -424,25 +424,25 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				"ogs-ganztag": {"mon", "tue", "wed", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "fri"},
 			}, "approved", "Zusage: vier Betreuungstage"),
-		seedSubmission("public", "David", "Keller", "2016-04-03", 4,
-			"Verena", "Keller", "verena.keller@example.test", "approved-4-days",
+		seedSubmission("public", "Viktor", "Reimer", "2016-04-03", 4,
+			"Swetlana", "Reimer", "swetlana.reimer@example.test", "approved-4-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "wed", "thu", "fri"},
 				"mittagessen": {"tue", "wed", "thu", "fri"},
 			}, "approved", "Zusage: vier Betreuungstage"),
 		seedSubmission("public", "Elias", "Sommerfeld", "2019-07-08", 1,
-			"Marco", "Sommerfeld", "marco.sommerfeld@example.test", "approved-5-days",
+			"Marie", "Sommerfeld", "marie.sommerfeld@example.test", "approved-5-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
 			}, "approved", "Zusage: fünf Betreuungstage"),
-		seedSubmission("public", "Sophie", "Adler", "2016-12-19", 3,
-			"Florian", "Adler", "florian.adler@example.test", "approved-5-days-holiday",
+		seedSubmission("public", "Sophie", "Sharma", "2016-12-19", 3,
+			"Kavita", "Sharma", "kavita.sharma@example.test", "approved-5-days-holiday",
 			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
 			}, "approved", "Zusage: Ferienbetreuung"),
-		seedSubmission("public", "Marie", "Busch", "2017-05-24", 3,
-			"Silke", "Busch", "silke.busch@example.test", "approved-5-days",
+		seedSubmission("public", "Sofia", "Rossi", "2017-05-24", 3,
+			"Giulia", "Rossi", "giulia.rossi@example.test", "approved-5-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
@@ -452,14 +452,14 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
 			}, "waitlisted", "Warteliste wegen begrenzter Plätze"),
-		seedSubmission("public", "Tom", "Ahrens", "2017-09-13", 2,
-			"Melanie", "Ahrens", "melanie.ahrens@example.test", "waitlisted-3-days",
+		seedSubmission("public", "Andrei", "Popescu", "2017-09-13", 2,
+			"Ioana", "Popescu", "ioana.popescu@example.test", "waitlisted-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
 			}, "waitlisted", "Warteliste: drei Betreuungstage"),
-		seedSubmission("public", "Ella", "Franke", "2019-03-01", 1,
-			"Steffen", "Franke", "steffen.franke@example.test", "waitlisted-2-days",
+		seedSubmission("public", "Anastasia", "Smirnow", "2019-03-01", 1,
+			"Dmitri", "Smirnow", "dmitri.smirnow@example.test", "waitlisted-2-days",
 			[]string{"ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"tue", "thu"},
@@ -470,8 +470,8 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"tue", "thu"},
 			}, "rejected", "Absage: Für diese Tage sind keine Plätze mehr frei."),
-		seedSubmission("public", "Mats", "Hoffmann", "2018-01-26", 1,
-			"Kerstin", "Hoffmann", "kerstin.hoffmann@example.test", "rejected-3-days",
+		seedSubmission("public", "Yusuf", "Öztürk", "2018-01-26", 1,
+			"Fatma", "Öztürk", "fatma.oeztuerk@example.test", "rejected-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
@@ -496,27 +496,27 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		// Emil wechselt die Betreuungszeit über die Woche: Ganztag am
 		// Montag und Mittwoch, Kurzbetreuung am Dienstag und Donnerstag.
 		// Beide gehören zur Gruppe mit der Regel „pro Tag eines“ (#4514).
-		seedSubmission("public", "Emil", "Graf", "2016-08-21", 4,
-			"Susanne", "Graf", "susanne.graf@example.test", "submitted-4-days",
+		seedSubmission("public", "Luka", "Berisha", "2016-08-21", 4,
+			"Arta", "Berisha", "arta.berisha@example.test", "submitted-4-days",
 			[]string{"ogs-ganztag", "ogs-kurz", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed"},
 				"ogs-kurz":    {"tue", "thu"},
 				"mittagessen": {"mon", "tue", "wed", "thu"},
 			}, "", ""),
 	}
-	if len(parents) > 1 {
-		parent := parents[1]
+	if len(parents) > 2 {
+		parent := parents[2]
 		submissions = append(submissions, enrollmentSubmission{
 			source: "parent",
 			auth:   parentAuths[parent.Email],
 			path:   "/parent/enrollments/" + rt.Bootstrap.TenantSlug + "/submit",
-			body: s.enrollmentSubmissionWithDays(phaseID, offerings, "Lina", "Richter", "2019-02-14", 1,
-				"Thomas", "Richter", parent.Email, "parent-authenticated",
+			body: withDemoCoGuardian(s.enrollmentSubmissionWithDays(phaseID, offerings, "Lina", "Amini", "2019-02-14", 1,
+				"Shirin", "Amini", parent.Email, "parent-authenticated",
 				[]int64{offerings["ogs-ganztag"], offerings["mittagessen"]}, map[int64][]string{
 					offerings["ogs-ganztag"]: {"mon", "tue", "wed", "thu"},
 					offerings["mittagessen"]: {"mon", "tue", "wed", "thu"},
 				},
-			),
+			), scopedEmail("reza.amini@email.de", rt.FixedSeeder.accountScope)),
 			status: "approved",
 			reason: "Zusage: vier Betreuungstage",
 		})

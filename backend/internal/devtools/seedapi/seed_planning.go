@@ -319,7 +319,7 @@ func createSeedPlanningTemplate(
 }
 
 // isEarlyCareStudent reports the twelve children of the Frühbetreuung: the
-// first fourteen without Felix Schneider (0) and Noah Richter (4). The product
+// first fourteen without Felix Schneider (0) and Baran Amini (4). The product
 // screenshots open their pages, and the simulated day brings them at noon, so
 // they keep the regular arrival after school.
 func isEarlyCareStudent(index int) bool {

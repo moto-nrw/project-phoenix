@@ -28,13 +28,12 @@ import (
 
 // newTraegerAccountsPortal mounts /traeger as the serving root does and hands
 // back the Identity & Access owner and runtime it was composed over.
-func newTraegerAccountsPortal(t *testing.T) (*bun.DB, http.Handler, identityaccess.Owner, tenant.UnitOfWork) {
+func newTraegerAccountsPortal(t *testing.T) (*bun.DB, *traegerPortalHandler, identityaccess.Owner, tenant.UnitOfWork) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	unit := testpkg.TenantRuntime(t, db)
-	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit)
-	require.NoError(t, err)
-	return db, traegerPortalRouter(t, db, auth.Auth, unit), auth.Auth, unit
+	portal, identity := traegerPortalOn(t, db, unit)
+	return db, portal, identity, unit
 }
 
 // traegerBuero creates a Träger whose account-management rows the test
@@ -60,12 +59,12 @@ func traegerBuero(t *testing.T, db *bun.DB, name string) int64 {
 }
 
 // traegerMember creates an account with an active membership and signs it in.
-func traegerMember(t *testing.T, db *bun.DB, router http.Handler, organizationID int64, roles ...string) (*testpkg.AccountFixture, traegerLoginAnswer) {
+func traegerMember(t *testing.T, db *bun.DB, router *traegerPortalHandler, organizationID int64, roles ...string) (*testpkg.AccountFixture, traegerLoginAnswer) {
 	t.Helper()
 	password := testpkg.NewTestPassword()
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organizationID, account.ID, roles...)
-	code, answer := traegerLogin(t, router, account.Email, password, organizationID)
+	code, answer := traegerSignIn(t, router, account.Email, password, organizationID)
 	require.Equal(t, http.StatusOK, code)
 	return account, answer
 }
@@ -180,7 +179,7 @@ func TestTraegerInvitationCreatesAnAccountWithTheInvitedRole(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	code, answer := traegerLogin(t, router, address, password, 0)
+	code, answer := traegerSignIn(t, router, address, password, 0)
 	require.Equal(t, http.StatusOK, code, "the acceptance created the membership")
 	claims := traegerTokenClaims(t, answer.AccessToken)
 	assert.Equal(t, float64(organizationID), claims["org_id"])
@@ -212,7 +211,7 @@ func TestTraegerInvitationOfAnExistingAccountNeedsItsPassword(t *testing.T) {
 	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"password": password})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	code, answer := traegerLogin(t, router, existing.Email, password, 0)
+	code, answer := traegerSignIn(t, router, existing.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 	assert.Contains(t, traegerTokenClaims(t, answer.AccessToken)["permissions"], identityaccess.TraegerRightStaffManage)
 
