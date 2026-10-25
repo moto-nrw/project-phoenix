@@ -264,6 +264,66 @@ func TestSeedTraegerHolidayPeriodStepReadsTheParentPrefill(t *testing.T) {
 	}
 }
 
+// The hosting school's admin reads the participant list of its first week
+// with the school session (#4665); a week without a confirmed child fails the
+// step, so seed-smoke proves the host access contract.
+func TestSeedTraegerHolidayPeriodStepReadsTheHostedParticipantList(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		weeks   string
+		wantErr bool
+	}{
+		{name: "confirmed children", weeks: `[{"id":51,"participants":2}]`},
+		{name: "no confirmed child", weeks: `[{"id":51,"participants":0}]`, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var reads []string
+			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/traeger/auth/login":
+					_, _ = w.Write([]byte(`{"status":"authenticated","access_token":"traeger-token","refresh_token":"r"}`))
+				case "/traeger/schools/":
+					_, _ = w.Write([]byte(`{"status":"success","data":[{"id":31}]}`))
+				case "/traeger/holiday-periods/5/publish":
+					_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[` +
+						`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63}]}]}}`))
+				case "/api/holiday-weeks/":
+					reads = append(reads, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+					_, _ = w.Write([]byte(`{"status":"success","data":` + tc.weeks + `}`))
+				case "/api/holiday-weeks/51/participants":
+					reads = append(reads, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+					_, _ = w.Write([]byte(`{"status":"success","data":{"participants":[]}}`))
+				default:
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
+				}
+			})
+			defer srv.Close()
+
+			runtime := &Runtime{
+				Client:     newTestClient(srv.URL, false),
+				Bootstrap:  &bootstrapSeedState{SchoolID: 31, AdminEmail: "admin@example.test", AdminPassword: testpkg.NewTestPassword()},
+				TenantAuth: AuthRef{Kind: AuthBearer, Label: "school admin", Token: "school-token"},
+			}
+			err := (seedTraegerHolidayPeriodStep{}).Run(context.Background(), runtime)
+			if tc.wantErr {
+				assert.ErrorContains(t, err, "no confirmed child")
+				assert.Equal(t, []string{"GET /api/holiday-weeks/ Bearer school-token"}, reads)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, []string{
+				"GET /api/holiday-weeks/ Bearer school-token",
+				"GET /api/holiday-weeks/51/participants Bearer school-token",
+			}, reads, "the hosting school reads its list with its own school session")
+		})
+	}
+}
+
 func TestSeedTraegerSettingsStepSetsAValueThroughTheTraegerPortal(t *testing.T) {
 	t.Parallel()
 

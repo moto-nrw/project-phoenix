@@ -62,6 +62,18 @@ var queryBudgets = map[string]queryBudget{
 	// children with the duplicate hint and their bookings; the audit entry
 	// writes but selects nothing. Flat in the number of registrations.
 	"api.traeger.holiday_registrations": {max: 7, exact: true},
+	// modules/enrollment — GET /api/holiday-weeks (#4665, ADR 0116): the
+	// tenant binding of the school's transaction, then the weeks the school
+	// hosts with their confirmed children counted. Flat in the number of
+	// weeks and children.
+	"api.holiday_weeks.list": {max: 2, exact: true},
+	// modules/enrollment — GET /api/holiday-weeks/{weekId}/participants
+	// (#4665, ADR 0116): the school and the schools of its Träger for the
+	// home school names, read before the tenant transaction opens; then the
+	// tenant binding, the hosted week, its time models and its confirmed
+	// children. The access log entry writes but selects nothing. Flat in the
+	// number of children.
+	"api.holiday_weeks.participants": {max: 6, exact: true},
 	// modules/organizationtenancy — GET /traeger/master-data (#4653): the
 	// Träger binding of the Träger transaction, then the profile row and the
 	// bank accounts of the Träger; the read log writes but selects nothing.

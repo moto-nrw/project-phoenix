@@ -232,7 +232,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0105: the holiday period reads of modules/enrollment (+2).
 // Raised by ADR 0110: the holiday registration retention of modules/enrollment (+1).
 // Raised by ADR 0112: the Träger logo read of modules/organizationtenancy (+1).
-const modulePassthroughOwnerBudgetTotal = 1406
+// Raised by ADR 0116: the hosted holiday weeks of modules/enrollment (+1).
+const modulePassthroughOwnerBudgetTotal = 1407
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -259,8 +260,9 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/devicefleet":   33,
 	"modules/devicescan":    35,
 	// Raised by ADR 0105: the holiday period reads of the Träger-Portal; by
-	// ADR 0110: the retention of the public holiday registrations.
-	"modules/enrollment":     27,
+	// ADR 0110: the retention of the public holiday registrations; by
+	// ADR 0116: the weeks the hosting school sees.
+	"modules/enrollment":     28,
 	"modules/exporttransfer": 1,
 	"modules/facilities":     13,
 	"modules/feedback":       2,

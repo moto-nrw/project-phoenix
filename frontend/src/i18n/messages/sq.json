@@ -2669,7 +2669,8 @@
         "holiday_registration_invalid": "Ju lutemi kontrolloni fushat e shënuara.",
         "holiday_registration_not_found": "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
         "holiday_registration_state_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "holiday_week_booked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "holiday_week_booked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "hosted_holiday_week_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "files": {
         "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

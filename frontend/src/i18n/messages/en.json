@@ -2669,7 +2669,8 @@
         "holiday_registration_invalid": "Please check the marked fields.",
         "holiday_registration_not_found": "This registration link does not exist. Please use the link you received from the provider.",
         "holiday_registration_state_conflict": "This is not possible for this registration right now. Please reload the page.",
-        "holiday_week_booked": "This week already has registrations. That is why the week and its booked time models cannot be removed."
+        "holiday_week_booked": "This week already has registrations. That is why the week and its booked time models cannot be removed.",
+        "hosted_holiday_week_not_found": "There is no participant list for this week any more. It is only available until the last day of the week."
       },
       "files": {
         "announcement_published": "{object} could not be changed. Please check its current status.",

@@ -111,7 +111,41 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err != nil {
 		return err
 	}
-	return seedHolidayRegistrationPrefill(ctx, rt, token)
+	if err := seedHolidayRegistrationPrefill(ctx, rt, token); err != nil {
+		return err
+	}
+	return seedHolidayParticipantList(rt)
+}
+
+// seedHolidayParticipantList reads the participant list of the first hosted
+// week as the hosting school's admin (#4665): the confirmed siblings, counted
+// per time model and home school, and the read in the school's access log. A
+// run without a school session, like the step's own tests, reads nothing.
+func seedHolidayParticipantList(rt *Runtime) error {
+	if rt.TenantAuth.Token == "" {
+		return nil
+	}
+	raw, err := rt.Client.GetWithAuth(rt.TenantAuth, "/api/holiday-weeks/")
+	if err != nil {
+		return fmt.Errorf("list the hosted holiday weeks: %w", err)
+	}
+	var envelope struct {
+		Data []struct {
+			ID           int64 `json:"id"`
+			Participants int   `json:"participants"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("decode the hosted holiday weeks: %w", err)
+	}
+	if len(envelope.Data) == 0 || envelope.Data[0].Participants == 0 {
+		return fmt.Errorf("the hosting school sees no confirmed child in its first holiday week")
+	}
+	if _, err := rt.Client.GetWithAuth(rt.TenantAuth, fmt.Sprintf("/api/holiday-weeks/%d/participants", envelope.Data[0].ID)); err != nil {
+		return fmt.Errorf("read the holiday participant list: %w", err)
+	}
+	fmt.Printf("  Ausrichtende OGS: participant list with %d confirmed child(ren) read\n", envelope.Data[0].Participants)
+	return nil
 }
 
 // seedHolidayRegistrations registers two siblings through the public link

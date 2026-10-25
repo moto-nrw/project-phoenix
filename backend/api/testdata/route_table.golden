@@ -262,6 +262,9 @@ GET /api/guardians/{id}/delete-preview
 GET /api/guardians/{id}/payment
 GET /api/guardians/{id}/phone-numbers/
 GET /api/guardians/{id}/students
+GET /api/holiday-weeks/
+GET /api/holiday-weeks/{weekId}/participants
+GET /api/holiday-weeks/{weekId}/participants/export
 GET /api/import/class-list-entries/template
 GET /api/import/opening-balances/template
 GET /api/import/students/template

@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableInstanceMoved                       = "timetable.instance_moved"
 	CodeTimetableInstanceNotActive                   = "timetable.instance_not_active"
 	CodeTimetableInstanceNotConvertible              = "timetable.instance_not_convertible"
 	CodeTimetableInstanceNotEditable                 = "timetable.instance_not_editable"
@@ -176,6 +177,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.instance_moved":                          "business_rejection",
 	"timetable.instance_not_active":                     "business_rejection",
 	"timetable.instance_not_convertible":                "business_rejection",
 	"timetable.instance_not_editable":                   "business_rejection",

@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeIdentityInvitationAccountLoginRequired         = "identity.invitation_account_login_required"
 	CodeIdentityInvitationAccountMismatch              = "identity.invitation_account_mismatch"
 	CodeIdentityInvitationExpired                      = "identity.invitation_expired"
 	CodeIdentityInvitationNotFound                     = "identity.invitation_not_found"
@@ -301,10 +302,10 @@ const (
 	CodeTimetableInstanceEndBeforeStart                = "timetable.instance_end_before_start"
 	CodeTimetableInstanceInPast                        = "timetable.instance_in_past"
 	CodeTimetableInstanceInvalid                       = "timetable.instance_invalid"
-	CodeTimetableInstanceMoved                         = "timetable.instance_moved"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.invitation_account_login_required":           "permission",
 	"identity.invitation_account_mismatch":                 "permission",
 	"identity.invitation_expired":                          "business_rejection",
 	"identity.invitation_not_found":                        "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.instance_end_before_start":                  "input",
 	"timetable.instance_in_past":                           "input",
 	"timetable.instance_invalid":                           "input",
-	"timetable.instance_moved":                             "business_rejection",
 }
 
 func init() {

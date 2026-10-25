@@ -561,6 +561,16 @@ child gets an `audit.data_access_log` row (`holiday_prefill`) at its school.
 The submission stays the public, captcha-gated
 `POST /traeger/holiday-registrations/{token}` and names no student.
 
+The school that hosts a holiday week reads its participants in its own tenant
+transaction (#4665, ADR 0116): `GET /api/holiday-weeks` and
+`.../{weekId}/participants[/export]` behind `config:read`. Host policies on the
+Träger's holiday tables admit only weeks of published periods the school
+hosts, until their last Berlin calendar day, and only children of confirmed
+bookings, with name, date of birth, home school and time model. The token
+carries no other `tenant_id`; every list read and export writes an
+`audit.data_access_log` row (`holiday_participants`,
+`holiday_participants_export`) at the hosting school.
+
 A form template with `core_requirements.signature` requires the parent's
 signature on every parent submission and form edit (#4786); the server refuses
 a missing one with `enrollment.signature_required`. The status token is the

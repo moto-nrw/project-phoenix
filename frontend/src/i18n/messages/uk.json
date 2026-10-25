@@ -2669,7 +2669,8 @@
         "holiday_registration_invalid": "Будь ласка, перевірте позначені поля.",
         "holiday_registration_not_found": "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
         "holiday_registration_state_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "holiday_week_booked": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "holiday_week_booked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "hosted_holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "files": {
         "announcement_published": "Не вдалося змінити: {object}. Перевірте поточний стан.",
