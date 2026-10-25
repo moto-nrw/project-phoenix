@@ -45,6 +45,9 @@ export function HolidayRegistrationContribution({
     null,
   );
   const [failed, setFailed] = useState(false);
+  // Whether the Träger offers the exemption; it stays while a new quote is
+  // computed, so the checkbox does not vanish under the pointer.
+  const [exemptionOffered, setExemptionOffered] = useState(false);
   const children = useMemo(
     () => draft.children.map((child) => quoteBookings(child, offer)),
     [draft.children, offer],
@@ -56,6 +59,9 @@ export function HolidayRegistrationContribution({
   const latest = useRef(0);
   const load = useCallback(async () => {
     const request = ++latest.current;
+    // The shown amount belongs to the old choice; it goes until the new one
+    // arrives.
+    setContribution(null);
     setFailed(false);
     try {
       const quoted = await quoteHolidayContribution(
@@ -63,7 +69,10 @@ export function HolidayRegistrationContribution({
         children,
         benefitsDeclared,
       );
-      if (request === latest.current) setContribution(quoted);
+      if (request === latest.current) {
+        setContribution(quoted);
+        setExemptionOffered(quoted.exemptionAvailable);
+      }
     } catch (err) {
       if (request !== latest.current) return;
       // The registration can be sent without it; the card says so.
@@ -147,7 +156,7 @@ export function HolidayRegistrationContribution({
         ) : (
           <p>{t("contributionLoading")}</p>
         )}
-        {contribution?.exemptionAvailable || (failed && benefitsDeclared) ? (
+        {exemptionOffered || (failed && benefitsDeclared) ? (
           <label
             htmlFor="holiday-registration-benefits"
             className="flex items-start gap-3"

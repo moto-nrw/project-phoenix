@@ -325,6 +325,10 @@ describe("HolidayRegistrationForm", () => {
         name: /Wir bekommen Leistungen, zum Beispiel Bürgergeld/,
       }),
     );
+    // The old amount goes at once; the new one follows.
+    expect(
+      screen.getByText("Der Beitrag wird berechnet …"),
+    ).toBeInTheDocument();
     expect(
       await screen.findByText(
         "Befreit wegen Leistungsbezug: Beitragsfrei mit BuT-Nachweis",
