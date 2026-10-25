@@ -381,8 +381,8 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 		unplannedStudentID int64 = 22
 	)
 
-	today := calendar.TodayDate()
-	now := today.BerlinMidnight().Add(12 * time.Hour)
+	now := calendar.NewDate(2025, time.February, 3).BerlinMidnight().Add(12 * time.Hour)
+	today := calendar.DateFromTime(now)
 	newGroup := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
 	newGroup.ID = newGroupID
 	unsupervised := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
@@ -428,6 +428,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	systemActivity := &timetable.Group{ID: systemActivityID, IsSystem: true}
 
 	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
+		Now:               func() time.Time { return now },
 		InstanceRepo:      lifecycleInstanceRows(instanceRepo),
 		InstanceStudents:  absorbParticipantRows(instanceStudents),
 		ActiveGroupRepo:   groupRepo,
