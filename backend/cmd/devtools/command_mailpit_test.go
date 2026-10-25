@@ -82,7 +82,7 @@ func TestAddressedTo_Empty(t *testing.T) {
 }
 
 // =============================================================================
-// fetchCodeFromMessage Tests (helper that pulls the code out of one message)
+// fetchFromMessage Tests (helper that pulls the code out of one message)
 // =============================================================================
 
 func TestFetchCodeFromMessage_TextBody(t *testing.T) {
@@ -93,7 +93,7 @@ func TestFetchCodeFromMessage_TextBody(t *testing.T) {
 	}, nil)
 	defer srv.Close()
 
-	code, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
+	code, err := fetchFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc", extractMFACode)
 	require.NoError(t, err)
 	assert.Equal(t, "123456", code)
 }
@@ -106,7 +106,7 @@ func TestFetchCodeFromMessage_HTMLFallback(t *testing.T) {
 	}, nil)
 	defer srv.Close()
 
-	code, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
+	code, err := fetchFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc", extractMFACode)
 	require.NoError(t, err)
 	assert.Equal(t, "654321", code)
 }
@@ -119,7 +119,7 @@ func TestFetchCodeFromMessage_NoCode(t *testing.T) {
 	}, nil)
 	defer srv.Close()
 
-	code, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
+	code, err := fetchFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc", extractMFACode)
 	require.NoError(t, err)
 	assert.Empty(t, code)
 }
@@ -132,7 +132,7 @@ func TestFetchCodeFromMessage_IgnoresShortRuns(t *testing.T) {
 	}, nil)
 	defer srv.Close()
 
-	code, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
+	code, err := fetchFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc", extractMFACode)
 	require.NoError(t, err)
 	// Only the standalone 6-digit run is picked up; the IP octets are too short.
 	assert.Equal(t, "111222", code)
@@ -146,7 +146,7 @@ func TestFetchCodeFromMessage_NonOK(t *testing.T) {
 	})
 	defer srv.Close()
 
-	_, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
+	_, err := fetchFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc", extractMFACode)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "mailpit detail")
 }
@@ -160,7 +160,7 @@ func TestFetchCodeFromMessage_InvalidJSON(t *testing.T) {
 	})
 	defer srv.Close()
 
-	_, err := fetchCodeFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc")
+	_, err := fetchFromMessage(context.Background(), &testpkg.HTTPClient{Timeout: 2 * time.Second}, srv.URL, "abc", extractMFACode)
 	require.Error(t, err)
 }
 
@@ -326,7 +326,7 @@ func newMailpitServer(t *testing.T, details map[string]mailpitMessageDetail, mes
 	t.Helper()
 	return testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path == "/api/v1/messages" {
+		if r.URL.Path == "/api/v1/messages" || r.URL.Path == "/api/v1/search" {
 			_ = json.NewEncoder(w).Encode(mailpitMessageList{
 				Total:    len(messages),
 				Messages: messages,
@@ -346,4 +346,26 @@ func newMailpitServer(t *testing.T, details map[string]mailpitMessageDetail, mes
 		}
 		testpkg.HTTPNotFound(w, r)
 	})
+}
+
+// The caterer's invitation (ADR 0077) reaches the seeder only by mail: the
+// link poll takes the marked link of the newest mail to the recipient, also
+// from an HTML-only body, and passes over the mail's other links.
+func TestPollMailpit_FindsTheMarkedLink(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	srv := newMailpitServer(t,
+		map[string]mailpitMessageDetail{
+			"msg-1": {ID: "msg-1", HTML: `<a href="https://moto.example/hilfe">Hilfe</a> <a class="button" href="http://caterer.localhost:3000/einladung/7/tok123">Einladung annehmen</a>`},
+		},
+		[]mailpitMessageSummary{
+			{ID: "msg-1", To: []mailpitAddress{{Address: "kueche@test.de"}}, Created: now},
+		},
+	)
+	defer srv.Close()
+
+	link, err := pollMailpit(context.Background(), srv.URL, "kueche@test.de", now.Add(-1*time.Second), "mail with a link", linkExtractor("/einladung/"))
+	require.NoError(t, err)
+	assert.Equal(t, "http://caterer.localhost:3000/einladung/7/tok123", link)
 }

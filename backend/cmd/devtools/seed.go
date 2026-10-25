@@ -131,6 +131,7 @@ Usage:
 			SchoolName:    schoolName,
 			OnlyProfile:   profile,
 			StatePath:     statePath,
+			ReadMailLink:  FetchLatestMailLink,
 		}
 
 		return defaultSeedRoot.run(cmd.Context(), url, verbose, options, email, password, pin)

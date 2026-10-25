@@ -60,6 +60,8 @@ type SeedOptions struct {
 	// DeferHistory leaves the deferred steps out of Seed: the school is usable
 	// without them, and SeedResult.Deferred runs them afterwards.
 	DeferHistory bool
+	// ReadMailLink reads the caterer's invitation mail (ADR 0077); nil invites none.
+	ReadMailLink MailLinkReader
 }
 
 // Seeder orchestrates the complete API-based seeding process

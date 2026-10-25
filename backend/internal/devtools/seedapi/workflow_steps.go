@@ -223,8 +223,8 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	}
 	steps = append(steps,
 		seedParentEngagementStep{}, seedAnalyticsConsentStep{}, seedSchoolLifeStep{},
-		// After the parents: it orders lunch for a child of the first one.
-		seedMealOrdersStep{},
+		// After the parents: it orders lunch for the children they registered.
+		seedMealOrdersStep{seeder: seeder},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedParentPollStep{},
@@ -296,6 +296,8 @@ func fullDemoSetupSteps(seeder *Seeder) []Step {
 		seedPlanningDemoStep{},
 		seedStudentStatusVariantsStep{},
 		seedOperationsDemoStep{},
+		// Before the parents' invitations queue up in the outbox.
+		seedMealCatererInvitationStep{seeder: seeder},
 		seedShiftSeriesStep{},
 		seedVisitorDayStep{},
 		seedHomeLayoutStep{},
