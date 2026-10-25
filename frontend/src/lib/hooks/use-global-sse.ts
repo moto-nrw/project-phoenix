@@ -113,6 +113,16 @@ const TIMETABLE_LIFECYCLE_REASONS: ReadonlySet<string> = new Set([
   "instance_cancelled",
 ]);
 
+// Reasons the substitution module puts on active_supervision_changed when the
+// supervisors of a running session change (#2806, #4763): someone was added,
+// handed the supervision over or released it. Both people's sidebars list
+// their supervisions from it.
+const SUPERVISOR_CHANGE_REASONS: ReadonlySet<string> = new Set([
+  "additional_supervisor_assigned",
+  "supervision_handed_over",
+  "supervision_released",
+]);
+
 // Every cache family that renders a child's resolved PICKUP (Gehzeit) time.
 // "active-supervision-dashboard-" carries the Aktuelle-Aufsicht pickup rows
 // since #2096 folded them into the aggregate; the key disables focus
@@ -941,6 +951,14 @@ export function useGlobalSSE(): SSEHookState {
         // sessions changed, so the sidebar's supervision list is stale
         // (#3888). The children moved by it arrive with their own scoped
         // check-in/check-out events.
+        hasPendingActivityEvent.current = true;
+      } else if (
+        event.data.reason !== undefined &&
+        SUPERVISOR_CHANGE_REASONS.has(event.data.reason)
+      ) {
+        // Who supervises a running session changed (#4763): the sidebar
+        // lists of the person who joined and of the one who left are stale.
+        // No child moved, so no attendance event follows.
         hasPendingActivityEvent.current = true;
       }
     },

@@ -15,6 +15,7 @@ import {
   supervisionHeadFacts,
   supervisionTabLabel,
   additionalSupervisionTarget,
+  handOverSupervisionTarget,
   occupiedRoomIdsForSpontaneousStart,
   withActiveSupervisionPresence,
   type OpenRoomSessionView,
@@ -52,6 +53,7 @@ const roomSession = (
   options: {
     readonly independent?: boolean;
     readonly own?: boolean;
+    readonly canAssign?: boolean;
     readonly studentCount?: number;
   } = {},
 ): OpenRoomSessionView => ({
@@ -59,7 +61,7 @@ const roomSession = (
   title: options.independent ? "" : "Schulhof Freispiel",
   independent: options.independent === true,
   isUserSupervising: options.own === true,
-  canAssign: options.own === true,
+  canAssign: options.canAssign ?? options.own === true,
   studentCount: options.studentCount ?? 0,
   block: null,
 });
@@ -944,6 +946,88 @@ describe("supervision tab identity (#2265)", () => {
       additionalSupervisionTarget({
         currentRoom: null,
         currentOpenRoom: room([blockSession("active-ball", { own: true })]),
+      }),
+    ).toBeNull();
+  });
+
+  it("hands over the one own shared-room supervision independently of assignment rights", () => {
+    const room = (sessions: readonly OpenRoomSessionView[]) => ({
+      roomId: "7",
+      name: "Schulhof",
+      isUserSupervising: sessions.some((session) => session.isUserSupervising),
+      activeGroupIds: sessions.map((session) => session.activeGroupId),
+      studentCount: 0,
+      students: [],
+      sessions,
+    });
+
+    // An administrator can add supervisors to both sessions, but can only
+    // hand over the one they currently supervise.
+    expect(
+      handOverSupervisionTarget({
+        currentRoom: null,
+        currentOpenRoom: room([
+          roomSession("active-own", { own: true, canAssign: true }),
+          roomSession("active-other", { canAssign: true }),
+        ]),
+      }),
+    ).toBe("active-own");
+
+    // Assignment rights may point at a different session entirely.
+    expect(
+      handOverSupervisionTarget({
+        currentRoom: null,
+        currentOpenRoom: room([
+          roomSession("active-own", { own: true, canAssign: false }),
+          roomSession("active-assignable", { canAssign: true }),
+        ]),
+      }),
+    ).toBe("active-own");
+  });
+
+  it("requires own supervision to hand over a regular room session", () => {
+    expect(
+      handOverSupervisionTarget({
+        currentRoom: {
+          id: "active-own",
+          name: "Freispiel",
+          canAssign: false,
+          isCurrentUserSupervising: true,
+        },
+        currentOpenRoom: null,
+      }),
+    ).toBe("active-own");
+    expect(
+      handOverSupervisionTarget({
+        currentRoom: {
+          id: "active-other",
+          name: "Malen",
+          canAssign: true,
+          isCurrentUserSupervising: false,
+        },
+        currentOpenRoom: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("does not choose a handover target when own room supervision is ambiguous", () => {
+    const room = (sessions: readonly OpenRoomSessionView[]) => ({
+      roomId: "7",
+      name: "Schulhof",
+      isUserSupervising: sessions.some((session) => session.isUserSupervising),
+      activeGroupIds: sessions.map((session) => session.activeGroupId),
+      studentCount: 0,
+      students: [],
+      sessions,
+    });
+
+    expect(
+      handOverSupervisionTarget({
+        currentRoom: null,
+        currentOpenRoom: room([
+          roomSession("active-one", { own: true }),
+          roomSession("active-two", { own: true }),
+        ]),
       }),
     ).toBeNull();
   });

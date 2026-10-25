@@ -249,6 +249,7 @@ const (
 	CodeSubstitutionsInternal                          = "substitutions.internal"
 	CodeSubstitutionsInvalidPeriod                     = "substitutions.invalid_period"
 	CodeSubstitutionsInvalidTarget                     = "substitutions.invalid_target"
+	CodeSubstitutionsLastSupervisor                    = "substitutions.last_supervisor"
 	CodeSubstitutionsNotFound                          = "substitutions.not_found"
 	CodeSubstitutionsNotRunning                        = "substitutions.not_running"
 	CodeSubstitutionsSelfAssignment                    = "substitutions.self_assignment"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableInstanceNotActive                     = "timetable.instance_not_active"
 	CodeTimetableInstanceNotConvertible                = "timetable.instance_not_convertible"
 	CodeTimetableInstanceNotEditable                   = "timetable.instance_not_editable"
-	CodeTimetableInstanceNotFound                      = "timetable.instance_not_found"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -552,6 +552,7 @@ var errorCodeClasses1 = map[string]string{
 	"substitutions.internal":                               "server",
 	"substitutions.invalid_period":                         "input",
 	"substitutions.invalid_target":                         "input",
+	"substitutions.last_supervisor":                        "business_rejection",
 	"substitutions.not_found":                              "business_rejection",
 	"substitutions.not_running":                            "business_rejection",
 	"substitutions.self_assignment":                        "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.instance_not_active":                        "business_rejection",
 	"timetable.instance_not_convertible":                   "business_rejection",
 	"timetable.instance_not_editable":                      "business_rejection",
-	"timetable.instance_not_found":                         "business_rejection",
 }
 
 func init() {

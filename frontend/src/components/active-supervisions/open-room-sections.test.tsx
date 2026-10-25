@@ -125,6 +125,7 @@ function context(
     canExcuseRestOfDay: false,
     overviewEnabled,
     onAddSupervisor: vi.fn(),
+    onHandOver: vi.fn(),
   };
 }
 

@@ -200,6 +200,9 @@ func (s *substitutionModule) assignAdditionalSupervision(
 		s.deps.ActiveGroups == nil || s.deps.ActiveSupervisors == nil || s.deps.ActiveSupervisorCreator == nil {
 		return nil, ErrInvalidTarget
 	}
+	if request.HandOver {
+		return s.handOverSupervision(ctx, caller, request)
+	}
 	access, err := s.resolveAccess(ctx, caller)
 	if err != nil {
 		return nil, err
@@ -216,16 +219,24 @@ func (s *substitutionModule) assignAdditionalSupervision(
 	if err != nil {
 		return nil, err
 	}
-	result := AssignmentResult{ID: created.ID, Type: TargetAdditionalSupervision, ActiveGroupID: created.GroupID,
-		Target: StaffRef{ID: target.StaffID, FullName: target.FullName}}
+	s.announceSupervisionChange(ctx, request.ActiveGroupID, "additional_supervision_assign", "additional_supervisor_assigned")
+	return additionalSupervisionResult(created, target), nil
+}
 
-	if s.deps.Broadcaster != nil {
-		s.deps.Broadcaster.QueueGroupAccessChanged(ctx, "additional_supervision_assign")
+func additionalSupervisionResult(created *studentpresence.GroupSupervision, target *domain.Caregiver) *AssignmentResult {
+	return &AssignmentResult{ID: created.ID, Type: TargetAdditionalSupervision, ActiveGroupID: created.GroupID,
+		Target: StaffRef{ID: target.StaffID, FullName: target.FullName}}
+}
+
+// announceSupervisionChange wakes the open views after the supervisors of a
+// running session changed: the group-access signal refreshes the sidebars and
+// substitution lists, the supervision signal the live supervision views.
+func (s *substitutionModule) announceSupervisionChange(ctx context.Context, activeGroupID int64, accessSource, reason string) {
+	if s.deps.Broadcaster == nil {
+		return
 	}
-	if s.deps.Broadcaster != nil {
-		s.deps.Broadcaster.QueueActiveSupervisionChanged(ctx, request.ActiveGroupID, "additional_supervisor_assigned")
-	}
-	return &result, nil
+	s.deps.Broadcaster.QueueGroupAccessChanged(ctx, accessSource)
+	s.deps.Broadcaster.QueueActiveSupervisionChanged(ctx, activeGroupID, reason)
 }
 
 func (s *substitutionModule) assignAdditionalSupervisionLocked(
@@ -235,7 +246,7 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 	broad bool,
 	request *AdditionalSupervisionAssignment,
 ) (*studentpresence.GroupSupervision, *domain.Caregiver, error) {
-	group, err := s.lockAssignableSupervision(ctx, caller, access, broad, request)
+	group, supervisors, err := s.lockAssignableSupervision(ctx, caller, access, broad, request)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -244,7 +255,7 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 		return nil, nil, err
 	}
 	created := &studentpresence.GroupSupervision{
-		StaffID: target.StaffID, GroupID: group.ID, Role: additionalSupervisorRole,
+		StaffID: target.StaffID, GroupID: group.ID, Role: assignedSupervisionRole(request, access.actor, supervisors),
 		StartDate: calendar.DateFromTime(s.deps.Now()).String(), SkipPresenceStamp: isExternal,
 	}
 	if err := s.deps.ActiveSupervisorCreator.CreateGroupSupervisor(ctx, created); err != nil {
@@ -262,33 +273,48 @@ func (s *substitutionModule) lockAssignableSupervision(
 	access substitutionAccess,
 	broad bool,
 	request *AdditionalSupervisionAssignment,
-) (*studentpresence.LiveGroup, error) {
+) (*studentpresence.LiveGroup, []*studentpresence.StaffedSupervision, error) {
 	group, err := s.deps.ActiveGroups.FindByIDForUpdate(ctx, request.ActiveGroupID)
 	if err != nil {
-		return nil, notFoundError(err)
+		return nil, nil, notFoundError(err)
 	}
 	if group == nil || group.TenantID != caller.TenantID {
-		return nil, ErrNotFound
+		return nil, nil, ErrNotFound
 	}
 	if group.EndTime != nil {
-		return nil, ErrNotRunning
+		return nil, nil, ErrNotRunning
 	}
 	supervisors, err := s.deps.ActiveSupervisors.FindByActiveGroupID(ctx, group.ID, true)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if !access.admin && !actorSupervises(access.actor, supervisors) {
 		if broad {
-			return nil, ErrForbidden
+			return nil, nil, ErrForbidden
 		}
-		return nil, ErrNotFound
+		return nil, nil, ErrNotFound
 	}
 	for _, supervisor := range supervisors {
 		if supervisor.StaffID == request.TargetStaffID {
-			return nil, ErrAlreadyAssigned
+			return nil, nil, ErrAlreadyAssigned
 		}
 	}
-	return group, nil
+	return group, supervisors, nil
+}
+
+// assignedSupervisionRole is the role the target joins with: an added person
+// is an additional supervisor, a hand-over passes on the role the caller held
+// (#4763), so the session keeps its supervisor when the original one leaves.
+func assignedSupervisionRole(request *AdditionalSupervisionAssignment, actor *Actor, supervisors []*studentpresence.StaffedSupervision) string {
+	if !request.HandOver || actor == nil {
+		return additionalSupervisorRole
+	}
+	for _, supervisor := range supervisors {
+		if supervisor.StaffID == actor.StaffID && supervisor.Role != "" {
+			return supervisor.Role
+		}
+	}
+	return additionalSupervisorRole
 }
 
 func additionalSupervisionAudit(row *studentpresence.GroupSupervision, actorID int64) domain.SubstitutionChange {

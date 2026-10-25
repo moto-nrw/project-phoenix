@@ -2939,6 +2939,7 @@
         "internal": "{object} could not be processed. Please try again later.",
         "invalid_period": "{object} could not be saved. Please check your entries.",
         "invalid_target": "{object} could not be saved. Please check your entries.",
+        "last_supervisor": "You are the only supervisor. Hand the supervision over to someone or end the activity.",
         "not_found": "{object} could not be changed. Please check its current status.",
         "not_running": "{object} could not be changed. Please check its current status.",
         "self_assignment": "{object} could not be saved. Please check your entries."

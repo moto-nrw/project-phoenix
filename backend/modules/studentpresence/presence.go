@@ -92,6 +92,12 @@ type SessionCommands interface {
 	EndActivitySession(ctx context.Context, activeGroupID int64) error
 	UpdateSessionActivity(ctx context.Context, activeGroupID int64) error
 	CreateGroupSupervisor(ctx context.Context, supervision *GroupSupervision) error
+	// ReleaseSupervision ends the staff member's own supervision of the
+	// running session and returns the ended supervision. It refuses
+	// with ErrLastSupervisor while nobody else supervises the session, so
+	// the children and the session stay supervised (#4763). It joins the
+	// caller's unit of work and opens none.
+	ReleaseSupervision(ctx context.Context, activeGroupID, staffID int64) (GroupSupervision, error)
 }
 
 // SessionMaintenance is the scheduled session housekeeping.

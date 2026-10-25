@@ -49,6 +49,7 @@ import { TransitStudentsSection } from "~/components/rooms/transit-students-sect
 import {
   additionalSupervisionTarget,
   canBulkCheckinFromSupervision,
+  handOverSupervisionTarget,
   hasOwnBlock,
   occupiedRoomIdsForSpontaneousStart,
   openRoomSections,
@@ -91,6 +92,10 @@ import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
+import {
+  HandOverSupervisionButton,
+  HandOverSupervisionModal,
+} from "~/components/active-supervisions/hand-over-supervision-modal";
 import { OwnSupervisionView } from "~/components/active-supervisions/own-supervision-view";
 
 function hasSameGroupNames(
@@ -171,7 +176,8 @@ function MeinRaumPageContent() {
       currentOpenRoom || !canReadRosters ? undefined : currentRoom?.id,
   });
   const { currentTimetableRoster } = roster;
-  const { overviewEnabled } = useOptionalSupervision();
+  const { overviewEnabled, refresh: refreshSupervision } =
+    useOptionalSupervision();
   const [openRoomRosterGroups, setOpenRoomRosterGroups] = useState<
     ReadonlyMap<string, readonly string[]>
   >(() => new Map());
@@ -208,6 +214,8 @@ function MeinRaumPageContent() {
   const [addSupervisorTarget, setAddSupervisorTarget] = useState<string | null>(
     null,
   );
+  // The own running supervision „Aufsicht abgeben“ was opened for (#4763).
+  const [handOverTarget, setHandOverTarget] = useState<string | null>(null);
 
   const actions = useTimetableActions({
     allRooms,
@@ -497,6 +505,19 @@ function MeinRaumPageContent() {
     ? currentOpenRoom.isUserSupervising
     : (currentRoom?.isCurrentUserSupervising ?? false);
 
+  // Eine laufende Raum-Aufsicht übergeben oder abgeben kann nur, wer sie
+  // gerade führt (#4763). Der Schulhof hat dafür seinen eigenen Knopf.
+  const handOverActiveGroupId = !isSchulhofOpenRoom
+    ? handOverSupervisionTarget({ currentRoom, currentOpenRoom })
+    : null;
+  const handOverButton = handOverActiveGroupId ? (
+    <HandOverSupervisionButton
+      activeGroupId={handOverActiveGroupId}
+      onHandOver={setHandOverTarget}
+      className="gap-2"
+    />
+  ) : null;
+
   const addSupervisorButton = additionalSupervisionActiveGroupId ? (
     <Button
       type="button"
@@ -556,6 +577,7 @@ function MeinRaumPageContent() {
     openRoomBadge ??
     ownSupervisionBadge ??
     addSupervisorButton ??
+    handOverButton ??
     superviseAction ??
     releaseAction,
   );
@@ -692,6 +714,7 @@ function MeinRaumPageContent() {
             studentProfileHref,
             overviewEnabled,
             onAddSupervisor: setAddSupervisorTarget,
+            onHandOver: setHandOverTarget,
             onRosterGroups: rememberOpenRoomRosterGroups,
             rosterRowFilter: filters.rosterRowFilter,
             presentPickerAutoOpenInstanceId:
@@ -800,6 +823,7 @@ function MeinRaumPageContent() {
               </span>
             ) : null}
             {addSupervisorButton}
+            {handOverButton}
             {superviseAction}
             {releaseAction}
             {/* Die Spaltenwahl der Liste (#3834) im ⋮-Menü, nicht als
@@ -871,6 +895,20 @@ function MeinRaumPageContent() {
               isOpen
               onClose={() => setAddSupervisorTarget(null)}
               onAdded={mutateDashboard}
+            />
+          ) : null}
+          {handOverTarget ? (
+            <HandOverSupervisionModal
+              activeGroupId={handOverTarget}
+              currentStaffId={currentStaffId}
+              isOpen
+              onClose={() => setHandOverTarget(null)}
+              onDone={() =>
+                Promise.all([
+                  mutateDashboard(),
+                  refreshSupervision({ silent: true, force: true }),
+                ])
+              }
             />
           ) : null}
         </>

@@ -936,6 +936,8 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "substitutions.invalid_target":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+      "substitutions.last_supervisor":
+        "Sie sind die einzige Aufsicht. Übergeben Sie die Aufsicht an eine Person oder beenden Sie die Aktivität.",
       "timetable.activity_not_owner":
         "Sie können nur Aktivitäten ändern, die Sie angelegt haben oder betreuen.",
       "timetable.activity_system_protected":
@@ -1753,6 +1755,8 @@ export const ERROR_CATALOG = {
         "The parents set this time. Only someone with a staff profile can change it.",
       "students.status_day_conflict":
         "Some days already have an entry. These days were not changed.",
+      "substitutions.last_supervisor":
+        "You are the only supervisor. Hand the supervision over to someone or end the activity.",
       "timetable.homework_feedback_child_not_in_supervision":
         "This child is not part of this supervision. Please reload the page.",
       "timetable.homework_feedback_not_allowed":
@@ -2142,6 +2146,8 @@ export const ERROR_CATALOG = {
         "Это время установили родители. Изменить его может только сотрудник с профилем персонала.",
       "students.status_day_conflict":
         "На некоторые дни уже есть запись. Эти дни не изменены.",
+      "substitutions.last_supervisor":
+        "Вы единственный, кто ведёт присмотр. Передайте присмотр другому человеку или завершите занятие.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Этот ребёнок не относится к этому присмотру. Обновите страницу.",
       "timetable.homework_feedback_not_allowed":
@@ -2523,6 +2529,8 @@ export const ERROR_CATALOG = {
         "Këtë orë e kanë vendosur prindërit. Vetëm dikush me profil stafi mund ta ndryshojë.",
       "students.status_day_conflict":
         "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
+      "substitutions.last_supervisor":
+        "Jeni i vetmi mbikëqyrës. Ia dorëzoni mbikëqyrjen dikujt tjetër ose përfundoni aktivitetin.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Ky fëmijë nuk i përket këtij mbikëqyrjeje. Ringarkoni faqen.",
       "timetable.homework_feedback_not_allowed":
@@ -2891,6 +2899,8 @@ export const ERROR_CATALOG = {
         "Ten czas ustawili rodzice. Zmienić go może tylko osoba z profilem pracownika.",
       "students.status_day_conflict":
         "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
+      "substitutions.last_supervisor":
+        "Jesteś jedyną osobą sprawującą opiekę. Przekaż opiekę innej osobie lub zakończ zajęcia.",
       "timetable.homework_feedback_child_not_in_supervision":
         "To dziecko nie należy do tej opieki. Odśwież stronę.",
       "timetable.homework_feedback_not_allowed":
@@ -3265,6 +3275,8 @@ export const ERROR_CATALOG = {
         "Bu saati veliler belirledi. Yalnızca personel profili olan biri değiştirebilir.",
       "students.status_day_conflict":
         "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
+      "substitutions.last_supervisor":
+        "Gözetimi yapan tek kişi sizsiniz. Gözetimi başka birine devredin veya etkinliği bitirin.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Bu çocuk bu gözetime ait değil. Lütfen sayfayı yenileyin.",
       "timetable.homework_feedback_not_allowed":
@@ -3630,6 +3642,8 @@ export const ERROR_CATALOG = {
         "Цей час встановили батьки. Змінити його може лише працівник із профілем персоналу.",
       "students.status_day_conflict":
         "На деякі дні вже є запис. Ці дні не змінено.",
+      "substitutions.last_supervisor":
+        "Ви єдина особа, що здійснює нагляд. Передайте нагляд іншій особі або завершіть заняття.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Ця дитина не належить до цього нагляду. Оновіть сторінку.",
       "timetable.homework_feedback_not_allowed":

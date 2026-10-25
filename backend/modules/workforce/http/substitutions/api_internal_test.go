@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,6 +24,38 @@ func TestAssignAdditionalSupervisionAcceptsOnlyTargetIDs(t *testing.T) {
 	require.Equal(t, "additional_supervision", string(request.Type))
 	require.Equal(t, int64(41), assignment.AdditionalSupervision.ActiveGroupID)
 	require.Equal(t, int64(73), assignment.AdditionalSupervision.TargetStaffID)
+}
+
+func TestAssignAdditionalSupervisionCarriesHandOver(t *testing.T) {
+	t.Parallel()
+	request, err := decodeAssignment(strings.NewReader(`{
+		"type":"additional_supervision",
+		"additional_supervision":{"active_group_id":41,"target_staff_id":73,"hand_over":true}
+	}`))
+
+	require.NoError(t, err)
+	assignment, err := request.toAssignment()
+	require.NoError(t, err)
+	require.True(t, assignment.AdditionalSupervision.HandOver)
+	require.Equal(t, int64(73), assignment.AdditionalSupervision.TargetStaffID)
+
+	plain, err := decodeAssignment(strings.NewReader(`{
+		"type":"additional_supervision",
+		"additional_supervision":{"active_group_id":41,"target_staff_id":73}
+	}`))
+	require.NoError(t, err)
+	assignment, err = plain.toAssignment()
+	require.NoError(t, err)
+	require.False(t, assignment.AdditionalSupervision.HandOver, "adding a supervisor never ends the caller's supervision")
+}
+
+func TestRenderLastSupervisorRefusalKeepsItsCode(t *testing.T) {
+	t.Parallel()
+	response := renderErrorResponse(t, &workforce.SubstitutionOperationError{
+		Target: workforce.ErrSubstitutionConflict, Code: "substitutions.last_supervisor", Message: "Sie sind die einzige Aufsicht.",
+	})
+	require.Equal(t, 409, response.status)
+	require.Equal(t, "substitutions.last_supervisor", response.body.Code)
 }
 
 func TestAssignAdditionalSupervisionPreservesLargeStringIDs(t *testing.T) {

@@ -160,6 +160,16 @@ function onlyAssignableSession(
     : null;
 }
 
+/** The session the caller supervises, when it is unambiguous. */
+function onlySupervisedSession(
+  sessions: readonly OpenRoomSessionView[],
+): string | null {
+  const supervised = sessions.filter((session) => session.isUserSupervising);
+  return supervised.length === 1
+    ? (supervised[0]?.activeGroupId ?? null)
+    : null;
+}
+
 /**
  * The sections of a released room's page (ADR 0019, point 3): one per running
  * block, the caller's own blocks first, then one per other session, then the
@@ -612,6 +622,26 @@ export function additionalSupervisionTarget(options: {
     return onlyAssignableSession(currentOpenRoom.sessions ?? []);
   }
   return options.currentRoom?.canAssign ? options.currentRoom.id : null;
+}
+
+/**
+ * The session the head action „Aufsicht übergeben“ changes. Unlike adding a
+ * supervisor, handing over requires the caller's own supervision and never
+ * depends on whether they may assign additional supervisors.
+ */
+export function handOverSupervisionTarget(options: {
+  readonly currentRoom: ActiveSupervisionRoom | null;
+  readonly currentOpenRoom: OpenRoomView | null;
+}): string | null {
+  const { currentOpenRoom } = options;
+  if (currentOpenRoom) {
+    // Blocks have their own action in the matching section.
+    if (openRoomSections(currentOpenRoom)) return null;
+    return onlySupervisedSession(currentOpenRoom.sessions ?? []);
+  }
+  return options.currentRoom?.isCurrentUserSupervising
+    ? options.currentRoom.id
+    : null;
 }
 
 function mapVisitToSupervisionStudent(
