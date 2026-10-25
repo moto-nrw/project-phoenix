@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -44,7 +45,9 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity identityaccess.Traeg
 	t.Helper()
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	portal, err := NewTraegerPortalHTTP(identity, organizations)
+	settings, err := owners.BuildTraegerSettings(testpkg.NewDatabase(t, db), unit, slog.Default(), organizations, nil)
+	require.NoError(t, err)
+	portal, err := NewTraegerPortalHTTP(identity, organizations, settings)
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {

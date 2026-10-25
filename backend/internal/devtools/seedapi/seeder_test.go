@@ -1057,6 +1057,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if serveExternalCaregiverSeedAPI(t, w, r, &idCounter) {
 			return
 		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/traeger/auth/login" {
+			// The Träger settings step signs in to the Träger-Portal (#4652).
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "authenticated", "access_token": "traeger-token", "refresh_token": "traeger-refresh"})
+			return
+		}
 		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/operator/staff-person-merges/") {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 			return

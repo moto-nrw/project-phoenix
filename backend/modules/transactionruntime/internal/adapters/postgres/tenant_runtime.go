@@ -13,6 +13,7 @@ import (
 
 type tenantTxKey struct{}
 type adminTxKey struct{}
+type traegerTxKey struct{}
 
 type databaseTransactionKey struct{}
 
@@ -103,7 +104,26 @@ func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, f
 }
 
 func (r *PostgresUnitOfWork) WithinAdmin(ctx context.Context, fn func(context.Context, any) error) error {
-	return r.withinGlobal(ctx, true, fn)
+	return r.withinGlobal(ctx, globalScope{administrative: true}, fn)
+}
+
+// WithinTraeger opens the Träger transaction of ADR 0086 section 5: the
+// tenant role under row-level security with app.current_org_id set to the
+// Träger and no school. Only the Träger's own tables have policies on that
+// value; every school table stays closed because no school is set.
+func (r *PostgresUnitOfWork) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context, any) error) error {
+	if organizationID <= 0 {
+		return fmt.Errorf("tenant runtime: Träger ID must be positive")
+	}
+	return r.withinGlobal(ctx, globalScope{organizationID: organizationID}, fn)
+}
+
+// globalScope selects the school-less unit withinGlobal opens: the
+// administrative role, a Träger under the tenant role, or (both zero) the
+// demo login's own grants.
+type globalScope struct {
+	administrative bool
+	organizationID int64
 }
 
 // WithinDemo uses only the restricted demo login's existing grants for the
@@ -112,29 +132,58 @@ func (r *PostgresUnitOfWork) WithinDemo(ctx context.Context, fn func(context.Con
 	if !r.skipTenantRole {
 		return fmt.Errorf("demo transaction requires the demo runtime")
 	}
-	return r.withinGlobal(ctx, false, fn)
+	return r.withinGlobal(ctx, globalScope{}, fn)
 }
 
-func (r *PostgresUnitOfWork) withinGlobal(ctx context.Context, administrative bool, fn func(context.Context, any) error) error {
+func (r *PostgresUnitOfWork) withinGlobal(ctx context.Context, scope globalScope, fn func(context.Context, any) error) error {
 	if fn == nil {
 		return fmt.Errorf("tenant runtime: callback is required")
 	}
 	if tx, ok := transactionFromContext(ctx); ok {
+		if scope.organizationID > 0 {
+			if active, _ := ctx.Value(traegerTxKey{}).(int64); active != scope.organizationID {
+				return fmt.Errorf("tenant runtime: ambient transaction is not this Träger's")
+			}
+			return fn(ctx, *tx)
+		}
 		if active, _ := ctx.Value(adminTxKey{}).(bool); !active {
 			return fmt.Errorf("tenant runtime: ambient transaction is not administrative")
 		}
 		return fn(ctx, *tx)
 	}
 	return r.runInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		if administrative {
-			if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_admin"); err != nil {
-				return fmt.Errorf("tenant runtime: set admin role: %w", err)
-			}
+		if err := scope.install(txCtx, tx, r.skipTenantRole); err != nil {
+			return err
 		}
-		txCtx = context.WithValue(txCtx, adminTxKey{}, true)
+		if scope.organizationID > 0 {
+			txCtx = context.WithValue(txCtx, traegerTxKey{}, scope.organizationID)
+		} else {
+			txCtx = context.WithValue(txCtx, adminTxKey{}, true)
+		}
 		txCtx = contextWithTransaction(txCtx, &tx)
 		return fn(txCtx, tx)
 	})
+}
+
+// install sets the role and, for a Träger, its ID on the fresh transaction.
+func (scope globalScope) install(ctx context.Context, tx bun.Tx, skipTenantRole bool) error {
+	switch {
+	case scope.administrative:
+		if _, err := tx.ExecContext(ctx, "SET LOCAL ROLE phoenix_admin"); err != nil {
+			return fmt.Errorf("tenant runtime: set admin role: %w", err)
+		}
+	case scope.organizationID > 0:
+		if skipTenantRole {
+			return fmt.Errorf("tenant runtime: the demo runtime opens no Träger transaction")
+		}
+		if _, err := tx.ExecContext(ctx, "SET LOCAL ROLE phoenix_tenant"); err != nil {
+			return fmt.Errorf("tenant runtime: set tenant role: %w", err)
+		}
+		if _, err := tx.NewRaw("SELECT set_config('app.current_org_id', ?, true)", fmt.Sprint(scope.organizationID)).Exec(ctx); err != nil {
+			return fmt.Errorf("tenant runtime: set Träger ID: %w", err)
+		}
+	}
+	return nil
 }
 
 func (r *PostgresUnitOfWork) runInTx(ctx context.Context, fn func(context.Context, bun.Tx) error) error {

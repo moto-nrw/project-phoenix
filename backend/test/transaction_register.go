@@ -15,6 +15,10 @@ const transactionBoundaryRegister = "test/transaction_boundaries.json"
 type transactionBoundaryRegisterData struct {
 	Admin    map[string]string `json:"admin"`
 	Commands map[string]string `json:"commands"`
+	// Traeger lists every opener of a Träger transaction (ADR 0086 section
+	// 5). It is enumerated, not shrink-only: the Träger transaction is the
+	// pattern for every Träger table, and each new opener names its reason.
+	Traeger map[string]string `json:"traeger"`
 }
 
 func transactionRegisterOnlyShrinks(root string, current transactionBoundaryRegisterData) error {

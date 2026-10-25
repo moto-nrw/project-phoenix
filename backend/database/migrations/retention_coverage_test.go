@@ -180,6 +180,8 @@ var tableRetentions = map[string]tableRetention{
 	"config.school_setups":                                  notPersonal("school setup wizard state"),
 	"config.setting_audit":                                  own("nightly retention step setting_audit_retention, AuditRetention.DeleteExpiredSettingChanges -> SettingAuditRetention.DeleteChangedBefore (3 years); changed_by SET NULL on account delete"),
 	"config.setting_values":                                 notPersonal("tenant setting values (only updated-by account reference, FK NO ACTION)"),
+	"config.traeger_setting_audit":                          own("each Träger setting change prunes the Träger's changes older than settings.SettingAuditRetentionYears (3 years) in the same Träger transaction, TraegerSettingRepository.RecordChange (ADR 0105); rows go with platform.organizations; changed_by SET NULL on account delete"),
+	"config.traeger_setting_values":                         notPersonal("Träger setting values (only updated-by account reference, FK NO ACTION); rows go with platform.organizations"),
 	"config.staff_onboardings":                              parent("auth.accounts"),
 	"config.staff_target_overrides":                         staffRetention("Workforce SQL users.erase_retired_staff_records"),
 	"config.staff_work_schedules":                           staffRetention("Workforce SQL users.erase_retired_staff_records"),

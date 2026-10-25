@@ -70,6 +70,7 @@ type UnitOfWork struct {
 	withoutTx       func(context.Context) context.Context
 	withTenant      func(context.Context, int64) context.Context
 	withTransaction func(context.Context, any) context.Context
+	withinTraeger   func(context.Context, int64, func(context.Context, any) error) error
 }
 
 // IsZero reports whether the unit of work carries no transaction functions,

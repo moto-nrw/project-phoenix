@@ -16,12 +16,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// NewTenantRuntime binds tenant/admin transactions under their database roles,
+// NewTenantRuntime binds tenant/admin/Träger transactions under their database roles,
 // savepoints, advisory locks and retry-safe deadlock/serialization replay.
 // It hands context to repositories and Audit; pool waits reach the observer.
 func NewTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	unitOfWork, err := postgres.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
-	return bindTenantRuntime(unitOfWork, err, postgres.IsRetryableTransactionError, unitOfWork.WithinAdmin)
+	runtime, err := bindTenantRuntime(unitOfWork, err, postgres.IsRetryableTransactionError, unitOfWork.WithinAdmin)
+	return runtime.WithTraegerTransactions(unitOfWork.WithinTraeger), err
 }
 
 // NewDemoTenantRuntime retains phoenix_demo for school and global queue/expiry

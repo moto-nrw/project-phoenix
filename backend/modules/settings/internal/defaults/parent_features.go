@@ -5,6 +5,7 @@ import config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 var parentFeaturesDefinitions = []config.Definition{
 	{
 		Key:             config.KeyParentCarePickupRequestEnabled,
+		Levels:          config.LevelBoth,
 		Label:           "Feste Abholzeiten ändern (Eltern)",
 		Description:     "Eltern können im Elternportal neue feste Abholzeiten für die Wochentage beantragen. Sie gelten erst nach Freigabe durch das Team.",
 		Type:            config.FieldBoolean,
@@ -17,6 +18,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyParentCareModeRequestEnabled,
+		Levels:          config.LevelBoth,
 		Label:           "Abholart ändern (Eltern)",
 		Description:     "Eltern können im Elternportal eine andere Abholart anfragen, für die Wochentage oder für einen einzelnen Tag. Sie gilt erst, wenn das Team sie bestätigt.",
 		Type:            config.FieldBoolean,
@@ -29,6 +31,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyParentMessageStaffNameVisible,
+		Levels:          config.LevelBoth,
 		Label:           "Name des Teammitglieds in Nachrichten anzeigen",
 		Description:     "Eltern sehen bei Antworten dann zum Beispiel „Anna M.“ statt nur „OGS [Schulname]“. Das gilt für Nachrichten ab dem Einschalten. Schon gesendete Nachrichten ändern sich nicht.",
 		Type:            config.FieldBoolean,
@@ -42,6 +45,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyGuardianParentInviteMode,
+		Levels:          config.LevelBoth,
 		Label:           "Weitere Bezugspersonen einladen (Eltern)",
 		Description:     "Legt fest, ob Eltern im Elternportal weitere Bezugspersonen zu ihrem Kind einladen dürfen. Bei „Mit Freigabe“ bestätigt das Team jede Einladung. Das Team selbst kann immer einladen.",
 		Type:            config.FieldSelect,
@@ -61,6 +65,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyGuardianParentCanRemove,
+		Levels:          config.LevelBoth,
 		Label:           "Bezugspersonen entfernen (Eltern)",
 		Description:     "Eltern dürfen im Elternportal anderen Personen den Zugang zu ihrem Kind entziehen. Die primäre Bezugsperson können Eltern nicht entfernen. Das Team kann immer entfernen.",
 		Type:            config.FieldBoolean,
@@ -99,6 +104,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyParentMasterDataEditEnabled,
+		Levels:          config.LevelBoth,
 		Label:           "Stammdaten bearbeiten (Eltern)",
 		Description:     "Eltern ändern Gesundheitsangaben und ihre eigenen Kontaktdaten direkt im Elternportal. Die Änderung gilt sofort. moto hält fest, wer was geändert hat.",
 		Type:            config.FieldBoolean,
@@ -111,6 +117,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyParentGuardianManagementEnabled,
+		Levels:          config.LevelBoth,
 		Label:           "Kontaktdaten und Abholberechtigung verwalten (Eltern)",
 		Description:     "Eltern ändern im Elternportal ihre Kontaktdaten. Bei Bezugspersonen ohne eigenes Konto auch, ob sie abholen dürfen und im Notfall angerufen werden. Personen mit eigenem Konto ändert nur das Team. Ausgeschaltet können Eltern auch ihre eigenen Kontaktdaten dort nicht ändern.",
 		Type:            config.FieldBoolean,
@@ -123,6 +130,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyParentMasterDataRequestEnabled,
+		Levels:          config.LevelBoth,
 		Label:           "Änderungen an Stammdaten vorschlagen (Eltern)",
 		Description:     "Eltern schlagen im Elternportal Änderungen an Name, Geburtsdatum oder festen Gehzeiten vor. Das Team prüft sie. Erst nach der Freigabe gelten sie.",
 		Type:            config.FieldBoolean,
@@ -305,6 +313,7 @@ var parentFeaturesDefinitions = []config.Definition{
 	},
 	{
 		Key:             config.KeyParentNewsEnabled,
+		Levels:          config.LevelBoth,
 		Label:           "Elternmitteilungen (Neuigkeiten)",
 		Description:     "Das Team schreibt Mitteilungen an Eltern: an die ganze Schule, Klassen, Gruppen, AGs, einzelne Kinder oder offene Anmeldungen. Eltern sehen sie im Elternportal unter Neuigkeiten. Auf Wunsch bestätigen Eltern, dass sie die Mitteilung gelesen haben.",
 		Type:            config.FieldBoolean,

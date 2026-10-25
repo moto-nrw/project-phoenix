@@ -114,6 +114,7 @@ DELETE /school/class-day/handover/{schoolClass}/{date}
 DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
+DELETE /traeger/settings/values/{key}
 GET /
 GET /.well-known/caldav
 GET /analytics-consent/
@@ -601,6 +602,7 @@ GET /school/supervisions/
 GET /school/supervisions/{id}/roster
 GET /school/supervisions/{id}/students/{student_id}/sheet
 GET /traeger/schools/
+GET /traeger/settings/schema
 HEAD /.well-known/caldav
 HEAD /api/caldav
 HEAD /api/caldav/*
@@ -1118,6 +1120,7 @@ PUT /school/class-day/homework/{schoolClass}/{homeworkId}
 PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
 PUT /school/supervisions/{id}/students/{student_id}/homework-feedback
+PUT /traeger/settings/values/{key}
 QUERY /.well-known/caldav
 QUERY /api/caldav
 QUERY /api/caldav/*

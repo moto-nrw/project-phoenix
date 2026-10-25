@@ -9,7 +9,8 @@
 //     org rejection.
 //  2. A Träger token names its Träger and no school, so no route opens a
 //     tenant transaction. Reads across the schools of the Träger go through
-//     the Träger projection (modules/traegerview) only.
+//     the Träger projection (modules/traegerview) only; the Träger's own
+//     settings run in the Träger transaction of ADR 0086.
 //
 // Refresh and logout run through the shared, scope-preserving /auth/refresh
 // and /auth/logout like the school portal's.
@@ -82,16 +83,18 @@ type TraegerRouter interface {
 
 // Resource bundles the Träger-Portal handlers.
 type Resource struct {
-	auth    AuthRuntime
-	schools TraegerRouter
+	auth     AuthRuntime
+	schools  TraegerRouter
+	settings TraegerRouter
 }
 
-// NewResource builds the Träger-Portal resource.
-func NewResource(auth AuthRuntime, schools TraegerRouter) *Resource {
-	if schools == nil {
-		panic("traeger portal: the school list routes are required")
+// NewResource builds the Träger-Portal resource: the school list of the Träger
+// projection and the Träger settings of the Settings Platform (ADR 0086).
+func NewResource(auth AuthRuntime, schools, settings TraegerRouter) *Resource {
+	if schools == nil || settings == nil {
+		panic("traeger portal: the school list and settings routes are required")
 	}
-	return &Resource{auth: auth, schools: schools}
+	return &Resource{auth: auth, schools: schools, settings: settings}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -115,6 +118,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		r.Post("/login", rs.login)
 	})
 	r.Mount("/schools", rs.schools.TraegerRouter(protectedTraegerRoutes))
+	r.Mount("/settings", rs.settings.TraegerRouter(protectedTraegerRoutes))
 	return r
 }
 

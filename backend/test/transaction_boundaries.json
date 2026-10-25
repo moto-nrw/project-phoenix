@@ -1044,5 +1044,12 @@
     "tenant/runtime.go:withinTenant:runtime.withinTenant#1": "Runtime: withinTenant implements/binds the unit-of-work protocol, including ambient joining, validated school selection, role installation and commit/rollback. SQL acquisition belongs here; it is not an owner row adapter.",
     "tenant/transaction_runner.go:*TransactionRunner.RunInTx:WithinCurrentTenant#1": "Runtime: *TransactionRunner.RunInTx implements/binds the unit-of-work protocol, including ambient joining, validated school selection, role installation and commit/rollback. SQL acquisition belongs here; it is not an owner row adapter.",
     "tenant/transaction_runner.go:*TransactionRunner.RunInTxWithRetry:WithinTenantRetry#1": "Runtime: *TransactionRunner.RunInTxWithRetry implements/binds the unit-of-work protocol, including ambient joining, validated school selection, role installation and commit/rollback. SQL acquisition belongs here; it is not an owner row adapter."
+  },
+  "traeger": {
+    "modules/settings/compose/tenant_settings_runtime.go:TenantSettingsRuntime.WithinTraeger:tenant.WithinTraeger#1": "ADR 0086 section 5: the Settings Platform runtime binds the Träger transaction of the root unit of work for the Träger settings; it sets app.current_org_id under the tenant role and never selects a school or bypasses RLS.",
+    "modules/settings/internal/application/traeger_settings_service.go:*TraegerSettings.Schema:t.deps.Runtime.WithinTraeger#1": "ADR 0086 section 5: the Träger settings read the session's Träger values in its Träger transaction; RLS on config.traeger_setting_values admits only that Träger's rows.",
+    "modules/settings/internal/application/traeger_settings_service.go:*TraegerSettings.change:t.deps.Runtime.WithinTraeger#1": "ADR 0086 sections 5 and 7: a Träger value change and its change-log entry commit together in the Träger transaction of the session's Träger; a failed entry fails the change.",
+    "modules/transactionruntime/compose/tenant_runtime.go:NewTenantRuntime:unitOfWork.WithinTraeger#1": "Transaction Runtime binding of the Träger transaction of ADR 0086 section 5: tenant role, app.current_org_id, no school; the demo runtime binds none.",
+    "tenant/traeger.go:WithinTraeger:runtime.withinTraeger#1": "Transaction Runtime implementation of the Träger transaction of ADR 0086 section 5; it joins only an ambient Träger transaction of the same Träger and masks any school."
   }
 }

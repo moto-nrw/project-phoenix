@@ -3,7 +3,9 @@ package owners
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 
@@ -14,9 +16,11 @@ import (
 	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -90,6 +94,8 @@ type SettingsOwner struct {
 	// of work.
 	Rows    settingsCompose.TenantSettingsRuntime
 	Service settingsCompose.BatchSettingsService
+	// Traeger is the Träger level the Träger-Büro writes (ADR 0086).
+	Traeger *settingsCompose.TraegerSettings
 }
 
 // TenantMailIdentity binds the reply-to of tenant-bound mail to the OGS, not
@@ -133,6 +139,7 @@ func BuildSettingsOwner(db transactionruntime.Database, unit rootUnitOfWork, env
 	homeLayouts := settingsCompose.NewHomeLayoutService(settingsCompose.NewHomeLayoutRepository(rows), rows, env.Logger, SettingsChangedNotifier(hub))
 	service, err := settingsCompose.NewSettings(settingsCompose.SettingsDependencies{
 		Values: settingsCompose.NewSettingValueRepository(rows), Audit: settingsCompose.NewSettingAuditRepository(rows),
+		TraegerValues: settingsCompose.NewTraegerSettingRepository(rows), SchoolTraeger: schoolTraeger(organizations),
 		Schools: NewSchoolSettingsStore(organizations), Runtime: settingsCompose.NewTenantSettingsRuntime(db.Pool(), &unit),
 		Logger: env.Logger, HomeLayouts: homeLayouts, ObserveLookup: env.Observe.SettingsLookup,
 		ClassRestrictionGuard: phases.HasActiveClassRestrictedPhase,
@@ -142,7 +149,49 @@ func BuildSettingsOwner(db transactionruntime.Database, unit rootUnitOfWork, env
 	if err != nil {
 		return SettingsOwner{}, err
 	}
-	return SettingsOwner{Rows: rows, Service: service}, nil
+	traeger, err := BuildTraegerSettings(db, unit, env.Logger, organizations, hub)
+	if err != nil {
+		return SettingsOwner{}, err
+	}
+	return SettingsOwner{Rows: rows, Service: service, Traeger: traeger}, nil
+}
+
+// schoolTraeger names the Träger of each school through Organisation &
+// Tenancy, for the settings batch read over several schools (ADR 0086
+// section 5).
+func schoolTraeger(organizations organizationtenancy.SchoolListQuery) func(context.Context, []int64) (map[int64]int64, error) {
+	return func(ctx context.Context, schoolIDs []int64) (map[int64]int64, error) {
+		schools, err := organizations.ListSchoolsByID(ctx, schoolIDs)
+		if err != nil {
+			return nil, err
+		}
+		result := make(map[int64]int64, len(schools))
+		for _, school := range schools {
+			result[school.ID] = school.OrganizationID
+		}
+		return result, nil
+	}
+}
+
+// BuildTraegerSettings binds the Träger level to the Träger transaction of the
+// root's unit of work, the Träger's schools for the change notice and the
+// Träger rights of Identity & Access (ADR 0086 sections 6 and 8).
+func BuildTraegerSettings(db transactionruntime.Database, unit rootUnitOfWork, logger *slog.Logger, organizations organizationtenancy.TraegerMembershipQuery, hub *realtime.Hub) (*settingsCompose.TraegerSettings, error) {
+	notify := SettingsChangedNotifier(hub)
+	if notify == nil {
+		notify = func(context.Context, int64, string) {}
+	}
+	return settingsCompose.NewTraegerSettings(settingsCompose.TraegerSettingsDependencies{
+		AuditRetentionYears: settingsModule.SettingAuditRetentionYears,
+		Values:              settingsCompose.NewTraegerSettingRepository(settingsCompose.NewTenantSettingsRuntime(db.Pool(), nil)),
+		Runtime:             settingsCompose.NewTenantSettingsRuntime(db.Pool(), &unit),
+		Schools:             organizations.ListTraegerSchoolIDs, Notify: notify, Logger: logger, Now: time.Now,
+		Rights: map[configModels.TraegerRight]string{
+			configModels.TraegerRightSettings: identityaccess.TraegerRightSettingsManage,
+			configModels.TraegerRightStaff:    identityaccess.TraegerRightStaffManage,
+			configModels.TraegerRightBilling:  identityaccess.TraegerRightBillingManage,
+		},
+	})
 }
 
 // BuildMealPlanSettings binds the Meal Plan's settings to the tenant

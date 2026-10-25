@@ -556,7 +556,9 @@ var coreActions = map[RouteKey]CoreAction{
 	// Träger-Portal (ADR 0084). It collects nothing until a collection
 	// decision for the Träger exists; a Träger session names no school, so
 	// ActorOf yields no actor either.
-	{http.MethodPost, "/traeger/auth/login"}: notCaptured,
+	{http.MethodPost, "/traeger/auth/login"}:              notCaptured,
+	{http.MethodDelete, "/traeger/settings/values/{key}"}: notCaptured,
+	{http.MethodPut, "/traeger/settings/values/{key}"}:    notCaptured,
 
 	// School portal (Lehrkräfte).
 	{http.MethodPost, "/school/auth/login"}:                                               session("login_success"),

@@ -35,7 +35,7 @@ var ErrTransactionRequired = errors.New("tenant: transaction is required")
 // RequireTransaction checks the school and ambient transaction without opening
 // a unit of work. A lock must remain held until its caller commits.
 func RequireTransaction(ctx context.Context) error {
-	if !IsAdminTx(ctx) {
+	if !IsAdminTx(ctx) && TraegerTxOrganization(ctx) == 0 {
 		if _, err := TenantFromContext(ctx); err != nil {
 			return err
 		}
