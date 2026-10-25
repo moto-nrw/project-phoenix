@@ -7,9 +7,11 @@ import (
 )
 
 var ErrPickupPermissionContactGone = care.ErrPickupPermissionContactGone
+var ErrPickupPermissionChanged = care.ErrPickupPermissionChanged
 
 type PickupPermissionApproval = care.PickupPermissionApproval
 type PickupPermissionChange = care.PickupPermissionChange
+type PickupPermissionState = care.PickupPermissionState
 type PickupPermissionWrite = care.PickupPermissionWrite
 
 // PickupPermissionApprovals is the review-time coordinator for live pickup

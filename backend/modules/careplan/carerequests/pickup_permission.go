@@ -35,6 +35,7 @@ type PickupPermissionApproval struct {
 	GuardianProfileID int64
 	RelationshipID    int64
 	Weekdays          []int
+	Expected          *PickupPermissionState
 }
 
 // PickupPermissionApprovals coordinates the current-contact check with the

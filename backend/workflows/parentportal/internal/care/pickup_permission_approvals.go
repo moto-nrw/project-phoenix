@@ -10,6 +10,10 @@ import (
 // qualifies for a parent-issued pickup permission.
 var ErrPickupPermissionContactGone = errors.New("parent: pickup permission contact is no longer eligible")
 
+// ErrPickupPermissionChanged refuses an approval whose stored permission no
+// longer matches the state the parent saw when filing the request.
+var ErrPickupPermissionChanged = errors.New("parent: pickup permission changed since request")
+
 // PickupPermissionApproval is the frozen permission state that an approved
 // request may grant.
 type PickupPermissionApproval struct {
@@ -18,6 +22,14 @@ type PickupPermissionApproval struct {
 	GuardianProfileID int64
 	RelationshipID    int64
 	Weekdays          []int
+	Expected          *PickupPermissionState
+}
+
+// PickupPermissionState is the safety-relevant portion of a pickup
+// permission. A nil weekday list means that the permission applies every day.
+type PickupPermissionState struct {
+	CanPickup bool
+	Weekdays  []int
 }
 
 // PickupPermissionChange is Care Plan's pickup-permission command in the
@@ -27,6 +39,7 @@ type PickupPermissionChange struct {
 	TenantID       int64
 	RelationshipID int64
 	Weekdays       []int
+	Expected       *PickupPermissionState
 }
 
 // PickupPermissionWrite applies the target owner's command in the ambient
@@ -47,6 +60,9 @@ type PickupPermissionApprovals struct {
 }
 
 func (s *PickupPermissionApprovals) ApplyPickupPermission(ctx context.Context, input PickupPermissionApproval) error {
+	if input.Expected == nil {
+		return ErrPickupPermissionChanged
+	}
 	link, err := s.pickupPermissionTarget(ctx, input.StudentID, input.GuardianProfileID)
 	if err != nil {
 		return err
@@ -55,13 +71,13 @@ func (s *PickupPermissionApprovals) ApplyPickupPermission(ctx context.Context, i
 		return ErrPickupPermissionContactGone
 	}
 	found, err := s.PickupPermissionWrite.ChangePickupPermission(ctx, PickupPermissionChange{
-		TenantID: input.TenantID, RelationshipID: link.ID, Weekdays: input.Weekdays,
+		TenantID: input.TenantID, RelationshipID: link.ID, Weekdays: input.Weekdays, Expected: input.Expected,
 	})
 	if err != nil {
 		return err
 	}
 	if !found {
-		return ErrPickupPermissionContactGone
+		return ErrPickupPermissionChanged
 	}
 	return nil
 }

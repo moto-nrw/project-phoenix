@@ -35,9 +35,16 @@ func (w pickupPermissionWriter) ChangePickupPermission(ctx context.Context, chan
 
 func changeParentPickupPermission(ctx context.Context, commands careplan.GuardianPickupPermissions, change parentportal.PickupPermissionChange) (bool, error) {
 	grant := true
+	var expected *careplan.GuardianPickupPermissionState
+	if change.Expected != nil {
+		expected = &careplan.GuardianPickupPermissionState{
+			CanPickup: change.Expected.CanPickup,
+			Weekdays:  change.Expected.Weekdays,
+		}
+	}
 	return commands.ChangeGuardianPickupPermission(ctx, careplan.GuardianPickupPermissionChange{
 		TenantID: change.TenantID, RelationshipID: change.RelationshipID,
-		CanPickup: &grant, SetWeekdays: true, Weekdays: change.Weekdays,
+		CanPickup: &grant, SetWeekdays: true, Weekdays: change.Weekdays, Expected: expected,
 	})
 }
 
@@ -49,7 +56,7 @@ func (a pickupPermissionApprovalAdapter) ApplyPickupPermission(ctx context.Conte
 	return applyParentPickupPermission(ctx, a.workflow, parentportal.PickupPermissionApproval{
 		TenantID: input.TenantID, StudentID: input.StudentID,
 		GuardianProfileID: input.GuardianProfileID, RelationshipID: input.RelationshipID,
-		Weekdays: input.Weekdays,
+		Weekdays: input.Weekdays, Expected: pickupPermissionExpected(input.Expected),
 	})
 }
 
@@ -75,5 +82,15 @@ func pickupPermissionApprovalError(err error) error {
 	if errors.Is(err, parentportal.ErrPickupPermissionContactGone) {
 		return carerequests.ErrPickupPermissionContactGone
 	}
+	if errors.Is(err, parentportal.ErrPickupPermissionChanged) {
+		return carerequests.ErrPickupChangeConflict
+	}
 	return err
+}
+
+func pickupPermissionExpected(state *carerequests.PickupPermissionState) *parentportal.PickupPermissionState {
+	if state == nil {
+		return nil
+	}
+	return &parentportal.PickupPermissionState{CanPickup: state.CanPickup, Weekdays: state.Weekdays}
 }

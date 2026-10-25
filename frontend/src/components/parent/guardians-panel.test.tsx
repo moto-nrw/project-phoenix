@@ -801,6 +801,30 @@ describe("GuardiansPanel", () => {
       expect(mocks.updateGuardianRelationship).not.toHaveBeenCalled();
     });
 
+    it("keeps one weekday selected in the partial permission", async () => {
+      mocks.listChildGuardians.mockResolvedValue([contact]);
+      render(
+        <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Abholrecht verwalten" }),
+      );
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>("#guardian-can-pickup")!,
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", {
+          name: "Nur an bestimmten Tagen",
+        }),
+      );
+
+      const monday = within(dialog).getByRole("checkbox", { name: "Montag" });
+      expect(monday).toBeChecked();
+      expect(monday).toBeDisabled();
+    });
+
     it("requires a new signature after the selected weekdays change", async () => {
       mocks.listChildGuardians.mockResolvedValue([contact]);
       render(

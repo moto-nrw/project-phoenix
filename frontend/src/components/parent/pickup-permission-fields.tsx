@@ -169,6 +169,7 @@ export function PickupWeekdaysField({
               >
                 <Checkbox
                   checked={checked}
+                  disabled={checked && value.length === 1}
                   aria-label={t(`weekdayLong.${day}` as "weekdayLong.1")}
                   onChange={(e) =>
                     onChange(

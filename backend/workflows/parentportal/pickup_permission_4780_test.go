@@ -393,6 +393,39 @@ func TestPickupPermissionApprovalRefusesAContactNowManagedByTheSchool(t *testing
 	assert.False(t, canPickup)
 }
 
+func TestPickupPermissionApprovalKeepsALaterStaffChange(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-approval-staff")
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	created, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{
+		Weekdays: []int{2, 4}, Signature: signedContactPermission(t, f, chain, []int{2, 4}),
+	})
+	require.NoError(t, err)
+
+	var relationshipID int64
+	require.NoError(t, f.db.NewSelect().TableExpr("users.student_guardian_relationships").ColumnExpr("id").
+		Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, contactID).
+		Scan(ctx, &relationshipID))
+	_, err = f.db.NewUpdate().TableExpr("users.student_guardian_pickup_permissions").
+		Set("can_pickup = TRUE").Set("pickup_weekdays = ARRAY[3]::smallint[]").
+		Where("tenant_id = ? AND relationship_id = ?", chain.TenantID, relationshipID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	staffCtx, staffID := staffDecisionContext(t, f.db, chain.TenantID)
+	err = testpkg.WithTenantTx(t, staffCtx, f.db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := f.requests.Decide(txCtx, carerequests.DecideInput{RequestID: created.ID, Approve: true, ReviewedBy: staffID})
+		return decideErr
+	})
+	require.ErrorIs(t, err, carerequests.ErrPickupChangeConflict)
+	canPickup, weekdays := pickupWeekdays(t, f.db, chain.StudentID, contactID)
+	assert.True(t, canPickup)
+	assert.Equal(t, []int{3}, weekdays)
+}
+
 func TestPickupPermissionRequestsListQueryBudget(t *testing.T) {
 	t.Parallel()
 

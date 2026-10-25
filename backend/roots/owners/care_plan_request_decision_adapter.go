@@ -67,7 +67,7 @@ func applyPickupPermissionApproval(ctx context.Context, approvals carerequests.P
 	return approvals.ApplyPickupPermission(ctx, carerequests.PickupPermissionApproval{
 		TenantID: request.TenantID, StudentID: request.StudentID,
 		GuardianProfileID: permission.GuardianProfileID, RelationshipID: permission.RelationshipID,
-		Weekdays: permission.Weekdays,
+		Weekdays: permission.Weekdays, Expected: permission.PreviousPermission,
 	})
 }
 
