@@ -145,7 +145,7 @@ describe("Speiseplan: Statuszeile bei Ladefehler (#2517)", () => {
 });
 
 // Der Wochenwechsel steuert Wochenplan und Bestellung und steht darum als
-// Bedienband in der Kopfkarte (Bauart 3 Regel 1, TENANT-PAGE-SPEC Regel 8).
+// Bedienband in der Kopfkarte (Bauart 3 Regel 1, TENANT-PAGE-SPEC Regel 3).
 describe("Speiseplan: Wochenwechsel im Seitenkopf", () => {
   beforeEach(() => {
     getMealPlanWeek.mockReset();

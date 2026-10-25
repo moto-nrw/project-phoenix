@@ -27,7 +27,7 @@ import type { MealOrders } from "~/lib/meal-plan-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { MealOrderWeek } from "./meal-order-week";
 
-/** Opens the one export menu of the card and the month dialog behind it. */
+/** Opens the export menu of a week across two months and its month dialog. */
 async function openMonthExport() {
   fireEvent.click(
     await screen.findByRole("button", { name: "Bestellung herunterladen" }),
@@ -120,33 +120,35 @@ describe("MealOrderWeek", () => {
     expect(screen.getAllByText("OGS geschlossen")).not.toHaveLength(0);
   });
 
-  // docs/reference/exporte.md, Regel 2: ein Einstieg im Kartenkopf. Die
-  // Monatsübersicht hat eine Option (den Monat) und öffnet den Export-Dialog.
-  it("downloads the month of the shown week from the export dialog", async () => {
+  // docs/reference/exporte.md, Regel 2: ein Einstieg im Kartenkopf. Liegt die
+  // Woche in einem Monat, hat die Monatsübersicht keine Option und steht mit
+  // einem Eintrag je Format im Menü, ohne Dialog.
+  it("downloads the month of a week inside one month from the menu", async () => {
     render(<MealOrderWeek mondayISO="2026-09-07" canExportMonth />, {
       wrapper: ToastProvider,
     });
 
-    const dialog = await openMonthExport();
-    expect(
-      within(dialog).getByText("Monatsübersicht exportieren"),
-    ).toBeInTheDocument();
-    // Anker: eine Woche in einem Monat nennt ihn, ohne Auswahl.
-    expect(within(dialog).getByText("September 2026")).toBeInTheDocument();
-    expect(
-      within(dialog).queryByRole("group", { name: "Monat wählen" }),
-    ).not.toBeInTheDocument();
-    expect(mocks.downloadMealMonth).not.toHaveBeenCalled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Excel" }));
     fireEvent.click(
-      within(dialog).getByRole("button", { name: "Herunterladen" }),
+      await screen.findByRole("button", { name: "Bestellung herunterladen" }),
     );
+    expect(
+      screen.getByText("Monatsübersicht September 2026"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Exportieren…" }),
+    ).not.toBeInTheDocument();
+    // Lieferliste zuerst, die Monatsübersicht darunter.
+    const excelEntries = screen.getAllByRole("menuitem", { name: "Excel" });
+    expect(excelEntries).toHaveLength(2);
+    fireEvent.click(excelEntries[1]!);
     await waitFor(() =>
       expect(mocks.downloadMealMonth).toHaveBeenCalledWith("2026-09", "xlsx"),
     );
+    expect(mocks.downloadMealDeliveries).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("keeps a failed month export in the open dialog", async () => {
+  it("reports a failed month export from the menu", async () => {
     mocks.downloadMealMonth.mockRejectedValueOnce(
       new ApiError("boom", 500, { code: "general.server" }),
     );
@@ -154,7 +156,30 @@ describe("MealOrderWeek", () => {
       wrapper: ToastProvider,
     });
 
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Bestellung herunterladen" }),
+    );
+    fireEvent.click(screen.getAllByRole("menuitem", { name: "PDF" })[1]!);
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Monatsübersicht"),
+      ),
+    ).toBeInTheDocument();
+    expect(mocks.downloadMealMonth).toHaveBeenCalledWith("2026-09", "pdf");
+  });
+
+  it("keeps a failed month export in the open dialog", async () => {
+    mocks.downloadMealMonth.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
+    render(<MealOrderWeek mondayISO="2026-09-28" canExportMonth />, {
+      wrapper: ToastProvider,
+    });
+
     const dialog = await openMonthExport();
+    expect(
+      within(dialog).getByText("Monatsübersicht exportieren"),
+    ).toBeInTheDocument();
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Herunterladen" }),
     );
@@ -176,8 +201,13 @@ describe("MealOrderWeek", () => {
       await screen.findByRole("button", { name: "Bestellung herunterladen" }),
     );
     expect(screen.getByText("Lieferliste der Woche")).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "PDF" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Excel" })).toBeInTheDocument();
+    // Die Lieferliste steht vor der Monatsübersicht: ihr Eintrag ist der erste.
+    expect(
+      screen.getAllByRole("menuitem", { name: "PDF" })[0],
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("menuitem", { name: "Excel" })[0],
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "CSV" }));
     await waitFor(() =>
       expect(mocks.downloadMealDeliveries).toHaveBeenCalledWith(
@@ -203,7 +233,7 @@ describe("MealOrderWeek", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Bestellung herunterladen" }),
     );
-    fireEvent.click(screen.getByRole("menuitem", { name: "PDF" }));
+    fireEvent.click(screen.getAllByRole("menuitem", { name: "PDF" })[0]!);
     expect(
       await screen.findByText(catalogText("general.server", "die Lieferliste")),
     ).toBeInTheDocument();

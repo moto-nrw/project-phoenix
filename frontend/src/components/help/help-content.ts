@@ -4219,7 +4219,7 @@ function mealOrderingTopic(): HelpTopic {
       "Für die Küche legen Sie eine Rolle mit den Rechten unter `Mittagessen` an. Sie braucht keinen Zugriff auf alle Kinderdaten.",
       "Zur Frist friert moto die Bestellung ein. Unter `Speiseplan` zeigt `Bestellung` je Tag `Offen`, `Bestellt` oder `Vom Caterer bestätigt`, dazu die `Frist`, die Zahl der Essen und die `Nachmeldungen` danach.",
       "Tage vor dem Start der Bestellung stehen auf `Nicht bestellt`. Sie zählen nicht.",
-      "Die bestellten Essen je Kind für einen Monat bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten, zum Beispiel für die Essenspauschale. Wählen Sie unter `Monatsübersicht` den Eintrag `Exportieren…`. Liegt die Woche in zwei Monaten, wählen Sie dort den Monat. Wählen Sie `PDF` oder `Excel` und dann `Herunterladen`.",
+      "Die bestellten Essen je Kind für einen Monat bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten, zum Beispiel für die Essenspauschale. Wählen Sie unter `Monatsübersicht` den Eintrag `PDF` oder `Excel`. Liegt die Woche in zwei Monaten, steht dort `Exportieren…`: Wählen Sie dann den Monat, `PDF` oder `Excel` und `Herunterladen`.",
     ],
     differences: [
       "Wochenenden zählen bei `Tage vorher` mit. 1 heißt immer: am Tag davor.",

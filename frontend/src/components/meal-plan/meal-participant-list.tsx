@@ -86,7 +86,7 @@ function weeklyRows(week: WeeklyMealList | null): WeeklyMealRow[] {
 
 /**
  * Die Tagesliste für die Küche. Mit `canRegister` (meals:register) lädt sie
- * auch die Kinder, die nicht essen: „Kind anmelden“ im Kopf öffnet das
+ * auch die Kinder, die nicht essen: „Anmeldung ändern“ im Kopf öffnet das
  * Änderungsfenster ohne Kind, „Anmeldung ändern…“ im Menü einer Zeile mit
  * diesem Kind.
  */

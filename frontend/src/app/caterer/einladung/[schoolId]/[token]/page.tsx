@@ -250,30 +250,22 @@ function AcceptForm({
 
   if (accepted) {
     return (
-      <div className="flex flex-col items-center py-12">
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex flex-col items-center py-12"
+      >
         <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full bg-gray-900">
           <Check className="h-6 w-6 text-white" aria-hidden="true" />
         </div>
         <h3 className="mb-1 text-base font-semibold text-gray-900">
           {existing ? "Schule hinzugefügt" : "Konto erstellt"}
         </h3>
-        <p className="mb-6 text-sm text-gray-500">
-          Sie werden gleich angemeldet.
+        {/* „weitergeleitet“, nicht „angemeldet“: scheitert die automatische
+            Anmeldung, geht es zur Anmeldeseite. */}
+        <p className="text-sm text-gray-500">
+          Sie werden gleich weitergeleitet.
         </p>
-        <div className="h-1 w-16 overflow-hidden rounded-full bg-gray-100">
-          <div
-            className="h-full rounded-full bg-gray-900"
-            style={{
-              animation: `catererProgressFill ${ACCEPTED_SCREEN_MS}ms ease-in-out forwards`,
-            }}
-          />
-        </div>
-        <style>{`
-          @keyframes catererProgressFill {
-            from { width: 0%; }
-            to { width: 100%; }
-          }
-        `}</style>
       </div>
     );
   }

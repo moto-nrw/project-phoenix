@@ -152,6 +152,23 @@ describe("CatererInvitationPage", () => {
     expect(window.location.href).toBe("/caterer");
   });
 
+  it("promises no sign-in when the automatic sign-in fails", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mocks.signIn.mockResolvedValue({ error: "CredentialsSignin" });
+    const submit = await renderPage();
+    fillPasswords(acceptedCredential());
+
+    fireEvent.click(submit);
+
+    const screenStatus = await screen.findByRole("status");
+    expect(screenStatus).toHaveTextContent("Konto erstellt");
+    expect(screenStatus).toHaveTextContent("Sie werden gleich weitergeleitet.");
+    expect(screenStatus).not.toHaveTextContent("angemeldet");
+    await waitFor(() => expect(mocks.signIn).toHaveBeenCalled());
+    await vi.advanceTimersByTimeAsync(1600);
+    expect(window.location.href).toBe("/caterer/login");
+  });
+
   it("asks a caterer with an account only for the password", async () => {
     mocks.fetchCatererInvitation.mockResolvedValue({
       ...invitation,

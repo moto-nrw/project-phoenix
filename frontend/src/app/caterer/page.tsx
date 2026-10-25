@@ -14,7 +14,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Download, FileSpreadsheet, FileText, Printer } from "lucide-react";
+import { FileSpreadsheet, FileText, Printer } from "lucide-react";
 import { CatererSchoolOrders } from "~/components/caterer/caterer-school-orders";
 import { Button } from "~/components/ui/button";
 import {
@@ -395,16 +395,16 @@ export default function CatererOverviewPage() {
     { kind: "header", label: "Herunterladen" },
     ...(
       [
-        { format: "pdf", label: "PDF", Icon: Download },
+        { format: "pdf", label: "PDF", Icon: FileText },
         { format: "xlsx", label: "Excel", Icon: FileSpreadsheet },
-        { format: "csv", label: "CSV", Icon: FileText },
+        { format: "csv", label: "CSV", Icon: FileSpreadsheet },
       ] as {
         format: DeliveryExportFormat;
         label: string;
-        Icon: typeof Download;
+        Icon: typeof FileText;
       }[]
     ).map(({ format, label, Icon }) => ({
-      label: exporting === format ? "Wird exportiert…" : label,
+      label: exporting === format ? "Wird erstellt…" : label,
       icon: <Icon className="h-4 w-4" aria-hidden />,
       onClick: () => void download(format),
       disabled: !schools || exporting !== null,

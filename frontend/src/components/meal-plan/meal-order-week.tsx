@@ -56,6 +56,7 @@ export function MealOrderWeek({
   const [loading, setLoading] = useState(true);
   const [deliveryBusy, setDeliveryBusy] = useState<DeliveryFormat | null>(null);
   const [monthExportOpen, setMonthExportOpen] = useState(false);
+  const [monthBusy, setMonthBusy] = useState<MonthFormat | null>(null);
   const { error, show, clear } = useApiLoadError();
   const { show: showActionError } = useApiErrorDisplay();
   const reloadRef = useRef<() => void>(() => undefined);
@@ -131,9 +132,23 @@ export function MealOrderWeek({
     }
   }
 
-  // Die Monatsübersicht hat eine Option (den Monat) und läuft darum über den
-  // gemeinsamen Export-Dialog (docs/reference/exporte.md, Regel 2). Fehler
-  // bleiben im offenen Dialog.
+  // Liegt die Woche in einem Monat, hat die Monatsübersicht keine Option:
+  // ein Eintrag je Format wie bei der Lieferliste. Nur eine Woche über zwei
+  // Monate fragt den Monat im gemeinsamen Export-Dialog ab
+  // (docs/reference/exporte.md, Regel 2); Fehler bleiben dort im Dialog.
+  async function downloadMonth(format: MonthFormat) {
+    setMonthBusy(format);
+    try {
+      await downloadMealMonth(month, format);
+    } catch (cause) {
+      logger.error("meal_month_export_failed", {
+        error: cause instanceof Error ? cause.message : String(cause),
+      });
+      void showActionError(cause, { object: t("errorObjectMonth") });
+    } finally {
+      setMonthBusy(null);
+    }
+  }
   const monthRun = useExportRun<MonthFormat>({
     isOpen: monthExportOpen,
     onDownload: (format) => downloadMealMonth(month, format),
@@ -161,12 +176,35 @@ export function MealOrderWeek({
       onClick: () => void downloadDeliveries(format),
     })),
     { kind: "separator" },
-    { kind: "header", label: t("monthHeader") },
-    {
-      label: t("monthExport"),
-      icon: <CalendarRange className="h-4 w-4" aria-hidden />,
-      onClick: () => setMonthExportOpen(true),
-    },
+    ...(months.length > 1
+      ? ([
+          { kind: "header", label: t("monthHeader") },
+          {
+            label: t("monthExport"),
+            icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+            onClick: () => setMonthExportOpen(true),
+          },
+        ] satisfies OverflowMenuEntry[])
+      : [
+          {
+            kind: "header" as const,
+            label: `${t("monthHeader")} ${monthName(month, true)}`,
+          },
+          ...MONTH_FORMATS.map((format): OverflowMenuEntry => ({
+            label:
+              monthBusy === format
+                ? t("downloadLoading")
+                : EXPORT_FORMAT_LABELS[format],
+            icon:
+              format === "pdf" ? (
+                <FileText className="h-4 w-4" aria-hidden />
+              ) : (
+                <FileSpreadsheet className="h-4 w-4" aria-hidden />
+              ),
+            disabled: monthBusy !== null,
+            onClick: () => void downloadMonth(format),
+          })),
+        ]),
   ];
 
   const dateTime = useCallback(

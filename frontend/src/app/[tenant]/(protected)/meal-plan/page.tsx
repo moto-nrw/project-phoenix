@@ -538,7 +538,7 @@ export default function MealPlanPage() {
 
   // Statuszeile unter dem Titel: wie viele der fünf Wochentage schon ein
   // Gericht haben. Kalenderwoche und Zeitraum stehen im Bedienband direkt
-  // darunter und werden nicht wiederholt (TENANT-PAGE-SPEC Regel 8). Die
+  // darunter und werden nicht wiederholt (TENANT-PAGE-SPEC Regel 3). Die
   // Zahl kommt aus den bereits gespeicherten Tagen der geladenen Woche.
   const plannedDays = weekDates.filter(
     (date) => (originals[date]?.length ?? 0) > 0,
