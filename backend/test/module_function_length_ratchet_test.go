@@ -611,7 +611,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"roots/owners/parent_messaging_announcement_access_port.go:BindParentAnnouncementAccess": 125,
 	"roots/owners/root_identity.go:BuildIdentityAccess":                                      106,
 	"roots/owners/root_worker.go:ComposeWorker":                                              345,
-	"roots/owners/worker.go:NewWorker":                                                       91,
+	"roots/owners/worker.go:NewWorker":                                                       89,
 	// ADR 0087.
 	"test/booking_consistency_audit_fixture.go:VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows": 72,
 	// ADR 0087.

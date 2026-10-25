@@ -157,8 +157,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // (+13) and the Träger transaction binding of
 // modules/transactionruntime/compose (+4).
 // ADR 0106: the public holiday registration constructor of
-// modules/enrollment/compose (+12).
-const moduleComposeBudgetTotal = 12440
+// modules/enrollment/compose (+18).
+const moduleComposeBudgetTotal = 12446
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -184,8 +184,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/devicescan/compose":                    531,
 	"modules/emergencysnapshot/compose":             13,
 	// Raised by ADR 0105: the holiday period constructor (+13); by ADR 0106:
-	// the public holiday registration constructor (+12).
-	"modules/enrollment/compose":                   565,
+	// the public holiday registration constructors (+18).
+	"modules/enrollment/compose":                   571,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,

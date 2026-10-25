@@ -70,10 +70,7 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
 	}
-	if err := verifySchedulerSettingKeys(); err != nil {
-		return nil, err
-	}
-	resolver, err := schedulerSettings(settings)
+	resolver, err := verifiedSchedulerSettings(settings)
 	if err != nil {
 		return nil, err
 	}
@@ -94,30 +91,29 @@ func NewWorker(
 		return nil, err
 	}
 	return schedulerRuntimeCompose.NewWorker(schedulerPorts.WorkerDependencies{
-		Logger:                    logger.With("service", "scheduler"),
-		Getenv:                    os.Getenv,
-		SchoolRepo:                schedulerTenantDirectory{schools: organizations, billing: billing, schoolNames: schoolNames},
-		TenantRuntime:             runtime,
-		TenantRuntimeObserver:     observability.RecordTenantRuntimeEvent,
-		UnitOfWorkObserver:        observability.RecordUnitOfWorkEvent,
-		Tracer:                    workerTracer(tracer),
-		Settings:                  resolver,
-		Lease:                     lease,
-		RetentionSteps:            retention.steps,
-		RetentionLog:              retention.log,
-		CleanupRuns:               retention.runs,
-		StaffDocumentCleaner:      staffDocuments,
-		StudentDocumentCleaner:    studentDocuments,
-		FileStoreCleaner:          newFileStoreCleaner(db, fileStore, logger),
-		Active:                    newSchedulerSessionMaintenance(active),
-		ActiveCleanup:             newSchedulerPresenceCleanup(reports.ActiveCleanup),
-		AuthCleanup:               &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity},
-		InvitationCleanup:         identity,
-		EmailChangeCleanup:        identity,
-		OperatorInvitationCleanup: identity,
-		OperatorRetention:         schedulerPorts.OperatorRetention{Ledger: audit, Accounts: identity},
-		AccountRetention:          identity,
-		// The public holiday registrations of every Träger (#4661).
+		Logger:                       logger.With("service", "scheduler"),
+		Getenv:                       os.Getenv,
+		SchoolRepo:                   schedulerTenantDirectory{schools: organizations, billing: billing, schoolNames: schoolNames},
+		TenantRuntime:                runtime,
+		TenantRuntimeObserver:        observability.RecordTenantRuntimeEvent,
+		UnitOfWorkObserver:           observability.RecordUnitOfWorkEvent,
+		Tracer:                       workerTracer(tracer),
+		Settings:                     resolver,
+		Lease:                        lease,
+		RetentionSteps:               retention.steps,
+		RetentionLog:                 retention.log,
+		CleanupRuns:                  retention.runs,
+		StaffDocumentCleaner:         staffDocuments,
+		StudentDocumentCleaner:       studentDocuments,
+		FileStoreCleaner:             newFileStoreCleaner(db, fileStore, logger),
+		Active:                       newSchedulerSessionMaintenance(active),
+		ActiveCleanup:                newSchedulerPresenceCleanup(reports.ActiveCleanup),
+		AuthCleanup:                  &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity},
+		InvitationCleanup:            identity,
+		EmailChangeCleanup:           identity,
+		OperatorInvitationCleanup:    identity,
+		OperatorRetention:            schedulerPorts.OperatorRetention{Ledger: audit, Accounts: identity},
+		AccountRetention:             identity,
 		HolidayRegistrationRetention: enrollmentCompose.NewHolidayRegistrationRetention(),
 		WorkSessionCleanup:           workforce.TimeTracking.Jobs,
 		BreakAutoEnder:               workforce.TimeTracking.Jobs,
