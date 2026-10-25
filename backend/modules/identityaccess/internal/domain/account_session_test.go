@@ -12,8 +12,10 @@ func TestCapPortalScopes(t *testing.T) {
 		in   string
 		want []string
 	}{
-		{PortalScopeTenant, []string{PortalScopeTenant, PortalScopeOrg}},
-		{PortalScopeOrg, []string{PortalScopeTenant, PortalScopeOrg}},
+		// ADR 0084: the Träger-Portal has its own session bucket; a Träger
+		// login never evicts an OGS session and vice versa.
+		{PortalScopeTenant, []string{PortalScopeTenant}},
+		{PortalScopeOrg, []string{PortalScopeOrg}},
 		{PortalScopeParent, []string{PortalScopeParent}},
 		{PortalScopeSchool, []string{PortalScopeSchool}},
 		{PortalScopeUnknown, []string{PortalScopeUnknown}},

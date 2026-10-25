@@ -6,6 +6,9 @@ import "net/http"
 // on the request context. It must be placed AFTER the Authenticator middleware
 // in the middleware chain.
 //
+// Träger-Portal tokens (scope org, ADR 0084) carry no school and are rejected
+// like parent and school tokens: they reach only the Träger route group.
+//
 // Defense-in-depth: rejects parent-scope tokens outright. Parent tokens carry
 // tenant_id=0 and an empty role set for any tenant — they could bypass RLS
 // silently if smuggled into a tenant route. The host-only parent cookie + the
@@ -22,7 +25,7 @@ func TenantMiddleware(scope TenantScope) func(http.Handler) http.Handler {
 			// (#2207). School tokens carry a real tenant_id and would otherwise
 			// pass RLS silently — this is the symmetric guard to
 			// SchoolMiddleware rejecting tenant tokens on /school/*.
-			if claims.ID == 0 || claims.Scope == claimScopeParent || claims.Scope == claimScopeSchool {
+			if claims.ID == 0 || claims.Scope == claimScopeParent || claims.Scope == claimScopeSchool || claims.Scope == claimScopeOrg {
 				renderUnauthorized(w, r, ErrTokenUnauthorized)
 				return
 			}

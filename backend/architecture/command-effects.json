@@ -35677,102 +35677,6 @@
     },
     {
       "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "1ea25f730b2897bf32eb8930f82cee63",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "183f3bb79afd3cf3052972dbae59b528",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "1ea25f730b2897bf32eb8930f82cee63",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "183f3bb79afd3cf3052972dbae59b528",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "90f0f2e0c13feab58a87241669595a3e",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "055a989fdc466b66821e44cdd4694ad3",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "12307de51e48b37f5fa4aa50980c2bab",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "aba8e27b97086e0a317ff7dc10077388",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RevokeTenantSchoolInvitations",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RevokeTenantSchoolInvitations",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
@@ -35794,54 +35698,6 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.RevokeTenantSchoolInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "1ea25f730b2897bf32eb8930f82cee63",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "183f3bb79afd3cf3052972dbae59b528",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "1ea25f730b2897bf32eb8930f82cee63",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "183f3bb79afd3cf3052972dbae59b528",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36390,102 +36246,6 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.ListRoles. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "1ea25f730b2897bf32eb8930f82cee63",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "183f3bb79afd3cf3052972dbae59b528",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "1ea25f730b2897bf32eb8930f82cee63",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "183f3bb79afd3cf3052972dbae59b528",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "90f0f2e0c13feab58a87241669595a3e",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "055a989fdc466b66821e44cdd4694ad3",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RefreshTokenWithAudit",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "12307de51e48b37f5fa4aa50980c2bab",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RefreshTokenWithAudit",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "aba8e27b97086e0a317ff7dc10077388",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098). Re-reviewed #4902: the bodies now hash the tokens the store compares and derive the refresh successor from the presented token; scope units, transactions and participants are unchanged. Re-reviewed for #4901: the digest moved only because identityaccess.Owner gained AccountAnalyticsConsent (FindAnalyticsConsent, DecideAnalyticsConsent); this binding's body, scope, transaction and effect are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -38054,39 +37814,6 @@
       "effect": "query",
       "classification": "query",
       "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.SettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.ManageableSchools.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "5b2154014a0cd7dfa2040c472b1af5fc",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.ListSchoolsByOrganization (organization-tenancy) through modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.ManageableSchools.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "9ca95d570253f1cf51d04407789014d8",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.ListSchoolsByOrganization (organization-tenancy) through modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.ManageableSchools.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.Operational",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "3e747981a70ee23b62abef9ba6c631c1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.School.Operational (organization-tenancy) through modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -40667,39 +40394,6 @@
     },
     {
       "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolDirectory.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "5b2154014a0cd7dfa2040c472b1af5fc",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolDirectory.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "9ca95d570253f1cf51d04407789014d8",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolDirectory.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.Operational",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "3e747981a70ee23b62abef9ba6c631c1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.Operational; modules/organizationtenancy/school.go:84. May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolDirectory.LockSchoolShared",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.SchoolDirectory.LockSchoolShared",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolForShare",
@@ -41560,6 +41254,39 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.ListAccountTraegerOrganizations",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListAccountTraegerOrganizations",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "c360e2e2775d28f069f3ad7e77bf495b",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.ListAccountTraegerOrganizations",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListAccountTraegerOrganizations",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "93b5098616e6ca7f505bf1f6f9bde907",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.ListAccountTraegerOrganizations",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMembershipQuery.ListAccountTraegerOrganizations",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "611dd8397429b556736228cba9b4dd4f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.TenantScope.BindOrganization",
       "binding": "github.com/moto-nrw/project-phoenix/tenant.ClaimScope.BindOrganization",
       "target": "github.com/moto-nrw/project-phoenix/tenant.ClaimScope.BindOrganization",
@@ -41857,6 +41584,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveStringForTenant (settings-platform) through modules/settings/records.SettingsService.ResolveStringForTenant. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerRouter",
+      "target_owner": "traeger-view",
+      "binding_digest": "3814c9411ca17bd574034c093b0ec604",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/traegerview/http.Resource.TraegerRouter mounts the Träger school list (ADR 0084, #4649). May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "meal-plan",
@@ -42411,6 +42149,18 @@
     },
     {
       "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.AssignTraegerRole",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.AssignTraegerRole",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignTraegerRole",
+      "target_owner": "identity-access",
+      "binding_digest": "3cf3935d4265a0dc4e270e8eeade4332",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access validates the Träger role, locks the live account against a concurrent erasure and inserts the role on the operator's administrative unit, which the Träger membership grant of Organisation \u0026 Tenancy owns (ADR 0084, #4649). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
+    },
+    {
+      "source_owner": "organization-tenancy",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.DeactivateAccount",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.DeactivateAccount",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountAdministration.DeactivateAccount",
@@ -42473,6 +42223,17 @@
       "adr": "0067",
       "approval_adr": "0083",
       "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithTenantID; modules/identityaccess/compose/tenant_unit_of_work.go:32. "
+    },
+    {
+      "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.FindAccountIDByEmail",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.FindAccountIDByEmail",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindAccountByEmail",
+      "target_owner": "identity-access",
+      "binding_digest": "66c17e50b7bef613f1def65a1810c2cf",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the supplied interface: modules/identityaccess.Owner.FindAccountByEmail resolves the account behind an address for the operator's Träger membership grant (#4649). No mutation or locking read at this terminal."
     },
     {
       "source_owner": "organization-tenancy",
@@ -43163,6 +42924,17 @@
       "adr": "0067",
       "approval_adr": "0083",
       "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithinAdmin; modules/identityaccess/compose/tenant_unit_of_work.go:21. "
+    },
+    {
+      "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ListTraegerAccounts",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ListTraegerAccounts",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListTraegerAccounts",
+      "target_owner": "identity-access",
+      "binding_digest": "1354e61a5ec309fca9ea6d1c7ad5875a",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the supplied interface: modules/identityaccess.Owner.ListTraegerAccounts reads address and Träger roles on the operator's administrative unit (ADR 0084, #4649). No mutation or locking read at this terminal."
     },
     {
       "source_owner": "organization-tenancy",

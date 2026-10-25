@@ -48,12 +48,3 @@ type AccountAdministrationStore interface {
 	// decision; found=false when the row is gone or erased.
 	SetAnalyticsConsent(ctx context.Context, id int64, granted bool) (bool, domain.OperationStats, error)
 }
-
-// ManageableSchools is the consumer-owned port over the Organisation &
-// Tenancy fact an organisation-scoped administrator is bounded by: the live,
-// active schools of their organisation. An organisation with none leaves the
-// administrator with no account to manage, which is the refusal the
-// retained repository applied.
-type ManageableSchools interface {
-	ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
-}

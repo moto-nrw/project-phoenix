@@ -218,8 +218,11 @@ type OperatorAccess interface {
 // and ReplacementTokenHash likewise names the successor by hash (#4902).
 // Listings and revocations return Token empty.
 type AccountSession struct {
-	ID                   int64
-	TenantID             int64
+	ID       int64
+	TenantID int64
+	// OrganizationID is the Träger of a Träger-Portal session (portal scope
+	// org); such a session has no school (ADR 0084).
+	OrganizationID       int64
 	AccountID            int64
 	Token                string
 	TokenHash            string
@@ -372,6 +375,7 @@ type Owner interface {
 	AccountAdministration
 	OperatorProvisioning
 	OperatorStatus
+	TraegerRoles
 	// AccountHoldsRole reports whether the account holds the role of that
 	// exact name. A failed lookup counts as not holding it: the answer only
 	// ever withholds.

@@ -3017,6 +3017,9 @@
       },
       "operator": {
         "audit_unavailable": "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut."
+      },
+      "traeger": {
+        "no_membership": "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team."
       }
     },
     "actions": {

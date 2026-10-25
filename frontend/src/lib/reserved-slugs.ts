@@ -17,6 +17,7 @@ export const RESERVED_SLUGS = new Set([
   "eltern", // eltern.moto-app.de — guardian portal (cross-tenant)
   "schule", // schule.moto-app.de — school portal "moto schule" (#2207)
   "school", // /school path namespace inside the App Router
+  "traeger", // traeger.moto-app.de — Träger-Portal "moto träger" (#4649), also its /traeger path namespace
   "grafana", // grafana.moto-app.de monitoring
   "pyreportal", // pyreportal.moto-app.de kiosk SPA
   "help", // public /help docs — top-level app route shadows [tenant]

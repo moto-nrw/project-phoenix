@@ -10,7 +10,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
-func scopeNeedsMFA(scope string) bool { return scope != domain.PortalScopeParent }
+// scopeNeedsMFA selects the sessions the school MFA policy governs. The
+// Träger-Portal is not bound to the MFA mode of any school (ADR 0084); its own
+// second-factor duty arrives with #4651.
+func scopeNeedsMFA(scope string) bool {
+	return scope != domain.PortalScopeParent && scope != domain.PortalScopeOrg
+}
 
 // requireSessionMFA runs under the policy/account lock at every persistence
 // boundary, including refresh hand-off recovery. Legacy sessions have no proof.
