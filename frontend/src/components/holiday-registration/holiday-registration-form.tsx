@@ -3,6 +3,7 @@
 // Öffentliche Ferienanmeldung (#4661): bis zu drei Geschwister, Wochen mit
 // Zeitmodell, Notfallkontakte, Abholberechtigte und Gesundheitsangaben. Vor
 // dem Absenden steht eine Zusammenfassung, danach die Eingangsbestätigung.
+// Eltern mit Elternkonto wählen ihre bekannten Kinder aus (#4662).
 
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTranslations } from "next-intl";
@@ -15,13 +16,13 @@ import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
+  type HolidayKnownFamily,
   type HolidayRegistrationOffer,
   submitHolidayRegistration,
 } from "~/lib/holiday-registration-api";
 import { createLogger } from "~/lib/logger";
 import {
   emptyChild,
-  emptyRegistration,
   type FieldErrorKey,
   hasHealthInfo,
   MAX_CHILDREN,
@@ -29,9 +30,15 @@ import {
   MAX_PICKUP_PERSONS,
   payloadFromDraft,
   type RegistrationDraft,
+  registrationFromFamily,
+  toggleKnownChild,
   validateRegistration,
 } from "./holiday-registration-model";
-import { ChildCard, ContactList } from "./holiday-registration-sections";
+import {
+  ChildCard,
+  ContactList,
+  KnownChildPicker,
+} from "./holiday-registration-sections";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
 
 const logger = createLogger({ component: "HolidayRegistrationForm" });
@@ -41,11 +48,19 @@ type Step = "form" | "summary" | "done";
 export function HolidayRegistrationForm({
   token,
   offer,
-}: Readonly<{ token: string; offer: HolidayRegistrationOffer }>) {
+  family = null,
+}: Readonly<{
+  token: string;
+  offer: HolidayRegistrationOffer;
+  /** What the schools know of a parent with an account (#4662). */
+  family?: HolidayKnownFamily | null;
+}>) {
   const t = useTranslations("holidayRegistration");
   const formRef = useRef<HTMLFormElement>(null);
   const errorPath = useApiFormError(formRef);
-  const [draft, setDraft] = useState<RegistrationDraft>(emptyRegistration);
+  const [draft, setDraft] = useState<RegistrationDraft>(() =>
+    registrationFromFamily(family),
+  );
   const [step, setStep] = useState<Step>("form");
   const [captchaToken, setCaptchaToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -154,6 +169,16 @@ export function HolidayRegistrationForm({
 
       <SectionCard title={t("childrenTitle")} description={t("childrenText")}>
         <div className="space-y-4">
+          {family && family.children.length > 0 ? (
+            <KnownChildPicker
+              known={family.children}
+              draft={draft}
+              offer={offer}
+              onToggle={(known) =>
+                setDraft(toggleKnownChild(draft, known, offer))
+              }
+            />
+          ) : null}
           {draft.children.map((child, index) => (
             <ChildCard
               key={child.key}

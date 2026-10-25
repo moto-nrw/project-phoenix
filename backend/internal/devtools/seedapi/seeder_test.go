@@ -1544,6 +1544,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`)
 			return
 		}
+		if r.URL.Path == "/parent/holiday-registrations/link-key/family" {
+			// The first seeded parent's prefill of the same link (#4662).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian":{},"children":[{"student_id":"9","school_id":"1"}]}}`)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/parent-announcements/") && strings.HasSuffix(r.URL.Path, "/publish") {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"published_at": "2026-08-31T00:00:00Z"},

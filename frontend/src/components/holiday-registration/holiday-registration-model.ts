@@ -4,6 +4,8 @@
 
 import type {
   HolidayContactPayload,
+  HolidayKnownChild,
+  HolidayKnownFamily,
   HolidayRegistrationOffer,
   HolidayRegistrationPayload,
 } from "~/lib/holiday-registration-api";
@@ -28,6 +30,8 @@ export interface ChildDraft {
   readonly healthNotes: string;
   /** Week ID → time model ID; a missing week is not booked. */
   readonly bookings: Readonly<Record<string, string>>;
+  /** The child of the parent's account this draft started from (#4662). */
+  readonly knownStudentId?: string;
 }
 
 export interface ContactDraft {
@@ -88,6 +92,82 @@ export function emptyRegistration(): RegistrationDraft {
     healthConsent: false,
     bindingConfirmed: false,
   };
+}
+
+/**
+ * A registration of a parent with an account (#4662): the parent fields come
+ * from what the school knows. Without a family the registration starts empty.
+ */
+export function registrationFromFamily(
+  family: HolidayKnownFamily | null,
+): RegistrationDraft {
+  const draft = emptyRegistration();
+  return family ? { ...draft, guardian: { ...family.guardian } } : draft;
+}
+
+function childFromKnown(
+  known: HolidayKnownChild,
+  offer: HolidayRegistrationOffer,
+): ChildDraft {
+  return {
+    ...emptyChild(),
+    firstName: known.firstName,
+    lastName: known.lastName,
+    birthDate: known.birthDate,
+    school: offer.schools.some((school) => school.id === known.schoolId)
+      ? known.schoolId
+      : "",
+    knownStudentId: known.studentId,
+  };
+}
+
+function isUntouched(child: ChildDraft): boolean {
+  const blank = emptyChild();
+  return (
+    child.knownStudentId === undefined &&
+    child.firstName === blank.firstName &&
+    child.lastName === blank.lastName &&
+    child.birthDate === blank.birthDate &&
+    child.school === blank.school &&
+    child.guestSchoolName === blank.guestSchoolName &&
+    child.allergies === blank.allergies &&
+    child.medication === blank.medication &&
+    child.healthNotes === blank.healthNotes &&
+    Object.keys(child.bookings).length === 0
+  );
+}
+
+/** Whether one more known child fits next to the children already filled. */
+export function hasRoomForKnownChild(draft: RegistrationDraft): boolean {
+  return (
+    draft.children.filter((child) => !isUntouched(child)).length < MAX_CHILDREN
+  );
+}
+
+/**
+ * Picks or drops a known child. A picked child takes the place of an
+ * untouched empty child, otherwise it is added while there is room. The
+ * values are a copy: changing them changes only this registration.
+ */
+export function toggleKnownChild(
+  draft: RegistrationDraft,
+  known: HolidayKnownChild,
+  offer: HolidayRegistrationOffer,
+): RegistrationDraft {
+  if (
+    draft.children.some((child) => child.knownStudentId === known.studentId)
+  ) {
+    const children = draft.children.filter(
+      (child) => child.knownStudentId !== known.studentId,
+    );
+    return {
+      ...draft,
+      children: children.length > 0 ? children : [emptyChild()],
+    };
+  }
+  if (!hasRoomForKnownChild(draft)) return draft;
+  const children = draft.children.filter((child) => !isUntouched(child));
+  return { ...draft, children: [...children, childFromKnown(known, offer)] };
 }
 
 function childHasHealthInfo(child: ChildDraft): boolean {

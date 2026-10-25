@@ -43,6 +43,12 @@ type PortalService interface {
 	// provided admin transaction when one is in context.
 	GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentService.GuardianSubmitStatus, error)
 
+	// HolidayRegistrationFamily returns the children of the account at the
+	// schools of a Träger whose relationship grants
+	// parent_portal.enrollment.submit, with the guardian's contact data, and
+	// records each child's read in its school's data access log (#4662).
+	HolidayRegistrationFamily(ctx context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error)
+
 	// ListEnrollmentsForAccount returns every enrollment.requests row
 	// where guardian_account_id matches the calling account, joined
 	// to phase + school + child summaries. Used by the dashboard to

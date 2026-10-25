@@ -73,11 +73,13 @@ func seedTraegerInvitation(rt *Runtime) error {
 // opens registration today and closes it a week before the Ferien.
 // A family then registers two siblings through the period's public link
 // (#4661): one child of the Träger's first school and a holiday guest.
+// Last, the first seeded parent reads the link's prefill of known children
+// (#4662).
 type seedTraegerHolidayPeriodStep struct{}
 
 func (seedTraegerHolidayPeriodStep) Name() string { return "Seeding a Träger holiday period" }
 
-func (seedTraegerHolidayPeriodStep) Run(_ context.Context, rt *Runtime) error {
+func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error {
 	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" || rt.Bootstrap.AdminPassword == "" {
 		return fmt.Errorf("the Träger holiday period seed prerequisites are not available")
 	}
@@ -113,6 +115,41 @@ func (seedTraegerHolidayPeriodStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("register for the holiday period: %w", err)
 	}
 	fmt.Println("  Ferienanmeldung: two siblings registered, one of them a holiday guest")
+	return seedHolidayRegistrationPrefill(ctx, rt, token)
+}
+
+// seedHolidayRegistrationPrefill reads the prefill of the holiday link as the
+// first seeded parent (#4662): the parents portal offers that family's
+// children of the Träger's schools, and the school's access log records the
+// read. A run without seeded parents, like the step's own tests, has no
+// family to read.
+func seedHolidayRegistrationPrefill(ctx context.Context, rt *Runtime, token string) error {
+	if len(rt.Parents) == 0 {
+		return nil
+	}
+	parent := rt.Parents[0]
+	auth, err := rt.Adapter.LoginParent(ctx, parent.Email, parent.Password)
+	if err != nil {
+		return fmt.Errorf("sign in the parent for the holiday prefill: %w", err)
+	}
+	raw, err := rt.Client.GetWithAuth(auth, "/parent/holiday-registrations/"+token+"/family")
+	if err != nil {
+		return fmt.Errorf("read the holiday prefill: %w", err)
+	}
+	var envelope struct {
+		Data struct {
+			Children []struct {
+				StudentID string `json:"student_id"`
+			} `json:"children"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("decode the holiday prefill: %w", err)
+	}
+	if len(envelope.Data.Children) == 0 {
+		return fmt.Errorf("the seeded parent has no child to prefill the holiday registration with")
+	}
+	fmt.Printf("  Ferienanmeldung: prefill offers %d known child(ren) of a parent account\n", len(envelope.Data.Children))
 	return nil
 }
 

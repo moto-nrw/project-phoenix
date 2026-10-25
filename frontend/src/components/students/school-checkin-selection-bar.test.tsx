@@ -141,4 +141,67 @@ describe("SchoolCheckinSelectionBar", () => {
       screen.getByRole("button", { name: /Anmelden/ }).querySelector("svg"),
     ).not.toHaveClass("animate-spin");
   });
+
+  describe("Alle auswählen (#4762)", () => {
+    const selectAll = {
+      count: 12,
+      leftOutCount: 3,
+      allSelected: false,
+      onSelectAll: vi.fn(),
+    };
+
+    it("marks the children on screen and names the left-out ones", () => {
+      const onSelectAll = vi.fn();
+      renderBar({
+        selectionActive: true,
+        selectAll: { ...selectAll, onSelectAll },
+      });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Alle 12 auswählen" }),
+      );
+      expect(onSelectAll).toHaveBeenCalledOnce();
+      expect(
+        screen.getByText(
+          "3 ausgelassen: krank, entschuldigt, auf Klassenfahrt oder „Kommt heute nicht“",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("drops the left-out line when nobody is left out", () => {
+      renderBar({
+        selectionActive: true,
+        selectAll: { ...selectAll, leftOutCount: 0 },
+      });
+      expect(
+        screen.getByRole("button", { name: "Alle 12 auswählen" }),
+      ).toBeEnabled();
+      expect(screen.queryByText(/ausgelassen/)).not.toBeInTheDocument();
+    });
+
+    it.each([
+      ["every child is marked already", { allSelected: true }, false],
+      ["no child can be marked", { count: 0 }, false],
+      ["a batch is running", {}, true],
+    ])("is disabled when %s", (_, override, isRunning) => {
+      renderBar({
+        selectionActive: true,
+        isRunning,
+        selectAll: { ...selectAll, ...override },
+      });
+      expect(
+        screen.getByRole("button", { name: /^Alle \d+ auswählen$/ }),
+      ).toBeDisabled();
+    });
+
+    it("is not offered while every tap acts immediately", () => {
+      renderBar({ selectionActive: false, selectAll });
+      expect(
+        screen.getByText("Jeder Tipp meldet sofort an oder ab."),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /auswählen/ }),
+      ).not.toBeInTheDocument();
+    });
+  });
 });

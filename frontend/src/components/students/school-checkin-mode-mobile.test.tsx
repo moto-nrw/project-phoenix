@@ -409,4 +409,78 @@ describe("SchoolCheckinModeMobile", () => {
       ).toBe("");
     });
   });
+
+  describe("Alle auswählen (#4762)", () => {
+    function renderSelection(
+      selectAll: Partial<{
+        count: number;
+        leftOutCount: number;
+        allSelected: boolean;
+        onSelectAll: () => void;
+      }> = {},
+    ) {
+      const props = {
+        count: 8,
+        leftOutCount: 2,
+        allSelected: false,
+        onSelectAll: vi.fn(),
+        ...selectAll,
+      };
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+          selectionActive
+          onSelectionActiveChange={() => undefined}
+          selectedCount={0}
+          onClearSelection={() => undefined}
+          onBulkAction={() => undefined}
+          selectAll={props}
+        />,
+      );
+      return props;
+    }
+
+    it("marks the children on screen and names the left-out ones", () => {
+      const props = renderSelection();
+      fireEvent.click(screen.getByRole("button", { name: "Alle 8 auswählen" }));
+      expect(props.onSelectAll).toHaveBeenCalledOnce();
+      expect(
+        screen.getByText(
+          "2 ausgelassen: krank, entschuldigt, auf Klassenfahrt oder „Kommt heute nicht“",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("reserves room for the left-out line", () => {
+      renderSelection();
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--moto-checkin-bar-offset",
+        ),
+      ).toBe("11.75rem");
+    });
+
+    it("keeps the selection height when nobody is left out", () => {
+      renderSelection({ leftOutCount: 0 });
+      expect(
+        screen.getByRole("button", { name: "Alle 8 auswählen" }),
+      ).toBeEnabled();
+      expect(screen.queryByText(/ausgelassen/)).not.toBeInTheDocument();
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--moto-checkin-bar-offset",
+        ),
+      ).toBe("9.5rem");
+    });
+
+    it("is disabled once every child it would mark is marked", () => {
+      renderSelection({ allSelected: true });
+      expect(
+        screen.getByRole("button", { name: "Alle 8 auswählen" }),
+      ).toBeDisabled();
+    });
+  });
 });
