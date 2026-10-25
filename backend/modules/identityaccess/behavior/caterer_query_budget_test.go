@@ -48,7 +48,9 @@ func TestCatererInvitationsQueryBudget(t *testing.T) {
 // statements, however many schools it supplies (ADR 0077, #2940).
 func TestCatererSchoolsQueryBudget(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	// The exact budget owns its query recorder. A private clone keeps other
+	// parallel scenarios from sharing its database hooks.
+	db := testpkg.SetupIsolatedTestDB(t)
 	caterers := setupAuthFactory(t, db).Caterers()
 	first := testpkg.Tenant(t)
 	staff := testpkg.CreateTestAccount(t, db, "caterer-schools-budget")
@@ -58,10 +60,10 @@ func TestCatererSchoolsQueryBudget(t *testing.T) {
 	require.NoError(t, err)
 	forgetCaterer(t, db, acceptance)
 
-	counter := testpkg.CaptureQueriesForContext(t, db)
+	counter := testpkg.CaptureQueries(t, db)
 	run := func() []string {
 		counter.Reset()
-		_, _, err := caterers.CatererSchools(counter.Context(context.Background()), acceptance.AccountID)
+		_, _, err := caterers.CatererSchools(context.Background(), acceptance.AccountID)
 		require.NoError(t, err)
 		return counter.Operation("SELECT")
 	}
