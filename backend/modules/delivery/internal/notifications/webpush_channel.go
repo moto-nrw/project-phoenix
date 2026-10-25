@@ -320,7 +320,7 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 			}
 			subs = staffSubs
 		}
-		if !deliversToSchoolPortal(event) {
+		if !deliversToSchoolPortal(event) || event.schoolPortalClosed {
 			return subs, nil
 		}
 		schoolSubs, err := c.repo.FindForSchoolAccounts(ctx, staffAccountIDs(audience))

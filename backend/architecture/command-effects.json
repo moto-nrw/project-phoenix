@@ -40245,6 +40245,39 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.PortalModules.BookedParentPortalSchools",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PortalModuleBooking.BookedParentPortalSchools",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings.ModuleBooking.RequireForTenant",
+      "target_owner": "settings-platform",
+      "binding_digest": "289b35f3096ede4fd07d774758bcd4e7",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: login reads the module switch module.eltern_app of each guardian school through roots/owners.PortalModuleBooking in a tenant transaction of its own, before the session transaction, to refuse a parents-portal session without the module (#4895). No persistent, lock or scope effect (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.PortalModules.RequireParentPortal",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PortalModuleBooking.RequireParentPortal",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings.ModuleBooking.RequireForTenant",
+      "target_owner": "settings-platform",
+      "binding_digest": "db1adfd558274843ff9fefad2b19a82f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: login and refresh read the module switch module.eltern_app of one guardian school through roots/owners.PortalModuleBooking in a tenant transaction of its own to name the refused module (#4895). No persistent, lock or scope effect (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.PortalModules.RequireSchoolPortal",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PortalModuleBooking.RequireSchoolPortal",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings.ModuleBooking.RequireForTenant",
+      "target_owner": "settings-platform",
+      "binding_digest": "bb683bffc94bdb748d581f1c5782ed03",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: school login, second factor, school switch and refresh read the module switch module.unterricht_vormittag of the school through roots/owners.PortalModuleBooking in a tenant transaction of its own, before the session transaction (#4895). No persistent, lock or scope effect (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.PrecedingMails.PrecedingMailState",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.precedingMails.PrecedingMailState",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.Runtime.EmailStatus",

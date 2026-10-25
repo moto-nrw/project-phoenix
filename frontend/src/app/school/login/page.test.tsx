@@ -120,6 +120,21 @@ describe("SchoolLoginPage error path", () => {
     ).toBeInTheDocument();
   });
 
+  it("explains a school that does not use moto schule", async () => {
+    mockLogin.mockRejectedValue(
+      new ApiError("module not booked", 403, {
+        code: "module.not_booked",
+        details: { module: "unterricht_vormittag" },
+      }),
+    );
+    render(<SchoolLoginPage />);
+    submit();
+
+    expect(
+      await screen.findByText(/Ihre Schule nutzt moto schule zurzeit nicht/),
+    ).toBeInTheDocument();
+  });
+
   it("shows an expired session as a notice", async () => {
     mockSearchParamsGet.mockImplementation((key) =>
       key === "error" ? "SessionExpired" : null,

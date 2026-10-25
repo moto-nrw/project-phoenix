@@ -36,7 +36,7 @@ func TestPasswordResetDeliveryFor_RecordsLikeTheModule(t *testing.T) {
 			Sessions: &identityPorts.SessionDependencies{
 				PasswordLoginPolicy: func() (int, time.Duration, error) { return 5, time.Minute, nil },
 				Schools:             sweepSchools{}, Persons: sweepPersons{}, Passwords: sweepPasswords{},
-				Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{},
+				Codec: sweepCodec{}, MFALock: sweepMFALock{}, Audit: sweepAudit{}, Push: sweepPush{}, PortalModules: sweepPortals{},
 			},
 		})
 	}

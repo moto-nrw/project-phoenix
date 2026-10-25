@@ -66,7 +66,7 @@ func newParentSSERouter(resource *sseHTTP.Resource[realtime.Event, *realtime.Cli
 
 	r.Group(func(r chi.Router) {
 		r.Use(sessiontoken.Authenticator)
-		r.Use(sessiontoken.ParentMiddleware(tenant.ClaimScope{}))
+		r.Use(ParentScopeMiddleware)
 		r.Get("/events", resource.ParentEvents)
 	})
 
@@ -78,7 +78,7 @@ func newSchoolSSERouter(resource *sseHTTP.Resource[realtime.Event, *realtime.Cli
 
 	r.Group(func(r chi.Router) {
 		r.Use(sessiontoken.Authenticator)
-		r.Use(sessiontoken.SchoolMiddleware(tenant.ClaimScope{}))
+		r.Use(SchoolScopeMiddleware)
 		r.Get("/events", resource.SchoolEvents)
 	})
 

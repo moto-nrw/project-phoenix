@@ -64,9 +64,14 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 	if repos.schools.Schools == nil || repos.persons == nil || repos.authEvents == nil || repos.pushSubscriptions == nil || codec == nil || audit == nil {
 		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
 	}
+	portalModules, err := NewPortalModuleBooking(settings)
+	if err != nil {
+		return nil, fmt.Errorf("identity access composition: %w", err)
+	}
 	base.Sessions = &identityBindingPorts.SessionDependencies{
 		Schools:             repos.schools,
 		Traeger:             TraegerMembershipDirectory{Memberships: repos.schools.Schools},
+		PortalModules:       portalModules,
 		Persons:             PersonDirectory{Persons: repos.persons},
 		Passwords:           passwordVerifier{},
 		PasswordLoginPolicy: passwordLoginPolicy,

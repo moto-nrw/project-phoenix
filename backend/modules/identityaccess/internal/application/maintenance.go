@@ -56,6 +56,18 @@ type UnlockedMFAPolicy struct{}
 
 func (UnlockedMFAPolicy) LockMFAPolicySharedForTenant(context.Context, int64) error { return nil }
 
+// UnbookedPortals stands in for the portal module booking where no session
+// is ever minted: every read fails, so nothing counts as booked.
+type UnbookedPortals struct{}
+
+func (UnbookedPortals) BookedParentPortalSchools(context.Context, []int64) ([]int64, error) {
+	return nil, errMaintenanceOnly
+}
+
+func (UnbookedPortals) RequireParentPortal(context.Context, int64) error { return errMaintenanceOnly }
+
+func (UnbookedPortals) RequireSchoolPortal(context.Context, int64) error { return errMaintenanceOnly }
+
 type UnsentPasswordResets struct{}
 
 func (UnsentPasswordResets) DispatchPasswordReset(context.Context, identityaccess.PasswordResetLink, string, identityaccess.PasswordResetScope, time.Duration) error {
