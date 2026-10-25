@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/traegerportal"
+	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	traegerViewCompose "github.com/moto-nrw/project-phoenix/modules/traegerview/compose"
 	traegerViewHTTP "github.com/moto-nrw/project-phoenix/modules/traegerview/http"
 )
@@ -32,11 +33,26 @@ func NewTraegerPortalHTTP(identity identityaccess.TraegerAccountLogin, organizat
 	if identity == nil || organizations == nil {
 		return nil, errors.New("traeger portal: identity and organizations are required")
 	}
-	overview, err := traegerViewCompose.New(organizations)
+	overview, err := traegerViewCompose.New(traegerSchoolIDs{organizations: organizations})
 	if err != nil {
 		return nil, err
 	}
 	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview)), nil
+}
+
+// traegerSchoolIDs binds the Träger projection's school set to Organisation &
+// Tenancy and translates a deactivated, deleted or unknown Träger into the
+// projection's contract (#4657).
+type traegerSchoolIDs struct {
+	organizations organizationtenancy.TraegerMembershipQuery
+}
+
+func (s traegerSchoolIDs) ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
+	ids, err := s.organizations.ListTraegerSchoolIDs(ctx, organizationID)
+	if errors.Is(err, organizationtenancy.ErrOrganizationInactive) || errors.Is(err, organizationtenancy.ErrOrganizationNotFound) {
+		return nil, traegerview.ErrTraegerUnavailable
+	}
+	return ids, err
 }
 
 // TraegerPortalAuth binds the Träger-Portal's session port to Identity &

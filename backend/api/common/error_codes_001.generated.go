@@ -96,6 +96,10 @@ const (
 	CodeProvisioningSchoolNotFound                     = "provisioning.school_not_found"
 	CodeProvisioningSchoolSlugTaken                    = "provisioning.school_slug_taken"
 	CodeProvisioningSchoolSubdomainTaken               = "provisioning.school_subdomain_taken"
+	CodeProvisioningTraegerActive                      = "provisioning.traeger_active"
+	CodeProvisioningTraegerErasureOrderNotFound        = "provisioning.traeger_erasure_order_not_found"
+	CodeProvisioningTraegerErasureOrderOpen            = "provisioning.traeger_erasure_order_open"
+	CodeProvisioningTraegerErasureStarted              = "provisioning.traeger_erasure_started"
 	CodeRolloverDeadlineRequired                       = "rollover.deadline_required"
 	CodeRolloverDuplicateName                          = "rollover.duplicate_name"
 	CodeRolloverInvalidRequest                         = "rollover.invalid_request"
@@ -298,10 +302,6 @@ const (
 	CodeTimetableRoomOccupied                          = "timetable.room_occupied"
 	CodeTimetableSeriesEndBeforeStart                  = "timetable.series_end_before_start"
 	CodeTimetableSeriesEndOutsidePeriod                = "timetable.series_end_outside_period"
-	CodeTimetableSickAbsenceScopeLocked                = "timetable.sick_absence_scope_locked"
-	CodeTimetableSlotListDrifted                       = "timetable.slot_list_drifted"
-	CodeTimetableSlotListGroupingInvalid               = "timetable.slot_list_grouping_invalid"
-	CodeTimetableSlotListPickupPastDate                = "timetable.slot_list_pickup_past_date"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -399,6 +399,10 @@ var errorCodeClasses1 = map[string]string{
 	"provisioning.school_not_found":                        "business_rejection",
 	"provisioning.school_slug_taken":                       "business_rejection",
 	"provisioning.school_subdomain_taken":                  "business_rejection",
+	"provisioning.traeger_active":                          "business_rejection",
+	"provisioning.traeger_erasure_order_not_found":         "business_rejection",
+	"provisioning.traeger_erasure_order_open":              "business_rejection",
+	"provisioning.traeger_erasure_started":                 "business_rejection",
 	"rollover.deadline_required":                           "input",
 	"rollover.duplicate_name":                              "business_rejection",
 	"rollover.invalid_request":                             "input",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.room_occupied":                              "business_rejection",
 	"timetable.series_end_before_start":                    "input",
 	"timetable.series_end_outside_period":                  "input",
-	"timetable.sick_absence_scope_locked":                  "business_rejection",
-	"timetable.slot_list_drifted":                          "business_rejection",
-	"timetable.slot_list_grouping_invalid":                 "input",
-	"timetable.slot_list_pickup_past_date":                 "input",
 }
 
 func init() {

@@ -36,6 +36,8 @@ import type {
   AssignTraegerMemberRequest,
   BackendTraegerMember,
   TraegerMember,
+  RecordTraegerErasureOrderRequest,
+  TraegerErasureOrder,
 } from "./provisioning-helpers";
 import {
   mapOrganization,
@@ -52,6 +54,8 @@ import {
   mapDeviceTransferStatus,
   mapSchoolPWAUsage,
   mapTraegerMember,
+  isBackendTraegerErasureOrder,
+  mapTraegerErasureOrder,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -166,6 +170,38 @@ class OperatorProvisioningService {
       { method: "POST", body: data },
     );
     return mapTraegerMember(result);
+  }
+
+  async getTraegerErasureOrder(
+    orgId: string,
+  ): Promise<TraegerErasureOrder | null> {
+    const data = await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/erasure-order`,
+    );
+    return isBackendTraegerErasureOrder(data)
+      ? mapTraegerErasureOrder(data)
+      : null;
+  }
+
+  async recordTraegerErasureOrder(
+    orgId: string,
+    data: RecordTraegerErasureOrderRequest,
+  ): Promise<TraegerErasureOrder> {
+    const result = await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/erasure-order`,
+      { method: "POST", body: data },
+    );
+    if (!isBackendTraegerErasureOrder(result)) {
+      throw new Error("erasure order response without order");
+    }
+    return mapTraegerErasureOrder(result);
+  }
+
+  async withdrawTraegerErasureOrder(orgId: string): Promise<void> {
+    await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/erasure-order`,
+      { method: "DELETE" },
+    );
   }
 
   async listAllAccounts(): Promise<OrgAccount[]> {

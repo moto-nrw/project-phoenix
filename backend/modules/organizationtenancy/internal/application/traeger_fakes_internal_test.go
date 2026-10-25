@@ -35,3 +35,17 @@ func (*fakeIdentity) AssignTraegerRole(context.Context, int64, int64, string) er
 func (*fakeIdentity) ListTraegerAccounts(context.Context, int64, []int64) ([]organizationtenancy.TraegerAccount, error) {
 	return nil, nil
 }
+
+func (*fakeIdentity) EndTraegerSessions(context.Context, int64) (int, error) { return 0, nil }
+
+func (fakeOwnerStore) FindOpenTraegerErasureOrder(context.Context, int64, string) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error) {
+	return organizationtenancy.TraegerErasureOrder{}, false, domain.OperationStats{}, nil
+}
+
+func (fakeOwnerStore) InsertTraegerErasureOrder(context.Context, organizationtenancy.NewTraegerErasureOrder) (organizationtenancy.TraegerErasureOrder, domain.OperationStats, error) {
+	return organizationtenancy.TraegerErasureOrder{}, domain.OperationStats{}, nil
+}
+
+func (fakeOwnerStore) WithdrawTraegerErasureOrder(context.Context, int64, int64) (bool, domain.OperationStats, error) {
+	return false, domain.OperationStats{}, nil
+}

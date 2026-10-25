@@ -76,6 +76,7 @@ basis
 	DELETE /operator/devices/{id}
 	DELETE /operator/invitations/{id}
 	DELETE /operator/organizations/{id}
+	DELETE /operator/organizations/{id}/erasure-order
 	DELETE /operator/persons/{id}
 	DELETE /operator/schools/{id}
 	DELETE /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
@@ -340,6 +341,7 @@ basis
 	GET /operator/organizations/summaries
 	GET /operator/organizations/{id}/accounts
 	GET /operator/organizations/{id}/devices
+	GET /operator/organizations/{id}/erasure-order
 	GET /operator/organizations/{id}/persons
 	GET /operator/organizations/{id}/schools
 	GET /operator/organizations/{id}/traeger-members
@@ -588,6 +590,7 @@ basis
 	POST /operator/operators/{id}/deactivate
 	POST /operator/operators/{id}/reactivate
 	POST /operator/organizations/
+	POST /operator/organizations/{id}/erasure-order
 	POST /operator/organizations/{id}/restore
 	POST /operator/organizations/{id}/traeger-members
 	POST /operator/profile/email-change

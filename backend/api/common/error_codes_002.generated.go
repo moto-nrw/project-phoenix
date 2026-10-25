@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetableSickAbsenceScopeLocked              = "timetable.sick_absence_scope_locked"
+	CodeTimetableSlotListDrifted                     = "timetable.slot_list_drifted"
+	CodeTimetableSlotListGroupingInvalid             = "timetable.slot_list_grouping_invalid"
+	CodeTimetableSlotListPickupPastDate              = "timetable.slot_list_pickup_past_date"
 	CodeTimetableSlotListReconciliationFutureDate    = "timetable.slot_list_reconciliation_future_date"
 	CodeTimetableSlotListsDisabled                   = "timetable.slot_lists_disabled"
 	CodeTimetableSpontaneousActivitiesDisabled       = "timetable.spontaneous_activities_disabled"
@@ -121,6 +125,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.sick_absence_scope_locked":               "business_rejection",
+	"timetable.slot_list_drifted":                       "business_rejection",
+	"timetable.slot_list_grouping_invalid":              "input",
+	"timetable.slot_list_pickup_past_date":              "input",
 	"timetable.slot_list_reconciliation_future_date":    "input",
 	"timetable.slot_lists_disabled":                     "permission",
 	"timetable.spontaneous_activities_disabled":         "permission",
