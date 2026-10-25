@@ -100,6 +100,8 @@
     "/[tenant]/time-tracking": 1294169,
     "/[tenant]/timetables": 970222,
     "/[tenant]/traeger-uebergabe": 582395,
+    "/[tenant]/umfragen": 1071791,
+    "/[tenant]/umfragen/[id]": 1070444,
     "/[tenant]/vertretung": 1099996,
     "/[tenant]/vertretungsplan": 970219,
     "/_global-error": 304889,
@@ -175,6 +177,6 @@
     "/traeger/ferien": 529643,
     "/traeger/ferien/[id]": 588495,
     "/traeger/ferien/neu": 580446,
-    "/traeger/login": 538769
+    "/traeger/login": 538541
   }
 }

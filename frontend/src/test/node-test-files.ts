@@ -240,6 +240,8 @@ export const nodeLogicTestFiles = [
   "src/lib/student-time-status.test.ts",
   "src/lib/substitution-api.test.ts",
   "src/lib/supervision-derive.test.ts",
+  "src/lib/survey-editor.test.ts",
+  "src/lib/survey-form.test.ts",
   "src/lib/swr/search-students-key.test.ts",
   "src/lib/tenant-host.test.ts",
   "src/lib/tenant-path.test.ts",

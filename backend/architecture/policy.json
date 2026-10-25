@@ -4872,6 +4872,30 @@
       "write_owner": "migrations"
     },
     {
+      "name": "users.survey_answers",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_participations",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_question_options",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_questions",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_responses",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.surveys",
+      "write_owner": "communication"
+    },
+    {
       "name": "users.teachers",
       "write_owner": "school-membership"
     },

@@ -106,6 +106,9 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/tagesplan",
   "/time-tracking",
   "/timetables",
+  // Umfragen (#4781): nur die Route, nie ein Titel oder eine Antwort.
+  "/umfragen",
+  "/umfragen/:id",
   "/vertretung",
   "/vertretungsplan",
 ] as const;

@@ -24,6 +24,16 @@ type schoolParentAnnouncementRepository struct {
 	schools recordports.SchoolDirectory
 }
 
+// SurveyRecords keeps the survey store of the wrapped announcements.
+func (r schoolParentAnnouncementRepository) SurveyRecords() communication.SurveyRecords {
+	if source, ok := r.ParentAnnouncementRepository.(interface {
+		SurveyRecords() communication.SurveyRecords
+	}); ok {
+		return source.SurveyRecords()
+	}
+	return nil
+}
+
 func (r schoolParentAnnouncementRepository) AnnouncementSchoolName(ctx context.Context, tenantID int64) (string, error) {
 	return r.SchoolName(ctx, tenantID)
 }

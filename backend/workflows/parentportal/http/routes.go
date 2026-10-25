@@ -143,6 +143,9 @@ func (rs *Resource) mountCommunicationRoutes(r chi.Router, authRateLimiter func(
 	rs.mountDeclarationRoutes(r, authRateLimiter)
 	// Poll answer, one child per call (#1371).
 	r.Post("/me/news/{announcementId}/respond", rs.respondToAnnouncement)
+	// Survey (#4781), one answer per guardian account.
+	r.Get("/me/news/{announcementId}/survey", rs.getAnnouncementSurvey)
+	r.Post("/me/news/{announcementId}/survey", rs.submitAnnouncementSurvey)
 }
 
 func (rs *Resource) mountChildCareRoutes(r chi.Router) {

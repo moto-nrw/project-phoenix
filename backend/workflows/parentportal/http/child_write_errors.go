@@ -197,11 +197,16 @@ func renderParentAnnouncementWriteError(w http.ResponseWriter, r *http.Request, 
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, parentService.ErrGroupThreadClosed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationGroupThreadClosed))
+	case errors.Is(err, parentService.ErrSurveyNotOpen):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationSurveyNotOpen))
+	case errors.Is(err, parentService.ErrSurveyAlreadyAnswered):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationSurveyAlreadyAnswered))
 	case errors.Is(err, parentService.ErrNoDates),
 		errors.Is(err, parentService.ErrInvalidStatus),
 		errors.Is(err, parentService.ErrEmptyNote),
 		errors.Is(err, parentService.ErrNoteTooLong),
 		errors.Is(err, parentService.ErrEmailRequired),
+		errors.Is(err, parentService.ErrInvalidSurveyAnswers),
 		errors.Is(err, parentService.ErrInvalidInviteInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:

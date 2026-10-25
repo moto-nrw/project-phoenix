@@ -489,6 +489,22 @@ func schoolContentRetentionSteps(
 	return steps
 }
 
+// surveyRetentionSteps delete the surveys (#4781) after the school's
+// windows, counted from closing: parent surveys after the parent message
+// window, staff surveys after the team chat window.
+func surveyRetentionSteps(settings settingsModule.StatisticsRetentionSource, surveys communicationModule.SurveyRetention) []schedulerPorts.RetentionStep {
+	return []schedulerPorts.RetentionStep{
+		windowRetentionStep(auditModels.DeletionTypeParentSurveyRetention,
+			settingsModule.ParentAnnouncementRetentionWindow(settings), nil, func(ctx context.Context, days int) (int, error) {
+				return surveys.DeleteExpiredSurveys(ctx, communicationModule.SurveyAudienceParents, days)
+			}),
+		windowRetentionStep(auditModels.DeletionTypeStaffSurveyRetention,
+			settingsModule.StaffNoticeRetentionWindow(settings), nil, func(ctx context.Context, days int) (int, error) {
+				return surveys.DeleteExpiredSurveys(ctx, communicationModule.SurveyAudienceStaff, days)
+			}),
+	}
+}
+
 // homeworkRetention deletes the homework of the classes and the OGS feedback
 // on it after the school's window (#4796); the Timetable owner is one.
 type homeworkRetention interface {

@@ -19,10 +19,41 @@ const schoolErasureDeleteSQL = schoolErasureDeletePart1SQL + `   SELECT count(*)
    SELECT count(*) INTO v_count FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('education.homework_feedback', v_count);
-` + schoolErasureDeletePart2SQL
+` + schoolErasureDeletePart2SQL + schoolErasureDeleteSurveysSQL + schoolErasureDeletePart2bSQL
+
+// schoolErasureDeleteWithoutSurveysSQL is the definition before 1.15.568 (#4781), without the
+// survey tables; the survey rollback reinstalls it.
+const schoolErasureDeleteWithoutSurveysSQL = schoolErasureDeletePart1SQL + `   SELECT count(*) INTO v_count FROM education.class_homework AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM education.class_homework AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('education.class_homework', v_count);
+   SELECT count(*) INTO v_count FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('education.homework_feedback', v_count);
+` + schoolErasureDeletePart2SQL + schoolErasureDeletePart2bSQL
 
 // The pre-1.15.510 definition shares the unchanged SQL sections.
-const schoolErasureDeleteWithoutHomeworkSQL = schoolErasureDeletePart1SQL + schoolErasureDeletePart2SQL
+const schoolErasureDeleteWithoutHomeworkSQL = schoolErasureDeletePart1SQL + schoolErasureDeletePart2SQL + schoolErasureDeletePart2bSQL
+
+// The survey tables of 1.15.568 (#4781).
+const schoolErasureDeleteSurveysSQL = `   SELECT count(*) INTO v_count FROM users.survey_answers AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM users.survey_answers AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('users.survey_answers', v_count);
+   SELECT count(*) INTO v_count FROM users.survey_responses AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM users.survey_responses AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('users.survey_responses', v_count);
+   SELECT count(*) INTO v_count FROM users.survey_participations AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM users.survey_participations AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('users.survey_participations', v_count);
+   SELECT count(*) INTO v_count FROM users.survey_question_options AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM users.survey_question_options AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('users.survey_question_options', v_count);
+   SELECT count(*) INTO v_count FROM users.survey_questions AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM users.survey_questions AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('users.survey_questions', v_count);
+   SELECT count(*) INTO v_count FROM users.surveys AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM users.surveys AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('users.surveys', v_count);
+`
 
 const schoolErasureDeletePart1SQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_delete(p_school_id BIGINT)
  RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
@@ -570,7 +601,9 @@ const schoolErasureDeletePart2SQL = `   SELECT count(*) INTO v_count FROM educat
    SELECT count(*) INTO v_count FROM users.notification_preferences AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM users.notification_preferences AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('users.notification_preferences', v_count);
-   SELECT count(*) INTO v_count FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school_id;
+`
+
+const schoolErasureDeletePart2bSQL = `   SELECT count(*) INTO v_count FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_versions', v_count);
    SELECT count(*) INTO v_count FROM users.parent_announcement_reads AS r WHERE r.tenant_id = p_school_id;
@@ -746,5 +779,10 @@ const schoolErasureDeletePart2SQL = `   SELECT count(*) INTO v_count FROM educat
 
 func restoreSchoolErasureDeleteBeforeHomework(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, schoolErasureDeleteWithoutHomeworkSQL)
+	return err
+}
+
+func restoreSchoolErasureDeleteBeforeSurveys(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasureDeleteWithoutSurveysSQL)
 	return err
 }

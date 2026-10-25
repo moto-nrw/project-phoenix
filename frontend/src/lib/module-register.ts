@@ -84,6 +84,9 @@ export const PAGE_MODULES: Readonly<Record<string, ModuleScope>> = {
   "/staff": BASIS,
   "/team-chat": BASIS,
   "/tagesinformationen": BASIS,
+  // Umfragen an das Team und an Eltern (#4781): Basis wie im Backend; eine
+  // Umfrage an Eltern erreicht sie nur über die Eltern-App.
+  "/umfragen": BASIS,
 
   // Planung. Der Dienstplan setzt nur Basis voraus und hängt nicht mehr am
   // Betreuungsplan (`timetable.enabled`, Entscheidung in #4812).
