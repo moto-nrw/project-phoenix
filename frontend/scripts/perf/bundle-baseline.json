@@ -119,7 +119,7 @@
     "/operator/login": 895594,
     "/operator/operators": 887864,
     "/operator/organizations": 911874,
-    "/operator/organizations/[slug]": 968542,
+    "/operator/organizations/[slug]": 988834,
     "/operator/organizations/[slug]/schools/[schoolSlug]": 942931,
     "/operator/persons": 915802,
     "/operator/provisioning": 876730,
@@ -167,6 +167,6 @@
     "/traeger/ferien": 518416,
     "/traeger/ferien/[id]": 576536,
     "/traeger/ferien/neu": 568613,
-    "/traeger/login": 518937
+    "/traeger/login": 533213
   }
 }
