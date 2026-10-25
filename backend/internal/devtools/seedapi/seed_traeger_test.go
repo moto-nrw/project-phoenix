@@ -140,3 +140,50 @@ func TestSeedTraegerSettingsStepSetsAValueThroughTheTraegerPortal(t *testing.T) 
 	assert.Equal(t, "Bearer traeger-token", authorization, "the value is written with the Träger session")
 	assert.Equal(t, true, value["value"])
 }
+
+// Every Träger sign-in mails a second-factor code and Identity & Access mails
+// at most three per account in fifteen minutes (#4651), so the Träger steps
+// of one run share one session instead of signing in each.
+func TestSeedTraegerStepsShareOneTraegerSession(t *testing.T) {
+	t.Parallel()
+
+	var mu sync.Mutex
+	logins := 0
+	var traegerAuthorizations []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		mu.Lock()
+		defer mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/traeger/auth/login":
+			logins++
+			_, _ = w.Write([]byte(`{"status":"authenticated","access_token":"traeger-token","refresh_token":"r"}`))
+			return
+		case "/traeger/schools/":
+			_, _ = w.Write([]byte(`{"status":"success","data":[{"id":31}]}`))
+		case "/traeger/holiday-periods/":
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
+		default:
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
+		}
+		if r.URL.Path != "/operator/organizations/12/traeger-members" {
+			traegerAuthorizations = append(traegerAuthorizations, r.Header.Get("Authorization"))
+		}
+	})
+	defer srv.Close()
+
+	runtime := &Runtime{
+		Client:       newTestClient(srv.URL, false),
+		OperatorAuth: AuthRef{Kind: AuthBearer, Token: "operator-token"},
+		Bootstrap:    &bootstrapSeedState{OrganizationID: 12, AdminEmail: "admin@example.test", AdminPassword: testpkg.NewTestPassword()},
+	}
+	require.NoError(t, (seedTraegerBueroStep{}).Run(context.Background(), runtime))
+	require.NoError(t, (seedTraegerHolidayPeriodStep{}).Run(context.Background(), runtime))
+	require.NoError(t, (seedTraegerSettingsStep{}).Run(context.Background(), runtime))
+	assert.Equal(t, 1, logins, "the Träger steps sign in once")
+	require.NotEmpty(t, traegerAuthorizations)
+	for _, authorization := range traegerAuthorizations {
+		assert.Equal(t, "Bearer traeger-token", authorization, "every Träger request uses the shared session")
+	}
+}
