@@ -141,7 +141,8 @@ func (s *fakeStore) MarkOperatorSessionRotated(_ context.Context, id int64, repl
 		return false, stats(), nil
 	}
 	session.RotatedAt = &rotatedAt
-	session.ReplacementToken = &replacementToken
+	replacementHash := domain.HashToken(replacementToken)
+	session.ReplacementTokenHash = &replacementHash
 	session.RecoveryProofHash = recoveryProofHash
 	s.operatorTokens[id] = session
 	return true, stats(), nil

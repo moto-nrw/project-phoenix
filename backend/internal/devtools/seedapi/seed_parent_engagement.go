@@ -100,8 +100,7 @@ func seedOutingDate(today seedDate) seedDate {
 }
 
 // seedParentAppointments fills the families' calendar for the coming weeks
-// (#3923). It showed nothing before: only the marketing profile created a
-// parent appointment.
+// (#3923).
 func seedParentAppointments(rt *Runtime, studentID int64) error {
 	today := todaySeedDate()
 	groupID, err := seedStudentGroupID(rt, studentID)
@@ -113,6 +112,9 @@ func seedParentAppointments(rt *Runtime, studentID int64) error {
 	closingDay := seedWeekdayOnOrAfter(today.AddDays(24)).String()
 	festival := nextWeekday(today.AddDays(30).UTCMidnight(), time.Friday).Format(seedDateLayout)
 	allParents := []map[string]any{{"type": "all_school_parents"}, {"type": "all_staff"}}
+	// Termine, die auch die Schule betreffen, sehen die Lehrkräfte in moto
+	// schule (#4798).
+	withTeachers := []map[string]any{{"type": "all_school_parents"}, {"type": "all_staff"}, {"type": "all_teachers"}}
 	appointments := []map[string]any{
 		{
 			"title": "Elternabend der Gruppe", "location": "Gruppenraum",
@@ -132,13 +134,13 @@ func seedParentAppointments(rt *Runtime, studentID int64) error {
 			"title":       "Pädagogischer Tag: OGS geschlossen",
 			"description": "Das Team bildet sich fort. An diesem Tag findet keine Betreuung statt.",
 			"start_date":  closingDay, "end_date": closingDay, "start_time": "00:00", "end_time": "23:59", "all_day": true,
-			"delivery_mode": "informational", "targets": allParents, "send_email": false,
+			"delivery_mode": "informational", "targets": withTeachers, "send_email": false,
 		},
 		{
 			"title": "Laternenfest", "location": "Schulhof",
 			"description": "Die Kinder basteln ihre Laternen in der OGS. Wir ziehen gemeinsam durch das Viertel.",
 			"start_date":  festival, "end_date": festival, "start_time": "17:00", "end_time": "19:00", "all_day": false,
-			"delivery_mode": "rsvp_required", "overview_visibility": "all", "targets": allParents, "send_email": false,
+			"delivery_mode": "rsvp_required", "overview_visibility": "all", "targets": withTeachers, "send_email": false,
 		},
 	}
 	for _, appointment := range appointments {
@@ -221,7 +223,7 @@ func seedParentConversation(rt *Runtime, auth AuthRef, studentID int64) error {
 
 func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error {
 	contactRaw, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/guardians", studentID), map[string]any{
-		"first_name": "Rita", "last_name": "Abholkontakt", "email": "rita.abholkontakt@example.test",
+		"first_name": "Gisela", "last_name": "Hahn", "email": "gisela.hahn@example.test",
 		"address_street": "Nebenweg 3", "address_postal_code": "50667", "address_city": "Köln",
 		"phones":            []map[string]any{{"phone_number": "+49 221 555 778", "phone_type": "mobile", "label": "Privat", "is_primary": true}},
 		"relationship_type": "relative", "can_pickup": true, "is_emergency_contact": false,
@@ -241,7 +243,7 @@ func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error
 	}
 	return withTemporarySeedSetting(rt, rt.TenantAuth, "guardians.parent_invite_mode", "staff_approval", "direct", func() error {
 		if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/related-accounts", studentID), map[string]any{
-			"email": "rita.abholkontakt@example.test", "confirm_role_upgrade": true,
+			"email": "gisela.hahn@example.test", "confirm_role_upgrade": true,
 		}); err != nil {
 			return fmt.Errorf("seed pending guardian role upgrade: %w", err)
 		}

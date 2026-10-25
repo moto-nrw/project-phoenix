@@ -39,6 +39,22 @@ export function brandLabelClass(usesTenantLabel: boolean): string {
 }
 
 /**
+ * Zweite Zeile unter dem Schulnamen: der Träger der Schule (#4656). Nur
+ * gesetzt, wenn der Träger mehr als eine Schule hat; sonst bleibt die
+ * Kopfzeile, wie sie ist.
+ */
+export function BrandTraegerLine({
+  traegerName,
+}: Readonly<{ traegerName?: string | null }>) {
+  if (!traegerName) return null;
+  return (
+    <span className="truncate text-xs leading-tight text-gray-500">
+      Träger: {traegerName}
+    </span>
+  );
+}
+
+/**
  * Tailwind kennt keine zusammengesetzten Klassennamen zur Laufzeit, deshalb
  * beide Varianten als vollständige Literale.
  */
@@ -59,12 +75,15 @@ interface BrandLinkProps {
    * Mitarbeiterportal (dort beginnen die Brotkrumen ab md).
    */
   readonly hideLabelBelow?: "md" | "lg";
+  /** Träger der Schule als zweite Zeile, siehe `BrandTraegerLine`. */
+  readonly traegerName?: string | null;
 }
 
 export function BrandLink({
   href = "/home",
   label,
   hideLabelBelow,
+  traegerName,
 }: BrandLinkProps) {
   const displayLabel = label?.trim() || "moto";
   const usesTenantLabel = Boolean(label?.trim());
@@ -77,11 +96,12 @@ export function BrandLink({
       <BrandLogo />
 
       <div
-        className={`min-w-0 items-center ${
+        className={`min-w-0 flex-col justify-center ${
           hideLabelBelow ? HIDE_LABEL_CLASS[hideLabelBelow] : "flex"
         }`}
       >
         <span className={brandLabelClass(usesTenantLabel)}>{displayLabel}</span>
+        <BrandTraegerLine traegerName={traegerName} />
       </div>
     </NavLink>
   );

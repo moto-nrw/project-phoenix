@@ -24,6 +24,8 @@ type AccountAuthentication struct {
 	sessions       *Service
 	store          ports.AccountLoginStore
 	schools        ports.SchoolDirectory
+	traeger        identityPorts.TraegerMemberships
+	portalModules  identityPorts.PortalModules
 	persons        ports.PersonDirectory
 	passwordPolicy func() (int, time.Duration, error)
 	passwords      ports.PasswordVerifier
@@ -46,8 +48,14 @@ type AccountAuthentication struct {
 
 // AccountAuthenticationDependencies are the ports the flows consume.
 type AccountAuthenticationDependencies struct {
-	Store          ports.AccountLoginStore
-	Schools        ports.SchoolDirectory
+	Store   ports.AccountLoginStore
+	Schools ports.SchoolDirectory
+	// Traeger reads the Träger memberships; without it the Träger sign-in
+	// and refresh fail closed.
+	Traeger identityPorts.TraegerMemberships
+	// PortalModules locks the parents and school portals of a school that
+	// has not booked their module (#4895).
+	PortalModules  identityPorts.PortalModules
 	Persons        ports.PersonDirectory
 	PasswordPolicy func() (int, time.Duration, error)
 	Passwords      ports.PasswordVerifier
@@ -78,6 +86,8 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 		return nil, fmt.Errorf("identity access account authentication: school directory is required")
 	case deps.Persons == nil:
 		return nil, fmt.Errorf("identity access account authentication: person directory is required")
+	case deps.PortalModules == nil:
+		return nil, fmt.Errorf("identity access account authentication: portal module booking is required")
 	case deps.PasswordPolicy == nil:
 		return nil, fmt.Errorf("identity access account authentication: password policy is required")
 	case deps.Passwords == nil:
@@ -102,7 +112,7 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 		logger = slog.Default()
 	}
 	return &AccountAuthentication{
-		sessions: sessions, store: deps.Store, schools: deps.Schools, persons: deps.Persons, passwords: deps.Passwords, passwordPolicy: deps.PasswordPolicy,
+		sessions: sessions, store: deps.Store, schools: deps.Schools, traeger: deps.Traeger, portalModules: deps.PortalModules, persons: deps.Persons, passwords: deps.Passwords, passwordPolicy: deps.PasswordPolicy,
 		codec: deps.Codec, mfa: deps.MFA, mfaLock: deps.MFALock, audit: deps.Audit, push: deps.Push,
 		runtime: deps.Runtime, attach: deps.Attach, withRecoveryProof: deps.WithRecoveryProof, rotation: deps.Rotation, logger: logger,
 	}, nil

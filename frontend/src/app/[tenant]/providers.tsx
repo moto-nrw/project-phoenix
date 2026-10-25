@@ -8,6 +8,7 @@ import { SWRConfig } from "swr";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
+import { ModuleBookingAudienceProvider } from "~/contexts/ToastContext";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
 import { ANNOUNCEMENTS_UNREAD_SWR_KEY } from "~/lib/hooks/use-announcements";
@@ -18,6 +19,7 @@ import { SETTINGS_SCHEMA_SWR_KEY } from "~/lib/settings-api";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
 import type { TenantInfo } from "~/lib/tenant-api";
+import { seesLockedModules } from "~/lib/module-register";
 
 /**
  * Mirrors SessionProvider's response into the getSession() dedupe cache that
@@ -33,6 +35,19 @@ function SessionCachePrimer() {
     if (session?.user?.token) primeSessionCache(session);
   }, [session]);
   return null;
+}
+
+function ModuleBookingAudienceBridge({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  const { data: session } = useSession();
+  return (
+    <ModuleBookingAudienceProvider
+      seesLockedModules={seesLockedModules(session)}
+    >
+      {children}
+    </ModuleBookingAudienceProvider>
+  );
 }
 
 /**
@@ -117,13 +132,15 @@ export function TenantProviders({
       refetchOnWindowFocus={false}
     >
       <SessionCachePrimer />
-      <PushSubscriptionSync portal="tenant" />
-      <SentrySessionContext portal="tenant" />
-      {swrConfig ? (
-        <SWRConfig value={swrConfig}>{providers}</SWRConfig>
-      ) : (
-        providers
-      )}
+      <ModuleBookingAudienceBridge>
+        <PushSubscriptionSync portal="tenant" />
+        <SentrySessionContext portal="tenant" />
+        {swrConfig ? (
+          <SWRConfig value={swrConfig}>{providers}</SWRConfig>
+        ) : (
+          providers
+        )}
+      </ModuleBookingAudienceBridge>
     </SessionProvider>
   );
 }

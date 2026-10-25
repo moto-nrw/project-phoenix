@@ -133,7 +133,7 @@ func TestAccountManagementRoleFilterExcludesForeignRoleAssignment(t *testing.T) 
 	local := testpkg.CreateTestAccount(t, e.tc.db, "account-scope-role-local")
 	foreignID, _ := e.foreignAccount(t, "account-scope-role-foreign")
 	role := testpkg.CreateTestRoleForTenant(t, e.tc.db, "account-scope-role", e.tenantID)
-	organizationID, sameOrgSchoolID := e.createSchoolInOwnOrganization(t)
+	_, sameOrgSchoolID := e.createSchoolInOwnOrganization(t)
 	testpkg.MapAccountToTenant(t, e.tc.db, local.ID, sameOrgSchoolID)
 
 	for _, assignment := range []struct {
@@ -150,10 +150,7 @@ func TestAccountManagementRoleFilterExcludesForeignRoleAssignment(t *testing.T) 
 		require.NoError(t, err)
 	}
 
-	claims := e.claims
-	claims.Scope = tenant.ScopeOrg
-	claims.OrgID = organizationID
-	rr := e.execute(t, claims, http.MethodGet, "/auth/accounts/by-role/"+role.Name, nil)
+	rr := e.execute(t, e.claims, http.MethodGet, "/auth/accounts/by-role/"+role.Name, nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var response struct {
 		Data []authAPI.AccountResponse `json:"data"`
@@ -164,97 +161,6 @@ func TestAccountManagementRoleFilterExcludesForeignRoleAssignment(t *testing.T) 
 	assert.Contains(t, ids, local.ID)
 	assert.NotContains(t, ids, foreignID)
 	assert.Equal(t, 1, len(ids))
-}
-
-func TestAccountManagementRoleFilterExcludesStaleOrganizationRoleAssignment(t *testing.T) {
-	t.Parallel()
-	e := newAccountIsolationEnv(t)
-	account := testpkg.CreateTestAccount(t, e.tc.db, "account-scope-role-stale")
-	role := testpkg.CreateTestRoleForTenant(t, e.tc.db, "account-scope-role-stale", e.tenantID)
-	organizationID, staleSchoolID := e.createSchoolInOwnOrganization(t)
-
-	_, err := e.tc.db.ExecContext(context.Background(),
-		"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
-		account.ID, role.ID, staleSchoolID)
-	require.NoError(t, err)
-
-	claims := e.claims
-	claims.Scope = tenant.ScopeOrg
-	claims.OrgID = organizationID
-	rr := e.execute(t, claims, http.MethodGet, "/auth/accounts/by-role/"+role.Name, nil)
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var response struct {
-		Data []authAPI.AccountResponse `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-
-	assert.NotContains(t, accountIDs(response.Data), account.ID)
-}
-
-func TestAccountManagementOrganizationRoleFilterIncludesSameOrganizationSchool(t *testing.T) {
-	t.Parallel()
-	e := newAccountIsolationEnv(t)
-	organizationID, schoolID := e.createSchoolInOwnOrganization(t)
-	accountID, _ := e.accountForTenant(t, "account-scope-role-organization", schoolID)
-	role := testpkg.CreateTestRoleForTenant(t, e.tc.db, "account-scope-role-organization", schoolID)
-
-	_, err := e.tc.db.ExecContext(context.Background(),
-		"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
-		accountID, role.ID, schoolID)
-	require.NoError(t, err)
-
-	claims := e.claims
-	claims.Scope = tenant.ScopeOrg
-	claims.OrgID = organizationID
-	rr := e.execute(t, claims, http.MethodGet, "/auth/accounts/by-role/"+role.Name, nil)
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var response struct {
-		Data []authAPI.AccountResponse `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-
-	assert.Contains(t, accountIDs(response.Data), accountID)
-}
-
-func TestAccountManagementOrganizationScopeReturnsUnmappedOwnAccount(t *testing.T) {
-	t.Parallel()
-	e := newAccountIsolationEnv(t)
-	testpkg.UnclaimTestAccount(t, e.tc.db, int64(e.claims.ID))
-	organizationID, _ := e.createSchoolInOwnOrganization(t)
-
-	claims := e.claims
-	claims.Scope = tenant.ScopeOrg
-	claims.OrgID = organizationID
-	rr := e.execute(t, claims, http.MethodGet, "/auth/account", nil)
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var response struct {
-		Data authAPI.AccountResponse `json:"data"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
-	assert.Equal(t, int64(claims.ID), response.Data.ID)
-}
-
-func TestAccountManagementOrganizationRBACRequiresTargetSchoolMembership(t *testing.T) {
-	t.Parallel()
-	e := newAccountIsolationEnv(t)
-	organizationID, otherSchoolID := e.createSchoolInOwnOrganization(t)
-	accountID, _ := e.accountForTenant(t, "account-scope-org-rbac", otherSchoolID)
-	role := testpkg.CreateTestRoleForTenant(t, e.tc.db, "account-scope-org-rbac", e.tenantID)
-	claims := e.claims
-	claims.Scope = tenant.ScopeOrg
-	claims.OrgID = organizationID
-
-	for _, action := range []struct {
-		method string
-		path   string
-		body   any
-	}{
-		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/roles", accountID), nil},
-		{http.MethodPut, fmt.Sprintf("/auth/accounts/%d/roles", accountID), map[string]string{"role_id": fmt.Sprintf("%d", role.ID)}},
-	} {
-		rr := e.execute(t, claims, action.method, action.path, action.body)
-		assert.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
-	}
 }
 
 func TestAccountManagementRBACForeignAccountDoesNotLeakExistence(t *testing.T) {
@@ -331,28 +237,6 @@ func TestAccountManagementInactiveMembershipDenied(t *testing.T) {
 	assertAccountActionStatus(t, e, e.claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", account.ID), map[string]string{"email": account.Email}, http.StatusNotFound)
 }
 
-func TestAccountManagementOrganizationScopeStaysWithinOrganization(t *testing.T) {
-	t.Parallel()
-	e := newAccountIsolationEnv(t)
-	organizationID, schoolID := e.createSchoolInOwnOrganization(t)
-	sameOrgID, _ := e.accountForTenant(t, "account-scope-org-local", schoolID)
-	foreignID, _ := e.foreignAccount(t, "account-scope-org-foreign")
-	ctx := testpkg.WithTestTenantRuntime(t, tenant.WithScope(tenant.WithOrgID(context.Background(), organizationID), tenant.ScopeOrg))
-
-	got, err := e.tc.resource.Sessions.FindManageableAccount(ctx, sameOrgID)
-	require.NoError(t, err)
-	assert.Equal(t, sameOrgID, got.ID)
-	_, err = e.tc.resource.Sessions.FindManageableAccount(ctx, foreignID)
-	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
-
-	claims := e.claims
-	claims.Scope = tenant.ScopeOrg
-	claims.OrgID = organizationID
-	ids := accountIDs(e.listAccounts(t, claims))
-	assert.Contains(t, ids, sameOrgID)
-	assert.NotContains(t, ids, foreignID)
-}
-
 func (e *accountIsolationEnv) createSchoolInOwnOrganization(t *testing.T) (int64, int64) {
 	t.Helper()
 	var organizationID int64
@@ -364,21 +248,6 @@ func (e *accountIsolationEnv) createSchoolInOwnOrganization(t *testing.T) (int64
 		VALUES (?, ?, ?, ?, ?, true)`, schoolID, organizationID, token, token, token)
 	require.NoError(t, err)
 	return organizationID, schoolID
-}
-
-func TestAccountManagementOrganizationUpdateStaysWithinOrganization(t *testing.T) {
-	t.Parallel()
-	e := newAccountIsolationEnv(t)
-	organizationID, schoolID := e.createSchoolInOwnOrganization(t)
-	sameOrgID, _ := e.accountForTenant(t, "account-scope-org-update", schoolID)
-	foreignID, _ := e.foreignAccount(t, "account-scope-org-update-foreign")
-	claims := e.claims
-	claims.Scope = tenant.ScopeOrg
-	claims.OrgID = organizationID
-	assertAccountActionStatus(t, e, claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", sameOrgID),
-		map[string]string{"email": fmt.Sprintf("updated-%d@example.invalid", sameOrgID)}, http.StatusNoContent)
-	assertAccountActionStatus(t, e, claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", foreignID),
-		map[string]string{"email": fmt.Sprintf("denied-%d@example.invalid", foreignID)}, http.StatusNotFound)
 }
 
 func TestAccountManagementPlatformScopeRemainsGlobal(t *testing.T) {
@@ -479,4 +348,31 @@ func TestAccountManagementOrganizationWriteRetainsCallerSchoolBoundary(t *testin
 	got, err := e.tc.resource.Sessions.FindOwnAccount(ctx, accountID)
 	require.NoError(t, err)
 	require.Equal(t, email, got.Email)
+}
+
+// TestAccountManagementRejectsTraegerTokens: ADR 0084 removed the former org
+// scope of the OGS portal. A Träger token (scope org) names no school and
+// reaches no account, role or permission route, whatever rights it carries.
+func TestAccountManagementRejectsTraegerTokens(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	organizationID, schoolID := e.createSchoolInOwnOrganization(t)
+	accountID, _ := e.accountForTenant(t, "account-scope-traeger", schoolID)
+	claims := testutil.Claims{ID: e.claims.ID, Sub: e.claims.Sub, Roles: []string{"admin"}, Permissions: []string{"admin:*"},
+		IsAdmin: true, Scope: tenant.ScopeOrg, OrgID: organizationID}
+	for _, action := range []struct {
+		method string
+		path   string
+		body   any
+	}{
+		{http.MethodGet, "/auth/accounts", nil},
+		{http.MethodGet, "/auth/accounts/by-role/admin", nil},
+		{http.MethodGet, "/auth/account", nil},
+		{http.MethodGet, "/auth/permissions", nil},
+		{http.MethodGet, fmt.Sprintf("/auth/accounts/%d/roles", accountID), nil},
+		{http.MethodPut, fmt.Sprintf("/auth/accounts/%d", accountID), map[string]string{"email": "traeger-write@example.test"}},
+	} {
+		rr := e.execute(t, claims, action.method, action.path, action.body)
+		assert.Equal(t, http.StatusUnauthorized, rr.Code, "%s %s: %s", action.method, action.path, rr.Body.String())
+	}
 }

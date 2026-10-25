@@ -177,7 +177,7 @@ func guardianListRecords(invitations []identityaccess.GuardianInvitation) []peop
 	result := make([]peoplePorts.GuardianInvitationRecord, 0, len(invitations))
 	for _, invitation := range invitations {
 		result = append(result, peoplePorts.GuardianInvitationRecord{
-			ID: invitation.ID, TenantID: invitation.TenantID, Token: invitation.Token,
+			ID: invitation.ID, TenantID: invitation.TenantID,
 			GuardianProfileID: invitation.GuardianProfileID, CreatedBy: invitation.CreatedBy,
 			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, EmailSentAt: invitation.EmailSentAt,
 			EmailError: invitation.EmailError, StudentID: invitation.StudentID,

@@ -202,7 +202,7 @@ const mockSchool = {
   city: "Berlin",
   zip: "10115",
   phone: "",
-  email: "",
+  email: "info@test-school.example",
   active: true,
   hidden: false,
   deletedAt: null,

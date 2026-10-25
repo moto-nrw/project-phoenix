@@ -24,6 +24,7 @@ let presenceMode: "detailed" | "binary" = "detailed";
 let openCare = false;
 let webAttendance = true;
 let tenantSlug = "school-one";
+let bookedModules: string[] = ["zeiterfassung"];
 
 vi.mock("next/navigation", () => ({
   usePathname: () => pathname,
@@ -53,6 +54,7 @@ vi.mock("~/lib/tenant-context", () => ({
   useChildSearchOnlyNavigation: () => false,
   useAttendanceWebEnabled: () => webAttendance,
   useTenantSlugSafe: () => tenantSlug,
+  useBookedModules: () => bookedModules,
 }));
 
 vi.mock("~/lib/supervision-context", () => ({
@@ -132,6 +134,7 @@ describe("StaffOnboardingWizard", () => {
     openCare = false;
     webAttendance = true;
     tenantSlug = "school-one";
+    bookedModules = ["zeiterfassung"];
   });
 
   it("opens the checklist once per school and sign-in with every step", () => {
@@ -169,6 +172,21 @@ describe("StaffOnboardingWizard", () => {
     expect(stepTitles()).toEqual([
       "Ein Kind finden und Angaben ansehen",
       "Arbeitszeit erfassen",
+    ]);
+  });
+
+  // Modul-Register (#4894): ohne Zeiterfassung führte der Schritt auf einen
+  // Menüpunkt, den es an dieser Schule nicht gibt.
+  it("leaves out the work-time step when the school did not book Zeiterfassung", () => {
+    bookedModules = [];
+    render(<StaffOnboardingWizard />);
+
+    expect(stepTitles()).toEqual([
+      "Meine Gruppe ansehen",
+      "Ein Kind finden und Angaben ansehen",
+      "Ein Kind an- und abmelden",
+      "Meine Termine ansehen",
+      "Eine Aufsicht starten",
     ]);
   });
 

@@ -419,6 +419,7 @@
     "deadline": "Afati deri më {date}",
     "closed": "Afati ka kaluar",
     "passwordNote": "Para se të përgjigjeni, moto ju kërkon fjalëkalimin.",
+    "signatureNote": "Për të dhënë pëlqimin, nënshkruani me gisht ose me mi.",
     "state": {
       "open": "E hapur",
       "partial": "Përgjigjur pjesërisht",
@@ -470,6 +471,22 @@
     "confirmVersion": "Teksti",
     "confirmRecorded": "moto e ruan përgjigjen tuaj me datë dhe orë. Shkolla e sheh.",
     "passwordLabel": "Fjalëkalimi i llogarisë suaj të prindit",
+    "signature": {
+      "label": "Nënshkrimi juaj",
+      "hint": "Nënshkruani në fushë me gisht, me laps ose me mi.",
+      "canvas": "Fusha për nënshkrimin",
+      "clear": "Pastro fushën",
+      "typeInstead": "Shkruani emrin",
+      "drawInstead": "Vizato në vend të kësaj",
+      "typedName": "Emri dhe mbiemri juaj",
+      "confirm": "Konfirmo nënshkrimin",
+      "confirmed": "Nënshkrimi juaj është gati.",
+      "confirmedTyped": "Emri i shkruar është gati.",
+      "change": "Nënshkruani përsëri",
+      "preview": "Nënshkrimi juaj",
+      "emptyDrawing": "Ju lutemi nënshkruani në fushë.",
+      "nameTooShort": "Ju lutemi shkruani emrin tuaj."
+    },
     "revokeTitle": "Tërhiq pëlqimin",
     "revokeBody": "Ju e tërhiqni pëlqimin tuaj për {name}.",
     "revokeConfirm": "Tërhiq",
@@ -478,7 +495,8 @@
     "saved": "Përgjigjja juaj për {name} u ruajt.",
     "errors": {
       "passwordRequired": "Ju lutemi shkruani fjalëkalimin.",
-      "uncertainReload": "Gjendja aktuale po ngarkohet sërish. Ju lutemi kontrollojeni para se të përgjigjeni përsëri."
+      "uncertainReload": "Gjendja aktuale po ngarkohet sërish. Ju lutemi kontrollojeni para se të përgjigjeni përsëri.",
+      "signatureRequired": "Ju lutemi nënshkruani dhe prekni „Konfirmo nënshkrimin”."
     },
     "errorObjectAnswer": "përgjigjja"
   },
@@ -501,10 +519,14 @@
     "entryVersion": "Versioni {version}",
     "passwordYes": "Konfirmuar me fjalëkalim",
     "passwordNo": "Pa fjalëkalim",
+    "signatureAlt": "Nënshkrimi i {name}",
+    "signatureDrawn": "Vizatuar me gisht ose me maus",
+    "signatureTyped": "Shkruar: {name}",
     "versionsTitle": "Teksti i shkollës",
     "versionHeading": "Versioni {version}, publikuar më {date}",
     "attachments": "Skedarët",
     "note": "Ky vërtetim dokumenton një deklaratë të thjeshtë elektronike. Nuk zëvendëson një nënshkrim në letër kur ai kërkohet me ligj.",
+    "noteSigned": "Përgjigjet e nënshkruara janë dhënë si nënshkrim elektronik i thjeshtë me nënshkrim të vizatuar.",
     "errorObjectProof": "dokumenti i vërtetimit",
     "errorObjectPdf": "skedari PDF"
   },
@@ -584,6 +606,22 @@
     "appInstallDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome.",
     "appInstallGenericDescription": "Shtoni moto në ekranin kryesor të telefonit dhe hapeni si aplikacion.",
     "appInstallGuide": "Hap udhëzuesin"
+  },
+  "analyticsConsent": {
+    "title": "Analiza e përdorimit",
+    "promptTitle": "Të lejohet analiza e përdorimit?",
+    "promptIntro": "moto dëshiron të numërojë cilat faqe dhe butona përdorni. Kështu e përmirësojmë moto-n.",
+    "promptPrivacy": "moto nuk sheh emra apo atë që shkruani.",
+    "promptNoDisadvantage": "Nëse refuzoni, mund ta përdorni moto-n njësoj.",
+    "promptChangeLater": "Zgjedhja juaj vlen për llogarinë tuaj. Mund ta ndryshoni në çdo kohë te „Cilësimet“.",
+    "allow": "Lejo",
+    "refuse": "Refuzo",
+    "saving": "Po ruhet…",
+    "closeLabel": "Vendos më vonë",
+    "sectionDescription": "A mund të numërojë moto cilat faqe dhe butona përdorni? moto nuk sheh emra apo atë që shkruani. Vendosni vetëm ju.",
+    "switchLabel": "Lejo analizën e përdorimit",
+    "schoolOff": "Shkolla juaj e ka çaktivizuar analizën e përdorimit. Zgjedhja juaj vlen sapo shkolla ta aktivizojë sërish.",
+    "errorObject": "cilësimi i analizës së përdorimit"
   },
   "pwaInstallHint": {
     "title": "Përdorni moto si aplikacion",
@@ -1347,6 +1385,25 @@
       "tooMany": "Këtu mund të ngarkoni më së shumti {count} skedarë.",
       "pendingSubmit": "Prisni derisa të ngarkohen të gjithë skedarët.",
       "previewDisabled": "Në pamjen paraprake nuk mund të ngarkoni skedarë."
+    },
+    "signature": {
+      "label": "Nënshkrimi juaj",
+      "hint": "Nënshkruani në fushë me gisht, me laps ose me mi.",
+      "canvas": "Fusha për nënshkrimin",
+      "clear": "Pastro fushën",
+      "typeInstead": "Shkruani emrin",
+      "drawInstead": "Vizato në vend të kësaj",
+      "typedName": "Emri dhe mbiemri juaj",
+      "confirm": "Konfirmo nënshkrimin",
+      "confirmed": "Nënshkrimi juaj është gati.",
+      "confirmedTyped": "Emri i shkruar është gati.",
+      "change": "Nënshkruani përsëri",
+      "preview": "Nënshkrimi juaj",
+      "emptyDrawing": "Ju lutemi nënshkruani në fushë.",
+      "nameTooShort": "Ju lutemi shkruani emrin tuaj.",
+      "title": "Nënshkrimi",
+      "description": "Ju lutemi nënshkruani regjistrimin. Pa nënshkrim ai nuk i dërgohet shkollës ditore.",
+      "required": "Ju lutemi nënshkruani regjistrimin."
     }
   },
   "enrollmentStatus": {
@@ -1549,7 +1606,17 @@
     "noAccountHelp": "Nuk e gjeni emailin? Shikoni edhe te dosja e spamit. Emaili mungon ose lidhja nuk funksionon më? Ju lutemi kontaktoni OGS-në.",
     "unavailableAccountTitle": "Nuk mund të hyni në aplikacionin për prindër",
     "unavailableAccountHelp": "Ju lutemi kontaktoni OGS-në. OGS-ja do t'ju ndihmojë.",
-    "noAccessFallback": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në."
+    "noAccessFallback": "Nuk keni ende akses? Hapni emailin “Einladung zum Eltern-Portal”. Nuk ju erdhi emaili? Ju lutemi kontaktoni OGS-në.",
+    "signatureTitle": "Nënshkrimi",
+    "signatureSigned": "Nënshkruar nga {name} më {date}.",
+    "signatureDrawn": "Vizatuar me gisht, laps ose maus.",
+    "signatureTyped": "Emri i shtypur: {name}",
+    "signatureChanged": "Kujdes: Dëshmia e ruajtur është ndryshuar më vonë. Ju lutemi kontaktoni shkollën ditore.",
+    "signatureDownload": "Dëshmia si PDF",
+    "signatureDownloading": "Dëshmia po ngarkohet …",
+    "signatureEditHint": "Nëse e ndryshoni regjistrimin, e nënshkruani përsëri.",
+    "errorObjectProof": "dëshmia",
+    "signatureEyebrow": "Dëshmi"
   },
   "parentRequestEdit": {
     "title": "Ndrysho kërkesën",
@@ -2241,6 +2308,8 @@
         "declaration_not_permitted": "Nuk mund të përgjigjeni për këtë fëmijë. Për pyetje kontaktoni OGS-në.",
         "declaration_password_incorrect": "Fjalëkalimi nuk është i saktë. Ju lutemi provoni përsëri.",
         "declaration_password_required": "Ju lutemi shkruani fjalëkalimin.",
+        "declaration_signature_invalid": "Nënshkrimi nuk u ruajt dot. Ju lutemi nënshkruani përsëri.",
+        "declaration_signature_required": "Ju lutemi nënshkruani para se të jepni pëlqimin.",
         "declaration_version_changed": "Shkolla e ka ndryshuar tekstin. Ju lutemi lexojeni përsëri dhe pastaj përgjigjuni sërish.",
         "excused_request_not_pending": "Nuk është më i hapur: {object}. Ju lutemi ringarkoni faqen.",
         "excused_request_overlap": "Oraret mbivendosen: {object}. Kontrolloni të dhënat.",
@@ -2303,6 +2372,7 @@
         "class_trip_return_time_weekend": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "class_trip_status_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "class_trip_student_not_in_class": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "homework_not_found": "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
         "morning_attendance_no_school_day": "Sot nuk është ditë shkolle. Prania shënohet vetëm në ditë shkolle.",
         "morning_attendance_not_today": "Prania shënohet vetëm për sot. Hapni ditën e sotme.",
         "morning_attendance_unknown_child": "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
@@ -2442,7 +2512,14 @@
         "submission_rate_limited": "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
         "waitlist_disabled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "window_closed": "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
-        "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën."
+        "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",
+        "signature_required": "Ju lutemi nënshkruani regjistrimin.",
+        "signature_invalid": "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
+        "signature_not_found": "Për këtë regjistrim nuk ka nënshkrim.",
+        "holiday_host_school_outside_traeger": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_period_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "holiday_period_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_period_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "files": {
         "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2745,6 +2822,9 @@
         "guardian_notice_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "guardian_notice_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "guardian_notice_text_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "homework_feedback_child_not_in_supervision": "Ky fëmijë nuk i përket këtij mbikëqyrjeje. Ringarkoni faqen.",
+        "homework_feedback_not_allowed": "Përgjigja për detyrat e shtëpisë jepet vetëm në orën e mësimit që mbikëqyrni.",
+        "homework_feedback_without_homework": "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
         "idempotency_key_reused": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "instance_end_before_start": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "instance_in_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
@@ -2922,6 +3002,10 @@
         "organization_not_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "organization_has_schools": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "organization_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_active": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_erasure_order_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_erasure_order_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "traeger_erasure_started": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "school_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "school_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "school_already_deleted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2950,6 +3034,9 @@
         "module_requires": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "module_required_by": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
       },
+      "module": {
+        "not_booked": "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto."
+      },
       "devices": {
         "tag_scan_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "tag_scan_already_resolved": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
@@ -2973,6 +3060,12 @@
       },
       "operator": {
         "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
+      },
+      "traeger": {
+        "already_member": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "last_administrator": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "member_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       }
     },
     "actions": {

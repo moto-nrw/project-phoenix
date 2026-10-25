@@ -1,3 +1,5 @@
+import { isTraegerRole, type TraegerRole } from "~/lib/traeger-roles";
+
 // Backend response types (snake_case, int64 ids)
 
 export interface BackendProvisioningStats {
@@ -396,7 +398,7 @@ export interface CreateSchoolRequest {
   city?: string;
   zip?: string;
   phone?: string;
-  email?: string;
+  email: string;
   hidden?: boolean;
 }
 
@@ -758,3 +760,109 @@ export function mapUnregisteredTagScan(
 /** Shown when the browser refuses to copy an API key (#2519). */
 export const API_KEY_COPY_FAILED_MESSAGE =
   "Der API-Key konnte nicht kopiert werden. Bitte markieren und kopieren Sie ihn selbst.";
+
+// --- Träger-Büro (#4649) ---
+
+export {
+  TRAEGER_ROLES,
+  TRAEGER_ROLE_LABELS,
+  type TraegerRole,
+} from "~/lib/traeger-roles";
+
+export type TraegerMemberStatus = "active" | "pending" | "inactive";
+
+export const TRAEGER_MEMBER_STATUS_LABELS: Readonly<
+  Record<TraegerMemberStatus, string>
+> = {
+  active: "Aktiv",
+  pending: "Eingeladen",
+  inactive: "Inaktiv",
+};
+
+export interface BackendTraegerMember {
+  account_id: number;
+  email: string;
+  status: TraegerMemberStatus;
+  roles: string[];
+  activated_at: string | null;
+}
+
+export interface TraegerMember {
+  accountId: string;
+  email: string;
+  status: TraegerMemberStatus;
+  roles: TraegerRole[];
+  activatedAt: string | null;
+}
+
+export function mapTraegerMember(data: BackendTraegerMember): TraegerMember {
+  return {
+    accountId: data.account_id.toString(),
+    email: data.email,
+    status: data.status,
+    // A role this client does not know yet stays out instead of showing a
+    // raw key.
+    roles: (data.roles ?? []).filter(isTraegerRole),
+    activatedAt: data.activated_at ?? null,
+  };
+}
+
+export interface AssignTraegerMemberRequest {
+  email: string;
+  role: TraegerRole;
+}
+
+// Löschauftrag eines deaktivierten Trägers (#4657). Kalenderdaten bleiben
+// "YYYY-MM-DD"-Strings.
+export interface BackendTraegerErasureOrder {
+  id: number;
+  organization_id: number;
+  order_reference: string;
+  confirmed_on: string;
+  erase_not_before: string;
+  recorded_by: number;
+  recorded_at: string;
+  started_at?: string | null;
+}
+
+export interface TraegerErasureOrder {
+  id: string;
+  organizationId: string;
+  orderReference: string;
+  confirmedOn: string;
+  eraseNotBefore: string;
+  recordedAt: string;
+  /** Set once the internal erasure began; then the order stays. */
+  startedAt: string | null;
+}
+
+export function mapTraegerErasureOrder(
+  data: BackendTraegerErasureOrder,
+): TraegerErasureOrder {
+  return {
+    id: data.id.toString(),
+    organizationId: data.organization_id.toString(),
+    orderReference: data.order_reference,
+    confirmedOn: data.confirmed_on,
+    eraseNotBefore: data.erase_not_before,
+    recordedAt: data.recorded_at,
+    startedAt: data.started_at ?? null,
+  };
+}
+
+/** The backend answers without `data` when no order is open. */
+export function isBackendTraegerErasureOrder(
+  data: unknown,
+): data is BackendTraegerErasureOrder {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    typeof (data as { id?: unknown }).id === "number"
+  );
+}
+
+export interface RecordTraegerErasureOrderRequest {
+  order_reference: string;
+  confirmed_on: string;
+  erase_not_before: string;
+}

@@ -20,7 +20,14 @@ import {
   registerPortalSession,
 } from "~/lib/analytics";
 import { analyticsPseudonym } from "~/lib/analytics-pseudonym";
+import {
+  setAnalyticsConsentSchool,
+  startAnalyticsConsent,
+  stopAnalyticsConsent,
+} from "~/lib/analytics-consent";
 import { useTenant } from "~/lib/tenant-context";
+import { TENANT_ANALYTICS_CONSENT_COPY } from "~/components/analytics/analytics-consent-copy";
+import { AnalyticsConsentPromptGate } from "~/components/analytics/analytics-consent-prompt-gate";
 
 const logger = createLogger({ component: "TenantAuthWrapper" });
 
@@ -70,6 +77,22 @@ function TeacherSpecificHooks() {
     schoolId,
     session?.user?.isPreview === true ? null : (session?.user?.id ?? null),
   );
+
+  // The person's own consent (#4901); a staff-view preview carries someone
+  // else's identity and never answers for it.
+  const consentAccountId =
+    status === "authenticated" &&
+    tenantMatchesSession &&
+    session?.user?.isPreview !== true
+      ? (session?.user?.id ?? null)
+      : null;
+  useEffect(() => {
+    if (consentAccountId) startAnalyticsConsent("tenant", consentAccountId);
+    else if (status !== "loading") stopAnalyticsConsent("tenant");
+  }, [consentAccountId, status]);
+  useEffect(() => {
+    setAnalyticsConsentSchool("tenant", enabled);
+  }, [enabled, consentAccountId]);
 
   const { isReady: contextReady } = useUserContext();
   const { status: sseStatus } = useGlobalSSE();
@@ -130,7 +153,13 @@ function TeacherSpecificHooks() {
     }
   }, [sseStatus, contextReady, status]);
 
-  return null;
+  return (
+    <AnalyticsConsentPromptGate
+      portal="tenant"
+      copy={TENANT_ANALYTICS_CONSENT_COPY}
+      recording={freigabe}
+    />
+  );
 }
 
 export function TenantAuthWrapper({

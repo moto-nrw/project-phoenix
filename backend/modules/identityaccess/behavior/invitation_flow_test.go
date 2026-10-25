@@ -341,8 +341,9 @@ func TestAcceptInvitationRefusesIncompleteRegistrations(t *testing.T) {
 	assert.False(t, env.storedInvitation(t, invitation.ID).IsUsed(), "a refused acceptance leaves the invitation redeemable")
 }
 
-// Resending extends the link and starts its delivery bookkeeping over; a
-// spent or expired invitation is never revived.
+// Resending extends the invitation with a new link and starts its delivery
+// bookkeeping over; a spent or expired invitation is never revived. Only the
+// hash of a link is stored (#4902), so the previous link stops working.
 func TestResendInvitationExtendsOnlyRedeemableInvitations(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -359,9 +360,18 @@ func TestResendInvitationExtendsOnlyRedeemableInvitations(t *testing.T) {
 	_, err = db.NewRaw(`UPDATE auth.invitation_tokens SET expires_at = NOW() + INTERVAL '1 minute', email_error = 'smtp down', email_sent_at = NOW() WHERE id = ?`, invitation.ID).Exec(ctx)
 	require.NoError(t, err)
 
+	var stored string
+	require.NoError(t, db.NewRaw(`SELECT token FROM auth.invitation_tokens WHERE id = ?`, invitation.ID).Scan(ctx, &stored))
+	assert.Equal(t, sha256Hex(invitation.Token), stored, "the link is stored as hash only")
+
 	require.NoError(t, env.service.ResendSchoolInvitation(ctx, invitation.ID, creator.ID))
 	resent := env.storedInvitation(t, invitation.ID)
-	assert.True(t, resent.ExpiresAt.After(time.Now().Add(time.Hour)), "the link is extended")
+	assert.True(t, resent.ExpiresAt.After(time.Now().Add(time.Hour)), "the invitation is extended")
+	var reissued string
+	require.NoError(t, db.NewRaw(`SELECT token FROM auth.invitation_tokens WHERE id = ?`, invitation.ID).Scan(ctx, &reissued))
+	assert.NotEqual(t, stored, reissued, "the resend issues a new link")
+	_, err = env.service.ValidateSchoolInvitation(ctx, invitation.Token)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationNotFound, "the previous link stops working")
 
 	require.NoError(t, env.service.RevokeSchoolInvitation(ctx, invitation.ID, creator.ID))
 	require.ErrorIs(t, env.service.ResendSchoolInvitation(ctx, invitation.ID, creator.ID), identityaccess.ErrInvitationUsed,

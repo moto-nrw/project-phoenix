@@ -29,20 +29,22 @@ type sessionRepositories struct {
 	persons           personRows
 	authEvents        authEventLedger
 	pushSubscriptions pushSubscriptionRows
-	Lifecycle         LifecycleRepositories
+	// traeger serves the Träger-Büro account management's membership port.
+	traeger   organizationtenancy.Capability
+	Lifecycle LifecycleRepositories
 }
 
 // SessionRepositoriesOf binds the session seams to the identity chain rows
 // in people (persons, staff, teachers, students, guardian profiles and
 // relationships) and the given ledgers.
-func SessionRepositoriesOf(people LifecycleRepositories, organizations organizationtenancy.Query, authEvents authEventLedger, pushSubscriptions pushSubscriptionRows) sessionRepositories {
+func SessionRepositoriesOf(people LifecycleRepositories, organizations organizationtenancy.Capability, authEvents authEventLedger, pushSubscriptions pushSubscriptionRows) sessionRepositories {
 	if people.Persons == nil {
 		return sessionRepositories{}
 	}
 	lifecycle := people
 	lifecycle.AuthEvents = authEvents
 	return sessionRepositories{
-		schools: SchoolDirectory{Schools: organizations},
+		schools: SchoolDirectory{Schools: organizations}, traeger: organizations,
 		persons: people.Persons, authEvents: authEvents, pushSubscriptions: pushSubscriptions,
 		Lifecycle: lifecycle,
 	}
@@ -62,8 +64,14 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 	if repos.schools.Schools == nil || repos.persons == nil || repos.authEvents == nil || repos.pushSubscriptions == nil || codec == nil || audit == nil {
 		return nil, errors.New("identity access composition: repositories, token codec and audit command are required")
 	}
+	portalModules, err := NewPortalModuleBooking(settings)
+	if err != nil {
+		return nil, fmt.Errorf("identity access composition: %w", err)
+	}
 	base.Sessions = &identityBindingPorts.SessionDependencies{
 		Schools:             repos.schools,
+		Traeger:             TraegerMembershipDirectory{Memberships: repos.schools.Schools},
+		PortalModules:       portalModules,
 		Persons:             PersonDirectory{Persons: repos.persons},
 		Passwords:           passwordVerifier{},
 		PasswordLoginPolicy: passwordLoginPolicy,
@@ -72,6 +80,12 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 		Audit:               AuthAudit{Command: audit, Events: repos.authEvents},
 		Push:                PushSubscriptionCleanup{Subscriptions: repos.pushSubscriptions},
 		Logger:              logger,
+	}
+	if base.Traeger != nil {
+		traeger := *base.Traeger
+		traeger.Memberships = TraegerBueroDirectory{Organizations: repos.traeger}
+		traeger.Audit = TraegerAccountLedger{Command: audit}
+		base.Traeger = &traeger
 	}
 	return identityaccessCompose.New(base)
 }
@@ -209,25 +223,26 @@ func (d SchoolDirectory) ListActiveSchoolsByID(ctx context.Context, ids []int64)
 	return result, nil
 }
 
-// ListManageableSchoolIDs is the set an organisation-scoped administrator
-// is bounded by: the organisation's live, active schools. An organisation
-// without one leaves them with no account to administer, which is the
-// refusal the account boundary applies.
-func (d SchoolDirectory) ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
-	if d.Schools == nil {
-		return nil, errors.New("school directory is not composed")
+// TraegerMembershipDirectory serves Identity & Access's Träger membership
+// port over Organisation & Tenancy (ADR 0084).
+type TraegerMembershipDirectory struct {
+	Memberships organizationtenancy.TraegerMembershipQuery
+}
+
+// ListAccountTraegerOrganizations returns the Träger the account may sign in to.
+func (d TraegerMembershipDirectory) ListAccountTraegerOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error) {
+	if d.Memberships == nil {
+		return nil, errors.New("the Träger membership directory is not composed")
 	}
-	schools, err := d.Schools.ListSchoolsByOrganization(ctx, organizationID)
+	organizations, err := d.Memberships.ListAccountTraegerOrganizations(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, 0, len(schools))
-	for _, school := range schools {
-		if school.Operational() {
-			ids = append(ids, school.ID)
-		}
+	result := make([]identityaccess.TraegerOrganization, 0, len(organizations))
+	for _, organization := range organizations {
+		result = append(result, identityaccess.TraegerOrganization(organization))
 	}
-	return ids, nil
+	return result, nil
 }
 
 type PersonDirectory struct{ Persons personRows }

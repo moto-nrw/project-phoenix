@@ -14,7 +14,15 @@ import { useFormError, type FormErrorDetail } from "~/components/ui/form-error";
 import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
+import { useModulePortal } from "~/lib/module-portal-context";
+import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { ApiError } from "~/lib/api-error";
+import {
+  announceModuleBookingStale,
+  moduleNotBookedExplanation,
+  notBookedModuleOf,
+} from "~/lib/module-not-booked";
+import type { ModuleKey } from "~/lib/modules";
 import {
   errorLogFields,
   logDisplayedError,
@@ -54,6 +62,26 @@ interface ToastAPI {
 }
 
 const ToastContext = createContext<ToastAPI | undefined>(undefined);
+const ModuleBookingAudienceContext = createContext(false);
+
+/**
+ * Supplies the module-booking audience from the tenant session. Toasts also
+ * render in auth-free shells and isolated components, where the safe default
+ * is the explanation for staff members.
+ */
+export function ModuleBookingAudienceProvider({
+  seesLockedModules,
+  children,
+}: Readonly<{
+  seesLockedModules: boolean;
+  children: React.ReactNode;
+}>) {
+  return (
+    <ModuleBookingAudienceContext.Provider value={seesLockedModules}>
+      {children}
+    </ModuleBookingAudienceContext.Provider>
+  );
+}
 
 const toastLabelsByLocale = {
   de: {
@@ -439,6 +467,7 @@ export function loginUrl(host: string, path: string): string {
   for (const [hostname, prefix] of [
     [clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME, "/parents"],
     [clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME, "/school"],
+    [clientEnv.NEXT_PUBLIC_TRAEGER_HOSTNAME, "/traeger"],
     [clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME, "/operator"],
   ]) {
     if (host === hostname || path.startsWith(`${prefix}/`)) {
@@ -451,6 +480,8 @@ export function loginUrl(host: string, path: string): string {
 /** What one failed action shows, in a toast or in the form's alert. */
 interface DisplayedError {
   message: string;
+  /** Refused with `module.not_booked` (#4894): explained, not retried. */
+  notBookedModule?: ModuleKey;
   retry?: { label: string; onClick: () => void };
   requestId?: string;
   requestIdLabel?: string;
@@ -580,6 +611,21 @@ function useApiErrorCore(
         ...(presentation.fields.length > 0 && { fields: presentation.fields }),
       });
       const labels = errorDisplayLabels(locale);
+      const notBookedModule = notBookedModuleOf(error);
+      if (notBookedModule) {
+        announceModuleBookingStale();
+        setFieldErrors({});
+        deliver(
+          {
+            message: [presentation.message, options.messageSuffix]
+              .filter(Boolean)
+              .join(" "),
+            notBookedModule,
+          },
+          locale,
+        );
+        return presentation;
+      }
       setFieldErrors(
         markFields
           ? Object.fromEntries(
@@ -621,14 +667,29 @@ function useApiErrorCore(
 /** Opt-in display path for actions without a form (#2510). */
 export function useApiErrorDisplay(formRef?: RefObject<HTMLElement | null>) {
   const toast = useToast();
+  const seesLocked = useContext(ModuleBookingAudienceContext);
+  const portal = useModulePortal();
   const deliver = useCallback(
-    (shown: DisplayedError) =>
-      toast.error(shown.message, {
+    (shown: DisplayedError, locale: AppLocale) => {
+      const options = {
         action: shown.retry,
         requestId: shown.requestId,
         requestIdLabel: shown.requestIdLabel,
-      }),
-    [toast],
+      };
+      if (shown.notBookedModule) {
+        // The parents and the school portal follow a module of their own
+        // (#4895); their readers cannot book anything.
+        toast.info(
+          portal === "staff"
+            ? moduleNotBookedExplanation(shown.notBookedModule, seesLocked)
+            : portalNotBookedExplanation(portal, locale),
+          options,
+        );
+        return;
+      }
+      toast.error(shown.message, options);
+    },
+    [toast, seesLocked, portal],
   );
   const core = useApiErrorCore(formRef, deliver, "toast");
   /**
@@ -653,6 +714,7 @@ function toFormErrorDetail(
   const labels = toastLabelsByLocale[locale];
   return {
     message: shown.message,
+    notBookedModule: shown.notBookedModule,
     retry: shown.retry,
     requestId: shown.requestId
       ? {

@@ -1,9 +1,10 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
-import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-session";
+import { ParentPortalAnalyticsSession } from "~/components/analytics/parent-portal-analytics-session";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
+import { ModulePortalProvider } from "~/lib/module-portal-context";
 import { ParentLocaleProvider } from "~/lib/parent-locale-context";
 
 /**
@@ -31,9 +32,11 @@ export function ParentProviders({
       refetchOnWindowFocus={false}
     >
       <PushSubscriptionSync portal="parent" />
-      <PortalAnalyticsSession surface="parents" />
+      <ParentPortalAnalyticsSession />
       <SentrySessionContext portal="parent" />
-      <ParentLocaleProvider>{children}</ParentLocaleProvider>
+      <ParentLocaleProvider>
+        <ModulePortalProvider portal="parent">{children}</ModulePortalProvider>
+      </ParentLocaleProvider>
     </SessionProvider>
   );
 }

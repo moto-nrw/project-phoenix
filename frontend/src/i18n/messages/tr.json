@@ -419,6 +419,7 @@
     "deadline": "Son tarih {date}",
     "closed": "Süre doldu",
     "passwordNote": "Yanıtlamadan önce moto şifrenizi sorar.",
+    "signatureNote": "Onay vermek için parmağınızla veya fareyle imzalarsınız.",
     "state": {
       "open": "Açık",
       "partial": "Kısmen yanıtlandı",
@@ -470,6 +471,22 @@
     "confirmVersion": "Metin",
     "confirmRecorded": "moto yanıtınızı tarih ve saatle kaydeder. Okul bunu görür.",
     "passwordLabel": "Veli hesabınızın şifresi",
+    "signature": {
+      "label": "İmzanız",
+      "hint": "Alana parmağınızla, kalemle veya fareyle imza atın.",
+      "canvas": "İmza alanı",
+      "clear": "Alanı temizle",
+      "typeInstead": "Adınızı yazın",
+      "drawInstead": "Bunun yerine çiz",
+      "typedName": "Adınız ve soyadınız",
+      "confirm": "İmzayı onayla",
+      "confirmed": "İmzanız hazır.",
+      "confirmedTyped": "Yazdığınız ad hazır.",
+      "change": "Yeniden imzala",
+      "preview": "İmzanız",
+      "emptyDrawing": "Lütfen alana imza atın.",
+      "nameTooShort": "Lütfen adınızı yazın."
+    },
     "revokeTitle": "Onayı geri al",
     "revokeBody": "{name} için onayınızı geri alıyorsunuz.",
     "revokeConfirm": "Geri al",
@@ -478,7 +495,8 @@
     "saved": "{name} için yanıtınız kaydedildi.",
     "errors": {
       "passwordRequired": "Lütfen şifrenizi girin.",
-      "uncertainReload": "Güncel durum yeniden yükleniyor. Lütfen tekrar yanıt vermeden önce kontrol edin."
+      "uncertainReload": "Güncel durum yeniden yükleniyor. Lütfen tekrar yanıt vermeden önce kontrol edin.",
+      "signatureRequired": "Lütfen imza atın ve “İmzayı onayla”ya dokunun."
     },
     "errorObjectAnswer": "yanıt"
   },
@@ -501,10 +519,14 @@
     "entryVersion": "Sürüm {version}",
     "passwordYes": "Şifre ile onaylandı",
     "passwordNo": "Şifresiz",
+    "signatureAlt": "{name} imzası",
+    "signatureDrawn": "Parmakla veya fareyle çizildi",
+    "signatureTyped": "Yazıldı: {name}",
     "versionsTitle": "Okulun metni",
     "versionHeading": "Sürüm {version}, yayınlanma: {date}",
     "attachments": "Dosyalar",
     "note": "Bu belge basit bir elektronik beyanı kanıtlar. Yasanın gerektirdiği kağıt üzerindeki imzanın yerini tutmaz.",
+    "noteSigned": "İmzalı yanıtlar, çizilmiş imzalı basit elektronik imza olarak verildi.",
     "errorObjectProof": "kanıt belgesi",
     "errorObjectPdf": "PDF dosyası"
   },
@@ -584,6 +606,22 @@
     "appInstallDescription": "moto'yu Samsung Internet üzerinden yüklemeyin. Bunun için moto'yu Chrome'da açın.",
     "appInstallGenericDescription": "moto'yu telefonunuzun ana ekranına ekleyin ve bir uygulama gibi açın.",
     "appInstallGuide": "Kılavuzu aç"
+  },
+  "analyticsConsent": {
+    "title": "Kullanım analizi",
+    "promptTitle": "Kullanım analizine izin verilsin mi?",
+    "promptIntro": "moto, hangi sayfaları ve düğmeleri kullandığınızı saymak istiyor. Böylece moto'yu geliştiriyoruz.",
+    "promptPrivacy": "moto bu sırada isimleri ve yazdıklarınızı görmez.",
+    "promptNoDisadvantage": "Reddederseniz de moto'yu aynı şekilde kullanabilirsiniz.",
+    "promptChangeLater": "Seçiminiz hesabınız için geçerlidir. İstediğiniz zaman „Ayarlar“ bölümünden değiştirebilirsiniz.",
+    "allow": "İzin ver",
+    "refuse": "Reddet",
+    "saving": "Kaydediliyor…",
+    "closeLabel": "Daha sonra karar ver",
+    "sectionDescription": "moto, hangi sayfaları ve düğmeleri kullandığınızı sayabilir mi? moto bu sırada isimleri ve yazdıklarınızı görmez. Buna yalnızca siz karar verirsiniz.",
+    "switchLabel": "Kullanım analizine izin ver",
+    "schoolOff": "Okulunuz kullanım analizini kapattı. Seçiminiz, okul onu yeniden açtığında geçerli olur.",
+    "errorObject": "kullanım analizi ayarı"
   },
   "pwaInstallHint": {
     "title": "moto'yu uygulama olarak kullanın",
@@ -1347,6 +1385,25 @@
       "tooMany": "Buraya en fazla {count} dosya yükleyebilirsiniz.",
       "pendingSubmit": "Lütfen tüm dosyalar yüklenene kadar bekleyin.",
       "previewDisabled": "Önizlemede dosya yükleyemezsiniz."
+    },
+    "signature": {
+      "label": "İmzanız",
+      "hint": "Alana parmağınızla, kalemle veya fareyle imza atın.",
+      "canvas": "İmza alanı",
+      "clear": "Alanı temizle",
+      "typeInstead": "Adınızı yazın",
+      "drawInstead": "Bunun yerine çiz",
+      "typedName": "Adınız ve soyadınız",
+      "confirm": "İmzayı onayla",
+      "confirmed": "İmzanız hazır.",
+      "confirmedTyped": "Yazdığınız ad hazır.",
+      "change": "Yeniden imzala",
+      "preview": "İmzanız",
+      "emptyDrawing": "Lütfen alana imza atın.",
+      "nameTooShort": "Lütfen adınızı yazın.",
+      "title": "İmza",
+      "description": "Lütfen kaydı imzalayın. İmza olmadan kayıt OGS’ye ulaşmaz.",
+      "required": "Lütfen kaydı imzalayın."
     }
   },
   "enrollmentStatus": {
@@ -1549,7 +1606,17 @@
     "noAccountHelp": "E-postayı bulamıyor musunuz? Spam klasörüne de bakın. E-posta yok veya bağlantı artık çalışmıyor mu? Lütfen OGS ile iletişime geçin.",
     "unavailableAccountTitle": "Veli uygulamasına erişemiyorsunuz",
     "unavailableAccountHelp": "Lütfen OGS ile iletişime geçin. OGS size yardımcı olacaktır.",
-    "noAccessFallback": "Henüz erişiminiz yok mu? “Einladung zum Eltern-Portal” başlıklı e-postayı açın. E-posta gelmedi mi? Lütfen OGS ile iletişime geçin."
+    "noAccessFallback": "Henüz erişiminiz yok mu? “Einladung zum Eltern-Portal” başlıklı e-postayı açın. E-posta gelmedi mi? Lütfen OGS ile iletişime geçin.",
+    "signatureTitle": "İmza",
+    "signatureSigned": "{name} tarafından {date} tarihinde imzalandı.",
+    "signatureDrawn": "Parmak, kalem veya fare ile çizildi.",
+    "signatureTyped": "Yazılan ad: {name}",
+    "signatureChanged": "Dikkat: Kayıtlı belge sonradan değiştirildi. Lütfen OGS ile iletişime geçin.",
+    "signatureDownload": "PDF olarak belge",
+    "signatureDownloading": "Belge yükleniyor …",
+    "signatureEditHint": "Kaydı değiştirirseniz yeniden imzalarsınız.",
+    "errorObjectProof": "belge",
+    "signatureEyebrow": "Belge"
   },
   "parentRequestEdit": {
     "title": "Talebi düzenle",
@@ -2241,6 +2308,8 @@
         "declaration_not_permitted": "Bu çocuk için yanıt veremezsiniz. Sorularınız için OGS ile iletişime geçin.",
         "declaration_password_incorrect": "Şifre doğru değil. Lütfen tekrar deneyin.",
         "declaration_password_required": "Lütfen şifrenizi girin.",
+        "declaration_signature_invalid": "İmza kaydedilemedi. Lütfen yeniden imza atın.",
+        "declaration_signature_required": "Lütfen onay vermeden önce imza atın.",
         "declaration_version_changed": "Okul metni değiştirdi. Lütfen tekrar okuyun ve ardından yeniden yanıtlayın.",
         "excused_request_not_pending": "{object} artık açık değil. Lütfen sayfayı yenileyin.",
         "excused_request_overlap": "{object} için saatler çakışıyor. Lütfen bilgileri kontrol edin.",
@@ -2303,6 +2372,7 @@
         "class_trip_return_time_weekend": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "class_trip_status_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "class_trip_student_not_in_class": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "homework_not_found": "Bu ev ödevi artık yok. Lütfen sayfayı yenileyin.",
         "morning_attendance_no_school_day": "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
         "morning_attendance_not_today": "Devam durumu yalnızca bugün için girilebilir. Lütfen bugünü açın.",
         "morning_attendance_unknown_child": "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
@@ -2442,7 +2512,14 @@
         "submission_rate_limited": "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
         "waitlist_disabled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "window_closed": "Kayıt süresi bitti veya henüz başlamadı. Lütfen okulla iletişime geçin.",
-        "withdraw_not_allowed": "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin."
+        "withdraw_not_allowed": "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin.",
+        "signature_required": "Lütfen kaydı imzalayın.",
+        "signature_invalid": "İmza okunamadı. Lütfen tekrar imzalayın.",
+        "signature_not_found": "Bu kayıt için imza yok.",
+        "holiday_host_school_outside_traeger": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "holiday_period_incomplete": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "holiday_period_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "holiday_period_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "files": {
         "announcement_published": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2745,6 +2822,9 @@
         "guardian_notice_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "guardian_notice_past": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "guardian_notice_text_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "homework_feedback_child_not_in_supervision": "Bu çocuk bu gözetime ait değil. Lütfen sayfayı yenileyin.",
+        "homework_feedback_not_allowed": "Ev ödevi geri bildirimi yalnızca gözetiminizdeki etüt saatinde verilebilir.",
+        "homework_feedback_without_homework": "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
         "idempotency_key_reused": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "instance_end_before_start": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "instance_in_past": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2922,6 +3002,10 @@
         "organization_not_deleted": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "organization_has_schools": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "organization_deleted": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "traeger_active": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "traeger_erasure_order_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "traeger_erasure_order_open": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "traeger_erasure_started": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "school_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "school_inactive": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "school_already_deleted": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2950,6 +3034,9 @@
         "module_requires": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "module_required_by": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       },
+      "module": {
+        "not_booked": "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin."
+      },
       "devices": {
         "tag_scan_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "tag_scan_already_resolved": "{object} değiştirilemedi. Güncel durumu kontrol edin."
@@ -2973,6 +3060,12 @@
       },
       "operator": {
         "audit_unavailable": "{object} şu anda kullanılamıyor. Yeniden deneyin."
+      },
+      "traeger": {
+        "already_member": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "last_administrator": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "member_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "no_membership": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       }
     },
     "actions": {

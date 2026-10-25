@@ -25,6 +25,10 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 	if (portal == "tenant" || portal == "school") && claims.TenantID <= 0 {
 		return identityaccess.SessionClaims{}, identityaccess.ErrInvalidToken
 	}
+	// A Träger session names its Träger and no school (ADR 0084).
+	if portal == domain.ScopeOrg && (claims.OrgID <= 0 || claims.TenantID != 0) {
+		return identityaccess.SessionClaims{}, identityaccess.ErrInvalidToken
+	}
 	refreshClaims, err := s.parseSessionRefresh(refresh, claims, now)
 	if err != nil {
 		return identityaccess.SessionClaims{}, err
@@ -47,7 +51,7 @@ func (s *AccountAuthentication) validateOperatorSession(ctx context.Context, cla
 		return nil
 	}
 	session, err := s.sessions.findOperatorSessionForUpdate(ctx, refreshClaims.Token)
-	if err != nil || session.OperatorID != operator.ID || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementToken != nil || session.FamilyID != claims.FamilyID {
+	if err != nil || session.OperatorID != operator.ID || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
 		return identityaccess.ErrInvalidToken
 	}
 	return nil
@@ -57,7 +61,7 @@ func (s *AccountAuthentication) parseSessionRefresh(refresh string, claims domai
 	var refreshClaims *domain.RefreshClaims
 	if refresh != "" {
 		parsed, err := s.codec.ParseRefreshToken(refresh)
-		if err != nil || parsed.ExpiresAt <= now || parsed.AccountID != claims.AccountID || parsed.Scope != claims.Scope || parsed.TenantID != claims.TenantID || claims.ReadOnly || claims.FamilyID == "" {
+		if err != nil || parsed.ExpiresAt <= now || parsed.AccountID != claims.AccountID || parsed.Scope != claims.Scope || parsed.TenantID != claims.TenantID || (claims.Scope == domain.ScopeOrg && parsed.OrgID != claims.OrgID) || claims.ReadOnly || claims.FamilyID == "" {
 			return nil, identityaccess.ErrInvalidToken
 		}
 		refreshClaims = &parsed
@@ -79,12 +83,31 @@ func (s *AccountAuthentication) validateSessionInTx(txCtx context.Context, claim
 			return identityaccess.ErrInvalidToken
 		}
 	}
+	if portal == domain.ScopeOrg && !s.activeTraegerMember(txCtx, account.ID, claims.OrgID) {
+		return identityaccess.ErrInvalidToken
+	}
 	if refreshClaims == nil {
 		return nil
 	}
 	session, err := s.sessions.findAccountSessionByToken(txCtx, refreshClaims.Token)
-	if err != nil || session.AccountID != account.ID || (claims.TenantID > 0 && session.TenantID != claims.TenantID) || session.PortalScope != domain.PersistedPortalScope(claims.Scope) || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementToken != nil || session.FamilyID != claims.FamilyID {
+	if err != nil || session.AccountID != account.ID || (claims.TenantID > 0 && session.TenantID != claims.TenantID) || !sessionOfTraeger(session, claims) || session.PortalScope != domain.PersistedPortalScope(claims.Scope) || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
 		return identityaccess.ErrInvalidToken
 	}
 	return nil
+}
+
+// activeTraegerMember re-reads the Träger membership a Träger session rests
+// on; any failure reads as no membership.
+func (s *AccountAuthentication) activeTraegerMember(ctx context.Context, accountID, organizationID int64) bool {
+	if s.traeger == nil {
+		return false
+	}
+	organizations, err := s.traeger.ListAccountTraegerOrganizations(ctx, accountID)
+	return err == nil && containsTraeger(organizations, organizationID)
+}
+
+// sessionOfTraeger reports whether a Träger token's session belongs to its
+// Träger; the other portals' sessions name no Träger.
+func sessionOfTraeger(session domain.AccountSession, claims domain.SessionClaims) bool {
+	return claims.Scope != domain.ScopeOrg || session.OrganizationID == claims.OrgID
 }

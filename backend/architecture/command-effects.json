@@ -23099,6 +23099,17 @@
     },
     {
       "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.DeclarationSignatureReader.DeclarationSignatures",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CommunicationSignatures.DeclarationSignatures",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.Signatures",
+      "target_owner": "audit-platform",
+      "binding_digest": "7651bbe9f1c7870b5097a7ec75322280",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: communication reads stored signatures (#4785) through modules/auditlog.SignatureLedger.Signatures (audit-platform), a tenant-scoped SELECT of audit.signatures by id inside the caller's tenant transaction. No owned-row mutation, lock or scope effect."
+    },
+    {
+      "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementAttachmentPurger.AttachmentDigests",
       "binding": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.AttachmentDigests",
       "target": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.AttachmentDigests",
@@ -28843,6 +28854,40 @@
     },
     {
       "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSignatureLedger.LatestEnrollmentSignatures",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentSignatures.LatestEnrollmentSignatures",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.LatestEnrollmentSignatures",
+      "target_owner": "audit-platform",
+      "binding_digest": "f9aa78e90e086f7e856f286400496385",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: enrollment reads the newest signature per enrollment request (#4786) through modules/auditlog.SignatureLedger.LatestEnrollmentSignatures (audit-platform), a SELECT of audit.signatures filtered to the school in context, inside the caller's unit of work. No owned-row mutation, lock or scope effect."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSignatureLedger.RecordEnrollmentSignature",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentSignatures.RecordEnrollmentSignature",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.ParseSignatureImage",
+      "target_owner": "audit-platform",
+      "binding_digest": "e6fe4d18af280db6845eb7b0282233a8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed pure check: enrollment validates the parent's signature image (#4786) through modules/auditlog.ParseSignatureImage (audit-platform), an in-memory PNG and name check without database access. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSignatureLedger.RecordEnrollmentSignature",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentSignatures.RecordEnrollmentSignature",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.RecordSignature",
+      "target_owner": "audit-platform",
+      "binding_digest": "9e05c0f14b60b3dd11b34f4a5b117730",
+      "effect": "mutation",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog.SignatureLedger.RecordSignature (audit-platform) through roots/owners.EnrollmentSignatures.RecordEnrollmentSignature. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.CreateLateInvite",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.CreateLateInvite",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
@@ -31039,6 +31084,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: enrollment reaches modules/settings.EnrollmentIntakeValues.Legal (settings-platform) through roots/owners.enrollmentIntakeSettings.LegalSettings. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.OnlineAnmeldungBooked",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.OnlineAnmeldungBooked",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.OnlineAnmeldungBooked",
+      "target_owner": "settings-platform",
+      "binding_digest": "de90e3111cc9e0a802dae91dd963f109",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: enrollment reads the module switch module.online_anmeldung of the request's school through roots/owners.enrollmentIntakeSettings to close status links of a cancelled module (#4893). No persistent, lock or scope effect (ADR 0098)."
     },
     {
       "source_owner": "enrollment",
@@ -35486,6 +35542,30 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AcceptTraegerInvitation",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptTraegerInvitation",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ChangeTraegerRoles",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ChangeTraegerRoles",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.ChangeTraegerRoles. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.CleanupErasedAccountAvatars",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.CleanupErasedAccountAvatars",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
@@ -35555,6 +35635,18 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.DeleteExpiredSchoolInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.InviteTraegerAccount",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.InviteTraegerAccount",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.InviteTraegerAccount. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35666,99 +35758,39 @@
     },
     {
       "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListTraegerBuero",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ListTraegerBuero",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.ListTraegerBuero. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.PreviewTraegerInvitation",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.PreviewTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.PreviewTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RemoveTraegerMember",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RemoveTraegerMember",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "b212a93e4cd4f31b90bbbfdabc6e652e",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "faa48507d72b77ad42de13b0e371eae7",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "4fee5b27d3394111b7e823b55d8fc439",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "77e4a167f264d422f10594e7b79fe922",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.RemoveTraegerMember. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35786,51 +35818,15 @@
     },
     {
       "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RevokeTraegerInvitation",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RevokeTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.SchoolAccountLogin.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.RevokeTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -35982,6 +35978,90 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.AcceptTraegerInvitation",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.AcceptTraegerInvitation",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.ChangeTraegerRoles",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.ChangeTraegerRoles",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.ChangeTraegerRoles. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.InviteTraegerAccount",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.InviteTraegerAccount",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.InviteTraegerAccount. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.ListTraegerBuero",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.ListTraegerBuero",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.ListTraegerBuero. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.PreviewTraegerInvitation",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.PreviewTraegerInvitation",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.PreviewTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.RemoveTraegerMember",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.RemoveTraegerMember",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.RemoveTraegerMember. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.TraegerAccountManagement.RevokeTraegerInvitation",
+      "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.RevokeTraegerInvitation",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "cf561391c095d764c720fd1cab767582",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.RevokeTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerActivities.SupervisedActivityGroupIDs",
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.CallerActivityGroups.SupervisedActivityGroupIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.CallerActivityGroups.SupervisedActivityGroupIDs",
@@ -36068,6 +36148,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.FindTeacherByStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerStructure.ListSchoolClasses",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.callerStructure.ListSchoolClasses",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ListSchoolClasses",
+      "target_owner": "people-directory",
+      "binding_digest": "2d2a156cfcfcabcb03545c5d9d8e6ca2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.ListSchoolClasses; modules/peopledirectory/ports/repository_contracts.go:127. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",
@@ -36371,102 +36462,6 @@
     },
     {
       "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolAtTenantWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "e1e22a444b29754cd12db46c16db0385",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginSchoolWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "3817e0c8c1ef9b7774f586e065394232",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginSchoolWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "b212a93e4cd4f31b90bbbfdabc6e652e",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.LoginWithMFAGate",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "faa48507d72b77ad42de13b0e371eae7",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.LoginWithMFAGate. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RefreshTokenWithAudit",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "4fee5b27d3394111b7e823b55d8fc439",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinAdmin through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.RefreshTokenWithAudit",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime",
-      "binding_digest": "77e4a167f264d422f10594e7b79fe922",
-      "effect": "scope",
-      "classification": "platform",
-      "adr": "0098",
-      "reason": "Reviewed #3841-c scope participation: identity-access reaches tenant.WithinCurrentTenant through modules/identityaccess.Owner.RefreshTokenWithAudit. Global credential checks reuse globalIdentityRead and its existing administrative unit; failed password attempts commit under the identity row lock. MFA login/mint and refresh retain their ambient/current-tenant units and reset-proof guards. The bound tenant callback supplies scope/transaction infrastructure, not a new cross-owner write permission (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Caregivers.DisableCaregiverCapability",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CaregiverCapabilityViews.DisableCaregiverCapability",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CaregiverCapabilityViews.DisableCaregiverCapability",
@@ -36693,10 +36688,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySlug",
       "target_owner": "organization-tenancy",
-      "binding_digest": "348e17aa5e6339e9618175e8726db853",
+      "binding_digest": "15d1153c26950d90f9d988632064034b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36704,10 +36699,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySubdomain",
       "target_owner": "organization-tenancy",
-      "binding_digest": "5bbd6b1773d43a047b158fd7aba8f2ac",
+      "binding_digest": "9211f9564411940fe0c41cac08f8da24",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchoolBySubdomain; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.FindSchoolBySubdomain; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged. Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36715,10 +36710,21 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
       "target_owner": "organization-tenancy",
-      "binding_digest": "9759c4927d409ea23c91ea8804eb884b",
+      "binding_digest": "96f6baf93e30c7d67d461cdb95813a33",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.SchoolDirectory.GetSchoolBySubdomain",
+      "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindVisibleTraegerName",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "8f8844132a20c730254175c1a506d5d6",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: identity-access reaches modules/organizationtenancy.Capability.FindVisibleTraegerName (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain for the tenant shell (#4656). One read transaction counts the organization's operational schools and reads its name; no owned-row mutation, lock or scope effect."
     },
     {
       "source_owner": "identity-access",
@@ -36726,10 +36732,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListOrganizationsByID",
       "target_owner": "organization-tenancy",
-      "binding_digest": "4c55f7cb5da0e65de8156dcfa978ce17",
+      "binding_digest": "aaedfeaaf2bbbdea348a0f4bb9f3517f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36737,10 +36743,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySlug",
       "target_owner": "organization-tenancy",
-      "binding_digest": "4e0c658996ae974f60d33f8785a44b9f",
+      "binding_digest": "ad0e3153e77096b552178c9655a320b7",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchoolBySlug (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36748,10 +36754,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySubdomain",
       "target_owner": "organization-tenancy",
-      "binding_digest": "822528a302d3f26f5dbaf69f44aab340",
+      "binding_digest": "0229689584b6394ef2047581c48522f8",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchoolBySubdomain; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchoolBySubdomain; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim. #4836 binding-flow review: callable/closure, unexported-helper or generic-origin resolution changed this binding evidence; effect and classification unchanged. Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36759,10 +36765,21 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
       "target_owner": "organization-tenancy",
-      "binding_digest": "da9c1656d0b1d4e71ccca22b329f097f",
+      "binding_digest": "dee8ad582497b397460942e15bfebd67",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.SchoolDirectory.GetSchoolBySubdomain",
+      "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindVisibleTraegerName",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "db2f1b529ea9a55e9150ffa54a99aef0",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: identity-access reaches modules/organizationtenancy.Query.FindVisibleTraegerName (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain for the tenant shell (#4656). One read transaction counts the organization's operational schools and reads its name; no owned-row mutation, lock or scope effect."
     },
     {
       "source_owner": "identity-access",
@@ -36770,10 +36787,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListOrganizationsByID",
       "target_owner": "organization-tenancy",
-      "binding_digest": "9985adffea65ed563ed81a4c6e610b9b",
+      "binding_digest": "807b7c18991d10e43f730d4088a2bb23",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.ListOrganizationsByID (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -36781,10 +36798,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.authSchoolDirectory.GetSchoolBySubdomain",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy",
-      "binding_digest": "9edd7c5a7e56dbadfc82a521f257bce1",
+      "binding_digest": "f4c388aeeb0adc3860faaff5ccadc9b9",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.School.IsDeleted (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.School.IsDeleted (organization-tenancy) through api.authSchoolDirectory.GetSchoolBySubdomain. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4656: the binding now also reads the visible Träger name through FindVisibleTraegerName; read only, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "identity-access",
@@ -37390,6 +37407,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only already reviewed target: identity-access reaches modules/studentpresence.Owner.ListSupervisedLiveGroups (student-presence) through modules/identityaccess/internal/application.CallerSessions.SupervisedSessionIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.CallerStructure.ListSchoolClasses",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerStructure.ListSchoolClasses",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ListSchoolClasses",
+      "target_owner": "people-directory",
+      "binding_digest": "2d2a156cfcfcabcb03545c5d9d8e6ca2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.ListSchoolClasses; modules/peopledirectory/ports/repository_contracts.go:127. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",
@@ -37999,39 +38027,6 @@
       "effect": "query",
       "classification": "query",
       "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.SettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.ManageableSchools.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "5b2154014a0cd7dfa2040c472b1af5fc",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Capability.ListSchoolsByOrganization (organization-tenancy) through modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.ManageableSchools.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "9ca95d570253f1cf51d04407789014d8",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.Query.ListSchoolsByOrganization (organization-tenancy) through modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.ManageableSchools.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.Operational",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "3e747981a70ee23b62abef9ba6c631c1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Read-only already reviewed target: identity-access reaches modules/organizationtenancy.School.Operational (organization-tenancy) through modules/identityaccess/internal/application.SchoolDirectory.ListManageableSchoolIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
     },
     {
       "source_owner": "identity-access",
@@ -40284,6 +40279,39 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.PortalModules.BookedParentPortalSchools",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PortalModuleBooking.BookedParentPortalSchools",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings.ModuleBooking.RequireForTenant",
+      "target_owner": "settings-platform",
+      "binding_digest": "289b35f3096ede4fd07d774758bcd4e7",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: login reads the module switch module.eltern_app of each guardian school through roots/owners.PortalModuleBooking in a tenant transaction of its own, before the session transaction, to refuse a parents-portal session without the module (#4895). No persistent, lock or scope effect (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.PortalModules.RequireParentPortal",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PortalModuleBooking.RequireParentPortal",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings.ModuleBooking.RequireForTenant",
+      "target_owner": "settings-platform",
+      "binding_digest": "db1adfd558274843ff9fefad2b19a82f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: login and refresh read the module switch module.eltern_app of one guardian school through roots/owners.PortalModuleBooking in a tenant transaction of its own to name the refused module (#4895). No persistent, lock or scope effect (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.PortalModules.RequireSchoolPortal",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.PortalModuleBooking.RequireSchoolPortal",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings.ModuleBooking.RequireForTenant",
+      "target_owner": "settings-platform",
+      "binding_digest": "bb683bffc94bdb748d581f1c5782ed03",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only: school login, second factor, school switch and refresh read the module switch module.unterricht_vormittag of the school through roots/owners.PortalModuleBooking in a tenant transaction of its own, before the session transaction (#4895). No persistent, lock or scope effect (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.PrecedingMails.PrecedingMailState",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.precedingMails.PrecedingMailState",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.Runtime.EmailStatus",
@@ -40609,39 +40637,6 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.SchoolLogoURL; modules/organizationtenancy/school.go:64. May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolDirectory.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "5b2154014a0cd7dfa2040c472b1af5fc",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Capability.ListSchoolsByOrganization; modules/organizationtenancy.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolDirectory.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "9ca95d570253f1cf51d04407789014d8",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim."
-    },
-    {
-      "source_owner": "identity-access",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.SchoolDirectory.ListManageableSchoolIDs",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.SchoolDirectory.ListManageableSchoolIDs",
-      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.Operational",
-      "target_owner": "organization-tenancy",
-      "binding_digest": "3e747981a70ee23b62abef9ba6c631c1",
-      "effect": "query",
-      "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.Operational; modules/organizationtenancy/school.go:84. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",
@@ -41505,6 +41500,156 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.RecordTraegerAccountChange",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerAccountLedger.RecordTraegerAccountChange",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform",
+      "binding_digest": "7a9a747725dca311bc870dfea635ae4a",
+      "effect": "mutation",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (mutation): identity-access reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.TraegerAccountLedger.RecordTraegerAccountChange. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.RecordTraegerAccountChange",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerAccountLedger.RecordTraegerAccountChange",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform",
+      "binding_digest": "d8a5ed1a669d6507082f150b7837f635",
+      "effect": "mutation",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (mutation): identity-access reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.TraegerAccountLedger.RecordTraegerAccountChange. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.RecordTraegerAccountChange",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerAccountLedger.RecordTraegerAccountChange",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform",
+      "binding_digest": "385d7d50ab1fd01fea1c3ac4e9d659c9",
+      "effect": "mutation",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (mutation): identity-access reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.TraegerAccountLedger.RecordTraegerAccountChange. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerBueroMemberships.ActivateTraegerMembership",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerBueroDirectory.ActivateTraegerMembership",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ActivateTraegerMembership",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "cfd8a530df9850ca085cb766d21f4de5",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Participating leaf command (ADR 0067 #4538 command participation): Organisation \u0026 Tenancy activates or reactivates the Träger membership in platform.organization_accounts on the administrative unit of the Träger-Büro account management of Identity \u0026 Access (#4650), which owns it together with the role set, the invitation, the sessions and the ledger entry. RunAdmin joins that ambient transaction; the command opens no unit, commit or scope switch of its own there."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerBueroMemberships.DeactivateTraegerMembership",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerBueroDirectory.DeactivateTraegerMembership",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.DeactivateTraegerMembership",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "c6e0e85419deae3410c8e5628320e15c",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Participating leaf command (ADR 0067 #4538 command participation): Organisation \u0026 Tenancy ends the Träger membership in platform.organization_accounts on the administrative unit of the Träger-Büro account management of Identity \u0026 Access (#4650), which owns it together with the role set, the invitation, the sessions and the ledger entry. RunAdmin joins that ambient transaction; the command opens no unit, commit or scope switch of its own there."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerBueroMemberships.FindLiveTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerBueroDirectory.FindLiveTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindOrganization",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "8ccf5cc4b6aa888dccc039ecdc8d28a6",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy.Capability.FindOrganization for the Träger-Büro account management (ADR 0084, #4650). Joins the caller's administrative unit; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerBueroMemberships.FindLiveTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerBueroDirectory.FindLiveTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Organization.IsDeleted",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "3676d55c2b6600be08f0f93b3fd9ed3f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy.Organization.IsDeleted for the Träger-Büro account management (ADR 0084, #4650). Joins the caller's administrative unit; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerBueroMemberships.ListActiveTraegerMemberships",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerBueroDirectory.ListActiveTraegerMemberships",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListTraegerMemberships",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "52d825aefddf4624690a96d382fb031a",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy.Capability.ListTraegerMemberships for the Träger-Büro account management (ADR 0084, #4650). Joins the caller's administrative unit; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerInvitationDelivery.DispatchTraegerInvitation",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerInvitationDelivery.DispatchTraegerInvitation",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform",
+      "binding_digest": "b2f56ecb048d494b178c697acdcd3391",
+      "effect": "durable",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.traegerInvitationDelivery.DispatchTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerInvitationDelivery.DispatchTraegerInvitation",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerInvitationDelivery.DispatchTraegerInvitation",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
+      "target_owner": "delivery-platform",
+      "binding_digest": "8664aa98f93df4e88131f512b6132620",
+      "effect": "durable",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/runtime.Capability.EnqueueSystemEmail (delivery-platform) through roots/owners.traegerInvitationDelivery.DispatchTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.ListAccountTraegerOrganizations",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListAccountTraegerOrganizations",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "c360e2e2775d28f069f3ad7e77bf495b",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.ListAccountTraegerOrganizations",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListAccountTraegerOrganizations",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "93b5098616e6ca7f505bf1f6f9bde907",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.TraegerMemberships.ListAccountTraegerOrganizations",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerMembershipDirectory.ListAccountTraegerOrganizations",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMembershipQuery.ListAccountTraegerOrganizations",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "611dd8397429b556736228cba9b4dd4f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy Träger membership query (ADR 0084, #4649). Joins the caller's administrative unit through RunRead; no mutation or locking read at this terminal."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.TenantScope.BindOrganization",
       "binding": "github.com/moto-nrw/project-phoenix/tenant.ClaimScope.BindOrganization",
       "target": "github.com/moto-nrw/project-phoenix/tenant.ClaimScope.BindOrganization",
@@ -41560,6 +41705,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/classday/http.Resource.SchoolRouter; modules/classday/http/api.go:44. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolportal.SchoolRouter.SchoolRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http.Resource.SchoolRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http.Resource.SchoolRouter",
+      "target_owner": "school-calendar",
+      "binding_digest": "b798321e5b2b0f697c60e0be602fddb8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar/http.Resource.SchoolRouter; modules/schoolcalendar/http/school.go:19. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",
@@ -41791,6 +41947,28 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveStringForTenant (settings-platform) through modules/settings/records.SettingsService.ResolveStringForTenant. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayPeriodResource.TraegerRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayPeriodResource.TraegerRouter",
+      "target_owner": "enrollment",
+      "binding_digest": "23f977aa9d13d51b67537d27c300b725",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment/http.HolidayPeriodResource.TraegerRouter mounts the Träger holiday period routes behind the Träger right and the Träger transaction (#4659, ADR 0105). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.Resource.TraegerRouter",
+      "target_owner": "traeger-view",
+      "binding_digest": "5ea4091e13912f081ce1ffafa162489d",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/traegerview/http.Resource.TraegerRouter mounts the Träger school list (ADR 0084, #4649); it takes and ignores the Träger transaction middleware the route group offers (ADR 0105). May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "meal-plan",
@@ -42345,6 +42523,18 @@
     },
     {
       "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.AssignTraegerRole",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.AssignTraegerRole",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.AssignTraegerRole",
+      "target_owner": "identity-access",
+      "binding_digest": "3cf3935d4265a0dc4e270e8eeade4332",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access validates the Träger role, locks the live account against a concurrent erasure and inserts the role on the operator's administrative unit, which the Träger membership grant of Organisation \u0026 Tenancy owns (ADR 0084, #4649). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
+    },
+    {
+      "source_owner": "organization-tenancy",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.DeactivateAccount",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.DeactivateAccount",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.AccountAdministration.DeactivateAccount",
@@ -42368,6 +42558,18 @@
       "adr": "0067",
       "approval_adr": "0083",
       "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess.Owner.DeactivateAccount; modules/identityaccess.Owner (supplied contract method). "
+    },
+    {
+      "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.EndTraegerSessions",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.EndTraegerSessions",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EndTraegerSessions",
+      "target_owner": "identity-access",
+      "binding_digest": "ad6b9095b1a0169c716940cf7bc02e35",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access deletes the Träger sessions (auth.tokens, portal scope org) of the deactivated Träger on the operator's administrative unit, which the Träger deactivation of Organisation \u0026 Tenancy owns (ADR 0084 section 4, #4657). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
     },
     {
       "source_owner": "organization-tenancy",
@@ -42407,6 +42609,17 @@
       "adr": "0067",
       "approval_adr": "0083",
       "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithTenantID; modules/identityaccess/compose/tenant_unit_of_work.go:32. "
+    },
+    {
+      "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.FindAccountIDByEmail",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.FindAccountIDByEmail",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindAccountByEmail",
+      "target_owner": "identity-access",
+      "binding_digest": "66c17e50b7bef613f1def65a1810c2cf",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the supplied interface: modules/identityaccess.Owner.FindAccountByEmail resolves the account behind an address for the operator's Träger membership grant (#4649). No mutation or locking read at this terminal."
     },
     {
       "source_owner": "organization-tenancy",
@@ -43097,6 +43310,17 @@
       "adr": "0067",
       "approval_adr": "0083",
       "reason": "E5 named provisioning account/device-transfer/person-retirement surface. Preserve explicit admin/tenant units, locked source and best-effort/post-commit audit; not one atomic school-provisioning transaction. Hand rows 37-39 and modules/organizationtenancy/internal/application/provisioning_{accounts,devices,people}.go. Target modules/identityaccess/compose.TenantUnitOfWork.WithinAdmin; modules/identityaccess/compose/tenant_unit_of_work.go:21. "
+    },
+    {
+      "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ListTraegerAccounts",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ListTraegerAccounts",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListTraegerAccounts",
+      "target_owner": "identity-access",
+      "binding_digest": "1354e61a5ec309fca9ea6d1c7ad5875a",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read on the supplied interface: modules/identityaccess.Owner.ListTraegerAccounts reads address and Träger roles on the operator's administrative unit (ADR 0084, #4649). No mutation or locking read at this terminal."
     },
     {
       "source_owner": "organization-tenancy",
@@ -53549,10 +53773,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.birthdayStore.StaffBirthdaysForExport",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "c985526c308cd28018862dfa33ebc492",
+      "binding_digest": "7ce6a7130d5ccee1062e82754fbb63fc",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through api.birthdayStore.StaffBirthdaysForExport. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through api.birthdayStore.StaffBirthdaysForExport. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -53571,10 +53795,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.birthdayStore.StaffBirthdaysOn",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "f056f12495cdf4350a43649d0807591d",
+      "binding_digest": "f9aad50abb95d1dcc2637d159b181333",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through api.birthdayStore.StaffBirthdaysOn. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through api.birthdayStore.StaffBirthdaysOn. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -54760,10 +54984,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindBirthdaysOn",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "09f927fb232e4e42e6e635e0b466233b",
+      "binding_digest": "a85a8e452f266e6ad22562453c743309",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.FindBirthdaysOn. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.FindBirthdaysOn. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -54874,10 +55098,54 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindReachableCalendarStaffIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "9102f974f9f37c71b89d61bbff3f444d",
+      "binding_digest": "a49369e6b25d4b3eb09324477c8a8003",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.FindReachableCalendarStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.FindReachableCalendarStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindReachableSchoolCalendarStaffIDs",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.ReachableStaffIDs",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "e6d9213154a129f15b1799cd222b9dc2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindReachableSchoolCalendarStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "91ebc08a9ad60b8cea60e0f1f3215eb3",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindSchoolPortalStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindSchoolPortalStaffIDs",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.SchoolPortalStaffIDs",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "24abe266b8493b84994d06e495fe9dd7",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.SchoolPortalStaffIDs; modules/staffdirectoryview/accounts.go:177. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindSchoolPortalStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.FindSchoolPortalStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "943405b0433fa73424b0f41f8aeb8020",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New; modules/staffdirectoryview/staffdirectoryview.go:81. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "people-directory",
@@ -54951,10 +55219,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.GetStaffContactInfo",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "771120bfd3170c33fa8df0014c384152",
+      "binding_digest": "1ef6074ce221b7830d6cb823a611fb3c",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.GetStaffContactInfo. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.GetStaffContactInfo. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -54973,10 +55241,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListAccountIDsByStaffIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "dcfeca24db1ef61e937bb5cbf38ba2c9",
+      "binding_digest": "68945405b23ebc12f1d091f891139ff7",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListAccountIDsByStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListAccountIDsByStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -54995,10 +55263,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListAllStaffAccountIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "e9dccc80b047f01f1864c0b4e0873f05",
+      "binding_digest": "e1473e85c5f7b9c24375841db24a5eeb",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListAllStaffAccountIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListAllStaffAccountIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -55050,10 +55318,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListBirthdaysForExport",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "7c1949da12d6d080dcbdcb6f3493b2e7",
+      "binding_digest": "7a88d140973c3d162547d88f71b74a4d",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListBirthdaysForExport. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListBirthdaysForExport. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -55072,10 +55340,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListStaffByRoles",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "0707a28c5c4647c7554a76520dc452dd",
+      "binding_digest": "fc1d97f6b4a40e38347099bd6e998f73",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListStaffByRoles. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListStaffByRoles. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -55094,10 +55362,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StaffMembershipRepository.ListStaffWithPermission",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "c68035b906a533b9dae402a9e0ca54a5",
+      "binding_digest": "20c6400e6b88a9cc63f2ca589a20a38b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListStaffWithPermission. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: people-directory reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.StaffMembershipRepository.ListStaffWithPermission. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "people-directory",
@@ -61206,6 +61474,17 @@
     },
     {
       "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Identity.MySchoolClasses",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarIdentityPort.MySchoolClasses",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerReach.MySchoolClasses",
+      "target_owner": "identity-access",
+      "binding_digest": "242712fe8db76f01a2523302c26d4737",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.CallerReach.MySchoolClasses; modules/identityaccess.CallerReach (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "school-calendar",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Instances.FindByIDs",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarInstancePort.FindByIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.FindCalendarInstances",
@@ -61295,6 +61574,30 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/facilities/compose.FindRoomNames; modules/facilities/compose/room_rows.go:10. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.SchoolDays.ListCalendarPeriods",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): school-calendar reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/schoolcalendar.Days.ListCalendarPeriods, the read of the moto schule calendar (#4798). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.SchoolDays.ListClosingDays",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): school-calendar reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/schoolcalendar.Days.ListClosingDays, the read of the moto schule calendar (#4798). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "school-calendar",
@@ -61412,10 +61715,76 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableCalendarStaffIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "be8d3741798f9d17be8d9469fccbb2c7",
+      "binding_digest": "6270dd870c300e6bff8d87bb67624f9d",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: school-calendar reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.calendarStaffPort.FindReachableCalendarStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: school-calendar reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.calendarStaffPort.FindReachableCalendarStaffIDs. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.ReachableStaffIDs",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "e6d9213154a129f15b1799cd222b9dc2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableSchoolCalendarStaffIDs",
+      "target_owner": "people-directory",
+      "binding_digest": "96457d707936ece25a9dc6ee250beb34",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "91ebc08a9ad60b8cea60e0f1f3215eb3",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only school calendar authorization projection: resolves live tenant staff, active account membership and effective calendar:school grants through staffdirectoryview.ReachableStaffIDs. Construction and permission lookup perform no writes, locking reads or scope transitions (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindSchoolPortalStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindSchoolPortalStaffIDs",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.SchoolPortalStaffIDs",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "24abe266b8493b84994d06e495fe9dd7",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.SchoolPortalStaffIDs; modules/staffdirectoryview/accounts.go:177. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindSchoolPortalStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindSchoolPortalStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindSchoolPortalStaffIDs",
+      "target_owner": "people-directory",
+      "binding_digest": "8a363eb5baab982208fe939c62476640",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.FindSchoolPortalStaffIDs; modules/peopledirectory/ports/repository_contracts.go:253. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindSchoolPortalStaffIDs",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindSchoolPortalStaffIDs",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "943405b0433fa73424b0f41f8aeb8020",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New; modules/staffdirectoryview/staffdirectoryview.go:81. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "school-calendar",
@@ -119370,10 +119739,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.absenceEmailStaffDirectory.GetStaffContactInfo",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "e14f849340bf65d06bd32c8bf12047ec",
+      "binding_digest": "8f30bbd0dd674d519f6ae3906b7caaaa",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.absenceEmailStaffDirectory.GetStaffContactInfo. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.absenceEmailStaffDirectory.GetStaffContactInfo. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "workforce",
@@ -119403,10 +119772,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.absenceEmailStaffDirectory.ListAbsenceApprovers",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "aaa82ffc61e75003805c037cd13e63cb",
+      "binding_digest": "254d69ccea313ad2a03f66d4ff81f229",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.absenceEmailStaffDirectory.ListAbsenceApprovers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.absenceEmailStaffDirectory.ListAbsenceApprovers. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4798: staffdirectoryview.Accounts gained the read-only SchoolPortalAccountIDs; this binding still only reads."
     },
     {
       "source_owner": "workforce",

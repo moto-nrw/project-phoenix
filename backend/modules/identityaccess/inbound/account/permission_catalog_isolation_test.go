@@ -32,14 +32,10 @@ func TestTenantAndOrganizationAdminsCannotMutateGlobalPermissionCatalog(t *testi
 		scope string
 	}{
 		{name: "tenant", scope: tenant.ScopeTenant},
-		{name: "organization", scope: tenant.ScopeOrg},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			claims := testutil.AdminTestClaims(int(actor.ID))
 			claims.Scope = tt.scope
-			if tt.scope == tenant.ScopeOrg {
-				claims.OrgID = 1
-			}
 
 			listReq := testutil.NewJSONRequest(t, http.MethodGet, "/auth/permissions", nil)
 			listResp := testutil.ExecuteWithAuthPermissions(t, router, listReq, claims, permissions)

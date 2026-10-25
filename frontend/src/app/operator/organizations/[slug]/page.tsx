@@ -22,6 +22,7 @@ import {
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
 import { BackLink } from "~/components/ui/back-link";
+import { Button } from "~/components/ui/button";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
@@ -30,6 +31,7 @@ import { PersonsTable } from "~/components/operator/persons-table";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import { buildSchoolColumns } from "~/components/operator/school-table-columns";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { ConfirmationModal } from "~/components/ui/modal";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -41,10 +43,14 @@ import { createLogger } from "~/lib/logger";
 import {
   EmptyState,
   PlusIcon,
+  SimpleEmptyState,
 } from "~/app/operator/provisioning/provisioning-shared";
 import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
+import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
+import { TraegerErasureOrderSection } from "./traeger-erasure-order-section";
+import { TRAEGER_MEMBER_COLUMNS } from "./traeger-member-columns";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import {
@@ -68,6 +74,8 @@ const TAB_ITEMS = [
   { id: "konten", label: "Konten" },
   { id: "geraete", label: "Geräte" },
   { id: "personen", label: "Personen" },
+  { id: "traeger-buero", label: "Träger-Büro" },
+  { id: "loeschauftrag", label: "Löschauftrag" },
 ] as const;
 
 type TabId = (typeof TAB_ITEMS)[number]["id"];
@@ -113,6 +121,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     null,
   );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
+  const [assignTraegerOpen, setAssignTraegerOpen] = useState(false);
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
 
   const currentTabSearch = activeTab === "schulen" ? "" : `?tab=${activeTab}`;
 
@@ -247,6 +257,22 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     { revalidateOnFocus: false, dedupingInterval: 5000 },
   );
 
+  const traegerMembersActive =
+    activeTab === "traeger-buero" && isAuthenticated && organization != null;
+  const {
+    data: traegerMembers,
+    error: traegerMembersError,
+    isLoading: traegerMembersLoading,
+    mutate: mutateTraegerMembers,
+  } = useSWR(
+    traegerMembersActive
+      ? ["operator-org-traeger-members", organization?.id]
+      : null,
+    () =>
+      operatorProvisioningService.listTraegerMembers(organization?.id ?? ""),
+    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
   const organizationsLoadError = useSwrLoadError(
     organizationsError,
     "die Übersicht des Trägers",
@@ -271,6 +297,12 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     personsError,
     "die Liste der Personen",
     () => void mutateOrgPersons(),
+  );
+
+  const traegerMembersLoadError = useSwrLoadError(
+    traegerMembersError,
+    "die Liste des Träger-Büros",
+    () => void mutateTraegerMembers(),
   );
 
   const handleSchoolClick = useCallback(
@@ -401,7 +433,11 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       <>
         <button
           type="button"
-          onClick={() => void handleToggleOrgActive()}
+          onClick={() =>
+            organization?.active
+              ? setDeactivateOpen(true)
+              : void handleToggleOrgActive()
+          }
           className="cursor-pointer"
           title={organization?.active ? "Deaktivieren" : "Aktivieren"}
           aria-label={organization?.active ? "Deaktivieren" : "Aktivieren"}
@@ -464,6 +500,20 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
             Neue Schule
           </button>
         </>
+      );
+    }
+
+    if (activeTab === "traeger-buero") {
+      return (
+        <Button
+          type="button"
+          variant="primary"
+          size="compact"
+          onClick={() => setAssignTraegerOpen(true)}
+        >
+          <PlusIcon />
+          Person zuordnen
+        </Button>
       );
     }
 
@@ -533,7 +583,11 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       <div className="mt-6">
         <Tabs value={activeTab} onValueChange={handleTabValueChange}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <TabsList variant="line">
+            {/* Six tabs do not fit a phone: the row scrolls sideways. */}
+            <TabsList
+              variant="line"
+              className="max-w-full min-w-0 justify-start overflow-x-auto"
+            >
               {TAB_ITEMS.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id}>
                   {tab.label}
@@ -646,8 +700,61 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               />
             )}
           </TabsPrimitive.Content>
+          <TabsPrimitive.Content value="traeger-buero" className="mt-4">
+            <LoadErrorAlert error={traegerMembersLoadError} className="mb-4" />
+            {(traegerMembers === undefined && !traegerMembersLoading) ||
+            traegerMembersError ? null : !traegerMembersLoading &&
+              traegerMembers?.length === 0 ? (
+              <SimpleEmptyState
+                title="Noch niemand im Träger-Büro"
+                description="Noch niemand hat Zugang zum Träger-Portal dieses Trägers."
+              />
+            ) : (
+              <DataTable
+                columns={TRAEGER_MEMBER_COLUMNS}
+                rows={traegerMembers ?? []}
+                getRowKey={(member) => member.accountId}
+                defaultSortKey="email"
+                isLoading={traegerMembersLoading}
+              />
+            )}
+          </TabsPrimitive.Content>
+          <TabsPrimitive.Content value="loeschauftrag" className="mt-4">
+            {activeTab === "loeschauftrag" ? (
+              <TraegerErasureOrderSection
+                organizationId={organization.id}
+                organizationActive={organization.active}
+              />
+            ) : null}
+          </TabsPrimitive.Content>
         </Tabs>
       </div>
+
+      <ConfirmationModal
+        isOpen={deactivateOpen}
+        onClose={() => setDeactivateOpen(false)}
+        onConfirm={() => {
+          setDeactivateOpen(false);
+          void handleToggleOrgActive();
+        }}
+        title="Träger deaktivieren?"
+        confirmText="Deaktivieren"
+        confirmVariant="warning"
+      >
+        <p className="text-sm text-gray-700">
+          Alle Personen im Träger-Portal von {organization.name} werden sofort
+          abgemeldet und können sich nicht mehr anmelden. Die Schulen des
+          Trägers arbeiten weiter. Sie können den Träger wieder aktivieren.
+        </p>
+      </ConfirmationModal>
+
+      <AssignTraegerMemberModal
+        isOpen={assignTraegerOpen}
+        onClose={() => setAssignTraegerOpen(false)}
+        organizationId={organization.id}
+        organizationName={organization.name}
+        onAssigned={() => mutateTraegerMembers()}
+      />
 
       {caregiverAccount && caregiverSchoolContext ? (
         <CaregiverCapabilityModal

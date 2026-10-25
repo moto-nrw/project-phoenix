@@ -18,8 +18,10 @@ import { createLogger } from "~/lib/logger";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import {
   getParentCalendarFeed,
+  getSchoolCalendarFeed,
   getStaffCalendarFeed,
   rotateParentCalendarFeed,
+  rotateSchoolCalendarFeed,
   rotateStaffCalendarFeed,
   type CalendarFeedInfo,
 } from "~/lib/personal-calendar-api";
@@ -50,7 +52,11 @@ interface CalendarSubscribeCopy {
 }
 
 interface CalendarSubscribePanelProps {
-  readonly audience?: "parent" | "staff";
+  /**
+   * "school" ist der Kalender in moto schule (#4798): ein Abo-Link wie bei
+   * den Eltern, ohne CalDAV-Zugang.
+   */
+  readonly audience?: "parent" | "staff" | "school";
   readonly calDAVEnabled?: boolean;
 }
 
@@ -121,8 +127,8 @@ function CopyValueRow({
 }
 
 /**
- * Shared panel for subscribing an external calendar to parent or staff
- * appointments. The audience selects only the API and audience-specific copy.
+ * Shared panel for subscribing an external calendar to parent, staff or
+ * school-portal appointments. The audience selects only the API and audience-specific copy.
  */
 export function CalendarSubscribePanel({
   audience = "parent",
@@ -153,10 +159,12 @@ export function CalendarSubscribePanel({
     copied: t("copied"),
     copyFailed: t("copyFailed"),
   };
-  const loadFeed = isStaff ? getStaffCalendarFeed : getParentCalendarFeed;
-  const rotateFeed = isStaff
-    ? rotateStaffCalendarFeed
-    : rotateParentCalendarFeed;
+  const feedApi = {
+    parent: [getParentCalendarFeed, rotateParentCalendarFeed],
+    staff: [getStaffCalendarFeed, rotateStaffCalendarFeed],
+    school: [getSchoolCalendarFeed, rotateSchoolCalendarFeed],
+  } as const;
+  const [loadFeed, rotateFeed] = feedApi[audience];
   const toast = useToast();
   const { show: showError } = useApiErrorDisplay();
   const [feed, setFeed] = useState<CalendarFeedInfo | null>(null);

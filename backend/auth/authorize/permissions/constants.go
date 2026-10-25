@@ -170,6 +170,10 @@ const (
 const (
 	CalendarOwn    = ResourceCalendar + ":own"    // Personal calendar access and own invitation responses
 	CalendarManage = ResourceCalendar + ":manage" // Create and manage appointments/invitations
+	// CalendarSchool opens the calendar in moto schule (#4798): the
+	// appointments visible to Lehrkräfte, closing days and holidays, the own
+	// Schultermine and the subscription feed.
+	CalendarSchool = ResourceCalendar + ":school"
 )
 
 // Substitution permissions
@@ -337,6 +341,11 @@ const (
 	// operations.school_portal_write_scope decides whether it is unlocked,
 	// and the education.class_teachers assignment decides for which class.
 	ClassDayArrivalExceptionWrite = ResourceClassDay + ":arrival_exception_write"
+	// ClassDayAllClasses widens the class reach of moto schule from the
+	// classes assigned through education.class_teachers to every class of
+	// the school, classes created later included. The system role
+	// schulverwaltung (Sekretariat and Schulleitung, #4789) holds it.
+	ClassDayAllClasses = ResourceClassDay + ":all_classes"
 	// ClassDayClassTripWrite lets a Lehrkraft report a class trip or day
 	// outing of her assigned classes through "moto schule" (#4799). Like the
 	// arrival exception it opens the door only: the school's setting
@@ -349,6 +358,12 @@ const (
 	// decides whether it is unlocked, and the education.class_teachers
 	// assignment decides for which class.
 	ClassDayMorningAttendanceWrite = ResourceClassDay + ":morning_attendance_write"
+	// ClassDayHomeworkWrite lets a Lehrkraft enter homework for the classes
+	// she reaches and change or delete every entry of them, whoever entered
+	// it (#4796). The caller's class reach (MySchoolClasses, backed by the
+	// education.class_teachers assignment) decides for which class; no
+	// school setting gates it, because the entry changes no OGS record.
+	ClassDayHomeworkWrite = ResourceClassDay + ":homework_write"
 	// ClassDayHandoverWrite lets a Lehrkraft hand her assigned class over to
 	// the OGS after lessons and take the handover back the same day (#4794).
 	// The school's operations.school_portal_write_scope decides whether it

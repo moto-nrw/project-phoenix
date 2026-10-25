@@ -13,13 +13,15 @@ import (
 // relative access flows (#3225) read and write it. The table is
 // tenant-scoped: an administrative transaction — the public validate and
 // accept routes run in one — reaches every school's invitation, a
-// tenant-scoped caller only its own.
+// tenant-scoped caller only its own. The token column holds the hex SHA-256
+// of the link token only (#4902): reads by ID or listings return the
+// invitation without its token.
 
 type guardianInvitationRow struct {
 	bun.BaseModel     `bun:"table:auth.guardian_invitations,alias:guardian_invitation"`
 	ID                int64      `bun:"id,pk,autoincrement"`
 	TenantID          int64      `bun:"tenant_id,notnull"`
-	Token             string     `bun:"token,notnull"`
+	TokenHash         string     `bun:"token,notnull"`
 	GuardianProfileID int64      `bun:"guardian_profile_id,notnull"`
 	CreatedBy         int64      `bun:"created_by,notnull"`
 	ExpiresAt         time.Time  `bun:"expires_at,notnull"`
@@ -43,7 +45,7 @@ type guardianInvitationRow struct {
 
 func (r guardianInvitationRow) toDomain() domain.GuardianInvitation {
 	return domain.GuardianInvitation{
-		ID: r.ID, TenantID: r.TenantID, Token: r.Token, GuardianProfileID: r.GuardianProfileID, CreatedBy: r.CreatedBy,
+		ID: r.ID, TenantID: r.TenantID, GuardianProfileID: r.GuardianProfileID, CreatedBy: r.CreatedBy,
 		ExpiresAt: r.ExpiresAt, AcceptedAt: r.AcceptedAt, EmailSentAt: r.EmailSentAt, EmailError: r.EmailError,
 		StudentID: r.StudentID, RequestedByAccountID: r.RequestedByAccountID, ApprovalStatus: r.ApprovalStatus,
 		ApprovedBy: r.ApprovedBy, ApprovedAt: r.ApprovedAt, ProfileCreatedForInvitation: r.ProfileCreatedForInvitation,
@@ -51,9 +53,15 @@ func (r guardianInvitationRow) toDomain() domain.GuardianInvitation {
 	}
 }
 
+// guardianInvitationRowOf hashes the raw token the invitation carries. An
+// invitation read back from the store carries none; its row has no hash.
 func guardianInvitationRowOf(invitation domain.GuardianInvitation) guardianInvitationRow {
+	tokenHash := ""
+	if invitation.Token != "" {
+		tokenHash = domain.HashToken(invitation.Token)
+	}
 	return guardianInvitationRow{
-		ID: invitation.ID, TenantID: invitation.TenantID, Token: invitation.Token, GuardianProfileID: invitation.GuardianProfileID,
+		ID: invitation.ID, TenantID: invitation.TenantID, TokenHash: tokenHash, GuardianProfileID: invitation.GuardianProfileID,
 		CreatedBy: invitation.CreatedBy, ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt,
 		EmailSentAt: invitation.EmailSentAt, EmailError: invitation.EmailError, StudentID: invitation.StudentID,
 		RequestedByAccountID: invitation.RequestedByAccountID, ApprovalStatus: invitation.ApprovalStatus,
@@ -85,9 +93,11 @@ func (s *Store) FindGuardianInvitationByToken(ctx context.Context, token string)
 	}
 	var row guardianInvitationRow
 	started := time.Now()
-	err = guardianTenantFilter(s.scope(ctx), db.NewSelect().Model(&row).Where(`"guardian_invitation".token = ?`, token)).Scan(ctx)
+	err = guardianTenantFilter(s.scope(ctx), db.NewSelect().Model(&row).Where(`"guardian_invitation".token = ?`, domain.HashToken(token))).Scan(ctx)
 	found, _, err := scanOne("find guardian invitation by token", started, err)
-	return row.toDomain(), found, err
+	invitation := row.toDomain()
+	invitation.Token = token
+	return invitation, found, err
 }
 
 func (s *Store) ListGuardianInvitationsByProfile(ctx context.Context, guardianProfileID int64) ([]domain.GuardianInvitation, error) {
@@ -203,18 +213,26 @@ func (s *Store) InsertGuardianInvitation(ctx context.Context, invitation domain.
 	if _, err := db.NewInsert().Model(&row).Returning("*").Exec(ctx); err != nil {
 		return domain.GuardianInvitation{}, fmt.Errorf("identity access postgres: insert guardian invitation: %w", err)
 	}
-	return row.toDomain(), nil
+	created := row.toDomain()
+	created.Token = invitation.Token
+	return created, nil
 }
 
-// UpdateGuardianInvitation writes every mutable column of the invitation.
+// UpdateGuardianInvitation writes every mutable column of the invitation. The
+// token is replaced only when the invitation carries a new raw one; an
+// invitation read from the store carries none and keeps its link.
 func (s *Store) UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) error {
 	row := guardianInvitationRowOf(invitation)
+	columns := []string{"guardian_profile_id", "expires_at", "accepted_at", "email_sent_at", "email_error",
+		"student_id", "requested_by_account_id", "approval_status", "approved_by", "approved_at",
+		"profile_created_for_invitation", "role_upgrade"}
+	if row.TokenHash != "" {
+		columns = append(columns, "token")
+	}
 	scope := s.scope(ctx)
 	rows, _, err := s.exec(ctx, "update guardian invitation", func(db bun.IDB) executor {
 		return guardianTenantFilter(scope, db.NewUpdate().Model(&row).
-			Column("token", "guardian_profile_id", "expires_at", "accepted_at", "email_sent_at", "email_error",
-				"student_id", "requested_by_account_id", "approval_status", "approved_by", "approved_at",
-				"profile_created_for_invitation", "role_upgrade").
+			Column(columns...).
 			Set("updated_at = NOW()").
 			Where(`"guardian_invitation".id = ?`, invitation.ID))
 	})

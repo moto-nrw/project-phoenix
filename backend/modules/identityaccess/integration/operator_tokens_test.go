@@ -53,21 +53,23 @@ func assertUniqueViolation(t *testing.T, err error, msg string) {
 }
 
 // insertExpiredInvitation stores a link the capability refuses to create,
-// the way an invitation looks once its lifetime has passed.
-func insertExpiredInvitation(t *testing.T, db *bun.DB, createdBy int64, email string, createdAt time.Time) int64 {
+// the way an invitation looks once its lifetime has passed. It returns the
+// row and the raw token; the row stores only the hash.
+func insertExpiredInvitation(t *testing.T, db *bun.DB, createdBy int64, email string, createdAt time.Time) (int64, string) {
 	t.Helper()
 	var id int64
+	token := uuid.Must(uuid.NewV4()).String()
 	require.NoError(t, db.NewRaw(`INSERT INTO platform.operator_invitation_tokens (email, token, expires_at, created_by, created_at)
-		VALUES (?, ?, ?, ?, ?) RETURNING id`, email, uuid.Must(uuid.NewV4()).String(), time.Now().Add(-time.Minute), createdBy, createdAt).
+		VALUES (?, ?, ?, ?, ?) RETURNING id`, email, testpkg.TokenHash(t, db, token), time.Now().Add(-time.Minute), createdBy, createdAt).
 		Scan(context.Background(), &id))
-	return id
+	return id, token
 }
 
 func insertEmailChange(t *testing.T, db *bun.DB, operatorID int64, expiry time.Time, used bool, createdAt time.Time) int64 {
 	t.Helper()
 	var id int64
 	require.NoError(t, db.NewRaw(`INSERT INTO platform.operator_email_change_tokens (operator_id, new_email, token, expiry, used, created_at)
-		VALUES (?, ?, ?, ?, ?, ?) RETURNING id`, operatorID, inviteeEmail(), uuid.Must(uuid.NewV4()).String(), expiry, used, createdAt).
+		VALUES (?, ?, ?, ?, ?, ?) RETURNING id`, operatorID, inviteeEmail(), testpkg.TokenHash(t, db, uuid.Must(uuid.NewV4()).String()), expiry, used, createdAt).
 		Scan(context.Background(), &id))
 	return id
 }
@@ -126,26 +128,34 @@ func TestOperatorInvitationIsRedeemableOnce(t *testing.T) {
 	_, err = tokens.FindOperatorInvitation(ctx, invitation.ID+1_000_000)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound)
 	require.ErrorIs(t, tokens.RevokeOperatorInvitation(ctx, invitation.ID), identityaccess.ErrOperatorInvitationNotFound)
-	require.ErrorIs(t, tokens.ExtendOperatorInvitation(ctx, invitation.ID, time.Now().Add(time.Hour)), identityaccess.ErrOperatorInvitationNotFound,
+	_, err = tokens.ExtendOperatorInvitation(ctx, invitation.ID, time.Now().Add(time.Hour))
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound,
 		"a spent invitation is not revived")
 
-	expiredID := insertExpiredInvitation(t, db, inviter.ID, inviteeEmail(), time.Now())
-	expiredRow, err := tokens.FindOperatorInvitation(ctx, expiredID)
-	require.NoError(t, err)
-	_, err = tokens.RedeemOperatorInvitation(ctx, expiredRow.Token)
+	expiredID, expiredToken := insertExpiredInvitation(t, db, inviter.ID, inviteeEmail(), time.Now())
+	_, err = tokens.RedeemOperatorInvitation(ctx, expiredToken)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound, "an expired invitation is not redeemable")
-	require.ErrorIs(t, tokens.ExtendOperatorInvitation(ctx, expiredID, time.Now().Add(time.Hour)), identityaccess.ErrOperatorInvitationNotFound,
+	_, err = tokens.ExtendOperatorInvitation(ctx, expiredID, time.Now().Add(time.Hour))
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound,
 		"a resend must not revive an expired invitation")
 
 	pending, err := tokens.CreateOperatorInvitation(ctx, newInvitation(inviter.ID, inviteeEmail()))
 	require.NoError(t, err)
-	require.ErrorIs(t, tokens.ExtendOperatorInvitation(ctx, pending.ID, time.Now().Add(-time.Minute)), identityaccess.ErrOperatorInvitationNotFound,
+	_, err = tokens.ExtendOperatorInvitation(ctx, pending.ID, time.Now().Add(-time.Minute))
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound,
 		"an extension into the past would hand out a dead link")
 	extendedTo := time.Now().Add(72 * time.Hour).Truncate(time.Microsecond)
-	require.NoError(t, tokens.ExtendOperatorInvitation(ctx, pending.ID, extendedTo))
+	reissued, err := tokens.ExtendOperatorInvitation(ctx, pending.ID, extendedTo)
+	require.NoError(t, err)
 	reloaded, err := tokens.FindOperatorInvitation(ctx, pending.ID)
 	require.NoError(t, err)
 	assert.True(t, extendedTo.Equal(reloaded.ExpiresAt))
+	assert.NotEqual(t, pending.Token, reissued, "the stored hash cannot be mailed again, so an extension issues a new link")
+	_, err = tokens.FindRedeemableOperatorInvitation(ctx, pending.Token)
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInvitationNotFound, "the previous link stops working")
+	found, err = tokens.FindRedeemableOperatorInvitation(ctx, reissued)
+	require.NoError(t, err)
+	assert.Equal(t, pending.ID, found.ID)
 
 	listed, err := tokens.ListRedeemableOperatorInvitations(ctx)
 	require.NoError(t, err)

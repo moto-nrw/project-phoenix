@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { canReviewEnrollmentChangeRequests } from "~/lib/change-request-access";
 import { fetchPendingEnrollmentChangeRequestCount } from "~/lib/change-request-list-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useModuleBooked, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
@@ -24,10 +24,13 @@ export function useEnrollmentRequestsPending() {
   const { mode } = useShellAuth();
   const tenantSlug = useTenantSlugSafe();
   const accountId = session?.user?.id ?? "";
+  const onlineAnmeldungBooked = useModuleBooked("online_anmeldung");
   return useUnreadCount({
+    // Änderungen an Anmeldungen gibt es nur mit Online-Anmeldung (#4894).
     enabled:
       status === "authenticated" &&
       mode === "teacher" &&
+      onlineAnmeldungBooked &&
       canReviewEnrollmentChangeRequests(session),
     fetcher: fetchPendingEnrollmentChangeRequestCount,
     cacheKey: `enrollment_requests_pending_count:${tenantSlug ?? ""}:${accountId}`,

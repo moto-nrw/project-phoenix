@@ -292,6 +292,7 @@ jobs:
           FRONTEND_URL: http://localhost:3000
           PARENTS_URL: http://parents.localhost:3000
           SCHOOL_URL: http://schule.localhost:3000
+          TRAEGER_URL: http://traeger.localhost:3000
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
           TEST_PACKAGES: ${{ matrix.packages }}
@@ -496,6 +497,7 @@ jobs:
       TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
       SCHOOL_URL: http://schule.localhost:3000
+      TRAEGER_URL: http://traeger.localhost:3000
       # services.NewFactory refuses to build without it: the personal CalDAV
       # calendar derives its public server address from this value. Matches
       # the PORT above so the seeded links point at this job's own server.
@@ -504,6 +506,7 @@ jobs:
       NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
       NEXT_PUBLIC_APP_ENV: test
       NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
+      NEXT_PUBLIC_TRAEGER_HOSTNAME: traeger.localhost:3000
       TENANT_DOMAIN: localhost
       # api/server.go refuses to build the server without it.
       METRICS_BEARER_TOKEN: ci-metrics-token
@@ -621,7 +624,7 @@ jobs:
           echo "server did not become healthy in 60s"
           exit 1
 
-      - name: Seed all five profiles and verify enrollment, withdrawal, web and NFC flows
+      - name: Seed all four profiles and verify enrollment, withdrawal, web and NFC flows
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |

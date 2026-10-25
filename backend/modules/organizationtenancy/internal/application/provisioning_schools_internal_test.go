@@ -13,7 +13,7 @@ import (
 func validCreateSchool(organizationID int64) *organizationtenancy.CreateSchool {
 	return &organizationtenancy.CreateSchool{
 		OrganizationID: organizationID, Name: " Grundschule Burbach ", Slug: "Burbach",
-		Subdomain: " Burbach-GS ", Active: true, City: "Burbach",
+		Subdomain: " Burbach-GS ", Active: true, City: "Burbach", Email: "info@burbach.test",
 	}
 }
 
@@ -127,6 +127,11 @@ func TestProvisioningCreateSchool(t *testing.T) {
 		"missing name":            func(s *organizationtenancy.CreateSchool) { s.Name = "  " },
 		"invalid slug":            func(s *organizationtenancy.CreateSchool) { s.Slug = "-bad-" },
 		"reserved subdomain":      func(s *organizationtenancy.CreateSchool) { s.Subdomain = "api" },
+		// Replies from parents reach the school only through this address (#2872).
+		"missing contact email": func(s *organizationtenancy.CreateSchool) { s.Email = "" },
+		"invalid contact email": func(s *organizationtenancy.CreateSchool) { s.Email = "Schule <info@burbach.test>" },
+		// The Träger-Portal host (#4649) never names a school.
+		"Träger-Portal subdomain": func(s *organizationtenancy.CreateSchool) { s.Subdomain = "traeger" },
 	} {
 		t.Run("rejects "+name+" before reading", func(t *testing.T) {
 			t.Parallel()
@@ -377,6 +382,22 @@ func TestProvisioningUpdateSchool(t *testing.T) {
 		}, auditChanges(t, entry))
 	})
 
+	t.Run("a school without contact email keeps its other edits", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.addOrg(1, "Talent", "talent", false)
+		h.addSchool(10, 1, "Burbach", "burbach")
+		changes := schoolChanges(1)
+		changes.Name = "Burbach Nord"
+
+		updated, err := h.svc.UpdateSchool(context.Background(), 10, changes, testOperatorID, operatorIP)
+
+		require.NoError(t, err, "a school created before #2872 must stay editable until the address is added")
+		assert.Equal(t, "Burbach Nord", updated.Name)
+		require.Len(t, h.engine.updates, 1)
+		assert.Empty(t, h.engine.updates[0].Email)
+	})
+
 	t.Run("moves the school to another organisation", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -542,6 +563,34 @@ func TestProvisioningUpdateSchool(t *testing.T) {
 			check: func(t *testing.T, err error) {
 				var invalid *organizationtenancy.InvalidProvisioningDataError
 				require.ErrorAs(t, err, &invalid)
+			},
+		},
+		"cleared contact email": {
+			seed: func(h *provisioningHarness) {
+				h.addOrg(1, "Talent", "talent", false)
+				h.addSchool(10, 1, "Burbach", "burbach").Email = "info@burbach.test"
+			},
+			changes: schoolChanges(1),
+			check: func(t *testing.T, err error) {
+				var invalid *organizationtenancy.InvalidProvisioningDataError
+				require.ErrorAs(t, err, &invalid)
+				require.ErrorIs(t, err, organizationtenancy.ErrInvalidSchool)
+			},
+		},
+		"invalid new contact email": {
+			seed: func(h *provisioningHarness) {
+				h.addOrg(1, "Talent", "talent", false)
+				h.addSchool(10, 1, "Burbach", "burbach").Email = "info@burbach.test"
+			},
+			changes: func() organizationtenancy.SchoolChanges {
+				c := schoolChanges(1)
+				c.Email = "keine-adresse"
+				return c
+			}(),
+			check: func(t *testing.T, err error) {
+				var invalid *organizationtenancy.InvalidProvisioningDataError
+				require.ErrorAs(t, err, &invalid)
+				require.ErrorIs(t, err, organizationtenancy.ErrInvalidSchool)
 			},
 		},
 		"conflict raised by the owner write": {

@@ -306,7 +306,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Session: TimetableRequestSession{}, Lifecycle: arrivalTimetable.NewOperationLifecycle(tt.Instance), Sessions: r.ActiveGroup,
 		Supervisions: r.GroupSupervisor, Visits: owners.NewLoggedStudentPresence(db, logger),
 		People:         owners.TimetableOperationPeople{OperationPeople: owners.NewTimetableOperationPeople(dataUsers), Membership: membership},
-		PlanningTracks: rt.Timetable, Logger: logger, Now: OptionalClock(clocks),
+		PlanningTracks: rt.Timetable, Homework: rt.Timetable, Logger: logger, Now: OptionalClock(clocks),
 		BlockMetadata: NewTimetableBlockDisplayForTests(db),
 	}, operationRows, presence, settings.Settings, careDay, arrivals, pickups, hub, WithAttendanceStaff)
 	if err != nil {

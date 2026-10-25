@@ -1,6 +1,7 @@
 import { Suspense, useInsertionEffect } from "react";
 import type { BeforeSendFn, PostHogConfig } from "posthog-js";
 import { act, cleanup, render, screen } from "@testing-library/react";
+import type { AnalyticsConsentCopy } from "~/components/analytics/analytics-consent-copy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TenantInfo } from "~/lib/tenant-api";
 
@@ -31,6 +32,7 @@ vi.mock("~/env.client", () => ({
     NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000",
     NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000",
     NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000",
+    NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000",
   },
 }));
 vi.mock("posthog-js", () => ({
@@ -46,6 +48,22 @@ vi.mock("posthog-js", () => ({
     unregister: vi.fn(),
     reset: mocks.reset,
   },
+}));
+
+// Every session here belongs to an account that consented (#4901): the
+// school policy gates under test come on top of that consent. The consent
+// store, its prompt and texts have their own tests.
+// The client is resolved per call: vi.resetModules() gives each test its own.
+async function publishConsent(consent: boolean): Promise<void> {
+  (await import("~/lib/posthog-client")).setAnalyticsContext({ consent });
+}
+vi.mock("~/lib/analytics-consent", () => ({
+  startAnalyticsConsent: () => publishConsent(true),
+  stopAnalyticsConsent: () => publishConsent(false),
+  setAnalyticsConsentSchool: () => undefined,
+}));
+vi.mock("~/components/analytics/analytics-consent-prompt-gate", () => ({
+  AnalyticsConsentPromptGate: () => null,
 }));
 
 vi.mock("~/lib/enrollment-submission-api", () => ({
@@ -81,6 +99,9 @@ const tenant: TenantInfo = {
   gradeLevelMax: 4,
   analyticsEnabled: true,
 };
+
+// The prompt is mocked; its texts do not matter here.
+const COPY = {} as AnalyticsConsentCopy;
 
 describe("embedded enrollment analytics policy", () => {
   beforeEach(() => {
@@ -138,6 +159,7 @@ describe("embedded enrollment analytics policy", () => {
       setAnalyticsContext({
         surface,
         enabled: true,
+        consent: true,
         analyseFreigabe: true,
         recordingSamplePercent: 100,
       });
@@ -236,7 +258,7 @@ describe("embedded enrollment analytics policy", () => {
         await import("~/components/enrollment/enrollment-edit-page");
       const { setAnalyticsContext, initializePostHog } =
         await import("~/lib/posthog-client");
-      setAnalyticsContext({ surface, enabled: true });
+      setAnalyticsContext({ surface, enabled: true, consent: true });
       const view = render(
         <TenantProvider tenantSlug="school-a" tenant={tenant}>
           <div>Allowed page content</div>
@@ -323,7 +345,9 @@ describe("embedded enrollment analytics policy", () => {
         await import("./portal-analytics-session");
       const { initializePostHog, capturePostHog } =
         await import("~/lib/posthog-client");
-      const view = render(<PortalAnalyticsSession surface="parents" />);
+      const view = render(
+        <PortalAnalyticsSession surface="parents" consentCopy={COPY} />,
+      );
       await act(async () => {});
       await initializePostHog();
       capturePostHog("login_failed");
@@ -343,7 +367,9 @@ describe("embedded enrollment analytics policy", () => {
         status: "authenticated",
         data: { user: { id: "8", scope: "parent" } },
       });
-      view.rerender(<PortalAnalyticsSession surface="parents" />);
+      view.rerender(
+        <PortalAnalyticsSession surface="parents" consentCopy={COPY} />,
+      );
       expect(fetch).toHaveBeenCalledTimes(2);
       capturePostHog("login_failed");
       expect(mocks.capture).not.toHaveBeenCalled();
@@ -382,7 +408,9 @@ describe("embedded enrollment analytics policy", () => {
       const { initializePostHog, capturePostHog } =
         await import("~/lib/posthog-client");
       vi.useFakeTimers();
-      const view = render(<PortalAnalyticsSession surface={surface} />);
+      const view = render(
+        <PortalAnalyticsSession surface={surface} consentCopy={COPY} />,
+      );
       await act(async () => {});
       await initializePostHog();
       capturePostHog("login_failed");
@@ -395,7 +423,9 @@ describe("embedded enrollment analytics policy", () => {
         data: { user: { id: "8", scope, tenantId: 43 } },
       });
       await act(async () =>
-        view.rerender(<PortalAnalyticsSession surface={surface} />),
+        view.rerender(
+          <PortalAnalyticsSession surface={surface} consentCopy={COPY} />,
+        ),
       );
       await act(async () => vi.advanceTimersByTimeAsync(5 * 60 * 1_000));
       expect(fetch).toHaveBeenCalledTimes(3);
@@ -443,7 +473,9 @@ describe("embedded enrollment analytics policy", () => {
       function Enrollment() {
         return <div>{useTenant().tenant?.name}</div>;
       }
-      const view = render(<PortalAnalyticsSession surface={surface} />);
+      const view = render(
+        <PortalAnalyticsSession surface={surface} consentCopy={COPY} />,
+      );
       // Let the real portal module consume the denied policy before enrollment mounts.
       await act(async () => {});
       expect(fetch).toHaveBeenCalledWith(`/api/${scope}/analytics-policy`, {
@@ -451,7 +483,7 @@ describe("embedded enrollment analytics policy", () => {
       });
       view.rerender(
         <>
-          <PortalAnalyticsSession surface={surface} />
+          <PortalAnalyticsSession surface={surface} consentCopy={COPY} />
           <TenantProvider tenantSlug="school-a" tenant={tenant}>
             <Enrollment />
           </TenantProvider>
@@ -500,7 +532,7 @@ describe("embedded enrollment analytics policy", () => {
     expect(mocks.init).not.toHaveBeenCalled();
   });
 
-  it("still initializes on the OGS host when its school allows analytics", async () => {
+  it("initializes on the OGS host only with the school's switch and the person's consent", async () => {
     vi.stubGlobal("location", {
       host: "school-a.localhost:3000",
       hostname: "school-a.localhost",
@@ -514,6 +546,11 @@ describe("embedded enrollment analytics policy", () => {
       </TenantProvider>,
     );
     expect(screen.getByText("Enrollment form")).toBeInTheDocument();
+    // An anonymous visit has no consent (#4901): the school's switch alone
+    // loads nothing.
+    await initializePostHog();
+    expect(mocks.init).not.toHaveBeenCalled();
+    await publishConsent(true);
     await initializePostHog();
     expect(mocks.init).toHaveBeenCalledOnce();
   });
@@ -537,7 +574,7 @@ describe("embedded enrollment analytics policy", () => {
         await import("./portal-analytics-session");
       const { initializePostHog, capturePostHog } =
         await import("~/lib/posthog-client");
-      render(<PortalAnalyticsSession surface={surface} />);
+      render(<PortalAnalyticsSession surface={surface} consentCopy={COPY} />);
       await act(async () => {});
       await initializePostHog();
       capturePostHog("login_failed");
@@ -581,6 +618,8 @@ describe("embedded enrollment analytics policy", () => {
         hostname: "school-a.localhost",
         pathname: "/",
       });
+      // A consenting session; the school gates come on top (#4901).
+      await publishConsent(true);
       vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
       const { TenantProvider } = await import("~/lib/tenant-context");
       const { initializePostHog } = await import("~/lib/posthog-client");
@@ -653,6 +692,8 @@ describe("embedded enrollment analytics policy", () => {
         hostname: "school-a.localhost",
         pathname: "/",
       });
+      // A consenting session; the school gates come on top (#4901).
+      await publishConsent(true);
       vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
       let resolveBootstrap!: (value: unknown) => void;
       mocks.fetchEditBootstrap.mockImplementation(
@@ -750,7 +791,9 @@ describe("embedded enrollment analytics policy", () => {
         await import("~/app/parents/anmeldung/[tenantSlug]/[phaseId]/page");
       const { initializePostHog, capturePostHog } =
         await import("~/lib/posthog-client");
-      const view = render(<PortalAnalyticsSession surface="parents" />);
+      const view = render(
+        <PortalAnalyticsSession surface="parents" consentCopy={COPY} />,
+      );
       await act(async () => {});
       await initializePostHog();
       capturePostHog("login_failed");
@@ -763,7 +806,7 @@ describe("embedded enrollment analytics policy", () => {
       await act(async () =>
         view.rerender(
           <>
-            <PortalAnalyticsSession surface="parents" />
+            <PortalAnalyticsSession surface="parents" consentCopy={COPY} />
             <Suspense fallback={<div>Resolving route</div>}>
               <ParentEnrollFormPage
                 params={Promise.resolve({
@@ -808,7 +851,7 @@ describe("embedded enrollment analytics policy", () => {
         await act(async () =>
           view.rerender(
             <>
-              <PortalAnalyticsSession surface="parents" />
+              <PortalAnalyticsSession surface="parents" consentCopy={COPY} />
               <Suspense fallback={<div>Resolving route</div>}>
                 <ParentEnrollFormPage
                   params={Promise.resolve({
@@ -849,7 +892,7 @@ describe("embedded enrollment analytics policy", () => {
       await import("~/lib/posthog-client");
     const view = render(
       <>
-        <PortalAnalyticsSession surface="parents" />
+        <PortalAnalyticsSession surface="parents" consentCopy={COPY} />
       </>,
     );
     await act(async () => {});
@@ -865,7 +908,7 @@ describe("embedded enrollment analytics policy", () => {
     await act(async () =>
       view.rerender(
         <>
-          <PortalAnalyticsSession surface="parents" />
+          <PortalAnalyticsSession surface="parents" consentCopy={COPY} />
           <ParentEnrollmentStatusPage params={params} />
         </>,
       ),
@@ -888,7 +931,7 @@ describe("embedded enrollment analytics policy", () => {
     await act(async () =>
       view.rerender(
         <>
-          <PortalAnalyticsSession surface="parents" />
+          <PortalAnalyticsSession surface="parents" consentCopy={COPY} />
         </>,
       ),
     );
@@ -902,6 +945,8 @@ describe("embedded enrollment analytics policy", () => {
       hostname: "school-a.localhost",
       pathname: "/",
     });
+    // A consenting session; the school gates come on top (#4901).
+    await publishConsent(true);
     const { TenantProvider } = await import("~/lib/tenant-context");
     const { default: EnrollmentStatusPage } =
       await import("~/app/[tenant]/(public)/anmeldung/status/[token]/page");
@@ -962,7 +1007,7 @@ describe("embedded enrollment analytics policy", () => {
       });
       mocks.useSession.mockReturnValue({
         status: "authenticated",
-        data: { user: { scope: "parent" } },
+        data: { user: { id: "7", scope: "parent" } },
       });
       vi.mocked(fetch).mockImplementation(async (input) => {
         if (String(input).startsWith("/api/tenant/resolve")) {
@@ -984,7 +1029,7 @@ describe("embedded enrollment analytics policy", () => {
         await import("~/lib/posthog-client");
       const view = render(
         <>
-          <PortalAnalyticsSession surface="parents" />
+          <PortalAnalyticsSession surface="parents" consentCopy={COPY} />
           <TenantProvider
             tenantSlug="school-a"
             tenant={{ ...tenant, analyticsEnabled: targetEnabled }}
@@ -1006,7 +1051,7 @@ describe("embedded enrollment analytics policy", () => {
       expect(mocks.init).toHaveBeenCalledTimes(targetEnabled ? 1 : 0);
       view.rerender(
         <>
-          <PortalAnalyticsSession surface="parents" />
+          <PortalAnalyticsSession surface="parents" consentCopy={COPY} />
         </>,
       );
       await act(async () => {});

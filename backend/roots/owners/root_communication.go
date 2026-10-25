@@ -49,7 +49,8 @@ func BuildParentAnnouncements(
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(module), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
 		ReminderNotifier: BindCommunicationDurableNotificationSender(notifications.Notifier), Preferences: notifications.Preferences,
 		Deliveries: announcementDeliveryAdapter{module: module}, ParentsURL: env.Links.ParentsURL,
-		Fingerprints: SecurityFingerprints{}, Logger: env.Logger.With("service", "announcement"),
+		Fingerprints: SecurityFingerprints{}, Signatures: CommunicationSignatures{Ledger: SignatureLedger()},
+		Logger: env.Logger.With("service", "announcement"),
 	}, attachments, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
 

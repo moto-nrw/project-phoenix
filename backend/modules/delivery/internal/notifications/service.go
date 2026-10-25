@@ -113,6 +113,11 @@ type Event struct {
 	SchoolDeepLink string
 	Data           map[string]string
 
+	// schoolPortalClosed is set by the router when the school has not
+	// booked Unterricht am Vormittag (#4895): the event then skips the
+	// devices of the school portal.
+	schoolPortalClosed bool
+
 	// Portal names the portal that asked for the event. It is only consulted
 	// for TypeTest (#2208): the test notification proves the setup of the
 	// portal the person is standing in, so it must not fan out into the other
@@ -248,17 +253,8 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 		event.Priority = PriorityNormal
 	}
 
-	if r.settings == nil {
-		return errors.New("notifications service has no settings service configured")
-	}
-	// ResolveBoolForTenant works with and without tenant middleware, so
-	// scheduler-style producers can notify outside a request context.
-	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, settingDispatchEnabled)
-	if err != nil {
-		return fmt.Errorf("resolving notification feature flag: %w", err)
-	}
-	if !enabled {
-		return ErrDisabled
+	if err := r.requireEnabledEvent(ctx, &event); err != nil {
+		return err
 	}
 
 	// The test notification is exempt from the delivery window on purpose: an
@@ -296,6 +292,24 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 	return nil
 }
 
+// requireEnabledEvent applies the school's notification feature flag and
+// the booked modules (#4895) to one event before Notify delivers it.
+func (r *router) requireEnabledEvent(ctx context.Context, event *Event) error {
+	if r.settings == nil {
+		return errors.New("notifications service has no settings service configured")
+	}
+	// ResolveBoolForTenant works with and without tenant middleware, so
+	// scheduler-style producers can notify outside a request context.
+	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, settingDispatchEnabled)
+	if err != nil {
+		return fmt.Errorf("resolving notification feature flag: %w", err)
+	}
+	if !enabled {
+		return ErrDisabled
+	}
+	return r.requireEventModules(ctx, event)
+}
+
 // NotifyBatch dispatches many events that share one tenant in a single
 // after-commit hook.
 //
@@ -317,6 +331,10 @@ func (r *router) NotifyBatch(ctx context.Context, events []Event) error {
 		return err
 	}
 	if err := r.requireDispatch(ctx, tenantID, slices.ContainsFunc(prepared, func(event Event) bool { return event.Type != TypeTest })); err != nil {
+		return err
+	}
+	prepared, err = r.keepBookedEvents(ctx, prepared)
+	if err != nil {
 		return err
 	}
 	for _, channel := range r.channels {
@@ -349,6 +367,9 @@ func (r *router) NotifyDurably(ctx context.Context, event Event) (int, error) {
 		event.Priority = PriorityNormal
 	}
 	if err := r.requireDispatch(ctx, event.Audience.TenantID, event.Type != TypeTest); err != nil {
+		return 0, err
+	}
+	if err := r.requireEventModules(ctx, &event); err != nil {
 		return 0, err
 	}
 

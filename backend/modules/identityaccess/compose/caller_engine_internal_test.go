@@ -55,6 +55,8 @@ func (s engineTestStructure) SubstitutedGroups(context.Context, int64) (map[int6
 
 func (engineTestStructure) SchoolClasses(context.Context, int64) ([]string, error) { return nil, nil }
 
+func (engineTestStructure) ListSchoolClasses(context.Context) ([]string, error) { return nil, nil }
+
 type engineTestActivities struct{}
 
 func (engineTestActivities) SupervisedActivityGroupIDs(context.Context, int64) ([]int64, error) {

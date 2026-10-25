@@ -241,6 +241,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
           lockedGuardianEmail
           lockChildStructure={isChangeRequestMode || adjustOnly}
           restrictToOfferings={adjustOnly}
+          withoutSignature={isChangeRequestMode}
           submitLabel={
             adjustOnly
               ? t("adjustSubmit")

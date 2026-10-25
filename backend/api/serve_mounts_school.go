@@ -93,7 +93,7 @@ func mountSchoolPortalRoutes(
 	planningTracks timetableModule.PlanningTrackAdministration, users peoplePorts.PersonDirectory, schedules owners.CarePlanSchedules,
 	caller *owners.CallerRows, settings settingsCompose.SettingsService, careOfferings carePlanModule.CareOfferingCapability,
 	planExport planexport.Service, chat owners.CommunicationMessaging, persons peopledirectory.Capability, notifications owners.DeliveryNotifications,
-	devices owners.DeliveryDevices, classDay ClassDayViews, identity identityaccess.Owner,
+	devices owners.DeliveryDevices, classDay ClassDayViews, identity identityaccess.Owner, calendarApp calendarCompose.Application,
 ) error {
 	pickupExtensions, err := careexit.NewPickupExtensions(timetableOwner, presence)
 	if err != nil {
@@ -118,7 +118,10 @@ func mountSchoolPortalRoutes(
 	// report over Enrollment's day roster and the arrival-exception write
 	// seam (#2970) behind its one public capability.
 	classDayResource := classdayHTTP.NewResource(classDay.ClassDay, logger.With("handler", "class-day"))
-	school := NewSchoolPortalHTTP(SchoolPortalAuth(identity), SchoolPortalMFA(identity), schoolPasswordResets(identity), classDayResource, timetableResource, staffMessaging, staffNotices, notificationRoutes)
+	// The calendar of moto schule (#4798): the same calendar service as
+	// /api/calendar, behind calendar:school and the school-portal mantle.
+	schoolCalendar := calendarAPI.NewResource(calendarApp, logger.With("handler", "school-calendar"))
+	school := NewSchoolPortalHTTP(SchoolPortalAuth(identity), SchoolPortalMFA(identity), schoolPasswordResets(identity), classDayResource, timetableResource, staffMessaging, staffNotices, notificationRoutes, schoolCalendar)
 	tenant.Mount("/staff-messages", staffMessaging.Router(ProtectedTenantRoutes))
 	tenant.Mount("/staff-notices", staffNotices.Router(ProtectedTenantRoutes))
 	tenant.Mount("/timetable", timetableResource.Router(ProtectedTenantRoutesWith(classdayHTTP.NewSlotListResource(classDay.SlotLists).Register)))
@@ -158,6 +161,7 @@ func newTimetableResource(
 		SettingsService:         settings,
 		OfferingSourceOptions:   NewTimetableOfferingSources(careOfferings),
 		SupervisionSheets:       NewTimetableSupervisionSheets(classDay.ClassDay),
+		HomeworkFeedback:        timetableOwner,
 		PlanExportService:       planExport,
 		PickupExtensions:        pickupExtensions,
 		Staffing:                timetableStaffingAnnouncer(lifecycle.Instances),

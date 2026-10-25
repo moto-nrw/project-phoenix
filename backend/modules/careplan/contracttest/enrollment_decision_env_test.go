@@ -72,7 +72,11 @@ func (s *stubRequestSettings) HasTenantOverride(_ context.Context, key string) (
 func (s *stubRequestSettings) ResolveBool(_ context.Context, key string) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.boolValues[key], nil
+	if value, ok := s.boolValues[key]; ok {
+		return value, nil
+	}
+	// The module switch is booked by registry default (#4893).
+	return key == enrollmentKeys.ModuleOnlineAnmeldung, nil
 }
 
 func (s *stubRequestSettings) ResolveString(_ context.Context, key string) (string, error) {
@@ -133,7 +137,7 @@ func (registryDefaultDecisionSettings) ResolveString(context.Context, string) (s
 }
 
 func (registryDefaultDecisionSettings) ResolveBool(_ context.Context, key string) (bool, error) {
-	return key == enrollmentKeys.CareOfferingsEnabled, nil
+	return key == enrollmentKeys.CareOfferingsEnabled || key == enrollmentKeys.ModuleOnlineAnmeldung, nil
 }
 
 // decisionTestEnv bundles the tenant, the source phase and the composed

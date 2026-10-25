@@ -11,7 +11,7 @@ import {
 // eslint-disable-next-line no-restricted-imports -- parent routes are not tenant-scoped
 import { redirect, useSearchParams } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import {
@@ -30,6 +30,8 @@ import { ApiError, unavailableApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { requestParentPasswordReset } from "~/lib/auth-api";
 import { parentPath } from "~/lib/parent-url";
+import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
+import { normalizeLocale } from "~/i18n/locales";
 import { clientEnv } from "~/env.client";
 
 const logger = createLogger({ component: "ParentLoginPage" });
@@ -103,6 +105,10 @@ function ParentLoginForm() {
   // Ein Personal-Konto: kein Fehler der Eingabe, sondern der falsche Ort. Der
   // Hinweis bringt den Link zur Schul-Anmeldung mit.
   const [isStaffAccount, setIsStaffAccount] = useState(false);
+  // Keine Schule des Kontos nutzt das Elternportal (#4895): kein Fehler der
+  // Eingabe, die Schule entscheidet.
+  const [portalNotBooked, setPortalNotBooked] = useState(false);
+  const locale = normalizeLocale(useLocale());
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -124,7 +130,7 @@ function ParentLoginForm() {
   const [cleanupAttempt, setCleanupAttempt] = useState(0);
   const [isCleaningUp, setIsCleaningUp] = useState(false);
   const { error: formError, show: showFormError } = formErrors;
-  const hasError = Boolean(formError) || isStaffAccount;
+  const hasError = Boolean(formError) || isStaffAccount || portalNotBooked;
   const testimonialPanelCopy = useMemo(
     () => buildParentAuthShellCopy(tAuthShell),
     [tAuthShell],
@@ -210,6 +216,7 @@ function ParentLoginForm() {
     setIsLoading(true);
     formErrors.clear();
     setIsStaffAccount(false);
+    setPortalNotBooked(false);
 
     try {
       const result = await signIn("parent-credentials", {
@@ -226,6 +233,10 @@ function ParentLoginForm() {
         // nichts über ein fremdes Konto.
         if (result.code === "not_a_guardian") {
           setIsStaffAccount(true);
+          return;
+        }
+        if (result.code === "portal_not_booked") {
+          setPortalNotBooked(true);
           return;
         }
         // Für zu viele Versuche kennt die Registry keinen Anmelde-Code; der
@@ -295,7 +306,12 @@ function ParentLoginForm() {
             <Alert type="info" message={tErrorCatalog("loginNotice")} />
           )}
 
-          {isStaffAccount ? (
+          {portalNotBooked ? (
+            <Alert
+              type="info"
+              message={portalNotBookedExplanation("parent", locale)}
+            />
+          ) : isStaffAccount ? (
             <Alert
               type="info"
               message={t("errors.notAGuardian")}

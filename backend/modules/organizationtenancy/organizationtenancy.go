@@ -35,7 +35,7 @@ var (
 	// must stay in sync.
 	reservedSlugs = map[string]bool{
 		"www": true, "api": true, "operator": true, "parents": true,
-		"eltern": true, "schule": true, "school": true, "grafana": true,
+		"eltern": true, "schule": true, "school": true, "traeger": true, "grafana": true,
 		"pyreportal": true, "help": true, "admin": true, "app": true,
 		"dashboard": true, "analytics": true, "status": true, "mail": true,
 		"staging": true, "demo": true, "ingest": true,
@@ -79,6 +79,8 @@ type Query interface {
 	OrganizationQuery
 	SchoolQuery
 	SchoolListQuery
+	TraegerMembershipQuery
+	TraegerErasureOrderQuery
 }
 
 // OrganizationQuery reads organizations and locks them before mutation.
@@ -90,6 +92,11 @@ type OrganizationQuery interface {
 	CountOrganizationsByID(context.Context, []int64) (int, error)
 	FindOrganizationForMutation(context.Context, int64) (Organization, error)
 	FindOrganizationForSchoolMutation(context.Context, int64) (Organization, error)
+	// FindVisibleTraegerName returns the name of the Träger (organization)
+	// a school's own portal shows. Only a Träger with more than one
+	// operational school has a visible level; for a Träger with a single
+	// OGS, and for a deleted organization, the name is empty (#4656).
+	FindVisibleTraegerName(context.Context, int64) (string, error)
 }
 
 // SchoolQuery resolves individual schools and their mutation locks.
@@ -129,6 +136,8 @@ type Command interface {
 type Capability interface {
 	Query
 	Command
+	TraegerMembershipCommand
+	TraegerErasureOrderCommand
 }
 
 func ValidateSlug(slug string) error {
@@ -177,6 +186,8 @@ func ErrorCode(err error) string {
 		return "school_not_deleted"
 	case errors.Is(err, ErrOrganizationDeleted):
 		return "school_organization_deleted"
+	case errors.Is(err, ErrOrganizationInactive):
+		return "organization_inactive"
 	default:
 		return "internal_error"
 	}

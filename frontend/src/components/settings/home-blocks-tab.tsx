@@ -17,6 +17,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   HOME_BLOCKS,
+  isHomeBlockAvailable,
   type HomeBlockDefinition,
   type HomeBlockKey,
   type HomeBlockPolicies,
@@ -33,7 +34,7 @@ import {
 } from "~/lib/settings-api";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import {
-  useNFCEnabled,
+  useBookedModules,
   useOpenCareGroupMode,
   usePresenceMode,
 } from "~/lib/tenant-context";
@@ -95,7 +96,7 @@ export function HomeBlocksTab() {
   } = useSettingsSchema();
   const presenceMode = usePresenceMode();
   const openCareGroupMode = useOpenCareGroupMode();
-  const nfcEnabled = useNFCEnabled();
+  const bookedModules = useBookedModules();
 
   const [draft, setDraft] = useState<HomeBlockPolicies>({});
   const birthdaySettings = useMemo(() => birthdaySettingsIn(schema), [schema]);
@@ -133,7 +134,7 @@ export function HomeBlocksTab() {
     const ctx = {
       detailed: presenceMode !== "binary",
       openCareGroupMode,
-      nfcEnabled,
+      bookedModules,
       // Die Geburtstagskarte hängt an einer eigenen Einstellung; die Vorgabe
       // soll sie trotzdem regeln können, deshalb hier immer verfügbar.
       birthdaysEnabled: true,
@@ -145,8 +146,8 @@ export function HomeBlocksTab() {
       messagingEnabled: true,
       staffMessagingEnabled: true,
     };
-    return HOME_BLOCKS.filter((block) => block.available(ctx));
-  }, [presenceMode, openCareGroupMode, nfcEnabled]);
+    return HOME_BLOCKS.filter((block) => isHomeBlockAvailable(block, ctx));
+  }, [presenceMode, openCareGroupMode, bookedModules]);
 
   const policiesDirty = useMemo(() => {
     const keys = new Set([

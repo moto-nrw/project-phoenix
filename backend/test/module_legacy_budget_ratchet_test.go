@@ -151,7 +151,13 @@ var moduleLegacyFileBudgets = map[string]int{
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
 // ADR 0097: the isolated tenant return constructor adds exactly 18 LOC.
 // ADR 0102: the class-trip status-day seam of modules/classday/compose (+2).
-const moduleComposeBudgetTotal = 12386
+// ADR 0103: the signature ledger constructor adds exactly 6 LOC.
+// ADR 0104: the Träger projection composition adds exactly 22 LOC.
+// ADR 0105: the holiday period constructor of modules/enrollment/compose
+// (+13) and the Träger transaction binding of
+// modules/transactionruntime/compose (+4).
+// ADR 0106: the Träger-Büro account management adds exactly 24 LOC.
+const moduleComposeBudgetTotal = 12452
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -160,12 +166,13 @@ const moduleComposeBudgetTotal = 12386
 // composition starts small and is no reason to raise the total; split code
 // keeps its LOC counted.
 var moduleComposeBudgets = map[string]int{
-	"modules/appointments/compose":         45,
-	"modules/auditlog/compose":             183,
+	"modules/appointments/compose": 45,
+	// ADR 0103: the signature ledger constructor, construction only.
+	"modules/auditlog/compose":             189,
 	"modules/careplan/compose":             1644,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
-	"modules/classday/compose": 214,
+	"modules/classday/compose": 212,
 	// Raised by ADR 0073: the parent announcement retention.
 	"modules/communication/composition":             351,
 	"modules/dataimport/compose":                    85,
@@ -175,16 +182,18 @@ var moduleComposeBudgets = map[string]int{
 	"modules/devicefleet/compose/repositoryadapter": 10,
 	"modules/devicescan/compose":                    531,
 	"modules/emergencysnapshot/compose":             13,
-	"modules/enrollment/compose":                    540,
-	"modules/exporttransfer/compose":                149,
-	"modules/facilities/compose":                    184,
-	"modules/facilities/compose/repositoryadapter":  11,
-	"modules/feedback/compose":                      61,
-	"modules/filestorage/compose":                   211,
-	"modules/grouplive/compose":                     14,
-	"modules/guardianlinkview/compose":              8,
-	"modules/identityaccess/compose":                1303,
-	"modules/mealplan/compose":                      66,
+	// Raised by ADR 0105: the holiday period constructor (+13).
+	"modules/enrollment/compose":                   553,
+	"modules/exporttransfer/compose":               149,
+	"modules/facilities/compose":                   184,
+	"modules/facilities/compose/repositoryadapter": 11,
+	"modules/feedback/compose":                     61,
+	"modules/filestorage/compose":                  211,
+	"modules/grouplive/compose":                    14,
+	"modules/guardianlinkview/compose":             8,
+	// Raised by ADR 0106: the Träger-Büro account management (+24).
+	"modules/identityaccess/compose": 1326,
+	"modules/mealplan/compose":       66,
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	"modules/organizationtenancy/compose":         270,
 	"modules/parentrequestfeedprojection/compose": 11,
@@ -208,16 +217,19 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,
-	"modules/transactionruntime/compose":              133,
-	"modules/workforce/compose":                       887,
-	"workflows/gradetransition/compose":               49,
-	"workflows/openroommove/compose":                  46,
-	"workflows/parentportal/compose":                  278,
-	"workflows/reminderdelivery/compose":              30,
-	"workflows/sessionend/compose":                    59,
-	"workflows/shiftplansync/compose":                 124,
-	"workflows/staffclock/compose":                    36,
-	"workflows/staffoffboarding/compose":              76,
+	// Raised by ADR 0105: the Träger transaction binding (+4).
+	"modules/transactionruntime/compose": 137,
+	"modules/workforce/compose":          887,
+	"workflows/gradetransition/compose":  49,
+	"workflows/openroommove/compose":     46,
+	"workflows/parentportal/compose":     278,
+	"workflows/reminderdelivery/compose": 30,
+	"workflows/sessionend/compose":       59,
+	"workflows/shiftplansync/compose":    124,
+	"workflows/staffclock/compose":       36,
+	"workflows/staffoffboarding/compose": 76,
+	// Added by ADR 0104: construction of the Träger projection, no retained logic.
+	"modules/traegerview/compose": 22,
 	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
 	"workflows/studentdeletion/compose":  74,

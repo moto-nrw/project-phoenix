@@ -30,6 +30,8 @@ const (
 	CodeCareDeclarationNotPermitted                      = "care.declaration_not_permitted"
 	CodeCareDeclarationPasswordIncorrect                 = "care.declaration_password_incorrect"
 	CodeCareDeclarationPasswordRequired                  = "care.declaration_password_required"
+	CodeCareDeclarationSignatureInvalid                  = "care.declaration_signature_invalid"
+	CodeCareDeclarationSignatureRequired                 = "care.declaration_signature_required"
 	CodeCareDeclarationVersionChanged                    = "care.declaration_version_changed"
 	CodeCareExcusedRequestNotPending                     = "care.excused_request_not_pending"
 	CodeCareExcusedRequestOverlap                        = "care.excused_request_overlap"
@@ -90,6 +92,7 @@ const (
 	CodeClassdayClassTripReturnTimeWeekend               = "classday.class_trip_return_time_weekend"
 	CodeClassdayClassTripStatusConflict                  = "classday.class_trip_status_conflict"
 	CodeClassdayClassTripStudentNotInClass               = "classday.class_trip_student_not_in_class"
+	CodeClassdayHomeworkNotFound                         = "classday.homework_not_found"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
 	CodeClassdayMorningAttendanceUnknownChild            = "classday.morning_attendance_unknown_child"
@@ -186,6 +189,10 @@ const (
 	CodeEnrollmentGuardianEmailRequired                  = "enrollment.guardian_email_required"
 	CodeEnrollmentGuardianNameRequired                   = "enrollment.guardian_name_required"
 	CodeEnrollmentGuardianPhoneRequired                  = "enrollment.guardian_phone_required"
+	CodeEnrollmentHolidayHostSchoolOutsideTraeger        = "enrollment.holiday_host_school_outside_traeger"
+	CodeEnrollmentHolidayPeriodIncomplete                = "enrollment.holiday_period_incomplete"
+	CodeEnrollmentHolidayPeriodInvalid                   = "enrollment.holiday_period_invalid"
+	CodeEnrollmentHolidayPeriodNotFound                  = "enrollment.holiday_period_not_found"
 	CodeEnrollmentInvalidEmail                           = "enrollment.invalid_email"
 	CodeEnrollmentInvalidPhone                           = "enrollment.invalid_phone"
 	CodeEnrollmentLateInviteInvalid                      = "enrollment.late_invite_invalid"
@@ -219,6 +226,9 @@ const (
 	CodeEnrollmentSchemaNameRequired                     = "enrollment.schema_name_required"
 	CodeEnrollmentSchemaNotFound                         = "enrollment.schema_not_found"
 	CodeEnrollmentSelectedDayNotAvailable                = "enrollment.selected_day_not_available"
+	CodeEnrollmentSignatureInvalid                       = "enrollment.signature_invalid"
+	CodeEnrollmentSignatureNotFound                      = "enrollment.signature_not_found"
+	CodeEnrollmentSignatureRequired                      = "enrollment.signature_required"
 	CodeEnrollmentStatusLinkInvalid                      = "enrollment.status_link_invalid"
 	CodeEnrollmentStudentExists                          = "enrollment.student_exists"
 	CodeEnrollmentSubmissionRateLimited                  = "enrollment.submission_rate_limited"
@@ -292,16 +302,6 @@ const (
 	CodeIdentityPreviewTargetSchoolPortal                = "identity.preview_target_school_portal"
 	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
 	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
-	CodeIdentityRoleNameTaken                            = "identity.role_name_taken"
-	CodeIdentityRolePlatformPermission                   = "identity.role_platform_permission"
-	CodeIdentitySessionAccountInactive                   = "identity.session_account_inactive"
-	CodeIdentityTenantAccessDenied                       = "identity.tenant_access_denied"
-	CodeIdentityTenantAccessNotFound                     = "identity.tenant_access_not_found"
-	CodeIdentityUseParentPortal                          = "identity.use_parent_portal"
-	CodeIdentityUseSchoolPortal                          = "identity.use_school_portal"
-	CodeIdentityUsernameTaken                            = "identity.username_taken"
-	CodeImportFileColumnsMissing                         = "import.file_columns_missing"
-	CodeImportFileMissing                                = "import.file_missing"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -333,6 +333,8 @@ var errorCodeClasses0 = map[string]string{
 	"care.declaration_not_permitted":                       "permission",
 	"care.declaration_password_incorrect":                  "input",
 	"care.declaration_password_required":                   "input",
+	"care.declaration_signature_invalid":                   "input",
+	"care.declaration_signature_required":                  "input",
 	"care.declaration_version_changed":                     "business_rejection",
 	"care.excused_request_not_pending":                     "business_rejection",
 	"care.excused_request_overlap":                         "business_rejection",
@@ -393,6 +395,7 @@ var errorCodeClasses0 = map[string]string{
 	"classday.class_trip_return_time_weekend":              "input",
 	"classday.class_trip_status_conflict":                  "business_rejection",
 	"classday.class_trip_student_not_in_class":             "business_rejection",
+	"classday.homework_not_found":                          "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
 	"classday.morning_attendance_unknown_child":            "business_rejection",
@@ -489,6 +492,10 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.guardian_email_required":                   "input",
 	"enrollment.guardian_name_required":                    "input",
 	"enrollment.guardian_phone_required":                   "input",
+	"enrollment.holiday_host_school_outside_traeger":       "input",
+	"enrollment.holiday_period_incomplete":                 "business_rejection",
+	"enrollment.holiday_period_invalid":                    "input",
+	"enrollment.holiday_period_not_found":                  "business_rejection",
 	"enrollment.invalid_email":                             "input",
 	"enrollment.invalid_phone":                             "input",
 	"enrollment.late_invite_invalid":                       "input",
@@ -522,6 +529,9 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.schema_name_required":                      "input",
 	"enrollment.schema_not_found":                          "business_rejection",
 	"enrollment.selected_day_not_available":                "input",
+	"enrollment.signature_invalid":                         "input",
+	"enrollment.signature_not_found":                       "business_rejection",
+	"enrollment.signature_required":                        "input",
 	"enrollment.status_link_invalid":                       "business_rejection",
 	"enrollment.student_exists":                            "business_rejection",
 	"enrollment.submission_rate_limited":                   "unavailable",
@@ -595,16 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.preview_target_school_portal":                "permission",
 	"identity.preview_token_invalid":                       "permission",
 	"identity.read_only_preview":                           "permission",
-	"identity.role_name_taken":                             "business_rejection",
-	"identity.role_platform_permission":                    "input",
-	"identity.session_account_inactive":                    "permission",
-	"identity.tenant_access_denied":                        "permission",
-	"identity.tenant_access_not_found":                     "business_rejection",
-	"identity.use_parent_portal":                           "permission",
-	"identity.use_school_portal":                           "permission",
-	"identity.username_taken":                              "business_rejection",
-	"import.file_columns_missing":                          "input",
-	"import.file_missing":                                  "input",
 }
 
 func init() {

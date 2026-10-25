@@ -48,7 +48,7 @@ func newCallerRowsForTests(db transactionruntime.Database, settings owners.Calle
 	}
 	activities := timetableCompose.NewCallerActivityGroups(tt.Timetable)
 	caller, err := owners.NewCallerContext(requestTokenReads, r.Profile, owners.CallerPersons{Rows: members.Person, People: people}, membership, staffGroups,
-		activities, owners.NewLoggedStudentPresence(db, slog.Default()), settings, slog.Default())
+		members.Student, activities, owners.NewLoggedStudentPresence(db, slog.Default()), settings, slog.Default())
 	if err != nil {
 		return nil, err
 	}

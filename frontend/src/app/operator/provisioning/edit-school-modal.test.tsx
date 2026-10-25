@@ -80,7 +80,7 @@ const mockSchool: School = {
   city: "Berlin",
   zip: "10115",
   phone: "",
-  email: "",
+  email: "info@test-school.example",
   active: true,
   hidden: false,
   deletedAt: null,
@@ -190,6 +190,68 @@ describe("EditSchoolModal", () => {
       "test-school",
     ]);
   });
+
+  // Replies from parents reach the school only through this address (#2872).
+  it("cannot clear an existing contact email", () => {
+    render(
+      <EditSchoolModal
+        isOpen={true}
+        onClose={onClose}
+        school={mockSchool}
+        organizations={[mockOrg]}
+        onUpdated={onUpdated}
+      />,
+    );
+
+    const emailInput = screen.getByLabelText(/E-Mail/);
+    expect(emailInput).toBeRequired();
+    fireEvent.change(emailInput, { target: { value: "" } });
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    fireEvent.submit(emailInput.closest("form")!);
+    expect(mockUpdateSchool).not.toHaveBeenCalled();
+  });
+
+  it.each(["button", "form"])(
+    "saves other edits without an email for a legacy school via %s",
+    async (submitVia) => {
+      mockUpdateSchool.mockResolvedValue(mockSchool);
+
+      render(
+        <EditSchoolModal
+          isOpen={true}
+          onClose={onClose}
+          school={{ ...mockSchool, email: "" }}
+          organizations={[mockOrg]}
+          onUpdated={onUpdated}
+        />,
+      );
+
+      const emailInput = screen.getByLabelText(/E-Mail/);
+      expect(emailInput).toHaveValue("");
+      expect(emailInput).not.toBeRequired();
+      fireEvent.change(screen.getByLabelText(/Name/), {
+        target: { value: "Updated School" },
+      });
+      const saveButton = screen.getByRole("button", { name: "Speichern" });
+      expect(saveButton).toBeEnabled();
+
+      if (submitVia === "button") {
+        fireEvent.click(saveButton);
+      } else {
+        fireEvent.submit(emailInput.closest("form")!);
+      }
+
+      await waitFor(() => {
+        expect(mockUpdateSchool).toHaveBeenCalledWith(
+          "10",
+          expect.objectContaining({ name: "Updated School", email: "" }),
+        );
+      });
+      await waitFor(() => expect(onUpdated).toHaveBeenCalledOnce());
+      expect(onClose).toHaveBeenCalledOnce();
+    },
+  );
 
   it("sends hidden=false when school is visible", async () => {
     mockUpdateSchool.mockResolvedValue(mockSchool);

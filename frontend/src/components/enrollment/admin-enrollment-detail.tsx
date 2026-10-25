@@ -70,6 +70,7 @@ import { Textarea } from "~/components/ui/textarea";
 import { Checkbox } from "~/components/ui/checkbox";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrollment-upload-list";
+import { AdminEnrollmentSignature } from "~/components/enrollment/admin-enrollment-signature";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
@@ -437,6 +438,13 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             <EnrollmentSummary data={data} submittedAt={submittedAt} />
 
             <RequestExtraSection request={data} />
+
+            {data.signature ? (
+              <AdminEnrollmentSignature
+                requestId={requestId}
+                signature={data.signature}
+              />
+            ) : null}
 
             <SectionCard
               title="Angaben der Kinder"

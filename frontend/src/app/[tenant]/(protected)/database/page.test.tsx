@@ -89,11 +89,15 @@ global.fetch = vi.fn(() =>
 );
 
 import { useSession } from "next-auth/react";
+import { MODULE_KEYS } from "~/lib/modules";
+import { useBookedModules } from "~/lib/tenant-context";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useTimetableEnabled } from "~/lib/tenant-context";
 
 vi.mock("~/lib/tenant-context", () => ({
   useNFCEnabled: () => true,
+  // Alle Module gebucht, wie die Voreinstellung der Registry (#4892).
+  useBookedModules: vi.fn(() => [...MODULE_KEYS]),
   useTenantSlugSafe: () => "test-tenant",
   useTenantRoutingModeSafe: () => "path",
   useTimetableEnabled: vi.fn(),
@@ -246,6 +250,76 @@ describe("DatabasePage", () => {
     });
   });
 
+  // Modul-Register (#4894): die Leitung sieht die Kachel eines nicht
+  // gebuchten Moduls mit Schloss, alle anderen gar nicht.
+  it("zeigt der Leitung die Kachel eines nicht gebuchten Moduls mit Schloss", async () => {
+    vi.mocked(useBookedModules).mockReturnValue(
+      MODULE_KEYS.filter((key) => key !== "nfc_anwesenheit"),
+    );
+    try {
+      render(<DatabasePage />);
+
+      const devices = await screen.findByRole("link", { name: /Geräte/ });
+      expect(devices).toHaveTextContent("Nicht gebucht");
+      expect(devices).toHaveTextContent("Mehr erfahren");
+      expect(devices).toHaveAttribute("href", "/test-tenant/database/devices");
+    } finally {
+      vi.mocked(useBookedModules).mockReturnValue([...MODULE_KEYS]);
+    }
+  });
+
+  it("zeigt der Leitung gesperrte Kacheln ohne Zielrecht", async () => {
+    vi.mocked(useBookedModules).mockReturnValue(
+      MODULE_KEYS.filter((key) => key !== "nfc_anwesenheit"),
+    );
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          roles: ["ogs-leitung"],
+          permissions: ["config:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+
+    render(<DatabasePage />);
+
+    const devices = await screen.findByRole("link", { name: /Geräte/ });
+    expect(devices).toHaveTextContent("Nicht gebucht");
+    expect(devices).toHaveTextContent("Mehr erfahren");
+  });
+
+  it("blendet die Kachel eines nicht gebuchten Moduls ohne Leitung aus", async () => {
+    vi.mocked(useBookedModules).mockReturnValue(
+      MODULE_KEYS.filter((key) => key !== "zeiterfassung"),
+    );
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        ...mockSession,
+        user: {
+          ...mockSession.user,
+          roles: ["ogs-team"],
+          permissions: ["users:delete", "time_tracking:manage"],
+        },
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    } as never);
+    try {
+      render(<DatabasePage />);
+
+      // Anker: die Kacheln sind geladen.
+      expect(await screen.findByText("Kinderdaten")).toBeInTheDocument();
+      expect(screen.getByText("Dienstarten")).toBeInTheDocument();
+      expect(screen.queryByText("Abwesenheitsarten")).not.toBeInTheDocument();
+    } finally {
+      vi.mocked(useBookedModules).mockReturnValue([...MODULE_KEYS]);
+    }
+  });
+
   it("shows catalog cards to administrators without explicit catalog permissions", async () => {
     const administrator = {
       ...mockSession,
@@ -293,7 +367,9 @@ describe("DatabasePage", () => {
     expect(screen.getByText("Terminkategorien")).toBeInTheDocument();
     expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
     expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
-    expect(screen.queryByText("Dienstarten")).not.toBeInTheDocument();
+    // Die Dienstarten folgen seit #4894 dem Modul Dienstplan, nicht dem
+    // Betreuungsplan.
+    expect(screen.getByText("Dienstarten")).toBeInTheDocument();
   });
 
   it("shows planning catalogs to delegated users while planning is on", () => {
@@ -341,7 +417,9 @@ describe("DatabasePage", () => {
     // nur die Planungskataloge fehlen.
     expect(screen.getByText("Abwesenheitsarten")).toBeInTheDocument();
     expect(screen.queryByText("Planungsspuren")).not.toBeInTheDocument();
-    expect(screen.queryByText("Dienstarten")).not.toBeInTheDocument();
+    // Die Dienstarten folgen seit #4894 dem Modul Dienstplan, nicht dem
+    // Betreuungsplan.
+    expect(screen.getByText("Dienstarten")).toBeInTheDocument();
   });
 
   it("handles 401 unauthorized response gracefully", async () => {

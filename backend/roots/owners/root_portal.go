@@ -53,15 +53,20 @@ func BuildParentPortal(
 	}
 	messages := parentStore.NewParentMessageRepository(db.Pool())
 	photos := services.StudentPhotos
+	children, err := ParentChildReadsForBookedSchools(NewParentChildReads(carePlanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)), settings)
+	if err != nil {
+		return nil, fmt.Errorf("compose parent portal children: %w", err)
+	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianChanges: ParentGuardianChanges(),
+		Signatures:      ParentDeclarationSignatures{Ledger: SignatureLedger()},
 		DeparturePolicy: ParentDeparturePolicy(),
 		GuardianPolicy:  NewParentGuardianPolicy(),
 		Fingerprints:    SecurityFingerprints{},
 		Declarations:    ParentDeclarationPolicy(),
 		Locales:         ParentPortalLocales(),
 		Runtime:         ParentPortalRuntime{},
-		CareProfiles:    profiles, ChildRepo: NewParentChildReads(carePlanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)), EnrollablePhaseRepo: NewParentPhaseReads(carePlanCompose.NewParentPhaseQueries(portal.ParentEnrollablePhase)),
+		CareProfiles:    profiles, ChildRepo: children, EnrollablePhaseRepo: NewParentPhaseReads(carePlanCompose.NewParentPhaseQueries(portal.ParentEnrollablePhase)),
 		EnrollmentSettings: settings, EnrollmentRequestRepo: NewParentEnrollmentReads(carePlanCompose.NewParentEnrollmentQueries(portal.ParentEnrollmentRequest)),
 		GuardianProfileRepo: NewParentGuardianProfileReads(people.GuardianProfiles), Attendance: BindParentAttendance(presence.Presence), StatusDayRepo: carePlanRows.StatusDays,
 		MealPlan: mealPlan, StudentRepo: NewParentStudentReads(people.Students), CarePlan: NewParentCarePlanCommands(carePlan, schedules.AutoExcusal), DataRequests: NewParentDataRequestCommands(carePlan), People: persons,

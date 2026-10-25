@@ -13,7 +13,18 @@ func installSchoolErasureDelete(ctx context.Context, tx bun.Tx) error {
 	return err
 }
 
-const schoolErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_delete(p_school_id BIGINT)
+const schoolErasureDeleteSQL = schoolErasureDeletePart1SQL + `   SELECT count(*) INTO v_count FROM education.class_homework AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM education.class_homework AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('education.class_homework', v_count);
+   SELECT count(*) INTO v_count FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM education.homework_feedback AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('education.homework_feedback', v_count);
+` + schoolErasureDeletePart2SQL
+
+// The pre-1.15.510 definition shares the unchanged SQL sections.
+const schoolErasureDeleteWithoutHomeworkSQL = schoolErasureDeletePart1SQL + schoolErasureDeletePart2SQL
+
+const schoolErasureDeletePart1SQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_delete(p_school_id BIGINT)
  RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
  AS $body$
  DECLARE
@@ -326,7 +337,9 @@ const schoolErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_erasu
    SELECT count(*) INTO v_count FROM education.class_arrival_times AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM education.class_arrival_times AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('education.class_arrival_times', v_count);
-   SELECT count(*) INTO v_count FROM education.class_teachers AS r WHERE r.tenant_id = p_school_id;
+`
+
+const schoolErasureDeletePart2SQL = `   SELECT count(*) INTO v_count FROM education.class_teachers AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM education.class_teachers AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('education.class_teachers', v_count);
    SELECT count(*) INTO v_count FROM education.grade_transition_class_list_entries AS r WHERE r.tenant_id = p_school_id;
@@ -389,6 +402,12 @@ const schoolErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_erasu
    SELECT count(*) INTO v_count FROM enrollment.request_reads AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM enrollment.request_reads AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('enrollment.request_reads', v_count);
+   SELECT count(*) INTO v_count FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_submissions', v_count);
+   SELECT count(*) INTO v_count FROM audit.signatures AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM audit.signatures AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('audit.signatures', v_count);
    SELECT count(*) INTO v_count FROM enrollment.requests AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM enrollment.requests AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('enrollment.requests', v_count);
@@ -551,9 +570,6 @@ const schoolErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_erasu
    SELECT count(*) INTO v_count FROM users.notification_preferences AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM users.notification_preferences AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('users.notification_preferences', v_count);
-   SELECT count(*) INTO v_count FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id;
-   DELETE FROM users.parent_announcement_declaration_submissions AS r WHERE r.tenant_id = p_school_id;
-   v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_submissions', v_count);
    SELECT count(*) INTO v_count FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM users.parent_announcement_declaration_versions AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('users.parent_announcement_declaration_versions', v_count);
@@ -727,3 +743,8 @@ const schoolErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_erasu
  END $body$;
  REVOKE ALL ON FUNCTION platform.school_erasure_delete(BIGINT) FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin, phoenix_demo, phoenix_school_erasure;
 `
+
+func restoreSchoolErasureDeleteBeforeHomework(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, schoolErasureDeleteWithoutHomeworkSQL)
+	return err
+}

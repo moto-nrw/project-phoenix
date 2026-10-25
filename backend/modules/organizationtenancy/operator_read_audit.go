@@ -31,6 +31,7 @@ const (
 	ReadSchoolSettingsSchema         OperatorReadView = "school_settings_schema"
 	ReadSchoolSettingReveal          OperatorReadView = "school_setting_reveal"
 	ReadUnregisteredTagScans         OperatorReadView = "unregistered_tag_scans"
+	ReadTraegerMembers               OperatorReadView = "traeger_members"
 )
 
 // OperatorReadAccess records an attempted disclosure, before reading its data.
