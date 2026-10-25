@@ -179,6 +179,11 @@ func (m *MFAServiceMock) DisableMFA(ctx context.Context, accountID int64) error 
 	return nil
 }
 
+// ResetMFAInTransaction is not driven by these suites; it answers nil.
+func (m *MFAServiceMock) ResetMFAInTransaction(context.Context, int64) error {
+	return nil
+}
+
 func (m *MFAServiceMock) PrepareTrustedDevice(_ context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (func(context.Context) (string, time.Time, error), error) {
 	return func(ctx context.Context) (string, time.Time, error) {
 		return m.IssueTrustedDevice(ctx, accountID, tenantID, userAgent, ip)

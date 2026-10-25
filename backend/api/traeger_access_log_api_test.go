@@ -133,9 +133,7 @@ func newTraegerAccessLogFixture(t *testing.T, role string) traegerAccessLogFixtu
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	unit := testpkg.TenantRuntime(t, db)
-	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit)
-	require.NoError(t, err)
-	router := traegerPortalRouter(t, db, auth.Auth, unit)
+	router, _ := traegerPortalOn(t, db, unit)
 	password := testpkg.NewTestPassword()
 	f := traegerAccessLogFixture{db: db, router: router}
 	f.own = traegerOrganization(t, db, "Träger Protokoll", true)
@@ -149,13 +147,13 @@ func newTraegerAccessLogFixture(t *testing.T, role string) traegerAccessLogFixtu
 	// Lena works at the second school; ledgers name her by account or by
 	// her staff ID there.
 	lena := testpkg.CreateTestStaffForTenant(t, db, f.second, "Lena", "Leitung")
-	_, err = db.ExecContext(context.Background(), `UPDATE users.persons SET account_id = ? WHERE id = ?`, f.otherStaff, lena.PersonID)
+	_, err := db.ExecContext(context.Background(), `UPDATE users.persons SET account_id = ? WHERE id = ?`, f.otherStaff, lena.PersonID)
 	require.NoError(t, err)
 	f.otherStaffMember = lena.ID
 	account := traegerAccount(t, db, password)
 	f.member = account.ID
 	testpkg.CreateTestTraegerMember(t, db, f.own, account.ID, role)
-	code, answer := traegerLogin(t, router, account.Email, password, 0)
+	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 	f.token = answer.AccessToken
 	return f

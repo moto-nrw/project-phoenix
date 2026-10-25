@@ -59,6 +59,9 @@ type Adapter interface {
 	LoginOperator(context.Context, string, string) (AuthRef, error)
 	LoginTenant(context.Context, string, string, string) (AuthRef, error)
 	LoginParent(context.Context, string, string) (AuthRef, error)
+	// LoginTraeger completes the Träger-Portal sign-in including its second
+	// factor (#4651); a zero Träger takes the only one of the account.
+	LoginTraeger(context.Context, string, string, int64) (AuthRef, error)
 	Raw(context.Context, AuthRef, string, string, any, map[string]string) ([]byte, int, error)
 	RawUpload(context.Context, AuthRef, string, string, string, []byte) ([]byte, int, error)
 }
