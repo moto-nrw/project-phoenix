@@ -80,6 +80,7 @@ type Query interface {
 	SchoolQuery
 	SchoolListQuery
 	TraegerMembershipQuery
+	TraegerErasureOrderQuery
 }
 
 // OrganizationQuery reads organizations and locks them before mutation.
@@ -136,6 +137,7 @@ type Capability interface {
 	Query
 	Command
 	TraegerMembershipCommand
+	TraegerErasureOrderCommand
 }
 
 func ValidateSlug(slug string) error {

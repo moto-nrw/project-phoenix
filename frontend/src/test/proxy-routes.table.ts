@@ -230,6 +230,11 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/organizations/[id]/devices": [
     "GET operator /operator/organizations/id%2F1/devices",
   ],
+  "api/operator/provisioning/organizations/[id]/erasure-order": [
+    "GET operator /operator/organizations/id%2F1/erasure-order",
+    "POST operator /operator/organizations/id%2F1/erasure-order",
+    "DELETE operator /operator/organizations/id%2F1/erasure-order",
+  ],
   "api/operator/provisioning/organizations/[id]/traeger-members": [
     "GET operator /operator/organizations/id%2F1/traeger-members",
     "POST operator /operator/organizations/id%2F1/traeger-members",

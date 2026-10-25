@@ -5,6 +5,7 @@
 package traegerviewhttp
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -51,6 +52,11 @@ func (rs *Resource) listSchools(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	schools, err := rs.overview.Schools(r.Context(), principal.OrganizationID())
+	if errors.Is(err, traegerview.ErrTraegerUnavailable) {
+		// The moto team deactivated the Träger: its session has ended.
+		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
+		return
+	}
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

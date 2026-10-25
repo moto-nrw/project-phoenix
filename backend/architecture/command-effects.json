@@ -42209,6 +42209,18 @@
     },
     {
       "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.EndTraegerSessions",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.EndTraegerSessions",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EndTraegerSessions",
+      "target_owner": "identity-access",
+      "binding_digest": "ad6b9095b1a0169c716940cf7bc02e35",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access deletes the Träger sessions (auth.tokens, portal scope org) of the deactivated Träger on the operator's administrative unit, which the Träger deactivation of Organisation \u0026 Tenancy owns (ADR 0084 section 4, #4657). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
+    },
+    {
+      "source_owner": "organization-tenancy",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.EnsureSchoolIdentity",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.EnsureSchoolIdentity",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EnsureSchoolIdentity",

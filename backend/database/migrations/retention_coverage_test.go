@@ -83,6 +83,7 @@ func staffRetention(owner string) tableRetention {
 var tableRetentions = map[string]tableRetention{
 	"auth.organization_account_roles":                       parent("auth.accounts"),
 	"platform.organization_accounts":                        parent("auth.accounts"),
+	"platform.organization_erasure_orders":                  own("administrative platform.delete_expired_organization_erasure_orders: completed and withdrawn orders expire three years after completion or withdrawal; an open order remains until it is withdrawn or completed (#4657)"),
 	"platform.school_erasures":                              own("administrative platform.delete_expired_school_erasures: completed evidence expires three years after completion; unresolved orders remain for recovery (#3837)"),
 	"active.activity_session_attendance":                    parent("schedule.instance_students"),
 	"active.activity_sessions":                              parent("schedule.activity_instances"),
