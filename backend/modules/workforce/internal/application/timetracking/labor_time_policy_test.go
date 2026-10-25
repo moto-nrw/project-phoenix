@@ -164,7 +164,9 @@ func TestIsBreakCompliant(t *testing.T) {
 			CheckOutTime: &checkOut,
 			BreakMinutes: 30,
 		}
-		assert.True(t, isBreakCompliant(ws, nil, fixedNow))
+		eval := EvaluateLaborTime(ws, nil, fixedNow)
+		assert.Equal(t, 30, eval.CountedBreakMinutes, "legacy sessions without intervals retain their aggregate break credit")
+		assert.True(t, eval.IsBreakCompliant)
 	})
 
 	t.Run("over 9h needs 45min break - not compliant", func(t *testing.T) {
@@ -287,6 +289,26 @@ func TestEvaluateWorkSessionsLaborTime(t *testing.T) {
 		// Block 1: 240 gross − 30 break = 210. Block 2: 13:30 → 17:00 = 210.
 		assert.Equal(t, 420, eval.NetMinutes)
 		assert.Equal(t, 30, eval.BreakMinutes)
+	})
+
+	t.Run("single block does not combine short break intervals", func(t *testing.T) {
+		ws := block(1, 8, 0, 15, 30, 30)
+		breaks := map[int64][]*WorkSessionBreak{
+			ws.ID: {
+				endedBreak(time.Date(2026, 8, 17, 10, 0, 0, 0, time.UTC), 10),
+				endedBreak(time.Date(2026, 8, 17, 12, 0, 0, 0, time.UTC), 10),
+				endedBreak(time.Date(2026, 8, 17, 14, 0, 0, 0, time.UTC), 10),
+			},
+		}
+
+		day := EvaluateWorkSessionsLaborTime([]*WorkSession{ws}, breaks, fixedNow)
+		single := EvaluateLaborTime(ws, breaks[ws.ID], fixedNow)
+
+		assert.Equal(t, 30, single.BreakMinutes)
+		assert.Equal(t, 0, single.CountedBreakMinutes)
+		assert.Equal(t, 30, single.RequiredBreakMinutes)
+		assert.False(t, single.IsBreakCompliant)
+		assert.Equal(t, day, single)
 	})
 
 	t.Run("single block matches EvaluateLaborTime", func(t *testing.T) {

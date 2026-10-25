@@ -48,13 +48,14 @@ type LaborTimeEvaluation struct {
 func EvaluateLaborTime(ws *WorkSession, breaks []*WorkSessionBreak, now time.Time) LaborTimeEvaluation {
 	net := netMinutesWithBreaks(ws, breaks, now)
 	taken := totalBreakMinutes(ws, breaks, now)
+	counted := qualifyingBreakMinutes(breaks, ws.CheckInTime, BalanceSessionEnd(ws, now), taken)
 	required := requiredBreakMinutes(net)
 	return LaborTimeEvaluation{
 		NetMinutes:           net,
 		BreakMinutes:         taken,
 		RequiredBreakMinutes: required,
-		CountedBreakMinutes:  taken,
-		IsBreakCompliant:     taken >= required,
+		CountedBreakMinutes:  counted,
+		IsBreakCompliant:     counted >= required,
 	}
 }
 
