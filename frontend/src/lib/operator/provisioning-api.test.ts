@@ -154,7 +154,53 @@ describe("OperatorProvisioningService", () => {
         createdAt: NOW,
         updatedAt: NOW,
         deletedAt: null,
+        testSystem: false,
       });
+    });
+  });
+
+  describe("createTestTraeger", () => {
+    it("posts the order and maps the test Träger with its schools", async () => {
+      mockOperatorFetch.mockResolvedValue({
+        organization: { ...mockBackendOrg, test_system: true },
+        schools: [mockBackendSchool],
+      });
+      const order = {
+        name: "Test-Träger",
+        slug: "test-traeger",
+        school_count: 1,
+        contact_email: "buero@traeger.example",
+      };
+
+      const result = await operatorProvisioningService.createTestTraeger(order);
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/test-traeger",
+        { method: "POST", body: order },
+      );
+      expect(result.organization.testSystem).toBe(true);
+      expect(result.schools.map((school) => school.id)).toEqual(["10"]);
+    });
+  });
+
+  describe("createSampleChildren", () => {
+    it("posts to the Träger and sums the skipped children of every school", async () => {
+      mockOperatorFetch.mockResolvedValue({
+        created_count: 30,
+        schools: [
+          { school_id: 1, created_count: 24, skipped_count: 0 },
+          { school_id: 2, created_count: 6, skipped_count: 18 },
+        ],
+      });
+
+      const result =
+        await operatorProvisioningService.createSampleChildren("5");
+
+      expect(mockOperatorFetch).toHaveBeenCalledWith(
+        "/api/operator/provisioning/organizations/5/sample-children",
+        { method: "POST", body: {} },
+      );
+      expect(result).toEqual({ createdCount: 30, skippedCount: 18 });
     });
   });
 

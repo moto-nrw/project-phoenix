@@ -1965,6 +1965,18 @@
       "legacy": "import.mode_forbidden"
     },
     {
+      "code": "import.not_test_traeger",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "import.not_test_traeger"
+    },
+    {
+      "code": "import.test_traeger_inactive",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "import.test_traeger_inactive"
+    },
+    {
       "code": "iot.activity_capacity_exceeded",
       "class": "business_rejection",
       "parameters": [

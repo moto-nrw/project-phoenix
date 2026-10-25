@@ -2693,7 +2693,9 @@
         "file_type_invalid": "Diese Datei passt nicht. Bitte laden Sie eine CSV- oder Excel-Datei hoch.",
         "file_unreadable": "Die Datei konnte nicht gelesen werden. Bitte nutzen Sie die Vorlage.",
         "import_batch_failed": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
-        "mode_forbidden": "Bestehende Einträge dürfen Sie nicht ändern. Bitte wählen Sie „Nur neue anlegen“ oder fragen Sie die Leitung."
+        "mode_forbidden": "Bestehende Einträge dürfen Sie nicht ändern. Bitte wählen Sie „Nur neue anlegen“ oder fragen Sie die Leitung.",
+        "not_test_traeger": "Das geht nur bei einem Test-Träger. Echte Träger bekommen keine Beispieldaten.",
+        "test_traeger_inactive": "Der Test-Träger ist deaktiviert. Bitte aktivieren Sie ihn zuerst."
       },
       "iot": {
         "activity_capacity_exceeded": "Im Angebot {activity_name} ist kein Platz mehr. Bitte wählen Sie ein anderes Angebot.",

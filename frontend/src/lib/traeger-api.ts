@@ -627,3 +627,32 @@ export async function downloadTraegerAccessLog(
     filename: filenameFromDisposition(response),
   };
 }
+
+/** The Träger of the session, as the portal frame names and marks it. */
+export interface TraegerOrganization {
+  readonly id: string;
+  readonly name: string;
+  /** A test Träger with invented sample data (#4658). */
+  readonly testSystem: boolean;
+}
+
+interface BackendTraegerOrganization {
+  id: number;
+  name: string;
+  test_system?: boolean;
+}
+
+/** The Träger of the signed-in person's session. */
+export async function fetchTraegerOrganization(): Promise<TraegerOrganization> {
+  const organization = await traegerRequest<BackendTraegerOrganization | null>(
+    "/api/traeger/organization",
+  );
+  if (!organization) {
+    throw apiErrorFromBody("Träger response without data", 502, organization);
+  }
+  return {
+    id: String(organization.id),
+    name: organization.name,
+    testSystem: organization.test_system ?? false,
+  };
+}

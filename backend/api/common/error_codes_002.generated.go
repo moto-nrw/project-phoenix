@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeTimetablePickupExtensionNotFound             = "timetable.pickup_extension_not_found"
+	CodeTimetablePickupExtensionTooManyBlocks        = "timetable.pickup_extension_too_many_blocks"
 	CodeTimetablePlanningTrackArchived               = "timetable.planning_track_archived"
 	CodeTimetablePlanningTrackInvalid                = "timetable.planning_track_invalid"
 	CodeTimetablePlanningTrackNameTaken              = "timetable.planning_track_name_taken"
@@ -141,6 +143,8 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.pickup_extension_not_found":              "business_rejection",
+	"timetable.pickup_extension_too_many_blocks":        "input",
 	"timetable.planning_track_archived":                 "business_rejection",
 	"timetable.planning_track_invalid":                  "input",
 	"timetable.planning_track_name_taken":               "business_rejection",
