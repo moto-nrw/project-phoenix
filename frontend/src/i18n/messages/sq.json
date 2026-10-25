@@ -607,6 +607,22 @@
     "appInstallGenericDescription": "Shtoni moto në ekranin kryesor të telefonit dhe hapeni si aplikacion.",
     "appInstallGuide": "Hap udhëzuesin"
   },
+  "analyticsConsent": {
+    "title": "Analiza e përdorimit",
+    "promptTitle": "Të lejohet analiza e përdorimit?",
+    "promptIntro": "moto dëshiron të numërojë cilat faqe dhe butona përdorni. Kështu e përmirësojmë moto-n.",
+    "promptPrivacy": "moto nuk sheh emra apo atë që shkruani.",
+    "promptNoDisadvantage": "Nëse refuzoni, mund ta përdorni moto-n njësoj.",
+    "promptChangeLater": "Zgjedhja juaj vlen për llogarinë tuaj. Mund ta ndryshoni në çdo kohë te „Cilësimet“.",
+    "allow": "Lejo",
+    "refuse": "Refuzo",
+    "saving": "Po ruhet…",
+    "closeLabel": "Vendos më vonë",
+    "sectionDescription": "A mund të numërojë moto cilat faqe dhe butona përdorni? moto nuk sheh emra apo atë që shkruani. Vendosni vetëm ju.",
+    "switchLabel": "Lejo analizën e përdorimit",
+    "schoolOff": "Shkolla juaj e ka çaktivizuar analizën e përdorimit. Zgjedhja juaj vlen sapo shkolla ta aktivizojë sërish.",
+    "errorObject": "cilësimi i analizës së përdorimit"
+  },
   "pwaInstallHint": {
     "title": "Përdorni moto si aplikacion",
     "samsungDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome dhe hyni aty.",
@@ -3033,6 +3049,9 @@
       },
       "operator": {
         "audit_unavailable": "{object} nuk është i disponueshëm tani. Provoni përsëri."
+      },
+      "traeger": {
+        "no_membership": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       }
     },
     "actions": {

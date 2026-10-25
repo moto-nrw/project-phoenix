@@ -260,7 +260,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
 	}
 	steps = append(steps,
-		seedParentEngagementStep{},
+		seedParentEngagementStep{}, seedAnalyticsConsentStep{},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedParentPollStep{},
@@ -280,7 +280,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedMarketingProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, seedStaffPersonMergeStep{})
+	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{})
 	if !seeder.options.DeferHistory {
 		steps = append(steps, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 	}

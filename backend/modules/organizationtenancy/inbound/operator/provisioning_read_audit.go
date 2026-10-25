@@ -48,7 +48,7 @@ func operatorReadTarget(w http.ResponseWriter, r *http.Request, access *organiza
 			return false
 		}
 	case organizationtenancy.ReadOrganizationAccounts, organizationtenancy.ReadOrganizationPersons,
-		organizationtenancy.ReadOrganizationSchools:
+		organizationtenancy.ReadOrganizationSchools, organizationtenancy.ReadTraegerMembers:
 		access.OrganizationID, ok = common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
 		if !ok {
 			return false

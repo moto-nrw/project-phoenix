@@ -164,7 +164,9 @@ func (s *Service) CreateAccountSession(ctx context.Context, public identityacces
 		if validateErr := session.Validate(); validateErr != nil {
 			return validateErr
 		}
-		if session.TenantID == 0 {
+		// A Träger-Portal session belongs to its Träger and to no school
+		// (ADR 0084); it never takes the school of the context.
+		if session.TenantID == 0 && session.PortalScope != domain.PortalScopeOrg {
 			session.TenantID = s.tenantOf(txCtx)
 		}
 		stored, queryStats, insertErr := s.sessions.InsertAccountSession(txCtx, session)

@@ -14,10 +14,13 @@ type SchoolDirectory interface {
 	FindSchoolBySubdomain(ctx context.Context, subdomain string) (identityaccess.School, bool, error)
 	LockSchoolShared(ctx context.Context, id int64) (identityaccess.School, bool, error)
 	ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]identityaccess.School, error)
-	// ListManageableSchoolIDs returns the live, active schools of the
-	// organisation: the set an organisation-scoped administrator may
-	// administer accounts at.
-	ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
+}
+
+// TraegerMemberships reads the Organisation & Tenancy Träger memberships of an
+// account: the active, undeleted Träger where its membership is active, in a
+// stable order. It joins the caller's transaction.
+type TraegerMemberships interface {
+	ListAccountTraegerOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error)
 }
 
 // TokenCodec signs and parses the session JWTs.

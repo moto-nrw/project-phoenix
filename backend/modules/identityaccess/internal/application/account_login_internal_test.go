@@ -81,21 +81,23 @@ func TestResolveAccountTenantBySlug_RequiresActiveMappingForTenantScope(t *testi
 	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied, "a mapping lookup failure denies rather than grants")
 }
 
-func TestResolveAccountTenantBySlug_OrgScopeReachesOwnOrganizationOnly(t *testing.T) {
+// ADR 0084 removed the org shortcut: a Träger session reaches no school of
+// its Träger through the slug resolution, only a school mapping does.
+func TestResolveAccountTenantBySlug_TraegerScopeNeedsASchoolMapping(t *testing.T) {
 	t.Parallel()
 	f := newAuthFixture(t)
 	f.store.addAccount(1, "user1@example.com", "hash:secret", true)
 	f.schools.add(10, 100, "school-10", true, false)
-	f.schools.add(11, 200, "school-11", true, false)
 	ctx := withScope(context.Background(), domain.ScopeOrg, 100)
 
+	_, _, err := f.auth.resolveAccountTenantBySlug(ctx, 1, "school-10")
+	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied)
+
+	f.store.addMapping(1, 10)
 	tenantID, orgID, err := f.auth.resolveAccountTenantBySlug(ctx, 1, "school-10")
 	require.NoError(t, err)
 	assert.Equal(t, int64(10), tenantID)
 	assert.Equal(t, int64(100), orgID)
-
-	_, _, err = f.auth.resolveAccountTenantBySlug(ctx, 1, "school-11")
-	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied)
 }
 
 func TestResolveAccountTenantDefault_SkipsDeadSchoolsInMappingOrder(t *testing.T) {

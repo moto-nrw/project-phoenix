@@ -55,18 +55,24 @@ type OperatorMFAAttempts struct {
 
 // OperatorSession is one persisted, revocable operator refresh session. A
 // family groups the generations one login produced through rotation.
+//
+// Token is the raw value the refresh JWT carries. Only the minting or
+// presenting request knows it; the store keeps TokenHash, its hex SHA-256,
+// and ReplacementTokenHash likewise names the successor by hash (#4902).
+// Listings and revocations return Token empty.
 type OperatorSession struct {
-	ID                int64
-	OperatorID        int64
-	Token             string
-	Expiry            time.Time
-	FamilyID          string
-	Generation        int
-	RotatedAt         *time.Time
-	ReplacementToken  *string
-	RecoveryProofHash []byte
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                   int64
+	OperatorID           int64
+	Token                string
+	TokenHash            string
+	Expiry               time.Time
+	FamilyID             string
+	Generation           int
+	RotatedAt            *time.Time
+	ReplacementTokenHash *string
+	RecoveryProofHash    []byte
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 // Validate rejects a session that cannot be stored.
@@ -80,7 +86,7 @@ func (s *OperatorSession) Validate() error {
 		return errors.New("expiry is required")
 	case s.FamilyID == "":
 		return errors.New("family ID is required")
-	case (s.RotatedAt == nil) != (s.ReplacementToken == nil):
+	case (s.RotatedAt == nil) != (s.ReplacementTokenHash == nil):
 		return errors.New("rotation handoff must include both timestamp and replacement token")
 	case s.RotatedAt == nil && len(s.RecoveryProofHash) != 0:
 		return errors.New("recovery proof hash requires a rotation handoff")

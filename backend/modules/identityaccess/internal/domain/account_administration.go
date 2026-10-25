@@ -13,13 +13,10 @@ const (
 	// platform-scoped caller and an administrative transaction get: the
 	// operator flows and the CLI.
 	AccountVisibilityGlobal AccountVisibilityKind = iota
-	// AccountVisibilityDenied administers no account. An organisation or
-	// school context whose scope could not be resolved lands here rather
-	// than falling back to a wider one.
+	// AccountVisibilityDenied administers no account. A school context whose
+	// scope could not be resolved lands here rather than falling back to a
+	// wider one.
 	AccountVisibilityDenied
-	// AccountVisibilityOrganization administers the accounts actively
-	// mapped to one of the organisation's manageable schools.
-	AccountVisibilityOrganization
 	// AccountVisibilityTenant administers the accounts actively mapped to
 	// the school in context.
 	AccountVisibilityTenant
@@ -30,8 +27,6 @@ type AccountVisibility struct {
 	Kind AccountVisibilityKind
 	// TenantID is the school of a tenant-scoped caller.
 	TenantID int64
-	// SchoolIDs are the manageable schools of an organisation-scoped caller.
-	SchoolIDs []int64
 }
 
 // ManagedAccount is the platform account row the administration reads. The

@@ -24,6 +24,7 @@ type AccountAuthentication struct {
 	sessions       *Service
 	store          ports.AccountLoginStore
 	schools        ports.SchoolDirectory
+	traeger        identityPorts.TraegerMemberships
 	persons        ports.PersonDirectory
 	passwordPolicy func() (int, time.Duration, error)
 	passwords      ports.PasswordVerifier
@@ -46,8 +47,11 @@ type AccountAuthentication struct {
 
 // AccountAuthenticationDependencies are the ports the flows consume.
 type AccountAuthenticationDependencies struct {
-	Store          ports.AccountLoginStore
-	Schools        ports.SchoolDirectory
+	Store   ports.AccountLoginStore
+	Schools ports.SchoolDirectory
+	// Traeger reads the Träger memberships; without it the Träger sign-in
+	// and refresh fail closed.
+	Traeger        identityPorts.TraegerMemberships
 	Persons        ports.PersonDirectory
 	PasswordPolicy func() (int, time.Duration, error)
 	Passwords      ports.PasswordVerifier
@@ -102,7 +106,7 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 		logger = slog.Default()
 	}
 	return &AccountAuthentication{
-		sessions: sessions, store: deps.Store, schools: deps.Schools, persons: deps.Persons, passwords: deps.Passwords, passwordPolicy: deps.PasswordPolicy,
+		sessions: sessions, store: deps.Store, schools: deps.Schools, traeger: deps.Traeger, persons: deps.Persons, passwords: deps.Passwords, passwordPolicy: deps.PasswordPolicy,
 		codec: deps.Codec, mfa: deps.MFA, mfaLock: deps.MFALock, audit: deps.Audit, push: deps.Push,
 		runtime: deps.Runtime, attach: deps.Attach, withRecoveryProof: deps.WithRecoveryProof, rotation: deps.Rotation, logger: logger,
 	}, nil

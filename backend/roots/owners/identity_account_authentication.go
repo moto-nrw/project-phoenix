@@ -64,6 +64,7 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 	}
 	base.Sessions = &identityBindingPorts.SessionDependencies{
 		Schools:             repos.schools,
+		Traeger:             TraegerMembershipDirectory{Memberships: repos.schools.Schools},
 		Persons:             PersonDirectory{Persons: repos.persons},
 		Passwords:           passwordVerifier{},
 		PasswordLoginPolicy: passwordLoginPolicy,
@@ -209,25 +210,26 @@ func (d SchoolDirectory) ListActiveSchoolsByID(ctx context.Context, ids []int64)
 	return result, nil
 }
 
-// ListManageableSchoolIDs is the set an organisation-scoped administrator
-// is bounded by: the organisation's live, active schools. An organisation
-// without one leaves them with no account to administer, which is the
-// refusal the account boundary applies.
-func (d SchoolDirectory) ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
-	if d.Schools == nil {
-		return nil, errors.New("school directory is not composed")
+// TraegerMembershipDirectory serves Identity & Access's Träger membership
+// port over Organisation & Tenancy (ADR 0084).
+type TraegerMembershipDirectory struct {
+	Memberships organizationtenancy.TraegerMembershipQuery
+}
+
+// ListAccountTraegerOrganizations returns the Träger the account may sign in to.
+func (d TraegerMembershipDirectory) ListAccountTraegerOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error) {
+	if d.Memberships == nil {
+		return nil, errors.New("the Träger membership directory is not composed")
 	}
-	schools, err := d.Schools.ListSchoolsByOrganization(ctx, organizationID)
+	organizations, err := d.Memberships.ListAccountTraegerOrganizations(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, 0, len(schools))
-	for _, school := range schools {
-		if school.Operational() {
-			ids = append(ids, school.ID)
-		}
+	result := make([]identityaccess.TraegerOrganization, 0, len(organizations))
+	for _, organization := range organizations {
+		result = append(result, identityaccess.TraegerOrganization(organization))
 	}
-	return ids, nil
+	return result, nil
 }
 
 type PersonDirectory struct{ Persons personRows }

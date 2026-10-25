@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -34,9 +35,13 @@ func TestInvitationEmploymentChoice(t *testing.T) {
 			testpkg.OwnTenant(t)
 			db := testpkg.SetupTestDB(t)
 			ctx := testpkg.Ctx(t)
-			env := newInvitationEnv(t, db)
+			// The module queues the invitation mails, so the test can follow
+			// the resent link (#4902).
+			module, err := api.NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.WithAuthTestMailer(testpkg.NewCapturingMailer()))
+			require.NoError(t, err)
+			invitations := module.Invitation
 			former, account := testpkg.CreateTestStaffWithAccount(t, db, "Returning", "Member")
-			_, err := db.ExecContext(ctx, `UPDATE users.staff_employment_profiles SET personnel_number = 'RETURN-01', staff_notes = 'earlier notes' WHERE membership_id = ?`, former.ID)
+			_, err = db.ExecContext(ctx, `UPDATE users.staff_employment_profiles SET personnel_number = 'RETURN-01', staff_notes = 'earlier notes' WHERE membership_id = ?`, former.ID)
 			require.NoError(t, err)
 			_, err = db.ExecContext(ctx, `UPDATE users.staff_school_memberships SET deleted_at = now() WHERE id = ?`, former.ID)
 			require.NoError(t, err)
@@ -46,7 +51,7 @@ func TestInvitationEmploymentChoice(t *testing.T) {
 			require.NoError(t, err)
 			role := testpkg.CreateTestRole(t, db, "returning-member")
 			creator := testpkg.CreateTestAccount(t, db, "return-inviter")
-			invitation, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
+			invitation, err := invitations.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 				Email: account.Email, RoleID: role.ID, CreatedBy: creator.ID,
 				FirstName: testpkg.StrPtr("Returning"), LastName: testpkg.StrPtr("Member"),
 				OperatorGrant: tc.operator, EmploymentAction: action, ActorPermissions: []string{usersManagePermission},
@@ -57,12 +62,14 @@ func TestInvitationEmploymentChoice(t *testing.T) {
 				expected = identityaccess.EmploymentActionResume
 			}
 			require.Equal(t, expected, invitation.EmploymentAction)
-			pending, err := env.service.ListPendingSchoolInvitations(ctx)
+			pending, err := invitations.ListPendingSchoolInvitations(ctx)
 			require.NoError(t, err)
 			require.Len(t, pending, 1)
 			require.Equal(t, expected, pending[0].EmploymentAction)
 			// A resend must not forget the school's decision.
-			require.NoError(t, env.service.ResendSchoolInvitation(ctx, invitation.ID, creator.ID))
+			require.NoError(t, invitations.ResendSchoolInvitation(ctx, invitation.ID, creator.ID))
+			// The resend mails a new link; the previous one stops working (#4902).
+			invitation.Token = mailedLinkToken(t, db, account.Email)
 			if tc.alreadyActive {
 				_, err = db.ExecContext(ctx, `UPDATE users.staff_school_memberships SET deleted_at = NULL WHERE id = ?`, former.ID)
 				require.NoError(t, err)
@@ -72,7 +79,7 @@ func TestInvitationEmploymentChoice(t *testing.T) {
 				_, err = db.ExecContext(ctx, `UPDATE users.staff_employment_profiles SET personnel_number = 'RETURN-01' WHERE membership_id = ?`, other.ID)
 				require.NoError(t, err)
 			}
-			accepted, err := env.service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
+			accepted, err := invitations.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 				Password: invitationPassword, ConfirmPassword: invitationPassword,
 			})
 			require.NoError(t, err)

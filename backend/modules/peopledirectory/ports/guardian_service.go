@@ -16,7 +16,6 @@ var ErrGuardianEmailInUse = errors.New("guardian e-mail is already in use")
 type GuardianInvitationRecord struct {
 	ID                int64
 	TenantID          int64
-	Token             string
 	GuardianProfileID int64
 	CreatedBy         int64
 	ExpiresAt         time.Time

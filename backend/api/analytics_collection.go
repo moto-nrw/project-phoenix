@@ -33,6 +33,15 @@ func analyticsCollectionPolicy(demo bool, reader settings.TenantReader, parents 
 	}
 }
 
+// analyticsConsent binds the account's consent (#4901) to the core-action
+// analytics. An undecided account and a failed lookup count as no consent.
+func analyticsConsent(consent identityaccess.AccountAnalyticsConsent) func(context.Context, int64) bool {
+	return func(ctx context.Context, accountID int64) bool {
+		answer, err := consent.FindAnalyticsConsent(ctx, accountID)
+		return err == nil && answer.Granted != nil && *answer.Granted
+	}
+}
+
 func analyticsRequestActor(r *http.Request) (analytics.Actor, bool) {
 	raw, ok := analytics.VerifiedSessionClaims(r)
 	if !ok {

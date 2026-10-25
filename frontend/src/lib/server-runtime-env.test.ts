@@ -16,6 +16,7 @@ function stubValidRuntimeEnv() {
   vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", "operator.moto-app.de");
   vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.moto-app.de");
   vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", "schule.moto-app.de");
+  vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "traeger.moto-app.de");
   vi.stubEnv("METRICS_BEARER_TOKEN", "test-token-with-enough-length");
 }
 

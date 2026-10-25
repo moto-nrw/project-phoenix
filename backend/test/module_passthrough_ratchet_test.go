@@ -227,6 +227,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091), and by ADR 0073 (one each
 // for modules/communication and modules/schoolcalendar).
 // Raised by ADR 0079: the reachable-children read of modules/communication (+1).
+// Raised by ADR 0104: FindManageableAccount of modules/identityaccess (+1).
 const modulePassthroughOwnerBudgetTotal = 1401
 
 // modulePassthroughOwnerBudgets is the register: module directory →
@@ -237,7 +238,9 @@ const modulePassthroughOwnerBudgetTotal = 1401
 // c49b81c3a9 (2394 in 34 compositions). #4084 carries the compositions that
 // still hold more than construction. Sorted alphabetically so later diffs stay
 // readable. Shrink-only — an entry may fall or go, never rise, and no module
-// gets a new entry.
+// gets a new entry. Raised by ADR 0104: removing the former org branch leaves
+// FindManageableAccount of modules/identityaccess a plain transaction
+// wrapper (+1).
 var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/appointments": 21,
 	"modules/auditlog":     1,

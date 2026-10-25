@@ -4,7 +4,7 @@ import { matchesPathPrefix } from "~/lib/section-navigation";
  * Wer die Anleitung liest. Steht hier und nicht bei den Inhalten, damit die
  * Navigation eine Hilfe-Adresse bauen kann, ohne die Artikeltexte zu laden.
  */
-export type HelpRole = "caregiver" | "lead" | "parent" | "teacher";
+export type HelpRole = "caregiver" | "lead" | "parent" | "teacher" | "traeger";
 
 /** Die drei Einstellungen, die einen Ablauf in der Anleitung veraendern. */
 export interface HelpUrlContext {
@@ -99,6 +99,8 @@ export const HELP_TOPICS = {
   nfcProblem: "nfc-tablet-funktioniert-nicht",
   loginProblem: "anmeldung-funktioniert-nicht",
   errorMessages: "fehlermeldungen",
+  // Eigene Einwilligung zur Nutzungsanalyse (#4901), in allen drei Portalen.
+  analyticsConsent: "nutzungsanalyse-erlauben-oder-ablehnen",
   dataManagement: "datenverwaltung",
   enrollments: "anmeldungen-pruefen",
   settings: "einstellungen-ueberblick",
@@ -196,6 +198,7 @@ export const HELP_TOPICS = {
   // Schritt für Schritt gegen die App geprüft.
   teacherAccess: "zugang-zu-moto-schule-einrichten",
   teacherLogin: "bei-moto-schule-anmelden",
+  traegerLogin: "traeger-anmelden",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",

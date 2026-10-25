@@ -517,7 +517,9 @@ func (s *SchoolInvitation) assignCaregiverRole(ctx context.Context, accountID in
 }
 
 // ResendInvitation extends a still redeemable invitation and queues its mail
-// again; an expired or spent invitation is never revived.
+// again with a new link; an expired or spent invitation is never revived.
+// Only the hash of a token is stored (#4902), so the resend cannot repeat the
+// previous link: it stops working.
 func (s *SchoolInvitation) ResendInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
 	return s.runtime.RunInTx(ctx, func(ctx context.Context) error {
 		now := s.now()
@@ -525,13 +527,15 @@ func (s *SchoolInvitation) ResendInvitation(ctx context.Context, invitationID, a
 		if err != nil {
 			return err
 		}
-		extended, _, err := s.store.ExtendSchoolInvitation(ctx, invitationID, now.Add(s.expiry), now)
+		token := uuid.Must(uuid.NewV4()).String()
+		extended, _, err := s.store.ExtendSchoolInvitation(ctx, invitationID, now.Add(s.expiry), now, token)
 		if err != nil {
 			return failed(opResendInvitation, err)
 		}
 		if !extended {
 			return failed(opResendInvitation, domain.ErrInvitationNotFound)
 		}
+		invitation.Token = token
 		invitation.ExpiresAt = now.Add(s.expiry)
 		// The delivery bookkeeping starts over; the retry count of the previous
 		// attempts is not carried into the new send.

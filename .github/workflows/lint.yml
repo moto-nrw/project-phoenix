@@ -178,6 +178,7 @@ jobs:
       NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
       NEXT_PUBLIC_APP_ENV: test
       NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
+      NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000"
       TENANT_DOMAIN: "localhost"
       NEXT_PUBLIC_TENANT_DOMAIN: "localhost"
       NEXTAUTH_URL: "http://localhost:3000"

@@ -56,6 +56,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/active/visits/transit/assign": [
     "POST tenant /api/active/visits/transit/assign",
   ],
+  "api/analytics-consent": [
+    "GET tenant /analytics-consent/",
+    "PUT tenant /analytics-consent/",
+  ],
   "api/announcement-attachments/[announcementId]/[attachmentId]": [
     "DELETE tenant /api/announcement-attachments/announcementId%2F1/attachmentId%2F1",
   ],
@@ -226,6 +230,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/organizations/[id]/devices": [
     "GET operator /operator/organizations/id%2F1/devices",
   ],
+  "api/operator/provisioning/organizations/[id]/traeger-members": [
+    "GET operator /operator/organizations/id%2F1/traeger-members",
+    "POST operator /operator/organizations/id%2F1/traeger-members",
+  ],
   "api/operator/provisioning/organizations/[id]/persons": [
     "GET operator /operator/organizations/id%2F1/persons",
   ],
@@ -270,6 +278,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/stats": ["GET operator /operator/stats"],
   "api/operator/provisioning/unregistered-tag-scans": [
     "GET operator /operator/unregistered-tag-scans",
+  ],
+  "api/parent/analytics-consent": [
+    "GET parent /analytics-consent/",
+    "PUT parent /analytics-consent/",
   ],
   "api/parent/analytics-policy": ["GET parent /analytics-policy"],
   "api/parent/calendar": ["GET parent /parent/me/calendar"],
@@ -444,6 +456,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school-setup/dismissal": ["PUT tenant /api/school-setup/dismissal"],
   "api/school-setup/steps/[step]": [
     "PUT tenant /api/school-setup/steps/step%2F1",
+  ],
+  "api/school/analytics-consent": [
+    "GET school /analytics-consent/",
+    "PUT school /analytics-consent/",
   ],
   "api/school/analytics-policy": ["GET school /analytics-policy"],
   "api/school/calendar/appointments": [
@@ -994,6 +1010,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/templates/[id]/split": [
     "POST tenant /api/timetable/templates/id%2F1/split",
   ],
+  "api/traeger/schools": ["GET traeger /traeger/schools"],
   "api/work-time-models": [
     "GET tenant /api/work-time-models",
     "POST tenant /api/work-time-models",

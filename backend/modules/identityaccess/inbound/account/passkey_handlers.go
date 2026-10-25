@@ -23,7 +23,6 @@ const headerMotoFrontendOrigin = "X-Moto-Frontend-Origin"
 const (
 	claimScopeTenant       = ""
 	claimScopeTenantLegacy = "tenant"
-	claimScopeOrg          = "org"
 )
 
 var errPasskeyServiceUnavailable = errors.New("passkey service is not configured for this deployment")
@@ -56,7 +55,7 @@ func requireTenantPasskeyClaims(w http.ResponseWriter, r *http.Request) (session
 		return sessiontoken.AppClaims{}, false
 	}
 	switch claims.Scope {
-	case claimScopeTenant, claimScopeTenantLegacy, claimScopeOrg:
+	case claimScopeTenant, claimScopeTenantLegacy:
 		return claims, true
 	default:
 		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))

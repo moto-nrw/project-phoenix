@@ -22,6 +22,7 @@ import {
 } from "~/lib/operator/provisioning-helpers";
 import { EntityHeaderCard } from "~/components/operator/entity-header-card";
 import { BackLink } from "~/components/ui/back-link";
+import { Button } from "~/components/ui/button";
 import { AccountsTable } from "~/components/operator/accounts-table";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
@@ -41,10 +42,13 @@ import { createLogger } from "~/lib/logger";
 import {
   EmptyState,
   PlusIcon,
+  SimpleEmptyState,
 } from "~/app/operator/provisioning/provisioning-shared";
 import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
+import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
+import { TRAEGER_MEMBER_COLUMNS } from "./traeger-member-columns";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
 import {
@@ -68,6 +72,7 @@ const TAB_ITEMS = [
   { id: "konten", label: "Konten" },
   { id: "geraete", label: "Geräte" },
   { id: "personen", label: "Personen" },
+  { id: "traeger-buero", label: "Träger-Büro" },
 ] as const;
 
 type TabId = (typeof TAB_ITEMS)[number]["id"];
@@ -113,6 +118,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     null,
   );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
+  const [assignTraegerOpen, setAssignTraegerOpen] = useState(false);
 
   const currentTabSearch = activeTab === "schulen" ? "" : `?tab=${activeTab}`;
 
@@ -247,6 +253,22 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     { revalidateOnFocus: false, dedupingInterval: 5000 },
   );
 
+  const traegerMembersActive =
+    activeTab === "traeger-buero" && isAuthenticated && organization != null;
+  const {
+    data: traegerMembers,
+    error: traegerMembersError,
+    isLoading: traegerMembersLoading,
+    mutate: mutateTraegerMembers,
+  } = useSWR(
+    traegerMembersActive
+      ? ["operator-org-traeger-members", organization?.id]
+      : null,
+    () =>
+      operatorProvisioningService.listTraegerMembers(organization?.id ?? ""),
+    { revalidateOnFocus: false, dedupingInterval: 5000 },
+  );
+
   const organizationsLoadError = useSwrLoadError(
     organizationsError,
     "die Übersicht des Trägers",
@@ -271,6 +293,12 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     personsError,
     "die Liste der Personen",
     () => void mutateOrgPersons(),
+  );
+
+  const traegerMembersLoadError = useSwrLoadError(
+    traegerMembersError,
+    "die Liste des Träger-Büros",
+    () => void mutateTraegerMembers(),
   );
 
   const handleSchoolClick = useCallback(
@@ -467,6 +495,20 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       );
     }
 
+    if (activeTab === "traeger-buero") {
+      return (
+        <Button
+          type="button"
+          variant="primary"
+          size="compact"
+          onClick={() => setAssignTraegerOpen(true)}
+        >
+          <PlusIcon />
+          Person zuordnen
+        </Button>
+      );
+    }
+
     if (activeTab === "geraete") {
       return (
         <button
@@ -646,8 +688,35 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               />
             )}
           </TabsPrimitive.Content>
+          <TabsPrimitive.Content value="traeger-buero" className="mt-4">
+            <LoadErrorAlert error={traegerMembersLoadError} className="mb-4" />
+            {(traegerMembers === undefined && !traegerMembersLoading) ||
+            traegerMembersError ? null : !traegerMembersLoading &&
+              traegerMembers?.length === 0 ? (
+              <SimpleEmptyState
+                title="Noch niemand im Träger-Büro"
+                description="Noch niemand hat Zugang zum Träger-Portal dieses Trägers."
+              />
+            ) : (
+              <DataTable
+                columns={TRAEGER_MEMBER_COLUMNS}
+                rows={traegerMembers ?? []}
+                getRowKey={(member) => member.accountId}
+                defaultSortKey="email"
+                isLoading={traegerMembersLoading}
+              />
+            )}
+          </TabsPrimitive.Content>
         </Tabs>
       </div>
+
+      <AssignTraegerMemberModal
+        isOpen={assignTraegerOpen}
+        onClose={() => setAssignTraegerOpen(false)}
+        organizationId={organization.id}
+        organizationName={organization.name}
+        onAssigned={() => mutateTraegerMembers()}
+      />
 
       {caregiverAccount && caregiverSchoolContext ? (
         <CaregiverCapabilityModal

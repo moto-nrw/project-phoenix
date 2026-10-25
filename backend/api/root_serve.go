@@ -511,7 +511,7 @@ func composeServeRoot(
 	}
 	registerRuntimeStatsProviders(hub, deliveryDevices.PWAUsage)
 	router := chi.NewRouter()
-	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations))
+	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations), identity)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -566,7 +566,7 @@ func composeServeRoot(
 			}
 			mountPortalRoutes(router, limiters, newAccountResource(db, identity, organizations, services.CaregiverCapability, settings.Service),
 				operator, newParentResource(logger, identity, parent, calendarApp, flows, guardianProfiles, organizations, deliveryDevices, notifications))
-			return nil
+			return mountTraegerPortalRoutes(router, limiters, identity, organizations)
 		},
 	)
 	if err != nil {
