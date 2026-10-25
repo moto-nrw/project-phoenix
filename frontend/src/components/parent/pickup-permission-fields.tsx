@@ -20,12 +20,7 @@ import {
 } from "~/components/ui/signature-pad";
 
 /** Plan-Wochentage 1 = Montag … 5 = Freitag. */
-export const PICKUP_WEEKDAYS = [1, 2, 3, 4, 5] as const;
-
-/** Leer oder alle fünf Tage: an allen Tagen. */
-export function isEveryDay(weekdays: readonly number[]): boolean {
-  return weekdays.length === 0 || weekdays.length === PICKUP_WEEKDAYS.length;
-}
+const PICKUP_WEEKDAYS = [1, 2, 3, 4, 5] as const;
 
 /** Sortiert, ohne Doppelte; alle Tage werden zur leeren Liste. */
 export function normalizeWeekdays(weekdays: readonly number[]): number[] {

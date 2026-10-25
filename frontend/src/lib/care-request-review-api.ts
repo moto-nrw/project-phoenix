@@ -14,7 +14,7 @@ import type { RequestDiffEntry } from "~/lib/messaging-status";
 const logger = createLogger({ component: "CareRequestReviewAPI" });
 
 /** Wochenplan, einzelner Tag oder Abholberechtigung (#4780). */
-export type CareRequestKind =
+type CareRequestKind =
   "weekly_schedule" | "pickup_change" | "pickup_permission";
 
 type CareRequestStatus =
