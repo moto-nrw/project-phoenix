@@ -547,13 +547,9 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 62,
 	// ADR 0087.
-	"internal/devtools/seedapi/marketing_daily_life.go:seedMarketingSessions": 62,
-	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 320,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 62,
-	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentPortalActions": 76,
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 61,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_extras.go:(seedCareExitsStep).Run": 63,
 	// ADR 0087.
@@ -561,7 +557,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_phase_periods.go:seedPhaseSchoolYear": 69,
 	// ADR 0087.
-	"internal/devtools/seedapi/seed_staff_messaging.go:(seedStaffMessagingStep).Run": 107,
+	"internal/devtools/seedapi/seed_staff_messaging.go:(seedStaffMessagingStep).Run": 85,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_staff_notices.go:(seedStaffNoticesStep).Run": 65,
 	// ADR 0087.
@@ -611,7 +607,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0078: the worker composes the Meal Plan whose orders it settles.
 	"roots/owners/root_worker.go:ComposeWorker": 347,
 	"roots/owners/worker.go:NewWorker":          89,
-	// ADR 0087.
 	// ADR 0087.
 	"test/booking_consistency_audit_fixture.go:VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows": 72,
 	// ADR 0087.
