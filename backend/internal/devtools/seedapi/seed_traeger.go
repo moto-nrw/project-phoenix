@@ -204,7 +204,7 @@ func seedHolidayRegistrationPrefill(ctx context.Context, rt *Runtime, token stri
 func seedContributionRules(client *Client, auth AuthRef, today calendar.Date) error {
 	for _, rule := range []map[string]any{
 		{"kind": "sibling", "valid_from": today.String(), "sibling_from_child": 2, "discount_basis_points": 5000},
-		{"kind": "benefits_exemption", "valid_from": today.String(), "note": "Beitragsfrei: Die Familie bezieht Leistungen für Bildung und Teilhabe."},
+		{"kind": "benefits_exemption", "valid_from": today.String(), "note": "Die Familie bezieht Leistungen für Bildung und Teilhabe."},
 	} {
 		if _, err := client.PostWithAuth(auth, "/traeger/contribution-rules/", rule); err != nil {
 			return fmt.Errorf("keep the contribution rules: %w", err)

@@ -285,7 +285,7 @@ export function ContributionRuleModal({
               id="contribution-rule-note"
               name="note"
               label="Vermerk auf dem Beitrag"
-              placeholder="Beitragsfrei: Die Familie bezieht Leistungen für Bildung und Teilhabe."
+              placeholder="Die Familie bezieht Leistungen für Bildung und Teilhabe."
               value={draft.note}
               maxLength={300}
               error={formErrors.fieldError("note") ?? undefined}

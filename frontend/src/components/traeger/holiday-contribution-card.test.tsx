@@ -26,7 +26,8 @@ describe("HolidayContributionCard", () => {
       screen.getByText("Geschwister: 2. Kind, 50 % weniger"),
     ).toBeInTheDocument();
     expect(screen.getByText("-22,50 €")).toBeInTheDocument();
-    expect(screen.getByText("Gesamt: 90,00 €")).toBeInTheDocument();
+    expect(screen.getByText("Gesamt")).toBeInTheDocument();
+    expect(screen.getByText("90,00 €")).toBeInTheDocument();
   });
 
   it("names the day a confirmed contribution was frozen", () => {

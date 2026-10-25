@@ -9,7 +9,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
-import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate } from "~/lib/date-helpers";
 import type {
@@ -122,38 +122,20 @@ export function HolidayRegistrationContribution({
             </Button>
           </div>
         ) : contribution ? (
-          <>
-            {contribution.children.map((child) => (
-              <div key={child.position} className="space-y-2">
-                <p className="font-semibold text-gray-900">
-                  {childName(child.position)}
-                </p>
-                <DataGrid>
-                  {child.lines.map((line, index) => (
-                    <DataField
-                      key={`${line.kind}-${index}`}
-                      label={label(line)}
-                    >
-                      <span className="tabular-nums">
-                        {euro.format(line.amountCents / 100)}
-                      </span>
-                    </DataField>
-                  ))}
-                  <DataField label={t("contributionChildTotal")}>
-                    <span className="font-semibold tabular-nums">
-                      {euro.format(child.totalCents / 100)}
-                    </span>
-                  </DataField>
-                </DataGrid>
-              </div>
-            ))}
-            {contribution.children.length > 1 ? (
-              <p className="font-semibold text-gray-900">
-                {t("contributionTotal")}:{" "}
-                {euro.format(contribution.totalCents / 100)}
-              </p>
-            ) : null}
-          </>
+          <ContributionBreakdown
+            items={contribution.children.map((child) => ({
+              key: String(child.position),
+              name: childName(child.position),
+              lines: child.lines.map((line) => ({
+                label: label(line),
+                amount: euro.format(line.amountCents / 100),
+              })),
+              total: euro.format(child.totalCents / 100),
+            }))}
+            childTotalLabel={t("contributionChildTotal")}
+            totalLabel={t("contributionTotal")}
+            total={euro.format(contribution.totalCents / 100)}
+          />
         ) : (
           <p>{t("contributionLoading")}</p>
         )}

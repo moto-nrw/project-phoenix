@@ -8065,6 +8065,17 @@
       "target_package": "tenant"
     },
     {
+      "id": "parent-billing.behaviour-test.tenant-runtime",
+      "description": "The Elternabrechnung's public contract suite runs its commands inside the Träger transaction of the tenant runtime (ADR 0105, ADR 0115).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "module-behavior-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
       "id": "enrollment.http.tenant-runtime.common",
       "description": "The enrollment routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing, response rendering and the shared error codes, like the other owners' HTTP adapters (#2734).",
       "scopes": [

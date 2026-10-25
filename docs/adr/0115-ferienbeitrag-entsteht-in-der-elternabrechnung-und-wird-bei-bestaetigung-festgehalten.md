@@ -22,7 +22,9 @@ Punkt 5, ADR 0070).
 1. **Owner.** `parent-billing` (`modules/parentbilling`) ist der neunzehnte
    Domain-Owner, wie ADR 0088 beschlossen hat. Er steht in `policy.json`
    (Policy-Epoche 95), in der Liste der Domain-Owner
-   (`backend/internal/architecture/policy.go`, ab Epoche 95), in ADR 0066 §1,
+   (`backend/internal/architecture/policy.go`: genau die achtzehn Domains oder
+   die achtzehn mit `parent-billing`, damit auch die Basis eines Pull Requests
+   gültig bleibt), in ADR 0066 §1,
    in `backend/architecture/README.md` und im Glossar. Seine Tabellen liegen
    im Schema `parent_billing`, tragen `organization_id` und die Träger-Policy
    aus ADR 0105.

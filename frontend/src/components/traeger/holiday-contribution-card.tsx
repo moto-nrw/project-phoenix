@@ -4,7 +4,7 @@
 // Regelkette, vor der Bestätigung als Vorschau, danach festgehalten. Die
 // Karte zeigt nur; bestätigt wird in der Karte „Status“.
 
-import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
@@ -42,37 +42,20 @@ export function HolidayContributionCard({
       title="Ferienbeitrag"
       description={description(contribution, registration)}
     >
-      <div className="space-y-6">
-        {contribution.children.map((child) => (
-          <div key={child.childId || child.position} className="space-y-2">
-            <p className="text-sm font-semibold text-gray-900">
-              {childName(child.childId, child.position)}
-            </p>
-            <DataGrid>
-              {child.lines.map((line, index) => (
-                <DataField
-                  key={`${line.kind}-${index}`}
-                  label={contributionLineLabel(line)}
-                >
-                  <span className="tabular-nums">
-                    {formatEuro(line.amountCents)}
-                  </span>
-                </DataField>
-              ))}
-              <DataField label="Summe">
-                <span className="font-semibold tabular-nums">
-                  {formatEuro(child.totalCents)}
-                </span>
-              </DataField>
-            </DataGrid>
-          </div>
-        ))}
-        {contribution.children.length > 1 ? (
-          <p className="text-sm font-semibold text-gray-900">
-            Gesamt: {formatEuro(contribution.totalCents)}
-          </p>
-        ) : null}
-      </div>
+      <ContributionBreakdown
+        items={contribution.children.map((child) => ({
+          key: child.childId || String(child.position),
+          name: childName(child.childId, child.position),
+          lines: child.lines.map((line) => ({
+            label: contributionLineLabel(line),
+            amount: formatEuro(line.amountCents),
+          })),
+          total: formatEuro(child.totalCents),
+        }))}
+        childTotalLabel="Summe"
+        totalLabel="Gesamt"
+        total={formatEuro(contribution.totalCents)}
+      />
     </SectionCard>
   );
 }

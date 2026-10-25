@@ -438,10 +438,6 @@ func (p *Policy) validateOwners(ownerKinds map[string]bool) (map[string]Owner, e
 	return owners, nil
 }
 
-// parentBillingPolicyEpoch is the policy epoch that adds the domain
-// parent-billing (ADR 0088, #4664).
-const parentBillingPolicyEpoch = 95
-
 // validateCanonicalOwners pins moto's module map from ADRs 0010/0012/0088 and #2580.
 // Evaluator fixtures use independent module paths and their own small maps.
 func (p *Policy) validateCanonicalOwners() error {
@@ -461,10 +457,10 @@ func (p *Policy) validateCanonicalOwners() error {
 		"school-membership", "school-structure", "student-presence",
 		"timetable-activities", "workforce",
 	}
-	// ADR 0088 adds the Elternabrechnung with policy epoch 95 (#4664); an
-	// older policy, such as the base of the pull request that adds it, keeps
-	// the eighteen domains.
-	if p.PolicyEpoch >= parentBillingPolicyEpoch {
+	// ADR 0088 adds the Elternabrechnung (#4664). A policy before it, such as
+	// the base of the pull request that adds it, keeps the eighteen domains;
+	// either map is exact, nothing else is accepted.
+	if slices.ContainsFunc(p.Owners, func(owner Owner) bool { return owner.ID == "parent-billing" && owner.Kind == "domain" }) {
 		domainOwners = append(domainOwners, "parent-billing")
 		slices.Sort(domainOwners)
 	}
