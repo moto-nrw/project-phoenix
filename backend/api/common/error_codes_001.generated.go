@@ -302,10 +302,6 @@ const (
 	CodeTimetableReopenSupervisionChanged              = "timetable.reopen_supervision_changed"
 	CodeTimetableRoomOccupied                          = "timetable.room_occupied"
 	CodeTimetableSeriesEndBeforeStart                  = "timetable.series_end_before_start"
-	CodeTimetableSeriesEndOutsidePeriod                = "timetable.series_end_outside_period"
-	CodeTimetableSickAbsenceScopeLocked                = "timetable.sick_absence_scope_locked"
-	CodeTimetableSlotListDrifted                       = "timetable.slot_list_drifted"
-	CodeTimetableSlotListGroupingInvalid               = "timetable.slot_list_grouping_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -609,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.reopen_supervision_changed":                 "business_rejection",
 	"timetable.room_occupied":                              "business_rejection",
 	"timetable.series_end_before_start":                    "input",
-	"timetable.series_end_outside_period":                  "input",
-	"timetable.sick_absence_scope_locked":                  "business_rejection",
-	"timetable.slot_list_drifted":                          "business_rejection",
-	"timetable.slot_list_grouping_invalid":                 "input",
 }
 
 func init() {
