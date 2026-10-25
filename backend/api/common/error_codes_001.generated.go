@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIdentityMfaSessionRequired                     = "identity.mfa_session_required"
+	CodeIdentityMfaStatusUnavailable                   = "identity.mfa_status_unavailable"
+	CodeIdentityOperatorInvitationInvalid              = "identity.operator_invitation_invalid"
+	CodeIdentityOperatorSelfDeactivation               = "identity.operator_self_deactivation"
 	CodeIdentityPasskeyLoginFailed                     = "identity.passkey_login_failed"
 	CodeIdentityPasskeyNotFound                        = "identity.passkey_not_found"
 	CodeIdentityPasswordMismatch                       = "identity.password_mismatch"
@@ -298,13 +302,13 @@ const (
 	CodeTimetableInstancesRequired                     = "timetable.instances_required"
 	CodeTimetableInvalidTransition                     = "timetable.invalid_transition"
 	CodeTimetableMoveOtherDay                          = "timetable.move_other_day"
-	CodeTimetableMoveSameInstance                      = "timetable.move_same_instance"
-	CodeTimetableNoStaffProfile                        = "timetable.no_staff_profile"
-	CodeTimetableOfferingSourceInactive                = "timetable.offering_source_inactive"
-	CodeTimetableOfferingSourceInvalid                 = "timetable.offering_source_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.mfa_session_required":                        "permission",
+	"identity.mfa_status_unavailable":                      "unavailable",
+	"identity.operator_invitation_invalid":                 "business_rejection",
+	"identity.operator_self_deactivation":                  "business_rejection",
 	"identity.passkey_login_failed":                        "business_rejection",
 	"identity.passkey_not_found":                           "business_rejection",
 	"identity.password_mismatch":                           "input",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.instances_required":                         "input",
 	"timetable.invalid_transition":                         "business_rejection",
 	"timetable.move_other_day":                             "input",
-	"timetable.move_same_instance":                         "input",
-	"timetable.no_staff_profile":                           "permission",
-	"timetable.offering_source_inactive":                   "business_rejection",
-	"timetable.offering_source_invalid":                    "input",
 }
 
 func init() {

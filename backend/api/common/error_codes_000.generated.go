@@ -302,10 +302,6 @@ const (
 	CodeIdentityMfaBlocked                               = "identity.mfa_blocked"
 	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
 	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
-	CodeIdentityMfaSessionRequired                       = "identity.mfa_session_required"
-	CodeIdentityMfaStatusUnavailable                     = "identity.mfa_status_unavailable"
-	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
-	CodeIdentityOperatorSelfDeactivation                 = "identity.operator_self_deactivation"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -609,10 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.mfa_blocked":                                 "unavailable",
 	"identity.mfa_code_invalid":                            "input",
 	"identity.mfa_not_enrolled":                            "business_rejection",
-	"identity.mfa_session_required":                        "permission",
-	"identity.mfa_status_unavailable":                      "unavailable",
-	"identity.operator_invitation_invalid":                 "business_rejection",
-	"identity.operator_self_deactivation":                  "business_rejection",
 }
 
 func init() {
