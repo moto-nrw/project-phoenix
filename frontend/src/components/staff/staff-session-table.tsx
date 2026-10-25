@@ -650,8 +650,9 @@ export function StaffSessionTable({
                 const key = toDateKey(day);
                 const weekKey = isoWeekKey(day);
                 const nextDay = days[dayIndex + 1];
+                const weeklySummary = weeklySummaryByKey?.get(weekKey);
                 const closesWeek =
-                  weeklySummaryByKey !== null &&
+                  weeklySummary !== undefined &&
                   (nextDay === undefined || isoWeekKey(nextDay) !== weekKey);
                 const dow = toIsoDayOfWeek(day);
                 const daySessions = sessionsByDate.get(key) ?? [];
@@ -1210,7 +1211,7 @@ export function StaffSessionTable({
                         day={day}
                         from={from}
                         to={to}
-                        summary={weeklySummaryByKey?.get(weekKey)}
+                        summary={weeklySummary}
                         leadingColumns={showPlan ? 7 : 6}
                       />
                     )}

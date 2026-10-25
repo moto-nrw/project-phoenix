@@ -171,4 +171,14 @@ describe("StaffSessionTable Pausen und Höchstarbeitszeit (#4804)", () => {
     expect(screen.getByText("05.01.")).toBeInTheDocument();
     expect(screen.queryByText(/Summe KW/)).toBeNull();
   });
+
+  it("zeigt bei leeren Wochensummen keine Summenzeile", () => {
+    renderTable({
+      sessions: [session("2026-01-05", 480)],
+      weeklySummaries: [],
+    });
+
+    expect(screen.getByText("05.01.")).toBeInTheDocument();
+    expect(screen.queryByText(/Summe KW/)).toBeNull();
+  });
 });

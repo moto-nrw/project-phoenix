@@ -471,12 +471,13 @@ async function expectInDialog(text: string) {
   ).toBeInTheDocument();
 }
 import { timeTrackingService } from "~/lib/time-tracking-api";
-import type {
-  MonthSummary,
-  WorkSession,
-  WorkDayLaborHint,
-  WorkSessionHistory,
-  StaffAbsence,
+import {
+  OPEN_MONTH_REFRESH_MS,
+  type MonthSummary,
+  type WorkSession,
+  type WorkDayLaborHint,
+  type WorkSessionHistory,
+  type StaffAbsence,
 } from "~/lib/time-tracking-helpers";
 
 // ─── Test Data ──────────────────────────────────────────────────────────────
@@ -1098,6 +1099,33 @@ describe("TimeTrackingPage", () => {
   // ── Active Session (Checked in) ─────────────────────────────────────────
 
   describe("active session - checked in", () => {
+    it("aktualisiert Historie und Tabelle während eines offenen Arbeitsblocks", () => {
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      render(<TimeTrackingPage />);
+
+      const refreshOptionsFor = (matches: (key: string) => boolean) =>
+        vi
+          .mocked(useSWRAuth)
+          .mock.calls.find(
+            ([key]) => typeof key === "string" && matches(key),
+          )?.[2];
+
+      expect(
+        refreshOptionsFor((key) => key.startsWith("time-tracking-history-")),
+      ).toMatchObject({
+        refreshInterval: OPEN_MONTH_REFRESH_MS,
+      });
+      expect(
+        refreshOptionsFor((key) =>
+          /^time-tracking-table-\d{4}-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}$/.test(
+            key,
+          ),
+        ),
+      ).toMatchObject({
+        refreshInterval: OPEN_MONTH_REFRESH_MS,
+      });
+    });
+
     // #4804: the clock shows the server's hints for the running workday and
     // switches at the instants the server named, without thresholds of its own.
     it("shows the 10-hour hint once the server's instant has passed", () => {
