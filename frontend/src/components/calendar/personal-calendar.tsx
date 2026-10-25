@@ -890,7 +890,7 @@ function CalendarTimeGrid({
       </div>
       {hasAllDay ? (
         <div className="flex border-b border-gray-200">
-          <div className="w-16 shrink-0 border-r border-gray-200 px-1 py-2 text-center text-[11px] text-gray-400">
+          <div className="w-16 shrink-0 border-r border-gray-200 px-1 py-2 text-center text-xs text-gray-400">
             Ganztägig
           </div>
           <div className="grid flex-1" style={columnTemplate}>
@@ -918,7 +918,7 @@ function CalendarTimeGrid({
               hour === startHour ? null : (
                 <div
                   key={hour}
-                  className="absolute inset-x-0 -translate-y-1/2 text-center text-[11px] text-gray-400"
+                  className="absolute inset-x-0 -translate-y-1/2 text-center text-xs text-gray-400"
                   style={{ top: (hour - startHour) * HOUR_PX }}
                 >
                   {`${String(hour).padStart(2, "0")}:00`}
@@ -1005,7 +1005,7 @@ function TimeGridDayBody({
               borderColor: `${tone.bar}55`,
             }}
           >
-            <div className="flex flex-wrap items-center gap-1 text-[11px] text-gray-700">
+            <div className="flex flex-wrap items-center gap-1 text-xs text-gray-700">
               <span className="font-semibold text-gray-900">{event.title}</span>
               <span>{eventTime(event)}</span>
             </div>
@@ -1066,17 +1066,15 @@ function TimeGridEventBlock({
       >
         {event.title}
       </div>
-      <div className="truncate text-[11px] text-gray-600">
-        {eventTime(event)}
-      </div>
+      <div className="truncate text-xs text-gray-600">{eventTime(event)}</div>
       {event.location ? (
-        <div className="flex items-center gap-1 text-[11px] text-gray-500">
+        <div className="flex items-center gap-1 text-xs text-gray-500">
           <MotoConceptIcon concept="rooms" size={12} className="shrink-0" />
           <span className="truncate">{event.location}</span>
         </div>
       ) : null}
       {subtitle ? (
-        <div className="truncate text-[11px] text-gray-500">{subtitle}</div>
+        <div className="truncate text-xs text-gray-500">{subtitle}</div>
       ) : null}
     </button>
   );
@@ -1123,19 +1121,17 @@ function AgendaRow({
         : { type: "button", onClick: () => actions.onSelect?.(event) })}
       className={`flex w-full items-center gap-3 px-4 py-3 text-left ${
         readOnly ? "" : "transition-colors hover:bg-gray-50"
-      } ${
-        cancelled ? "opacity-70" : ""
-      }`}
+      } ${cancelled ? "opacity-70" : ""}`}
     >
       <div className="flex w-12 shrink-0 flex-col items-start leading-tight tabular-nums">
         {allDay ? (
-          <span className="text-[11px] font-medium text-gray-400">ganztg.</span>
+          <span className="text-xs font-medium text-gray-400">ganztg.</span>
         ) : (
           <>
             <span className="text-sm font-semibold text-gray-900">
               {event.start_time}
             </span>
-            <span className="text-[11px] text-gray-400">{event.end_time}</span>
+            <span className="text-xs text-gray-400">{event.end_time}</span>
           </>
         )}
       </div>
@@ -1155,7 +1151,7 @@ function AgendaRow({
           </span>
           {badge ? (
             <span
-              className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${badge.cls}`}
+              className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${badge.cls}`}
             >
               {badge.label}
             </span>
@@ -1196,9 +1192,7 @@ function EventPill({
         : { type: "button", onClick: () => actions.onSelect?.(event) })}
       className={`flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left ${
         readOnly ? "" : "transition-[filter] hover:brightness-95"
-      } ${
-        cancelled ? "opacity-70" : ""
-      }`}
+      } ${cancelled ? "opacity-70" : ""}`}
       style={{ backgroundColor: tone.bg }}
     >
       <span
@@ -1214,7 +1208,7 @@ function EventPill({
         {event.title}
       </span>
       {timeLabel ? (
-        <span className="shrink-0 text-[11px] text-gray-500 tabular-nums">
+        <span className="shrink-0 text-xs text-gray-500 tabular-nums">
           {timeLabel}
         </span>
       ) : null}
@@ -1294,7 +1288,7 @@ function CalendarEventDetail({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-1.5">
         <span
-          className="rounded-md px-2 py-0.5 text-[11px] font-semibold text-gray-700"
+          className="rounded-md px-2 py-0.5 text-xs font-semibold text-gray-700"
           style={{ backgroundColor: tone.bg }}
         >
           {tone.label}
@@ -1305,12 +1299,12 @@ function CalendarEventDetail({
           </span>
         ) : null}
         {cancelled ? (
-          <span className="bg-moto-red/10 text-moto-red-strong rounded-md px-2 py-0.5 text-[11px] font-semibold">
+          <span className="bg-moto-red/10 text-moto-red-strong rounded-md px-2 py-0.5 text-xs font-semibold">
             Abgesagt
           </span>
         ) : event.response_status ? (
           <span
-            className={`rounded-md px-2 py-0.5 text-[11px] font-semibold ${
+            className={`rounded-md px-2 py-0.5 text-xs font-semibold ${
               responseTone[event.response_status]
             }`}
           >

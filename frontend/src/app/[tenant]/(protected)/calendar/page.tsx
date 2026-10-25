@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 
@@ -507,7 +507,6 @@ function StaffCalendarPageInner() {
   const {
     data: holidayData,
     error: holidayError,
-    isLoading: holidaysLoading,
     mutate: mutateHolidays,
   } = useSWRAuth<SchoolHolidays>(`school-holidays-${fromISO}-${toISO}`, () =>
     getSchoolHolidays(fromISO, toISO),
@@ -949,8 +948,8 @@ function StaffCalendarPageInner() {
   const calendarEmpty =
     onCalendarTab &&
     !isLoading &&
-    !holidaysLoading &&
     !calendarError &&
+    holidayData !== undefined &&
     !holidayError &&
     eventCount === 0 &&
     holidayCount === 0
@@ -1063,7 +1062,7 @@ function StaffCalendarPageInner() {
               <SlideOverHeader className="flex-row items-start justify-between gap-3">
                 <div className="min-w-0">
                   <SlideOverTitle>
-                    {editingId ? "Termin bearbeiten" : "Termin erstellen"}
+                    {editingId ? "Termin ändern" : "Termin erstellen"}
                   </SlideOverTitle>
                 </div>
                 <SlideOverCloseButton disabled={submitting} />
@@ -1356,7 +1355,7 @@ function StaffCalendarPageInner() {
                               disabled={submitting}
                               aria-label={`${target.label} entfernen`}
                             >
-                              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                              <X className="h-3.5 w-3.5" aria-hidden />
                             </button>
                           </span>
                         ))}
