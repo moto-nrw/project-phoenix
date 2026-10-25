@@ -213,6 +213,8 @@ func TestTraegerHolidayPeriodAcceptsOnlySchoolsOfTheTraeger(t *testing.T) {
 	var refusal holidayErrorBody
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &refusal))
 	assert.Equal(t, "enrollment.holiday_host_school_outside_traeger", refusal.Code)
+	require.Len(t, refusal.Errors, 1)
+	assert.Equal(t, "weeks.1.host_school_id", refusal.Errors[0].Field, "the refusal names the week's host school field")
 
 	rec = traegerJSON(t, router, office.token, http.MethodGet, "/traeger/holiday-periods/", nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

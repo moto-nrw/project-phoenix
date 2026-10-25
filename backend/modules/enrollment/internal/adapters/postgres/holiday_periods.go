@@ -269,10 +269,10 @@ func writeHolidayWeeks(ctx context.Context, db bun.IDB, organizationID, periodID
 	if _, err := db.NewRaw(deleteHolidayWeeksQuery, organizationID, periodID, pgdialect.Array(keep)).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: remove holiday weeks: %w", err)
 	}
-	for _, week := range weeks {
+	for index, week := range weeks {
 		weekID, err := writeHolidayWeek(ctx, db, organizationID, periodID, week)
 		if err != nil {
-			return markHolidayWeekError(err)
+			return markHolidayWeekError(index, err)
 		}
 		if err := writeHolidayTimeModels(ctx, db, organizationID, weekID, week.TimeModels); err != nil {
 			return err
@@ -323,12 +323,12 @@ func writeHolidayTimeModels(ctx context.Context, db bun.IDB, organizationID, wee
 	return nil
 }
 
-// markHolidayWeekError names the refusal of a host school outside the
-// Träger; the database decides it, nothing is pre-checked.
-func markHolidayWeekError(err error) error {
+// markHolidayWeekError names the refused week when its host school is
+// outside the Träger; the database decides it, nothing is pre-checked.
+func markHolidayWeekError(index int, err error) error {
 	var postgresError pgdriver.Error
 	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() && postgresError.Field('n') == holidayHostSchoolConstraint {
-		return &phaseWriteError{err: err, reason: enrollment.ErrHolidayHostSchoolOutsideTraeger}
+		return &enrollment.HolidayHostSchoolRefusal{Week: index, Err: err}
 	}
 	return err
 }

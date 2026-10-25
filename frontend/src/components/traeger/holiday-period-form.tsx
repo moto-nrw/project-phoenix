@@ -27,6 +27,7 @@ import {
   emptyWeek,
   type HolidayPeriodDraft,
   inputFromDraft,
+  MAX_HOLIDAY_WEEKS,
   validateHolidayPeriod,
   type WeekDraft,
 } from "./holiday-period-model";
@@ -260,26 +261,43 @@ export function HolidayPeriodForm({
                   fieldError={fieldError}
                   onChange={(next) => setWeek(index, next)}
                   onDateValidity={weekDateValidity}
-                  onRemove={() =>
+                  onRemove={() => {
+                    // The week's date flags go with it, so a later invalid
+                    // date of another week reports again.
+                    setInvalidDates((current) => {
+                      const prefix = `${week.key}:`;
+                      if (![...current].some((key) => key.startsWith(prefix))) {
+                        return current;
+                      }
+                      return new Set(
+                        [...current].filter((key) => !key.startsWith(prefix)),
+                      );
+                    });
                     setDraft({
                       ...draft,
                       weeks: draft.weeks.filter((_, i) => i !== index),
-                    })
-                  }
+                    });
+                  }}
                 />
               ))
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() =>
-                setDraft({ ...draft, weeks: [...draft.weeks, emptyWeek()] })
-              }
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Woche hinzufügen
-            </Button>
+            {draft.weeks.length < MAX_HOLIDAY_WEEKS ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() =>
+                  setDraft({ ...draft, weeks: [...draft.weeks, emptyWeek()] })
+                }
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Woche hinzufügen
+              </Button>
+            ) : (
+              <p className="text-sm text-gray-600">
+                Ein Ferienzeitraum hat höchstens {MAX_HOLIDAY_WEEKS} Wochen.
+              </p>
+            )}
           </div>
         </SectionCard>
       </fieldset>

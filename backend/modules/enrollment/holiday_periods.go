@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -35,6 +36,22 @@ var (
 	// a week or with a week without a time model.
 	ErrHolidayPeriodIncomplete = errors.New("a holiday period needs weeks with time models before it is published")
 )
+
+// HolidayHostSchoolRefusal names the week, by its position in the written
+// period, whose host school is not an undeleted school of the Träger. It
+// unwraps to ErrHolidayHostSchoolOutsideTraeger.
+type HolidayHostSchoolRefusal struct {
+	Week int
+	Err  error
+}
+
+func (r *HolidayHostSchoolRefusal) Error() string {
+	return fmt.Sprintf("week %d: %v", r.Week+1, r.Err)
+}
+
+func (r *HolidayHostSchoolRefusal) Unwrap() []error {
+	return []error{r.Err, ErrHolidayHostSchoolOutsideTraeger}
+}
 
 // HolidayTimeModel is a bookable care time of one week, such as "bis
 // 13 Uhr", with its price in cent. Times are wall-clock "HH:MM".

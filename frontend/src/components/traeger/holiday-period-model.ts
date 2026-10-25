@@ -42,6 +42,9 @@ export interface HolidayPeriodDraft {
 }
 
 const MAX_WEEK_DAYS = 7;
+/** The backend's limits of one period (holiday_periods.go). */
+export const MAX_HOLIDAY_WEEKS = 26;
+export const MAX_TIME_MODELS_PER_WEEK = 10;
 const MAX_PRICE_CENTS = 1_000_000;
 
 let keySequence = 0;

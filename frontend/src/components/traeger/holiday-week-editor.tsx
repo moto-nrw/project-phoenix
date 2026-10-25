@@ -16,6 +16,7 @@ import { formatDate } from "~/lib/date-helpers";
 import type { TraegerSchool } from "~/lib/traeger-api";
 import {
   emptyTimeModel,
+  MAX_TIME_MODELS_PER_WEEK,
   type TimeModelDraft,
   type WeekDraft,
 } from "./holiday-period-model";
@@ -251,20 +252,26 @@ export function HolidayWeekEditor({
               />
             ))
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() =>
-              onChange({
-                ...week,
-                timeModels: [...week.timeModels, emptyTimeModel()],
-              })
-            }
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Zeitmodell hinzufügen
-          </Button>
+          {week.timeModels.length < MAX_TIME_MODELS_PER_WEEK ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() =>
+                onChange({
+                  ...week,
+                  timeModels: [...week.timeModels, emptyTimeModel()],
+                })
+              }
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Zeitmodell hinzufügen
+            </Button>
+          ) : (
+            <p className="text-sm text-gray-600">
+              Eine Woche hat höchstens {MAX_TIME_MODELS_PER_WEEK} Zeitmodelle.
+            </p>
+          )}
         </div>
       </div>
     </SectionCard>

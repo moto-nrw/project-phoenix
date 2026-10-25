@@ -2,6 +2,7 @@ package enrollmenthttp
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -203,13 +204,15 @@ func (rs *HolidayPeriodResource) publish(w http.ResponseWriter, r *http.Request)
 func renderHolidayPeriodError(w http.ResponseWriter, r *http.Request, err error) {
 	tenant.MarkRollback(r.Context())
 	var fields validation.Errors
+	var refusedHost *capability.HolidayHostSchoolRefusal
 	switch {
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayPeriodInvalid))
 	case errors.Is(err, capability.ErrHolidayPeriodNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayPeriodNotFound))
-	case errors.Is(err, capability.ErrHolidayHostSchoolOutsideTraeger):
-		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayHostSchoolOutsideTraeger, "weeks"))
+	case errors.As(err, &refusedHost):
+		field := fmt.Sprintf("weeks.%d.host_school_id", refusedHost.Week)
+		common.RenderError(w, r, common.ErrorInvalidOnField(err, common.CodeEnrollmentHolidayHostSchoolOutsideTraeger, field))
 	case errors.Is(err, capability.ErrHolidayPeriodIncomplete):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayPeriodIncomplete))
 	default:

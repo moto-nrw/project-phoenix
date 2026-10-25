@@ -206,4 +206,62 @@ describe("HolidayPeriodForm", () => {
       expect(screen.getByLabelText("Name des Ferienzeitraums")).toBeEnabled(),
     );
   });
+
+  it("stops adding time models at the limit of a week", () => {
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={stored}
+          schools={schools}
+          onSaved={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+
+    for (let added = 1; added < 10; added += 1) {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Zeitmodell hinzufügen" }),
+      );
+    }
+
+    expect(
+      screen.getByText("Eine Woche hat höchstens 10 Zeitmodelle."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zeitmodell hinzufügen" }),
+    ).toBeNull();
+  });
+
+  it("forgets the date flags of a removed week", async () => {
+    mockUpdate.mockResolvedValue(stored);
+    const onDirtyChange = vi.fn();
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={stored}
+          schools={schools}
+          onSaved={vi.fn()}
+          onCancel={vi.fn()}
+          onDirtyChange={onDirtyChange}
+        />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Woche hinzufügen" }));
+    const added = screen.getAllByLabelText("Erster Tag")[1]!;
+    fireEvent.change(added, { target: { value: "99.99.9999" } });
+    fireEvent.blur(added);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Woche entfernen" })[1]!,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+
+    // A new invalid date after the save is an unsaved change again.
+    const first = screen.getByLabelText("Erster Tag");
+    fireEvent.change(first, { target: { value: "31.02.2027" } });
+    fireEvent.blur(first);
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
 });
