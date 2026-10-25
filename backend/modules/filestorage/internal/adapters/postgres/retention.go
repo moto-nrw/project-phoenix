@@ -27,7 +27,8 @@ func (s *CleanupRetentionStore) DeleteFinishedFileCleanups(ctx context.Context, 
 		return 0, err
 	}
 	var deleted int64
-	if err := db.NewRaw(`SELECT documents.delete_finished_file_cleanups(?, statement_timestamp() - (? * INTERVAL '1 second'))`, tenantID, window.Seconds()).Scan(ctx, &deleted); err != nil {
+	// The guard subtracts calendar days, not elapsed 24-hour durations.
+	if err := db.NewRaw(`SELECT documents.delete_finished_file_cleanups(?, statement_timestamp() - (? * INTERVAL '1 day'))`, tenantID, window.Hours()/24).Scan(ctx, &deleted); err != nil {
 		return 0, fmt.Errorf("file storage postgres: delete finished file cleanups: %w", err)
 	}
 	return int(deleted), nil
@@ -39,7 +40,7 @@ func (s *CleanupRetentionStore) DeleteFinishedAttachmentCleanups(ctx context.Con
 		return 0, err
 	}
 	var deleted int64
-	if err := db.NewRaw(`SELECT documents.delete_finished_announcement_attachment_cleanups(?, statement_timestamp() - (? * INTERVAL '1 second'))`, tenantID, window.Seconds()).Scan(ctx, &deleted); err != nil {
+	if err := db.NewRaw(`SELECT documents.delete_finished_announcement_attachment_cleanups(?, statement_timestamp() - (? * INTERVAL '1 day'))`, tenantID, window.Hours()/24).Scan(ctx, &deleted); err != nil {
 		return 0, fmt.Errorf("file storage postgres: delete finished attachment cleanups: %w", err)
 	}
 	return int(deleted), nil
@@ -51,7 +52,7 @@ func (s *CleanupRetentionStore) DeleteRemovedFiles(ctx context.Context, window t
 		return 0, err
 	}
 	var deleted int64
-	if err := db.NewRaw(`SELECT documents.delete_removed_files(?, statement_timestamp() - (? * INTERVAL '1 second'))`, tenantID, window.Seconds()).Scan(ctx, &deleted); err != nil {
+	if err := db.NewRaw(`SELECT documents.delete_removed_files(?, statement_timestamp() - (? * INTERVAL '1 day'))`, tenantID, window.Hours()/24).Scan(ctx, &deleted); err != nil {
 		return 0, fmt.Errorf("file storage postgres: delete removed files: %w", err)
 	}
 	return int(deleted), nil
