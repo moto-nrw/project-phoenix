@@ -109,11 +109,13 @@ type SessionClaims struct {
 	IssuedAt      int64
 }
 
-// RefreshClaims is the parsed content of a refresh JWT.
+// RefreshClaims is the parsed content of a refresh JWT. A Träger session
+// (scope org) names its Träger in OrgID and no school.
 type RefreshClaims struct {
 	AccountID int64
 	Token     string
 	TenantID  int64
+	OrgID     int64
 	Scope     string
 	ExpiresAt int64
 }
@@ -173,8 +175,8 @@ func PersistedPortalScope(jwtScope string) string {
 func SessionScopeMatches(scope, portal string) bool {
 	switch portal {
 	case "tenant":
-		return scope == ScopeTenant || scope == "tenant" || scope == ScopeOrg
-	case "platform", "parent", "school":
+		return scope == ScopeTenant || scope == "tenant"
+	case "platform", "parent", "school", ScopeOrg:
 		return scope == portal
 	default:
 		return false

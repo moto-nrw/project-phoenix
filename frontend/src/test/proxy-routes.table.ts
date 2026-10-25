@@ -230,6 +230,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/organizations/[id]/devices": [
     "GET operator /operator/organizations/id%2F1/devices",
   ],
+  "api/operator/provisioning/organizations/[id]/traeger-members": [
+    "GET operator /operator/organizations/id%2F1/traeger-members",
+    "POST operator /operator/organizations/id%2F1/traeger-members",
+  ],
   "api/operator/provisioning/organizations/[id]/persons": [
     "GET operator /operator/organizations/id%2F1/persons",
   ],
@@ -1013,6 +1017,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/templates/[id]/split": [
     "POST tenant /api/timetable/templates/id%2F1/split",
   ],
+  "api/traeger/schools": ["GET traeger /traeger/schools"],
   "api/work-time-models": [
     "GET tenant /api/work-time-models",
     "POST tenant /api/work-time-models",

@@ -303,6 +303,16 @@ type AccountLoginStore interface {
 	// LockAccountPermissionSources pins the direct grants and the role
 	// permissions the effective set derives from.
 	LockAccountPermissionSources(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
+	TraegerRoleStore
+}
+
+// TraegerRoleStore persists the Träger roles (ADR 0084). Every method runs on
+// the caller's administrative transaction.
+type TraegerRoleStore interface {
+	ListTraegerRoles(ctx context.Context, organizationID, accountID int64) ([]string, domain.OperationStats, error)
+	LockLiveTraegerAccount(ctx context.Context, accountID int64) (bool, domain.OperationStats, error)
+	InsertTraegerRole(ctx context.Context, organizationID, accountID int64, role string) (domain.OperationStats, error)
+	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]domain.TraegerAccount, domain.OperationStats, error)
 }
 
 // SchoolDirectory is the consumer-owned port over the Organisation & Tenancy

@@ -4054,6 +4054,12 @@
       "legacy": "timetable.window_too_large"
     },
     {
+      "code": "traeger.no_membership",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "traeger.no_membership"
+    },
+    {
       "code": "workforce.absence_allowance_exceeded",
       "class": "business_rejection",
       "parameters": [],

@@ -12,7 +12,7 @@ func TenantRuntimeRunInTxBinding(ctx context.Context, fn func(context.Context) e
 		return fn(ctx)
 	}
 	scope := tenant.ScopeFromContext(ctx)
-	if tenant.FromContext(ctx) == 0 && (scope == "platform" || (scope == "org" && tenant.OrgFromContext(ctx) > 0)) {
+	if tenant.FromContext(ctx) == 0 && scope == "platform" {
 		return execute1(ctx, fn)
 	}
 	return execute2(ctx, fn)

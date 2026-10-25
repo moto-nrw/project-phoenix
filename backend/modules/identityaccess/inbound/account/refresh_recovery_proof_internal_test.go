@@ -80,3 +80,22 @@ func TestRefreshToken_UnavailableMFAPolicyReturns503(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &problem))
 	assert.Equal(t, "identity.mfa_status_unavailable", problem.Code)
 }
+
+// A Träger session whose membership ended or whose Träger was switched off
+// (#4649) is over: 401, which the frontend turns into a clean logout, not a
+// 500 it would keep retrying.
+type endedTraegerMembershipRefreshStub struct{ AccountSessions }
+
+func (*endedTraegerMembershipRefreshStub) RefreshTokenWithAudit(context.Context, string, string, string, string) (string, string, error) {
+	return "", "", &identityaccess.AuthenticationError{Op: "refresh", Err: fmt.Errorf("Träger session: %w", identityaccess.ErrNoTraegerMembership)}
+}
+
+func TestRefreshToken_EndedTraegerMembershipReturns401(t *testing.T) {
+	t.Parallel()
+	rs := &Resource{Sessions: &endedTraegerMembershipRefreshStub{}}
+	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxRefreshToken, "presented-refresh-token"))
+	rr := httptest.NewRecorder()
+	rs.refreshToken(rr, req)
+	require.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
+}

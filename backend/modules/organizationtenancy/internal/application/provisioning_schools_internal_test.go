@@ -130,6 +130,8 @@ func TestProvisioningCreateSchool(t *testing.T) {
 		// Replies from parents reach the school only through this address (#2872).
 		"missing contact email": func(s *organizationtenancy.CreateSchool) { s.Email = "" },
 		"invalid contact email": func(s *organizationtenancy.CreateSchool) { s.Email = "Schule <info@burbach.test>" },
+		// The Träger-Portal host (#4649) never names a school.
+		"Träger-Portal subdomain": func(s *organizationtenancy.CreateSchool) { s.Subdomain = "traeger" },
 	} {
 		t.Run("rejects "+name+" before reading", func(t *testing.T) {
 			t.Parallel()
