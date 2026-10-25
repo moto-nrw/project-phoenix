@@ -45,7 +45,7 @@ func parentGuardianRelationship(row *peopledirectory.GuardianRelationshipSnapsho
 	if row == nil {
 		return nil, nil
 	}
-	value := &parentportal.GuardianRelationship{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID, StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID, RelationshipType: row.RelationshipType, GuardianRole: row.GuardianRole, IsPrimary: row.IsPrimary, IsEmergencyContact: row.IsEmergencyContact, CanPickup: row.CanPickup, PickupNotes: row.PickupNotes, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer, Permissions: row.Permissions}
+	value := &parentportal.GuardianRelationship{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID, StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID, RelationshipType: row.RelationshipType, GuardianRole: row.GuardianRole, IsPrimary: row.IsPrimary, IsEmergencyContact: row.IsEmergencyContact, CanPickup: row.CanPickup, PickupNotes: row.PickupNotes, PickupWeekdays: row.PickupWeekdays, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer, Permissions: row.Permissions}
 	student, err := parentStudentSnapshot(peopledirectory.StudentSnapshotFromState(row.Student))
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func directoryGuardianRelationship(row *parentportal.GuardianRelationship) *peop
 	if row == nil {
 		return nil
 	}
-	return &peopledirectory.GuardianRelationshipSnapshot{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID, StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID, RelationshipType: row.RelationshipType, GuardianRole: row.GuardianRole, IsPrimary: row.IsPrimary, IsEmergencyContact: row.IsEmergencyContact, CanPickup: row.CanPickup, PickupNotes: row.PickupNotes, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer, Permissions: row.Permissions}
+	return &peopledirectory.GuardianRelationshipSnapshot{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID, StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID, RelationshipType: row.RelationshipType, GuardianRole: row.GuardianRole, IsPrimary: row.IsPrimary, IsEmergencyContact: row.IsEmergencyContact, CanPickup: row.CanPickup, PickupNotes: row.PickupNotes, PickupWeekdays: row.PickupWeekdays, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer, Permissions: row.Permissions}
 }
 
 func parentGuardianRelationshipError(err error) error {

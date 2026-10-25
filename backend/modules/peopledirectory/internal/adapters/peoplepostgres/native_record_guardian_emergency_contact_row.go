@@ -19,6 +19,7 @@ func NativeGuardianEmergencyContactRow(value *models.GuardianEmergencyContactRow
 	result.RelationshipType = value.RelationshipType
 	result.PickupNotes = value.PickupNotes
 	result.CanPickup = value.CanPickup
+	result.PickupWeekdays = value.PickupWeekdays
 	result.IsEmergencyContact = value.IsEmergencyContact
 	return result
 }

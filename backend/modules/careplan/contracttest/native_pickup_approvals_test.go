@@ -49,6 +49,9 @@ func (f *pickupApprovalFixture) EnrolledUntil(context.Context, int64) (*calendar
 func (f *pickupApprovalFixture) CurrentStaffID(context.Context) (int64, bool, error) {
 	return f.staffID, true, f.step("staff")
 }
+func (f *pickupApprovalFixture) ValidatePickupPerson(context.Context, int64, int64) error {
+	return f.step("pickup-person")
+}
 func (f *pickupApprovalFixture) LockStudentAndExceptionDay(context.Context, int64, string) error {
 	return f.step("student-day-lock")
 }
@@ -80,6 +83,10 @@ func (f *pickupApprovalFixture) FindDepartureForDate(context.Context, int64, cal
 func (f *pickupApprovalFixture) SaveDeparture(_ context.Context, row careplan.DepartureException) (int64, error) {
 	f.writtenDeparture = &row
 	return f.departureID, f.step("save-departure")
+}
+
+func (f *pickupApprovalFixture) CreateNote(context.Context, careplan.PickupNote) (int64, error) {
+	return 0, f.step("save-note")
 }
 
 func newPickupApprovalFixture(t *testing.T) *pickupApprovalFixture {

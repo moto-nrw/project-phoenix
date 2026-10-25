@@ -94,7 +94,27 @@ func (s *PickupApprovals) applyLegs(ctx context.Context, input carerequests.Pick
 		}
 		applied.DepartureExceptionID = id
 	}
+	if change.PickupPerson != nil {
+		if err := s.People.ValidatePickupPerson(ctx, input.StudentID, change.PickupPerson.GuardianProfileID); err != nil {
+			return applied, err
+		}
+		id, err := s.Exceptions.CreateNote(ctx, careplan.PickupNote{
+			TenantID: input.TenantID, StudentID: input.StudentID, NoteDate: careplan.Date(change.Date),
+			Content: DayCollectorNote(change.PickupPerson.Name), CreatedBy: staffID,
+		})
+		if err != nil {
+			return applied, fmt.Errorf("schedule: save approved day collector: %w", err)
+		}
+		applied.PickupNoteID = id
+	}
 	return applied, nil
+}
+
+// DayCollectorNote is the dated pickup note of an approved one-day collector
+// (#4780). The note shows wherever the OGS sees the day's pickup: the child
+// profile, the group view, the supervision and the day lists.
+func DayCollectorNote(name string) string {
+	return "Abholung durch " + name + " (Erlaubnis der Eltern)"
 }
 
 // saveApprovedDeparture writes the requested Abholart of the day. A value the

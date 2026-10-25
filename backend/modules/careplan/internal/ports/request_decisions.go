@@ -23,6 +23,9 @@ type RequestDecisionPlans interface {
 	Snapshot(context.Context, *carerequests.Request) *carerequests.DecisionSnapshot
 	ApplyWeekly(context.Context, *carerequests.Request, int64) (bool, error)
 	ApplyPickup(context.Context, *carerequests.Request, *string, bool) (carerequests.PickupApplied, error)
+	// ApplyPickupPermission grants the pickup permission of an approved
+	// pickup permission request (#4780).
+	ApplyPickupPermission(context.Context, *carerequests.Request) error
 }
 
 type RequestDecisionEffects interface {

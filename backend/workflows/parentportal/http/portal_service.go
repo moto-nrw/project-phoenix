@@ -137,6 +137,20 @@ type PortalService interface {
 	SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime *time.Time, reason string) (*parentService.CareException, error)
 	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, departureMode, reason string, recipientGuardianProfileIDs []int64) (*parentService.PickupChangeRequest, error)
 	ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]parentService.PickupChangeRequest, error)
+	// SubmitPickupChange and EditPickupChange carry the one-day collector and
+	// the signature a collector or walking home alone needs (#4780).
+	SubmitPickupChange(ctx context.Context, accountID, studentID int64, submission parentService.PickupChangeSubmission) (*parentService.PickupChangeRequest, error)
+	EditPickupChange(ctx context.Context, accountID, studentID, requestID int64, edit parentService.PickupChangeEdit) (*parentService.PickupChangeRequest, error)
+	// CreateSignedCareScheduleRequest and EditSignedCareScheduleRequest carry
+	// the signature a weekday the child walks home alone needs (#4780).
+	CreateSignedCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any, signature *parentService.PickupSignatureInput) (*parentService.ChildCareSchedule, error)
+	EditSignedCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64, payload map[string]any, expectedVersion string, signature *parentService.PickupSignatureInput) (*parentService.ChildCareSchedule, error)
+	// Pickup permission requests and the proof of a signed request (#4780).
+	PickupSignatureStatement(ctx context.Context, accountID, studentID int64, input parentService.PickupSignatureStatementInput) (string, error)
+	SubmitPickupPermissionRequest(ctx context.Context, accountID, studentID, guardianProfileID int64, input parentService.PickupPermissionInput) (*parentService.PickupChangeRequest, error)
+	SubmitPickupPermissionRequestWithRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input parentService.PickupPermissionInput, relationship parentService.GuardianRelationshipInput) (*parentService.PickupChangeRequest, error)
+	ListPickupPermissionRequests(ctx context.Context, accountID, studentID int64) ([]parentService.PickupChangeRequest, error)
+	PickupRequestProof(ctx context.Context, accountID, studentID, requestID int64) (*parentService.PickupProof, error)
 
 	// ListCareExceptions returns the merged pickup/arrival exceptions for the
 	// child in [from, to], including staff-authored ones (flagged via Source)

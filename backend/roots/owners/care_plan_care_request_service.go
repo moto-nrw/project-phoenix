@@ -33,6 +33,15 @@ type CareScheduleRequestService struct {
 	StudentAudit      requestStudentAudit
 	Logger            *slog.Logger
 	ReviewPolicy      RequestReviewPolicy
+	// PickupPermissionCommands writes the frozen previous permission when a
+	// correction reverts an approved pickup permission request (#4780).
+	PickupPermissionCommands careplan.GuardianPickupPermissions
+	// PickupPermissionApprovals coordinates the locked People Directory contact
+	// check and Care Plan write of an approved pickup permission request.
+	carerequests.PickupPermissionApprovals
+	// PickupPermissions serves the pickup permission requests from the native
+	// submissions and reads (#4780).
+	carerequests.PickupPermissions
 	// permissions reads the permissions of the request claims the review
 	// policy decides on.
 	Permissions func(context.Context) []string
@@ -49,6 +58,9 @@ type careRequestOptions struct {
 	// shares answers who the parent explicitly shared a request with; nil
 	// means nobody was, so every co-guardian gets the neutral line.
 	shares eventContract.ShareVisibilityResolver
+	// service applies settings that bind further collaborators to the built
+	// service, like the pickup permission commands (#4780).
+	service []func(*CareScheduleRequestService)
 }
 
 // CareRequestOption configures an optional collaborator of the care request
@@ -59,6 +71,22 @@ type CareRequestOption func(*careRequestOptions)
 // Without it the service reads the Berlin wall clock.
 func WithCareRequestToday(today func() timezone.Date) CareRequestOption {
 	return func(o *careRequestOptions) { o.today = today }
+}
+
+// WithPickupPermissions wires Care Plan's pickup permission commands an
+// approved pickup permission request writes through (#4780).
+func WithPickupPermissions(permissions careplan.GuardianPickupPermissions) CareRequestOption {
+	return func(o *careRequestOptions) {
+		o.service = append(o.service, func(s *CareScheduleRequestService) { s.PickupPermissionCommands = permissions })
+	}
+}
+
+// WithPickupPermissionApprovals wires the review workflow's contact guard. It
+// shares the request decision's tenant unit.
+func WithPickupPermissionApprovals(approvals carerequests.PickupPermissionApprovals) CareRequestOption {
+	return func(o *careRequestOptions) {
+		o.service = append(o.service, func(s *CareScheduleRequestService) { s.PickupPermissionApprovals = approvals })
+	}
 }
 
 // WithRequestShareVisibility wires the sharing resolver Care Plan's
@@ -125,6 +153,9 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		UserContext: userContext, StudentAudit: studentAudit, Logger: logger,
 		ReviewPolicy: reviewPolicy, Permissions: permissions, Today: config.today,
 	}
+	for _, apply := range config.service {
+		apply(svc)
+	}
 	ledger := NewParentRequestLedger(events)
 	messenger, effects, err := newCareRequestEffects(svc, emitter, broadcaster, ledger, config.shares)
 	if err != nil {
@@ -135,6 +166,10 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		panic(err)
 	}
 	svc.Requests = requests
+	svc.PickupPermissions = struct {
+		carerequests.Submissions
+		carerequests.Reads
+	}{requests.submissions, requests.reads}
 	return svc
 }
 

@@ -42,6 +42,9 @@ func (s *ScheduleReviews) pickupDiff(ctx context.Context, row *careplan.CareSche
 		return nil, fmt.Errorf("invalid care request payload")
 	}
 	change := carerequests.PickupChange{Date: terms.Date, DepartureMode: terms.DepartureMode}
+	if terms.PickupPersonName != "" {
+		change.PickupPerson = &carerequests.PickupPerson{Name: terms.PickupPersonName}
+	}
 	old := ""
 	if terms.PickupTime != "" {
 		clock, err := time.Parse("15:04", terms.PickupTime)
@@ -57,6 +60,23 @@ func (s *ScheduleReviews) pickupDiff(ctx context.Context, row *careplan.CareSche
 	}
 	// An Abholart-only request touches no block, so it carries no impact.
 	return carerequests.PickupChangeEntries(change, old, terms.PreviousDepartureModes), nil
+}
+
+// permissionDiff is the diff of a pickup permission request (#4780): the
+// person's days before (recorded at submission) and the days asked for.
+func permissionDiff(row *careplan.CareScheduleChangeRequest, item *careplan.CareScheduleReviewItem) ([]careplan.CareRequestDiffEntry, error) {
+	permission, err := carerequests.ParsePickupPermission(row.Payload)
+	if err != nil {
+		return nil, err
+	}
+	if reason := strings.TrimSpace(permission.Reason); reason != "" {
+		item.Reason = &reason
+	}
+	var payload struct {
+		Previous string `json:"previous_label"`
+	}
+	_ = json.Unmarshal(row.Payload, &payload)
+	return carerequests.PickupPermissionEntries(permission, payload.Previous), nil
 }
 
 func (s *ScheduleReviews) previewPickupImpact(ctx context.Context, row *careplan.CareScheduleChangeRequest, student careplan.ReviewStudent, date careplan.Date, clock time.Time, item *careplan.CareScheduleReviewItem) {

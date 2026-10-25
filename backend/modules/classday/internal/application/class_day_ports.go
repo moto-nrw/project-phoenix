@@ -115,6 +115,7 @@ type EmergencyContactRow struct {
 	PickupNotes        string
 	PhoneNumber        string
 	CanPickup          bool
+	PickupWeekdays     []int
 	IsEmergencyContact bool
 }
 

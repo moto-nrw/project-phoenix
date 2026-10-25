@@ -25,6 +25,7 @@ type GuardianRelationshipSnapshot struct {
 	IsEmergencyContact bool            `json:"is_emergency_contact"`
 	CanPickup          bool            `json:"can_pickup"`
 	PickupNotes        *string         `json:"pickup_notes,omitempty"`
+	PickupWeekdays     []int           `json:"pickup_weekdays,omitempty"`
 	EmergencyPriority  int             `json:"emergency_priority"`
 	IsPayer            bool            `json:"is_payer"`
 	Permissions        json.RawMessage `json:"permissions,omitempty"`

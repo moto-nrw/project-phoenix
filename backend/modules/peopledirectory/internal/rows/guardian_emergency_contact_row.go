@@ -17,5 +17,6 @@ type GuardianEmergencyContactRow struct {
 	RelationshipType   *string `bun:"relationship_type"`
 	PickupNotes        *string `bun:"pickup_notes"`
 	CanPickup          bool    `bun:"can_pickup"`
+	PickupWeekdays     []int   `bun:"pickup_weekdays,array"`
 	IsEmergencyContact bool    `bun:"is_emergency_contact"`
 }

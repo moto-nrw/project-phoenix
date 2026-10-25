@@ -2394,6 +2394,12 @@
         "photo_consent_not_withdrawn": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "pickup_change_cutoff_passed": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "pickup_change_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+        "pickup_permission_request_required": "Eine neue Abholerlaubnis braucht Ihre Unterschrift. Die OGS bestätigt sie dann.",
+        "pickup_permission_unchanged": "Diese Person darf an diesen Tagen schon abholen.",
+        "pickup_person_not_linked": "Diese Person ist kein Kontakt Ihres Kindes. Bitte tragen Sie sie zuerst bei den Kontakten ein.",
+        "pickup_proof_not_found": "Zu dieser Anfrage gibt es keinen Nachweis mit Ihrer Unterschrift.",
+        "pickup_signature_invalid": "Die Unterschrift ist nicht lesbar. Bitte unterschreiben Sie noch einmal.",
+        "pickup_signature_required": "Bitte unterschreiben Sie die Erlaubnis und bestätigen Sie die Unterschrift.",
         "poll_closed": "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
         "primary_guardian_protected": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "remove_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
@@ -2828,6 +2834,8 @@
         "pickup_change_conflict": "Für diesen Tag hat die OGS schon etwas eingetragen. Bitte prüfen Sie den Tag.",
         "pickup_change_expired": "Der Tag liegt in der Vergangenheit. Bitte lehnen Sie {object} ab.",
         "pickup_change_impact_changed": "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu.",
+        "pickup_permission_contact_gone": "Die Person ist nicht mehr als Kontakt des Kindes eingetragen. Bitte lehnen Sie die Anfrage ab.",
+        "pickup_proof_not_found": "Zu dieser Anfrage gibt es keine Unterschrift.",
         "pickup_reset_requires_offering": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
         "reason_required": "Für {object} fehlt eine Begründung. Bitte tragen Sie eine ein.",
         "request_not_decided": "{object} ist noch nicht entschieden. Bitte entscheiden Sie zuerst.",
@@ -3151,6 +3159,54 @@
     "title": "Die Seite konnte nicht angezeigt werden",
     "object": "die Seite",
     "home": "Zur Startseite"
+  },
+  "parentPickupPermission": {
+    "days": {
+      "label": "An welchen Tagen?",
+      "all": "An allen Tagen",
+      "some": "Nur an bestimmten Tagen",
+      "pickOne": "Bitte wählen Sie mindestens einen Tag."
+    },
+    "weekday": {
+      "1": "Mo",
+      "2": "Di",
+      "3": "Mi",
+      "4": "Do",
+      "5": "Fr"
+    },
+    "weekdayLong": {
+      "1": "Montag",
+      "2": "Dienstag",
+      "3": "Mittwoch",
+      "4": "Donnerstag",
+      "5": "Freitag"
+    },
+    "signature": {
+      "title": "Ihre Erlaubnis",
+      "procedure": "Sie unterschreiben als einfache elektronische Signatur mit gezeichneter Unterschrift.",
+      "missing": "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“."
+    },
+    "statement": {
+      "permissionAll": "Ich erlaube, dass {person} das Kind an allen Tagen von der OGS abholt.",
+      "permissionSome": "Ich erlaube, dass {person} das Kind an diesen Tagen von der OGS abholt: {days}.",
+      "day": "Ich erlaube, dass {person} das Kind am {date} von der OGS abholt.",
+      "aloneDay": "Ich erlaube, dass das Kind am {date} allein nach Hause geht.",
+      "aloneWeekly": "Ich erlaube, dass das Kind an diesen Tagen allein nach Hause geht: {days}."
+    },
+    "waitsForOgs": "Die OGS bestätigt die Erlaubnis. Bis dahin gilt sie noch nicht.",
+    "pendingBadge": "Wartet auf die OGS",
+    "pending": "Wartet auf die OGS: {days}",
+    "onlyDays": "Nur {days}",
+    "requestSent": "Ihre Anfrage ist bei der OGS. Sie sehen hier, wenn sie bestätigt ist.",
+    "proofPdf": "Nachweis (PDF)",
+    "errorObjectProof": "Der Nachweis",
+    "errorObjectRequest": "Die Abholerlaubnis",
+    "pickupPerson": {
+      "label": "Wer holt ab?",
+      "none": "Wie immer",
+      "hint": "Nur Personen, die Sie bei den Kontakten eingetragen haben.",
+      "manageLink": "Neue Person bei den Kontakten eintragen"
+    }
   },
   "surveyForm": {
     "anonymousTitle": "Anonym",

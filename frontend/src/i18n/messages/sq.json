@@ -2394,6 +2394,12 @@
         "photo_consent_not_withdrawn": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_change_cutoff_passed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_change_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+        "pickup_permission_request_required": "Një leje e re për marrjen e fëmijës kërkon nënshkrimin tuaj. Pastaj OGS e konfirmon.",
+        "pickup_permission_unchanged": "Ky person e merr tashmë fëmijën në këto ditë.",
+        "pickup_person_not_linked": "Ky person nuk është kontakt i fëmijës suaj. Ju lutemi shtojeni fillimisht te kontaktet.",
+        "pickup_proof_not_found": "Për këtë kërkesë nuk ka dëshmi me nënshkrimin tuaj.",
+        "pickup_signature_invalid": "Nënshkrimi nuk lexohet. Ju lutemi nënshkruani përsëri.",
+        "pickup_signature_required": "Ju lutemi nënshkruani lejen dhe konfirmoni nënshkrimin.",
         "poll_closed": "Nuk është më i hapur: {object}. Pyetni personin tuaj të kontaktit.",
         "primary_guardian_protected": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "remove_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
@@ -2828,6 +2834,8 @@
         "pickup_change_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_change_expired": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "pickup_change_impact_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "pickup_permission_contact_gone": "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
+        "pickup_proof_not_found": "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
         "pickup_reset_requires_offering": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "reason_required": "Mungon arsyeja: {object}. Ju lutemi shkruani një.",
         "request_not_decided": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -3151,6 +3159,54 @@
     "title": "Faqja nuk mund të shfaqej",
     "object": "faqja",
     "home": "Te faqja kryesore"
+  },
+  "parentPickupPermission": {
+    "days": {
+      "label": "Në cilat ditë?",
+      "all": "Çdo ditë",
+      "some": "Vetëm në ditë të caktuara",
+      "pickOne": "Ju lutemi zgjidhni të paktën një ditë."
+    },
+    "weekday": {
+      "1": "Hën",
+      "2": "Mar",
+      "3": "Mër",
+      "4": "Enj",
+      "5": "Pre"
+    },
+    "weekdayLong": {
+      "1": "e hënë",
+      "2": "e martë",
+      "3": "e mërkurë",
+      "4": "e enjte",
+      "5": "e premte"
+    },
+    "signature": {
+      "title": "Leja juaj",
+      "procedure": "Ju nënshkruani me një nënshkrim të thjeshtë elektronik me nënshkrim të vizatuar.",
+      "missing": "Ju lutemi nënshkruani dhe prekni „Konfirmo nënshkrimin“."
+    },
+    "statement": {
+      "permissionAll": "Unë lejoj që {person} ta marrë fëmijën nga OGS çdo ditë.",
+      "permissionSome": "Unë lejoj që {person} ta marrë fëmijën nga OGS në këto ditë: {days}.",
+      "day": "Unë lejoj që {person} ta marrë fëmijën nga OGS më {date}.",
+      "aloneDay": "Unë lejoj që fëmija të shkojë vetëm në shtëpi më {date}.",
+      "aloneWeekly": "Unë lejoj që fëmija të shkojë vetëm në shtëpi në këto ditë: {days}."
+    },
+    "waitsForOgs": "OGS e konfirmon lejen. Deri atëherë ajo nuk vlen.",
+    "pendingBadge": "Në pritje të OGS",
+    "pending": "Në pritje të OGS: {days}",
+    "onlyDays": "Vetëm {days}",
+    "requestSent": "Kërkesa juaj është te OGS. Këtu do të shihni kur të konfirmohet.",
+    "proofPdf": "Dëshmia (PDF)",
+    "errorObjectProof": "Dëshmia",
+    "errorObjectRequest": "Leja për marrjen e fëmijës",
+    "pickupPerson": {
+      "label": "Kush e merr?",
+      "none": "Si zakonisht",
+      "hint": "Vetëm personat që i keni shtuar te kontaktet.",
+      "manageLink": "Shtoni një person të ri te kontaktet"
+    }
   },
   "surveyForm": {
     "anonymousTitle": "Anonim",

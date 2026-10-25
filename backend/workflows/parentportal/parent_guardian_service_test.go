@@ -84,6 +84,26 @@ func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSee
 	return profile.ID
 }
 
+// linkPickupContact is linkContactOnlyGuardian for a contact that already
+// holds the pickup permission. Since #4780 a parent grants it only through a
+// signed request the OGS confirms, so the fixture writes it directly.
+func linkPickupContact(t *testing.T, db *bun.DB, studentID int64, emailSeed string) int64 {
+	t.Helper()
+	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
+	ctx := testpkg.Ctx(t)
+	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
+	link := &peopledirectory.GuardianLinkFixture{
+		StudentID:         studentID,
+		GuardianProfileID: profile.ID,
+		RelationshipType:  "relative",
+		CanPickup:         true,
+		EmergencyPriority: 2,
+	}
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repos.CreateGuardianLinkFixture, link))
+	return profile.ID
+}
+
 func TestListChildGuardians_ReturnsDetailAndCapabilities(t *testing.T) {
 	t.Parallel()
 
@@ -134,8 +154,10 @@ func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
 				{PhoneNumber: "0151 12345678", PhoneType: "mobile", IsPrimary: true},
 			},
 		},
-		RelationshipType:   "relative",
-		CanPickup:          true,
+		RelationshipType: "relative",
+		// Since #4780 the pickup permission of a new contact is a signed
+		// request the OGS confirms (TestCreateGuardianContact_PickupBecomesSignedRequest);
+		// the contact itself is created without it.
 		IsEmergencyContact: true,
 		PickupNotes:        ptr("Bitte Ausweis mitbringen"),
 	})
@@ -143,7 +165,7 @@ func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
 	require.NotNil(t, created)
 
 	assert.False(t, created.HasAccount)
-	assert.True(t, created.CanPickup)
+	assert.False(t, created.CanPickup)
 	assert.True(t, created.IsEmergencyContact)
 	assert.Equal(t, "Bitte Ausweis mitbringen", created.PickupNotes)
 	require.Len(t, created.Phones, 1)
@@ -153,7 +175,10 @@ func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
 		Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, created.GuardianProfileID).
 		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &role)
 	require.NoError(t, err)
-	assert.Equal(t, "pickup_only", role)
+	// Without a pickup permission the emergency contact role applies; a
+	// contact created with a pickup request keeps pickup_only
+	// (TestCreateGuardianContact_PickupBecomesSignedRequest, #4780).
+	assert.Equal(t, "emergency_contact", role)
 }
 
 func TestCreateGuardianContact_RequiresPickupPermissionForFlags(t *testing.T) {
@@ -417,17 +442,25 @@ func TestUpdateGuardianRelationship_PickupManageGate(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	contactID := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-pickup")
+	contactID := linkPickupContact(t, db, chain.StudentID, "oma-pickup")
 
-	// The chain's primary guardian HAS pickup.manage → may set can_pickup.
-	canPickup := true
+	// The chain's primary guardian HAS pickup.manage → may take can_pickup
+	// away directly (granting it is a signed request since #4780).
+	canPickup := false
 	updated, err := svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
 		CanPickup:   &canPickup,
 		PickupNotes: ptr("Kommt mit dem Fahrrad"),
 	})
 	require.NoError(t, err)
-	assert.True(t, updated.CanPickup)
+	assert.False(t, updated.CanPickup)
 	assert.Equal(t, "Kommt mit dem Fahrrad", updated.PickupNotes)
+
+	// ...but may not grant it directly.
+	grant := true
+	_, err = svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
+		CanPickup: &grant,
+	})
+	require.ErrorIs(t, err, parentService.ErrPickupPermissionRequestRequired)
 
 	// A caller WITH guardian.edit but WITHOUT pickup.manage may NOT flip the flag.
 	editorID := linkAccountGuardian(t, db, chain.StudentID, "editor-parent", map[string]interface{}{
@@ -464,13 +497,12 @@ func TestUpdateGuardianRelationship_NoteOnlyEditLeavesFlagsUntouched(t *testing.
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	contactID := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-noteonly")
-
-	// The chain primary (pickup.manage) raises both safety flags on the helper.
-	canPickup := true
+	// The helper holds the pickup permission (granted through a confirmed
+	// request since #4780); the chain primary (pickup.manage) raises the
+	// emergency flag on top.
+	contactID := linkPickupContact(t, db, chain.StudentID, "oma-noteonly")
 	emergency := true
 	_, err := svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
-		CanPickup:          &canPickup,
 		IsEmergencyContact: &emergency,
 	})
 	require.NoError(t, err)
@@ -501,7 +533,7 @@ func TestUpdateGuardianRelationship_PickupManageWithoutEditFlipsFlags(t *testing
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	contactID := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-manage-only")
+	contactID := linkPickupContact(t, db, chain.StudentID, "oma-manage-only")
 
 	// A guardian holding pickup.manage but NOT guardian.edit. ListChildGuardians
 	// advertises can_manage_pickup for them, so the write must honor it instead of
@@ -532,12 +564,13 @@ func TestUpdateGuardianRelationship_PickupManageWithoutEditFlipsFlags(t *testing
 	assert.False(t, helper.CanEditContact, "no guardian.edit -> contact not editable")
 	assert.False(t, self.CanManagePickup, "account holder cannot manage own pickup flags")
 
-	canPickup := true
+	// Taking the permission away is the direct flag edit left since #4780.
+	canPickup := false
 	updated, err := svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), managerAccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
 		CanPickup: &canPickup,
 	})
 	require.NoError(t, err)
-	assert.True(t, updated.CanPickup)
+	assert.False(t, updated.CanPickup)
 
 	// ...but without guardian.edit the same caller may NOT touch the pickup note.
 	_, err = svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), managerAccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
@@ -595,11 +628,12 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	contactID := linkContactOnlyGuardian(t, db, chain.StudentID, "oma-audit")
+	contactID := linkPickupContact(t, db, chain.StudentID, "oma-audit")
 	// Clean audit rows explicitly (belt-and-suspenders; the student/guardian FKs
 	// also cascade, and actor_account_id is ON DELETE SET NULL).
 
-	canPickup := true
+	// Taking the permission away is the direct flag edit left since #4780.
+	canPickup := false
 	_, err := svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, contactID, parentService.GuardianRelationshipInput{
 		CanPickup: &canPickup,
 	})
@@ -611,9 +645,9 @@ func TestUpdateGuardianRelationship_WritesPickupAuditRow(t *testing.T) {
 	assert.Equal(t, "pickup", rows[0].ChangeType)
 	assert.Equal(t, "can_pickup", rows[0].FieldName)
 	require.NotNil(t, rows[0].OldValue)
-	assert.Equal(t, "false", *rows[0].OldValue)
+	assert.Equal(t, "true", *rows[0].OldValue)
 	require.NotNil(t, rows[0].NewValue)
-	assert.Equal(t, "true", *rows[0].NewValue)
+	assert.Equal(t, "false", *rows[0].NewValue)
 	require.NotNil(t, rows[0].ActorAccountID)
 	assert.Equal(t, chain.AccountID, *rows[0].ActorAccountID)
 	assert.Equal(t, contactID, rows[0].GuardianProfileID)

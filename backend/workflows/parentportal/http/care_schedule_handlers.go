@@ -72,6 +72,9 @@ type CareRequestDiffResponse struct {
 // CareScheduleRequestBody is the wire shape for POST .../care-schedule/requests.
 type CareScheduleRequestBody struct {
 	Payload map[string]any `json:"payload"`
+	// Signature is needed when a weekday lets the child walk home alone
+	// (#4780).
+	Signature *declarationSignatureRequest `json:"signature,omitempty"`
 }
 
 func toCareRequestDiffResponses(entries []parentService.CareRequestDiffEntry) []CareRequestDiffResponse {
@@ -160,7 +163,7 @@ func (rs *Resource) createCareScheduleRequest(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	view, err := rs.ParentService.CreateCareScheduleRequest(r.Context(), accountID, studentID, body.Payload)
+	view, err := rs.ParentService.CreateSignedCareScheduleRequest(r.Context(), accountID, studentID, body.Payload, body.Signature.pickupInput())
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return

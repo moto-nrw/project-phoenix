@@ -26,7 +26,7 @@ func (e requestConstraintFixture) Field(field byte) string {
 
 func TestRequestConflictClassificationPreservesWrappedDriverFields(t *testing.T) {
 	t.Parallel()
-	for _, name := range []string{"uniq_care_schedule_change_requests_pending", "uniq_care_schedule_change_requests_pending_pickup_date"} {
+	for _, name := range []string{"uniq_care_schedule_change_requests_pending", "uniq_care_schedule_change_requests_pending_pickup_date", "uniq_care_schedule_change_requests_pending_pickup_permission"} {
 		err := fmt.Errorf("request write: %w", requestConstraintFixture{"23505", name})
 		assert.True(t, IsPendingCareScheduleConflict(err))
 	}

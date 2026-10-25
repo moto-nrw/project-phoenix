@@ -18,10 +18,13 @@ type GuardianRelationship struct {
 	IsEmergencyContact bool
 	CanPickup          bool
 	PickupNotes        *string
-	EmergencyPriority  int
-	IsPayer            bool
-	Permissions        json.RawMessage
-	Student            *PortalStudent
+	// PickupWeekdays: plan weekdays the pickup permission holds on, nil for
+	// every day (#4780).
+	PickupWeekdays    []int
+	EmergencyPriority int
+	IsPayer           bool
+	Permissions       json.RawMessage
+	Student           *PortalStudent
 }
 type GuardianLinkedChild struct {
 	GuardianProfileID int64

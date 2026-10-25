@@ -232,6 +232,7 @@ basis
 	GET /api/students/arrival-settings
 	GET /api/students/care-offerings
 	GET /api/students/care-schedule-change-requests/{requestId}
+	GET /api/students/care-schedule-change-requests/{requestId}/proof
 	GET /api/students/care-withdrawals
 	GET /api/students/care-withdrawals/{completionId}/deletion-impact
 	GET /api/students/change-requests
@@ -864,6 +865,8 @@ eltern_app
 	GET /parent/me/children/{studentId}/meal-participation  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/meal-plan  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/pickup-change-requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/pickup-permission-requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/pickup-requests/{requestId}/proof  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/related-accounts  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/request-sharing-options  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -918,7 +921,9 @@ eltern_app
 	POST /parent/me/children/{studentId}/courses/requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/children/{studentId}/courses/requests/{requestId}/withdraw  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/children/{studentId}/guardians  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup-permission-requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/children/{studentId}/master-data/requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/pickup-signature-statement  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/children/{studentId}/related-accounts  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/children/{studentId}/sick-note  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/messages/children/{studentId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
