@@ -168,7 +168,7 @@ func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context
 		return publicManagedAccounts(accounts), nil
 	}
 	var accounts []domain.ManagedAccountRecord
-	if err := a.runtime.WithAdminTx(a.runtime.WithoutTransaction(ctx), func(adminCtx context.Context) error {
+	if err := globalIdentityRead(a.runtime.WithoutTransaction(ctx), a.runtime, func(adminCtx context.Context) error {
 		listed, listErr := read(adminCtx)
 		accounts = listed
 		return listErr
