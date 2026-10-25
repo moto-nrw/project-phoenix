@@ -126,6 +126,30 @@ function countLoadingIndicators(page: Page): Promise<number> {
   );
 }
 
+/**
+ * Anmeldung im Träger-Portal (app/traeger/login). Gehört das Konto zu mehreren
+ * Trägern, fragt die Seite nach dem Träger; dann gilt der vorausgewählte erste.
+ */
+async function loginToTraeger(
+  page: Page,
+  origin: string,
+  credentials: Credentials,
+): Promise<void> {
+  const leftLogin = (url: URL) => !url.pathname.endsWith("/login");
+  await page.goto(`${origin}/login`, { waitUntil: "domcontentloaded" });
+  await page.fill("#email", credentials.email);
+  await page.fill("#password", credentials.password);
+  await page.click('button[type="submit"]');
+  const choice = page.locator('input[name="organization"]').first();
+  await Promise.race([
+    page.waitForURL(leftLogin, { timeout: 30_000 }),
+    choice.waitFor({ state: "visible", timeout: 30_000 }),
+  ]);
+  if (leftLogin(new URL(page.url()))) return;
+  await page.click('button[type="submit"]');
+  await page.waitForURL(leftLogin, { timeout: 30_000 });
+}
+
 async function login(
   context: BrowserContext,
   portal: Portal,
@@ -142,6 +166,10 @@ async function login(
       await page.waitForURL((url) => !url.pathname.startsWith("/login"), {
         timeout: 30_000,
       });
+      return;
+    }
+    if (portal === "traeger") {
+      await loginToTraeger(page, origin, credentials);
       return;
     }
     // `domcontentloaded`: der Dev-Server hält SSE-Verbindungen offen, das

@@ -150,7 +150,7 @@ func (seedParentPollStep) Run(_ context.Context, rt *Runtime) error {
 
 func seedParentPoll(rt *Runtime) error {
 	raw, err := rt.Client.Post("/api/parent-announcements/", map[string]any{
-		"title":         "Termine für den Elternsprechtag",
+		"title":         seedParentPollTitle,
 		"body":          "Bitte wählen Sie passende Termine.",
 		"priority":      "info",
 		"response_type": "multi_choice",
@@ -170,7 +170,98 @@ func seedParentPoll(rt *Runtime) error {
 		return fmt.Errorf("publish parent poll: %w", err)
 	}
 	fmt.Println("  1 parent poll with 60 appointment options published")
+	if len(rt.Parents) > 1 && rt.Adapter != nil {
+		answered, err := seedParentPollAnswers(rt)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("  %d children answered the parent poll\n", answered)
+	}
 	return nil
+}
+
+const seedParentPollTitle = "Termine für den Elternsprechtag"
+
+type seedParentPollItem struct {
+	ID          string                 `json:"id"`
+	Title       string                 `json:"title"`
+	PublishedAt string                 `json:"published_at"`
+	Options     []seedParentPollOption `json:"options"`
+	Children    []struct {
+		StudentID string `json:"student_id"`
+	} `json:"children"`
+}
+
+type seedParentPollOption struct {
+	ID string `json:"id"`
+}
+
+// seedParentPollAnswers lets the other demo families answer the poll through
+// the parent API, so the staff results show answers (#3759). The first parent
+// and every child they share stay unanswered: the parent portal shows them
+// the open poll.
+func seedParentPollAnswers(rt *Runtime) (int, error) {
+	defer rt.Client.BindAuth(rt.TenantAuth)
+	firstFamily := map[string]bool{}
+	answered := 0
+	for index, parent := range rt.Parents {
+		auth, err := rt.Adapter.LoginParent(context.Background(), parent.Email, parent.Password)
+		if err != nil {
+			return answered, fmt.Errorf("login parent to answer the poll: %w", err)
+		}
+		poll, err := seedParentPollFor(rt, auth)
+		if err != nil {
+			return answered, err
+		}
+		for _, child := range poll.Children {
+			if index == 0 {
+				firstFamily[child.StudentID] = true
+				continue
+			}
+			if firstFamily[child.StudentID] || len(poll.Options) == 0 {
+				continue
+			}
+			if _, err := rt.Client.PostWithAuth(auth, "/parent/me/news/"+poll.ID+"/respond", map[string]any{
+				"student_id":   child.StudentID,
+				"option_ids":   seedParentPollChoice(poll.Options, answered),
+				"published_at": poll.PublishedAt,
+			}); err != nil {
+				return answered, fmt.Errorf("answer parent poll: %w", err)
+			}
+			answered++
+		}
+	}
+	return answered, nil
+}
+
+func seedParentPollFor(rt *Runtime, auth AuthRef) (seedParentPollItem, error) {
+	raw, err := rt.Client.GetWithAuth(auth, "/parent/me/news")
+	if err != nil {
+		return seedParentPollItem{}, fmt.Errorf("load parent feed for the poll: %w", err)
+	}
+	var feed struct {
+		Data []seedParentPollItem `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &feed); err != nil {
+		return seedParentPollItem{}, fmt.Errorf("parse parent feed for the poll: %w", err)
+	}
+	for _, item := range feed.Data {
+		if item.Title == seedParentPollTitle {
+			return item, nil
+		}
+	}
+	return seedParentPollItem{}, nil
+}
+
+// seedParentPollChoice spreads the answers over the first afternoon, the slots
+// the results list shows first: every family picks two of eight times.
+func seedParentPollChoice(options []seedParentPollOption, answer int) []string {
+	first := options[(answer*3)%min(8, len(options))].ID
+	second := options[(answer*3+1)%min(8, len(options))].ID
+	if first == second {
+		return []string{first}
+	}
+	return []string{first, second}
 }
 
 func seedParentPollOptions() []string {

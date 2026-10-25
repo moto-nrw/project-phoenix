@@ -3,11 +3,12 @@
 #
 #   id           deutscher Kebab-Slug (a-z, 0-9, Bindestrich; Umlaute als ae/oe/ue)
 #   titel        Name für Menschen, landet im Manifest
-#   portal       tenant | eltern
-#   rolle        admin | betreuer (tenant) | eltern
+#   portal       tenant | eltern | traeger
+#   rolle        admin | betreuer (tenant) | eltern | traeger
 #   pfad         Pfad im Portal, so wie ihn die Person in der Adressleiste sieht
 #   geraete      optional: macbook | ipad | iphone.
-#                Standard: tenant = macbook + ipad, eltern = iphone + ipad
+#                Standard: tenant und traeger = macbook + ipad,
+#                eltern = iphone + ipad
 #   vorbereitung optional: Schritte vor dem Foto, jeweils genau eines von
 #                klicken (Selektor), warten_auf (Selektor), scrollen (Pixel oder Selektor).
 #                Ein Klick darf auf eine andere Seite führen, etwa auf ein
@@ -21,7 +22,11 @@
 # Kinderakte zeigt Noah Richter. Kinder mit Elternkonto meldet der Seed nie
 # krank, beide sind anwesend. An Betreuungstagen hängt die Kinderkarte Noahs
 # Tagesänderung an den Namen („Noah Richter, … - Details öffnen“), daher der
-# reguläre Ausdruck.
+# reguläre Ausdruck. Ins Träger-Portal meldet sich der Schul-Admin des Profils
+# an, den der Seed zur ersten Person des Träger-Büros macht.
+#
+# Ein Klick der Vorbereitung darf nichts speichern: Die Schritte laufen für
+# jedes Gerät erneut, und gespeicherte Daten verändern spätere Shots.
 #
 # Auswahl (#3764, vom Maintainer bestätigt): die Flows der Hilfe und die
 # Nutzung laut PostHog (nur lesend abgefragt). Erfasst sind Seitenaufrufe der
@@ -30,8 +35,12 @@
 # jedem Shot nennt seinen Grund. Die IDs folgen den Namen der
 # Hilfe-Screenshots (frontend/public/help/screens), wo es einen für dieselbe
 # Ansicht gibt, sonst dem Seitennamen; Shots aus dem Eltern-Portal beginnen
-# mit `eltern-`. `anwesenheit-ueberblick` bleibt aus dem Tracer (#3761), weil
-# eine ID die Dateinamen in Drive bestimmt.
+# mit `eltern-`, Shots aus dem Träger-Portal mit `traeger-`.
+# `anwesenheit-ueberblick` bleibt aus dem Tracer (#3761), weil eine ID die
+# Dateinamen in Drive bestimmt.
+#
+# Ergänzung: Motive, die die Website (moto-nrw/website) zeigt und die die
+# Shot-Liste nicht hatte. Ihre Zeile nennt das Motiv der Website.
 shots:
   # --- Tagesbetrieb ---------------------------------------------------------
   # Hilfe erste-schritte-mit-moto; PostHog: meistbesuchte Seite (1665 Aufrufe in 8 Tagen). ID aus dem Tracer #3761
@@ -227,6 +236,71 @@ shots:
     rolle: admin
     pfad: /vertretung
 
+  # Website: Dienstplan des Teams
+  - id: dienstplan
+    titel: Dienstplan des Teams
+    portal: tenant
+    rolle: admin
+    pfad: /dienstplan
+
+  # --- Anmeldung ------------------------------------------------------------
+  # Website: Online-Anmeldung mit freien Plätzen je Angebot
+  - id: anmeldephase
+    titel: Anmeldungen einer Phase mit freien Plätzen
+    portal: tenant
+    rolle: admin
+    pfad: /admin/enrollments
+    vorbereitung:
+      - klicken: 'article:has-text("Anmeldung Schuljahr") >> role=link[name="Anmeldungen ansehen"]'
+      - warten_auf: 'text=Freie Plätze je Angebot'
+  # Website: Platzentscheidung. Emil Graf ist im Seed noch offen; der Shot
+  # zeigt nur die Auswahl und speichert nichts.
+  - id: anmeldung-entscheiden
+    titel: Über einen Platz entscheiden
+    portal: tenant
+    rolle: admin
+    pfad: /admin/enrollments
+    vorbereitung:
+      - klicken: 'article:has-text("Anmeldung Schuljahr") >> role=link[name="Anmeldungen ansehen"]'
+      - warten_auf: 'text=Freie Plätze je Angebot'
+      - klicken: 'tr:has-text("Emil Graf") >> role=link[name="Anmeldung ansehen"]'
+      - warten_auf: 'text=Entscheidung speichern'
+      - scrollen: 'text=Entscheidung speichern'
+
+  # --- Elternkommunikation --------------------------------------------------
+  # Website: Elternbrief mit Rückmeldung; Stand der Einverständnisse
+  - id: einverstaendnis-stand
+    titel: Stand der Antworten auf ein Einverständnis
+    portal: tenant
+    rolle: admin
+    pfad: /parent-announcements?art=erklaerungen
+    vorbereitung:
+      - klicken: 'text=Einverständnis: Ausflug in den Zoo >> visible=true'
+      - warten_auf: 'role=heading[name="Stand der Antworten"]'
+      - warten_auf: 'text=Kinder mit Antwort'
+      - scrollen: 'text=Kinder mit Antwort'
+  # Website: Umfrage mit Auswertung. Der Seed lässt die anderen Familien
+  # antworten; Sabine Schneider bleibt offen (eltern-umfrage-beantworten).
+  - id: umfrage-auswertung
+    titel: Auswertung einer Umfrage
+    portal: tenant
+    rolle: admin
+    pfad: /parent-announcements?art=umfragen
+    vorbereitung:
+      - klicken: 'text=Termine für den Elternsprechtag >> visible=true'
+      - warten_auf: 'role=heading[name="Auswertung"]'
+      - scrollen: 'role=heading[name="Auswertung"]'
+  # Website: Pädagogische Dokumentation; Notizen in der Kinderakte
+  - id: kinderakte-notizen
+    titel: Notizen und Beobachtungen zu einem Kind
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    vorbereitung:
+      - klicken: 'role=button[name=/^Felix Schneider\b.*Details öffnen$/]'
+      - warten_auf: 'role=tab[name="Stammdaten"]'
+      - klicken: '[role="tab"][data-tab-value="notizen"]'
+
   # --- Verwaltung -----------------------------------------------------------
   # Hilfe datenverwaltung; PostHog: 880 Aufrufe
   - id: datenverwaltung
@@ -234,6 +308,23 @@ shots:
     portal: tenant
     rolle: admin
     pfad: /database
+  # Website: Rollen und Zugriffsrechte
+  - id: rollen-und-rechte
+    titel: Rollen und ihre Berechtigungen
+    portal: tenant
+    rolle: admin
+    pfad: /database/roles
+    vorbereitung:
+      - klicken: 'role=button[name=/^Betreuung Betreut/]'
+      - warten_auf: 'role=tab[name="Berechtigungen"]'
+      - klicken: 'role=tab[name="Berechtigungen"]'
+      - warten_auf: 'text=/Berechtigungen? zugewiesen/'
+  # Website: Datenübergabe an die Verwaltung
+  - id: exporte
+    titel: Listen und Exporte
+    portal: tenant
+    rolle: admin
+    pfad: /database/exports
   # Hilfe kinder-anlegen; PostHog: 1189 Aufrufe
   - id: datenverwaltung-kinder
     titel: Kinder verwalten
@@ -334,3 +425,91 @@ shots:
     portal: eltern
     rolle: eltern
     pfad: /meal-plan
+
+  # Hilfe elternbriefe-lesen; Website: Elternbrief mit Rückmeldung (Umfrage)
+  - id: eltern-umfrage-beantworten
+    titel: Eine Umfrage beantworten
+    portal: eltern
+    rolle: eltern
+    pfad: /news
+    vorbereitung:
+      - klicken: 'main button:has-text("Termine für den Elternsprechtag")'
+      - warten_auf: '[role="dialog"]'
+  # Website: Digitale Erklärung mit Unterschrift. Sabine hat das Einverständnis
+  # im Seed schon unterschrieben; der Nachweis zeigt die Unterschrift.
+  - id: eltern-erklaerung-nachweis
+    titel: Nachweis einer unterschriebenen Erklärung
+    portal: eltern
+    rolle: eltern
+    pfad: /news
+    vorbereitung:
+      - klicken: 'main button:has-text("Einverständnis: Ausflug in den Zoo")'
+      - warten_auf: '[role="dialog"]'
+      - klicken: 'role=link[name="Nachweis ansehen"]'
+      - warten_auf: 'img[alt^="Unterschrift von"]'
+  # Website: Essenstage ändern. Nur der Dialog, ohne Speichern.
+  - id: eltern-essenstage-aendern
+    titel: Feste Essenstage ändern
+    portal: eltern
+    rolle: eltern
+    pfad: /meal-plan
+    vorbereitung:
+      - klicken: 'role=button[name=/^Ändern$/]'
+      - warten_auf: 'text=Feste Tage ändern'
+  # Website: Kontakte und Abholberechtigte
+  - id: eltern-kontakte-abholung
+    titel: Kontakte und Abholberechtigte
+    portal: eltern
+    rolle: eltern
+    pfad: /children
+    vorbereitung:
+      - klicken: 'text=Felix Schneider'
+      - warten_auf: 'role=tab'
+      - klicken: 'role=tab[name="Kontakte & Abholung"]'
+      - warten_auf: 'text=Abholberechtigte und Kontakte'
+      - scrollen: 'text=Gisela Hahn'
+  # Website: Online-Anmeldung, auch für Geschwister
+  - id: eltern-online-anmeldung
+    titel: Online-Anmeldung mit mehreren Kindern
+    portal: eltern
+    rolle: eltern
+    pfad: /anmeldung
+    vorbereitung:
+      - klicken: 'role=link[name^="Anmeldung öffnen"] >> nth=0'
+      - warten_auf: 'role=button[name="Weiteres Kind"]'
+      - klicken: 'role=button[name="Weiteres Kind"]'
+  # Website: in vielen Sprachen nutzbar. Nur die Auswahl, ohne Wechsel.
+  - id: eltern-sprache-waehlen
+    titel: Sprache der Eltern-App wählen
+    portal: eltern
+    rolle: eltern
+    pfad: /settings
+    vorbereitung:
+      - klicken: '[aria-haspopup="listbox"][aria-label="Sprache"]'
+      - warten_auf: 'role=listbox'
+
+  # --- Träger-Portal ----------------------------------------------------------
+  # Website: Ferienplanung mit Wochen und Zeitmodellen
+  - id: traeger-ferien-planen
+    titel: Ferienzeitraum mit Wochen und Zeitmodellen
+    portal: traeger
+    rolle: traeger
+    pfad: /ferien
+    vorbereitung:
+      - klicken: 'role=button[name=/^Ferienbetreuung/]'
+      - warten_auf: 'text=Zeitmodelle'
+  # Website: Rollen und Zugriffe
+  - id: traeger-person-einladen
+    titel: Eine Person mit Rollen einladen
+    portal: traeger
+    rolle: traeger
+    pfad: /accounts
+    vorbereitung:
+      - klicken: 'role=button[name="Person einladen"]'
+      - warten_auf: '[role="dialog"]'
+  # Website: Datenweitergabe; Export als CSV
+  - id: traeger-zugriffsprotokoll
+    titel: Zugriffsprotokoll aller Schulen
+    portal: traeger
+    rolle: traeger
+    pfad: /access-log

@@ -50,6 +50,14 @@ describe("Shot-Liste", () => {
     expect(devicesFor(withDefault[0]!)).toEqual(["iphone", "ipad"]);
   });
 
+  it("kennt das Träger-Portal mit der Rolle traeger und Desktop-Geräten", () => {
+    const [traeger] = parseShotList(
+      "shots:\n  - {id: a, titel: A, portal: traeger, rolle: traeger, pfad: /ferien}",
+    );
+    expect(traeger?.portal).toBe("traeger");
+    expect(devicesFor(traeger!)).toEqual(["macbook", "ipad"]);
+  });
+
   it("weist unbekannte Felder ab", () => {
     expect(() =>
       parseShotList(
@@ -90,6 +98,14 @@ describe("Shot-Liste", () => {
     [
       "eine Rolle, die nicht zum Portal passt",
       "{id: a, titel: A, portal: tenant, rolle: eltern, pfad: /}",
+    ],
+    [
+      "eine Schulrolle im Träger-Portal",
+      "{id: a, titel: A, portal: traeger, rolle: admin, pfad: /}",
+    ],
+    [
+      "die Träger-Rolle im Schulportal",
+      "{id: a, titel: A, portal: tenant, rolle: traeger, pfad: /}",
     ],
     [
       "ein doppeltes Gerät",

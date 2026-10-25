@@ -154,3 +154,76 @@ func TestSeedParentDeclarationDeclaresThroughTheParentAPI(t *testing.T) {
 	assert.Equal(t, "drawn", signature["method"])
 	assert.NotEmpty(t, signature["image_png"])
 }
+
+func TestSeedParentPollAnswersForOtherFamiliesOnly(t *testing.T) {
+	t.Parallel()
+
+	// The first parent keeps the poll open: the parent portal screenshot shows
+	// the open answer form (#3759). The second parent shares Felix with them
+	// and answers only for the child that is theirs alone.
+	feeds := map[string]string{
+		"Bearer token-first":  `{"status":"success","data":[{"id":"73","title":"Termine für den Elternsprechtag","published_at":"2026-10-20T10:00:00Z","options":[{"id":"o1"},{"id":"o2"},{"id":"o3"},{"id":"o4"},{"id":"o5"},{"id":"o6"},{"id":"o7"},{"id":"o8"}],"children":[{"student_id":"1"}]}]}`,
+		"Bearer token-second": `{"status":"success","data":[{"id":"73","title":"Termine für den Elternsprechtag","published_at":"2026-10-20T10:00:00Z","options":[{"id":"o1"},{"id":"o2"},{"id":"o3"},{"id":"o4"},{"id":"o5"},{"id":"o6"},{"id":"o7"},{"id":"o8"}],"children":[{"student_id":"1"},{"student_id":"2"}]}]}`,
+		"Bearer token-third":  `{"status":"success","data":[{"id":"73","title":"Termine für den Elternsprechtag","published_at":"2026-10-20T10:00:00Z","options":[{"id":"o1"},{"id":"o2"},{"id":"o3"},{"id":"o4"},{"id":"o5"},{"id":"o6"},{"id":"o7"},{"id":"o8"}],"children":[{"student_id":"3"}]}]}`,
+	}
+	tokens := map[string]string{
+		"first@example.test":  "token-first",
+		"second@example.test": "token-second",
+		"third@example.test":  "token-third",
+	}
+	type answer struct {
+		auth string
+		body map[string]any
+	}
+	var answers []answer
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/parent-announcements/":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"73"}}`)
+		case "/api/parent-announcements/73/publish":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+		case "/parent/auth/login":
+			var login struct {
+				Email string `json:"email"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&login))
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"access_token":%q}}`, tokens[login.Email])
+		case "/parent/me/news":
+			_, _ = fmt.Fprint(w, feeds[r.Header.Get("Authorization")])
+		case "/parent/me/news/73/respond":
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			answers = append(answers, answer{auth: r.Header.Get("Authorization"), body: body})
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"answered":true}}`)
+		default:
+			w.WriteHeader(seedHTTPStatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	rt := &Runtime{
+		Client: client, Adapter: client.adapter, TenantAuth: AuthRef{Token: "staff"},
+		Parents: []ParentCredentials{
+			{Email: "first@example.test", Password: "Parent1234%"},
+			{Email: "second@example.test", Password: "Parent1234%"},
+			{Email: "third@example.test", Password: "Parent1234%"},
+		},
+	}
+	require.NoError(t, (seedParentPollStep{}).Run(t.Context(), rt))
+
+	require.Len(t, answers, 2, "one answer per child outside the first family")
+	assert.Equal(t, "Bearer token-second", answers[0].auth)
+	assert.Equal(t, "2", answers[0].body["student_id"])
+	assert.Equal(t, "Bearer token-third", answers[1].auth)
+	assert.Equal(t, "3", answers[1].body["student_id"])
+	for _, a := range answers {
+		assert.Equal(t, "2026-10-20T10:00:00Z", a.body["published_at"])
+		options, ok := a.body["option_ids"].([]any)
+		require.True(t, ok)
+		assert.NotEmpty(t, options)
+	}
+	assert.NotEqual(t, answers[0].body["option_ids"], answers[1].body["option_ids"],
+		"families pick different appointments, so the results show a spread")
+}

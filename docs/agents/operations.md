@@ -301,7 +301,7 @@ and #3455).
 
 Product screenshots are not PR evidence. They are the images for website, sales
 material and social media: every **Shot** of `frontend/scripts/product-screenshots/shots.yaml`
-photographed from the tenant and parents portal, plus **Geräte-Mockups** in the
+photographed from the tenant, parents and Träger portal, plus **Geräte-Mockups** in the
 official Apple bezels (see `CONTEXT.md`, "Produkt-Screenshots"; #3759).
 
 ```bash
@@ -314,9 +314,9 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
 - Needs the native stack (`scripts/dev-native.sh up`) seeded with the school
   profile `vollbetrieb`, the seeder's default and the demo's profile, followed by
   `scripts/dev-native.sh backend go run ./cmd/devtools simulate full-day`
-  (without it only a few children are present); the tenant
-  and parents logins come from
-  `backend/.seed-state.json`. Seed and capture must happen on the same Berlin
+  (without it only a few children are present); the tenant, parents and
+  Träger logins come from
+  `backend/.seed-state.json` (Träger: the profile's school admin). Seed and capture must happen on the same Berlin
   calendar day, or the command asks for a fresh seed instead of showing stale
   attendance. Only `*.localhost` hosts are photographed.
 - Tenant screenshot and E2E logins complete the real MFA flow through local
