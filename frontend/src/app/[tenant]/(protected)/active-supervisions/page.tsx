@@ -49,6 +49,7 @@ import { TransitStudentsSection } from "~/components/rooms/transit-students-sect
 import {
   additionalSupervisionTarget,
   canBulkCheckinFromSupervision,
+  handOverSupervisionTarget,
   hasOwnBlock,
   occupiedRoomIdsForSpontaneousStart,
   openRoomSections,
@@ -506,10 +507,9 @@ function MeinRaumPageContent() {
 
   // Eine laufende Raum-Aufsicht übergeben oder abgeben kann nur, wer sie
   // gerade führt (#4763). Der Schulhof hat dafür seinen eigenen Knopf.
-  const handOverActiveGroupId =
-    isCurrentSupervisionOwn && !isSchulhofOpenRoom
-      ? additionalSupervisionActiveGroupId
-      : null;
+  const handOverActiveGroupId = !isSchulhofOpenRoom
+    ? handOverSupervisionTarget({ currentRoom, currentOpenRoom })
+    : null;
   const handOverButton = handOverActiveGroupId ? (
     <HandOverSupervisionButton
       activeGroupId={handOverActiveGroupId}
