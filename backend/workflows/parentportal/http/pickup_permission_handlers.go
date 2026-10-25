@@ -30,6 +30,9 @@ type pickupPermissionRequestBody struct {
 	Weekdays  []int                        `json:"weekdays"`
 	Reason    string                       `json:"reason"`
 	Signature *declarationSignatureRequest `json:"signature,omitempty"`
+	// Relationship changes travel with the permission request so both writes
+	// commit or roll back together.
+	Relationship *updateGuardianRelationshipRequest `json:"relationship,omitempty"`
 }
 
 // pickupPermissionRequestResponse is one pickup permission request.
@@ -88,9 +91,20 @@ func (rs *Resource) submitPickupPermissionRequest(w http.ResponseWriter, r *http
 	if !decodeEditBody(w, r, &body) {
 		return
 	}
-	created, err := rs.ParentService.SubmitPickupPermissionRequest(r.Context(), accountID, studentID, guardianProfileID, parentService.PickupPermissionInput{
+	input := parentService.PickupPermissionInput{
 		Weekdays: body.Weekdays, Reason: body.Reason, Signature: body.Signature.pickupInput(),
-	})
+	}
+	var (
+		created *parentService.PickupChangeRequest
+		err     error
+	)
+	if body.Relationship == nil {
+		created, err = rs.ParentService.SubmitPickupPermissionRequest(r.Context(), accountID, studentID, guardianProfileID, input)
+	} else {
+		created, err = rs.ParentService.SubmitPickupPermissionRequestWithRelationship(r.Context(), accountID, studentID, guardianProfileID, input, parentService.GuardianRelationshipInput{
+			CanPickup: body.Relationship.CanPickup, IsEmergencyContact: body.Relationship.IsEmergencyContact, PickupNotes: body.Relationship.PickupNotes,
+		})
+	}
 	if err != nil {
 		renderParentRequestError(w, r, err)
 		return

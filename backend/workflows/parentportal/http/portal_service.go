@@ -146,6 +146,7 @@ type PortalService interface {
 	EditSignedCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64, payload map[string]any, expectedVersion string, signature *parentService.PickupSignatureInput) (*parentService.ChildCareSchedule, error)
 	// Pickup permission requests and the proof of a signed request (#4780).
 	SubmitPickupPermissionRequest(ctx context.Context, accountID, studentID, guardianProfileID int64, input parentService.PickupPermissionInput) (*parentService.PickupChangeRequest, error)
+	SubmitPickupPermissionRequestWithRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input parentService.PickupPermissionInput, relationship parentService.GuardianRelationshipInput) (*parentService.PickupChangeRequest, error)
 	ListPickupPermissionRequests(ctx context.Context, accountID, studentID int64) ([]parentService.PickupChangeRequest, error)
 	PickupRequestProof(ctx context.Context, accountID, studentID, requestID int64) (*parentService.PickupProof, error)
 

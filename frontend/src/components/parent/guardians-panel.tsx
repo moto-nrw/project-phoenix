@@ -1499,9 +1499,9 @@ function PickupModal({
         await submitPickupPermissionRequest(studentId, g.guardian_profile_id, {
           weekdays: normalizeWeekdays(weekdays),
           signature,
+          ...(Object.keys(payload).length > 0 ? { relationship: payload } : {}),
         });
-      }
-      if (Object.keys(payload).length > 0) {
+      } else if (Object.keys(payload).length > 0) {
         await updateGuardianRelationship(
           studentId,
           g.guardian_profile_id,

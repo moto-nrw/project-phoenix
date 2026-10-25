@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"image/png"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -305,6 +306,35 @@ func TestPickupPermissionRequest_RefusesWithoutSignatureOrPermission(t *testing.
 	assert.Empty(t, rows, "no refused attempt left a request")
 }
 
+func TestPickupPermissionRequestWithRelationshipRollsBackBothWrites(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-atomic")
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+	_, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{Signature: testSignature(t)})
+	require.NoError(t, err)
+
+	emergency := true
+	_, err = f.svc.SubmitPickupPermissionRequestWithRelationship(ctx, chain.AccountID, chain.StudentID, contactID,
+		parentService.PickupPermissionInput{Signature: testSignature(t)},
+		parentService.GuardianRelationshipInput{IsEmergencyContact: &emergency},
+	)
+	require.Error(t, err, "the existing pending request rejects the second request")
+
+	guardians, err := f.svc.ListChildGuardians(ctx, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	for _, guardian := range guardians {
+		if guardian.GuardianProfileID == contactID {
+			assert.False(t, guardian.IsEmergencyContact, "the rejected request rolls the relationship change back")
+			return
+		}
+	}
+	t.Fatalf("contact %d not listed", contactID)
+}
+
 func TestPickupPermissionRequest_OnlyOwnChildrenOfTheSchool(t *testing.T) {
 	t.Parallel()
 
@@ -444,10 +474,15 @@ func TestPickupRequestProof_OnlyForTheSigningGuardian(t *testing.T) {
 	_, err = f.svc.PickupRequestProof(ctx, accountIDForProfile(t, f.db, coGuardian), chain.StudentID, created.ID)
 	require.ErrorIs(t, err, parentService.ErrPickupProofNotFound, "nobody sees another person's signature in the portal")
 
-	proof, err := f.svc.PickupRequestProof(ctx, chain.AccountID, chain.StudentID, created.ID)
+	counter := testpkg.CaptureQueriesForContext(t, f.db)
+	proof, err := f.svc.PickupRequestProof(counter.Context(ctx), chain.AccountID, chain.StudentID, created.ID)
 	require.NoError(t, err)
 	assert.True(t, proof.Intact)
 	assert.Contains(t, proof.Statement, "an allen Tagen")
+	queries := counter.Selects("schedule.care_schedule_change_requests")
+	require.Len(t, queries, 1)
+	assert.Contains(t, strings.ToLower(queries[0]), "student_id")
+	assert.Contains(t, strings.ToLower(queries[0]), ".id in")
 }
 
 func TestCreateGuardianContact_PickupBecomesSignedRequest(t *testing.T) {

@@ -297,6 +297,10 @@ func (f *fakeParentService) SubmitPickupPermissionRequest(context.Context, int64
 	return nil, errors.New("fake: pickup permission request not stubbed")
 }
 
+func (f *fakeParentService) SubmitPickupPermissionRequestWithRelationship(context.Context, int64, int64, int64, parentService.PickupPermissionInput, parentService.GuardianRelationshipInput) (*careplan.CareScheduleChangeRequest, error) {
+	return nil, errors.New("fake: pickup permission request not stubbed")
+}
+
 func (f *fakeParentService) ListPickupPermissionRequests(context.Context, int64, int64) ([]careplan.CareScheduleChangeRequest, error) {
 	return nil, nil
 }

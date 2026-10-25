@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -47,14 +49,18 @@ func (s *RequestReads) ListPickupPermissionRequests(ctx context.Context, student
 }
 
 func (s *RequestReads) FindStudentRequest(ctx context.Context, studentID, requestID int64) (*carerequests.Request, error) {
-	rows, err := s.studentRequests(ctx, studentID, nil, time.Time{})
+	if studentID <= 0 || requestID <= 0 {
+		return nil, carerequests.ErrNotFound
+	}
+	request, err := s.Records.FindCareRequest(ctx, studentID, requestID)
+	if errors.Is(err, carerequests.ErrNotFound) {
+		return nil, carerequests.ErrNotFound
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("find care request for student: %w", err)
 	}
-	for i := range rows {
-		if rows[i].ID == requestID {
-			return &rows[i], nil
-		}
+	if request == nil || request.ID != requestID {
+		return nil, carerequests.ErrNotFound
 	}
-	return nil, carerequests.ErrNotFound
+	return request, nil
 }

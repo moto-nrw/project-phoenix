@@ -29,7 +29,7 @@ func (s *Store) DeleteCompletedOffboardingCleanups(ctx context.Context, window t
 		return 0, err
 	}
 	result, err := db.NewRaw(`DELETE FROM users.staff_offboarding_cleanup
-		WHERE tenant_id = ? AND completed_at IS NOT NULL AND completed_at < statement_timestamp() - (? * INTERVAL '1 second')`, scope.TenantID, window.Seconds()).Exec(ctx)
+		WHERE tenant_id = ? AND completed_at IS NOT NULL AND completed_at < statement_timestamp() - (? * INTERVAL '1 day')`, scope.TenantID, window.Hours()/24).Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("workforce postgres: delete completed offboarding cleanups: %w", err)
 	}

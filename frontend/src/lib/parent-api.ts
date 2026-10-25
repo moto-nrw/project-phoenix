@@ -1579,6 +1579,7 @@ export async function submitPickupPermissionRequest(
     weekdays: readonly number[];
     signature: SignatureValue;
     reason?: string;
+    relationship?: GuardianRelationshipPayload;
   },
 ): Promise<PickupPermissionRequest> {
   return postJson<PickupPermissionRequest>(
@@ -1587,6 +1588,7 @@ export async function submitPickupPermissionRequest(
       weekdays: input.weekdays,
       reason: input.reason ?? "",
       signature: signatureRequestBody(input.signature),
+      relationship: input.relationship,
     },
   );
 }

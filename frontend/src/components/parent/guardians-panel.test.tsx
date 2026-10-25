@@ -795,6 +795,40 @@ describe("GuardiansPanel", () => {
       expect(mocks.updateGuardianRelationship).not.toHaveBeenCalled();
     });
 
+    it("submits a related contact change with the signed permission request", async () => {
+      mocks.listChildGuardians.mockResolvedValue([contact]);
+      mocks.submitPickupPermissionRequest.mockResolvedValue({});
+      render(
+        <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+      );
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Abholrecht verwalten" }),
+      );
+      const dialog = screen.getByRole("dialog");
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>("#guardian-can-pickup")!,
+      );
+      fireEvent.click(
+        document.querySelector<HTMLInputElement>("#guardian-emergency")!,
+      );
+      signByTyping(dialog);
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+
+      await waitFor(() => {
+        expect(mocks.submitPickupPermissionRequest).toHaveBeenCalledWith(
+          "42",
+          "12",
+          expect.objectContaining({
+            relationship: { is_emergency_contact: true },
+          }),
+        );
+      });
+      expect(mocks.updateGuardianRelationship).not.toHaveBeenCalled();
+    });
+
     it("shows a pending request and its weekdays on the contact", async () => {
       mocks.listChildGuardians.mockResolvedValue([contact]);
       mocks.listPickupPermissionRequests.mockResolvedValue([

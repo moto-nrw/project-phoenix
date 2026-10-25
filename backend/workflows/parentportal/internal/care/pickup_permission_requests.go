@@ -72,6 +72,86 @@ func (s *Service) SubmitPickupPermissionRequest(ctx context.Context, accountID, 
 	return result, nil
 }
 
+// SubmitPickupPermissionRequestWithRelationship records a signed pickup
+// permission request and related per-child contact changes in the same tenant
+// unit of work. The permission itself is always requested; CanPickup must
+// therefore be omitted from relationship.
+func (s *Service) SubmitPickupPermissionRequestWithRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input PickupPermissionInput, relationship GuardianRelationshipInput) (*carerequests.Request, error) {
+	weekdays, edit, err := pickupPermissionRelationshipEdit(accountID, studentID, guardianProfileID, input, relationship)
+	if err != nil {
+		return nil, err
+	}
+	if edit == nil {
+		return s.SubmitPickupPermissionRequest(ctx, accountID, studentID, guardianProfileID, input)
+	}
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
+	if err != nil {
+		return nil, err
+	}
+	if err := child.RequireCareRunning(); err != nil {
+		return nil, err
+	}
+	if err := s.requireGuardianManagementEnabled(ctx, child.TenantID); err != nil {
+		return nil, err
+	}
+	if !child.HasPermission(GuardianPermissionPickupManage) {
+		return nil, ErrGuardianPermissionDenied
+	}
+	if edit.editsDetails && !child.HasPermission(GuardianPermissionGuardianEdit) {
+		return nil, ErrGuardianPermissionDenied
+	}
+	if s.CareRequests == nil || s.Guardians == nil {
+		return nil, errors.New("parent: pickup permission requests are not configured")
+	}
+	var result *carerequests.Request
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+		if _, err := s.updateGuardianRelationshipInTx(txCtx, child, *edit); err != nil {
+			return err
+		}
+		created, err := s.createPickupPermissionRequestInTx(txCtx, child, accountID, studentID, guardianProfileID, weekdays, input)
+		result = created
+		return err
+	})
+	if txErr != nil {
+		return nil, MapCareRequestError(txErr, "submit pickup permission request with relationship")
+	}
+	s.Logger.Info("parent requested pickup permission with guardian relationship update",
+		slog.Int64("account_id", accountID),
+		slog.Int64("student_id", studentID),
+		slog.Int64("guardian_profile_id", guardianProfileID),
+		slog.Int64("tenant_id", child.TenantID),
+		slog.Int64("request_id", result.ID),
+	)
+	return result, nil
+}
+
+// pickupPermissionRelationshipEdit validates the optional relationship update
+// that accompanies a signed pickup permission request. The permission's own
+// grant is represented only by the signed request, never by CanPickup.
+func pickupPermissionRelationshipEdit(accountID, studentID, guardianProfileID int64, input PickupPermissionInput, relationship GuardianRelationshipInput) ([]int, *relationshipEdit, error) {
+	if relationship.CanPickup != nil {
+		return nil, nil, ErrGuardianRelationshipInvalid
+	}
+	weekdays, err := carerequests.NormalizeWeekdays(input.Weekdays)
+	if err != nil {
+		return nil, nil, ErrInvalidCareRequestPayload
+	}
+	if input.Signature == nil {
+		return nil, nil, ErrPickupSignatureRequired
+	}
+	if relationship.IsEmergencyContact == nil && relationship.PickupNotes == nil {
+		return weekdays, nil, nil
+	}
+	if err := validateRelationshipInput(&relationship); err != nil {
+		return nil, nil, err
+	}
+	return weekdays, &relationshipEdit{
+		accountID: accountID, studentID: studentID, guardianProfileID: guardianProfileID, input: relationship,
+		editsFlags:   relationship.IsEmergencyContact != nil,
+		editsDetails: relationship.PickupNotes != nil,
+	}, nil
+}
+
 // createPickupPermissionRequestInTx locks the contact, checks it may receive
 // a pickup permission from this parent, stores the signature and the request.
 // The caller holds the child's lock.
@@ -150,8 +230,8 @@ func previousPickupPermissionLabel(link *GuardianRelationship) string {
 }
 
 // ListPickupPermissionRequests lists the child's pickup permission requests
-// of the last two months the caller may see: their own, and those shared with
-// them.
+// the caller may see: pending requests always remain visible; decided history
+// is retained for two months.
 func (s *Service) ListPickupPermissionRequests(ctx context.Context, accountID, studentID int64) ([]carerequests.Request, error) {
 	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
