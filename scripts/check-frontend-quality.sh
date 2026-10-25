@@ -17,9 +17,11 @@ export NEXT_PUBLIC_APP_ENV=test
 export NEXT_PUBLIC_SCHOOL_HOSTNAME=schule.localhost:3000
 export NEXT_PUBLIC_CATERER_HOSTNAME=caterer.localhost:3000
 export NEXT_PUBLIC_TRAEGER_HOSTNAME=traeger.localhost:3000
-quality_step locales pnpm exec node scripts/verify-locales.mjs
+[[ "${1:-quality}" == fast ]] || quality_step locales pnpm exec node scripts/verify-locales.mjs
 quality_step frontend-lint pnpm run lint --max-warnings 0
 quality_step frontend-types pnpm run typecheck
+# Pre-push stops here; CI runs the whole-project analysis below.
+[[ "${1:-quality}" == fast ]] && exit 0
 quality_step dependency-graph pnpm depcruise
 quality_step unused-code pnpm knip
 quality_step production-unused-code pnpm knip:production
