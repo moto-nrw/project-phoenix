@@ -381,7 +381,8 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 		unplannedStudentID int64 = 22
 	)
 
-	now := time.Now()
+	today := calendar.TodayDate()
+	now := today.BerlinMidnight().Add(12 * time.Hour)
 	newGroup := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
 	newGroup.ID = newGroupID
 	unsupervised := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
@@ -390,7 +391,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	supervised.ID = 12
 	bridged := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
 	bridged.ID = 13
-	staleFallback := &studentpresence.LiveGroup{StartTime: now.AddDate(0, 0, -1), RoomID: 42}
+	staleFallback := &studentpresence.LiveGroup{StartTime: today.AddDays(-1).BerlinMidnight().Add(12 * time.Hour), RoomID: 42}
 	staleFallback.ID = 14
 	systemActivityID := int64(88)
 	independent := &studentpresence.LiveGroup{StartTime: now, RoomID: 42, ActivityGroupID: &systemActivityID}
@@ -419,7 +420,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	instanceStudents := &absorbInstanceStudentRepo{unplannedStudentID: unplannedStudentID}
 	instanceRepo := &absorbInstanceRepo{planned: absorbPlannedInstance(instanceID, 42), byGroup: map[int64]*fixtures.ActivityInstance{
 		13: fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
-			fixtureRow.Date = calendar.Date(calendar.TodayDate())
+			fixtureRow.Date = today
 			fixtureRow.Status = fixtures.InstanceStatusActive()
 			fixtureRow.ActiveGroupID = &bridged.ID
 		}),
