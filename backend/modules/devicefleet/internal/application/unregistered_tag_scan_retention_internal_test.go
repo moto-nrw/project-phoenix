@@ -29,7 +29,7 @@ func (retentionTransaction) RunWrite(ctx context.Context, callback func(context.
 func TestDeleteUnregisteredTagScansAfterRetentionUsesFixedUTCWindow(t *testing.T) {
 	t.Parallel()
 
-	// Migration 1.15.548 evaluates the database guard in UTC. The October
+	// Migration 1.15.566 evaluates the database guard in UTC. The October
 	// DST rollback must not shorten the fixed 90 times 24-hour window.
 	now := time.Date(2026, time.October, 25, 1, 30, 0, 0, time.UTC)
 	store := &retentionScanStore{}

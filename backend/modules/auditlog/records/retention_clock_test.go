@@ -8,7 +8,7 @@ import (
 )
 
 // The cutoffs match the UTC windows of the retention functions of migration
-// 1.15.548 at the database clocks its regression test freezes, whatever
+// 1.15.566 at the database clocks its regression test freezes, whatever
 // location the application clock carries.
 func TestRetentionCutoffsMatchTheDatabaseWindowsInUTC(t *testing.T) {
 	t.Parallel()

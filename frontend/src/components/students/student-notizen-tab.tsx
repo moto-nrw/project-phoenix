@@ -26,6 +26,7 @@ import {
   NOTE_KIND_JOURNAL,
   NOTE_KIND_PERMANENT,
   NOTE_ORIGIN_MASTER_DATA,
+  NOTE_ORIGIN_SCHOOL,
   NOTE_VISIBILITY_ALL_STAFF,
   NOTE_VISIBILITY_CARE_TEAM,
   NOTE_VISIBILITY_GROUP_LEADS,
@@ -251,6 +252,13 @@ function NoteMeta({
   }
   if (note.origin === NOTE_ORIGIN_MASTER_DATA) {
     parts.push("Übernommen aus den Betreuernotizen");
+  } else if (note.origin === NOTE_ORIGIN_SCHOOL) {
+    // Geschrieben in moto schule; die OGS ändert ihn nicht (#4795).
+    parts.push(
+      note.authorName !== ""
+        ? `Hinweis der Lehrkraft ${note.authorName}`
+        : "Hinweis der Lehrkraft",
+    );
   } else if (note.authorName !== "") {
     parts.push(note.authorName);
   }

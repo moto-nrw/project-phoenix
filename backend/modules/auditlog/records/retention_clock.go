@@ -8,7 +8,7 @@ import "time"
 const RetentionClockMargin = time.Minute
 
 // The database functions of the fixed audit windows evaluate their
-// INTERVAL in UTC (migration 1.15.548), whatever the timezone of the process
+// INTERVAL in UTC (migration 1.15.566), whatever the timezone of the process
 // or of the session. The cutoffs below compute the same window in UTC, so a
 // clock change in Berlin never lengthens the window the database enforces
 // beyond the one the application applies.
