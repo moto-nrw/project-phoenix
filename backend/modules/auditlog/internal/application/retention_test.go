@@ -51,7 +51,9 @@ func TestCommandDeletesTheAuditLedgersInsideTheirFixedWindows(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, deleted)
 	assert.Equal(t, 90, days)
-	assert.False(t, store.cutoffs["auth"].After(before.AddDate(0, 0, -90)), "never newer than 90 days")
+	// The database evaluates its windows in UTC (migration 1.15.534): 90 days
+	// are 90 times 24 hours, three years the same UTC clock time.
+	assert.False(t, store.cutoffs["auth"].After(before.Add(-90*24*time.Hour)), "never newer than 90 days")
 
 	_, _, err = command.DeleteExpiredDataAccessLog(context.Background())
 	require.NoError(t, err)
@@ -61,7 +63,7 @@ func TestCommandDeletesTheAuditLedgersInsideTheirFixedWindows(t *testing.T) {
 
 	_, _, err = command.DeleteExpiredDeletionLog(context.Background())
 	require.NoError(t, err)
-	assert.False(t, store.cutoffs["deletions"].After(before.AddDate(-3, 0, 0)), "never newer than three years")
+	assert.False(t, store.cutoffs["deletions"].After(before.UTC().AddDate(-3, 0, 0)), "never newer than three years")
 }
 
 func TestCommandWithoutLedgerStoreRefusesLedgerRetention(t *testing.T) {
@@ -162,7 +164,7 @@ func TestCommandDeletesTheProtocolsInsideTheirFixedWindows(t *testing.T) {
 		auditModels.DeletionTypePersonnelNumberChangeRetention,
 		auditModels.DeletionTypeGuardianFinancialChangeRetention,
 	} {
-		assert.False(t, store.cutoffs[kind].After(before.AddDate(-3, 0, 0)), "%s is never deleted before three years", kind)
+		assert.False(t, store.cutoffs[kind].After(before.UTC().AddDate(-3, 0, 0)), "%s is never deleted before three years", kind)
 	}
 
 	_, _, err = command.DeleteExpiredProtocol(context.Background(), auditModels.DeletionTypeAuthEventRetention)

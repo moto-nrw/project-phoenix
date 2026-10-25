@@ -72,7 +72,7 @@ func (s *unregisteredTagScanService) DeleteOlderThan(ctx context.Context, days i
 }
 
 func (s *unregisteredTagScanService) DeleteExpired(ctx context.Context) (int, int, error) {
-	cutoff := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-auditModels.RetentionClockMargin)
+	cutoff := auditModels.RetentionDaysCutoff(time.Now(), UnregisteredTagScanRetentionDays)
 	deleted, err := s.repo.DeleteOlderThan(ctx, cutoff)
 	return deleted, UnregisteredTagScanRetentionDays, err
 }
