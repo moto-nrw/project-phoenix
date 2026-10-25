@@ -113,6 +113,11 @@ type Event struct {
 	SchoolDeepLink string
 	Data           map[string]string
 
+	// schoolPortalClosed is set by the router when the school has not
+	// booked Unterricht am Vormittag (#4895): the event then skips the
+	// devices of the school portal.
+	schoolPortalClosed bool
+
 	// Portal names the portal that asked for the event. It is only consulted
 	// for TypeTest (#2208): the test notification proves the setup of the
 	// portal the person is standing in, so it must not fan out into the other
@@ -260,6 +265,9 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 	if !enabled {
 		return ErrDisabled
 	}
+	if err := r.requireEventModules(ctx, &event); err != nil {
+		return err
+	}
 
 	// The test notification is exempt from the delivery window on purpose: an
 	// admin verifying the setup in the evening must get an answer, not silence
@@ -319,6 +327,10 @@ func (r *router) NotifyBatch(ctx context.Context, events []Event) error {
 	if err := r.requireDispatch(ctx, tenantID, slices.ContainsFunc(prepared, func(event Event) bool { return event.Type != TypeTest })); err != nil {
 		return err
 	}
+	prepared, err = r.keepBookedEvents(ctx, prepared)
+	if err != nil {
+		return err
+	}
 	for _, channel := range r.channels {
 		if _, durable := channel.(durableChannel); !durable {
 			continue
@@ -349,6 +361,9 @@ func (r *router) NotifyDurably(ctx context.Context, event Event) (int, error) {
 		event.Priority = PriorityNormal
 	}
 	if err := r.requireDispatch(ctx, event.Audience.TenantID, event.Type != TypeTest); err != nil {
+		return 0, err
+	}
+	if err := r.requireEventModules(ctx, &event); err != nil {
 		return 0, err
 	}
 
