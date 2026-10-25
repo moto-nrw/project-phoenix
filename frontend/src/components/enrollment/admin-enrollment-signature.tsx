@@ -24,8 +24,8 @@ function signedAtLabel(value: string): string {
 
 /**
  * The parent's signature of the current version of an enrollment (#4786),
- * a simple electronic signature with a drawn signature, with the proof as
- * a PDF. Read-only: the signature belongs to the parents.
+ * a simple electronic signature and its PDF proof. Read-only: the signature
+ * belongs to the parents.
  */
 export function AdminEnrollmentSignature({
   requestId,
@@ -56,7 +56,7 @@ export function AdminEnrollmentSignature({
   return (
     <SectionCard
       title="Unterschrift"
-      description="Die Eltern haben diese Fassung der Anmeldung unterschrieben: einfache elektronische Signatur mit gezeichneter Unterschrift."
+      description="Diese Anmeldung trägt eine einfache elektronische Signatur."
       bodyClassName="mt-4 space-y-4"
       actions={
         <Button

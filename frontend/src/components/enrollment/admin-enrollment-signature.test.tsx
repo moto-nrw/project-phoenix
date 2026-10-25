@@ -39,6 +39,11 @@ describe("AdminEnrollmentSignature", () => {
     expect(screen.getByText("Mara Muster")).toBeInTheDocument();
     expect(screen.getByText("ab".repeat(32))).toBeInTheDocument();
     expect(
+      screen.getByText(
+        "Diese Anmeldung trägt eine einfache elektronische Signatur.",
+      ),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText("Mit Finger, Stift oder Maus gezeichnet"),
     ).toBeInTheDocument();
 
