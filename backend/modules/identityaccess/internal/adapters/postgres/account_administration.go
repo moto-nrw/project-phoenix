@@ -27,12 +27,6 @@ const (
 		  AND "account_tenant".tenant_id = ?
 		  AND "account_tenant".status = ?
 	)`
-	accountVisibilityOrganizationSQL = `EXISTS (
-		SELECT 1 FROM auth.account_tenants AS "account_tenant"
-		WHERE "account_tenant".account_id = "account".id
-		  AND "account_tenant".status = ?
-		  AND "account_tenant".tenant_id IN (?)
-	)`
 )
 
 // scopeAccounts applies the caller's visibility to an account read or write.
@@ -42,8 +36,6 @@ func scopeAccounts[Q interface{ Where(string, ...any) Q }](query Q, visibility d
 	switch visibility.Kind {
 	case domain.AccountVisibilityDenied:
 		return query.Where(accountVisibilityDeniedSQL)
-	case domain.AccountVisibilityOrganization:
-		return query.Where(accountVisibilityOrganizationSQL, accountTenantActive, bun.List(visibility.SchoolIDs))
 	case domain.AccountVisibilityTenant:
 		return query.Where(accountVisibilityTenantSQL, visibility.TenantID, accountTenantActive)
 	default:
@@ -152,11 +144,6 @@ func (s *Store) ListManageableAccountRecordsByRole(ctx context.Context, roleName
 		Where(`LOWER("role".name) = LOWER(?)`, roleName).
 		Distinct()
 	switch visibility.Kind {
-	case domain.AccountVisibilityOrganization:
-		query = query.
-			Join(`INNER JOIN auth.account_tenants AS "role_account_tenant" ON "role_account_tenant".account_id = "account_role".account_id AND "role_account_tenant".tenant_id = "account_role".tenant_id`).
-			Where(`"account_role".tenant_id IN (?)`, bun.List(visibility.SchoolIDs)).
-			Where(`"role_account_tenant".status = ?`, accountTenantActive)
 	case domain.AccountVisibilityTenant:
 		query = query.Where(`"account_role".tenant_id = ?`, visibility.TenantID)
 	case domain.AccountVisibilityDenied:

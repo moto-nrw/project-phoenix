@@ -77,6 +77,7 @@ const GROUP_ORDER_BY_ROLE: Readonly<
   ],
   parent: ["einstieg", "mein-kind", "nachrichten", "anmeldung", "probleme"],
   teacher: ["einstieg", "klasse", "aufsicht", "nachrichten", "probleme"],
+  traeger: ["einstieg", "probleme"],
 };
 
 // Wer die geoeffnete Anleitung liest. Steht ueber dem Titel der Startseite,
@@ -86,6 +87,7 @@ const ROLE_KICKER: Readonly<Record<HelpRole, string>> = {
   lead: "Für die Leitung",
   parent: "Für Eltern",
   teacher: "Für Lehrkräfte",
+  traeger: "Für das Träger-Büro",
 };
 
 /**

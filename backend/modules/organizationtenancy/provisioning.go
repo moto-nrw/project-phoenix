@@ -19,6 +19,7 @@ type Provisioning interface {
 	DeviceProvisioning
 	PersonProvisioning
 	ProvisioningDashboard
+	TraegerMemberProvisioning
 }
 
 // OrganizationProvisioning creates, edits and retires organizations for operators.

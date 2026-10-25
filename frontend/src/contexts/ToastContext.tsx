@@ -440,6 +440,7 @@ export function loginUrl(host: string, path: string): string {
     [clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME, "/parents"],
     [clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME, "/school"],
     [clientEnv.NEXT_PUBLIC_CATERER_HOSTNAME, "/caterer"],
+    [clientEnv.NEXT_PUBLIC_TRAEGER_HOSTNAME, "/traeger"],
     [clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME, "/operator"],
   ]) {
     if (host === hostname || path.startsWith(`${prefix}/`)) {

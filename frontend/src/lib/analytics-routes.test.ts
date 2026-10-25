@@ -10,6 +10,7 @@ import {
   TRACKED_CATERER_ROUTE_TEMPLATES,
   TRACKED_TENANT_PUBLIC_ROUTE_TEMPLATES,
   TRACKED_TENANT_ROUTE_TEMPLATES,
+  TRACKED_TRAEGER_ROUTE_TEMPLATES,
   type AnalyticsRouteSurface,
 } from "./analytics-routes";
 
@@ -90,6 +91,11 @@ const PORTAL_PAGE_TREES: ReadonlyArray<{
     templates: TRACKED_CATERER_ROUTE_TEMPLATES,
   },
   {
+    name: "Träger portal",
+    directory: "traeger",
+    templates: TRACKED_TRAEGER_ROUTE_TEMPLATES,
+  },
+  {
     name: "public pages",
     directory: ".",
     // Portals above; the operator portal has no analytics.
@@ -98,6 +104,7 @@ const PORTAL_PAGE_TREES: ReadonlyArray<{
       "parents",
       "school",
       "caterer",
+      "traeger",
       "operator",
       "api",
     ]),
@@ -132,6 +139,7 @@ const SURFACE_TEMPLATES: ReadonlyArray<
   ["parents", TRACKED_PARENT_ROUTE_TEMPLATES],
   ["school", TRACKED_SCHOOL_ROUTE_TEMPLATES],
   ["caterer", TRACKED_CATERER_ROUTE_TEMPLATES],
+  ["traeger", TRACKED_TRAEGER_ROUTE_TEMPLATES],
   ["public", TRACKED_PUBLIC_ROUTE_TEMPLATES],
 ];
 

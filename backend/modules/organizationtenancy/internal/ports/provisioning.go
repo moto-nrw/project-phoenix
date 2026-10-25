@@ -3,6 +3,7 @@ package ports
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
@@ -33,6 +34,17 @@ type ProvisioningIdentity interface {
 	DeactivateAccount(ctx context.Context, accountID int64) error
 	// AnonymizeAccount replaces the account's e-mail for a deleted person.
 	AnonymizeAccount(ctx context.Context, accountID int64, email string) error
+	ProvisioningTraegerIdentity
+}
+
+// ProvisioningTraegerIdentity is the Identity & Access part of the Träger
+// membership (ADR 0084): the account behind an address and the Träger roles.
+// The role command joins the caller's administrative transaction; an unknown
+// role is organizationtenancy.ErrInvalidTraegerRole.
+type ProvisioningTraegerIdentity interface {
+	FindAccountIDByEmail(ctx context.Context, email string) (int64, bool, error)
+	AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error
+	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]organizationtenancy.TraegerAccount, error)
 }
 
 // ProvisioningDevices is the Device Fleet part of provisioning. A missing

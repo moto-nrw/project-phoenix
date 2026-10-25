@@ -94,8 +94,9 @@ func validateScope(scope Scope, tenantID, organizationID int64) error {
 			return fmt.Errorf("%w: scope %q requires a tenant", ErrInvalidPrincipal, scope)
 		}
 	case ScopeOrganization:
-		if tenantID <= 0 || organizationID <= 0 {
-			return fmt.Errorf("%w: organization scope requires tenant and organization", ErrInvalidPrincipal)
+		// A Träger-Portal principal names its Träger and no school (ADR 0084).
+		if tenantID != 0 || organizationID <= 0 {
+			return fmt.Errorf("%w: organization scope requires an organization and no tenant", ErrInvalidPrincipal)
 		}
 	case ScopeParent, ScopePlatform, ScopeCaterer:
 		if tenantID != 0 {

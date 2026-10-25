@@ -265,7 +265,7 @@ describe("school analytics switch", () => {
     ).toEqual([]);
   });
 
-  it.each(["ogs", "school", "parents", "public", "unknown"])(
+  it.each(["ogs", "school", "parents", "traeger", "public", "unknown"])(
     "drops every event when analytics is off on %s",
     (surface) => {
       const context = {
@@ -1016,12 +1016,40 @@ describe("session recording", () => {
   });
 });
 
+describe("Träger-Portal surface", () => {
+  // The Träger-Portal (#4649) collects nothing until a Träger decides about
+  // the usage analytics, not even with the switch on or in the demo.
+  it.each([
+    { deployment: "moto-app.de", enabled: true, consent: true },
+    { deployment: "demo", enabled: true, consent: true },
+    { deployment: "moto-app.de", enabled: false, consent: true },
+  ])("drops every event on $deployment (enabled $enabled)", (variant) => {
+    const context = { ...variant, surface: "traeger", analyseFreigabe: true };
+    expect(analyticsCollectionAllowed(context)).toBe(false);
+    expect(filterAnalyticsEvent(context, capture("$pageview", {}))).toBeNull();
+    expect(analyticsIdentity(context)).toBeNull();
+  });
+
+  it("keeps collection for the school portal with the switch on", () => {
+    expect(
+      analyticsCollectionAllowed({
+        deployment: "moto-app.de",
+        enabled: true,
+        consent: true,
+        surface: "school",
+        analyseFreigabe: false,
+      }),
+    ).toBe(true);
+  });
+});
+
 describe("analyticsSurfaceForHost", () => {
   const hosts = {
     operator: "operator.moto-app.de",
     parents: "eltern.moto-app.de",
     school: "schule.moto-app.de",
     caterer: "caterer.moto-app.de",
+    traeger: "traeger.moto-app.de",
     tenantDomain: "moto-app.de",
   };
 
@@ -1030,6 +1058,7 @@ describe("analyticsSurfaceForHost", () => {
     ["eltern.moto-app.de", "parents"],
     ["schule.moto-app.de", "school"],
     ["caterer.moto-app.de", "caterer"],
+    ["traeger.moto-app.de", "traeger"],
     ["moto-app.de", "public"],
     ["operator.moto-app.de", null],
   ])("maps %s to %s", (host, surface) => {

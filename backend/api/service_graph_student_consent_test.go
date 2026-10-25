@@ -24,6 +24,7 @@ func TestServiceGraphStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		ParentsURL:       "http://parents.localhost:3000",
 		SchoolURL:        "http://schule.localhost:3000",
 		CatererURL:       "http://caterer.localhost:3000",
+		TraegerURL:       "http://traeger.localhost:3000",
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
 	}

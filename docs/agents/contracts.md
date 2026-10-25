@@ -204,17 +204,18 @@ does not prove the deployed catalog; human verification is described in
 ## Portal session isolation
 
 Each portal has its own NextAuth instance, cookie, and base path.
-Operator, parents, and school cookies are host-only. The tenant cookie is
+Operator, parents, school, and Träger cookies are host-only. The tenant cookie is
 domain-scoped to support switching between school subdomains (localhost:
 host-only). The proxy redirects cross-host paths to their canonical subdomain.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
-| Tenant | `{slug}.{TENANT_DOMAIN}` | `{TENANT_DOMAIN, dots→dashes}.session-token` on `.{TENANT_DOMAIN}`; localhost: `authjs.session-token` | `/api/auth` | `""` or `org` | `POST /auth/login` |
+| Tenant | `{slug}.{TENANT_DOMAIN}` | `{TENANT_DOMAIN, dots→dashes}.session-token` on `.{TENANT_DOMAIN}`; localhost: `authjs.session-token` | `/api/auth` | `""` | `POST /auth/login` |
 | Operator | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` | `/api/operator/auth` | `platform` | `POST /operator/auth/login` |
 | Parents | `{NEXT_PUBLIC_PARENTS_HOSTNAME}` | `parent.session-token` | `/api/parent/auth` | `parent` | `POST /parent/auth/login` |
 | School (moto schule) | `{NEXT_PUBLIC_SCHOOL_HOSTNAME}` | `school.session-token`, SameSite=Strict | `/api/school/auth` | `school` | `POST /school/auth/login` |
 | Caterer | `{NEXT_PUBLIC_CATERER_HOSTNAME}` | `caterer.session-token` | `/api/caterer/auth` | `caterer` | `POST /caterer/auth/login` |
+| Träger | `{NEXT_PUBLIC_TRAEGER_HOSTNAME}` | `traeger.session-token` | `/api/traeger/auth` | `org` | `POST /traeger/auth/login` |
 
 ### Login, refresh, and MFA
 
@@ -238,7 +239,15 @@ Backend paths in this section are relative to `backend/`:
   caterer portal (`workflows/catererportal`) opens each supplied school's
   tenant transaction itself (ADR 0077). The `caterer scope matrix` contract in
   `TestFullProductionRouterGolden` checks both directions.
-- `TenantMiddleware` rejects parent, school and caterer scopes.
+- Träger login (ADR 0084, #4649) requires an active membership in
+  `platform.organization_accounts` of an active Träger and mints `scope=org`
+  with `org_id` and no `tenant_id`; an account in several Träger chooses one
+  (`organization_selection_required`). Refresh and validation re-check the
+  membership. `TraegerMiddleware` accepts only `scope=org`; the Träger rights
+  come from fixed role bundles in `auth.organization_account_roles`. Reads
+  across schools run through the `traeger-view` projection in an admin
+  transaction filtered on the Träger's schools. No MFA yet (#4651).
+- `TenantMiddleware` rejects parent, school, caterer, and org scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
@@ -311,7 +320,8 @@ refresh, tenant switching, and wrong-portal rejection for affected flows.
 ### Routing and invitations
 
 `frontend/src/proxy.ts` rewrites tenant hosts to `/[tenant]/*`, operator to
-`/operator/*`, parents to `/parents/*`, and school to `/school/*`.
+`/operator/*`, parents to `/parents/*`, school to `/school/*`, and Träger to
+`/traeger/*`.
 `[tenant]/layout.tsx` resolves slugs through `/auth/tenant/resolve?slug=...`
 (cached five minutes). `POST /auth/switch-tenant` returns a tenant-session JWT
 for the target school, not a `scope=school` portal token.
@@ -336,8 +346,9 @@ Lehrkraft invitations link to `SCHOOL_URL/invite`, not `FRONTEND_URL/invite`.
 `TENANT_DOMAIN` is the base domain; `NEXT_PUBLIC_TENANT_DOMAIN` is its client
 counterpart. Portal hostnames use the variables in the table above.
 `FRONTEND_URL` is for staff/admin email links; `PARENTS_URL` for parent links;
-`SCHOOL_URL` for school links; `CATERER_URL` for caterer invitation links.
-`PARENTS_URL`, `SCHOOL_URL` and `CATERER_URL` are required at backend startup
+`SCHOOL_URL` for school links; `CATERER_URL` for caterer invitation links;
+`TRAEGER_URL` for Träger links. `PARENTS_URL`, `SCHOOL_URL`, `CATERER_URL`
+and `TRAEGER_URL` are required at backend startup
 and must use HTTPS in production. Env change checklist:
 `.claude/rules/env-docker-sync.md`.
 

@@ -847,6 +847,8 @@ export const ERROR_CATALOG = {
         "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
       "timetable.window_too_large":
         "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_days} Tage.",
+      "traeger.no_membership":
+        "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
       "workforce.absence_allowance_exceeded":
         "Für diese Art sind nicht mehr genug Tage übrig. Der Anspruch muss zuerst erhöht werden.",
       "workforce.absence_already_decided":
@@ -1522,6 +1524,8 @@ export const ERROR_CATALOG = {
         "The parents set this time. Only someone with a staff profile can change it.",
       "students.status_day_conflict":
         "Some days already have an entry. These days were not changed.",
+      "traeger.no_membership":
+        "Your account has no access to the Träger portal. Please contact the moto team.",
       "enrollment.form_attachment_invalid":
         "Please check the label and the PDF file.",
       "enrollment.form_field_file_options_invalid":

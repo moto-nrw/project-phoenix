@@ -17,4 +17,5 @@ const (
 	claimScopeParent   = "parent"
 	claimScopeSchool   = "school"
 	claimScopeCaterer  = "caterer"
+	claimScopeOrg      = "org"
 )

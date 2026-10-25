@@ -19,8 +19,8 @@ var (
 // AnalyticsConsentResource serves the signed-in account's own answer to the
 // usage analytics in the browser (§ 25 TDDDG, #4901). Every portal session
 // reaches it (OGS, parents, school), so the root mounts it once outside the
-// portal routers. Operator sessions have no portal analytics, and a staff-view
-// preview carries someone else's identity: neither may read or decide.
+// portal routers. Operator and Träger sessions have no portal analytics, and a
+// staff-view preview carries someone else's identity: none may read or decide.
 type AnalyticsConsentResource struct {
 	consent identityaccess.AccountAnalyticsConsent
 }
@@ -64,7 +64,7 @@ func (req *analyticsConsentRequest) Bind(*http.Request) error {
 // ownAccount returns the account of a real portal session.
 func ownAccount(r *http.Request) (int64, bool) {
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
-	if claims.ID <= 0 || claims.IsPlatformScope() || claims.IsReadOnlyPreview() {
+	if claims.ID <= 0 || claims.IsPlatformScope() || claims.IsOrgScope() || claims.IsReadOnlyPreview() {
 		return 0, false
 	}
 	return int64(claims.ID), true

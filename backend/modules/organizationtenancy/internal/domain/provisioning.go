@@ -17,15 +17,17 @@ const (
 	AuditActionTransfer     = "transfer"
 	AuditActionSoftDelete   = "soft_delete"
 	AuditActionRestore      = "restore"
+	AuditActionGrant        = "grant"
 
-	AuditResourceOrganization = "organization"
-	AuditResourceSchool       = "school"
-	AuditResourceInvitation   = "invitation"
-	AuditResourceDevice       = "device"
-	AuditResourceAccount      = "account"
-	AuditResourcePerson       = "person"
-	AuditResourceAnnouncement = "announcement"
-	AuditResourceTagScan      = "unregistered_tag_scan"
+	AuditResourceOrganization  = "organization"
+	AuditResourceSchool        = "school"
+	AuditResourceInvitation    = "invitation"
+	AuditResourceDevice        = "device"
+	AuditResourceAccount       = "account"
+	AuditResourcePerson        = "person"
+	AuditResourceAnnouncement  = "announcement"
+	AuditResourceTagScan       = "unregistered_tag_scan"
+	AuditResourceTraegerMember = "traeger_member"
 )
 
 // Device vocabulary shared with Device Fleet.

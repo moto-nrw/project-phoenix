@@ -3073,6 +3073,9 @@
       },
       "operator": {
         "audit_unavailable": "{object} сейчас недоступен. Повторите попытку."
+      },
+      "traeger": {
+        "no_membership": "У вас нет доступа к: {object}. Обратитесь в школу."
       }
     },
     "actions": {

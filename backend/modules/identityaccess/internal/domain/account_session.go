@@ -5,9 +5,9 @@ import (
 	"time"
 )
 
-// Portal scopes an account refresh session is persisted under. Tenant and
-// org share the staff portal; unknown marks legacy rows minted before the
-// scope was recorded.
+// Portal scopes an account refresh session is persisted under. Org is the
+// Träger-Portal (ADR 0084); unknown marks legacy rows minted before the scope
+// was recorded.
 const (
 	PortalScopeTenant  = "tenant"
 	PortalScopeOrg     = "org"
@@ -17,13 +17,16 @@ const (
 	PortalScopeUnknown = "unknown"
 )
 
-// CapPortalScopes returns the portal scopes that share one session cap.
-// Tenant and org share the staff portal. Unknown legacy rows stay in their
-// own bucket so a staff login cannot evict a legacy parent session.
+// CapPortalScopes returns the portal scopes that share one session cap. Every
+// portal has its own bucket, the Träger-Portal included (ADR 0084). Unknown
+// legacy rows stay in their own bucket so a staff login cannot evict a legacy
+// parent session.
 func CapPortalScopes(portalScope string) []string {
 	switch portalScope {
-	case PortalScopeTenant, PortalScopeOrg:
-		return []string{PortalScopeTenant, PortalScopeOrg}
+	case PortalScopeTenant:
+		return []string{PortalScopeTenant}
+	case PortalScopeOrg:
+		return []string{PortalScopeOrg}
 	case PortalScopeParent:
 		return []string{PortalScopeParent}
 	case PortalScopeSchool:
@@ -47,8 +50,11 @@ func CapPortalScopes(portalScope string) []string {
 // and ReplacementTokenHash likewise names the successor by hash (#4902).
 // Listings and revocations return Token empty.
 type AccountSession struct {
-	ID                   int64
-	TenantID             int64
+	ID       int64
+	TenantID int64
+	// OrganizationID is the Träger of a Träger-Portal session (portal scope
+	// org); such a session has no school. Zero for every other portal.
+	OrganizationID       int64
 	AccountID            int64
 	Token                string
 	TokenHash            string
@@ -84,6 +90,9 @@ func (s *AccountSession) Validate() error {
 	case PortalScopeTenant, PortalScopeOrg, PortalScopeParent, PortalScopeSchool, PortalScopeCaterer, PortalScopeUnknown:
 	default:
 		return errors.New("invalid portal scope")
+	}
+	if (s.PortalScope == PortalScopeOrg) != (s.OrganizationID > 0) || (s.PortalScope == PortalScopeOrg && s.TenantID != 0) {
+		return errors.New("a Träger session names its Träger and no school; no other session names a Träger")
 	}
 	switch {
 	case (s.RotatedAt == nil) != (s.ReplacementTokenHash == nil):

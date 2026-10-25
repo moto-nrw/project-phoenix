@@ -15,7 +15,8 @@ func TestPrincipalScopeValidation(t *testing.T) {
 	}{
 		{"legacy tenant", PrincipalInput{AccountID: 1, TenantID: 2}, ScopeTenant},
 		{"explicit tenant", PrincipalInput{AccountID: 1, TenantID: 2, Scope: "tenant"}, ScopeTenant},
-		{"organization", PrincipalInput{AccountID: 1, TenantID: 2, OrganizationID: 3, Scope: "org"}, ScopeOrganization},
+		// ADR 0084: a Träger-Portal principal names its Träger and no school.
+		{"organization", PrincipalInput{AccountID: 1, OrganizationID: 3, Scope: "org"}, ScopeOrganization},
 		{"platform", PrincipalInput{AccountID: 1, Scope: "platform"}, ScopePlatform},
 		{"parent", PrincipalInput{AccountID: 1, Scope: "parent"}, ScopeParent},
 		{"school", PrincipalInput{AccountID: 1, TenantID: 2, Scope: "school"}, ScopeSchool},
@@ -37,6 +38,8 @@ func TestPrincipalRejectsInvalidIdentity(t *testing.T) {
 		{AccountID: 1},
 		{AccountID: 1, TenantID: 2, Scope: "parent"},
 		{AccountID: 1, TenantID: 2, Scope: "org"},
+		{AccountID: 1, Scope: "org"},
+		{AccountID: 1, TenantID: 2, OrganizationID: 3, Scope: "org"},
 		{AccountID: 1, TenantID: 2, Scope: "unknown"},
 	}
 	for _, input := range inputs {

@@ -13,7 +13,7 @@ const (
 	mealCaterersDescription = "Caterer: Betrieb, Konten, Einladung durch die Schule und Belieferung einer Schule (#3873, ADR 0077)"
 )
 
-// accountIsUnusedSQL restates auth.account_is_unused of 1.15.464 (#4043);
+// accountIsUnusedSQL restates auth.account_is_unused of 1.15.514 (#4649);
 // catererAccountsInUse adds that a caterer account is in use while its
 // caterer supplies a school or an invitation for its address is open, so the
 // hourly erasure never takes a working caterer's login.
@@ -77,6 +77,10 @@ const accountIsUnusedSQL = `
 			AND NOT EXISTS (
 				SELECT 1 FROM auth.demo_accesses AS demo
 				WHERE demo.account_id = target_id OR demo.parent_account_id = target_id
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM platform.organization_accounts AS traeger
+				WHERE traeger.account_id = target_id AND traeger.status IN ('pending', 'active')
 			)`
 
 const catererAccountsInUse = `
@@ -205,7 +209,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     mealCaterersVersion,
 		Description: mealCaterersDescription,
-		DependsOn:   []string{mealRegistrationLogVersion},
+		DependsOn:   []string{mealRegistrationLogVersion, traegerPortalVersion},
 	})
 	Migrations.MustRegister(mealCaterersUp, mealCaterersDown)
 }

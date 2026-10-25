@@ -164,6 +164,8 @@
     "/school/nachrichten/[threadID]": 837656,
     "/school/reset-password": 835829,
     "/school/tagesinformationen": 828891,
-    "/start": 491207
+    "/start": 491207,
+    "/traeger": 513775,
+    "/traeger/login": 514262
   }
 }

@@ -154,7 +154,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0097: the isolated tenant return constructor adds exactly 18 LOC.
 // ADR 0102: the class-trip status-day seam of modules/classday/compose (+2).
 // ADR 0103: the signature ledger constructor adds exactly 6 LOC.
-const moduleComposeBudgetTotal = 12509
+// ADR 0104: the Träger projection composition adds exactly 22 LOC.
+const moduleComposeBudgetTotal = 12530
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -188,7 +189,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/filestorage/compose":                   211,
 	"modules/grouplive/compose":                     14,
 	"modules/guardianlinkview/compose":              8,
-	"modules/identityaccess/compose":                1348, // raised by ADR 0077
+	"modules/identityaccess/compose":                1347, // raised by ADR 0077
 	"modules/mealplan/compose":                      74,   // raised by ADR 0078
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	"modules/organizationtenancy/compose":         270,
@@ -224,6 +225,8 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/shiftplansync/compose":                 124,
 	"workflows/staffclock/compose":                    36,
 	"workflows/staffoffboarding/compose":              76,
+	// Added by ADR 0104: construction of the Träger projection, no retained logic.
+	"modules/traegerview/compose": 22,
 	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
 	"workflows/studentdeletion/compose":  74,

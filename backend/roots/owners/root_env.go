@@ -28,11 +28,13 @@ type RootEnvironment struct {
 // ServiceLinks are the validated bases the mails and the CalDAV feed link to
 // and the token lifetimes the configuration names.
 type ServiceLinks struct {
-	FrontendURL              string
-	PublicAPIURL             string
-	ParentsURL               string
-	SchoolURL                string
-	CatererURL               string
+	FrontendURL  string
+	PublicAPIURL string
+	ParentsURL   string
+	SchoolURL    string
+	CatererURL   string
+	// TraegerURL is the Träger-Portal base invitations link to (ADR 0084).
+	TraegerURL               string
 	InvitationTokenExpiry    time.Duration
 	PasswordResetTokenExpiry time.Duration
 }

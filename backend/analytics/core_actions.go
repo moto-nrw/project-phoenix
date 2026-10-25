@@ -49,7 +49,7 @@ func export(exportType string) CoreAction {
 
 // coreActions classifies every writing route (POST, PUT, PATCH, DELETE) of
 // the portal routers: OGS portal (/api, /auth), parents portal (/parent),
-// school portal (/school), caterer portal (/caterer), and the public demo
+// school portal (/school), caterer portal (/caterer), Träger portal (/traeger), and the public demo
 // (/demo). A route either names
 // its event or is notCaptured. TestFullProductionRouterGolden fails for a
 // writing route of these routers that is missing here, and for an entry
@@ -558,6 +558,11 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/parent/me/push/subscriptions"}:                                            notCaptured,
 	{http.MethodPost, "/parent/me/pwa-usage"}:                                                     notCaptured,
 
+	// Träger-Portal (ADR 0084). It collects nothing until a collection
+	// decision for the Träger exists; a Träger session names no school, so
+	// ActorOf yields no actor either.
+	{http.MethodPost, "/traeger/auth/login"}: notCaptured,
+
 	// School portal (Lehrkräfte).
 	{http.MethodPost, "/school/auth/login"}:                                               session("login_success"),
 	{http.MethodPost, "/school/auth/mfa/enroll/confirm"}:                                  session("login_success"),
@@ -623,7 +628,7 @@ func CoreActions() map[RouteKey]CoreAction {
 // CoreActionPrefixes are the path prefixes of the portal routers whose
 // writing routes the table must classify.
 func CoreActionPrefixes() []string {
-	return []string{"/api/", "/auth/", "/parent/", "/school/", "/demo/", "/caterer/"}
+	return []string{"/api/", "/auth/", "/parent/", "/school/", "/caterer/", "/traeger/", "/demo/"}
 }
 
 // CoreActionExcludedPrefixes are routes under those prefixes that do not

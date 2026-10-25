@@ -14,6 +14,16 @@ func ProtectedSchoolRoutes(r chi.Router, fn func(chi.Router, common.Middleware))
 	common.ProtectedSchoolRoutes(r, fn, sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, SchoolScopeMiddleware, SecurityPrincipalMiddleware, RequestSettingsCacheMiddleware, RequestIdentityCacheMiddleware)
 }
 
+// ProtectedTraegerRoutes registers the Träger route group (ADR 0084): only
+// Träger sessions pass, the security principal carries the Träger rights,
+// and no tenant transaction is opened.
+func ProtectedTraegerRoutes(r chi.Router, fn func(chi.Router)) {
+	r.Group(func(gr chi.Router) {
+		gr.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, TraegerScopeMiddleware, SecurityPrincipalMiddleware)
+		fn(gr)
+	})
+}
+
 func ProtectedParentGroup(r chi.Router, fn func(chi.Router)) {
 	common.ProtectedParentGroup(r, fn, sessiontoken.Authenticator, ParentScopeMiddleware)
 }

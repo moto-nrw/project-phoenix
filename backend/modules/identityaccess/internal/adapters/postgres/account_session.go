@@ -15,10 +15,14 @@ import (
 // semantics of the retained model: zero timestamps take the database clock
 // and an unset portal scope stores the column default. The token columns
 // hold hex SHA-256 digests only (#4902); the raw value never reaches SQL.
+// A Träger-Portal session stores its Träger and no school, every other
+// session its school and no Träger (chk_tokens_session_owner); the zero value
+// binds NULL.
 type accountSessionRow struct {
 	bun.BaseModel        `bun:"table:auth.tokens,alias:token"`
 	ID                   int64      `bun:"id,pk,autoincrement"`
-	TenantID             int64      `bun:"tenant_id,notnull"`
+	TenantID             int64      `bun:"tenant_id,nullzero"`
+	OrganizationID       int64      `bun:"organization_id,nullzero"`
 	AccountID            int64      `bun:"account_id,notnull"`
 	TokenHash            string     `bun:"token,notnull"`
 	Expiry               time.Time  `bun:"expiry,notnull"`
@@ -38,7 +42,7 @@ type accountSessionRow struct {
 
 func (r accountSessionRow) toDomain() domain.AccountSession {
 	return domain.AccountSession{
-		ID: r.ID, TenantID: r.TenantID, AccountID: r.AccountID, TokenHash: r.TokenHash, Expiry: r.Expiry, Mobile: r.Mobile,
+		ID: r.ID, TenantID: r.TenantID, OrganizationID: r.OrganizationID, AccountID: r.AccountID, TokenHash: r.TokenHash, Expiry: r.Expiry, Mobile: r.Mobile,
 		Identifier: r.Identifier, PortalScope: r.PortalScope, MFAVerified: r.MFAVerified, FamilyID: r.FamilyID, FamilyExpiryCap: r.FamilyExpiryCap,
 		Generation: r.Generation, RotatedAt: r.RotatedAt, ReplacementTokenHash: r.ReplacementTokenHash, RecoveryProofHash: r.RecoveryProofHash,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
@@ -47,7 +51,7 @@ func (r accountSessionRow) toDomain() domain.AccountSession {
 
 func accountSessionRowFromDomain(session domain.AccountSession) accountSessionRow {
 	return accountSessionRow{
-		ID: session.ID, TenantID: session.TenantID, AccountID: session.AccountID, TokenHash: domain.HashToken(session.Token), Expiry: session.Expiry, Mobile: session.Mobile,
+		ID: session.ID, TenantID: session.TenantID, OrganizationID: session.OrganizationID, AccountID: session.AccountID, TokenHash: domain.HashToken(session.Token), Expiry: session.Expiry, Mobile: session.Mobile,
 		Identifier: session.Identifier, PortalScope: session.PortalScope, MFAVerified: session.MFAVerified, FamilyID: session.FamilyID, FamilyExpiryCap: session.FamilyExpiryCap,
 		Generation: session.Generation, RotatedAt: session.RotatedAt, ReplacementTokenHash: session.ReplacementTokenHash, RecoveryProofHash: session.RecoveryProofHash,
 		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,

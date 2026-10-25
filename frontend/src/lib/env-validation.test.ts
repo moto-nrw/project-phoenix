@@ -16,6 +16,7 @@ const validBuildEnv = {
   NEXT_PUBLIC_PARENTS_HOSTNAME: "eltern.moto-app.de",
   NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.moto-app.de",
   NEXT_PUBLIC_CATERER_HOSTNAME: "caterer.moto-app.de",
+  NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.moto-app.de",
   NEXT_PUBLIC_SENTRY_DSN: "",
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: "",
 };
@@ -45,6 +46,17 @@ describe("env validation", () => {
     ).toThrow(
       "Frontend build env validation failed: NEXT_PUBLIC_API_URL: Invalid URL",
     );
+  });
+
+  // The Träger-Portal host has no default (#4649): a build without it must
+  // fail instead of inventing a host.
+  it("fails build validation without the Träger-Portal host", () => {
+    expect(() =>
+      validateBuildEnv({
+        ...validBuildEnv,
+        NEXT_PUBLIC_TRAEGER_HOSTNAME: undefined,
+      }),
+    ).toThrow("NEXT_PUBLIC_TRAEGER_HOSTNAME");
   });
 
   it("does not require runtime secrets during build validation", () => {

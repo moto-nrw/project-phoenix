@@ -25,6 +25,7 @@ type ServiceConfig struct {
 	ParentsURL                 string
 	SchoolURL                  string
 	CatererURL                 string
+	TraegerURL                 string
 	AppEnv                     string
 	InvitationTokenExpiryHours int
 	PasswordResetExpiryMinutes int
