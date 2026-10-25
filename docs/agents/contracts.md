@@ -565,8 +565,10 @@ The school that hosts a holiday week reads its participants in its own tenant
 transaction (#4665, ADR 0116): `GET /api/holiday-weeks` and
 `.../{weekId}/participants[/export]` behind `config:read`. Host policies on the
 Träger's holiday tables admit only weeks of published periods the school
-hosts, until their last Berlin calendar day, and only children of confirmed
-bookings, with name, date of birth, home school and time model. The token
+hosts, until their last Berlin calendar day, and bookings of confirmed
+registrations; the children come only through the SECURITY DEFINER function
+`enrollment.holiday_host_participants` with name, date of birth, home school
+and time model, never as rows with health columns. The token
 carries no other `tenant_id`; every list read and export writes an
 `audit.data_access_log` row (`holiday_participants`,
 `holiday_participants_export`) at the hosting school.

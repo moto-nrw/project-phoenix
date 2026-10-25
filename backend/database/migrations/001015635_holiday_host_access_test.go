@@ -15,10 +15,12 @@ import (
 // TestHolidayHostSchoolReadsOnlyConfirmedChildrenOfItsOpenWeeks pins ADR 0116
 // on the Träger's holiday tables: under the request role the school that
 // hosts a week of a published period reads that week, its period and time
-// models, and the bookings and children of confirmed registrations, until
-// the last day of the week has passed. It reads no registration, no contact,
-// no unconfirmed child and nothing of a week it does not host; another
-// school of the Träger and a school of another Träger read nothing; no school
+// models and the bookings of confirmed registrations, until the last day of
+// the week has passed, and the children only through
+// enrollment.holiday_host_participants with their minimum fields. It reads
+// no row of a child, no health information, no registration, no contact, no
+// unconfirmed child and nothing of a week it does not host; another school
+// of the Träger and a school of another Träger read nothing; no school
 // writes. The Träger transaction keeps seeing exactly its own rows.
 func TestHolidayHostSchoolReadsOnlyConfirmedChildrenOfItsOpenWeeks(t *testing.T) {
 	t.Parallel()
@@ -121,14 +123,34 @@ func TestHolidayHostSchoolReadsOnlyConfirmedChildrenOfItsOpenWeeks(t *testing.T)
 
 	assert.Equal(t, visible{Periods: 2, Weeks: 3, Models: 3, Registrations: 5, Children: 5, Bookings: 6, Contacts: 5},
 		read("app.current_org_id", own), "the Träger keeps seeing all of its rows")
-	assert.Equal(t, visible{Periods: 1, Weeks: 1, Models: 1, Children: 2, Bookings: 2},
+	assert.Equal(t, visible{Periods: 1, Weeks: 1, Models: 1, Bookings: 2},
 		read("app.current_tenant_id", host),
-		"the host reads its open week of the published period and the two confirmed children booked there, nothing else")
+		"the host reads its open week of the published period and the two confirmed bookings there, but no row of a child")
 	assert.Equal(t, visible{}, read("app.current_tenant_id", home), "a school that hosts no week reads nothing, not even its own children")
 	assert.Equal(t, visible{}, read("app.current_tenant_id", foreignSchool), "a school of another Träger reads nothing")
 	assert.Equal(t, visible{}, read("app.current_org_id", foreign), "another Träger reads nothing")
 
+	participants := func(school, week int64) []string {
+		var names []string
+		require.NoError(t, asRequestRole("app.current_tenant_id", fmt.Sprint(school), func(tx bun.Tx) error {
+			return tx.NewRaw(`SELECT first_name || ' ' || birth_date::text || ' ' || COALESCE(home_school_id::text, 'guest')
+				FROM enrollment.holiday_host_participants(?, ?) ORDER BY child_id`, own, week).Scan(ctx, &names)
+		}))
+		return names
+	}
+	assert.Equal(t, []string{"Lia 2018-03-01 " + fmt.Sprint(home), "Lia 2018-03-01 guest"}, participants(host, open),
+		"the host reads the minimum fields of the two confirmed children of its open week")
+	assert.Empty(t, participants(host, ended), "the access ends after the last day of the week")
+	assert.Empty(t, participants(host, draftWeek), "a week of a draft period opens nothing")
+	assert.Empty(t, participants(home, open), "a school that does not host the week reads no child")
+	assert.Empty(t, participants(foreignSchool, open), "a school of another Träger reads no child")
 	err := asRequestRole("app.current_tenant_id", fmt.Sprint(host), func(tx bun.Tx) error {
+		_, err := tx.ExecContext(ctx, `SELECT allergies FROM enrollment.holiday_host_participants(?, ?)`, own, open)
+		return err
+	})
+	assert.ErrorContains(t, err, "allergies", "the host reads no health information")
+
+	err = asRequestRole("app.current_tenant_id", fmt.Sprint(host), func(tx bun.Tx) error {
 		result, err := tx.ExecContext(ctx, `UPDATE enrollment.holiday_registration_children SET first_name = 'Mia' WHERE id = ?`, confirmed)
 		if err != nil {
 			return err

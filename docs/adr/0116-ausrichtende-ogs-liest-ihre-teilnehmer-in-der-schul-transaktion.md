@@ -40,18 +40,25 @@ Trägers und Feriengäste ohne Schule. Ihr Token trägt nur ihre eigene
    Abschnitt 5), enger als dort vorgesehen:
    - eine Woche eines veröffentlichten Zeitraums, die die Schule ausrichtet,
      und Zeitraum und Zeitmodelle dieser Woche;
-   - die Buchungen dieser Woche, deren Anmeldung bestätigt ist, und die
-     Kinder dieser Buchungen.
+   - die Buchungen dieser Woche, deren Anmeldung bestätigt ist (nur IDs).
 
-   Anmeldung, Eltern, Kontakte, Einwilligungen und das Protokoll des Trägers
-   sieht die Schule nicht. Keine Policy erlaubt ihr zu schreiben. Eine andere
-   Schule des Trägers und jede Schule eines anderen Trägers sehen nichts.
-   Storniert oder bucht das Träger-Büro um, verschwindet das Kind sofort.
-   Zwei Funktionen mit `SECURITY DEFINER` (`enrollment.holiday_host_week`,
-   `enrollment.holiday_host_booking`) entscheiden Woche und Buchung. Sie lesen
-   Zeitraum, Woche und Anmeldung ohne die Träger-Policy, damit die Policies
-   keinen Kreis bilden, und antworten außerhalb einer Schul-Transaktion mit
-   „nein“. Die Träger-Transaktion behält genau ihre bisherige Sicht.
+   Die Kinder liest die Schule nur über die Funktion
+   `enrollment.holiday_host_participants`: die Mindestfelder (Punkt 3) der
+   bestätigten Kinder einer Woche, die sie ausrichtet. Eine Zeilen-Policy auf
+   `enrollment.holiday_registration_children` gibt es für die Schule nicht,
+   weil sie einer Rolle, die die ganze Tabelle lesen darf, die
+   Gesundheitsspalten nicht verbergen könnte. Anmeldung, Eltern, Kontakte,
+   Einwilligungen und das Protokoll des Trägers sieht die Schule nicht. Keine
+   Policy erlaubt ihr zu schreiben. Eine andere Schule des Trägers und jede
+   Schule eines anderen Trägers sehen nichts. Storniert oder bucht das
+   Träger-Büro um, verschwindet das Kind sofort. Die Funktionen mit
+   `SECURITY DEFINER` (`enrollment.holiday_host_week`,
+   `enrollment.holiday_host_booking`, `enrollment.holiday_host_participants`)
+   lesen Zeitraum, Woche, Anmeldung und Kind ohne die Träger-Policy, damit
+   die Policies keinen Kreis bilden, und liefern außerhalb einer
+   Schul-Transaktion nichts. Sie sind kein allgemeiner Weg an RLS vorbei:
+   jede prüft die ausrichtende Schule der Sitzung selbst. Die
+   Träger-Transaktion behält genau ihre bisherige Sicht.
 3. **Mindestfelder.** Je Kind Vorname, Nachname, Geburtsdatum, Heimatschule
    oder Feriengast mit der Schule, die die Eltern genannt haben, und das
    gebuchte Zeitmodell. Gesundheitsangaben, Notfallkontakte und Abholung

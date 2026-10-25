@@ -15,9 +15,10 @@ import (
 // Participant lists of the hosting school (#4665, ADR 0116). Every statement
 // runs in the tenant transaction of the hosting school. The host policies
 // admit only the school's weeks of published periods until their last day
-// and only bookings of confirmed registrations; each statement names the
-// school, the end of the week by the service's calendar day and the
-// confirmed booking once more.
+// and only bookings of confirmed registrations; the children come only
+// through enrollment.holiday_host_participants with their minimum fields.
+// Each statement names the school, the end of the week by the service's
+// calendar day and the confirmed booking once more.
 
 // HolidayHostStore reads the hosted weeks in the hosting school's tenant
 // transaction.
@@ -84,17 +85,12 @@ const (
 		FROM enrollment.holiday_week_time_models
 		WHERE organization_id = ? AND holiday_period_week_id = ?
 		ORDER BY starts_at, ends_at, id`
-	// hostedParticipantsQuery reads only the minimum fields of a child: no
-	// health information, no contacts, nothing of the registration.
-	hostedParticipantsQuery = `SELECT child.id AS child_id, child.first_name, child.last_name, child.birth_date,
-			child.home_school_id, child.guest_school_name, booking.holiday_week_time_model_id AS time_model_id
-		FROM enrollment.holiday_registration_bookings AS booking
-		JOIN enrollment.holiday_registration_children AS child
-			ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
-		WHERE booking.organization_id = ? AND booking.holiday_period_week_id = ?
-			AND enrollment.holiday_host_booking(booking.organization_id, booking.holiday_period_week_id,
-				booking.holiday_registration_child_id)
-		ORDER BY lower(child.last_name), lower(child.first_name), child.id`
+	// hostedParticipantsQuery reads the minimum fields of the confirmed
+	// children through the database's own narrow function: the school has no
+	// row access to the children, so no column beyond these can leave.
+	hostedParticipantsQuery = `SELECT child_id, first_name, last_name, birth_date, home_school_id, guest_school_name, time_model_id
+		FROM enrollment.holiday_host_participants(?, ?)
+		ORDER BY lower(last_name), lower(first_name), child_id`
 )
 
 // ListHostedHolidayWeeks lists the weeks of published periods the school

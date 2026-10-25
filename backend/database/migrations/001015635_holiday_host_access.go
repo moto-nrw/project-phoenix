@@ -29,18 +29,21 @@ func init() {
 //   - a week of a published period the school hosts, while its last day has
 //     not passed (Berlin calendar day), and the period and time models of
 //     that week;
-//   - the bookings of that week whose registration is confirmed, and the
-//     children of those bookings.
+//   - the bookings of that week whose registration is confirmed: IDs only.
 //
-// The school sees no registration, no contact and no audit entry: the
-// parents' data, the consents and the review stay with the Träger. No policy
-// admits a write. Access to a child of another school therefore exists only
-// through a confirmed booking for a week the school hosts, and it ends after
-// that week without anyone revoking it. Two SECURITY DEFINER functions decide
-// a week and a booking; they read the period, the week and the registration
-// without the Träger policy and so keep the policies free of cycles. They
-// answer false outside a school transaction, so a Träger transaction keeps
-// exactly its own policy.
+// The children come only through enrollment.holiday_host_participants: the
+// minimum fields (name, date of birth, home school, booked time model) of
+// the confirmed children of one hosted week. No policy opens a row of
+// enrollment.holiday_registration_children to a school, because a row policy
+// cannot hide the health columns from a role that reads the whole table. The
+// school sees no registration, no contact and no audit entry: the parents'
+// data, the consents and the review stay with the Träger. No policy admits a
+// write. Access to a child of another school therefore exists only through a
+// confirmed booking for a week the school hosts, and it ends after that week
+// without anyone revoking it. The SECURITY DEFINER functions read the period,
+// the week, the registration and the child without the Träger policy, keep
+// the policies free of cycles, and answer nothing outside a school
+// transaction, so a Träger transaction keeps exactly its own policy.
 const holidayHostAccessUpSQL = `
 CREATE FUNCTION enrollment.holiday_host_week(p_organization_id BIGINT, p_week_id BIGINT)
 	RETURNS BOOLEAN
@@ -84,10 +87,36 @@ CREATE FUNCTION enrollment.holiday_host_booking(p_organization_id BIGINT, p_week
 COMMENT ON FUNCTION enrollment.holiday_host_booking(BIGINT, BIGINT, BIGINT) IS
 	'True for a booking of a confirmed registration in a week the school of app.current_tenant_id hosts (#4665, ADR 0116).';
 
+CREATE FUNCTION enrollment.holiday_host_participants(p_organization_id BIGINT, p_week_id BIGINT)
+	RETURNS TABLE (
+		child_id BIGINT, first_name TEXT, last_name TEXT, birth_date DATE,
+		home_school_id BIGINT, guest_school_name TEXT, time_model_id BIGINT
+	)
+	LANGUAGE sql
+	STABLE
+	SECURITY DEFINER
+	SET search_path = pg_catalog, pg_temp
+	AS $$
+	SELECT child.id, child.first_name, child.last_name, child.birth_date,
+		child.home_school_id, child.guest_school_name, booking.holiday_week_time_model_id
+	FROM enrollment.holiday_registration_bookings AS booking
+	JOIN enrollment.holiday_registration_children AS child
+		ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
+	JOIN enrollment.holiday_registrations AS registration
+		ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
+	WHERE booking.organization_id = p_organization_id AND booking.holiday_period_week_id = p_week_id
+		AND registration.status = 'confirmed'
+		AND enrollment.holiday_host_week(p_organization_id, p_week_id)
+	$$;
+COMMENT ON FUNCTION enrollment.holiday_host_participants(BIGINT, BIGINT) IS
+	'Minimum fields of the confirmed children of a week the school of app.current_tenant_id hosts (#4665, ADR 0116); no health information, no contacts.';
+
 REVOKE ALL ON FUNCTION enrollment.holiday_host_week(BIGINT, BIGINT) FROM PUBLIC;
 REVOKE ALL ON FUNCTION enrollment.holiday_host_booking(BIGINT, BIGINT, BIGINT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION enrollment.holiday_host_participants(BIGINT, BIGINT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION enrollment.holiday_host_week(BIGINT, BIGINT) TO phoenix_tenant;
 GRANT EXECUTE ON FUNCTION enrollment.holiday_host_booking(BIGINT, BIGINT, BIGINT) TO phoenix_tenant;
+GRANT EXECUTE ON FUNCTION enrollment.holiday_host_participants(BIGINT, BIGINT) TO phoenix_tenant;
 
 CREATE POLICY host_school_reads_enrollment_holiday_period_weeks ON enrollment.holiday_period_weeks
 	FOR SELECT
@@ -108,22 +137,14 @@ CREATE POLICY host_school_reads_enrollment_holiday_registration_bookings ON enro
 	FOR SELECT
 	USING (NULLIF(current_setting('app.current_tenant_id', true), '') IS NOT NULL
 		AND enrollment.holiday_host_booking(organization_id, holiday_period_week_id, holiday_registration_child_id));
-CREATE POLICY host_school_reads_enrollment_holiday_registration_children ON enrollment.holiday_registration_children
-	FOR SELECT
-	USING (NULLIF(current_setting('app.current_tenant_id', true), '') IS NOT NULL
-		AND EXISTS (
-			SELECT 1 FROM enrollment.holiday_registration_bookings AS booking
-			WHERE booking.organization_id = holiday_registration_children.organization_id
-				AND booking.holiday_registration_child_id = holiday_registration_children.id
-		));
 `
 
 const holidayHostAccessDownSQL = `
-DROP POLICY IF EXISTS host_school_reads_enrollment_holiday_registration_children ON enrollment.holiday_registration_children;
 DROP POLICY IF EXISTS host_school_reads_enrollment_holiday_registration_bookings ON enrollment.holiday_registration_bookings;
 DROP POLICY IF EXISTS host_school_reads_enrollment_holiday_week_time_models ON enrollment.holiday_week_time_models;
 DROP POLICY IF EXISTS host_school_reads_enrollment_holiday_periods ON enrollment.holiday_periods;
 DROP POLICY IF EXISTS host_school_reads_enrollment_holiday_period_weeks ON enrollment.holiday_period_weeks;
+DROP FUNCTION IF EXISTS enrollment.holiday_host_participants(BIGINT, BIGINT);
 DROP FUNCTION IF EXISTS enrollment.holiday_host_booking(BIGINT, BIGINT, BIGINT);
 DROP FUNCTION IF EXISTS enrollment.holiday_host_week(BIGINT, BIGINT);
 `
