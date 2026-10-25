@@ -84,7 +84,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/reminders_test_helpers.go:NewRemindersTestModule":               64,
 	"api/root_serve.go:composeServeRoot":                                 511,
 	"api/root_test_root.go:composeTestRootWith":                          283,
-	"api/serve_mounts_portals.go:newOperatorRouter":                      65,
 	"api/serve_mounts_students.go:mountStudentRoutes":                    120,
 	"api/serve_mounts_students.go:requestReviewDependencies":             100,
 	"api/settings_composition.go:newSettingsResource":                    61,

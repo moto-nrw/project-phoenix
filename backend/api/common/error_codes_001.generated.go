@@ -12,6 +12,8 @@ const (
 	CodeImportFileUnreadable                           = "import.file_unreadable"
 	CodeImportImportBatchFailed                        = "import.import_batch_failed"
 	CodeImportModeForbidden                            = "import.mode_forbidden"
+	CodeImportNotTestTraeger                           = "import.not_test_traeger"
+	CodeImportTestTraegerInactive                      = "import.test_traeger_inactive"
 	CodeIotActivityCapacityExceeded                    = "iot.activity_capacity_exceeded"
 	CodeIotDeviationReasonRequired                     = "iot.deviation_reason_required"
 	CodeIotDeviceApiKeyFormatInvalid                   = "iot.device_api_key_format_invalid"
@@ -300,8 +302,6 @@ const (
 	CodeTimetableSeriesEndBeforeStart                  = "timetable.series_end_before_start"
 	CodeTimetableSeriesEndOutsidePeriod                = "timetable.series_end_outside_period"
 	CodeTimetableSickAbsenceScopeLocked                = "timetable.sick_absence_scope_locked"
-	CodeTimetableSlotListDrifted                       = "timetable.slot_list_drifted"
-	CodeTimetableSlotListGroupingInvalid               = "timetable.slot_list_grouping_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -315,6 +315,8 @@ var errorCodeClasses1 = map[string]string{
 	"import.file_unreadable":                               "input",
 	"import.import_batch_failed":                           "server",
 	"import.mode_forbidden":                                "permission",
+	"import.not_test_traeger":                              "business_rejection",
+	"import.test_traeger_inactive":                         "business_rejection",
 	"iot.activity_capacity_exceeded":                       "business_rejection",
 	"iot.deviation_reason_required":                        "input",
 	"iot.device_api_key_format_invalid":                    "permission",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.series_end_before_start":                    "input",
 	"timetable.series_end_outside_period":                  "input",
 	"timetable.sick_absence_scope_locked":                  "business_rejection",
-	"timetable.slot_list_drifted":                          "business_rejection",
-	"timetable.slot_list_grouping_invalid":                 "input",
 }
 
 func init() {

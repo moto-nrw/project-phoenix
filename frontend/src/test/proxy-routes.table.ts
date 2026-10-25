@@ -245,11 +245,17 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/organizations/[id]/restore": [
     "POST operator /operator/organizations/id%2F1/restore",
   ],
+  "api/operator/provisioning/organizations/[id]/sample-children": [
+    "POST operator /operator/organizations/id%2F1/sample-children",
+  ],
   "api/operator/provisioning/organizations/[id]/schools": [
     "GET operator /operator/organizations/id%2F1/schools",
   ],
   "api/operator/provisioning/organizations/summaries": [
     "GET operator /operator/organizations/summaries",
+  ],
+  "api/operator/provisioning/organizations/test-traeger": [
+    "POST operator /operator/organizations/test-traeger",
   ],
   "api/operator/provisioning/roles": ["GET operator /operator/roles"],
   "api/operator/provisioning/schools": [
@@ -1015,6 +1021,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/templates/[id]/split": [
     "POST tenant /api/timetable/templates/id%2F1/split",
   ],
+  "api/traeger/organization": ["GET traeger /traeger/organization"],
   "api/traeger/schools": ["GET traeger /traeger/schools"],
   "api/work-time-models": [
     "GET tenant /api/work-time-models",

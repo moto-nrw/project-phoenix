@@ -55,6 +55,18 @@ func (s traegerSchoolIDs) ListTraegerSchoolIDs(ctx context.Context, organization
 	return ids, err
 }
 
+func (s traegerSchoolIDs) ListAccountTraeger(ctx context.Context, accountID int64) ([]traegerview.Traeger, error) {
+	organizations, err := s.organizations.ListAccountTraegerOrganizations(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]traegerview.Traeger, 0, len(organizations))
+	for _, organization := range organizations {
+		result = append(result, traegerview.Traeger(organization))
+	}
+	return result, nil
+}
+
 // TraegerPortalAuth binds the Träger-Portal's session port to Identity &
 // Access.
 func TraegerPortalAuth(sessions identityaccess.TraegerAccountLogin) traegerportal.AuthRuntime {

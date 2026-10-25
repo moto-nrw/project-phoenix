@@ -12,10 +12,13 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { formatCount } from "~/lib/format-utils";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OrganizationSummary } from "~/lib/operator/provisioning-helpers";
+import { Button } from "~/components/ui/button";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState, PlusIcon } from "../provisioning/provisioning-shared";
 import { CreateOrganizationModal } from "../provisioning/create-organization-modal";
+import { CreateTestTraegerModal } from "../provisioning/create-test-traeger-modal";
+import { TestTraegerBadge } from "../provisioning/test-traeger-badge";
 import {
   useSoftDeletable,
   DeletedEntityCard,
@@ -45,6 +48,7 @@ export default function OperatorOrganizationsPage() {
   const router = useRouter();
 
   const [createOrgOpen, setCreateOrgOpen] = useState(false);
+  const [createTestOpen, setCreateTestOpen] = useState(false);
 
   const {
     data: organizations,
@@ -132,13 +136,23 @@ export default function OperatorOrganizationsPage() {
   );
 
   const actionButton = (
-    <button
-      type="button"
-      onClick={() => setCreateOrgOpen(true)}
-      className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
-    >
-      Neuer Träger
-    </button>
+    <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={() => setCreateTestOpen(true)}
+      >
+        Test-Träger anlegen
+      </Button>
+      <button
+        type="button"
+        onClick={() => setCreateOrgOpen(true)}
+        className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700"
+      >
+        Neuer Träger
+      </button>
+    </div>
   );
 
   const mobileActionButton = (
@@ -159,7 +173,10 @@ export default function OperatorOrganizationsPage() {
         header: "Träger",
         render: (row) => (
           <div>
-            <div className="font-semibold text-gray-900">{row.name}</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-gray-900">{row.name}</span>
+              {row.testSystem ? <TestTraegerBadge /> : null}
+            </div>
             <div className="font-mono text-xs text-gray-500">{row.slug}</div>
           </div>
         ),
@@ -302,6 +319,15 @@ export default function OperatorOrganizationsPage() {
         onConfirm={() => void orgDelete.handleRestore()}
         isProcessing={orgDelete.isProcessing}
         errorMessage={orgDelete.softDeleteError}
+      />
+
+      <CreateTestTraegerModal
+        isOpen={createTestOpen}
+        onClose={() => setCreateTestOpen(false)}
+        onCreated={async (slug) => {
+          await refreshAll();
+          router.push(`/operator/organizations/${encodeURIComponent(slug)}`);
+        }}
       />
 
       <CreateOrganizationModal

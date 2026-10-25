@@ -302,7 +302,7 @@ func setupCaregiverCompositionModule(t *testing.T, graph *goldenRuntime) *caregi
 	require.NoError(t, err)
 	auth := newAccountResource(graph.db, nil, nil, services.CaregiverCapability, settings.Service)
 	operator, err := newOperatorRouter(graph.db, slog.Default(), sessionAuth, authRateLimiters{}, devicefleetCompose.NewIoTService(deviceFleet), nil,
-		settings.Service, hub, active, settingsWrites, nil, provisioning, services.CaregiverCapability, schedules.Lifecycle, nil)
+		settings.Service, hub, active, settingsWrites, nil, provisioning, services.CaregiverCapability, schedules.Lifecycle, nil, nil)
 	require.NoError(t, err)
 	return &caregiverComposition{
 		authWired:        auth != nil,
@@ -338,7 +338,7 @@ func setupOperatorInvitationRoute(t *testing.T, graph *goldenRuntime) chi.Router
 	require.NoError(t, err)
 	operator, err := newOperatorRouter(graph.db, slog.Default(), sessionAuth, buildAuthRateLimiters(nil, "5", demoLoopbackExempt()),
 		devicefleetCompose.NewIoTService(deviceFleet), nil, settings.Service, hub, active, settingsWrites, nil, provisioning,
-		services.CaregiverCapability, schedules.Lifecycle, nil)
+		services.CaregiverCapability, schedules.Lifecycle, nil, nil)
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Mount("/operator", operator)

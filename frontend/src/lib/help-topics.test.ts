@@ -656,6 +656,7 @@ describe("getParentHelpTopicForPath", () => {
 
     expect(traegerTopics.map((topic) => topic.id)).toEqual([
       HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerTestSystem,
       HELP_TOPICS.errorMessages,
     ]);
     expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([

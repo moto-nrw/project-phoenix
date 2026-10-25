@@ -186,6 +186,7 @@ export function summaryToOrganization(
     deletedAt: summary.deletedAt,
     createdAt: summary.createdAt,
     updatedAt: summary.updatedAt,
+    testSystem: summary.testSystem,
   };
 }
 
@@ -220,6 +221,8 @@ export interface BackendOrganization {
   settings: string | null;
   created_at: string;
   updated_at: string;
+  /** Test-Träger mit Test-Schulen und erfundenen Beispieldaten (#4658). */
+  test_system?: boolean;
 }
 
 export interface BackendSchool {
@@ -272,6 +275,7 @@ export interface Organization {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  testSystem: boolean;
 }
 
 export interface School {
@@ -387,6 +391,58 @@ export interface CreateOrganizationRequest {
   slug: string;
 }
 
+/** Auftrag für ein Testsystem (#4658): Test-Träger mit Test-Schulen. */
+export interface CreateTestTraegerRequest {
+  name: string;
+  slug: string;
+  school_count: number;
+  contact_email: string;
+}
+
+export interface BackendTestTraeger {
+  organization: BackendOrganization;
+  schools: BackendSchool[];
+}
+
+export interface TestTraeger {
+  organization: Organization;
+  schools: School[];
+}
+
+export function mapTestTraeger(data: BackendTestTraeger): TestTraeger {
+  return {
+    organization: mapOrganization(data.organization),
+    schools: data.schools.map(mapSchool),
+  };
+}
+
+/** Erfundene Beispielkinder in den Test-Schulen eines Test-Trägers. */
+export interface BackendSampleChildrenResult {
+  created_count: number;
+  schools: {
+    school_id: number;
+    created_count: number;
+    skipped_count: number;
+  }[];
+}
+
+export interface SampleChildrenResult {
+  createdCount: number;
+  skippedCount: number;
+}
+
+export function mapSampleChildrenResult(
+  data: BackendSampleChildrenResult,
+): SampleChildrenResult {
+  return {
+    createdCount: data.created_count,
+    skippedCount: data.schools.reduce(
+      (sum, school) => sum + school.skipped_count,
+      0,
+    ),
+  };
+}
+
 export interface CreateSchoolRequest {
   organization_id: number;
   name: string;
@@ -430,6 +486,7 @@ export function mapOrganization(data: BackendOrganization): Organization {
     deletedAt: data.deleted_at ?? null,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
+    testSystem: data.test_system ?? false,
   };
 }
 

@@ -25,7 +25,7 @@ func TestOperatorPersonAndAccountRoutesAuditOneAttemptPerRequest(t *testing.T) {
 	organizationID, schoolID := provisionTestSchool(t, db, service, operatorID, "audit-reads")
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
 	router := chi.NewRouter()
-	mountOperatorProvisioningRoutes(router, resource)
+	mountOperatorProvisioningRoutes(router, resource, nil)
 	mountOperatorSchoolRoutes(router, resource, nil, nil)
 	cases := []struct {
 		path, view, resource string

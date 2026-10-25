@@ -78,6 +78,9 @@ func (rt *AuthRuntime) complete() bool {
 // does not import the HTTP adapters it mounts.
 type TraegerRouter interface {
 	TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router
+	// TraegerOrganizationRouter serves the Träger of the session, which the
+	// portal frame names and marks as a test system (#4658).
+	TraegerOrganizationRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router
 }
 
 // Resource bundles the Träger-Portal handlers.
@@ -115,6 +118,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		r.Post("/login", rs.login)
 	})
 	r.Mount("/schools", rs.schools.TraegerRouter(protectedTraegerRoutes))
+	r.Mount("/organization", rs.schools.TraegerOrganizationRouter(protectedTraegerRoutes))
 	return r
 }
 

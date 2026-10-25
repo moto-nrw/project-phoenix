@@ -30,16 +30,31 @@ type School struct {
 	City      string `json:"city"`
 }
 
+// Traeger is the Träger of the session as the portal shows it in its frame.
+// TestSystem marks a test Träger with invented sample data (#4658).
+type Traeger struct {
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	TestSystem bool   `json:"test_system"`
+}
+
 // SchoolIDs resolves the schools of a Träger at Organisation & Tenancy: the
 // undeleted schools of an active Träger. Any other Träger is
 // ErrTraegerUnavailable. It joins the projection's administrative
 // transaction.
 type SchoolIDs interface {
 	ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
+	// ListAccountTraeger returns the active, undeleted Träger where the
+	// account's membership is active. It runs in Organisation & Tenancy's own
+	// read unit; Träger names are no school data.
+	ListAccountTraeger(ctx context.Context, accountID int64) ([]Traeger, error)
 }
 
 // Overview answers the Träger-Portal reads.
 type Overview interface {
+	// Traeger returns the Träger of the session while its account is still
+	// an active member of it.
+	Traeger(ctx context.Context, organizationID, accountID int64) (Traeger, error)
 	// Schools lists the schools of the Träger, ordered by name.
 	Schools(ctx context.Context, organizationID int64) ([]School, error)
 }

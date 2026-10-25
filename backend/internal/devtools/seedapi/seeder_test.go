@@ -1051,6 +1051,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 			return
 		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/operator/organizations/test-traeger" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+				"organization": map[string]any{"id": 9100, "test_system": true}, "schools": []any{},
+			}})
+			return
+		}
 		if weeklyMock.serve(t, w, r) {
 			return
 		}

@@ -132,3 +132,43 @@ export async function fetchTraegerSchools(): Promise<TraegerSchool[]> {
     city: school.city ?? "",
   }));
 }
+
+/** The Träger of the session, as the portal frame names and marks it. */
+export interface TraegerOrganization {
+  readonly id: string;
+  readonly name: string;
+  /** A test Träger with invented sample data (#4658). */
+  readonly testSystem: boolean;
+}
+
+interface BackendTraegerOrganization {
+  id: number;
+  name: string;
+  test_system?: boolean;
+}
+
+/** The Träger of the signed-in person's session. */
+export async function fetchTraegerOrganization(): Promise<TraegerOrganization> {
+  const response = await transportFetch("/api/traeger/organization", {
+    credentials: "include",
+    cache: "no-store",
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const organization = (data as { data?: BackendTraegerOrganization } | null)
+    ?.data;
+  if (!organization) {
+    throw apiErrorFromBody("Träger response without data", 502, data);
+  }
+  return {
+    id: String(organization.id),
+    name: organization.name,
+    testSystem: organization.test_system ?? false,
+  };
+}

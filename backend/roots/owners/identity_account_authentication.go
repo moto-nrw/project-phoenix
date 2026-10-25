@@ -227,7 +227,7 @@ func (d TraegerMembershipDirectory) ListAccountTraegerOrganizations(ctx context.
 	}
 	result := make([]identityaccess.TraegerOrganization, 0, len(organizations))
 	for _, organization := range organizations {
-		result = append(result, identityaccess.TraegerOrganization(organization))
+		result = append(result, identityaccess.TraegerOrganization{ID: organization.ID, Name: organization.Name})
 	}
 	return result, nil
 }

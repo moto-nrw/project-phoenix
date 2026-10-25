@@ -5,6 +5,7 @@ package application
 
 import (
 	"context"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 )
@@ -51,4 +52,25 @@ func (o *Overview) Schools(ctx context.Context, organizationID int64) ([]traeger
 		return nil, err
 	}
 	return schools, nil
+}
+
+// Traeger returns the Träger of the session with its test mark (#4658). The
+// session's account must still be an active member of an active Träger; a
+// membership that ended, or a Träger that is deactivated or deleted, makes
+// the Träger unavailable and ends the session.
+func (o *Overview) Traeger(ctx context.Context, organizationID, accountID int64) (traegerview.Traeger, error) {
+	if organizationID <= 0 || accountID <= 0 {
+		return traegerview.Traeger{}, traegerview.ErrTraegerRequired
+	}
+	memberships, err := o.schoolIDs.ListAccountTraeger(ctx, accountID)
+	if err != nil {
+		return traegerview.Traeger{}, err
+	}
+	index := slices.IndexFunc(memberships, func(traeger traegerview.Traeger) bool {
+		return traeger.ID == organizationID
+	})
+	if index < 0 {
+		return traegerview.Traeger{}, traegerview.ErrTraegerUnavailable
+	}
+	return memberships[index], nil
 }

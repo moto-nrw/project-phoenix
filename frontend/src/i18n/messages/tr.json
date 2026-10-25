@@ -2572,7 +2572,9 @@
         "file_type_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "file_unreadable": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "import_batch_failed": "{object} işlenemedi. Daha sonra yeniden deneyin.",
-        "mode_forbidden": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+        "mode_forbidden": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "not_test_traeger": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "test_traeger_inactive": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "iot": {
         "activity_capacity_exceeded": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
