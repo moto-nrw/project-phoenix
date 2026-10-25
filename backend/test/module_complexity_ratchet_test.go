@@ -262,12 +262,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 23,
 	// ADR 0087.
-	"internal/devtools/seedapi/marketing_daily_life.go:seedMarketingSessions": 22,
-	// ADR 0087.
-	"internal/devtools/seedapi/marketing_profile.go:seedMarketingAttendance": 16,
-	// ADR 0087.
-	"internal/devtools/seedapi/marketing_profile.go:seedMarketingChildren": 19,
-	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 53,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 26,
@@ -339,7 +333,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"observability/sentry_envelope.go:TagSentryEnvelope": 16,
 	// ADR 0087.
 	"realtime/hub.go:(*Hub).Unregister": 24,
-	// ADR 0087.
 	// ADR 0087.
 	"test/fixtures.go:cleanupTenantTestData": 39,
 	// ADR 0087.

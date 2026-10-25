@@ -105,8 +105,8 @@ func createDisposableStudent(rt *Runtime, groupID int64) (int64, error) {
 
 func seedDisposableGuardianChange(rt *Runtime, studentID int64) error {
 	guardianRaw, err := rt.Client.Post("/api/guardians", map[string]any{
-		"first_name": "Demo", "last_name": "Abholkontakt",
-		"email": "demo.abholkontakt@example.test", "preferred_contact_method": "email",
+		"first_name": "Renate", "last_name": "Vogel",
+		"email": "renate.vogel@example.test", "preferred_contact_method": "email",
 		"language_preference": "de",
 	})
 	if err != nil {

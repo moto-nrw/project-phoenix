@@ -48,7 +48,7 @@ func TestVerifyManualStudentRowsRejectsRoomLocation(t *testing.T) {
 	assert.ErrorContains(t, err, `room-tracking location "Raum 101"`)
 }
 
-// With room tracking (marketing profile, presence mode "detailed") a child in
+// With room tracking (presence mode "detailed") a child in
 // a running supervision counts as present; a binary profile still rejects it.
 func TestVerifyManualStudentRowsCountsRoomsOnlyWithRoomTracking(t *testing.T) {
 	t.Parallel()

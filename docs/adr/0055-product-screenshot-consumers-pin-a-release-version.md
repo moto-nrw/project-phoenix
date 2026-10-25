@@ -50,6 +50,6 @@ CI that every ID it uses exists in the manifest of its pinned version.
   next release and the following version bump.
 - Renaming or removing a shot ID breaks a consumer's CI instead of silently
   breaking a page.
-- The bucket is public. It holds only the synthetic marketing school.
+- The bucket is public. It holds only synthetic seed data (the `vollbetrieb` demo school).
 - This is the target state, not yet built; consumers keep their manual
   copies until they switch. Tracked in #3760.

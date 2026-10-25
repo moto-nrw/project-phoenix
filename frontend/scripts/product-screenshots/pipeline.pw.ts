@@ -17,7 +17,7 @@ import { parseShotList } from "./shot-list";
 // ausgibt.
 //
 // Voraussetzung: der Stack läuft (scripts/dev-native.sh up) und ist mit dem
-// Profil `marketing` geseedet. Ohne ihn überspringt der Test.
+// Profil `vollbetrieb` geseedet. Ohne ihn überspringt der Test.
 //   pnpm run test:screenshots
 
 const MINI_LIST = `
