@@ -2664,8 +2664,11 @@
         "holiday_period_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "holiday_period_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_registration_closed": "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
+        "holiday_registration_entry_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "holiday_registration_frozen": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_registration_invalid": "Sprawdź zaznaczone pola.",
         "holiday_registration_not_found": "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
+        "holiday_registration_state_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_week_booked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "files": {

@@ -1109,6 +1109,28 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/traeger/holiday-periods/[id]/publish": [
     "POST traeger /traeger/holiday-periods/id%2F1/publish",
   ],
+  "api/traeger/holiday-periods/[id]/registrations": [
+    "GET traeger /traeger/holiday-periods/id%2F1/registrations",
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]": [
+    "GET traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1",
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/cancel": [
+    "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/cancel",
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/children/[childId]/bookings":
+    [
+      "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/children/childId%2F1/bookings",
+    ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/confirm": [
+    "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/confirm",
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/freeze": [
+    "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/freeze",
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/reopen": [
+    "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/reopen",
+  ],
   "api/traeger/master-data": ["GET traeger /traeger/master-data/"],
   "api/traeger/master-data/bank-accounts": [
     "POST traeger /traeger/master-data/bank-accounts",

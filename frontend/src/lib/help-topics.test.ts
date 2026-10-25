@@ -671,6 +671,7 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerAccounts,
       HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.traegerHolidayRegistration,
+      HELP_TOPICS.traegerHolidayRegistrationReview,
       HELP_TOPICS.traegerAccessLog,
       HELP_TOPICS.traegerBriefkopf,
       HELP_TOPICS.traegerSettings,
