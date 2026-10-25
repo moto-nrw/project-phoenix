@@ -9,7 +9,7 @@ import (
 )
 
 // TestTraegerLevelKeysOfVersionOne pins the first Träger classification (ADR
-// 0086 section 4, ADR 0105 point 7): the legal texts of the enrollment and
+// 0086 section 4, ADR 0107 point 7): the legal texts of the enrollment and
 // the parent portal functions without a lock are "beide", everything else
 // stays at the school. A change of this list is a product decision.
 func TestTraegerLevelKeysOfVersionOne(t *testing.T) {

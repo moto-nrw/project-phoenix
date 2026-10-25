@@ -64,13 +64,13 @@ const (
 type UnitOfWork struct {
 	withinTenant    func(context.Context, int64, func(context.Context, any) error) error
 	withinAdmin     func(context.Context, func(context.Context, any) error) error
+	withinTraeger   func(context.Context, int64, func(context.Context, any) error) error
 	savepoint       func(context.Context, SavepointAction) error
 	retryable       func(error) bool
 	acquireLock     func(context.Context, string, bool) error
 	withoutTx       func(context.Context) context.Context
 	withTenant      func(context.Context, int64) context.Context
 	withTransaction func(context.Context, any) context.Context
-	withinTraeger   func(context.Context, int64, func(context.Context, any) error) error
 }
 
 // IsZero reports whether the unit of work carries no transaction functions,

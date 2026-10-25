@@ -16,7 +16,7 @@ import (
 
 type transactionSite struct {
 	Key, Owner, Kind, Role, Operation string
-	Admin, Traeger                    bool
+	Admin                             bool
 }
 
 // Administrative work is always enumerated. Outside roots and workflows,
@@ -40,16 +40,12 @@ func TestTransactionBoundaryRatchet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	admin, commands, traeger := map[string]bool{}, map[string]bool{}, map[string]bool{}
+	admin, commands := map[string]bool{}, map[string]bool{}
 	for _, site := range sites {
-		switch {
-		case site.Traeger:
-			// ADR 0086 section 5: every opener of a Träger transaction is
-			// enumerated with its reason, wherever it sits.
-			traeger[site.Key] = true
-		case site.Admin:
+		if site.Admin {
 			admin[site.Key] = true
-		case site.Role != "migration" && (site.Kind != "workflow" || site.Role == "adapter") && site.Owner != "root-composition":
+		}
+		if !site.Admin && site.Role != "migration" && (site.Kind != "workflow" || site.Role == "adapter") && site.Owner != "root-composition" {
 			commands[site.Key] = true
 		}
 	}
@@ -57,7 +53,7 @@ func TestTransactionBoundaryRatchet(t *testing.T) {
 		name    string
 		actual  map[string]bool
 		allowed map[string]string
-	}{{"admin", admin, register.Admin}, {"command", commands, register.Commands}, {"traeger", traeger, register.Traeger}} {
+	}{{"admin", admin, register.Admin}, {"command", commands, register.Commands}} {
 		var failures []string
 		for key := range entry.actual {
 			if strings.TrimSpace(entry.allowed[key]) == "" {
@@ -170,7 +166,7 @@ func transactionOperation(name string) (start, admin bool) {
 	switch name {
 	case "WithinSystem", "WithinAdmin", "WithinAdminRetry", "WithAdminTx", "WithAdminTxOrDirect", "AdminTx", "RunAdmin", "RunAdminRead", "AdminScope", "withinAdmin", "withinAdminRetry", "withAdminTx", "adminTx", "inAdmin":
 		return true, true
-	case "WithinDemo", "WithinTenant", "WithinTenantRetry", "WithinCurrentTenant", "WithTenantTx", "TenantTx", "RunTenant", "RunInTx", "RunInTxWithRetry", "RunInTransaction", "Begin", "BeginTx", "RunWrite", "RunRead", "RunPlatform", "withinTenant", "withinTenantRetry", "runInTx", "InTenantTx", "inTenantTx", "inTenant", "runInTenantTx", "runInSessionTx":
+	case "WithinTraeger", "withinTraeger", "WithinDemo", "WithinTenant", "WithinTenantRetry", "WithinCurrentTenant", "WithTenantTx", "TenantTx", "RunTenant", "RunInTx", "RunInTxWithRetry", "RunInTransaction", "Begin", "BeginTx", "RunWrite", "RunRead", "RunPlatform", "withinTenant", "withinTenantRetry", "runInTx", "InTenantTx", "inTenantTx", "inTenant", "runInTenantTx", "runInSessionTx":
 		return true, false
 	}
 	return false, false
@@ -193,13 +189,12 @@ func transactionNodes(path, name, owner, kind, role string, body ast.Node, scala
 			return
 		}
 		start, admin := transactionOperation(operation)
-		traeger := operation == "WithinTraeger" || operation == "withinTraeger"
-		if !start && !traeger {
+		if !start {
 			return
 		}
 		callee = transactionExpression(expr)
 		counts[callee]++
-		result = append(result, transactionSite{Key: fmt.Sprintf("%s:%s:%s#%d", path, name, callee, counts[callee]), Owner: owner, Kind: kind, Role: role, Operation: operation, Admin: admin, Traeger: traeger})
+		result = append(result, transactionSite{Key: fmt.Sprintf("%s:%s:%s#%d", path, name, callee, counts[callee]), Owner: owner, Kind: kind, Role: role, Operation: operation, Admin: admin})
 	}
 	addBinding := func(expr ast.Expr) {
 		if selector, ok := expr.(*ast.SelectorExpr); ok {
@@ -249,20 +244,6 @@ func command(){ open := runtime.WithinAdmin; open(ctx,func(ctx Context)error{ret
 	}
 	if !sites[0].Admin || sites[1].Admin || sites[2].Operation != "BeginTx" {
 		t.Fatalf("incorrect transaction classifications: %+v", sites)
-	}
-}
-
-// TestTransactionScannerSeparatesTraegerTransactions: a Träger transaction
-// (ADR 0086 section 5) is its own kind of site, neither admin nor command.
-func TestTransactionScannerSeparatesTraegerTransactions(t *testing.T) {
-	t.Parallel()
-	file, err := parser.ParseFile(token.NewFileSet(), "fixture.go", `package fixture; func command(){ runtime.WithinTraeger(ctx, id, fn); forward(tenant.WithinTraeger) }`, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sites := transactionNodes("fixture.go", "command", "owner", "platform", "application", file.Decls[0].(*ast.FuncDecl).Body)
-	if len(sites) != 2 || !sites[0].Traeger || sites[0].Admin || !sites[1].Traeger {
-		t.Fatalf("Träger sites = %+v", sites)
 	}
 }
 

@@ -56,6 +56,12 @@ func (s *Intake) requestByStatusToken(ctx context.Context, token string, lock bo
 	if req.StatusTokenExpires != nil && time.Now().After(*req.StatusTokenExpires) {
 		return nil, enrollmentNative.ErrRequestNotFound
 	}
+	// A school that cancelled Online-Anmeldung closes every status link: it
+	// answers like an expired link, so a family learns nothing about the
+	// school's contract (#4893). The data stays; booking again reopens it.
+	if !s.deps.Settings.OnlineAnmeldungBooked(s.deps.Runtime.WithTenant(ctx, req.TenantID)) {
+		return nil, enrollmentNative.ErrRequestNotFound
+	}
 	return req, nil
 }
 

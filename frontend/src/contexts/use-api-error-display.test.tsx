@@ -134,6 +134,43 @@ describe("useApiErrorDisplay", () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
+  it("shows module booking refusals as informational feedback", async () => {
+    function TestAction() {
+      const display = useApiErrorDisplay();
+      return (
+        <button
+          type="button"
+          onClick={() =>
+            void display.show(
+              new ApiError("module not booked", 403, {
+                code: "module.not_booked",
+                details: { module: "zeiterfassung" },
+              }),
+              { object: "die Zeiterfassung" },
+            )
+          }
+        >
+          Anzeigen
+        </button>
+      );
+    }
+
+    render(
+      <ToastProvider>
+        <TestAction />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anzeigen" }));
+
+    expect(
+      await screen.findByRole("status", { name: /^Information:/ }),
+    ).toHaveTextContent(
+      "Diese Seite gehört zum Modul Zeiterfassung. Ihre Schule nutzt es nicht. Wenn Sie es brauchen, sprechen Sie mit Ihrer Leitung.",
+    );
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("routes a 401 to the portal's login screen", () => {
     expect(loginUrl(clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME, "/children")).toBe(
       "/login?error=SessionExpired",

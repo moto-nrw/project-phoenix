@@ -332,7 +332,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			Expiry: time.Duration(resetMinutes) * time.Minute, RateLimitEnabled: settingsOverrides.rateLimitEnabled,
 			Backoff: settingsOverrides.resetBackoff,
 		}, logger),
-		Invitations: invitationDependencies,
+		Invitations: invitationDependencies, Traeger: authTestTraegerAccounts(dispatcher, defaultFrom, deliveryModule.Runtime, frontendURL, inviteHours, settingsOverrides.resetBackoff, logger),
 	}, sessionRepos, codec, settings.Settings, command, logger)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -435,3 +435,14 @@ func (d failingStaffMembership) CreateStaff(context.Context, schoolmembership.Cr
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return CurrentServiceConfig().JWTSecret }
+
+// authTestTraegerAccounts composes the Träger-Büro account management of the
+// test module: its invitation mails stay queued in Delivery's outbox and link
+// to a Träger-Portal host that resolves nowhere.
+func authTestTraegerAccounts(dispatcher email.Dispatcher, from email.Email, delivery *deliveryCompose.Runtime, frontendURL string, inviteHours int, backoff []time.Duration, logger *slog.Logger) *identityPorts.TraegerAccountDependencies {
+	return owners.TraegerAccountDependencies(&owners.TraegerAccountWiring{
+		Dispatcher: dispatcher, DefaultFrom: from, Outbox: owners.OutboxEnqueuer{Runtime: delivery},
+		FrontendURL: frontendURL, TraegerURL: "http://traeger.invalid",
+		Expiry: time.Duration(inviteHours) * time.Hour, Backoff: backoff, Logger: logger,
+	})
+}

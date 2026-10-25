@@ -221,6 +221,15 @@ func ErrorForbiddenWithCode(err error, code string) render.Renderer {
 	return resp
 }
 
+// ErrorForbiddenWithDetails returns a 403 with a stable code and the values
+// its message names, for a refusal the client explains itself (#4893).
+func ErrorForbiddenWithDetails(err error, code string, details map[string]any) render.Renderer {
+	resp := newErrResponse(http.StatusForbidden, err)
+	resp.Code = code
+	resp.Details = details
+	return resp
+}
+
 // ErrorNotFound returns a 404 Not Found error response
 // ErrorNotFoundWithCode returns a 404 with a stable error code.
 func ErrorNotFoundWithCode(err error, code string) render.Renderer {

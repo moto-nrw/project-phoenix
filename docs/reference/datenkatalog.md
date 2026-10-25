@@ -60,7 +60,7 @@ Die manuelle Ergänzungs-/Drittpersonenprüfung und Schulfreigabe sind Bestandte
 des [Verfahrens](../operations/auskunft-und-rueckgabe.md#6-personenauskunft-auf-weisung-der-schule),
 nicht durch `COMPLETE` erledigt.
 
-**Offen:** produktiver Nachweis, manuelle Nebensystemschritte, Trägerwurzel,
+**Offen:** produktiver Nachweis, manuelle Nebensystemschritte,
 Wiederholung nach Restore (3837-d), organisatorische Fristenbestätigung
 (3838-d) und Data-Act-Abgleich (3838-e).
 Die Katalogeinträge selbst sind

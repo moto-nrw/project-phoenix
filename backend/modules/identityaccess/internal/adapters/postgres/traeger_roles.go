@@ -76,6 +76,26 @@ func (s *Store) InsertTraegerRole(ctx context.Context, organizationID, accountID
 	return stats, nil
 }
 
+const deleteTraegerSessionsQuery = `DELETE FROM auth.tokens
+	WHERE organization_id = ? AND portal_scope = 'org'`
+
+// DeleteTraegerSessions deletes every Träger session of the Träger (#4657):
+// none of them can be refreshed or handed off again.
+func (s *Store) DeleteTraegerSessions(ctx context.Context, organizationID int64) (int64, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	started := time.Now()
+	result, err := db.NewRaw(deleteTraegerSessionsQuery, organizationID).Exec(ctx)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return 0, stats, fmt.Errorf("identity access postgres: delete Träger sessions: %w", err)
+	}
+	stats.Rows, _ = result.RowsAffected()
+	return stats.Rows, stats, nil
+}
+
 type traegerAccountRow struct {
 	AccountID int64    `bun:"account_id"`
 	Email     string   `bun:"email"`

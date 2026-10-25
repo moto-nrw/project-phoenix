@@ -27,23 +27,28 @@ func traegerRuntime(t *testing.T, opened *[]int64) tenant.UnitOfWork {
 		func(error) bool { return false },
 	)
 	require.NoError(t, err)
-	return uow.WithTraegerTransactions(func(ctx context.Context, organizationID int64, fn func(context.Context, any) error) error {
-		*opened = append(*opened, organizationID)
+	// Like the PostgreSQL adapter, the fake joins an ambient Träger
+	// transaction of the same Träger instead of opening a second unit.
+	return uow.WithTraegerTransaction(func(ctx context.Context, organizationID int64, fn func(context.Context, any) error) error {
+		if tenant.TraegerTransactionFromContext(ctx) != organizationID {
+			*opened = append(*opened, organizationID)
+		}
 		return fn(ctx, fakeTransaction{})
 	})
 }
 
 // TestWithinTraegerOpensOneUnitWithoutSchool pins the Träger transaction of
-// ADR 0086 section 5: it masks any school, joins only its own Träger and
-// refuses a foreign ambient unit.
+// ADR 0086 section 5 and ADR 0105: it names no school, joins only its own
+// Träger, lets adapters require it, and refuses a school or foreign unit.
 func TestWithinTraegerOpensOneUnitWithoutSchool(t *testing.T) {
 	t.Parallel()
 	var opened []int64
-	ctx := tenant.WithUnitOfWork(tenant.WithTenantID(context.Background(), 9), traegerRuntime(t, &opened))
+	runtime := traegerRuntime(t, &opened)
+	ctx := tenant.WithUnitOfWork(context.Background(), runtime)
 	const traeger int64 = 4
 
 	err := tenant.WithinTraeger(ctx, traeger, func(txCtx context.Context) error {
-		assert.Equal(t, traeger, tenant.TraegerTxOrganization(txCtx))
+		assert.Equal(t, traeger, tenant.TraegerTransactionFromContext(txCtx))
 		assert.Zero(t, tenant.FromContext(txCtx), "a Träger transaction names no school")
 		assert.False(t, tenant.IsAdminTx(txCtx), "a Träger transaction is not administrative")
 		assert.NoError(t, tenant.RequireTransaction(txCtx), "adapters run in it without a school")
@@ -54,13 +59,16 @@ func TestWithinTraegerOpensOneUnitWithoutSchool(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int64{4}, opened, "one unit for the outer call only")
 
+	schoolCtx := tenant.WithUnitOfWork(tenant.WithTenantID(context.Background(), 9), runtime)
+	assert.Error(t, tenant.WithinTraeger(schoolCtx, 4, func(context.Context) error { return nil }), "no Träger transaction for a bound school")
 	id, err := tenant.NewTenantID(9)
 	require.NoError(t, err)
-	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
+	err = tenant.WithinTenant(schoolCtx, id, func(txCtx context.Context) error {
 		return tenant.WithinTraeger(txCtx, 4, func(context.Context) error { return nil })
 	})
 	assert.Error(t, err, "no Träger transaction inside a school transaction")
-	assert.ErrorIs(t, tenant.WithinTraeger(ctx, 0, func(context.Context) error { return nil }), tenant.ErrTraegerRequired)
+	assert.ErrorIs(t, tenant.WithinTraeger(ctx, 0, func(context.Context) error { return nil }), tenant.ErrOrganizationRequired)
+	assert.Equal(t, []int64{4}, opened, "a refused call opens no unit")
 }
 
 func TestWithinTraegerNeedsTheRuntimeFunction(t *testing.T) {

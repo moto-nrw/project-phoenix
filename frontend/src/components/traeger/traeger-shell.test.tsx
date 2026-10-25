@@ -2,21 +2,26 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 
-const { mockPathname } = vi.hoisted(() => ({
+const { mockSignOut, mockPush, mockPathname, sessionUser } = vi.hoisted(() => ({
+  mockSignOut: vi.fn(),
+  mockPush: vi.fn(),
   mockPathname: vi.fn(() => "/"),
+  sessionUser: {
+    email: "buero@traeger.example",
+    permissions: [] as string[],
+  },
 }));
 
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   usePathname: () => mockPathname(),
+  useRouter: () => ({ push: mockPush }),
 }));
-
-const { mockSignOut } = vi.hoisted(() => ({ mockSignOut: vi.fn() }));
 
 vi.mock("next-auth/react", () => ({
   signOut: mockSignOut,
   useSession: () => ({
-    data: { user: { email: "buero@traeger.example" } },
+    data: { user: sessionUser },
     status: "authenticated",
   }),
 }));
@@ -62,24 +67,81 @@ describe("TraegerShell", () => {
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
   });
 
-  it("leads to both pages and marks the settings page (#4652)", () => {
+  it("offers the holiday periods only to a role that manages enrollment", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    expect(screen.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ferien" })).toBeNull();
+    unmount();
+
+    sessionUser.permissions = ["traeger_enrollment:manage"];
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Ferien" })[0]!);
+    expect(mockPush).toHaveBeenCalledWith("/ferien");
+    sessionUser.permissions = [];
+  });
+
+  // #4650: the page "Personen" exists only for the right to manage accounts.
+  it("offers the page Personen only with the right to manage accounts", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    expect(screen.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Personen" })).toBeNull();
+    unmount();
+
+    sessionUser.permissions = [
+      "traeger_overview:read",
+      "traeger_accounts:manage",
+    ];
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Personen" })[0]!);
+    expect(mockPush).toHaveBeenLastCalledWith("/accounts");
+    expect(screen.queryByRole("button", { name: "Ferien" })).toBeNull();
+    sessionUser.permissions = [];
+  });
+
+  // #4652: the settings open with the right to read the overview, and the
+  // help opens the article of the page the person is on.
+  it("leads to the settings and opens their help article there", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Einstellungen" })[0]!,
+    );
+    expect(mockPush).toHaveBeenLastCalledWith("/einstellungen");
+    unmount();
+
     mockPathname.mockReturnValue("/einstellungen");
     render(
       <TraegerShell>
         <p>Inhalt</p>
       </TraegerShell>,
     );
-
-    const settings = screen.getByRole("link", { name: "Einstellungen" });
-    expect(settings).toHaveAttribute("href", "/einstellungen");
-    expect(settings).toHaveAttribute("aria-current", "page");
-    const schools = screen.getByRole("link", { name: "Schulen" });
-    expect(schools).toHaveAttribute("href", "/");
-    expect(schools).not.toHaveAttribute("aria-current");
-    // The help opens the article of the page the person is on.
     expect(screen.getByRole("link", { name: "Hilfe" })).toHaveAttribute(
       "href",
       "/help/traeger-einstellungen?role=traeger&return_to=%2Feinstellungen",
     );
+    sessionUser.permissions = [];
+    mockPathname.mockReturnValue("/");
   });
 });

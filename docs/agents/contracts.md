@@ -238,9 +238,9 @@ Backend paths in this section are relative to `backend/`:
   come from fixed role bundles in `auth.organization_account_roles`. Reads
   across schools run through the `traeger-view` projection in an admin
   transaction filtered on the Träger's schools. The Träger's own tables
-  (Träger settings, ADR 0086/0105) are written in the Träger transaction
-  (`tenant.WithinTraeger`: tenant role, `app.current_org_id`, no school),
-  never in an admin transaction. No MFA yet (#4651).
+  (holiday periods, ADR 0105; Träger settings, ADR 0086/0107) are written in
+  the Träger transaction (`tenant.WithinTraeger`: tenant role,
+  `app.current_org_id`, no school), never in an admin transaction. No MFA yet (#4651).
 - `TenantMiddleware` rejects parent, school, and org scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect

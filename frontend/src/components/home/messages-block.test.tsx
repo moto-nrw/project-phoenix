@@ -6,6 +6,7 @@ const counts = vi.hoisted(() => ({
   team: 0,
   messagingEnabled: true,
   staffMessagingEnabled: true,
+  bookedModules: ["eltern_app"],
 }));
 
 vi.mock("~/lib/hooks/use-messages-unread", () => ({
@@ -21,6 +22,7 @@ vi.mock("~/lib/tenant-context", () => ({
       staffMessagingEnabled: counts.staffMessagingEnabled,
     },
   }),
+  useBookedModules: () => counts.bookedModules,
 }));
 vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => `/test-tenant${path}`,
@@ -34,6 +36,7 @@ describe("MessagesBlock (#2180)", () => {
     counts.team = 0;
     counts.messagingEnabled = true;
     counts.staffMessagingEnabled = true;
+    counts.bookedModules = ["eltern_app"];
   });
 
   it("zählt ungelesene Nachrichten je Posteingang und führt dorthin", () => {
@@ -64,6 +67,25 @@ describe("MessagesBlock (#2180)", () => {
 
     render(<MessagesBlock />);
 
+    expect(
+      screen.queryByText("Nachrichten von Eltern"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Ungelesene Nachrichten: Posteingang öffnen",
+      }),
+    ).toHaveAttribute("href", "/test-tenant/team-chat");
+  });
+
+  it("führt ohne Eltern-App in den Team-Chat", () => {
+    counts.parents = 3;
+    counts.team = 1;
+    counts.bookedModules = [];
+
+    render(<MessagesBlock />);
+
+    // Anker: Der Team-Chat bleibt als gebuchte Basisfunktion sichtbar.
+    expect(screen.getByText("Team-Chat")).toBeInTheDocument();
     expect(
       screen.queryByText("Nachrichten von Eltern"),
     ).not.toBeInTheDocument();

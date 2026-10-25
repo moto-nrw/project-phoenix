@@ -2483,7 +2483,11 @@
         "submission_rate_limited": "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
         "waitlist_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
         "window_closed": "Die Anmeldefrist ist vorbei oder hat noch nicht begonnen. Bitte wenden Sie sich an die Schule.",
-        "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule."
+        "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule.",
+        "holiday_host_school_outside_traeger": "Diese Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie eine Schule aus der Liste.",
+        "holiday_period_incomplete": "Der Ferienzeitraum braucht mindestens eine Woche. Jede Woche braucht mindestens ein Zeitmodell.",
+        "holiday_period_invalid": "Bitte prüfen Sie die markierten Felder.",
+        "holiday_period_not_found": "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien."
       },
       "files": {
         "announcement_published": "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
@@ -2966,6 +2970,10 @@
         "organization_not_deleted": "Dieser Träger ist nicht gelöscht. Bitte laden Sie die Seite neu.",
         "organization_has_schools": "Zu diesem Träger gehören noch Schulen (Anzahl: {school_count}). Bitte löschen Sie zuerst alle Schulen des Trägers.",
         "organization_deleted": "Der Träger ist gelöscht. Bitte wählen Sie einen anderen Träger.",
+        "traeger_active": "Der Träger ist noch aktiv. Bitte deaktivieren Sie ihn zuerst.",
+        "traeger_erasure_order_not_found": "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
+        "traeger_erasure_order_open": "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
+        "traeger_erasure_started": "Die Löschung hat schon begonnen. Der Löschauftrag kann nicht mehr zurückgenommen werden.",
         "school_not_found": "Diese Schule gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "school_inactive": "Die Schule ist ausgeschaltet. Bitte schalten Sie sie zuerst ein.",
         "school_already_deleted": "Diese Schule ist schon gelöscht. Bitte laden Sie die Seite neu.",
@@ -2994,6 +3002,9 @@
         "module_requires": "{module} braucht das Modul {required}. Bitte buchen Sie zuerst {required}.",
         "module_required_by": "{module} kann nicht abbestellt werden, solange {dependents} gebucht ist. Bitte bestellen Sie zuerst {dependents} ab."
       },
+      "module": {
+        "not_booked": "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team."
+      },
       "devices": {
         "tag_scan_not_found": "Diesen Scan gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "tag_scan_already_resolved": "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu."
@@ -3019,6 +3030,9 @@
         "audit_unavailable": "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut."
       },
       "traeger": {
+        "already_member": "Diese Person gehört schon zum Träger-Büro.",
+        "last_administrator": "Das Träger-Büro braucht mindestens eine Person mit der Rolle Verwaltung. Geben Sie die Rolle zuerst einer anderen Person.",
+        "member_not_found": "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",
         "no_membership": "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team."
       }
     },

@@ -1,5 +1,6 @@
 // Package traegerportal is the HTTP layer of the Träger-Portal ("moto
-// träger", ADR 0084, #4649): its sign-in and the mount of the Träger routes.
+// träger", ADR 0084, #4649): its sign-in, the Träger-Büro account routes
+// (#4650) and the mount of the Träger routes.
 //
 // Every route below /traeger shares two properties:
 //
@@ -9,8 +10,9 @@
 //     org rejection.
 //  2. A Träger token names its Träger and no school, so no route opens a
 //     tenant transaction. Reads across the schools of the Träger go through
-//     the Träger projection (modules/traegerview) only; the Träger's own
-//     settings run in the Träger transaction of ADR 0086.
+//     the Träger projection (modules/traegerview) only. Tables of the Träger
+//     itself, such as its holiday periods and its settings, are read and
+//     written in the Träger transaction (ADR 0086 section 5, ADR 0105).
 //
 // Refresh and logout run through the shared, scope-preserving /auth/refresh
 // and /auth/logout like the school portal's.
@@ -28,6 +30,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 const headerUserAgent = "User-Agent"
@@ -76,25 +79,31 @@ func (rt *AuthRuntime) complete() bool {
 }
 
 // TraegerRouter is a Träger route resource the root supplies; the portal
-// does not import the HTTP adapters it mounts.
+// does not import the HTTP adapters it mounts. protectedTraegerRoutes
+// registers routes behind the Träger session and hands them the middleware
+// that runs a route in the Träger transaction (ADR 0105).
 type TraegerRouter interface {
-	TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router
+	TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router
 }
 
 // Resource bundles the Träger-Portal handlers.
 type Resource struct {
-	auth     AuthRuntime
-	schools  TraegerRouter
-	settings TraegerRouter
+	auth           AuthRuntime
+	schools        TraegerRouter
+	holidayPeriods TraegerRouter
+	settings       TraegerRouter
+	accounts       identityaccess.TraegerAccountManagement
 }
 
-// NewResource builds the Träger-Portal resource: the school list of the Träger
-// projection and the Träger settings of the Settings Platform (ADR 0086).
-func NewResource(auth AuthRuntime, schools, settings TraegerRouter) *Resource {
-	if schools == nil || settings == nil {
-		panic("traeger portal: the school list and settings routes are required")
+// NewResource builds the Träger-Portal resource: the school list of the
+// Träger projection, the holiday periods, and the Träger settings of the
+// Settings Platform (ADR 0086). accounts serves the Träger-Büro account
+// routes (#4650); without it they answer 500.
+func NewResource(auth AuthRuntime, schools, holidayPeriods, settings TraegerRouter, accounts identityaccess.TraegerAccountManagement) *Resource {
+	if schools == nil || holidayPeriods == nil || settings == nil {
+		panic("traeger portal: the school list, holiday period and settings routes are required")
 	}
-	return &Resource{auth: auth, schools: schools, settings: settings}
+	return &Resource{auth: auth, schools: schools, holidayPeriods: holidayPeriods, settings: settings, accounts: accounts}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -108,7 +117,7 @@ var (
 // RouterWithAuthRateLimiter returns the router mounted at /traeger. The
 // limiter guards the public sign-in like the other portals' logins; nil
 // mounts it unthrottled.
-func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler, protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router {
+func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler, protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Route("/auth", func(r chi.Router) {
@@ -117,8 +126,11 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 		}
 		r.Post("/login", rs.login)
 	})
+	r.Mount("/invitations", rs.invitationRouter(authRateLimiter))
 	r.Mount("/schools", rs.schools.TraegerRouter(protectedTraegerRoutes))
+	r.Mount("/holiday-periods", rs.holidayPeriods.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/settings", rs.settings.TraegerRouter(protectedTraegerRoutes))
+	r.Mount("/accounts", rs.accountRouter(protectedTraegerRoutes))
 	return r
 }
 

@@ -40,11 +40,13 @@ func NewTraegerSettingsResource(operations TraegerOperations, readRight string, 
 }
 
 // TraegerRouter returns the routes mounted at /traeger/settings inside the
-// Träger route group the portal supplies.
-func (rs *TraegerSettingsResource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router {
+// Träger route group the portal supplies. The routes take no request
+// transaction: the operations open the Träger transaction themselves, so a
+// change has committed before the schools hear of it (ADR 0107).
+func (rs *TraegerSettingsResource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protectedTraegerRoutes(r, func(r chi.Router) {
+	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.With(common.RequiresPermission(rs.readRight)).Get("/schema", rs.schema)
 		write := common.RequiresAnyPermission(rs.writeRights...)
 		r.With(write).Put("/values/{key}", rs.setValue)

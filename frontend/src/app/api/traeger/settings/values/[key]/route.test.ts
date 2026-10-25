@@ -136,12 +136,14 @@ describe("DELETE /api/traeger/settings/values/[key]", () => {
     mockTraegerAuth.mockResolvedValue({ user: { token: "org-token" } });
   });
 
-  it("removes the Träger value and answers 204", async () => {
+  // The shared Träger proxy answers a backend 204 with its empty envelope,
+  // like the other Träger deletes (#4650).
+  it("removes the Träger value and answers with the empty envelope", async () => {
     mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const response = await DELETE(deleteRequest(KEY), context(KEY));
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
     expect(mockFetch).toHaveBeenCalledWith(
       `http://localhost:8080/traeger/settings/values/${KEY}`,
       expect.objectContaining({

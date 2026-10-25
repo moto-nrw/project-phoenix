@@ -72,7 +72,7 @@ values without a copy. `Definition.Levels` is `schule` (default), `beide` or
 `traeger`; the registry and `ValidateTraegerLevels` admit a Träger level only
 for shared or admin_only, non-password keys without side effect, lock or
 cross-field check. The Träger-Büro writes Träger values in the Träger
-transaction (`tenant.WithinTraeger`, ADR 0105) through `/traeger/settings`,
+transaction (`tenant.WithinTraeger`, ADR 0105/0107) through `/traeger/settings`,
 checked against `Definition.TraegerWriteRight`; every change lands in
 `config.traeger_setting_audit` in the same transaction. Schema items carry
 `levels`, `source` (`default`/`traeger`/`school`) and `traeger_changed_at`;

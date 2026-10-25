@@ -41,7 +41,7 @@ func newTraegerPortal(t *testing.T) (*bun.DB, http.Handler, identityaccess.Owner
 }
 
 // traegerPortalRouter builds the /traeger router over identity.
-func traegerPortalRouter(t *testing.T, db *bun.DB, identity identityaccess.TraegerAccountLogin, unit tenant.UnitOfWork) http.Handler {
+func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork) http.Handler {
 	t.Helper()
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)

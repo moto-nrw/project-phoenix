@@ -200,3 +200,24 @@ func cleanupTraegerMember(tb testing.TB, db *bun.DB, organizationID, accountID i
 	_, err = db.ExecContext(ctx, `DELETE FROM platform.organization_accounts WHERE organization_id = ? AND account_id = ?`, organizationID, accountID)
 	require.NoError(tb, err, "Failed to clean up test Träger membership")
 }
+
+// OwnTraegerHolidayPeriods removes the holiday periods a test creates for the
+// Träger, with their weeks and time models, when the test ends (#4659). The
+// rows carry no tenant, and the tenant cleanup deletes an emptied
+// organization with foreign-key triggers suspended, so they need their own
+// exact-key teardown.
+func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_periods WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test holiday periods")
+	})
+}
+
+// SoftDeleteTestSchool marks a school deleted, as the operator's school
+// deletion does; its rows stay with its tenant cleanup.
+func SoftDeleteTestSchool(tb testing.TB, db *bun.DB, schoolID int64) {
+	tb.Helper()
+	_, err := db.ExecContext(context.Background(), `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID)
+	require.NoError(tb, err, "Failed to soft-delete test school")
+}

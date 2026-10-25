@@ -4217,6 +4217,18 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_period_weeks",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_periods",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_week_time_models",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.late_invites",
       "write_owner": "enrollment"
     },
@@ -4805,8 +4817,20 @@
       "write_owner": "organization-tenancy"
     },
     {
+      "name": "platform.organization_erasure_orders",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "auth.organization_account_roles",
       "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.traeger_invitations",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "audit.traeger_account_changes",
+      "write_owner": "audit-platform"
     }
   ],
   "read_projections": [

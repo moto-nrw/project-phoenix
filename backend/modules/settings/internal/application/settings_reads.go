@@ -167,17 +167,24 @@ func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs [
 	return result, nil
 }
 
+// EnrollmentEnabledForTenants reports per school whether enrollment is open:
+// the module Online-Anmeldung is booked and enrollment.enabled is on (#4893).
 func (s *settingsService) EnrollmentEnabledForTenants(ctx context.Context, tenantIDs []int64) (map[int64]bool, error) {
-	snapshots, err := s.ResolveManyForTenants(ctx, tenantIDs, []string{config.KeyEnrollmentEnabled})
+	keys := []string{config.KeyModuleOnlineAnmeldung, config.KeyEnrollmentEnabled}
+	snapshots, err := s.ResolveManyForTenants(ctx, tenantIDs, keys)
 	if err != nil {
 		return nil, err
 	}
 
 	result := make(map[int64]bool, len(snapshots))
 	for tenantID, snapshot := range snapshots {
-		enabled, resolveErr := snapshot.Bool(config.KeyEnrollmentEnabled)
-		if resolveErr != nil {
-			return nil, resolveErr
+		enabled := true
+		for _, key := range keys {
+			value, resolveErr := snapshot.Bool(key)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
+			enabled = enabled && value
 		}
 		result[tenantID] = enabled
 	}
