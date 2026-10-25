@@ -7,7 +7,10 @@ import { ButtonLink } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Alert } from "~/components/ui/alert";
 import { seesLockedModules } from "~/lib/module-register";
+import { normalizeLocale } from "~/i18n/locales";
 import { moduleNotBookedExplanation } from "~/lib/module-not-booked";
+import { useModulePortal } from "~/lib/module-portal-context";
+import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { MODULE_LABELS, type ModuleKey } from "~/lib/modules";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
@@ -20,10 +23,19 @@ export function ModuleNotBookedAlert({
   readonly className?: string;
 }) {
   const { data: session } = useSession();
-  const description = moduleNotBookedExplanation(
-    module,
-    seesLockedModules(session),
-  );
+  const portal = useModulePortal();
+  // The parents and the school portal follow a module of their own (#4895).
+  const description =
+    portal === "staff"
+      ? moduleNotBookedExplanation(module, seesLockedModules(session))
+      : portalNotBookedExplanation(
+          portal,
+          normalizeLocale(
+            typeof document === "undefined"
+              ? undefined
+              : document.documentElement.lang,
+          ),
+        );
   return <Alert type="info" message={description} className={className} />;
 }
 

@@ -182,3 +182,47 @@ func TestSignatureLedgerStoresAnEnrollmentSignatureWithoutAccount(t *testing.T) 
 		return nil
 	}))
 }
+
+// A parent edit signs again (#4786): the newest signature per request is the
+// one of its current version, and another school reads none of them.
+func TestSignatureLedgerReturnsTheLatestEnrollmentSignaturePerRequest(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	otherTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenant)
+	phase := testpkg.CreateTestEnrollmentPhase(t, db)
+	first := testpkg.CreateTestEnrollmentRequestAwaitingGuardian(t, db, phase.ID, "latest-a@example.test", "signature-latest-a")
+	second := testpkg.CreateTestEnrollmentRequestAwaitingGuardian(t, db, phase.ID, "latest-b@example.test", "signature-latest-b")
+	ledger := newTestSignatureLedger(t)
+	enrollmentEntry := func(requestID int64, signer string, at time.Time) auditlog.SignatureEntry {
+		entry := signatureTestEntry(t, 0, 0)
+		entry.Purpose, entry.StudentID, entry.SignerAccountID, entry.EnrollmentRequestID = auditlog.SignaturePurposeEnrollment, nil, nil, &requestID
+		entry.SignerName, entry.SignedAt = signer, at
+		return entry
+	}
+	base := time.Date(2026, 10, 24, 9, 0, 0, 0, time.UTC)
+	var newest *auditlog.Signature
+	require.NoError(t, testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
+		if _, err := ledger.RecordSignature(ctx, enrollmentEntry(first.ID, "Erste Fassung", base)); err != nil {
+			return err
+		}
+		var err error
+		if newest, err = ledger.RecordSignature(ctx, enrollmentEntry(first.ID, "Zweite Fassung", base.Add(time.Hour))); err != nil {
+			return err
+		}
+		got, err := ledger.LatestEnrollmentSignatures(ctx, []int64{first.ID, second.ID})
+		require.NoError(t, err)
+		require.Len(t, got, 1, "a request without a signature is absent")
+		require.Equal(t, newest.ID, got[first.ID].ID)
+		require.Equal(t, "Zweite Fassung", got[first.ID].SignerName)
+		require.True(t, got[first.ID].IntegrityOK)
+		return nil
+	}))
+	require.NoError(t, testpkg.WithinTenantContext(t, context.Background(), db, otherTenant, func(ctx context.Context) error {
+		got, err := ledger.LatestEnrollmentSignatures(ctx, []int64{first.ID})
+		require.NoError(t, err)
+		require.Empty(t, got, "another school must not read the signature")
+		return nil
+	}))
+}

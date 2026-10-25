@@ -44,7 +44,10 @@ type SessionDependencies struct {
 	Schools             SchoolDirectory
 	// Traeger reads the Träger memberships of Organisation & Tenancy the
 	// Träger-Portal sign-in and refresh re-check (ADR 0084).
-	Traeger       TraegerMemberships
+	Traeger TraegerMemberships
+	// PortalModules locks the parents and school portals of a school that
+	// has not booked their module (#4895).
+	PortalModules PortalModules
 	Persons       PersonDirectory
 	Passwords     PasswordVerifier
 	Codec         TokenCodec

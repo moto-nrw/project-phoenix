@@ -230,6 +230,17 @@ func ErrorForbiddenWithDetails(err error, code string, details map[string]any) r
 	return resp
 }
 
+// ErrorModuleNotBooked returns the 403 module.not_booked refusal of a
+// school that has not booked module (#4893, #4895). The module key and its
+// name travel in details, so the client explains the missing module.
+func ErrorModuleNotBooked(err error, module, moduleLabel string) render.Renderer {
+	details := map[string]any{"module": module}
+	if moduleLabel != "" {
+		details["module_label"] = moduleLabel
+	}
+	return ErrorForbiddenWithDetails(err, CodeModuleNotBooked, details)
+}
+
 // ErrorNotFound returns a 404 Not Found error response
 // ErrorNotFoundWithCode returns a 404 with a stable error code.
 func ErrorNotFoundWithCode(err error, code string) render.Renderer {

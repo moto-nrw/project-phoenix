@@ -1929,6 +1929,30 @@ describe("authConfig", () => {
       ).rejects.toMatchObject({ code: "account_inactive" });
     });
 
+    it("should throw portal_not_booked when no guardian school booked Eltern-App", async () => {
+      // #4895: the parents portal follows the module Eltern-App. The login
+      // page explains the school's decision instead of a login error.
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () =>
+          JSON.stringify({
+            status: 403,
+            detail: "school has not booked the module eltern_app",
+            code: "module.not_booked",
+            details: { module: "eltern_app", module_label: "Eltern-App" },
+          }),
+      });
+
+      const authorize = getParentAuthorize();
+      await expect(
+        authorize(
+          { email: "parent@example.com", password: "correct" },
+          new Request("http://localhost:3000"),
+        ),
+      ).rejects.toMatchObject({ code: "portal_not_booked" });
+    });
+
     it("should throw not_a_guardian when backend returns code not_a_guardian", async () => {
       // Staff account hitting the parent portal. This code used to be
       // masked to invalid_credentials so the UI would not confirm the

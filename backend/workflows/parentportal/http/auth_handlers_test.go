@@ -34,6 +34,7 @@ var (
 	errStubInvalidCredentials = errors.New("stub: invalid credentials")
 	errStubAccountInactive    = errors.New("stub: account is inactive")
 	errStubNotAGuardian       = errors.New("stub: account is not a guardian")
+	errStubPortalNotBooked    = errors.New("stub: eltern_app not booked")
 )
 
 func (s *stubParentAuthService) loginRuntime() parent.LoginRuntime {
@@ -44,6 +45,12 @@ func (s *stubParentAuthService) loginRuntime() parent.LoginRuntime {
 		InvalidCredentials: func(err error) bool { return errors.Is(err, errStubInvalidCredentials) },
 		AccountInactive:    func(err error) bool { return errors.Is(err, errStubAccountInactive) },
 		NotAGuardian:       func(err error) bool { return errors.Is(err, errStubNotAGuardian) },
+		PortalNotBooked: func(err error) (string, string, bool) {
+			if errors.Is(err, errStubPortalNotBooked) {
+				return "eltern_app", "Eltern-App", true
+			}
+			return "", "", false
+		},
 	}
 }
 
@@ -229,6 +236,32 @@ func TestParentLogin_NotAGuardian_Returns403WithCode(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	body := decodeError(t, rr)
 	assert.Equal(t, "care.not_a_guardian", body.Code)
+}
+
+func TestParentLogin_PortalNotBooked_Returns403ModuleNotBooked(t *testing.T) {
+	t.Parallel()
+
+	// None of the guardian's schools booked Eltern-App (#4895): the
+	// portal explains the missing module instead of a login error.
+	svc := &stubParentAuthService{
+		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
+			return "", "", errStubPortalNotBooked
+		},
+	}
+	rr := postLogin(t, newTestResource(svc), map[string]string{
+		"email":    "parent@example.com",
+		"password": "correct",
+	})
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+	var body struct {
+		Code    string            `json:"code"`
+		Details map[string]string `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "module.not_booked", body.Code)
+	assert.Equal(t, "eltern_app", body.Details["module"])
+	assert.Equal(t, "Eltern-App", body.Details["module_label"])
 }
 
 func TestParentLogin_Success_Returns200WithTokens(t *testing.T) {

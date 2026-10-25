@@ -104,6 +104,7 @@ func (c *VisibilityCondition) validateSource(appliesToChild bool) error {
 
 var validCoreRequirements = map[string]bool{
 	CoreRequirementGuardianPhone: true,
+	CoreRequirementSignature:     true,
 }
 
 // Validate rejects unknown core requirement keys so typos in the admin API

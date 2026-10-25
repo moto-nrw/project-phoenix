@@ -1432,6 +1432,25 @@
       "tooMany": "You can upload at most {count} files here.",
       "pendingSubmit": "Please wait until all files are uploaded.",
       "previewDisabled": "You cannot upload files in the preview."
+    },
+    "signature": {
+      "label": "Your signature",
+      "hint": "Sign in the box with your finger, a pen or the mouse.",
+      "canvas": "Box for your signature",
+      "clear": "Clear field",
+      "typeInstead": "Type your name",
+      "drawInstead": "Draw instead",
+      "typedName": "Your first and last name",
+      "confirm": "Confirm signature",
+      "confirmed": "Your signature is ready.",
+      "confirmedTyped": "Your typed name is ready.",
+      "change": "Sign again",
+      "preview": "Your signature",
+      "emptyDrawing": "Please sign in the box.",
+      "nameTooShort": "Please type your name.",
+      "title": "Signature",
+      "description": "Please sign the enrollment. Without a signature it does not reach the after-school care.",
+      "required": "Please sign the enrollment."
     }
   },
   "enrollmentStatus": {
@@ -1634,7 +1653,17 @@
     "noAccountHelp": "Can’t find the email? Please check your spam folder too. Email missing or the link no longer works? Please contact the OGS.",
     "unavailableAccountTitle": "Cannot access the parents app",
     "unavailableAccountHelp": "Please contact the OGS. The OGS can help you.",
-    "noAccessFallback": "No access yet? Open the email “Einladung zum Eltern-Portal”. No email? Please contact the OGS."
+    "noAccessFallback": "No access yet? Open the email “Einladung zum Eltern-Portal”. No email? Please contact the OGS.",
+    "signatureTitle": "Signature",
+    "signatureSigned": "Signed by {name} on {date}.",
+    "signatureDrawn": "Drawn with finger, pen or mouse.",
+    "signatureTyped": "Name typed: {name}",
+    "signatureChanged": "Warning: the stored proof was changed afterwards. Please contact the after-school care.",
+    "signatureDownload": "Proof as PDF",
+    "signatureDownloading": "Loading proof …",
+    "signatureEditHint": "If you change the enrollment, you sign it again.",
+    "errorObjectProof": "the proof",
+    "signatureEyebrow": "Proof"
   },
   "parentRequestEdit": {
     "title": "Edit request",
@@ -2531,6 +2560,9 @@
         "waitlist_disabled": "{object} could not be changed. Please check its current status.",
         "window_closed": "The enrollment period has ended or has not started yet. Please contact the school.",
         "withdraw_not_allowed": "This enrollment can no longer be withdrawn. Please contact the school.",
+        "signature_required": "Please sign the enrollment.",
+        "signature_invalid": "The signature could not be read. Please sign again.",
+        "signature_not_found": "There is no signature for this enrollment.",
         "holiday_host_school_outside_traeger": "This school does not belong to your Träger. Please choose a school from the list.",
         "holiday_period_incomplete": "The holiday period needs at least one week. Every week needs at least one time model.",
         "holiday_period_invalid": "Please check the marked fields.",

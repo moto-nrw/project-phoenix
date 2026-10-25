@@ -394,7 +394,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork
 			StaffURL: cfg.FrontendURL, ParentsURL: cfg.ParentsURL, SchoolURL: cfg.SchoolURL,
 			Expiry: cfg.PasswordResetExpiry, RateLimitEnabled: cfg.RateLimitEnabled,
 		}, logger),
-	}, sessionRepos, codec, nil, audit, logger)
+	}, sessionRepos, codec, settings.Settings, audit, logger)
 	if err != nil {
 		return nil, err
 	}
