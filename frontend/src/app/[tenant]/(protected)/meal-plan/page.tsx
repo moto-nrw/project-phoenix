@@ -27,7 +27,7 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { formatWeekLabel, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   getMealPlanWeek,
@@ -37,7 +37,6 @@ import {
   type MealPlanEntry,
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
-import { formatWeekLabel } from "~/lib/timetable-helpers";
 import { useNavigationGuard } from "~/lib/hooks/use-navigation-guard";
 import {
   useMealPlanEnabled,
