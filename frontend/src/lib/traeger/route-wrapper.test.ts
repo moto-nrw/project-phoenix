@@ -20,7 +20,7 @@ vi.mock("~/lib/analytics-session-header.server", () => ({
 
 global.fetch = mockFetch as typeof fetch;
 
-import { proxyGet } from "./route-wrapper.server";
+import { proxyGet, proxyPut } from "./route-wrapper.server";
 
 const context = { params: Promise.resolve({}) };
 
@@ -100,6 +100,32 @@ describe("Träger proxy", () => {
         headers: expect.objectContaining({
           Authorization: "Bearer fresh-token",
         }),
+      }),
+    );
+  });
+
+  it("forwards a write with its body (#4659)", async () => {
+    mockFetch.mockResolvedValueOnce(
+      Response.json({ status: "success", data: { id: 5 }, message: "ok" }),
+    );
+    const write = new NextRequest(
+      "http://localhost:3000/api/traeger/holiday-periods/5",
+      { method: "PUT", body: JSON.stringify({ name: "Ferien" }) },
+    );
+
+    const response = await proxyPut("/traeger/holiday-periods/5")(
+      write,
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: { id: 5 } });
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/traeger/holiday-periods/5",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ name: "Ferien" }),
+        headers: expect.objectContaining({ Authorization: "Bearer org-token" }),
       }),
     );
   });

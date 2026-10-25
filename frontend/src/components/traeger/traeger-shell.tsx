@@ -1,11 +1,13 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 import { MotoBrand } from "~/components/auth/moto-brand";
 import { Button } from "~/components/ui/button";
 import { NavLink } from "~/components/ui/nav-link";
 import { PortalShell } from "~/components/ui/portal-shell";
+import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { DELIBERATE_LOGOUT_KEY, clearSessionCache } from "~/lib/session-cache";
 import { traegerPath } from "~/lib/traeger-url";
@@ -13,10 +15,42 @@ import { TRAEGER_HELP_HREF } from "./traeger-help";
 
 const logger = createLogger({ component: "TraegerShell" });
 
+const NAV_LINK_CLASS =
+  "rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none aria-[current=page]:bg-gray-100 aria-[current=page]:text-gray-900";
+
+/** The pages of the portal; the holiday periods need "Anmeldung verwalten". */
+function TraegerNav({
+  canManageEnrollment,
+}: Readonly<{ canManageEnrollment: boolean }>) {
+  const pathname = usePathname() ?? "";
+  const onHolidays =
+    pathname.startsWith("/ferien") || pathname.startsWith("/traeger/ferien");
+  return (
+    <nav aria-label="Bereiche" className="flex items-center gap-1">
+      <NavLink
+        href={traegerPath("/traeger")}
+        aria-current={onHolidays ? undefined : "page"}
+        className={NAV_LINK_CLASS}
+      >
+        Schulen
+      </NavLink>
+      {canManageEnrollment ? (
+        <NavLink
+          href={traegerPath("/traeger/ferien")}
+          aria-current={onHolidays ? "page" : undefined}
+          className={NAV_LINK_CLASS}
+        >
+          Ferien
+        </NavLink>
+      ) : null}
+    </nav>
+  );
+}
+
 /**
  * The shell of the Träger portal ("moto träger", #4649): the shared
- * PortalShell frame with a slim head bar. The portal has one page so far,
- * so there is no sidebar; the head carries the help and the only way out.
+ * PortalShell frame with a slim head bar. The portal has few pages, so there
+ * is no sidebar; the head carries the pages, the help and the way out.
  */
 export function TraegerShell({
   children,
@@ -56,9 +90,15 @@ export function TraegerShell({
 
   const header = (
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-gray-200/70 bg-white/95 px-8 py-4 max-md:px-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <MotoBrand />
         <span className="text-sm font-semibold text-gray-600">Träger</span>
+        <TraegerNav
+          canManageEnrollment={hasPermission(
+            session ?? null,
+            "traeger_enrollment:manage",
+          )}
+        />
       </div>
       {/* Wraps below the brand on narrow phones (320 px) instead of overflowing. */}
       <div className="ml-auto flex items-center gap-2">

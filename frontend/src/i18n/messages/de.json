@@ -2483,7 +2483,11 @@
         "submission_rate_limited": "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
         "waitlist_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
         "window_closed": "Die Anmeldefrist ist vorbei oder hat noch nicht begonnen. Bitte wenden Sie sich an die Schule.",
-        "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule."
+        "withdraw_not_allowed": "Diese Anmeldung kann nicht mehr zurückgezogen werden. Bitte wenden Sie sich an die Schule.",
+        "holiday_host_school_outside_traeger": "Diese Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie eine Schule aus der Liste.",
+        "holiday_period_incomplete": "Der Ferienzeitraum ist noch nicht vollständig. Jede Woche braucht mindestens ein Zeitmodell.",
+        "holiday_period_invalid": "Bitte prüfen Sie die markierten Felder.",
+        "holiday_period_not_found": "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien."
       },
       "files": {
         "announcement_published": "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",

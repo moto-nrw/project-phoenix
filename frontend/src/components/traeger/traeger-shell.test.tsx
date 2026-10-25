@@ -2,12 +2,18 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 
-const { mockSignOut } = vi.hoisted(() => ({ mockSignOut: vi.fn() }));
+const { mockSignOut, sessionUser } = vi.hoisted(() => ({
+  mockSignOut: vi.fn(),
+  sessionUser: {
+    email: "buero@traeger.example",
+    permissions: [] as string[],
+  },
+}));
 
 vi.mock("next-auth/react", () => ({
   signOut: mockSignOut,
   useSession: () => ({
-    data: { user: { email: "buero@traeger.example" } },
+    data: { user: sessionUser },
     status: "authenticated",
   }),
 }));
@@ -51,5 +57,28 @@ describe("TraegerShell", () => {
       expect.objectContaining({ method: "POST" }),
     );
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+  });
+
+  it("offers the holiday periods only to a role that manages enrollment", () => {
+    sessionUser.permissions = ["traeger_overview:read"];
+    const { unmount } = render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    expect(screen.getByRole("link", { name: "Schulen" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Ferien" })).toBeNull();
+    unmount();
+
+    sessionUser.permissions = ["traeger_enrollment:manage"];
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+    expect(screen.getByRole("link", { name: "Ferien" })).toHaveAttribute(
+      "href",
+      "/ferien",
+    );
   });
 });
