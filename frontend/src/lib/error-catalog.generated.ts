@@ -331,6 +331,14 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie Vor- und Nachnamen ein.",
       "enrollment.guardian_phone_required":
         "Bitte geben Sie eine Telefonnummer ein.",
+      "enrollment.holiday_host_school_outside_traeger":
+        "Diese Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie eine Schule aus der Liste.",
+      "enrollment.holiday_period_incomplete":
+        "Der Ferienzeitraum braucht mindestens eine Woche. Jede Woche braucht mindestens ein Zeitmodell.",
+      "enrollment.holiday_period_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "enrollment.holiday_period_not_found":
+        "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
       "enrollment.invalid_email":
         "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
       "enrollment.invalid_phone":
@@ -1472,6 +1480,13 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required":
         "Please enter the first and last name.",
       "enrollment.guardian_phone_required": "Please enter a phone number.",
+      "enrollment.holiday_host_school_outside_traeger":
+        "This school does not belong to your Träger. Please choose a school from the list.",
+      "enrollment.holiday_period_incomplete":
+        "The holiday period needs at least one week. Every week needs at least one time model.",
+      "enrollment.holiday_period_invalid": "Please check the marked fields.",
+      "enrollment.holiday_period_not_found":
+        "This holiday period does not exist. Please open it from the holiday list.",
       "enrollment.invalid_email": "Please enter a valid email address.",
       "enrollment.invalid_phone": "Please enter a valid phone number.",
       "enrollment.late_invite_invalid":

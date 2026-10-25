@@ -895,6 +895,19 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites the holiday periods to /traeger/ferien (#4659)", () => {
+      for (const path of ["/ferien", "/ferien/neu", "/ferien/12"]) {
+        const res = proxy(
+          makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),
+        );
+
+        expect(res.headers.get("location")).toBeNull();
+        expect(res.headers.get("x-middleware-rewrite")).toContain(
+          `/traeger${path}`,
+        );
+      }
+    });
+
     it("passes through /api/traeger/* without rewriting", () => {
       for (const path of [
         "/api/traeger/auth/session",

@@ -2483,7 +2483,11 @@
         "submission_rate_limited": "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
         "waitlist_disabled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "window_closed": "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
-        "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën."
+        "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",
+        "holiday_host_school_outside_traeger": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_period_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "holiday_period_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_period_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "files": {
         "announcement_published": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

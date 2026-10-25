@@ -656,10 +656,12 @@ describe("getParentHelpTopicForPath", () => {
 
     expect(traegerTopics.map((topic) => topic.id)).toEqual([
       HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.errorMessages,
     ]);
     expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
+      "anmeldeverwaltung",
       "probleme",
     ]);
     // Das Träger-Portal ist ein eigenes Portal: kein Verweis führt in die
