@@ -1,12 +1,15 @@
 "use client";
 
 // Die Abschnitte der Ferienanmeldung (#4661): ein Kind mit Schule, Wochen und
-// Gesundheit, und die Listen der Notfallkontakte und Abholberechtigten.
+// Gesundheit, die Listen der Notfallkontakte und Abholberechtigten und die
+// bekannten Kinder eines Elternkontos (#4662).
 
 import { useLocale, useTranslations } from "next-intl";
 import { useMemo } from "react";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Input } from "~/components/ui/input";
@@ -14,6 +17,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { formatDate } from "~/lib/date-helpers";
 import type {
+  HolidayKnownChild,
   HolidayRegistrationOffer,
   HolidayRegistrationTimeModel,
   HolidayRegistrationWeek,
@@ -22,7 +26,9 @@ import {
   type ChildDraft,
   type ContactDraft,
   emptyContact,
+  hasRoomForKnownChild,
   OTHER_SCHOOL,
+  type RegistrationDraft,
 } from "./holiday-registration-model";
 
 /** Hint of a refused field, translated, or undefined. */
@@ -356,5 +362,75 @@ export function ContactList({
         ) : null}
       </div>
     </SectionCard>
+  );
+}
+
+/**
+ * The children the schools of the Träger know of a parent with an account
+ * (#4662). Picking one fills a child of the form; the parent can still change
+ * every value there, and that changes only the registration.
+ */
+export function KnownChildPicker({
+  known,
+  draft,
+  offer,
+  onToggle,
+}: Readonly<{
+  known: readonly HolidayKnownChild[];
+  draft: RegistrationDraft;
+  offer: HolidayRegistrationOffer;
+  onToggle: (child: HolidayKnownChild) => void;
+}>) {
+  const t = useTranslations("holidayRegistration");
+  const locale = useLocale();
+  const picked = new Set(draft.children.map((child) => child.knownStudentId));
+  const full = !hasRoomForKnownChild(draft);
+  const schoolName = (id: string) =>
+    offer.schools.find((school) => school.id === id)?.name ?? "";
+
+  return (
+    <fieldset className="space-y-3">
+      <legend className="text-sm font-semibold text-gray-900">
+        {t("knownChildrenTitle")}
+      </legend>
+      <p className="text-sm text-gray-600">{t("knownChildrenText")}</p>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {known.map((child) => {
+          const selected = picked.has(child.studentId);
+          const disabled = !selected && full;
+          return (
+            <ChoiceTile
+              key={child.studentId}
+              selected={selected}
+              disabled={disabled}
+              tone="green"
+              className="items-start"
+            >
+              <Checkbox
+                checked={selected}
+                disabled={disabled}
+                onChange={() => onToggle(child)}
+              />
+              <span className="flex flex-col">
+                <span className="text-gray-900">
+                  {child.firstName} {child.lastName}
+                </span>
+                <span className="font-normal text-gray-600">
+                  {child.birthDate
+                    ? t("knownChildMeta", {
+                        school: schoolName(child.schoolId),
+                        birthDate: formatDate(child.birthDate, false, locale),
+                      })
+                    : schoolName(child.schoolId)}
+                </span>
+              </span>
+            </ChoiceTile>
+          );
+        })}
+      </div>
+      {full ? (
+        <p className="text-sm text-gray-600">{t("knownChildrenFull")}</p>
+      ) : null}
+    </fieldset>
   );
 }

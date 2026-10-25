@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import deMessages from "~/i18n/messages/de.json";
-import type { HolidayRegistrationOffer } from "~/lib/holiday-registration-api";
+import type {
+  HolidayKnownFamily,
+  HolidayRegistrationOffer,
+} from "~/lib/holiday-registration-api";
 
 const { mockSubmit } = vi.hoisted(() => ({ mockSubmit: vi.fn() }));
 
@@ -46,11 +49,33 @@ const offer: HolidayRegistrationOffer = {
   captchaSiteKey: "site",
 };
 
-function renderForm() {
+const family: HolidayKnownFamily = {
+  guardian: {
+    firstName: "Sabine",
+    lastName: "Schneider",
+    email: "sabine@example.org",
+    phone: "0151 2",
+  },
+  children: [
+    {
+      studentId: "41",
+      schoolId: "31",
+      firstName: "Felix",
+      lastName: "Schneider",
+      birthDate: "2018-03-01",
+    },
+  ],
+};
+
+function renderForm(known: HolidayKnownFamily | null = null) {
   return render(
     <NextIntlClientProvider locale="de" messages={deMessages}>
       <ToastProvider>
-        <HolidayRegistrationForm token="link-key" offer={offer} />
+        <HolidayRegistrationForm
+          token="link-key"
+          offer={offer}
+          family={known}
+        />
       </ToastProvider>
     </NextIntlClientProvider>,
   );
@@ -224,5 +249,86 @@ describe("HolidayRegistrationForm", () => {
         "Wir schicken Ihnen eine Bestätigung an eva@example.org.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("prefills a known child that the parent corrects for this registration only", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm(family);
+
+    expect(screen.getByLabelText("E-Mail-Adresse")).toHaveValue(
+      "sabine@example.org",
+    );
+    const known = screen.getByRole("checkbox", { name: /Felix Schneider/ });
+    expect(
+      screen.getByText("OGS Nord · geboren am 01.03.2018"),
+    ).toBeInTheDocument();
+    fireEvent.click(known);
+    expect(known).toBeChecked();
+    const childFirst = screen.getAllByLabelText("Vorname")[0]!;
+    expect(childFirst).toHaveValue("Felix");
+    expect(screen.getAllByText("Kind 1")).toHaveLength(1);
+    type(childFirst, "Feli");
+
+    choose(
+      screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
+      "bis 13 Uhr (08:00 bis 13:00 Uhr)",
+    );
+    type(screen.getAllByLabelText("Name")[0]!, "Oma Schneider");
+    type(screen.getAllByLabelText("Telefon")[1]!, "05402 2");
+    fireEvent.click(
+      screen.getByLabelText(/Ich bin einverstanden, dass der Träger/),
+    );
+    fireEvent.click(
+      screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist."),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    const payload = mockSubmit.mock.calls[0]![1] as {
+      guardian: Record<string, string>;
+      children: Record<string, unknown>[];
+    };
+    expect(payload.guardian).toEqual({
+      first_name: "Sabine",
+      last_name: "Schneider",
+      email: "sabine@example.org",
+      phone: "0151 2",
+    });
+    expect(payload.children).toHaveLength(1);
+    expect(payload.children[0]).toEqual(
+      expect.objectContaining({
+        first_name: "Feli",
+        last_name: "Schneider",
+        birth_date: "2018-03-01",
+        home_school_id: 31,
+      }),
+    );
+    // The registration is a copy: no school record is named in it.
+    expect(JSON.stringify(payload)).not.toContain("41");
+  });
+
+  it("drops a known child again when the parent unpicks it", () => {
+    renderForm(family);
+    const known = screen.getByRole("checkbox", { name: /Felix Schneider/ });
+    fireEvent.click(known);
+    expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("Felix");
+    fireEvent.click(known);
+    expect(known).not.toBeChecked();
+    expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("");
+  });
+
+  it("offers no known children without a parent account", () => {
+    renderForm();
+    expect(screen.getByText("Kind 1")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Ihre Kinder aus dem Elternkonto"),
+    ).not.toBeInTheDocument();
   });
 });
