@@ -84,8 +84,10 @@ type Resource struct {
 type Dependencies struct {
 	// CalendarPeriods and ClosingDays are the School Calendar owner; the
 	// period usage counts come from the planning owners (#3124).
-	CalendarPeriods         CalendarPeriods
-	ClosingDays             ClosingDays
+	CalendarPeriods CalendarPeriods
+	ClosingDays     ClosingDays
+	// Holidays serves the statutory holidays of the school (#4775).
+	Holidays                Holidays
 	CalendarPeriodUsage     CalendarPeriodUsage
 	MaterializationService  timetable.MaterializationCapability
 	InstanceService         timetable.InstanceLifecycleCapability

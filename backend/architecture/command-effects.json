@@ -61232,6 +61232,28 @@
     },
     {
       "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayRegion",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayRegion",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through modules/schoolcalendar/internal/application.Service.TenantHolidayRegion to name the tenant's federal state (#4775). No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayRegion",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayRegion",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.SettingsService.ResolveString (settings-platform) through modules/schoolcalendar/internal/application.Service.TenantHolidayRegion to name the tenant's federal state (#4775). No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "school-calendar",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidays",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
@@ -61898,6 +61920,28 @@
     },
     {
       "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayRegion",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayRegion",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through modules/schoolcalendar/internal/application.Service.TenantHolidayRegion to name the tenant's federal state (#4775). No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayRegion",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayRegion",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.SettingsService.ResolveString (settings-platform) through modules/schoolcalendar/internal/application.Service.TenantHolidayRegion to name the tenant's federal state (#4775). No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "school-calendar",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidays",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
@@ -62089,6 +62133,50 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: school-calendar reaches modules/settings/records.SettingsService.ResolveString (settings-platform) through modules/schoolcalendar.Days.TenantHolidayDates. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayRegion",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayRegion",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through modules/schoolcalendar.Calendar.TenantHolidayRegion to name the tenant's federal state (#4775). No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayRegion",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayRegion",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.SettingsService.ResolveString (settings-platform) through modules/schoolcalendar.Calendar.TenantHolidayRegion to name the tenant's federal state (#4775). No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayRegion",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayRegion",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through modules/schoolcalendar.Days.TenantHolidayRegion to name the tenant's federal state (#4775). No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "school-calendar",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayRegion",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayRegion",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-calendar reaches modules/settings/records.SettingsService.ResolveString (settings-platform) through modules/schoolcalendar.Days.TenantHolidayRegion to name the tenant's federal state (#4775). No persistent, lock or scope effect."
     },
     {
       "source_owner": "school-calendar",
@@ -101737,6 +101825,28 @@
       "classification": "leaf",
       "adr": "0067",
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/schoolcalendar.Calendar.UpdateClosingDay; modules/schoolcalendar.Calendar (supplied contract method). "
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.Holidays.TenantHolidayRegion",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayRegion",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayRegion",
+      "target_owner": "school-calendar",
+      "binding_digest": "70c994d303f2cac59869f85f4bf52eaa",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.Calendar.TenantHolidayRegion; modules/schoolcalendar.Calendar (supplied contract method), the statutory holiday list of #4775. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.Holidays.TenantHolidays",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidays",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidays",
+      "target_owner": "school-calendar",
+      "binding_digest": "25217a8afb40d08b30b33709aff8ff70",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.Calendar.TenantHolidays; modules/schoolcalendar.Calendar (supplied contract method), the statutory holiday list of #4775. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "timetable-activities",

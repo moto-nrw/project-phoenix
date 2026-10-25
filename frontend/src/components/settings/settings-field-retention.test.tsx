@@ -158,6 +158,39 @@ describe("SettingsField retention windows (ADR 0048)", () => {
     ).toBeInTheDocument();
   });
 
+  // #4775: das Bundesland ist keine Frist; der Hinweis nennt, wer es ändert.
+  it("tells the school who changes its federal state", () => {
+    const { getByText, queryByText } = render(
+      <ToastProvider>
+        <SettingsField
+          setting={retentionSetting({
+            key: "operations.federal_state",
+            label: "Bundesland",
+            description: "Bundesland der Schule.",
+            type: "select",
+            default: "DE-NW",
+            value: "DE-NW",
+            validation: null,
+            options: {
+              static: [{ label: "Nordrhein-Westfalen", value: "DE-NW" }],
+            },
+            writable: false,
+          })}
+          onSave={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+
+    expect(getByText("Nur Lesen")).toBeInTheDocument();
+    expect(
+      getByText(
+        "Das Bundesland legt moto mit Ihrer Schule fest. Stimmt es nicht, wenden Sie sich an das moto-Team.",
+      ),
+    ).toBeInTheDocument();
+    expect(queryByText(/Diese Frist/)).not.toBeInTheDocument();
+  });
+
   it("checks the range before it asks about a shorter window", async () => {
     const { input, onSave, findByText, queryByText } =
       renderOperatorField(retentionSetting());

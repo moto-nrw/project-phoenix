@@ -9,6 +9,13 @@ import (
 // cannot be resolved or names no supported holiday region.
 var ErrFederalStateUnavailable = errors.New("federal state is not available")
 
+// HolidayRegion is the federal state whose statutory holidays apply to a
+// tenant: its ISO code (operations.federal_state) and its German name.
+type HolidayRegion struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
 // NonWorkingDayQuery answers "which days carry no Soll" for the caller's
 // tenant. Statutory holidays come from the tenant's federal-state setting
 // (#1418 3a), closing days from the school's own closure ranges (#1418 3b).
@@ -18,6 +25,9 @@ type NonWorkingDayQuery interface {
 	// includes closing days: the holidays endpoint and the Feiertagsarbeit
 	// warning must not start reporting closures.
 	TenantHolidays(ctx context.Context, from, to string) ([]Holiday, error)
+	// TenantHolidayRegion names the federal state TenantHolidays computes
+	// for, so a school can check which holidays apply (#4775).
+	TenantHolidayRegion(ctx context.Context) (HolidayRegion, error)
 	// TenantHolidayDates is TenantHolidays as a date set.
 	TenantHolidayDates(ctx context.Context, from, to string) (map[string]bool, error)
 	// ClosingDayDates expands the closure ranges touching [from, to] into a
