@@ -1491,6 +1491,8 @@ export async function submitCareException(
     pickupPersonGuardianProfileId?: string;
     /** Nötig für eine Abholperson oder den Heimweg allein (#4780). */
     signature?: SignatureValue | null;
+    /** Der vom Server geladene Wortlaut neben der Unterschrift (#4780). */
+    signatureStatement?: string;
   },
 ): Promise<PickupChangeRequest> {
   return postJson<PickupChangeRequest>(
@@ -1504,7 +1506,12 @@ export async function submitCareException(
       pickup_person_guardian_profile_id:
         params.pickupPersonGuardianProfileId || undefined,
       ...(params.signature
-        ? { signature: signatureRequestBody(params.signature) }
+        ? {
+            signature: signatureRequestBody(
+              params.signature,
+              params.signatureStatement,
+            ),
+          }
         : {}),
     },
   );
@@ -1522,6 +1529,7 @@ export async function updatePickupChangeRequest(
     expectedVersion: string;
     pickupPersonGuardianProfileId?: string;
     signature?: SignatureValue | null;
+    signatureStatement?: string;
   },
 ): Promise<PickupChangeRequest> {
   return putJson<PickupChangeRequest>(
@@ -1535,7 +1543,12 @@ export async function updatePickupChangeRequest(
       pickup_person_guardian_profile_id:
         input.pickupPersonGuardianProfileId || undefined,
       ...(input.signature
-        ? { signature: signatureRequestBody(input.signature) }
+        ? {
+            signature: signatureRequestBody(
+              input.signature,
+              input.signatureStatement,
+            ),
+          }
         : {}),
     },
   );
@@ -1568,6 +1581,32 @@ export async function listPickupPermissionRequests(
   );
 }
 
+export interface PickupSignatureStatementInput {
+  readonly kind: "pickup_permission" | "day_pickup" | "weekly_alone";
+  readonly personName?: string;
+  readonly weekdays?: readonly number[];
+  readonly date?: string;
+  readonly departureMode?: DayDepartureMode | "";
+}
+
+/** Loads the canonical declaration before the parent draws a signature. */
+export async function getPickupSignatureStatement(
+  studentId: string,
+  input: PickupSignatureStatementInput,
+): Promise<string> {
+  const response = await postJson<{ statement: string }>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-signature-statement`,
+    {
+      kind: input.kind,
+      person_name: input.personName,
+      weekdays: input.weekdays,
+      date: input.date,
+      departure_mode: input.departureMode,
+    },
+  );
+  return response.statement;
+}
+
 /**
  * Bittet die OGS, eine Kontaktperson an allen Tagen oder an Wochentagen
  * abholen zu lassen, unterschrieben (#4780).
@@ -1578,6 +1617,7 @@ export async function submitPickupPermissionRequest(
   input: {
     weekdays: readonly number[];
     signature: SignatureValue;
+    statement: string;
     reason?: string;
     relationship?: GuardianRelationshipPayload;
   },
@@ -1587,7 +1627,7 @@ export async function submitPickupPermissionRequest(
     {
       weekdays: input.weekdays,
       reason: input.reason ?? "",
-      signature: signatureRequestBody(input.signature),
+      signature: signatureRequestBody(input.signature, input.statement),
       relationship: input.relationship,
     },
   );
@@ -1794,12 +1834,15 @@ export async function submitCareScheduleRequest(
   studentId: string,
   payload: CareScheduleRequestInput,
   signature?: SignatureValue | null,
+  signatureStatement?: string,
 ): Promise<ChildCareSchedule> {
   return postJson<ChildCareSchedule>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests`,
     {
       payload,
-      ...(signature ? { signature: signatureRequestBody(signature) } : {}),
+      ...(signature
+        ? { signature: signatureRequestBody(signature, signatureStatement) }
+        : {}),
     },
   );
 }

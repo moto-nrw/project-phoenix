@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -35,6 +36,21 @@ type pickupPermissionRequestBody struct {
 	Relationship *updateGuardianRelationshipRequest `json:"relationship,omitempty"`
 }
 
+// pickupSignatureStatementRequest asks the server for the exact declaration
+// shown beside a pickup signature. The submit endpoint rebuilds this text and
+// rejects a stale or altered statement before it records the signature.
+type pickupSignatureStatementRequest struct {
+	Kind          string `json:"kind"`
+	PersonName    string `json:"person_name,omitempty"`
+	Weekdays      []int  `json:"weekdays,omitempty"`
+	Date          string `json:"date,omitempty"`
+	DepartureMode string `json:"departure_mode,omitempty"`
+}
+
+type pickupSignatureStatementResponse struct {
+	Statement string `json:"statement"`
+}
+
 // pickupPermissionRequestResponse is one pickup permission request.
 type pickupPermissionRequestResponse struct {
 	ID                string     `json:"id"`
@@ -53,7 +69,40 @@ func (s *declarationSignatureRequest) pickupInput() *parentService.PickupSignatu
 	if s == nil {
 		return nil
 	}
-	return &parentService.PickupSignatureInput{Method: s.Method, ImagePNG: s.ImagePNG, TypedName: s.TypedName}
+	return &parentService.PickupSignatureInput{Method: s.Method, ImagePNG: s.ImagePNG, TypedName: s.TypedName, Statement: s.Statement}
+}
+
+func (rs *Resource) pickupSignatureStatement(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	var body pickupSignatureStatementRequest
+	if !decodeEditBody(w, r, &body) {
+		return
+	}
+	var date calendar.Date
+	if body.Date != "" {
+		parsed, err := calendar.ParseDate(body.Date)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		date = parsed
+	}
+	statement, err := rs.ParentService.PickupSignatureStatement(r.Context(), accountID, studentID, parentService.PickupSignatureStatementInput{
+		Kind: body.Kind, PersonName: body.PersonName, Weekdays: body.Weekdays,
+		Date: date, DepartureMode: body.DepartureMode,
+	})
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, pickupSignatureStatementResponse{Statement: statement}, "Pickup signature statement loaded")
 }
 
 func toPickupPermissionRequestResponse(req *carerequests.Request, accountID int64) (pickupPermissionRequestResponse, bool) {
@@ -323,6 +372,7 @@ func parsePickupPersonID(raw *string) (int64, error) {
 
 // mountPickupPermissionRoutes registers the pickup permission routes.
 func (rs *Resource) mountPickupPermissionRoutes(r chi.Router) {
+	r.Post("/me/children/{studentId}/pickup-signature-statement", rs.pickupSignatureStatement)
 	r.Post("/me/children/{studentId}/guardians/{guardianProfileId}/pickup-permission-requests", rs.submitPickupPermissionRequest)
 	r.Get("/me/children/{studentId}/pickup-permission-requests", rs.listPickupPermissionRequests)
 	r.Get("/me/children/{studentId}/pickup-requests/{requestId}/proof", rs.pickupRequestProof)

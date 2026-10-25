@@ -194,6 +194,47 @@ describe("parent care schedule requests", () => {
       },
     ]);
   });
+
+  it("sends the displayed declaration with a weekly signature", async () => {
+    const requests: Array<{ body: unknown }> = [];
+    mockFetch(async (_input, init) => {
+      requests.push({ body: JSON.parse(String(init?.body)) as unknown });
+      return jsonResponse({
+        data: {
+          weekdays: [],
+          can_request: false,
+          request_capabilities: {
+            arrival: false,
+            pickup: false,
+            departure_mode: false,
+          },
+          today_absent: false,
+        },
+      });
+    });
+
+    await submitCareScheduleRequest(
+      "42",
+      { weekdays: [{ weekday: 1, mode: "alone" }] },
+      { method: "typed", imagePngBase64: "signature", typedName: "Sabine" },
+      "Ich erlaube, dass das Kind Felix Schneider montags allein nach Hause geht.",
+    );
+
+    expect(requests).toEqual([
+      {
+        body: {
+          payload: { weekdays: [{ weekday: 1, mode: "alone" }] },
+          signature: {
+            method: "typed",
+            image_png: "signature",
+            typed_name: "Sabine",
+            statement:
+              "Ich erlaube, dass das Kind Felix Schneider montags allein nach Hause geht.",
+          },
+        },
+      },
+    ]);
+  });
 });
 
 // --- listMyChildren --------------------------------------------------

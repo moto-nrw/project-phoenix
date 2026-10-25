@@ -65,7 +65,10 @@ import {
 } from "~/lib/date-helpers";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import type { SignatureValue } from "~/lib/signature";
-import { PickupSignatureField } from "~/components/parent/pickup-permission-fields";
+import {
+  PickupSignatureField,
+  usePickupSignatureStatement,
+} from "~/components/parent/pickup-permission-fields";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -1110,16 +1113,22 @@ export function PickupTimeModal({
   const pickupPerson = contacts.find(
     (contact) => contact.guardian_profile_id === pickupPersonId,
   );
-  const dayStatement = pickupPerson
-    ? tPermission("statement.day", {
-        person: `${pickupPerson.first_name} ${pickupPerson.last_name}`.trim(),
-        date: formatLocaleDate(date, locale),
-      })
-    : modeField && departureMode === "alone"
-      ? tPermission("statement.aloneDay", {
-          date: formatLocaleDate(date, locale),
-        })
-      : "";
+  const needsDaySignature =
+    Boolean(pickupPerson) || (modeField && departureMode === "alone");
+  const dayStatement = usePickupSignatureStatement(
+    studentId,
+    pickupPerson
+      ? {
+          kind: "day_pickup",
+          personName:
+            `${pickupPerson.first_name} ${pickupPerson.last_name}`.trim(),
+          date,
+          departureMode,
+        }
+      : modeField && departureMode === "alone"
+        ? { kind: "day_pickup", date, departureMode }
+        : null,
+  );
   const alreadyHome = date === today && childToday?.state === "left";
   // Nach der Frist ist heute für Eltern ganz zu: nicht anfragen, nicht
   // bearbeiten, nicht zurücknehmen. Spätere Tage bleiben offen (#3163).
@@ -1216,7 +1225,7 @@ export function PickupTimeModal({
   // Fehlt die Unterschrift für eine Abholperson oder den Heimweg allein,
   // bleibt der Dialog offen und nennt das Feld (#4780).
   const signatureMissing = (): boolean => {
-    if (!dayStatement || signature) return false;
+    if (!needsDaySignature || (dayStatement && signature)) return false;
     form.invalid(tPermission("signature.missing"), {
       [DAY_SIGNATURE_FIELD]: tPermission("signature.missing"),
     });
@@ -1228,7 +1237,9 @@ export function PickupTimeModal({
     ...(pickupPerson
       ? { pickupPersonGuardianProfileId: pickupPerson.guardian_profile_id }
       : {}),
-    ...(signature ? { signature } : {}),
+    ...(signature && dayStatement
+      ? { signature, signatureStatement: dayStatement }
+      : {}),
   };
 
   const handleSubmit = async () => {

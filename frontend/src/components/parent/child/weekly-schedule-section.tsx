@@ -84,12 +84,18 @@ export function WeeklyScheduleSection(props: Readonly<ScheduleProps>) {
       </ParentSection>
       {requestOpen && (
         <CareScheduleRequestModal
+          studentId={studentId}
           weekdays={schedule.weekdays}
           capabilities={schedule.request_capabilities}
           onClose={() => setRequestOpen(false)}
-          onSubmit={async (payload, signature) =>
+          onSubmit={async (payload, signature, signatureStatement) =>
             props.onScheduleChange(
-              await submitCareScheduleRequest(studentId, payload, signature),
+              await submitCareScheduleRequest(
+                studentId,
+                payload,
+                signature,
+                signatureStatement,
+              ),
             )
           }
         />

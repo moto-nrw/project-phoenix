@@ -305,6 +305,10 @@ func (f *fakeParentService) ListPickupPermissionRequests(context.Context, int64,
 	return nil, nil
 }
 
+func (f *fakeParentService) PickupSignatureStatement(context.Context, int64, int64, parentService.PickupSignatureStatementInput) (string, error) {
+	return "", nil
+}
+
 func (f *fakeParentService) PickupRequestProof(context.Context, int64, int64, int64) (*parentService.PickupProof, error) {
 	return nil, parentService.ErrPickupProofNotFound
 }

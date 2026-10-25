@@ -37,6 +37,11 @@ vi.mock("~/components/ui/date-picker", async () =>
   (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
 );
 
+vi.mock("~/lib/parent-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/parent-api")>()),
+  getPickupSignatureStatement: vi.fn(),
+}));
+
 // de-locale (the test locale) renders YYYY-MM-DD as DD.MM.YYYY.
 function de(iso: string): string {
   const [y, m, d] = iso.split("-");
@@ -329,6 +334,7 @@ describe("PickupTimeModal — failed preload guard", () => {
   it("submits only an Abholart for the day when the school allows it", () => {
     const { onSubmit, reasonInput } = renderModal({
       departureModeEnabled: true,
+      studentId: "1",
     });
 
     expect(screen.getByText("Abholung ändern")).toBeInTheDocument();
@@ -1922,6 +1928,15 @@ describe("Fehlerweg der Dialoge (#2518)", () => {
 // #4780: holt an einem Tag eine eingetragene Kontaktperson ab, unterschreiben
 // die Eltern die Erlaubnis für diesen Tag. Ohne Unterschrift geht nichts raus.
 describe("PickupTimeModal, Abholperson an einem Tag", () => {
+  beforeEach(() => {
+    vi.mocked(parentApi.getPickupSignatureStatement).mockImplementation(
+      async (_studentId, input) =>
+        input.personName
+          ? `Ich erlaube, dass ${input.personName} das Kind Felix Schneider am Dienstag, 15.09.2026 von der OGS abholt.`
+          : "Ich erlaube, dass das Kind Felix Schneider am Dienstag, 15.09.2026 allein nach Hause geht.",
+    );
+  });
+
   it("needs the signature and sends person and signature together", async () => {
     const contacts = vi
       .spyOn(parentApi, "listChildGuardians")
@@ -1952,8 +1967,8 @@ describe("PickupTimeModal, Abholperson an einem Tag", () => {
       fireEvent.change(reasonInput, { target: { value: "Oma holt ab" } });
     }
     expect(
-      screen.getByText(
-        "Ich erlaube, dass Rita Klein das Kind am 15.09.2026 von der OGS abholt.",
+      await screen.findByText(
+        "Ich erlaube, dass Rita Klein das Kind Felix Schneider am Dienstag, 15.09.2026 von der OGS abholt.",
       ),
     ).toBeInTheDocument();
 
@@ -1985,6 +2000,8 @@ describe("PickupTimeModal, Abholperson an einem Tag", () => {
             method: "typed",
             typedName: "Sabine Muster",
           }),
+          signatureStatement:
+            "Ich erlaube, dass Rita Klein das Kind Felix Schneider am Dienstag, 15.09.2026 von der OGS abholt.",
         }),
       ),
     );
@@ -1994,6 +2011,7 @@ describe("PickupTimeModal, Abholperson an einem Tag", () => {
   it("sends the signature for walking home alone", async () => {
     const { onSubmit, reasonInput } = renderModal({
       departureModeEnabled: true,
+      studentId: "1",
     });
 
     fireEvent.click(
@@ -2001,7 +2019,9 @@ describe("PickupTimeModal, Abholperson an einem Tag", () => {
     );
     fireEvent.click(screen.getByRole("option", { name: "Geht allein" }));
     fireEvent.change(reasonInput!, { target: { value: "Heute allein" } });
-    fireEvent.click(screen.getByRole("button", { name: "Namen tippen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Namen tippen" }),
+    );
     fireEvent.change(screen.getByLabelText("Ihr Vor- und Nachname"), {
       target: { value: "Sabine Muster" },
     });
@@ -2018,6 +2038,8 @@ describe("PickupTimeModal, Abholperson an einem Tag", () => {
             method: "typed",
             typedName: "Sabine Muster",
           }),
+          signatureStatement:
+            "Ich erlaube, dass das Kind Felix Schneider am Dienstag, 15.09.2026 allein nach Hause geht.",
         }),
       ),
     );
@@ -2026,6 +2048,7 @@ describe("PickupTimeModal, Abholperson an einem Tag", () => {
   it("requires a new signature when the selected date changes", async () => {
     const { onSubmit, dateInput, reasonInput } = renderModal({
       departureModeEnabled: true,
+      studentId: "1",
     });
 
     fireEvent.click(
@@ -2033,7 +2056,9 @@ describe("PickupTimeModal, Abholperson an einem Tag", () => {
     );
     fireEvent.click(screen.getByRole("option", { name: "Geht allein" }));
     fireEvent.change(reasonInput!, { target: { value: "Heute allein" } });
-    fireEvent.click(screen.getByRole("button", { name: "Namen tippen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Namen tippen" }),
+    );
     fireEvent.change(screen.getByLabelText("Ihr Vor- und Nachname"), {
       target: { value: "Sabine Muster" },
     });

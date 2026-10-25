@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -19,7 +19,7 @@ import {
 import type { SignatureValue } from "~/lib/signature";
 import {
   PickupSignatureField,
-  useWeekdayList,
+  usePickupSignatureStatement,
 } from "~/components/parent/pickup-permission-fields";
 
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
@@ -54,6 +54,7 @@ type SubmitRequest = (
   payload: CareScheduleRequestInput,
   /** Nur gesetzt, wenn die Anfrage das Kind allein gehen lässt (#4780). */
   signature?: SignatureValue,
+  signatureStatement?: string,
 ) => Promise<void>;
 
 const ALONE_SIGNATURE_FIELD = "care-schedule-alone-signature";
@@ -272,6 +273,7 @@ function ScheduleValues({
 }
 
 function useRequestForm(
+  studentId: string,
   weekdays: Weekdays,
   capabilities: Capabilities,
   onSubmit: SubmitRequest,
@@ -279,7 +281,6 @@ function useRequestForm(
 ) {
   const t = useTranslations("parentMasterData.careSchedule");
   const tPermission = useTranslations("parentPickupPermission");
-  const weekdayList = useWeekdayList();
   const [drafts, setDrafts] = useState(() => draftsFromWeekdays(weekdays));
   const [signature, setSignature] = useState<SignatureValue | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -289,10 +290,18 @@ function useRequestForm(
   const alone = aloneWeekdays(
     requestPayload(weekdays, drafts, capabilities).payload,
   );
-  const aloneStatement =
-    alone.length > 0
-      ? tPermission("statement.aloneWeekly", { days: weekdayList(alone) })
-      : "";
+  const aloneStatement = usePickupSignatureStatement(
+    studentId,
+    alone.length > 0 ? { kind: "weekly_alone", weekdays: alone } : null,
+  );
+  const aloneKey = alone.join(",");
+
+  // Die Unterschrift gilt genau für die Wochentage im Wortlaut. Ändert sich
+  // einer davon, muss der Elternteil die neue Erklärung erneut bestätigen.
+  useEffect(() => {
+    setSignature(null);
+  }, [aloneKey]);
+
   const latestSubmitRef = useRef<() => void>(() => undefined);
   const submit = async () => {
     const { payload, missingPlan } = requestPayload(
@@ -304,7 +313,7 @@ function useRequestForm(
     if (payload.weekdays.length === 0) {
       return form.invalid(t("requestNoChange"));
     }
-    if (aloneStatement && !signature) {
+    if (alone.length > 0 && (!aloneStatement || !signature)) {
       return form.invalid(tPermission("signature.missing"), {
         [ALONE_SIGNATURE_FIELD]: tPermission("signature.missing"),
       });
@@ -313,7 +322,7 @@ function useRequestForm(
     form.clear();
     try {
       await (aloneStatement && signature
-        ? onSubmit(payload, signature)
+        ? onSubmit(payload, signature, aloneStatement)
         : onSubmit(payload));
       onClose();
     } catch (submitError) {
@@ -375,18 +384,26 @@ function ScheduleFields({
 }
 
 export function CareScheduleRequestModal({
+  studentId,
   weekdays,
   capabilities,
   onClose,
   onSubmit,
 }: Readonly<{
+  studentId: string;
   weekdays: Weekdays;
   capabilities: Capabilities;
   onClose: () => void;
   onSubmit: SubmitRequest;
 }>) {
   const t = useTranslations("parentMasterData.careSchedule");
-  const form = useRequestForm(weekdays, capabilities, onSubmit, onClose);
+  const form = useRequestForm(
+    studentId,
+    weekdays,
+    capabilities,
+    onSubmit,
+    onClose,
+  );
 
   return (
     <Modal

@@ -65,6 +65,7 @@ import {
   PickupWeekdaysField,
   normalizeWeekdays,
   sameWeekdays,
+  usePickupSignatureStatement,
   useWeekdayList,
 } from "~/components/parent/pickup-permission-fields";
 
@@ -109,23 +110,6 @@ function newPhoneDraftId(): string {
 
 const CONTACT_SIGNATURE_FIELD = "new-contact-pickup-signature";
 const PICKUP_SIGNATURE_FIELD = "guardian-pickup-signature";
-
-type PermissionTranslator = ReturnType<
-  typeof useTranslations<"parentPickupPermission">
->;
-
-/** Der Text der Abholerlaubnis, den die Eltern unterschreiben (#4780). */
-function permissionStatement(
-  t: PermissionTranslator,
-  person: string,
-  weekdays: readonly number[],
-  weekdayList: (days: readonly number[]) => string,
-): string {
-  const days = normalizeWeekdays(weekdays);
-  return days.length === 0
-    ? t("statement.permissionAll", { person })
-    : t("statement.permissionSome", { person, days: weekdayList(days) });
-}
 
 interface GuardiansPanelProps {
   readonly studentId: string;
@@ -1055,10 +1039,23 @@ function ContactModal({
         ],
   );
   const [busy, setBusy] = useState(false);
-  const weekdayList = useWeekdayList();
   const tError = useTranslations("errorCatalog");
   const formRef = useRef<HTMLDivElement>(null);
   const { error, show, invalid, fieldError, clear } = useApiFormError(formRef);
+  const pickupStatement = usePickupSignatureStatement(
+    studentId,
+    mode === "create" &&
+      canManagePickup &&
+      canPickup &&
+      firstName.trim() &&
+      lastName.trim()
+      ? {
+          kind: "pickup_permission",
+          personName: `${firstName} ${lastName}`.trim(),
+          weekdays: normalizeWeekdays(pickupWeekdays),
+        }
+      : null,
+  );
 
   // The signature attests to the displayed contact and weekdays. Changing
   // either must require a fresh signature.
@@ -1081,7 +1078,7 @@ function ContactModal({
       return;
     }
     const requestsPickup = mode === "create" && canManagePickup && canPickup;
-    if (requestsPickup && !pickupSignature) {
+    if (requestsPickup && (!pickupSignature || !pickupStatement)) {
       invalid(tPermission("signature.missing"), {
         [CONTACT_SIGNATURE_FIELD]: tPermission("signature.missing"),
       });
@@ -1116,10 +1113,13 @@ function ContactModal({
           ...payload,
           relationship_type: relationshipType,
           can_pickup: requestsPickup,
-          ...(requestsPickup && pickupSignature
+          ...(requestsPickup && pickupSignature && pickupStatement
             ? {
                 pickup_weekdays: normalizeWeekdays(pickupWeekdays),
-                pickup_signature: signatureRequestBody(pickupSignature),
+                pickup_signature: signatureRequestBody(
+                  pickupSignature,
+                  pickupStatement,
+                ),
               }
             : {}),
           is_emergency_contact: canManagePickup && isEmergency,
@@ -1244,19 +1244,16 @@ function ContactModal({
                     <p className="text-sm text-gray-600">
                       {tPermission("waitsForOgs")}
                     </p>
-                    <PickupSignatureField
-                      id={CONTACT_SIGNATURE_FIELD}
-                      statement={permissionStatement(
-                        tPermission,
-                        `${firstName} ${lastName}`.trim(),
-                        pickupWeekdays,
-                        weekdayList,
-                      )}
-                      value={pickupSignature}
-                      onChange={setPickupSignature}
-                      disabled={busy}
-                      error={fieldError(CONTACT_SIGNATURE_FIELD)}
-                    />
+                    {pickupStatement && (
+                      <PickupSignatureField
+                        id={CONTACT_SIGNATURE_FIELD}
+                        statement={pickupStatement}
+                        value={pickupSignature}
+                        onChange={setPickupSignature}
+                        disabled={busy}
+                        error={fieldError(CONTACT_SIGNATURE_FIELD)}
+                      />
+                    )}
                   </div>
                 ) : null}
                 <label
@@ -1456,9 +1453,19 @@ function PickupModal({
     canPickup &&
     (!g.can_pickup || !sameWeekdays(weekdays, g.pickup_weekdays ?? []));
   const revokes = g.can_pickup && !canPickup;
+  const pickupStatement = usePickupSignatureStatement(
+    studentId,
+    grants
+      ? {
+          kind: "pickup_permission",
+          personName: `${g.first_name} ${g.last_name}`.trim(),
+          weekdays: normalizeWeekdays(weekdays),
+        }
+      : null,
+  );
 
   const handleSave = async () => {
-    if (grants && !signature) {
+    if (grants && (!signature || !pickupStatement)) {
       invalid(tPermission("signature.missing"), {
         [PICKUP_SIGNATURE_FIELD]: tPermission("signature.missing"),
       });
@@ -1504,10 +1511,11 @@ function PickupModal({
       return;
     }
     try {
-      if (grants && signature) {
+      if (grants && signature && pickupStatement) {
         await submitPickupPermissionRequest(studentId, g.guardian_profile_id, {
           weekdays: normalizeWeekdays(weekdays),
           signature,
+          statement: pickupStatement,
           ...(Object.keys(payload).length > 0 ? { relationship: payload } : {}),
         });
       } else if (Object.keys(payload).length > 0) {
@@ -1625,19 +1633,16 @@ function PickupModal({
                     <p className="text-sm text-gray-600">
                       {tPermission("waitsForOgs")}
                     </p>
-                    <PickupSignatureField
-                      id={PICKUP_SIGNATURE_FIELD}
-                      statement={permissionStatement(
-                        tPermission,
-                        `${g.first_name} ${g.last_name}`.trim(),
-                        weekdays,
-                        weekdayList,
-                      )}
-                      value={signature}
-                      onChange={setSignature}
-                      disabled={busy}
-                      error={fieldError(PICKUP_SIGNATURE_FIELD)}
-                    />
+                    {pickupStatement && (
+                      <PickupSignatureField
+                        id={PICKUP_SIGNATURE_FIELD}
+                        statement={pickupStatement}
+                        value={signature}
+                        onChange={setSignature}
+                        disabled={busy}
+                        error={fieldError(PICKUP_SIGNATURE_FIELD)}
+                      />
+                    )}
                   </>
                 ) : null}
               </div>

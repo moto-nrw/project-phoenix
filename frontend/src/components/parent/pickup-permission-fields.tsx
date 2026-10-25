@@ -4,11 +4,12 @@
  * Bausteine der Abholerlaubnis (#4780): die Auswahl der Wochentage einer
  * Abholberechtigung und das Unterschriftsfeld mit dem Text, den die Eltern
  * unterschreiben. Kontaktdialog, Abholdialog und Tagesdialog binden sie gleich
- * ein. Das Feld zeigt den Text in der Sprache der Eltern; gespeichert wird der
- * deutsche Wortlaut, den das Backend bildet.
+ * ein. Das Feld zeigt den serverseitig gebildeten deutschen Wortlaut, der
+ * unverändert gespeichert und als Nachweis geprüft wird.
  */
 
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -18,6 +19,10 @@ import {
   type SignaturePadLabels,
   type SignatureValue,
 } from "~/components/ui/signature-pad";
+import {
+  getPickupSignatureStatement,
+  type PickupSignatureStatementInput,
+} from "~/lib/parent-api";
 
 /** Plan-Wochentage 1 = Montag … 5 = Freitag. */
 const PICKUP_WEEKDAYS = [1, 2, 3, 4, 5] as const;
@@ -40,6 +45,41 @@ export function sameWeekdays(
   return (
     left.length === right.length && left.every((day, i) => day === right[i])
   );
+}
+
+/**
+ * Loads the server-owned declaration before the signature field appears. The
+ * submit endpoint rejects a statement that no longer matches its live values.
+ */
+export function usePickupSignatureStatement(
+  studentId: string | undefined,
+  input: PickupSignatureStatementInput | null,
+): string | null {
+  const [statement, setStatement] = useState<string | null>(null);
+  const key = input === null ? "" : JSON.stringify(input);
+
+  useEffect(() => {
+    if (!studentId || key === "") {
+      setStatement(null);
+      return;
+    }
+    const request = JSON.parse(key) as PickupSignatureStatementInput;
+    let active = true;
+    setStatement(null);
+    void (async () => {
+      try {
+        const next = await getPickupSignatureStatement(studentId, request);
+        if (active) setStatement(next);
+      } catch {
+        if (active) setStatement(null);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [studentId, key]);
+
+  return statement;
 }
 
 /** Kurze Tagesliste, z. B. „Mo, Mi“; leer für alle Tage. */

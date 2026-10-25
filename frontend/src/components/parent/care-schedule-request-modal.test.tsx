@@ -6,11 +6,20 @@ import {
   within,
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.json";
 import { ApiError } from "~/lib/api-error";
+import { getPickupSignatureStatement } from "~/lib/parent-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { CareScheduleRequestModal } from "./care-schedule-request-modal";
+
+vi.mock("~/lib/parent-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/parent-api")>()),
+  getPickupSignatureStatement: vi.fn(),
+}));
+
+const canonicalWeeklyStatement =
+  "Ich erlaube, dass das Kind Felix Schneider montags allein nach Hause geht.";
 
 const weekdays = [
   {
@@ -37,6 +46,7 @@ function renderModal(
   render(
     <NextIntlClientProvider locale="de" messages={deMessages}>
       <CareScheduleRequestModal
+        studentId="42"
         weekdays={weekdays}
         capabilities={capabilities}
         onClose={vi.fn()}
@@ -46,6 +56,12 @@ function renderModal(
   );
   return onSubmit;
 }
+
+beforeEach(() => {
+  vi.mocked(getPickupSignatureStatement).mockResolvedValue(
+    canonicalWeeklyStatement,
+  );
+});
 
 describe("CareScheduleRequestModal", () => {
   it("zeigt und sendet bei reiner Abholzeit-Freigabe keine Abholart", async () => {
@@ -216,9 +232,7 @@ describe("CareScheduleRequestModal Fehlerweg (#2518)", () => {
       }),
     );
     expect(
-      screen.getByText(
-        "Ich erlaube, dass das Kind an diesen Tagen allein nach Hause geht: Mo.",
-      ),
+      await screen.findByText(canonicalWeeklyStatement),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Anfrage an OGS senden" }),
@@ -250,7 +264,52 @@ describe("CareScheduleRequestModal Fehlerweg (#2518)", () => {
           method: "typed",
           typedName: "Sabine Muster",
         }),
+        canonicalWeeklyStatement,
       ),
     );
+  });
+
+  it("verlangt eine neue Unterschrift, wenn sich die Allein-Tage ändern", async () => {
+    const onSubmit = renderModal({
+      arrival: false,
+      pickup: false,
+      departure_mode: true,
+    });
+
+    const mode = screen.getByRole("combobox", { name: "Abholart am Montag" });
+    fireEvent.click(mode);
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: deMessages.parentMasterData.departureModes.alone,
+      }),
+    );
+    await screen.findByRole("button", { name: "Namen tippen" });
+    fireEvent.click(screen.getByRole("button", { name: "Namen tippen" }));
+    fireEvent.change(screen.getByLabelText("Ihr Vor- und Nachname"), {
+      target: { value: "Sabine Muster" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterschrift bestätigen" }),
+    );
+
+    fireEvent.click(mode);
+    fireEvent.click(screen.getByRole("option", { name: "Bus" }));
+    fireEvent.click(mode);
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: deMessages.parentMasterData.departureModes.alone,
+      }),
+    );
+    await screen.findByRole("button", { name: "Namen tippen" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage an OGS senden" }),
+    );
+
+    expect(
+      await screen.findAllByText(
+        deMessages.parentPickupPermission.signature.missing,
+      ),
+    ).not.toHaveLength(0);
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });

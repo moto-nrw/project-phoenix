@@ -43,7 +43,28 @@ type PickupSignatureInput struct {
 	Method    string
 	ImagePNG  string
 	TypedName string
+	// Statement is the server-generated wording rendered beside the signature
+	// field. The submit path compares it byte-for-byte with its fresh wording
+	// before it records the signature.
+	Statement string
 }
+
+// PickupSignatureStatementInput identifies a declaration the portal renders
+// before the parent signs it. The server owns the wording, including the
+// child's current name, so the display and the later proof cannot drift.
+type PickupSignatureStatementInput struct {
+	Kind          string
+	PersonName    string
+	Weekdays      []int
+	Date          calendar.Date
+	DepartureMode string
+}
+
+const (
+	PickupSignatureStatementPermission = "pickup_permission"
+	PickupSignatureStatementDay        = "day_pickup"
+	PickupSignatureStatementWeekly     = "weekly_alone"
+)
 
 // PickupSignatureEntry is one signature to store: the guardian, the child
 // and the exact wording signed.
@@ -86,6 +107,9 @@ func (s *Service) recordPickupSignature(txCtx context.Context, studentID, accoun
 	if input == nil {
 		return nil, ErrPickupSignatureRequired
 	}
+	if input.Statement != statement {
+		return nil, ErrPickupSignatureInvalid
+	}
 	if s.PickupSignatures == nil {
 		return nil, errors.New("parent: pickup signature ledger is not wired")
 	}
@@ -102,6 +126,39 @@ func (s *Service) recordPickupSignature(txCtx context.Context, studentID, accoun
 		return nil, err
 	}
 	return &carerequests.SignedStatement{SignatureID: id, Statement: statement}, nil
+}
+
+// PickupSignatureStatement returns the exact German declaration that the
+// parent must see before signing. The write path rebuilds and compares it,
+// because a contact or a child's name may have changed after this preview.
+func (s *Service) PickupSignatureStatement(ctx context.Context, accountID, studentID int64, input PickupSignatureStatementInput) (string, error) {
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
+	if err != nil {
+		return "", err
+	}
+
+	switch input.Kind {
+	case PickupSignatureStatementPermission:
+		name := strings.TrimSpace(input.PersonName)
+		if name == "" {
+			return "", ErrPickupSignatureInvalid
+		}
+		return PickupPermissionStatement(child.StudentName, name, normalizedWeekdays(input.Weekdays)), nil
+	case PickupSignatureStatementDay:
+		statement := DayPickupStatement(child.StudentName, input.Date, input.DepartureMode, strings.TrimSpace(input.PersonName))
+		if statement == "" {
+			return "", ErrPickupSignatureInvalid
+		}
+		return statement, nil
+	case PickupSignatureStatementWeekly:
+		statement := WeeklyAloneStatement(child.StudentName, normalizedWeekdays(input.Weekdays))
+		if statement == "" {
+			return "", ErrPickupSignatureInvalid
+		}
+		return statement, nil
+	default:
+		return "", ErrPickupSignatureInvalid
+	}
 }
 
 var statementWeekdays = [...]string{"", "montags", "dienstags", "mittwochs", "donnerstags", "freitags"}

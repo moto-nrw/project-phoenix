@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   updateGuardianRelationship: vi.fn(),
   listPickupPermissionRequests: vi.fn(),
   submitPickupPermissionRequest: vi.fn(),
+  getPickupSignatureStatement: vi.fn(),
 }));
 
 vi.mock("~/lib/parent-api", () => {
@@ -43,13 +44,14 @@ vi.mock("~/lib/parent-api", () => {
     updateGuardianRelationship: mocks.updateGuardianRelationship,
     listPickupPermissionRequests: mocks.listPickupPermissionRequests,
     submitPickupPermissionRequest: mocks.submitPickupPermissionRequest,
+    getPickupSignatureStatement: mocks.getPickupSignatureStatement,
   };
 });
 
 // Unterschreibt im offenen Dialog mit getipptem Namen (#4780).
-function signByTyping(container: HTMLElement, name = "Sabine Muster") {
+async function signByTyping(container: HTMLElement, name = "Sabine Muster") {
   fireEvent.click(
-    within(container).getByRole("button", { name: "Namen tippen" }),
+    await within(container).findByRole("button", { name: "Namen tippen" }),
   );
   fireEvent.change(within(container).getByLabelText("Ihr Vor- und Nachname"), {
     target: { value: name },
@@ -106,6 +108,10 @@ describe("GuardiansPanel", () => {
     mocks.updateGuardianContact.mockResolvedValue(editableGuardian);
     mocks.updateGuardianRelationship.mockResolvedValue(editableGuardian);
     mocks.createGuardianContact.mockResolvedValue(editableGuardian);
+    mocks.getPickupSignatureStatement.mockImplementation(
+      async (_studentId, input) =>
+        `Ich erlaube, dass ${input.personName} das Kind Felix Schneider ${input.weekdays?.length ? "dienstags" : "an allen Tagen"} von der OGS abholt.`,
+    );
   });
 
   it("preserves phone labels and the existing primary phone on contact save", async () => {
@@ -249,11 +255,11 @@ describe("GuardiansPanel", () => {
     );
     // Die Abholerlaubnis braucht die Unterschrift der Eltern (#4780).
     expect(
-      within(dialog).getByText(
-        "Ich erlaube, dass Erika Klein das Kind an allen Tagen von der OGS abholt.",
+      await within(dialog).findByText(
+        "Ich erlaube, dass Erika Klein das Kind Felix Schneider an allen Tagen von der OGS abholt.",
       ),
     ).toBeInTheDocument();
-    signByTyping(dialog);
+    await signByTyping(dialog);
     fireEvent.click(
       within(dialog).getByRole("button", { name: "Kontakt hinzufügen" }),
     );
@@ -549,7 +555,7 @@ describe("GuardiansPanel", () => {
     )!;
     fireEvent.click(canPickup);
     // Erteilen geht seit #4780 als unterschriebene Anfrage an die OGS.
-    signByTyping(screen.getByRole("dialog"));
+    await signByTyping(screen.getByRole("dialog"));
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => {
@@ -760,8 +766,8 @@ describe("GuardiansPanel", () => {
       );
       fireEvent.click(within(dialog).getByRole("checkbox", { name: "Montag" }));
       expect(
-        within(dialog).getByText(
-          "Ich erlaube, dass Rita Klein das Kind an diesen Tagen von der OGS abholt: Di.",
+        await within(dialog).findByText(
+          "Ich erlaube, dass Rita Klein das Kind Felix Schneider dienstags von der OGS abholt.",
         ),
       ).toBeInTheDocument();
 
@@ -775,7 +781,7 @@ describe("GuardiansPanel", () => {
       ).not.toHaveLength(0);
       expect(mocks.submitPickupPermissionRequest).not.toHaveBeenCalled();
 
-      signByTyping(dialog);
+      await signByTyping(dialog);
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Speichern" }),
       );
@@ -813,7 +819,7 @@ describe("GuardiansPanel", () => {
           name: "Nur an bestimmten Tagen",
         }),
       );
-      signByTyping(dialog);
+      await signByTyping(dialog);
       fireEvent.click(
         within(dialog).getByRole("checkbox", { name: "Dienstag" }),
       );
@@ -846,7 +852,7 @@ describe("GuardiansPanel", () => {
       fireEvent.click(
         document.querySelector<HTMLInputElement>("#guardian-emergency")!,
       );
-      signByTyping(dialog);
+      await signByTyping(dialog);
       fireEvent.click(
         within(dialog).getByRole("button", { name: "Speichern" }),
       );

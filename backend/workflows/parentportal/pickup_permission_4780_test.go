@@ -129,6 +129,38 @@ func testSignature(t *testing.T) *parentService.PickupSignatureInput {
 	return &parentService.PickupSignatureInput{Method: "drawn", ImagePNG: base64.StdEncoding.EncodeToString(buf.Bytes())}
 }
 
+// signedPickupSignature uses the same server-owned statement preview as the
+// browser. Tests must not create a signature without the declaration it binds.
+func signedPickupSignature(t *testing.T, f pickupPermissionFixture, chain testpkg.ParentChain, input parentService.PickupSignatureStatementInput) *parentService.PickupSignatureInput {
+	t.Helper()
+	statement, err := f.svc.PickupSignatureStatement(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, input)
+	require.NoError(t, err)
+	signature := testSignature(t)
+	signature.Statement = statement
+	return signature
+}
+
+func signedContactPermission(t *testing.T, f pickupPermissionFixture, chain testpkg.ParentChain, weekdays []int) *parentService.PickupSignatureInput {
+	t.Helper()
+	return signedPickupSignature(t, f, chain, parentService.PickupSignatureStatementInput{
+		Kind: parentService.PickupSignatureStatementPermission, PersonName: "Guardian Test", Weekdays: weekdays,
+	})
+}
+
+func signedDayCollector(t *testing.T, f pickupPermissionFixture, chain testpkg.ParentChain) *parentService.PickupSignatureInput {
+	t.Helper()
+	return signedPickupSignature(t, f, chain, parentService.PickupSignatureStatementInput{
+		Kind: parentService.PickupSignatureStatementDay, PersonName: "Guardian Test", Date: pickupPermissionDay,
+	})
+}
+
+func signedDayAlone(t *testing.T, f pickupPermissionFixture, chain testpkg.ParentChain) *parentService.PickupSignatureInput {
+	t.Helper()
+	return signedPickupSignature(t, f, chain, parentService.PickupSignatureStatementInput{
+		Kind: parentService.PickupSignatureStatementDay, Date: pickupPermissionDay, DepartureMode: "alone",
+	})
+}
+
 func staffDecisionContext(t *testing.T, db *bun.DB, tenantID int64) (context.Context, int64) {
 	t.Helper()
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Review")
@@ -187,7 +219,7 @@ func TestPickupPermissionRequest_SignedThenConfirmedGrantsWeekdays(t *testing.T)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	created, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{
-		Weekdays: []int{4, 2, 2}, Signature: testSignature(t),
+		Weekdays: []int{4, 2, 2}, Signature: signedContactPermission(t, f, chain, []int{4, 2, 2}),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, carerequests.StatusPending, created.Status)
@@ -229,6 +261,25 @@ func TestPickupPermissionRequest_SignedThenConfirmedGrantsWeekdays(t *testing.T)
 	assert.Equal(t, permission.Signature.Statement, proof.Statement)
 }
 
+func TestPickupPermissionRequest_RejectsAStatementThatWasNotDisplayed(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-stale-statement")
+	signature := signedContactPermission(t, f, chain, []int{2})
+	signature.Statement = "Ein anderer Wortlaut"
+
+	_, err := f.svc.SubmitPickupPermissionRequest(
+		testpkg.WithPackageTenantRuntime(context.Background()),
+		chain.AccountID,
+		chain.StudentID,
+		contactID,
+		parentService.PickupPermissionInput{Weekdays: []int{2}, Signature: signature},
+	)
+	require.ErrorIs(t, err, parentService.ErrPickupSignatureInvalid)
+}
+
 func TestPickupPermissionCorrectionRestoresThePreviousPermission(t *testing.T) {
 	t.Parallel()
 
@@ -238,7 +289,7 @@ func TestPickupPermissionCorrectionRestoresThePreviousPermission(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	created, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{
-		Weekdays: []int{2, 4}, Signature: testSignature(t),
+		Weekdays: []int{2, 4}, Signature: signedContactPermission(t, f, chain, []int{2, 4}),
 	})
 	require.NoError(t, err)
 	approveCareRequest(t, f, chain.TenantID, created.ID)
@@ -269,7 +320,7 @@ func TestPickupPermissionCorrectionKeepsALaterStaffChange(t *testing.T) {
 	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-correction-staff")
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	created, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{
-		Weekdays: []int{2, 4}, Signature: testSignature(t),
+		Weekdays: []int{2, 4}, Signature: signedContactPermission(t, f, chain, []int{2, 4}),
 	})
 	require.NoError(t, err)
 	approveCareRequest(t, f, chain.TenantID, created.ID)
@@ -309,7 +360,7 @@ func TestPickupPermissionApprovalRefusesAContactNowManagedByTheSchool(t *testing
 	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
 	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-school-managed")
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	created, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{Signature: testSignature(t)})
+	created, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{Signature: signedContactPermission(t, f, chain, nil)})
 	require.NoError(t, err)
 	_, err = f.db.NewUpdate().TableExpr("users.student_guardian_relationships").
 		Set("guardian_role = ?", "social_worker").Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, contactID).
@@ -334,7 +385,7 @@ func TestPickupPermissionRequestsListQueryBudget(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	for _, name := range []string{"eins", "zwei", "drei"} {
 		contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-budget-"+name)
-		_, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{Signature: testSignature(t)})
+		_, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{Signature: signedContactPermission(t, f, chain, nil)})
 		require.NoError(t, err)
 	}
 
@@ -363,13 +414,13 @@ func TestPickupPermissionRequest_RefusesWithoutSignatureOrPermission(t *testing.
 		"parent_portal.guardian.edit": true,
 	})
 	_, err = f.svc.SubmitPickupPermissionRequest(ctx, accountIDForProfile(t, f.db, viewerID), chain.StudentID, contactID, parentService.PickupPermissionInput{
-		Signature: testSignature(t),
+		Signature: signedContactPermission(t, f, chain, nil),
 	})
 	require.ErrorIs(t, err, parentService.ErrGuardianPermissionDenied)
 
 	// An account holder never receives it from another parent.
 	_, err = f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, viewerID, parentService.PickupPermissionInput{
-		Signature: testSignature(t),
+		Signature: signedContactPermission(t, f, chain, nil),
 	})
 	require.ErrorIs(t, err, parentService.ErrGuardianHasOwnAccount)
 
@@ -386,12 +437,12 @@ func TestPickupPermissionRequestWithRelationshipRollsBackBothWrites(t *testing.T
 	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-atomic")
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	_, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{Signature: testSignature(t)})
+	_, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{Signature: signedContactPermission(t, f, chain, nil)})
 	require.NoError(t, err)
 
 	emergency := true
 	_, err = f.svc.SubmitPickupPermissionRequestWithRelationship(ctx, chain.AccountID, chain.StudentID, contactID,
-		parentService.PickupPermissionInput{Signature: testSignature(t)},
+		parentService.PickupPermissionInput{Signature: signedContactPermission(t, f, chain, nil)},
 		parentService.GuardianRelationshipInput{IsEmergencyContact: &emergency},
 	)
 	require.Error(t, err, "the existing pending request rejects the second request")
@@ -461,7 +512,7 @@ func TestDayPickupPerson_SignedConfirmedAndOnlyThatDay(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrInvalidCareRequestPayload, "a collected child does not walk home alone")
 
 	created, err := f.svc.SubmitPickupChange(ctx, chain.AccountID, chain.StudentID, parentService.PickupChangeSubmission{
-		Date: pickupPermissionDay, PickupPersonID: contactID, Reason: "Oma holt ab", Signature: testSignature(t),
+		Date: pickupPermissionDay, PickupPersonID: contactID, Reason: "Oma holt ab", Signature: signedDayCollector(t, f, chain),
 	})
 	require.NoError(t, err)
 	terms := carerequests.StoredPickupTerms(created.Payload)
@@ -523,7 +574,7 @@ func TestDayPickupApprovalRefusesAContactNowManagedByTheSchool(t *testing.T) {
 	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "schule-4780-tag")
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	created, err := f.svc.SubmitPickupChange(ctx, chain.AccountID, chain.StudentID, parentService.PickupChangeSubmission{
-		Date: pickupPermissionDay, PickupPersonID: contactID, Reason: "Noch Kontakt", Signature: testSignature(t),
+		Date: pickupPermissionDay, PickupPersonID: contactID, Reason: "Noch Kontakt", Signature: signedDayCollector(t, f, chain),
 	})
 	require.NoError(t, err)
 	_, err = f.db.NewUpdate().TableExpr("users.student_guardian_relationships").
@@ -557,7 +608,7 @@ func TestWalkingHomeAloneNeedsASignature(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrPickupSignatureRequired, "a weekday alone needs a signature too")
 
 	created, err := f.svc.SubmitPickupChange(ctx, chain.AccountID, chain.StudentID, parentService.PickupChangeSubmission{
-		Date: pickupPermissionDay, DepartureMode: "alone", Reason: "Geht allein", Signature: testSignature(t),
+		Date: pickupPermissionDay, DepartureMode: "alone", Reason: "Geht allein", Signature: signedDayAlone(t, f, chain),
 	})
 	require.NoError(t, err)
 	signed := carerequests.StoredSignature(created.Payload)
@@ -574,7 +625,7 @@ func TestPickupRequestProof_OnlyForTheSigningGuardian(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	created, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{
-		Signature: testSignature(t),
+		Signature: signedContactPermission(t, f, chain, nil),
 	})
 	require.NoError(t, err)
 
@@ -612,7 +663,9 @@ func TestCreateGuardianContact_PickupBecomesSignedRequest(t *testing.T) {
 	_, err := f.svc.CreateGuardianContact(ctx, chain.AccountID, chain.StudentID, input)
 	require.ErrorIs(t, err, parentService.ErrPickupSignatureRequired)
 
-	input.PickupSignature = testSignature(t)
+	input.PickupSignature = signedPickupSignature(t, f, chain, parentService.PickupSignatureStatementInput{
+		Kind: parentService.PickupSignatureStatementPermission, PersonName: "Erika Muster", Weekdays: []int{2},
+	})
 	created, err := f.svc.CreateGuardianContact(ctx, chain.AccountID, chain.StudentID, input)
 	require.NoError(t, err)
 	assert.False(t, created.CanPickup, "the permission waits for the OGS")
