@@ -24,9 +24,10 @@ name: Produkt-Screenshots
 # schreiben und läuft nur nach einem erfolgreichen Capture. Ein kaputter Shot
 # bricht die Pipeline vor jeder Ausgabe ab, das Release bleibt dann unverändert.
 #
-# Der Lauf stellt die Uhr der VM auf den letzten Dienstag, 12:00 Berlin, siehe
-# "Move the runner clock to Tuesday 12:00 Berlin". Die Bilder zeigen dann diesen
-# Dienstag um 13:30.
+# Der Lauf stellt die Uhr der VM auf den letzten Dienstag, 07:20 Berlin, siehe
+# "Move the runner clock to Tuesday 07:20 Berlin", und die Simulation stellt
+# sie durch den Tag bis 12:50 vor. Die Bilder zeigen dann diesen Dienstag um
+# 13:30.
 
 on:
   release:
@@ -50,6 +51,7 @@ on:
       - "frontend/playwright.screenshots.config.ts"
       - "backend/internal/devtools/seedapi/**"
       - "backend/internal/devtools/simulate/**"
+      - "backend/cmd/devtools/**"
 
 permissions: {}
 
@@ -115,7 +117,11 @@ jobs:
       LOG_LEVEL: info
       LOG_TEXTLOGGING: "true"
       AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
-      AUTH_JWT_EXPIRY: 15m
+      # Die Simulation stellt die Uhr der VM in Sprüngen von 07:20 bis 12:50
+      # vor. Ein Zugriffstoken muss diesen Wegwerf-Stack mit synthetischen
+      # Daten deshalb über den Vormittag tragen; mit 15 Minuten lief es im
+      # Lauf für PR #4947 zwischen zwei Wellen ab.
+      AUTH_JWT_EXPIRY: 12h
       AUTH_JWT_REFRESH_EXPIRY: 168h
       OPERATOR_EMAIL: operator@example.com
       OPERATOR_PASSWORD: Screenshots1234%
@@ -246,31 +252,47 @@ jobs:
 
       # Server, Seed, Datenbank und Browser lesen dieselbe Uhr der VM. Die
       # Bilder zeigen immer einen Dienstag um 13:30: Der Lauf stellt die Uhr
-      # vor Migration und Seed auf den letzten Dienstag, 12:00 Berlin. Seed und
-      # Simulation stempeln Anwesenheit und Nachrichten dann kurz nach 12 Uhr,
-      # wenn die Kinder laut Wochenplan nach dem Unterricht ankommen; die
-      # Browser-Uhr steht auf 13:30 desselben Tages (reference-time.ts).
-      # Server und Browser liegen so auf demselben Kalendertag, sonst bräche
-      # jeder Shot mit einem Hydration-Fehler ab. Erst nach allen Downloads:
-      # ein Zertifikat von gestern wäre sonst noch nicht gültig. "Restore the
+      # vor Migration und Seed auf den letzten Dienstag, 07:20 Berlin. Die
+      # Simulation stellt sie dann in Wellen vor (set-clock): Dienstbeginn nach
+      # Dienstplan ab 07:25, die geplante Frühbetreuung ab 07:30, eine Klasse
+      # mit Unterrichtsausfall um 11:00, die geplanten Blöcke und Räume um
+      # 12:00, Kinder nach Klassen ab 12:00, 12:15 und 12:35, Nachrichten im
+      # Lauf des Tages, zuletzt 12:50. So tragen Ankunft, Arbeitszeit,
+      # Aktivitäten und Nachrichten verschiedene Zeiten, alle vor 13:30. Die
+      # Browser-Uhr steht auf 13:30 desselben Tages (reference-time.ts). Server
+      # und Browser liegen so auf demselben Kalendertag, sonst bräche jeder
+      # Shot mit einem Hydration-Fehler ab. Erst nach allen Downloads: ein
+      # Zertifikat von gestern wäre sonst noch nicht gültig. set-clock führt
+      # die Verschiebung zur echten Zeit in clock-shift nach; "Restore the
       # runner clock" stellt sie vor jedem Upload zurück.
-      - name: Move the runner clock to Tuesday 12:00 Berlin
+      - name: Move the runner clock to Tuesday 07:20 Berlin
         run: |
+          cat > "${RUNNER_TEMP}/set-clock" <<'SCRIPT'
+          #!/usr/bin/env bash
+          # set-clock <Unix-Sekunden>: stellt die Uhr der VM und hält in
+          # clock-shift fest, wie weit sie hinter der echten Zeit steht.
+          set -euo pipefail
+          shift_file="${RUNNER_TEMP:?}/clock-shift"
+          now=$(date +%s)
+          offset=$(cat "${shift_file}" 2>/dev/null || echo 0)
+          sudo date -s "@$1" > /dev/null
+          echo $(( now + offset - $1 )) > "${shift_file}.new"
+          mv "${shift_file}.new" "${shift_file}"
+          SCRIPT
+          chmod +x "${RUNNER_TEMP}/set-clock"
           # Tage in Kalenderdaten rechnen, nicht in Sekunden: an der
           # Zeitumstellung hat ein Tag 23 oder 25 Stunden.
           now=$(date +%s)
           today=$(TZ=Europe/Berlin date -d "@${now}" +%F)
           back=$(( ($(TZ=Europe/Berlin date -d "@${now}" +%u) + 5) % 7 ))
-          target=$(TZ=Europe/Berlin date -d "$(TZ=Europe/Berlin date -d "${today} -${back} days" +%F) 12:00" +%s)
+          target=$(TZ=Europe/Berlin date -d "$(TZ=Europe/Berlin date -d "${today} -${back} days" +%F) 07:20" +%s)
           if [ "${target}" -gt "${now}" ]; then
-            target=$(TZ=Europe/Berlin date -d "$(TZ=Europe/Berlin date -d "${today} -$((back + 7)) days" +%F) 12:00" +%s)
+            target=$(TZ=Europe/Berlin date -d "$(TZ=Europe/Berlin date -d "${today} -$((back + 7)) days" +%F) 07:20" +%s)
           fi
-          seconds=$((now - target))
-          echo "${seconds}" > "${RUNNER_TEMP}/clock-shift"
           # Ohne Zeitsynchronisation, sonst stellt sie die Uhr wieder vor.
           sudo timedatectl set-ntp false
           sudo systemctl stop chrony.service systemd-timesyncd.service 2>/dev/null || true
-          sudo date -s "@${target}" > /dev/null
+          "${RUNNER_TEMP}/set-clock" "${target}"
           echo "Uhr der VM auf $(TZ=Europe/Berlin date '+%A, %F %T %Z') gestellt"
 
       - name: Run migrations
@@ -297,6 +319,7 @@ jobs:
 
       # Seeds every profile, including `vollbetrieb`, and writes
       # backend/.seed-state.json; access.ts reads the vollbetrieb logins from it.
+      # --product-screenshots: no weekend care plan, no seed-time statistics session.
       - name: Seed demo data
         working-directory: backend
         run: |
@@ -304,14 +327,19 @@ jobs:
             --email "${OPERATOR_EMAIL}" \
             --password "${OPERATOR_PASSWORD}" \
             --pin "${OGS_DEVICE_PIN}" \
-            --url http://localhost:8080
+            --url http://localhost:8080 \
+            --product-screenshots
 
       # Without it the vollbetrieb school day is nearly empty: the seed checks in
       # only a few children. The standing demo fills it with its live ticker.
+      # --clock-command moves the runner clock forward before each wave of the
+      # day, so check-ins, work blocks and sessions carry staggered times.
       - name: Simulate the school day
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb
+          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb \
+            --clock-command "${RUNNER_TEMP}/set-clock"
+          echo "Uhr der VM nach der Simulation: $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
       - name: Start frontend
         working-directory: frontend

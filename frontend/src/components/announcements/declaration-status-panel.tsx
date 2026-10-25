@@ -247,11 +247,17 @@ export function DeclarationStatusPanel({
     return loadError.error ? (
       <LoadErrorAlert error={loadError.error} />
     ) : (
-      <div className="text-sm text-gray-500">Stand wird geladen …</div>
+      <div aria-busy="true" className="text-sm text-gray-500">
+        Stand wird geladen …
+      </div>
     );
   }
   if (!status) {
-    return <div className="text-sm text-gray-500">Stand wird geladen …</div>;
+    return (
+      <div aria-busy="true" className="text-sm text-gray-500">
+        Stand wird geladen …
+      </div>
+    );
   }
 
   const s = status.summary;

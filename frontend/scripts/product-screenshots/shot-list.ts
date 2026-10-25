@@ -2,7 +2,13 @@ import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 import { z } from "zod";
 
-import { DEFAULT_DEVICES, DEVICE_IDS, type DeviceId } from "./devices";
+import {
+  DEFAULT_DEVICES,
+  DEVICE_IDS,
+  PORTALS,
+  type DeviceId,
+  type Portal,
+} from "./devices";
 
 // Die Shot-Liste (#3759): YAML im Repo, damit ein Shot ohne Code-Änderung
 // hinzukommt oder wegfällt. Das Schema ist strikt: ein unbekanntes Feld ist
@@ -17,7 +23,19 @@ const stepSchema = z.union([
   z.strictObject({
     scrollen: z.union([z.number().int().nonnegative(), z.string().min(1)]),
   }),
+  z.strictObject({
+    tippen: z.strictObject({ feld: z.string().min(1), text: z.string() }),
+  }),
+  z.strictObject({ zeichnen: z.string().min(1) }),
+  z.strictObject({ scrollen_im_bereich: z.string().min(1) }),
+  z.strictObject({ einblenden: z.string().min(1) }),
 ]);
+
+const ROLES_BY_PORTAL: Readonly<Record<Portal, readonly string[]>> = {
+  tenant: ["admin", "betreuer"],
+  eltern: ["eltern"],
+  traeger: ["traeger"],
+};
 
 const shotSchema = z
   .strictObject({
@@ -28,8 +46,8 @@ const shotSchema = z
         "id muss ein Kebab-Slug aus a-z, 0-9 und Bindestrichen sein (Umlaute als ae/oe/ue)",
       ),
     titel: z.string().min(1),
-    portal: z.enum(["tenant", "eltern"]),
-    rolle: z.enum(["admin", "betreuer", "eltern"]),
+    portal: z.enum(PORTALS),
+    rolle: z.enum(["admin", "betreuer", "eltern", "traeger"]),
     pfad: z
       .string()
       .regex(/^\/(?!\/)[^\s]*$/, "pfad muss mit genau einem / beginnen"),
@@ -37,8 +55,7 @@ const shotSchema = z
     vorbereitung: z.array(stepSchema).optional(),
   })
   .superRefine((shot, ctx) => {
-    const expectedRoles =
-      shot.portal === "eltern" ? ["eltern"] : ["admin", "betreuer"];
+    const expectedRoles = ROLES_BY_PORTAL[shot.portal];
     if (!expectedRoles.includes(shot.rolle)) {
       ctx.addIssue({
         code: "custom",

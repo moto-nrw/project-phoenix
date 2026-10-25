@@ -63,10 +63,17 @@ export function RequestSharingSelector({
     return error ? (
       <LoadErrorAlert error={error} />
     ) : (
-      <p className="text-sm text-gray-500">{t("loading")}</p>
+      <p aria-busy="true" className="text-sm text-gray-500">
+        {t("loading")}
+      </p>
     );
   }
-  if (!state) return <p className="text-sm text-gray-500">{t("loading")}</p>;
+  if (!state)
+    return (
+      <p aria-busy="true" className="text-sm text-gray-500">
+        {t("loading")}
+      </p>
+    );
   if (state.family_protected)
     return <Alert type="info" message={t("protected")} />;
   return (
@@ -368,7 +375,9 @@ function SharingDialog({
     >
       <div className="space-y-4">
         {sharing.loading ? (
-          <p className="text-sm text-gray-500">{t("loading")}</p>
+          <p aria-busy="true" className="text-sm text-gray-500">
+            {t("loading")}
+          </p>
         ) : null}
         <FormErrorAlert message={control.saveError} />
         {sharing.state ? (
@@ -392,7 +401,11 @@ export function RequestSharingControl(props: RequestSharingControlProps) {
   const { sharing } = control;
   if (!props.isSelf) return null;
   if (sharing.loading)
-    return <p className="text-sm text-gray-500">{t("loading")}</p>;
+    return (
+      <p aria-busy="true" className="text-sm text-gray-500">
+        {t("loading")}
+      </p>
+    );
   if (sharing.loadError && !sharing.state)
     return <LoadErrorAlert error={sharing.loadError} />;
   if (sharing.state?.family_protected)
