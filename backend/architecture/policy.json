@@ -4156,6 +4156,14 @@
       "write_owner": "settings-platform"
     },
     {
+      "name": "config.traeger_setting_audit",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.traeger_setting_values",
+      "write_owner": "settings-platform"
+    },
+    {
       "name": "config.settings",
       "write_owner": "settings-platform"
     },

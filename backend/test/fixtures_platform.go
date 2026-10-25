@@ -60,6 +60,13 @@ func CreateTestOrganization(tb testing.TB, db *bun.DB, organization *Organizatio
 			Where("organization_id = ?", organization.ID).
 			Scan(ctx, &tenantIDs)
 		require.NoError(tb, cleanupErr, "Failed to find test organization schools")
+		// The Träger's own rows (ADR 0086) carry no school; the tenant
+		// cleanup below deletes the organization with foreign-key triggers
+		// suspended, so they go first and by their Träger.
+		for _, table := range []string{"config.traeger_setting_audit", "config.traeger_setting_values"} {
+			_, cleanupErr = db.NewDelete().TableExpr(table).Where("organization_id = ?", organization.ID).Exec(ctx)
+			require.NoError(tb, cleanupErr, "Failed to clean up the Träger rows of %s", table)
+		}
 		cleanupTenantTestData(tb, db, tenantIDs...)
 		_, cleanupErr = db.NewDelete().
 			Model((*Organization)(nil)).

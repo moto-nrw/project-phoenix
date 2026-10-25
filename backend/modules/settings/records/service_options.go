@@ -14,6 +14,11 @@ type ServiceOptions struct {
 	ClassRestrictionGuard func(context.Context) (bool, error)
 	GradeRestrictionGuard func(context.Context) (bool, error)
 	GradeCapGuard         func(context.Context) (int, error)
+	// TraegerValues is the Träger level (ADR 0086). Nil resolves without it,
+	// which only unit compositions without any Träger may do.
+	TraegerValues TraegerSettingRepository
+	// SchoolTraeger names the Träger of each school for the batch read.
+	SchoolTraeger func(context.Context, []int64) (map[int64]int64, error)
 }
 
 // SideEffectDispatcher applies the handlers fixed at construction.

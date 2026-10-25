@@ -42832,6 +42832,17 @@
     {
       "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/settings/http.TraegerSettingsResource.TraegerRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/http.TraegerSettingsResource.TraegerRouter",
+      "target_owner": "settings-platform",
+      "binding_digest": "f172fd969ba61892a47c0781ef61f3f2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/http.TraegerSettingsResource.TraegerRouter mounts the Träger settings (ADR 0086, #4652); its operations open the shared Träger transaction themselves (ADR 0105, ADR 0107). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/traegerportal.TraegerRouter.TraegerRouter",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.AccessLogResource.TraegerRouter",
       "target": "*github.com/moto-nrw/project-phoenix/modules/traegerview/http.AccessLogResource.TraegerRouter",
       "target_owner": "traeger-view",

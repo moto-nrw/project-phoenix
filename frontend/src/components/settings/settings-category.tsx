@@ -4,6 +4,7 @@ import type { SchemaCategory } from "~/lib/settings-api";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SettingsField } from "./settings-field";
+import type { SettingsAudience } from "./settings-origin";
 import {
   categorySummary,
   changedCount,
@@ -22,8 +23,8 @@ interface SettingsCategoryProps {
   // audience identifies who is viewing the settings page. Controls the
   // "auch von {other side} änderbar" hint on shared settings. Defaults
   // to "admin" for the tenant settings page; the operator page passes
-  // "operator" to flip the hint copy.
-  readonly audience?: "admin" | "operator";
+  // "operator" to flip the hint copy, the Träger portal "traeger" (#4652).
+  readonly audience?: SettingsAudience;
   // revealFn is forwarded to PasswordField. Defaults to the tenant reveal
   // endpoint when unset. The operator page passes a school-bound function
   // so password reveal hits the operator endpoint instead.

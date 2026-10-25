@@ -13,6 +13,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 )
 
 // mountTraegerRoutes serves the Träger-Portal at /traeger and the public
@@ -20,8 +21,8 @@ import (
 // link of a published holiday period, without an account. Turnstile is
 // always required there.
 func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.Capability,
-	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, delivery deliveryRuntime.Capability, keys TurnstileKeys, logger *slog.Logger) error {
-	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit); err != nil {
+	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings settingsHTTP.TraegerOperations, delivery deliveryRuntime.Capability, keys TurnstileKeys, logger *slog.Logger) error {
+	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings); err != nil {
 		return err
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", logger).Router())

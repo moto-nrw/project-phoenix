@@ -5785,11 +5785,14 @@ function settingsTopic(): HelpTopic {
       "moto legt die Löschfristen mit Ihrer Schule fest. Sie können sie nur lesen.",
       "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",
       "`Das ganze Team` geht dort nur, wenn das Team alle Gruppen und Blöcke sieht.",
+      "Manche Werte legt Ihr Träger für alle Schulen fest. Dort steht `Vom Träger festgelegt`.",
+      "Sie können davon abweichen. `Zurücksetzen` übernimmt wieder den Wert des Trägers.",
     ],
     differences: [
       "Welche Bereiche Sie sehen, hängt von Ihren Rechten und den Funktionen Ihrer OGS ab.",
     ],
     troubleshootingDetails: [
+      "Bei einer Einstellung steht `Legt der Träger fest`? Diesen Wert ändert nur Ihr Träger.",
       "Eine Einstellung ist gesperrt? moto legt sie mit Ihrer Schule fest. Sie können sie nur lesen.",
       "Fehlt `Alte Daten automatisch löschen`? Das ist die Notbremse. Das moto-Team nutzt sie nur bei einem Vorfall.",
       "Der Wechsel des Anwesenheitsmodus wird abgelehnt? Das geht nicht, solange Kinder eingecheckt sind.",
@@ -5808,7 +5811,7 @@ function settingsTopic(): HelpTopic {
  * vollständige Liste: Die vollständige Liste steht auf `/settings` selbst, mit
  * einem Satz unter jeder Einstellung. Bezeichnungen stammen aus der Registry
  * (`backend/modules/settings/internal/defaults/`) und aus `TAB_LABELS` in
- * `components/settings/settings-page.tsx`. Wer dort umbenennt, ändert hier mit.
+ * `components/settings/settings-filter.ts`. Wer dort umbenennt, ändert hier mit.
  */
 function settingsGuideTopic(): HelpTopic {
   return {
@@ -8537,6 +8540,41 @@ function traegerLoginTopic(): HelpTopic {
   };
 }
 
+/**
+ * `/traeger/einstellungen` (#4652, ADR 0086): Träger-Werte zwischen Standard
+ * und Schule. Bezeichnungen aus `settings-origin.ts` und `traeger-shell.tsx`.
+ */
+function traegerSettingsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerSettings,
+    title: "Einstellungen für alle Schulen festlegen",
+    question: "Wie lege ich Einstellungen für alle Schulen fest?",
+    summary: "Was Sie hier festlegen, gilt für alle Schulen Ihres Trägers.",
+    group: "konfiguration",
+    audience: "traeger",
+    icon: "Settings",
+    requirements: ["Sie dürfen im Träger-Büro Einstellungen ändern."],
+    steps: [
+      "Wählen Sie oben `Einstellungen`.",
+      "Suchen Sie die Einstellung, zum Beispiel unter `Anmeldung` oder `Betrieb`.",
+      "Ändern Sie den Wert. moto speichert die Änderung von selbst.",
+    ],
+    result:
+      "Der Wert gilt sofort für alle Schulen Ihres Trägers. Auch neue Schulen übernehmen ihn.",
+    notes: [
+      "Bei Ihrem Wert steht `Vom Träger festgelegt` und das Datum der letzten Änderung.",
+      "`Standard` heißt: Sie haben nichts festgelegt. Es gilt der Wert von moto.",
+      "`Zurücksetzen` entfernt Ihren Wert. Dann gilt wieder der Standard.",
+      "Eine Schule kann einen eigenen Wert eintragen. Dann gilt dort ihr Wert.",
+      "Den eigenen Wert einer Schule kann nur die Schule selbst zurücksetzen.",
+    ],
+    differences: [
+      "Sie können die Werte nur ansehen? Ihnen fehlt das Recht zum Ändern. Wenden Sie sich an das moto-Team.",
+    ],
+    related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],
+  };
+}
+
 /** `/traeger` (#4654): Absprung in eine Schule des Trägers. */
 function traegerSchoolSwitchTopic(): HelpTopic {
   return {
@@ -8866,6 +8904,7 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   traegerHolidayPeriodTopic(),
   traegerHolidayRegistrationTopic(),
   traegerAccessLogTopic(),
+  traegerSettingsTopic(),
 ];
 
 const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [

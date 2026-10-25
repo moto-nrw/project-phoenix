@@ -60,6 +60,11 @@ func (s *settingsService) writeDefinition(key string, permissions []string, oper
 	if definition == nil {
 		return nil, &config.SettingsError{Op: operation, Err: &config.DefinitionNotFoundError{Key: key}}
 	}
+	if definition.Levels == config.LevelTraeger {
+		// Only the Träger sets a Träger-only setting; a school override
+		// would be ignored by every read (ADR 0086 section 3).
+		return nil, &config.SettingsError{Op: operation, Err: &config.PermissionDeniedError{Key: key, RequiredPermission: "the Träger level"}}
+	}
 	if err := checkWritePermission(definition, permissions); err != nil {
 		return nil, &config.SettingsError{Op: operation, Err: err}
 	}

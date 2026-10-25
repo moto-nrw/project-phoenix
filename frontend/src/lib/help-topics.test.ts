@@ -667,12 +667,14 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.traegerHolidayRegistration,
       HELP_TOPICS.traegerAccessLog,
+      HELP_TOPICS.traegerSettings,
       HELP_TOPICS.errorMessages,
     ]);
     expect([...new Set(traegerTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "anmeldeverwaltung",
       "auswertung",
+      "konfiguration",
       "probleme",
     ]);
     // Das Träger-Portal ist ein eigenes Portal: kein Verweis führt in die
@@ -684,7 +686,11 @@ describe("getParentHelpTopicForPath", () => {
     );
     expect(unreachable).toEqual([]);
     // Kein anderer Leser sieht die Träger-Artikel.
-    for (const id of [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerAccessLog]) {
+    for (const id of [
+      HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerAccessLog,
+      HELP_TOPICS.traegerSettings,
+    ]) {
       expect(traegerTopics.find((topic) => topic.id === id)?.audience).toBe(
         "traeger",
       );

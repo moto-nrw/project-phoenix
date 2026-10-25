@@ -18,6 +18,9 @@ type (
 	stubAuditRepository struct{ config.SettingAuditRepository }
 	stubSchoolStore     struct{ config.SchoolSettingsStore }
 	stubRuntime         struct{ config.Runtime }
+	stubTraegerValues   struct {
+		config.TraegerSettingRepository
+	}
 )
 
 func completeSettingsDependencies() SettingsServiceDependencies {
@@ -28,6 +31,8 @@ func completeSettingsDependencies() SettingsServiceDependencies {
 		ClassRestrictionGuard: func(context.Context) (bool, error) { return true, nil },
 		GradeRestrictionGuard: func(context.Context) (bool, error) { return false, nil },
 		GradeCapGuard:         func(context.Context) (int, error) { return 4, nil },
+		TraegerValues:         stubTraegerValues{},
+		SchoolTraeger:         func(context.Context, []int64) (map[int64]int64, error) { return nil, nil },
 	}
 }
 
@@ -64,6 +69,8 @@ func TestNewSettingsServiceWithDependenciesRejectsAMissingDependency(t *testing.
 		"class restriction": func(d *SettingsServiceDependencies) { d.ClassRestrictionGuard = nil },
 		"grade restriction": func(d *SettingsServiceDependencies) { d.GradeRestrictionGuard = nil },
 		"grade cap":         func(d *SettingsServiceDependencies) { d.GradeCapGuard = nil },
+		"traeger values":    func(d *SettingsServiceDependencies) { d.TraegerValues = nil },
+		"school traeger":    func(d *SettingsServiceDependencies) { d.SchoolTraeger = nil },
 	} {
 		dependencies := completeSettingsDependencies()
 		drop(&dependencies)

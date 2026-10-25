@@ -17,6 +17,8 @@ function makeSetting(overrides: Partial<ResolvedSetting>): ResolvedSetting {
     visible: true,
     sort_order: 1,
     access_policy: "shared",
+    levels: "schule",
+    source: "default",
     validation: null,
     depends_on: null,
     options: null,

@@ -246,9 +246,12 @@ Backend paths in this section are relative to `backend/`:
   membership. `TraegerMiddleware` accepts only `scope=org`; the Träger rights
   come from fixed role bundles in `auth.organization_account_roles`. Reads
   across schools run through the `traeger-view` projection in an admin
-  transaction filtered on the Träger's schools. Every Träger session needs
-  the e-mail second factor (#4651), independent of any school's `mfa_mode`
-  and of overrides: login answers `mfa_required` or `mfa_enrollment_required`
+  transaction filtered on the Träger's schools. The Träger's own tables
+  (holiday periods, ADR 0105; Träger settings, ADR 0086/0107) are written in
+  the Träger transaction (`tenant.WithinTraeger`: tenant role,
+  `app.current_org_id`, no school), never in an admin transaction. Every
+  Träger session needs the e-mail second factor (#4651), independent of any
+  school's `mfa_mode` and of overrides: login answers `mfa_required` or `mfa_enrollment_required`
   with the resolved `organization_id`, `/traeger/auth/mfa/*` redeems only
   `org`-scope challenges, and mint and refresh refuse a session without
   `mfa_verified`. No trusted device. The operator reset

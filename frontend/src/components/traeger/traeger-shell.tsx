@@ -13,7 +13,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { DELIBERATE_LOGOUT_KEY, clearSessionCache } from "~/lib/session-cache";
 import { traegerPath } from "~/lib/traeger-url";
-import { TRAEGER_HELP_HREF } from "./traeger-help";
+import { traegerHelpHref } from "./traeger-help";
 import { TraegerTestSystemNotice } from "./traeger-test-system-notice";
 
 const logger = createLogger({ component: "TraegerShell" });
@@ -24,6 +24,8 @@ const ACCOUNTS_RIGHT = "traeger_accounts:manage";
 const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
 /** The Träger right that opens the access log (#4655). */
 const ACCESS_LOG_RIGHT = "traeger_access_log:read";
+/** The Träger right that reads the Träger settings (ADR 0086, #4652). */
+const OVERVIEW_RIGHT = "traeger_overview:read";
 
 const navLinkClassName =
   "rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
@@ -48,13 +50,19 @@ const NAV_ITEMS = [
     path: "/traeger/access-log",
     right: ACCESS_LOG_RIGHT,
   },
+  {
+    id: "einstellungen",
+    label: "Einstellungen",
+    path: "/traeger/einstellungen",
+    right: OVERVIEW_RIGHT,
+  },
 ] as const;
 
 /**
  * The pages of the portal as header tabs. The holiday periods need the right
  * "Anmeldung verwalten", the page "Personen" the right to manage accounts,
- * the access log the right to read it; a person with none of them has one
- * page and no tabs.
+ * the access log the right to read it, the settings (#4652) the right to
+ * read the overview; a person with none of them has one page and no tabs.
  */
 function TraegerNav({ session }: Readonly<{ session: Session | null }>) {
   const router = useRouter();
@@ -86,8 +94,9 @@ function TraegerNav({ session }: Readonly<{ session: Session | null }>) {
  * The shell of the Träger portal ("moto träger", #4649): the shared
  * PortalShell frame with a slim head bar. The portal has few pages, so there
  * is no sidebar; the head carries the pages, the help and the way out. The
- * pages "Ferien" (#4659), "Personen" (#4650) and "Zugriffsprotokoll" (#4655)
- * show only with their rights.
+ * pages "Ferien" (#4659), "Personen" (#4650), "Zugriffsprotokoll" (#4655)
+ * and "Einstellungen" (#4652) show only with their rights. The help opens
+ * the article of the page.
  */
 export function TraegerShell({
   children,
@@ -95,6 +104,7 @@ export function TraegerShell({
   readonly children: React.ReactNode;
 }) {
   const { data: session } = useSession();
+  const pathname = usePathname() ?? "";
   const [loggingOut, setLoggingOut] = useState(false);
 
   const logout = async () => {
@@ -139,7 +149,7 @@ export function TraegerShell({
             {session.user.email}
           </span>
         ) : null}
-        <NavLink href={TRAEGER_HELP_HREF} className={navLinkClassName}>
+        <NavLink href={traegerHelpHref(pathname)} className={navLinkClassName}>
           Hilfe
         </NavLink>
         <Button

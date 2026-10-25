@@ -26,6 +26,11 @@ func NewSettingAuditRepository(runtime PersistenceRuntime) configModel.SettingAu
 	return configRepo.NewSettingAuditRepository(runtime)
 }
 
+// NewTraegerSettingRepository builds the Träger level store (ADR 0086).
+func NewTraegerSettingRepository(runtime PersistenceRuntime) configModel.TraegerSettingRepository {
+	return configRepo.NewTraegerSettingRepository(runtime)
+}
+
 // NewHomeLayoutRepository builds the store behind the personal start page
 // (#2875). Callers pass the same tenant-aware runtime as the settings
 // repositories, so its rows take part in the settings tenant transaction and

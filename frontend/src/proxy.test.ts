@@ -1029,11 +1029,27 @@ describe("proxy", () => {
       }
     });
 
+    it("rewrites /einstellungen to /traeger/einstellungen (#4652)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}/einstellungen`,
+          TRAEGER_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/einstellungen",
+      );
+    });
+
     it("passes through /api/traeger/* without rewriting", () => {
       for (const path of [
         "/api/traeger/auth/session",
         "/api/traeger/schools",
         "/api/traeger/access-log/export",
+        "/api/traeger/settings/schema",
+        "/api/traeger/settings/values/parent.news_enabled",
       ]) {
         const res = proxy(
           makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),

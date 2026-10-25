@@ -19,6 +19,8 @@ import { Input } from "~/components/ui/input";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SettingsCategory } from "./settings-category";
 import {
+  TAB_LABELS,
+  displayTabLabel,
   normalizeQuery,
   searchTabs,
   visibleCategoryItems,
@@ -46,22 +48,8 @@ const SUPERVISION_AFFECTING_KEYS = new Set<string>([
 
 const logger = createLogger({ component: "SettingsPage" });
 
-// Tab label mapping (German)
-const TAB_LABELS: Record<string, string> = {
-  operations: "Betrieb",
-  meals: "Mittagessen",
-  reminders: "Erinnerungen",
-  gdpr: "Datenschutz",
-  devices: "Geräte",
-  enrollment: "Anmeldung",
-  system: "Kalender und Export",
-  general: "Allgemein",
-  security: "Sicherheit",
-  modules: "Module",
-};
-
 function tabLabel(tab: SchemaTab): string {
-  return TAB_LABELS[tab.key] ?? tab.label;
+  return displayTabLabel(tab);
 }
 
 // Payroll settings (#1417) have their own maintenance page under /payroll —

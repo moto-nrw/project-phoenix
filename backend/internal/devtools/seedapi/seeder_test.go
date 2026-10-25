@@ -1051,9 +1051,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
 			return
 		}
-		// The Träger-Büro step signs in to the Träger-Portal (#4650) in every
-		// profile; that login answers without the envelope, like the other
-		// portal logins.
+		// The Träger-Büro and Träger settings steps sign in to the
+		// Träger-Portal (#4650, #4652) in every profile; that login answers
+		// without the envelope, like the other portal logins.
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/traeger/auth/login" {
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"status": "authenticated", "access_token": "traeger-token", "refresh_token": "traeger-refresh",
