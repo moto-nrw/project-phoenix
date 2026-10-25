@@ -1,3 +1,4 @@
+import type { TeacherHint } from "./student-helpers";
 import type { HomeworkFeedbackStatus } from "./homework-feedback";
 import type { CareDayStatus } from "./timetable-types";
 
@@ -121,6 +122,8 @@ export interface TimetableRosterRow {
    * isCareDayExpected, never against a single value.
    */
   careDayStatus: CareDayStatus;
+  /** Hinweise der Lehrkraft für den Tag des Blocks (#4795); nur mit users:read. */
+  teacherHints?: TeacherHint[];
   /**
    * Names the other running instance where this child is currently recorded
    * present (#2265). Null when no parallel block holds the child as present;
@@ -294,6 +297,7 @@ interface BackendRosterRow {
   pickup_time?: string | null;
   warnings?: BackendRosterWarning[];
   care_day_status?: TimetableRosterRow["careDayStatus"];
+  teacher_hints?: TeacherHint[];
   parallel_present_in?: {
     instance_id: number;
     title: string;
@@ -410,6 +414,7 @@ function mapRosterRow(row: BackendRosterRow): TimetableRosterRow {
       ? {}
       : { pickupTime: row.pickup_time ?? null }),
     careDayStatus: row.care_day_status ?? "unknown",
+    ...(row.teacher_hints?.length ? { teacherHints: row.teacher_hints } : {}),
     parallelPresentIn: row.parallel_present_in
       ? {
           instanceId: row.parallel_present_in.instance_id.toString(),

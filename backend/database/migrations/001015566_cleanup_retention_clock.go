@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const cleanupRetentionClockVersion = "1.15.548"
+const cleanupRetentionClockVersion = "1.15.566"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

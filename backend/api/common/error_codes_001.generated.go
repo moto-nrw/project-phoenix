@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIdentityPasswordResetRateLimited               = "identity.password_reset_rate_limited"
+	CodeIdentityPasswordTooWeak                        = "identity.password_too_weak"
+	CodeIdentityPreviewTargetNotPreviewable            = "identity.preview_target_not_previewable"
+	CodeIdentityPreviewTargetSchoolPortal              = "identity.preview_target_school_portal"
 	CodeIdentityPreviewTokenInvalid                    = "identity.preview_token_invalid"
 	CodeIdentityReadOnlyPreview                        = "identity.read_only_preview"
 	CodeIdentityRoleNameTaken                          = "identity.role_name_taken"
@@ -298,13 +302,13 @@ const (
 	CodeTimetableOfferingSourceTooMany                 = "timetable.offering_source_too_many"
 	CodeTimetableOnlySupervisorReplacementRequired     = "timetable.only_supervisor_replacement_required"
 	CodeTimetableOperationNotPlanned                   = "timetable.operation_not_planned"
-	CodeTimetableOperationStale                        = "timetable.operation_stale"
-	CodeTimetablePickupExtensionBlockGone              = "timetable.pickup_extension_block_gone"
-	CodeTimetablePickupExtensionInvalid                = "timetable.pickup_extension_invalid"
-	CodeTimetablePickupExtensionNotFound               = "timetable.pickup_extension_not_found"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.password_reset_rate_limited":                 "unavailable",
+	"identity.password_too_weak":                           "input",
+	"identity.preview_target_not_previewable":              "permission",
+	"identity.preview_target_school_portal":                "permission",
 	"identity.preview_token_invalid":                       "permission",
 	"identity.read_only_preview":                           "permission",
 	"identity.role_name_taken":                             "business_rejection",
@@ -601,10 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.offering_source_too_many":                   "input",
 	"timetable.only_supervisor_replacement_required":       "business_rejection",
 	"timetable.operation_not_planned":                      "permission",
-	"timetable.operation_stale":                            "business_rejection",
-	"timetable.pickup_extension_block_gone":                "business_rejection",
-	"timetable.pickup_extension_invalid":                   "input",
-	"timetable.pickup_extension_not_found":                 "business_rejection",
 }
 
 func init() {

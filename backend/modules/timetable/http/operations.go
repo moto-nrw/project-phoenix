@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -155,8 +156,8 @@ func (rs *Resource) operationsRoster(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		accountID, isAdmin := operationActor(r.Context())
 		roster, err := rs.OperationsService.Roster(r.Context(), accountID, isAdmin, instanceID)
-		if err == nil && !canViewOperationPickupTimes(r.Context()) {
-			redactOperationRosterPickupTimes(roster)
+		if err == nil {
+			err = rs.presentRoster(r.Context(), roster)
 		}
 		return roster, err
 	}, "Timetable roster retrieved")
@@ -177,8 +178,9 @@ func (rs *Resource) operationsRosterByActiveGroup(w http.ResponseWriter, r *http
 		rs.renderOperationsError(w, r, err)
 		return
 	}
-	if !canViewOperationPickupTimes(r.Context()) {
-		redactOperationRosterPickupTimes(result)
+	if err := rs.presentRoster(r.Context(), result); err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
 	}
 	common.Respond(w, r, http.StatusOK, result, "Timetable roster retrieved")
 }
@@ -438,8 +440,9 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 		rs.renderOperationsError(w, r, err)
 		return
 	}
-	if !canViewOperationPickupTimes(r.Context()) {
-		redactOperationRosterPickupTimes(result)
+	if err := rs.presentRoster(r.Context(), result); err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
 	}
 	common.Respond(w, r, http.StatusOK, result, "Student checked in to timetable instance")
 }
@@ -502,8 +505,9 @@ func (rs *Resource) operationsCheckInStudents(w http.ResponseWriter, r *http.Req
 		rs.renderOperationsError(w, r, err)
 		return
 	}
-	if !canViewOperationPickupTimes(r.Context()) {
-		redactOperationRosterPickupTimes(result)
+	if err := rs.presentRoster(r.Context(), result); err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
 	}
 	common.Respond(w, r, http.StatusOK, result, "Students checked in to timetable instance")
 }
@@ -523,8 +527,9 @@ func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Req
 		rs.renderOperationsError(w, r, err)
 		return
 	}
-	if !canViewOperationPickupTimes(r.Context()) {
-		redactOperationRosterPickupTimes(result)
+	if err := rs.presentRoster(r.Context(), result); err != nil {
+		rs.renderOperationsError(w, r, err)
+		return
 	}
 	common.Respond(w, r, http.StatusOK, result, "Student checked out from timetable instance")
 }
@@ -566,6 +571,58 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 func canViewOperationPickupTimes(ctx context.Context) bool {
 	return common.IsAssignmentBoundPortal(ctx) ||
 		securityruntime.HasPermission(permissions.UsersRead, sessiontoken.PermissionsFromCtx(ctx))
+}
+
+// presentRoster readies a roster for the response: pickup times only for
+// callers who may see them, and today's hints of the Lehrkraft (#4795). Every
+// response that carries the roster goes through it, because the client puts
+// a check-in's roster in place of the one it shows.
+func (rs *Resource) presentRoster(ctx context.Context, roster *timetable.OperationRoster) error {
+	if roster == nil {
+		return nil
+	}
+	if !canViewOperationPickupTimes(ctx) {
+		redactOperationRosterPickupTimes(roster)
+	}
+	return rs.attachTeacherHints(ctx, roster)
+}
+
+// attachTeacherHints puts the Lehrkraft's hints (#4795) on the rows of a
+// roster of today. A hint is a message for this afternoon: an older or a
+// future block shows none. Hints are notes about the child, so they need
+// users:read and unredacted student access (an administrator or verified
+// staff, #2329) like every other note; the school portal's own supervisions
+// show none.
+func (rs *Resource) attachTeacherHints(ctx context.Context, roster *timetable.OperationRoster) error {
+	if rs.TeacherHints == nil || len(roster.Rows) == 0 || !rs.canReadTeacherHints(ctx) {
+		return nil
+	}
+	day, err := calendar.ParseDate(roster.Instance.Date)
+	if err != nil {
+		return fmt.Errorf("teacher hints: roster date: %w", err)
+	}
+	if day != rs.todayDate() {
+		return nil
+	}
+	studentIDs := make([]int64, 0, len(roster.Rows))
+	for _, row := range roster.Rows {
+		studentIDs = append(studentIDs, row.StudentID)
+	}
+	hints, err := rs.TeacherHints.TeacherHints(ctx, studentIDs, day)
+	if err != nil {
+		return fmt.Errorf("teacher hints: %w", err)
+	}
+	for i := range roster.Rows {
+		roster.Rows[i].TeacherHints = hints[roster.Rows[i].StudentID]
+	}
+	return nil
+}
+
+func (rs *Resource) canReadTeacherHints(ctx context.Context) bool {
+	granted := sessiontoken.PermissionsFromCtx(ctx)
+	return rs.UserContextService != nil &&
+		securityruntime.HasPermission(permissions.UsersRead, granted) &&
+		securityruntime.ResolveStudentReadScope(ctx, granted, rs.UserContextService)
 }
 
 func redactOperationRosterPickupTimes(roster *timetable.OperationRoster) {

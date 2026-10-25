@@ -6,7 +6,7 @@
 import type { ClassHandover } from "~/lib/class-handover";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
-import type { DepartureMode } from "~/lib/student-helpers";
+import type { DepartureMode, TeacherHint } from "~/lib/student-helpers";
 
 // Wire types (Go DTOs from backend/api/students/ogs_group_live_handlers.go)
 
@@ -37,6 +37,7 @@ export interface OgsLiveWireStudent {
   day_planning_reason?: string;
   day_planning_label?: string;
   pending_excused_note?: string;
+  teacher_hints?: TeacherHint[];
   // Übergabe nach dem Unterricht (#4794): heute mit der Klasse an die OGS
   // übergeben, „da“ oder „nicht da“.
   class_handover?: ClassHandover;

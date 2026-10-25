@@ -459,12 +459,12 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			groupLive, err = buildGroupLive(env, presence, services.Users, structureViews, caller, active, settings.Service, schedules,
-				lifecycle, requests)
+				lifecycle, requests, persons)
 			return
 		},
 		func() (err error) {
 			dashboard, err = buildSupervisionDashboard(env, settings.Service, caller, active, presence, rooms, timetableOwner, yard,
-				structureViews, lifecycle, schedules, services.Users)
+				structureViews, lifecycle, schedules, services.Users, persons)
 			return
 		},
 		func() (err error) {

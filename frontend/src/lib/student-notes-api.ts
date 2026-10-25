@@ -20,6 +20,8 @@ export const NOTE_VISIBILITY_GROUP_LEADS = "group_leads";
 
 /** A carried-over hint came from the former Betreuernotizen field and has no author. */
 export const NOTE_ORIGIN_MASTER_DATA = "master_data";
+/** Hinweis der Lehrkraft für einen Tag, geschrieben in moto schule (#4795). */
+export const NOTE_ORIGIN_SCHOOL = "school";
 
 export interface StudentNote {
   id: string;

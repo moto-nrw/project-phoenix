@@ -1,5 +1,7 @@
 "use client";
 
+import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
+import { StickyNote } from "lucide-react";
 import {
   HANDOVER_ABSENT_WORDING,
   handoverDetail,
@@ -313,6 +315,20 @@ export function SupervisionStudentGrid({
                         {handoverLine(student.class_handover)}
                       </StudentInfoRow>
                     ))}
+                  {(student.teacher_hints ?? []).map((hint) => (
+                    <StudentInfoRow
+                      key={teacherHintKey(hint)}
+                      icon={
+                        <StickyNote
+                          className="h-3.5 w-3.5 text-gray-400"
+                          aria-hidden="true"
+                        />
+                      }
+                      wrap
+                    >
+                      {teacherHintText(hint)}
+                    </StudentInfoRow>
+                  ))}
                   {(() => {
                     const absence = getStudentAbsence({
                       sick: presentStudent.sick,

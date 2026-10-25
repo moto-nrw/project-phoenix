@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.547 (#3873): the installed erasure plan with the eight school-scoped
+// 1.15.565 (#3873): the installed erasure plan with the eight school-scoped
 // meal ordering tables, inserted before the meal participation overrides.
 func installMealOrderErasurePlan(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, mealOrderErasurePlanSQL)

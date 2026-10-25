@@ -51,7 +51,7 @@ func TestCommandDeletesTheAuditLedgersInsideTheirFixedWindows(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, deleted)
 	assert.Equal(t, 90, days)
-	// The database evaluates its windows in UTC (migration 1.15.548): 90 days
+	// The database evaluates its windows in UTC (migration 1.15.566): 90 days
 	// are 90 times 24 hours, three years the same UTC clock time.
 	assert.False(t, store.cutoffs["auth"].After(before.Add(-90*24*time.Hour)), "never newer than 90 days")
 

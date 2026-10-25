@@ -59,7 +59,14 @@ const (
 const (
 	StudentNoteOriginStaff      = "staff"
 	StudentNoteOriginMasterData = "master_data"
+	// StudentNoteOriginSchool is the Lehrkraft's hint for the OGS for one day,
+	// written through moto schule (#4795).
+	StudentNoteOriginSchool = "school"
 )
+
+// MaxSchoolDayHintRunes bounds a Lehrkraft's day hint: a short message to the
+// OGS, not a report.
+const MaxSchoolDayHintRunes = 500
 
 // Note categories. Free text alone makes a timeline unfilterable; an open
 // vocabulary makes it unreadable. These six cover what a Klassenbuch records.
@@ -113,6 +120,10 @@ type StudentNoteSubject struct {
 	ActivityGroupID *int64
 	// EducationGroupID names the child's OGS group.
 	EducationGroupID *int64
+	// SchoolClass names the class of a Lehrkraft's day hint for the whole
+	// class (origin school). It is not a group reference: the class is a
+	// school fact, not an OGS group with a leadership.
+	SchoolClass string
 }
 
 // References reports how many group references the subject carries. The table
@@ -291,7 +302,9 @@ func (u UpdateStudentNote) Validate() error {
 // has no day, every entry has one, a note narrowed to leadership refers to a
 // group, and a retained leadership note without its reference stays immutable.
 func (n StudentNote) AllowsUpdate(update UpdateStudentNote) error {
-	if n.AuthorAccountID == nil {
+	// A day hint from moto schule is changed only where it was written: its
+	// lifetime, audience and wording limit are fixed by the school portal.
+	if n.AuthorAccountID == nil || n.Origin == StudentNoteOriginSchool {
 		return ErrStudentNoteImmutable
 	}
 	if *n.AuthorAccountID != update.ActorAccountID {
@@ -316,6 +329,12 @@ func (n StudentNote) AllowsUpdate(update UpdateStudentNote) error {
 // facts only after the note itself is row-locked. A general note belongs to
 // the child's current OGS group; a referenced note belongs to that reference.
 func (n StudentNote) AllowsDelete(authorization StudentNoteDeleteAuthorization) error {
+	// A day hint from moto schule is withdrawn only where it was written (#4795):
+	// a class hint lives as one row per child, and removing one row here would
+	// leave the Lehrkraft's view saying the whole class still has it.
+	if n.Origin == StudentNoteOriginSchool {
+		return ErrStudentNoteImmutable
+	}
 	if authorization.Admin {
 		return nil
 	}
@@ -335,4 +354,63 @@ func (n StudentNote) AllowsDelete(authorization StudentNoteDeleteAuthorization) 
 		return ErrStudentNoteDeleteForbidden
 	}
 	return nil
+}
+
+// SetSchoolDayHint is a Lehrkraft's hint for the OGS for one day (#4795). With
+// SchoolClass it is the hint for the whole class and StudentIDs are the
+// children of the class that day; without it, StudentIDs names exactly the one
+// child the hint is for. Writing it again for the same author, day and target
+// replaces the wording.
+type SetSchoolDayHint struct {
+	AuthorAccountID int64
+	Date            calendar.Date
+	SchoolClass     string
+	StudentIDs      []int64
+	Body            string
+}
+
+// Validate checks the hint before any row is locked.
+func (h SetSchoolDayHint) Validate() error {
+	if h.AuthorAccountID <= 0 || h.Date.IsZero() {
+		return ErrStudentNoteInvalid
+	}
+	if h.Body == "" || len([]rune(h.Body)) > MaxSchoolDayHintRunes {
+		return ErrStudentNoteInvalid
+	}
+	if len(h.StudentIDs) == 0 || (h.SchoolClass == "" && len(h.StudentIDs) != 1) {
+		return ErrStudentNoteInvalid
+	}
+	for _, id := range h.StudentIDs {
+		if id <= 0 {
+			return ErrStudentNoteInvalid
+		}
+	}
+	return nil
+}
+
+// ClearSchoolDayHint removes one of the author's day hints: the one for the
+// class when SchoolClass is set, otherwise the one for StudentID.
+type ClearSchoolDayHint struct {
+	AuthorAccountID int64
+	Date            calendar.Date
+	SchoolClass     string
+	StudentID       int64
+}
+
+// Validate checks that the removal names one target.
+func (c ClearSchoolDayHint) Validate() error {
+	if c.AuthorAccountID <= 0 || c.Date.IsZero() {
+		return ErrStudentNoteInvalid
+	}
+	if (c.SchoolClass == "") == (c.StudentID <= 0) {
+		return ErrStudentNoteInvalid
+	}
+	return nil
+}
+
+// SchoolDayHintFilter reads the day hints of one day for the named children.
+// Every hint is readable by all staff, so the filter has no audience.
+type SchoolDayHintFilter struct {
+	Date       calendar.Date
+	StudentIDs []int64
 }
