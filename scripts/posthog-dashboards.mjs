@@ -299,7 +299,7 @@ export const FEATURES = Object.freeze([
     name: 'Anmeldung neuer Kinder',
     pages: {
       ogs: ['/admin/enrollments/**', '/enrollment-form', '/enrollment-phases/**', '/care-offerings', '/anmeldung/**'],
-      parents: ['/anmeldung/**'],
+      parents: ['/anmeldung/**', '/ferienanmeldung/**'],
     },
     events: ['enrollment_submitted'],
   },
@@ -311,7 +311,7 @@ export const FEATURES = Object.freeze([
 /** Login, invitation, and demo entry pages: getting in, not using a feature. */
 export const NO_FEATURE_PAGES = Object.freeze({
   ogs: ['/', '/demo', '/display', '/invite', '/reset-password', '/traeger-uebergabe'],
-  parents: ['/login', '/invite', '/reset-password', '/demo', '/accept-guardian-invite/:token'],
+  parents: ['/login', '/invite', '/reset-password', '/demo', '/accept-guardian-invite/:token', '/ferienanmeldung/:token'],
   school: ['/login', '/invite', '/reset-password'],
 });
 

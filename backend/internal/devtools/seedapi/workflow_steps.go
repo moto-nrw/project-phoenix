@@ -223,8 +223,8 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	}
 	steps = append(steps,
 		seedParentEngagementStep{}, seedAnalyticsConsentStep{}, seedSchoolLifeStep{},
-		// After the parents: it orders lunch for a child of the first one.
-		seedMealOrdersStep{},
+		// After the parents: it orders lunch for the children they registered.
+		seedMealOrdersStep{seeder: seeder},
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedParentPollStep{},
@@ -254,11 +254,15 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	return Workflow{Name: "full-demo", Steps: steps}
 }
 
-// deferredPastSteps fill the past only: the time-tracking history, the export
-// that audits it, and past course dates. No later step reads them.
+// deferredPastSteps fill the past: the time-tracking history, today's
+// absences priced against it, the export that audits it, and past course
+// dates. No later step reads them.
 func deferredPastSteps() []Step {
 	return []Step{
 		seedTimeTrackingHistoryStep{},
+		// Nach der Historie und den Diensten der Woche: Die Krankmeldung
+		// sagt den Dienst ab und braucht die Sollzeiten der Historie.
+		seedTodaysAbsencesStep{},
 		seedDataAccessAuditStep{},
 		// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
 		// vergangene Kurstermine samt Anwesenheit an (#2891).
@@ -281,7 +285,7 @@ func deferredDemoSteps(seeder *Seeder) []Step {
 
 // fullDemoSetupSteps prepares the school before its history and parent flows.
 func fullDemoSetupSteps(seeder *Seeder) []Step {
-	return []Step{
+	steps := []Step{
 		healthCheckStep{},
 		operatorLoginStep{},
 		bootstrapTenantStep{seeder: seeder},
@@ -292,6 +296,8 @@ func fullDemoSetupSteps(seeder *Seeder) []Step {
 		seedPlanningDemoStep{},
 		seedStudentStatusVariantsStep{},
 		seedOperationsDemoStep{},
+		// Before the parents' invitations queue up in the outbox.
+		seedMealCatererInvitationStep{seeder: seeder},
 		seedShiftSeriesStep{},
 		seedVisitorDayStep{},
 		seedHomeLayoutStep{},
@@ -320,4 +326,11 @@ func fullDemoSetupSteps(seeder *Seeder) []Step {
 		// geplanten Dienst ab und bräuchte eine Begründung.
 		seedTodaysShiftsStep{},
 	}
+	// Die Produkt-Screenshots simulieren den ganzen Tag, der die Statistik
+	// füllt. Die Statistik-Sitzung stünde dort als Hausaufgaben-Block von
+	// einer Minute zur Seed-Uhrzeit im Tagesplan und in der Zeiterfassung.
+	if seeder.options.ProductScreenshots {
+		steps = slices.DeleteFunc(steps, func(step Step) bool { _, ok := step.(seedStatisticsDemoStep); return ok })
+	}
+	return steps
 }

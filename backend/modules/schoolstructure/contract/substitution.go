@@ -142,7 +142,13 @@ type GroupHandoverAssignment struct {
 	EndDate       *calendar.Date
 }
 
-type AdditionalSupervisionAssignment struct{ ActiveGroupID, TargetStaffID int64 }
+// AdditionalSupervisionAssignment adds TargetStaffID to a running
+// supervision. With HandOver the caller hands the supervision over: the
+// target joins and the caller's own supervision ends (#4763).
+type AdditionalSupervisionAssignment struct {
+	ActiveGroupID, TargetStaffID int64
+	HandOver                     bool
+}
 
 type ScheduleAbsenceChange struct {
 	StaffID     int64    `json:"staff_id"`

@@ -18,7 +18,9 @@ import (
 // deletion in an administrative transaction, without a school.
 func TestOperatorAuditLogLosesEntriesAfterTheFollowingYear(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	// The deletion sweeps every operator; a shared database lets the other
+	// retention test delete this test's expired row first.
+	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
 	persistence, err := NewTenantPersistence(db)
 	require.NoError(t, err)
@@ -61,7 +63,9 @@ func TestOperatorAuditLogLosesEntriesAfterTheFollowingYear(t *testing.T) {
 // entries for the same window: the same hourly deletion removes them.
 func TestTraegerAccountLedgerLosesEntriesWithTheOperatorLedger(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	// The deletion sweeps every operator; a shared database lets the other
+	// retention test delete this test's expired row first.
+	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := context.Background()
 	persistence, err := NewTenantPersistence(db)
 	require.NoError(t, err)

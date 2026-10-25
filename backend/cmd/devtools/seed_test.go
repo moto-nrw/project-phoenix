@@ -111,6 +111,10 @@ func TestSeedCmd_FlagDefaults(t *testing.T) {
 	urlFlag := f.Lookup("url")
 	require.NotNil(t, urlFlag)
 	assert.Equal(t, "http://localhost:8080", urlFlag.DefValue)
+	// Only the screenshot workflow asks for it; a plain seed is the demo.
+	screenshots := f.Lookup("product-screenshots")
+	require.NotNil(t, screenshots)
+	assert.Equal(t, "false", screenshots.DefValue)
 }
 
 func TestSeedCmd_LongDescription(t *testing.T) {

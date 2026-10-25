@@ -110,7 +110,7 @@ semantic entity maps, expected counts, and scenario metadata.
 
 The stable bootstrap identity is `Ganztag Nord e. V.` / `demo-traeger-nord` and
 `OGS Sonnenhof` / `vollbetrieb`. Its school-admin login is
-`vollbetrieb-admin@example.test` / `Vollbetrieb1234%`. The profile explicitly
+`ines.lindner@ganztag-nord.example` / `Vollbetrieb1234%`. The profile explicitly
 enables detailed presence, NFC and web attendance, fixed groups, a fixed care
 schedule, online enrollment, and weekly-plan-driven care. The seeder reads
 these settings and the expected children, devices, and planned activities back

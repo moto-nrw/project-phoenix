@@ -1571,6 +1571,16 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
         ],
       },
       {
+        // #4763: ändert nur die laufende Aufsicht, nie die Planung.
+        title: "Die Aufsicht übergeben oder abgeben",
+        steps: [
+          "Wählen Sie in Ihrer laufenden Aufsicht `Aufsicht übergeben`.",
+          "Übernimmt eine andere Person? Wählen Sie `An Person übergeben`, dann die Person unter `An wen übergeben Sie?` und `Übergeben`.",
+          "Bleibt schon jemand anderes als Aufsicht im Raum? Wählen Sie `Aufsicht abgeben` und dann `Abgeben`.",
+          "Die Kinder bleiben im Raum und die Aktivität läuft weiter. Die Planung ändert sich nicht.",
+        ],
+      },
+      {
         title: "Die Kinderliste führen",
         steps: [
           "Suchen Sie ein Kind in der laufenden Aufsicht.",
@@ -1604,6 +1614,7 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht der Raum unter `Aktuelle Aufsicht`. Alle anderen offenen Räume finden Sie unter `Räume`.",
       "Haben Sie mehrere Aufsichten? Auf dem Handy stehen sie oben auf der Seite `Aufsicht` als Reiter.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
+      "`Abgeben` ist gesperrt? Dann sind Sie die einzige Aufsicht. Übergeben Sie die Aufsicht an eine Person oder beenden Sie die Aktivität.",
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`, mit jedem Zugang. In Zeiterfassung und Dienstplan erscheint sie nicht.",
       "`Nur ansehen` fehlt? Diesen Zugang darf nur vergeben, wer Personal verwalten darf.",
       "Fehlt `Spontane Aktivität starten`? Dann hat Ihre OGS in den `Einstellungen` unter `Betrieb` den Schalter `Spontane Aktivitäten erlauben` ausgeschaltet.",

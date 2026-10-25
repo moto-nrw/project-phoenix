@@ -1742,6 +1742,10 @@ describe("released room with running blocks (#3281)", () => {
     expect(
       screen.queryByRole("button", { name: /Aufsicht abgeben/ }),
     ).not.toBeInTheDocument();
+    // The supervised block hands its supervision over in its section (#4763).
+    expect(
+      screen.getAllByRole("button", { name: "Aufsicht übergeben" }),
+    ).toHaveLength(1);
   });
 
   it("offers groups from expected, absent and departed children in loaded block rosters", async () => {

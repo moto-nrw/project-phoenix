@@ -107,7 +107,11 @@ The default profile is vollbetrieb; --profile selects another semantic profile k
 var simulateFullDayCmd = &cobra.Command{
 	Use:   "full-day",
 	Short: "Run a one-shot full-day simulation",
-	Long:  `Reads .seed-state.json, then exercises all API flows: RFID assignment, sessions, attendance, check-ins, and optionally end-of-day cleanup.`,
+	Long: `Reads .seed-state.json, then exercises all API flows: RFID assignment, sessions, attendance, check-ins, and optionally end-of-day cleanup.
+
+The day runs in waves (early care, staff shift starts, sessions, arrivals class by class).
+--clock-command moves the clock the server shares before each wave: the command is run with
+the target instant appended as Unix seconds. Without it every wave runs at once.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
@@ -115,12 +119,14 @@ var simulateFullDayCmd = &cobra.Command{
 		profile, _ := cmd.Flags().GetString("profile")
 		closeSessions, _ := cmd.Flags().GetBool("close")
 		verbose, _ := cmd.Flags().GetBool("verbose")
+		clockCommand, _ := cmd.Flags().GetString("clock-command")
 
 		opts := simulate.FullDayOptions{
 			StatePath: statePath,
 			Profile:   profile,
 			Close:     closeSessions,
 			Verbose:   verbose,
+			SetClock:  simulate.CommandClock(clockCommand),
 		}
 		return defaultSimulateRoot.runFullDay(ctx, opts)
 	},
@@ -179,6 +185,7 @@ func init() {
 	simulateFullDayCmd.Flags().String("profile", simulate.DefaultProfileKey, "Semantic demo school profile key")
 	simulateFullDayCmd.Flags().Bool("close", false, "End sessions and checkout all students at the end")
 	simulateFullDayCmd.Flags().Bool("verbose", false, "Verbose output")
+	simulateFullDayCmd.Flags().String("clock-command", "", "Command that moves the shared clock before each wave; called with the target as Unix seconds")
 
 	// status flags
 	simulateStatusCmd.Flags().String("state", ".seed-state.json", "Path to .seed-state.json")

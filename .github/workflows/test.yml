@@ -638,7 +638,7 @@ jobs:
             --url http://localhost:8080 \
             --tenant-slug vollbetrieb \
             --staff-password 'SeedSmoke1234%' \
-            --admin-email vollbetrieb-admin@example.test
+            --admin-email ines.lindner@ganztag-nord.example
 
       - name: Simulate a full care day
         if: ${{ matrix.scenario == 'profiles' }}

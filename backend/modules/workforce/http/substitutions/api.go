@@ -191,6 +191,9 @@ type assignmentRequest struct {
 	AdditionalSupervision *struct {
 		ActiveGroupID jsonID `json:"active_group_id"`
 		TargetStaffID jsonID `json:"target_staff_id"`
+		// HandOver ends the caller's own supervision once the target joined
+		// (#4763).
+		HandOver bool `json:"hand_over,omitempty"`
 	} `json:"additional_supervision"`
 	ScheduleSubstitution *scheduleAssignmentRequest `json:"schedule_substitution"`
 }
@@ -319,8 +322,11 @@ func (rs *Resource) end(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	message := "Gruppenübergabe beendet"
-	if request.Type == workforce.TargetScheduleSubstitution {
+	switch request.Type {
+	case workforce.TargetScheduleSubstitution:
 		message = "Vertretung beendet"
+	case workforce.TargetAdditionalSupervision:
+		message = "Aufsicht abgegeben"
 	}
 	rs.runtime.Success(w, r, http.StatusOK, map[string]bool{"ended": true}, message)
 }
@@ -367,6 +373,7 @@ func (request assignmentRequest) toAssignment() (workforce.SubstitutionAssignmen
 		}
 		assignment.AdditionalSupervision = &workforce.AdditionalSupervisionAssignment{
 			ActiveGroupID: request.AdditionalSupervision.ActiveGroupID.Int64(), TargetStaffID: request.AdditionalSupervision.TargetStaffID.Int64(),
+			HandOver: request.AdditionalSupervision.HandOver,
 		}
 	default:
 		return assignment, invalidAssignmentRequest("Die Anfrage ist ungültig.", workforce.ErrSubstitutionInvalidTarget, codeInvalidTarget)

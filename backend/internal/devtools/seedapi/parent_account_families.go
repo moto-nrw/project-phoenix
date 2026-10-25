@@ -3,6 +3,8 @@ package api
 import (
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 )
 
 // parentAccountGuardianIndexes are the DemoGuardians who get a parent-portal
@@ -61,18 +63,19 @@ func demoGuardianStudentIDs(studentIDByIndex map[int]int64, index int) ([]int64,
 	return ids, nil
 }
 
-// demoGuardianHasAppAccount reports whether the guardian is one of the
-// scripted parents with a parent-portal account.
-func demoGuardianHasAppAccount(guardian DemoGuardian) bool {
-	return slices.ContainsFunc(parentAccountGuardianIndexes, func(index int) bool {
-		return demoGuardianKey(DemoGuardians[index]) == demoGuardianKey(guardian)
-	})
+// demoLimitedGuardianRoles are the two guardians with a narrower role: second
+// guardians outside the core family, one who may only pick the child up and
+// one with a custom role. Every child keeps a primary guardian with full
+// rights. When the narrower roles fell on every tenth and eleventh guardian,
+// they hit 19 children's only guardian, and "Für 23 Kinder kann niemand
+// antworten" stood under every declaration.
+var demoLimitedGuardianRoles = map[string]string{
+	"Katja Albrecht": "pickup_only",
+	"Milly Nikoliin": "custom",
 }
 
 // demoGuardianLink is the body that links one guardian entry to its child.
-// Every tenth and eleventh guardian gets a narrower role. The role follows the
-// person, so siblings see the same one, and the scripted parents keep the full
-// role their parent-portal flows need.
+// The role follows the person, so siblings see the same one.
 func demoGuardianLink(guardianID int64, guardian DemoGuardian) map[string]any {
 	link := map[string]any{
 		"guardian_profile_id":  guardianID,
@@ -82,14 +85,12 @@ func demoGuardianLink(guardianID int64, guardian DemoGuardian) map[string]any {
 		"can_pickup":           true,
 		"emergency_priority":   1,
 	}
-	index := demoGuardianFirstIndex(guardian)
-	switch {
-	case index < 6 || demoGuardianHasAppAccount(guardian):
-	case index%10 == 0:
+	switch demoLimitedGuardianRoles[demoGuardianKey(guardian)] {
+	case "pickup_only":
 		link["guardian_role"] = "pickup_only"
 		link["relationship_type"] = "relative"
 		link["is_emergency_contact"] = false
-	case index%11 == 0:
+	case "custom":
 		link["guardian_role"] = "custom"
 		link["relationship_type"] = "other"
 		link["is_emergency_contact"] = false
@@ -104,7 +105,9 @@ func demoGuardianLink(guardianID int64, guardian DemoGuardian) map[string]any {
 // sickDemoCandidates are the DemoStudents indexes the seed may report sick:
 // the children of every second group (DemoStudents lists ten per group), so
 // about one child in twenty is ill, and none with a parent account: the
-// parents portal, the product screenshots and the demo show those.
+// parents portal, the product screenshots and the demo show those. One of
+// them is sick all the same: Shirin Amini reports Baran sick for the seed day
+// through the parents portal (seedParentPortalActions).
 func sickDemoCandidates() []int {
 	portal := make(map[int]bool, len(parentAccountGuardianIndexes))
 	for _, guardian := range parentAccountGuardianIndexes {
@@ -162,4 +165,71 @@ func coGuardianFirstName(familyName string) string {
 	}
 	names := []string{"Jan", "Nina", "Tobias", "Miriam", "Stefan", "Laura", "Markus", "Sandra"}
 	return names[len([]rune(familyName))%len(names)]
+}
+
+// demoGuardianHasLimitedRole reports whether seedGuardians (stammdaten.go)
+// links the demo guardian with a narrower role. An app account of theirs
+// lacks the full parent rights, so they neither answer nor write.
+func demoGuardianHasLimitedRole(index int) bool {
+	_, limited := demoLimitedGuardianRoles[demoGuardianKey(DemoGuardians[index])]
+	return limited
+}
+
+// respondingFamilies are the accounts that answer polls and declarations:
+// every scripted parent but the first, whose family keeps the open forms for
+// the parents portal, then three of four family app accounts. Together with
+// the families that answer nothing, the results look like a school where
+// about two thirds of the families answered.
+func respondingFamilies(rt *Runtime) []ParentCredentials {
+	out := make([]ParentCredentials, 0, len(rt.Parents)+len(rt.FamilyAccounts))
+	if len(rt.Parents) > 1 {
+		out = append(out, rt.Parents[1:]...)
+	}
+	for i, account := range rt.FamilyAccounts {
+		if i%4 != 3 {
+			out = append(out, account)
+		}
+	}
+	return out
+}
+
+// firstFamilyChildren are the children of the first demo parent as the
+// parent API names them. Every account that shares one of them leaves it
+// unanswered.
+func firstFamilyChildren(rt *Runtime) map[string]bool {
+	children := map[string]bool{}
+	if len(rt.Parents) == 0 {
+		return children
+	}
+	for _, id := range rt.Parents[0].StudentIDs {
+		children[strconv.FormatInt(id, 10)] = true
+	}
+	return children
+}
+
+// relatedAccountInvite is the invitation a parent sends to the child's
+// grandmother. It stays open, so its contact card carries only the name.
+func relatedAccountInvite(parent ParentCredentials) map[string]any {
+	lastName := parent.Name
+	if fields := strings.Fields(parent.Name); len(fields) > 0 {
+		lastName = fields[len(fields)-1]
+	}
+	return map[string]any{
+		"email":      "renate." + asciiMailPart(lastName) + "@mail.example",
+		"first_name": "Renate",
+		"last_name":  lastName,
+	}
+}
+
+// asciiMailPart lowercases a name for an e-mail address and spells out the
+// German umlauts.
+func asciiMailPart(name string) string {
+	replacer := strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss")
+	var out strings.Builder
+	for _, r := range replacer.Replace(strings.ToLower(name)) {
+		if (r >= 'a' && r <= 'z') || r == '-' {
+			out.WriteRune(r)
+		}
+	}
+	return out.String()
 }

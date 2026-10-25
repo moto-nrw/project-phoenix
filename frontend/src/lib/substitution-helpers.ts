@@ -287,7 +287,12 @@ export interface CreateSubstitutionRequest {
 
 export interface AddSupervisorRequest {
   type: "additional_supervision";
-  additional_supervision: { active_group_id: string; target_staff_id: string };
+  additional_supervision: {
+    active_group_id: string;
+    target_staff_id: string;
+    /** Ends the caller's own supervision once the target joined (#4763). */
+    hand_over?: boolean;
+  };
 }
 
 export function prepareSubstitutionForBackend(

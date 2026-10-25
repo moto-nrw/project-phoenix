@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableInstanceNotFound                    = "timetable.instance_not_found"
 	CodeTimetableInstanceOutsidePeriod               = "timetable.instance_outside_period"
 	CodeTimetableInstanceSelectionInvalid            = "timetable.instance_selection_invalid"
 	CodeTimetableInstanceWeekend                     = "timetable.instance_weekend"
@@ -172,6 +173,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.instance_not_found":                      "business_rejection",
 	"timetable.instance_outside_period":                 "input",
 	"timetable.instance_selection_invalid":              "input",
 	"timetable.instance_weekend":                        "input",

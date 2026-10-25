@@ -59,13 +59,15 @@ func (seedPlanningDemoStep) Run(_ context.Context, rt *Runtime) error {
 	if err := createSeedTargetVariants(rt, roomID, categoryID, trackID, studentIDs, staffIDs); err != nil {
 		return err
 	}
+	// The duties materialize from Monday like the blocks above, so they come
+	// before the later templates, whose rosters start today.
+	if err := seedDutyBlocks(rt, categoryID, trackID, staffIDs); err != nil {
+		return err
+	}
 	if err := seedPlanningException(rt); err != nil {
 		return err
 	}
 	if err := seedPickupExtensionDemo(rt, roomID, categoryID, trackID, studentIDs, staffIDs); err != nil {
-		return err
-	}
-	if err := seedDutyBlocks(rt, categoryID, trackID, staffIDs); err != nil {
 		return err
 	}
 
@@ -73,12 +75,17 @@ func (seedPlanningDemoStep) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
+// seedPlanningException plans the deviations of the coming days; today's
+// substitution follows the sick report (seedTodaysAbsencesStep). The second
+// staff member is at a Fortbildung on one Frühbetreuung and the colleague in
+// the Frühdienst stands in, the last Frühbetreuung of the window is cancelled
+// for a Teamfortbildung and the one before it deleted.
 func seedPlanningException(rt *Runtime) error {
 	staffIDs := orderedSeedStaffIDs(rt.FixedSeeder)
-	if len(staffIDs) < 4 {
+	if len(staffIDs) <= substituteTodayStaffIndex {
 		return fmt.Errorf("planning deviation variants not materialized")
 	}
-	recurringIDs, deviationID, err := recurringPlanningInstanceIDs(rt, staffIDs[0])
+	recurringIDs, deviationID, err := recurringPlanningInstanceIDs(rt, staffIDs[1])
 	if err != nil {
 		return err
 	}
@@ -91,20 +98,22 @@ func seedPlanningException(rt *Runtime) error {
 	if len(otherIDs) < 2 {
 		return fmt.Errorf("planning deviation variants not materialized")
 	}
-	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/deviations", otherIDs[0]), map[string]any{
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/deviations", otherIDs[len(otherIDs)-1]), map[string]any{
 		"cancel": true, "cancel_reason": "Teamfortbildung",
 	}); err != nil {
 		return fmt.Errorf("cancel one recurring planning instance: %w", err)
 	}
-	if _, err := rt.Client.Delete(fmt.Sprintf("/api/timetable/instances/%d", otherIDs[1])); err != nil {
+	if _, err := rt.Client.Delete(fmt.Sprintf("/api/timetable/instances/%d", otherIDs[len(otherIDs)-2])); err != nil {
 		return fmt.Errorf("delete one recurring planning instance: %w", err)
 	}
-	return seedPlanningStaffDeviation(rt, deviationID, staffIDs[0], staffIDs[3])
+	return seedPlanningStaffDeviation(rt, deviationID, staffIDs[1], staffIDs[substituteTodayStaffIndex])
 }
 
+// recurringPlanningInstanceIDs lists the Frühbetreuung from tomorrow on, so
+// no deviation planned ahead touches today.
 func recurringPlanningInstanceIDs(rt *Runtime, deviationStaffID int64) ([]int64, int64, error) {
 	today := todaySeedDate()
-	raw, err := rt.Client.Get(fmt.Sprintf("/api/timetable/instances?from=%s&to=%s", today.String(), today.AddDays(6).String()))
+	raw, err := rt.Client.Get(fmt.Sprintf("/api/timetable/instances?from=%s&to=%s", today.AddDays(1).String(), today.AddDays(6).String()))
 	if err != nil {
 		return nil, 0, fmt.Errorf("list recurring planning instances: %w", err)
 	}
@@ -150,7 +159,7 @@ func seedPlanningStaffDeviation(rt *Runtime, instanceID, absentStaffID, substitu
 		"absences": []map[string]any{{"staff_id": absentStaffID, "reason": "Fortbildung", "instance_ids": []int64{instanceID}}},
 		"substitutions": []map[string]any{{
 			"absent_staff_id": absentStaffID, "substitute_staff_id": substituteStaffID,
-			"reason": "Vertretung wegen Krankheit", "instance_ids": []int64{instanceID},
+			"reason": "Vertretung wegen Fortbildung", "instance_ids": []int64{instanceID},
 		}},
 	}); err != nil {
 		return fmt.Errorf("seed planning staff deviation: %w", err)
@@ -196,8 +205,10 @@ func seedCarePlanDeviations(rt *Runtime, studentIDs []int64) error {
 		}
 	}
 	// The OGS sets the Abholart of one day itself (#3945), today, so the
-	// Kinderkarte and the class day show it on every dev machine.
-	departurePath := fmt.Sprintf("/api/students/%d/departure-exceptions/%s", studentIDs[0], today.String())
+	// Kinderkarte and the class day show it on every dev machine. The
+	// Abholart changes only on a care day: on a weekend without a weekend
+	// plan (the product screenshots) it lands on Monday.
+	departurePath := fmt.Sprintf("/api/students/%d/departure-exceptions/%s", studentIDs[0], seedWeekdayOnOrAfter(today).String())
 	if _, err := rt.Client.Put(departurePath, map[string]any{
 		"departure_mode": "pickup", "reason": "Die Mutter hat angerufen und holt heute selbst ab.",
 	}); err != nil {
@@ -256,7 +267,7 @@ func seedGuardianPhoneNumbers(rt *Runtime) (int, error) {
 func seedArrivalSchedules(rt *Runtime, studentIDs []int64) (int, error) {
 	for index, studentID := range studentIDs {
 		arrival := fmt.Sprintf("12:%02d", (index%3)*15)
-		if index < 12 {
+		if isEarlyCareStudent(index) {
 			arrival = fmt.Sprintf("07:%02d", 30+(index%3)*10)
 		} else if index%4 == 0 {
 			arrival = "11:45"
@@ -309,19 +320,28 @@ func createSeedPlanningTemplate(
 	return nil
 }
 
+// isEarlyCareStudent reports the twelve children of the Frühbetreuung: the
+// first fourteen without Felix Schneider (0) and Baran Amini (4). The product
+// screenshots open their pages, and the simulated day brings them at noon, so
+// they keep the regular arrival after school.
+func isEarlyCareStudent(index int) bool {
+	return index < 14 && index != 0 && index != 4
+}
+
+// seedPlanningTemplateBody is the Frühbetreuung: the second and third staff
+// member, both in the Frühdienst, lead it. On Tuesdays half of the children
+// come and the third leads it alone.
 func seedPlanningTemplateBody(groupID, roomID, categoryID, trackID int64, studentIDs, staffIDs []int64) (map[string]any, error) {
-	today := todaySeedDate()
-	selectedStudents := studentIDs
-	if len(selectedStudents) > 12 {
-		selectedStudents = selectedStudents[:12]
+	selectedStudents := make([]int64, 0, 12)
+	for index, studentID := range studentIDs {
+		if isEarlyCareStudent(index) {
+			selectedStudents = append(selectedStudents, studentID)
+		}
 	}
-	selectedStaff := staffIDs
-	if len(selectedStaff) > 3 {
-		selectedStaff = selectedStaff[:3]
-	}
-	if len(selectedStaff) < 2 {
+	if len(staffIDs) < 3 {
 		return nil, fmt.Errorf("recurring planning template needs two staff variants")
 	}
+	selectedStaff := staffIDs[1:3]
 	tuesdayStudents := make([]int64, 0, (len(selectedStudents)+1)/2)
 	for index, studentID := range selectedStudents {
 		if index%2 == 0 {
@@ -350,17 +370,28 @@ func seedPlanningTemplateBody(groupID, roomID, categoryID, trackID int64, studen
 		"weekday_assignments": []map[string]any{
 			{"weekday": 2, "staff_ids": selectedStaff[1:], "student_ids": tuesdayStudents, "primary_staff_id": selectedStaff[1]},
 		},
-		"materialize_from": today.String(),
-		"materialize_to":   today.AddDays(6).String(),
 	}
+	planFromMonday(body, 6)
 	return body, nil
+}
+
+// planFromMonday starts a template on Monday of today's week and
+// materializes it from then until days after today, so the Dienstplan, the
+// calendar and the Betreuungsplan show the whole week (Saturday and Sunday
+// follow Friday, #3921). The roster is valid from the series start, so the
+// past days have their children and staff too.
+func planFromMonday(body map[string]any, days int) {
+	today := todaySeedDate()
+	monday := seedDate{Time: mostRecentWeekday(today.UTCMidnight(), time.Monday)}
+	body["start_date"] = monday.String()
+	body["materialize_from"], body["materialize_to"] = monday.String(), today.AddDays(days).String()
 }
 
 func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, studentIDs, staffIDs []int64) error {
 	if len(studentIDs) < 10 || len(staffIDs) < 3 {
 		return fmt.Errorf("planning target variants need ten students and three staff")
 	}
-	today := todaySeedDate()
+	holidayCareStart, holidayCareEnd := holidayCareDays(todaySeedDate())
 	variants := []map[string]any{
 		{
 			"name": "Lernzeit Jahrgang 1", "type": "care", "list_kind": "learning_time",
@@ -375,12 +406,13 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 			"weekdays": []int{2, 4}, "start_time": "14:00", "end_time": "15:00",
 		},
 		{
-			// Holiday care keeps running on the seeded closing day and ends
-			// a few days later (#3594). It starts when the Frühbetreuung
-			// ends: both share children and staff.
+			// Holiday care runs in the two Herbstferien weeks only and, like
+			// any holiday care, on closing days too (#3594). It starts when
+			// the Frühbetreuung would end. The weekly materialization plans
+			// it once the Ferien come into its window.
 			"name": "Ferienbetreuung", "type": "care",
 			"target_group_type": "none", "include_closing_days": true,
-			"end_date": holidayCareLastDay(today).String(),
+			"start_date": holidayCareStart.String(), "end_date": holidayCareEnd.String(),
 			"weekdays": []int{1, 2, 3, 4, 5}, "start_time": "08:30", "end_time": "12:00",
 		},
 	}
@@ -392,7 +424,9 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 			body["staff_ids"] = withVisitorStaff(rt.FixedSeeder, staffIDs[:3])
 		}
 		body["primary_staff_id"] = staffIDs[0]
-		body["materialize_from"], body["materialize_to"] = today.String(), today.AddDays(6).String()
+		if body["name"] != "Ferienbetreuung" {
+			planFromMonday(body, 6)
+		}
 		if _, err := rt.Client.Post("/api/timetable/templates", body); err != nil {
 			return fmt.Errorf("create %s planning variant: %w", body["target_group_type"], err)
 		}
@@ -400,18 +434,22 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 	return nil
 }
 
-// holidayCareLastDay ends the seeded holiday care four days after the seeded
-// closing day (today+40, seed_operations.go), but never after the default
-// school year (1 Aug to 31 Jul) that bootstraps the planning period.
-func holidayCareLastDay(today seedDate) seedDate {
-	yearEnd := time.Date(today.Year(), time.July, 31, 0, 0, 0, 0, time.UTC)
+// holidayCareDays are the days of the seeded holiday care: the Herbstferien
+// (seedHerbstferien), but never after the default school year (1 Aug to
+// 31 Jul) that bootstraps the planning period.
+func holidayCareDays(today seedDate) (seedDate, seedDate) {
+	yearEnd := seedDate{Time: time.Date(today.Year(), time.July, 31, 0, 0, 0, 0, time.UTC)}
 	if today.Month() >= time.August {
-		yearEnd = yearEnd.AddDate(1, 0, 0)
+		yearEnd = seedDate{Time: yearEnd.AddDate(1, 0, 0)}
 	}
-	if last := today.AddDays(44); !last.After(yearEnd) {
-		return last
+	first, last := seedHerbstferien(today)
+	if last.After(yearEnd.Time) {
+		last = yearEnd
 	}
-	return seedDate{Time: yearEnd}
+	if first.After(last.Time) {
+		first = last
+	}
+	return first, last
 }
 
 func orderedSeedStudentIDs(fs *FixedSeeder) []int64 {

@@ -63,7 +63,8 @@ Before completing a backend code change:
    including runtime access and transaction boundaries, not just imports.
    Run `scripts/backend-architecture.sh check` from the root. Inspect policy,
    baseline, and composition-inventory diffs; green only proves detected rules.
-2. Run `scripts/test-changed.sh origin/development` without `--fast` before push.
+2. Run `scripts/test-changed.sh --fast origin/development` before push; CI runs
+   the full affected closure.
 3. Fill in **Backend-Architektur** in the
    [PR template](../.github/PULL_REQUEST_TEMPLATE.md) with the boundary rationale
    and evidence it requires. Update it after backend fixes so it describes the

@@ -457,6 +457,41 @@ describe("useGlobalSSE — SWR invalidation debounce", () => {
   });
 });
 
+describe("useGlobalSSE — supervisor changes of a running session", () => {
+  function staleRefreshes(reason: string | undefined) {
+    renderHook(() => useGlobalSSE());
+    const details: unknown[] = [];
+    const listener = (event: Event) => {
+      details.push((event as CustomEvent<unknown>).detail);
+    };
+    window.addEventListener("phoenix:supervision-stale", listener);
+    fireSSE(
+      makeEvent(
+        "active_supervision_changed",
+        reason === undefined ? {} : { reason },
+        "grp1",
+      ),
+    );
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    window.removeEventListener("phoenix:supervision-stale", listener);
+    return details;
+  }
+
+  it.each([
+    "supervision_handed_over",
+    "supervision_released",
+    "additional_supervisor_assigned",
+  ])("reloads the sidebar supervisions on %s (#4763)", (reason) => {
+    expect(staleRefreshes(reason)).toEqual([{ groupsOnly: false }]);
+  });
+
+  it("leaves the sidebar alone for a supervision change without such a reason", () => {
+    expect(staleRefreshes("timetable_attendance_updated")).toEqual([]);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Reminders revalidation (issue #1457)
 // ---------------------------------------------------------------------------

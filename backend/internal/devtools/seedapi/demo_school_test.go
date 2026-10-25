@@ -122,7 +122,7 @@ func TestBootstrapTenant_DemoSchoolJoinsExistingOrganization(t *testing.T) {
 	assert.InDelta(t, 4207, requests["/operator/schools"]["organization_id"], 0)
 	assert.Equal(t, "OGS Nord", requests["/operator/schools"]["name"])
 	assert.Equal(t, "ogs-nord", requests["/operator/schools"]["slug"])
-	assert.Equal(t, "vollbetrieb-admin@demo-ogs-nord.moto-ogs.de", requests["/operator/schools/2/invite-admin"]["email"])
+	assert.Equal(t, "ines.lindner@demo-ogs-nord.moto-ogs.de", requests["/operator/schools/2/invite-admin"]["email"])
 	assert.Equal(t, "OGS Nord", bootstrap.SchoolName)
 }
 
@@ -268,7 +268,7 @@ func TestBootstrapTenant_ReplacesTheSchoolOfABrokenSeed(t *testing.T) {
 	assert.Equal(t, "x11-ogs-nord-k3m9xp", renamed["subdomain"], "the unique subdomain is freed before the soft delete")
 	assert.Equal(t, false, renamed["active"])
 	assert.True(t, deleted)
-	assert.Equal(t, "vollbetrieb-admin@demo-ogs-nord-k3m9xp-2.moto-ogs.de", invited["email"], "the abandoned school keeps its accounts, so the repetition needs its own scope")
+	assert.Equal(t, "ines.lindner@demo-ogs-nord-k3m9xp-2.moto-ogs.de", invited["email"], "the abandoned school keeps its accounts, so the repetition needs its own scope")
 }
 
 // The demo role parent (#3468) signs the visitor in as the parent whose

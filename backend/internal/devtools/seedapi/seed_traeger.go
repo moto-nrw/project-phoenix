@@ -4,20 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// seedTraegerInvitee is the colleague the seeded Träger-Büro has invited
-// (#4650); the address receives no mail outside the dev mail catcher.
-const seedTraegerInvitee = "traeger-abrechnung@example.test"
+// seedTraegerInvitees are the colleagues the seeded Träger-Büro has invited
+// (#4650), one per role it hands out besides the Verwaltung. The Träger-Portal
+// shows people by address only; the reserved TLD .example receives no mail.
+var seedTraegerInvitees = []struct {
+	email string
+	role  string
+}{
+	{"jana.krause@ganztag-nord.example", "billing"},
+	{"tobias.engel@ganztag-nord.example", "personnel"},
+}
 
 // seedTraegerBueroStep makes the bootstrap school admin the first person of
 // the Träger-Büro (ADR 0084, #4649) through the operator route, so every dev
 // and demo database can sign in to the Träger-Portal with the admin's
 // credentials and sees the Träger's schools. Signed in to the Träger-Portal,
-// the admin then invites a colleague with the role Abrechnung (#4650), so the
-// page "Personen" shows a person and an open invitation.
+// the admin then invites a colleague for the Abrechnung and one for the
+// Personal (#4650), so the page "Personen" shows a person and open
+// invitations.
 type seedTraegerBueroStep struct{}
 
 func (seedTraegerBueroStep) Name() string { return "Seeding the Träger-Büro" }
@@ -38,29 +47,34 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 }
 
 // seedTraegerInvitation signs the admin in to the Träger-Portal and invites
-// the seeded colleague through the Träger route.
+// the seeded colleagues through the Träger route.
 func seedTraegerInvitation(rt *Runtime) error {
 	traeger, err := seedTraegerSession(rt)
 	if err != nil {
 		return err
 	}
-	if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
-		"email": seedTraegerInvitee, "roles": []string{"billing"},
-	}); err != nil {
-		return fmt.Errorf("invite into the Träger-Büro: %w", err)
+	for _, invitee := range seedTraegerInvitees {
+		if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
+			"email": invitee.email, "roles": []string{invitee.role},
+		}); err != nil {
+			return fmt.Errorf("invite into the Träger-Büro: %w", err)
+		}
 	}
-	fmt.Println("  Träger-Büro: colleague invited with role Abrechnung")
+	fmt.Printf("  Träger-Büro: %d colleagues invited\n", len(seedTraegerInvitees))
 	return nil
 }
 
 // seedTraegerHolidayPeriodStep plans a published holiday period for the
 // Träger-Büro (#4659) through the Träger-Portal, signed in as the bootstrap
-// school admin the previous step assigned: two weeks at the Träger's schools,
-// each with a morning and a full-day time model. Registration is open from a
-// week ago for a month; the weeks follow six weeks from now. A family then
-// registers two siblings through the period's public link (#4661): one child
-// of the Träger's first school and a holiday guest. Last, the first seeded
-// parent reads the link's prefill of known children (#4662).
+// school admin the previous step assigned: the two Herbstferien weeks the
+// school plans around (seedHerbstferien), both hosted by the profile's own
+// school, each with a morning and a full-day time model. The Träger's other
+// school is the manual test school, which no family would be sent to. Published today, it
+// opens registration today and closes it a week before the Ferien.
+// A family then registers two siblings through the period's public link
+// (#4661): one child of the Träger's first school and a holiday guest.
+// Last, the first seeded parent reads the link's prefill of known children
+// (#4662).
 type seedTraegerHolidayPeriodStep struct{}
 
 func (seedTraegerHolidayPeriodStep) Name() string { return "Seeding a Träger holiday period" }
@@ -77,7 +91,10 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err != nil {
 		return err
 	}
-	raw, err := rt.Client.PostWithAuth(auth, "/traeger/holiday-periods/", seedHolidayPeriod(calendar.TodayDate(), schools))
+	if !slices.Contains(schools, rt.Bootstrap.SchoolID) {
+		return fmt.Errorf("the Träger does not list school %d to host the holiday weeks", rt.Bootstrap.SchoolID)
+	}
+	raw, err := rt.Client.PostWithAuth(auth, "/traeger/holiday-periods/", seedHolidayPeriod(calendar.TodayDate(), rt.Bootstrap.SchoolID))
 	if err != nil {
 		return fmt.Errorf("create the holiday period: %w", err)
 	}
@@ -230,15 +247,16 @@ func seedTraegerSchoolIDs(client *Client, auth AuthRef) ([]int64, error) {
 	return ids, nil
 }
 
-// seedHolidayPeriod is the request body: two Monday-to-Friday weeks, hosted
-// in turn by the Träger's schools, with prices in whole cent.
-func seedHolidayPeriod(today calendar.Date, schools []int64) map[string]any {
-	firstMonday := today.AddDays(42).StartOfISOWeek()
+// seedHolidayPeriod is the request body: the two Herbstferien weeks, Monday
+// to Friday, both hosted by host, with prices in whole cent.
+func seedHolidayPeriod(today calendar.Date, host int64) map[string]any {
+	ferienStart, _ := seedHerbstferien(seedDate{Time: today.UTCMidnight()})
+	firstMonday := calendar.NewDate(ferienStart.Year(), ferienStart.Month(), ferienStart.Day())
 	weeks := make([]map[string]any, 0, 2)
 	for i := range 2 {
 		monday := firstMonday.AddDays(7 * i)
 		weeks = append(weeks, map[string]any{
-			"starts_on": monday.String(), "ends_on": monday.AddDays(4).String(), "host_school_id": schools[i%len(schools)],
+			"starts_on": monday.String(), "ends_on": monday.AddDays(4).String(), "host_school_id": host,
 			"time_models": []map[string]any{
 				{"name": "bis 13 Uhr", "starts_at": "08:00", "ends_at": "13:00", "price_cents": 4500},
 				{"name": "bis 16 Uhr", "starts_at": "08:00", "ends_at": "16:00", "price_cents": 6500},
@@ -246,8 +264,9 @@ func seedHolidayPeriod(today calendar.Date, schools []int64) map[string]any {
 		})
 	}
 	return map[string]any{
-		"name": "Ferienbetreuung", "registration_opens_on": today.AddDays(-7).String(),
-		"registration_closes_on": today.AddDays(30).String(), "binding": true,
+		"name":                   fmt.Sprintf("Ferienbetreuung Herbstferien %d", firstMonday.Year()),
+		"registration_opens_on":  today.String(),
+		"registration_closes_on": firstMonday.AddDays(-7).String(), "binding": true,
 		"notes": "Mittagessen gibt es vor Ort. Bitte geben Sie Ihrem Kind ein Frühstück und etwas zu trinken mit.",
 		"weeks": weeks,
 	}
