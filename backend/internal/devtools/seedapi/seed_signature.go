@@ -37,8 +37,22 @@ func demoSignaturePNG(name string) string {
 	for _, stroke := range signatureStrokes(name) {
 		inkStroke(img, stroke)
 	}
+	// Two colours, transparent and ink, keep the PNG to a few kilobytes: the
+	// parents portal limits a contact's request body to 8 KB, signature
+	// included (#4780).
+	ink := signatureInk
+	ink.A = 255
+	paletted := image.NewPaletted(img.Bounds(), color.Palette{color.Transparent, ink})
+	for y := img.Rect.Min.Y; y < img.Rect.Max.Y; y++ {
+		for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
+			if img.NRGBAAt(x, y).A >= 96 {
+				paletted.SetColorIndex(x, y, 1)
+			}
+		}
+	}
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, img); err != nil {
+	encoder := png.Encoder{CompressionLevel: png.BestCompression}
+	if err := encoder.Encode(&buf, paletted); err != nil {
 		panic(fmt.Sprintf("encode demo signature: %v", err))
 	}
 	return base64.StdEncoding.EncodeToString(buf.Bytes())

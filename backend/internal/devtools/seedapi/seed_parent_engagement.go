@@ -374,9 +374,9 @@ func seedParentGuardianChanges(rt *Runtime, auth AuthRef, studentID int64) error
 	}
 	if _, err := rt.Client.PutWithAuth(auth,
 		fmt.Sprintf("/parent/me/children/%d/guardians/%d/pickup", studentID, contactID),
-		// Gisela may pick Felix up and becomes an emergency contact: the
-		// contacts show a person outside the parents who "Darf abholen".
-		map[string]any{"can_pickup": true, "is_emergency_contact": true, "pickup_notes": "Nur nach telefonischer Rücksprache"},
+		// Gisela becomes an emergency contact; "Darf abholen" follows from the
+		// signed permission the OGS confirms below (#4780), not from this call.
+		map[string]any{"can_pickup": false, "is_emergency_contact": true, "pickup_notes": "Nur nach telefonischer Rücksprache"},
 	); err != nil {
 		return fmt.Errorf("update parent-managed pickup contact: %w", err)
 	}

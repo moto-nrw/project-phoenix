@@ -166,8 +166,8 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 
 	assert.Equal(t, "gisela.hahn@email.de", contact["email"])
 	assert.Equal(t, map[string]any{
-		"can_pickup": true, "is_emergency_contact": true, "pickup_notes": "Nur nach telefonischer Rücksprache",
-	}, pickupUpdate, "Gisela may pick the child up, after a phone call")
+		"can_pickup": false, "is_emergency_contact": true, "pickup_notes": "Nur nach telefonischer Rücksprache",
+	}, pickupUpdate, "the pickup permission comes from the confirmed signed request (#4780), the note from this update")
 	assert.Equal(t, []any{map[string]any{"phone_number": "+49 172 5550778", "phone_type": "mobile", "is_primary": true}}, contact["phones"],
 		"a mobile number without a second label")
 	assert.Equal(t, []any{map[string]any{
