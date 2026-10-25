@@ -1155,6 +1155,18 @@
       "legacy": "enrollment.invalid_email"
     },
     {
+      "code": "enrollment.signature_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.signature_invalid"
+    },
+    {
+      "code": "enrollment.signature_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.signature_required"
+    },
+    {
       "code": "enrollment.invalid_phone",
       "class": "input",
       "parameters": [],
@@ -1379,6 +1391,12 @@
         "max_mb"
       ],
       "legacy": "enrollment.upload_invalid"
+    },
+    {
+      "code": "enrollment.signature_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.signature_not_found"
     },
     {
       "code": "enrollment.upload_not_found",
