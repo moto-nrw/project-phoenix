@@ -7,6 +7,7 @@ import { handleApiError } from "../api-helpers.server";
 import { forwardBackendResponse } from "../backend-proxy-response.server";
 import {
   backendResponseError,
+  bffError,
   isApiResponseError,
 } from "../api-response-error.server";
 import { makeProxyFactories } from "../route-proxy-factory.server";
@@ -25,7 +26,8 @@ import {
  * (traeger.session-token) so a Träger route can never forward a tenant,
  * parent, or school token. Reads, the holiday period writes (#4659) and the
  * Träger-Büro account routes (#4650) go through the same proxy factories;
- * the access log's CSV export (#4655) streams through proxyFile.
+ * the access log's CSV export (#4655) and the logo (#4653) stream through
+ * proxyFile, the logo upload goes through proxyUpload.
  */
 
 async function traegerServerFetch<T>(
@@ -232,6 +234,86 @@ export function proxyFile(endpoint: string) {
       const retried = await traegerServerFile(target, updated.user.token);
       if (retried.status === 401) return createTokenExpiredResponse(request);
       return fileResponse(retried, request);
+    } catch (error) {
+      return handleApiError(error, request);
+    }
+  });
+}
+
+/** Room for the multipart boundaries around the largest admitted file. */
+const UPLOAD_OVERHEAD_BYTES = 64 * 1024;
+
+async function traegerServerUpload(
+  endpoint: string,
+  token: string,
+  contentType: string,
+  body: ArrayBuffer,
+): Promise<Response> {
+  const { getServerApiUrl } = await import("~/lib/server-api-url");
+  return fetch(`${getServerApiUrl()}${endpoint}`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": contentType,
+      ...(await incomingAnalyticsSessionHeaders()),
+    },
+    body,
+    cache: "no-store",
+  });
+}
+
+/**
+ * PUT proxy for a multipart upload on the Träger session, such as the logo
+ * (#4653). The body is read once within maxFileBytes plus multipart room, so
+ * it can be sent again after a refresh; the backend checks type, size and
+ * content. A backend refusal keeps its problem body.
+ */
+export function proxyUpload(endpoint: string, maxFileBytes: number) {
+  return withTraegerAuth(async (request: NextRequest) => {
+    try {
+      const session = await traegerAuth();
+      const token = session?.user?.token;
+      if (!token) return createUnauthorizedResponse(request);
+
+      const contentType = request.headers.get("content-type") ?? "";
+      if (!contentType.startsWith("multipart/form-data")) {
+        throw bffError(400, "Expected a multipart upload");
+      }
+      const limit = maxFileBytes + UPLOAD_OVERHEAD_BYTES;
+      const declared = Number(request.headers.get("content-length") ?? "0");
+      if (declared > limit) {
+        throw bffError(400, "Upload too large", {
+          code: "traeger.logo_too_large",
+        });
+      }
+      const body = await request.arrayBuffer();
+      if (body.byteLength > limit) {
+        throw bffError(400, "Upload too large", {
+          code: "traeger.logo_too_large",
+        });
+      }
+
+      const first = await traegerServerUpload(
+        endpoint,
+        token,
+        contentType,
+        body,
+      );
+      if (first.status !== 401) return forwardBackendResponse(first, request);
+
+      const { uncachedTraegerAuth } = await import("~/server/auth/traeger");
+      const updated = await uncachedTraegerAuth();
+      if (!updated?.user?.token || updated.user.token === token) {
+        return createTokenExpiredResponse(request);
+      }
+      const retried = await traegerServerUpload(
+        endpoint,
+        updated.user.token,
+        contentType,
+        body,
+      );
+      if (retried.status === 401) return createTokenExpiredResponse(request);
+      return forwardBackendResponse(retried, request);
     } catch (error) {
       return handleApiError(error, request);
     }

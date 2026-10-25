@@ -173,4 +173,37 @@ describe("TraegerSettingsPage", () => {
     ).toBeInTheDocument();
     expect(mockFetchSchema).toHaveBeenCalledTimes(2);
   });
+
+  it("leaves the branding to the page Briefkopf (#4653)", async () => {
+    mockFetchSchema.mockResolvedValue({
+      tabs: [
+        ...schema([STAFF_NAME_DEFAULT]).tabs,
+        {
+          key: "branding",
+          label: "branding",
+          categories: [
+            {
+              key: "briefkopf",
+              label: "briefkopf",
+              items: [
+                item({
+                  key: "branding.footer_text",
+                  label: "Fußzeile",
+                  type: "textarea",
+                  value: "",
+                  levels: "traeger",
+                }),
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    renderPage();
+
+    expect(
+      await screen.findByRole("switch", { name: "Namen des Teams zeigen" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Fußzeile")).not.toBeInTheDocument();
+  });
 });

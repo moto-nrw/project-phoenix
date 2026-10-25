@@ -749,3 +749,194 @@ export async function fetchTraegerOrganization(): Promise<TraegerOrganization> {
     testSystem: organization.test_system ?? false,
   };
 }
+
+/** The largest logo the backend takes (#4653, ADR 0112). */
+export const TRAEGER_LOGO_MAX_BYTES = 1024 * 1024;
+
+/** The stored logo of the Träger, without its bytes. */
+export interface TraegerLogo {
+  readonly contentType: string;
+  readonly width: number;
+  readonly height: number;
+  readonly sizeBytes: number;
+  readonly updatedAt: string;
+}
+
+/** The contact person documents of the Träger name. */
+export interface TraegerContact {
+  readonly name: string;
+  readonly phone: string;
+  readonly email: string;
+}
+
+/** A bank account as the Träger-Büro writes it. */
+export interface TraegerBankAccountInput {
+  readonly label: string;
+  readonly accountHolder: string;
+  readonly iban: string;
+  readonly bic: string;
+  readonly bankName: string;
+  readonly isDefault: boolean;
+}
+
+/** A bank account of the Träger; exactly one is the default. */
+export interface TraegerBankAccount extends TraegerBankAccountInput {
+  readonly id: string;
+}
+
+/** The master data of the Träger (#4653). */
+export interface TraegerMasterData {
+  readonly contact: TraegerContact;
+  readonly logo: TraegerLogo | null;
+  readonly bankAccounts: readonly TraegerBankAccount[];
+}
+
+interface BackendTraegerLogo {
+  content_type: string;
+  width: number;
+  height: number;
+  size_bytes: number;
+  updated_at: string;
+}
+
+interface BackendTraegerBankAccount {
+  id: number;
+  label: string;
+  account_holder: string;
+  iban: string;
+  bic: string;
+  bank_name: string;
+  is_default: boolean;
+}
+
+function mapTraegerLogo(logo: BackendTraegerLogo): TraegerLogo {
+  return {
+    contentType: logo.content_type,
+    width: logo.width,
+    height: logo.height,
+    sizeBytes: logo.size_bytes,
+    updatedAt: logo.updated_at,
+  };
+}
+
+function mapTraegerBankAccount(
+  account: BackendTraegerBankAccount,
+): TraegerBankAccount {
+  return {
+    id: String(account.id),
+    label: account.label,
+    accountHolder: account.account_holder,
+    iban: account.iban,
+    bic: account.bic,
+    bankName: account.bank_name,
+    isDefault: account.is_default,
+  };
+}
+
+function backendBankAccount(input: TraegerBankAccountInput) {
+  return {
+    label: input.label,
+    account_holder: input.accountHolder,
+    iban: input.iban,
+    bic: input.bic,
+    bank_name: input.bankName,
+    is_default: input.isDefault,
+  };
+}
+
+const masterDataPath = "/api/traeger/master-data";
+const bankAccountPath = (id: string) =>
+  `${masterDataPath}/bank-accounts/${encodeURIComponent(id)}`;
+
+/** The logo as an image source; the version reloads it after a change. */
+export function traegerLogoSrc(logo: TraegerLogo): string {
+  return `${masterDataPath}/logo?v=${encodeURIComponent(logo.updatedAt)}`;
+}
+
+/** Reads the master data of the Träger. The read is logged. */
+export async function fetchTraegerMasterData(): Promise<TraegerMasterData> {
+  const data = await traegerRequest<{
+    contact?: Partial<TraegerContact> | null;
+    logo?: BackendTraegerLogo | null;
+    bank_accounts?: BackendTraegerBankAccount[] | null;
+  } | null>(masterDataPath);
+  return {
+    contact: {
+      name: data?.contact?.name ?? "",
+      phone: data?.contact?.phone ?? "",
+      email: data?.contact?.email ?? "",
+    },
+    logo: data?.logo ? mapTraegerLogo(data.logo) : null,
+    bankAccounts: (data?.bank_accounts ?? []).map(mapTraegerBankAccount),
+  };
+}
+
+/** Stores the contact person. Throws an ApiError on failure. */
+export async function saveTraegerContact(
+  contact: TraegerContact,
+): Promise<void> {
+  await traegerRequest(`${masterDataPath}/contact`, {
+    method: "PUT",
+    body: contact,
+  });
+}
+
+/** Uploads a PNG or JPEG logo in place of the old one. */
+export async function uploadTraegerLogo(file: File): Promise<TraegerLogo> {
+  const form = new FormData();
+  form.append("logo", file);
+  const response = await transportFetch(`${masterDataPath}/logo`, {
+    method: "PUT",
+    credentials: "include",
+    cache: "no-store",
+    body: form,
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const logo = (data as { data?: BackendTraegerLogo } | null)?.data;
+  if (!logo) {
+    throw apiErrorFromBody("Logo response without data", 502, data);
+  }
+  return mapTraegerLogo(logo);
+}
+
+/** Removes the logo. Throws an ApiError on failure. */
+export async function removeTraegerLogo(): Promise<void> {
+  await traegerRequest(`${masterDataPath}/logo`, { method: "DELETE" });
+}
+
+/** Adds a bank account. Throws an ApiError on failure. */
+export async function createTraegerBankAccount(
+  input: TraegerBankAccountInput,
+): Promise<TraegerBankAccount> {
+  return mapTraegerBankAccount(
+    await traegerRequest<BackendTraegerBankAccount>(
+      `${masterDataPath}/bank-accounts`,
+      { method: "POST", body: backendBankAccount(input) },
+    ),
+  );
+}
+
+/** Changes a bank account. Throws an ApiError on failure. */
+export async function updateTraegerBankAccount(
+  id: string,
+  input: TraegerBankAccountInput,
+): Promise<TraegerBankAccount> {
+  return mapTraegerBankAccount(
+    await traegerRequest<BackendTraegerBankAccount>(bankAccountPath(id), {
+      method: "PUT",
+      body: backendBankAccount(input),
+    }),
+  );
+}
+
+/** Deletes a bank account. Throws an ApiError on failure. */
+export async function deleteTraegerBankAccount(id: string): Promise<void> {
+  await traegerRequest(bankAccountPath(id), { method: "DELETE" });
+}

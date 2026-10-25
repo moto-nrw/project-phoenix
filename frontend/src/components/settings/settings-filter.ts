@@ -17,6 +17,8 @@ export const TAB_LABELS: Record<string, string> = {
   general: "Allgemein",
   security: "Sicherheit",
   modules: "Module",
+  // Briefkopf des Trägers (#4653); Schulen sehen ihn nur lesend.
+  branding: "Briefkopf",
 };
 
 export function displayTabLabel(tab: SchemaTab): string {
@@ -42,6 +44,7 @@ export const categoryLabels: Record<string, string> = {
   betreuungsangebote: "Betreuungsangebote",
   betreuungstage: "Betreuungstage",
   betreuungszeiten: "Ankunfts- und Abholzeiten",
+  briefkopf: "Absender, Farbe und Fußzeile",
   "bestellung-essen": "Bestellung",
   bewegungsdaten: "Anwesenheit und Aufbewahrung",
   caterer: "Caterer",
