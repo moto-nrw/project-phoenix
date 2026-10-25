@@ -108,12 +108,17 @@ const LOADING_SELECTOR = '[aria-busy="true"], .animate-pulse';
  */
 const STATUS_DOT_MAX_PX = 8;
 
-/** Sichtbare Ladeanzeigen auf der Seite, ohne Status-Punkte. */
+/**
+ * Sichtbare Ladeanzeigen auf der Seite, ohne Status-Punkte und ohne
+ * pulsierende Symbole: Ein Symbol (svg) pulsiert, wenn eine Ankunft oder
+ * Abholung bald fällig ist; Skelette sind Flächen, keine Symbole.
+ */
 function countLoadingIndicators(page: Page): Promise<number> {
   return page.evaluate(
     ({ selector, dotMax }) =>
       Array.from(document.querySelectorAll(selector)).filter((element) => {
         if (element.matches('[aria-busy="true"]')) return true;
+        if (element instanceof SVGElement) return false;
         const { width, height } = element.getBoundingClientRect();
         return width > dotMax || height > dotMax;
       }).length,

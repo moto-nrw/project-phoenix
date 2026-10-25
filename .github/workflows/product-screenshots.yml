@@ -1,7 +1,7 @@
 name: Produkt-Screenshots
 
 # Produkt-Screenshots bei jedem Release (#3759, ADR 0042): Stack starten, Profil
-# `marketing` seeden, alle Shots aus frontend/scripts/product-screenshots/
+# `vollbetrieb` seeden und den Tag simulieren, alle Shots aus frontend/scripts/product-screenshots/
 # shots.yaml fotografieren und rahmen, die Ausgabe als Artefakt anhängen
 # (7 Tage) und als `product-screenshots-<version>.zip` an das GitHub-Release
 # vX.Y.Z hängen. Der Drive-Upload (publish.pw.ts) ist abgehängt, bis es ein
@@ -24,9 +24,9 @@ name: Produkt-Screenshots
 # schreiben und läuft nur nach einem erfolgreichen Capture. Ein kaputter Shot
 # bricht die Pipeline vor jeder Ausgabe ab, das Release bleibt dann unverändert.
 #
-# Am Wochenende (Berliner Zeit) stellt der Lauf die Uhr der VM auf den Freitag
-# davor, siehe "Move the runner clock to a Berlin weekday". Die Bilder zeigen
-# dann diesen Freitag.
+# Der Lauf stellt die Uhr der VM auf den letzten Dienstag, 12:00 Berlin, siehe
+# "Move the runner clock to Tuesday 12:00 Berlin". Die Bilder zeigen dann diesen
+# Dienstag um 13:30.
 
 on:
   release:
@@ -48,7 +48,8 @@ on:
       - ".github/workflows/product-screenshots.yml"
       - "frontend/scripts/product-screenshots/**"
       - "frontend/playwright.screenshots.config.ts"
-      - "backend/internal/devtools/seedapi/marketing*"
+      - "backend/internal/devtools/seedapi/**"
+      - "backend/internal/devtools/simulate/**"
 
 permissions: {}
 
@@ -242,30 +243,33 @@ jobs:
           fi
 
       # Server, Seed, Datenbank und Browser lesen dieselbe Uhr der VM. Die
-      # Browser-Uhr steht auf einem Werktag um 10:15 (reference-time.ts); am
-      # Wochenende ist das der Freitag davor, der Server läge auf dem echten
-      # Tag, und jeder Shot bräche mit einem Hydration-Fehler ab. Deshalb
-      # stellt der Lauf am Wochenende die Uhr der VM auf Freitag zurück. Erst
-      # nach allen Downloads: ein Zertifikat von gestern wäre sonst noch nicht
-      # gültig. "Restore the runner clock" stellt sie vor jedem Upload zurück.
-      - name: Move the runner clock to a Berlin weekday
+      # Bilder zeigen immer einen Dienstag um 13:30: Der Lauf stellt die Uhr
+      # vor Migration und Seed auf den letzten Dienstag, 12:00 Berlin. Seed und
+      # Simulation stempeln Anwesenheit und Nachrichten dann kurz nach 12 Uhr,
+      # wenn die Kinder laut Wochenplan nach dem Unterricht ankommen; die
+      # Browser-Uhr steht auf 13:30 desselben Tages (reference-time.ts).
+      # Server und Browser liegen so auf demselben Kalendertag, sonst bräche
+      # jeder Shot mit einem Hydration-Fehler ab. Erst nach allen Downloads:
+      # ein Zertifikat von gestern wäre sonst noch nicht gültig. "Restore the
+      # runner clock" stellt sie vor jedem Upload zurück.
+      - name: Move the runner clock to Tuesday 12:00 Berlin
         run: |
-          case "$(TZ=Europe/Berlin date +%u)" in
-            6) days=1 ;;
-            7) days=2 ;;
-            *) days=0 ;;
-          esac
-          seconds=$((days * 86400))
-          echo "${seconds}" > "${RUNNER_TEMP}/clock-shift"
-          if [ "${seconds}" -eq 0 ]; then
-            echo "Werktag, die Uhr bleibt."
-            exit 0
+          # Tage in Kalenderdaten rechnen, nicht in Sekunden: an der
+          # Zeitumstellung hat ein Tag 23 oder 25 Stunden.
+          now=$(date +%s)
+          today=$(TZ=Europe/Berlin date -d "@${now}" +%F)
+          back=$(( ($(TZ=Europe/Berlin date -d "@${now}" +%u) + 5) % 7 ))
+          target=$(TZ=Europe/Berlin date -d "$(TZ=Europe/Berlin date -d "${today} -${back} days" +%F) 12:00" +%s)
+          if [ "${target}" -gt "${now}" ]; then
+            target=$(TZ=Europe/Berlin date -d "$(TZ=Europe/Berlin date -d "${today} -$((back + 7)) days" +%F) 12:00" +%s)
           fi
+          seconds=$((now - target))
+          echo "${seconds}" > "${RUNNER_TEMP}/clock-shift"
           # Ohne Zeitsynchronisation, sonst stellt sie die Uhr wieder vor.
           sudo timedatectl set-ntp false
           sudo systemctl stop chrony.service systemd-timesyncd.service 2>/dev/null || true
-          sudo date -s "@$(( $(date +%s) - seconds ))" > /dev/null
-          echo "Uhr der VM um ${days} Tag(e) zurück: $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
+          sudo date -s "@${target}" > /dev/null
+          echo "Uhr der VM auf $(TZ=Europe/Berlin date '+%A, %F %T %Z') gestellt"
 
       - name: Run migrations
         working-directory: backend
@@ -289,8 +293,8 @@ jobs:
           echo "server did not become healthy in 60s"
           exit 1
 
-      # Seeds every profile, including `marketing`, and writes
-      # backend/.seed-state.json; access.ts reads the marketing logins from it.
+      # Seeds every profile, including `vollbetrieb`, and writes
+      # backend/.seed-state.json; access.ts reads the vollbetrieb logins from it.
       - name: Seed demo data
         working-directory: backend
         run: |
@@ -299,6 +303,13 @@ jobs:
             --password "${OPERATOR_PASSWORD}" \
             --pin "${OGS_DEVICE_PIN}" \
             --url http://localhost:8080
+
+      # Without it the vollbetrieb school day is nearly empty: the seed checks in
+      # only a few children. The standing demo fills it with its live ticker.
+      - name: Simulate the school day
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb
 
       - name: Start frontend
         working-directory: frontend

@@ -29,7 +29,7 @@ func (seedStudentStatusVariantsStep) Run(_ context.Context, rt *Runtime) error {
 		}
 		date := todaySeedDate().AddDays(variant.days).String()
 		if _, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/status-days", studentID), map[string]any{
-			"status": variant.status, "dates": []string{date}, "reason": "Demo-Planung",
+			"status": variant.status, "dates": []string{date}, "reason": "Von den Eltern gemeldet",
 		}); err != nil {
 			return fmt.Errorf("seed %s status day: %w", variant.status, err)
 		}

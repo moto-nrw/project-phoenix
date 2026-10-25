@@ -8,7 +8,7 @@ import { defineConfig } from "@playwright/test";
 //   pnpm run test:screenshots       Pipeline-Test mit einer Mini-Shot-Liste
 //
 // Es gibt keinen webServer: der Stack läuft schon (scripts/dev-native.sh up)
-// und ist mit dem Profil `marketing` geseedet. Playwright dient hier als
+// und ist mit dem Profil `vollbetrieb` geseedet, der Tag simuliert. Playwright dient hier als
 // Runner, weil er TypeScript ohne eigenen Build lädt. Die Dateien heißen
 // `.pw.ts`, damit vitest sie nicht aufgreift.
 export default defineConfig({
