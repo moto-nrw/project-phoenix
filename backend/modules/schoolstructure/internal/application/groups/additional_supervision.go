@@ -200,6 +200,9 @@ func (s *substitutionModule) assignAdditionalSupervision(
 		s.deps.ActiveGroups == nil || s.deps.ActiveSupervisors == nil || s.deps.ActiveSupervisorCreator == nil {
 		return nil, ErrInvalidTarget
 	}
+	if request.HandOver {
+		return s.handOverSupervision(ctx, caller, request)
+	}
 	access, err := s.resolveAccess(ctx, caller)
 	if err != nil {
 		return nil, err
@@ -216,16 +219,24 @@ func (s *substitutionModule) assignAdditionalSupervision(
 	if err != nil {
 		return nil, err
 	}
-	result := AssignmentResult{ID: created.ID, Type: TargetAdditionalSupervision, ActiveGroupID: created.GroupID,
-		Target: StaffRef{ID: target.StaffID, FullName: target.FullName}}
+	s.announceSupervisionChange(ctx, request.ActiveGroupID, "additional_supervision_assign", "additional_supervisor_assigned")
+	return additionalSupervisionResult(created, target), nil
+}
 
-	if s.deps.Broadcaster != nil {
-		s.deps.Broadcaster.QueueGroupAccessChanged(ctx, "additional_supervision_assign")
+func additionalSupervisionResult(created *studentpresence.GroupSupervision, target *domain.Caregiver) *AssignmentResult {
+	return &AssignmentResult{ID: created.ID, Type: TargetAdditionalSupervision, ActiveGroupID: created.GroupID,
+		Target: StaffRef{ID: target.StaffID, FullName: target.FullName}}
+}
+
+// announceSupervisionChange wakes the open views after the supervisors of a
+// running session changed: the group-access signal refreshes the sidebars and
+// substitution lists, the supervision signal the live supervision views.
+func (s *substitutionModule) announceSupervisionChange(ctx context.Context, activeGroupID int64, accessSource, reason string) {
+	if s.deps.Broadcaster == nil {
+		return
 	}
-	if s.deps.Broadcaster != nil {
-		s.deps.Broadcaster.QueueActiveSupervisionChanged(ctx, request.ActiveGroupID, "additional_supervisor_assigned")
-	}
-	return &result, nil
+	s.deps.Broadcaster.QueueGroupAccessChanged(ctx, accessSource)
+	s.deps.Broadcaster.QueueActiveSupervisionChanged(ctx, activeGroupID, reason)
 }
 
 func (s *substitutionModule) assignAdditionalSupervisionLocked(

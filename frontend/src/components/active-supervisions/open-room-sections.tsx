@@ -6,7 +6,7 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import { UserPlus } from "lucide-react";
+import { ArrowLeftRight, UserPlus } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import {
@@ -55,6 +55,8 @@ export type OpenRoomBlockContext = Omit<
   /** The school-wide overview lets the caller read every running roster. */
   readonly overviewEnabled: boolean;
   readonly onAddSupervisor: (activeGroupId: string) => void;
+  /** Opens „Aufsicht abgeben“ for a session the caller supervises (#4763). */
+  readonly onHandOver: (activeGroupId: string) => void;
   /** Makes each loaded block's groups available to the page's common filters. */
   readonly onRosterGroups?: (
     instanceId: string,
@@ -130,6 +132,7 @@ export function OpenRoomSections({
             section={section}
             narrowed={narrowed}
             onAddSupervisor={blocks.onAddSupervisor}
+            onHandOver={blocks.onHandOver}
             {...children}
           />
         );
@@ -227,6 +230,53 @@ function AddSupervisorButton({
   );
 }
 
+function HandOverButton({
+  activeGroupId,
+  onHandOver,
+}: Readonly<{
+  activeGroupId: string | null;
+  onHandOver: (activeGroupId: string) => void;
+}>) {
+  if (!activeGroupId) return null;
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      className="bg-white"
+      onClick={() => onHandOver(activeGroupId)}
+    >
+      <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+      Aufsicht abgeben
+    </Button>
+  );
+}
+
+/**
+ * The section's head actions: „Betreuer hinzufügen“ where the caller may
+ * assign, „Aufsicht abgeben“ where they supervise the session (#4763).
+ */
+function sectionActions(
+  assignableSessionId: string | null,
+  supervisedSessionId: string | null,
+  onAddSupervisor: (activeGroupId: string) => void,
+  onHandOver: (activeGroupId: string) => void,
+): ReactNode {
+  if (!assignableSessionId && !supervisedSessionId) return null;
+  return (
+    <>
+      <AddSupervisorButton
+        activeGroupId={assignableSessionId}
+        onAddSupervisor={onAddSupervisor}
+      />
+      <HandOverButton
+        activeGroupId={supervisedSessionId}
+        onHandOver={onHandOver}
+      />
+    </>
+  );
+}
+
 function OpenRoomBlock({
   section,
   narrowed,
@@ -250,6 +300,7 @@ function OpenRoomBlock({
     studentProfileHref,
     overviewEnabled,
     onAddSupervisor,
+    onHandOver,
     onRosterGroups,
     rosterRowFilter,
     presentPickerAutoOpenInstanceId,
@@ -286,11 +337,11 @@ function OpenRoomBlock({
     count: session.studentCount,
     limit: session.participantLimit,
   };
-  const addSupervisor = (
-    <AddSupervisorButton
-      activeGroupId={section.assignableSessionId}
-      onAddSupervisor={onAddSupervisor}
-    />
+  const headActions = sectionActions(
+    section.assignableSessionId,
+    session.isUserSupervising ? session.activeGroupId : null,
+    onAddSupervisor,
+    onHandOver,
   );
   const header = (
     <SectionCard
@@ -318,7 +369,7 @@ function OpenRoomBlock({
         occupancy,
         nfcEnabled,
       )}
-      actions={section.assignableSessionId ? addSupervisor : undefined}
+      actions={headActions ?? undefined}
     />
   );
 
@@ -341,7 +392,7 @@ function OpenRoomBlock({
           showTimetableCounts={showTimetableCounts}
           occupancy={occupancy}
           roomInPageHead
-          headerActions={section.assignableSessionId ? addSupervisor : null}
+          headerActions={headActions}
           headerToggle={
             <SectionCollapseToggle
               title={title}
@@ -405,6 +456,7 @@ function OpenRoomOccupancy({
   section,
   narrowed,
   onAddSupervisor,
+  onHandOver,
   students,
   filteredStudents,
   grid,
@@ -413,6 +465,7 @@ function OpenRoomOccupancy({
     section: OpenRoomOccupancySection;
     narrowed: boolean;
     onAddSupervisor: (activeGroupId: string) => void;
+    onHandOver: (activeGroupId: string) => void;
   }
 >) {
   // Children outside every block are the room's shared occupancy: they stay
@@ -443,12 +496,16 @@ function OpenRoomOccupancy({
         nfcEnabled,
       )}
       actions={
-        section.assignableSessionId ? (
-          <AddSupervisorButton
-            activeGroupId={section.assignableSessionId}
-            onAddSupervisor={onAddSupervisor}
-          />
-        ) : undefined
+        sectionActions(
+          section.assignableSessionId,
+          // The room's own session („Ohne Angebot“) keeps its own head
+          // actions; a single other session is handed over here.
+          !section.independent && section.isOwn
+            ? (section.activeGroupIds[0] ?? null)
+            : null,
+          onAddSupervisor,
+          onHandOver,
+        ) ?? undefined
       }
     />
   );

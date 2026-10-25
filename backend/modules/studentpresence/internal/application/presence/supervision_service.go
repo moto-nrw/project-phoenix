@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -159,4 +160,63 @@ func (s *service) EndSupervision(ctx context.Context, id int64) error {
 		}
 		return nil
 	})
+}
+
+// ReleaseSupervision ends the staff member's own supervision of a running
+// session while another supervisor stays (#4763), and returns the ended
+// supervision. It participates in the caller's unit of work and opens none:
+// the session row lock it takes there serializes two supervisors releasing at
+// once, so the second one sees that it is the last and is refused. Visits and
+// the session stay as they are.
+func (s *service) ReleaseSupervision(ctx context.Context, activeGroupID, staffID int64) (studentpresence.GroupSupervision, error) {
+	ended, err := s.releaseSupervisionLocked(ctx, activeGroupID, staffID)
+	if err != nil {
+		return studentpresence.GroupSupervision{}, &ActiveError{Op: "ReleaseSupervision", Err: err}
+	}
+	return groupSupervision(ended), nil
+}
+
+// releaseSupervisionLocked ends the staff member's supervision under the
+// session row lock and re-reads the ended row.
+func (s *service) releaseSupervisionLocked(ctx context.Context, activeGroupID, staffID int64) (*ports.GroupSupervisor, error) {
+	if _, err := s.lockActiveGroupOpenForUpdate(ctx, activeGroupID); err != nil {
+		if IsNoRows(err) {
+			return nil, ErrActiveGroupNotFound
+		}
+		return nil, err
+	}
+	supervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
+	if err != nil {
+		return nil, ErrDatabaseOperation
+	}
+	own, others := releasedSupervision(supervisors, staffID)
+	if own == nil {
+		return nil, ErrGroupSupervisorNotFound
+	}
+	if others == 0 {
+		return nil, ErrLastSupervisor
+	}
+	if err := s.SupervisorRepo.EndSupervision(ctx, own.ID); err != nil {
+		return nil, fmt.Errorf("end supervision failed: %w", err)
+	}
+	ended, err := s.SupervisorRepo.FindByID(ctx, own.ID)
+	if err != nil || ended == nil {
+		return nil, fmt.Errorf("reread ended supervision: %w", err)
+	}
+	return ended, nil
+}
+
+// releasedSupervision finds the staff member's current supervision and counts
+// the other staff members supervising the session.
+func releasedSupervision(supervisors []*ports.GroupSupervisor, staffID int64) (*ports.GroupSupervisor, int) {
+	var own *ports.GroupSupervisor
+	others := map[int64]struct{}{}
+	for _, supervisor := range supervisors {
+		if supervisor.StaffID == staffID {
+			own = supervisor
+			continue
+		}
+		others[supervisor.StaffID] = struct{}{}
+	}
+	return own, len(others)
 }

@@ -48,12 +48,15 @@ var (
 	ErrCannotDeleteActiveGroup   = errors.New("cannot delete active group with active visits")
 	ErrStudentAlreadyActive      = errors.New("student already has an active visit")
 	ErrStaffAlreadySupervising   = errors.New("staff member already supervising this group")
-	ErrStudentsNotPresent        = errors.New("no requested students are currently present")
-	ErrStudentMoveForbidden      = errors.New("not authorized to move the selected students")
-	ErrInvalidData               = errors.New("invalid data provided")
-	ErrDatabaseOperation         = errors.New("database operation failed")
-	ErrRoomConflict              = errors.New("room is already occupied by another active group")
-	ErrRoomCapacityExceeded      = errors.New("room capacity exceeded")
+	// ErrLastSupervisor refuses to release a supervision when nobody else
+	// supervises the session: the session would run unsupervised (#4763).
+	ErrLastSupervisor       = errors.New("no other supervisor stays with the session")
+	ErrStudentsNotPresent   = errors.New("no requested students are currently present")
+	ErrStudentMoveForbidden = errors.New("not authorized to move the selected students")
+	ErrInvalidData          = errors.New("invalid data provided")
+	ErrDatabaseOperation    = errors.New("database operation failed")
+	ErrRoomConflict         = errors.New("room is already occupied by another active group")
+	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
 	// ErrActivityParticipantLimitExceeded classifies
 	// ActivityParticipantLimitError with errors.Is (#3632).
 	ErrActivityParticipantLimitExceeded = errors.New("activity participant limit exceeded")

@@ -1738,10 +1738,14 @@ describe("released room with running blocks (#3281)", () => {
       screen.getAllByRole("button", { name: "Betreuer hinzufügen" }),
     ).toHaveLength(1);
     // The yard's head actions never end the supervision of a block; the
-    // block's own section carries its controls.
+    // block's own section carries its controls, „Aufsicht abgeben“ for the
+    // block the caller supervises among them (#4763).
     expect(
-      screen.queryByRole("button", { name: /Aufsicht abgeben/ }),
+      within(pageHead()).queryByRole("button", { name: /Aufsicht abgeben/ }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Aufsicht abgeben" }),
+    ).toHaveLength(1);
   });
 
   it("offers groups from expected, absent and departed children in loaded block rosters", async () => {

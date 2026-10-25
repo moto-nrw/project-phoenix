@@ -83,9 +83,9 @@ func buildSubstitutions(
 		Staff: structure.StaffChecks, ExternalCaregivers: structure.ExternalCaregivers.WithInvitations(invitations),
 		Actors:       SubstitutionActorResolver{Identity: callerContext},
 		ActiveGroups: sessions, ActiveSupervisors: supervisions,
-		ActiveSupervisorCreator: active,
-		Audit:                   NewEducationSubstitutionAudit(audit.Persistence.SubstitutionChange),
-		Runtime:                 runtime, Broadcaster: NewGroupEvents(hub, logger),
+		ActiveSupervisorCreator: active, SupervisionRelease: active,
+		Audit:   NewEducationSubstitutionAudit(audit.Persistence.SubstitutionChange),
+		Runtime: runtime, Broadcaster: NewGroupEvents(hub, logger),
 		Logger:    logger,
 		CanSeeAll: substitutionOverviewScope(settings), Now: env.Now,
 	})

@@ -112,7 +112,7 @@ func assignmentToModule(assignment workforceModule.SubstitutionAssignment) (educ
 	}
 	if supervision := assignment.AdditionalSupervision; supervision != nil {
 		result.AdditionalSupervision = &education.AdditionalSupervisionAssignment{
-			ActiveGroupID: supervision.ActiveGroupID, TargetStaffID: supervision.TargetStaffID,
+			ActiveGroupID: supervision.ActiveGroupID, TargetStaffID: supervision.TargetStaffID, HandOver: supervision.HandOver,
 		}
 	}
 	if schedule := assignment.ScheduleSubstitution; schedule != nil {
