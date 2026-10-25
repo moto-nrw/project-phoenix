@@ -211,6 +211,26 @@ func TenantTxMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// TraegerTxMiddleware wraps a Träger-Portal route in the Träger transaction
+// of the session's Träger (ADR 0086 section 5, ADR 0105): the request role
+// with the Träger bound and no school, so only the Träger's own rows of a
+// Träger table are visible and no school table is. A request without a
+// Träger session fails closed before next runs.
+func TraegerTxMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		organizationID := tenant.OrgFromContext(r.Context())
+		if tenant.ScopeFromContext(r.Context()) != tenant.ScopeOrg || organizationID <= 0 {
+			tenant.ObserveMissingTenant(r.Context(), tenant.ErrOrganizationRequired)
+			observeTenantRequest(r, 0, http.StatusInternalServerError, 0, "missing_tenant")
+			rejectTenantRequest(w, r, tenant.ErrOrganizationRequired)
+			return
+		}
+		runRequestTransaction(w, r, next, 0, func(ctx context.Context, fn func(context.Context) error) error {
+			return tenant.WithinTraeger(ctx, organizationID, fn)
+		})
+	})
+}
+
 // platformAdminTransaction is the one sanctioned BYPASSRLS path on tenant
 // routes. It exists as a named function so the branch is visible in traces
 // and cannot be confused with a missing-tenant fallback.

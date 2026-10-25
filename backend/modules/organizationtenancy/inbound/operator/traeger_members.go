@@ -104,9 +104,13 @@ func traegerErrorRenderer(err error) (render.Renderer, bool) {
 	return nil, false
 }
 
-// deviceOrTraegerErrorRenderer maps the device and Träger membership refusals.
+// deviceOrTraegerErrorRenderer maps the device, Träger membership and Träger
+// lifecycle refusals.
 func deviceOrTraegerErrorRenderer(err error) (render.Renderer, bool) {
 	if renderer, ok := deviceErrorRenderer(err); ok {
+		return renderer, true
+	}
+	if renderer, ok := traegerLifecycleErrorRenderer(err); ok {
 		return renderer, true
 	}
 	return traegerErrorRenderer(err)

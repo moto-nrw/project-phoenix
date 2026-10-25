@@ -36,6 +36,7 @@ vi.mock("~/lib/change-request-list-api", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: (): string | null => mockTenantSlug,
+  useModuleBooked: (): boolean => mockModuleBooked,
 }));
 
 vi.mock("./use-unread-count", () => ({
@@ -44,6 +45,7 @@ vi.mock("./use-unread-count", () => ({
 }));
 
 let mockTenantSlug: string | null = "testschool";
+let mockModuleBooked = true;
 
 import { useEnrollmentRequestsPending } from "./use-enrollment-requests-pending";
 
@@ -57,6 +59,7 @@ function capturedOptions(): UseUnreadCountOptions {
 beforeEach(() => {
   vi.clearAllMocks();
   mockTenantSlug = "testschool";
+  mockModuleBooked = true;
   mockUseUnreadCount.mockReturnValue({ unreadCount: 0, isLoading: false });
   mockCanReview.mockReturnValue(true);
   mockUseShellAuth.mockReturnValue({ mode: "teacher" });
@@ -108,5 +111,18 @@ describe("useEnrollmentRequestsPending", () => {
     expect(capturedOptions().cacheKey).toBe(
       "enrollment_requests_pending_count::",
     );
+  });
+
+  // Ohne Online-Anmeldung gibt es keine Anmeldungsänderungen (#4894).
+  it("zählt nicht ohne gebuchte Online-Anmeldung", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "7" } },
+      status: "authenticated",
+    });
+    mockUseShellAuth.mockReturnValue({ mode: "teacher" });
+    mockCanReview.mockReturnValue(true);
+    mockModuleBooked = false;
+
+    expect(capturedOptions().enabled).toBe(false);
   });
 });

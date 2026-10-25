@@ -376,6 +376,7 @@ type Owner interface {
 	OperatorProvisioning
 	OperatorStatus
 	TraegerRoles
+	TraegerAccountManagement
 	// AccountHoldsRole reports whether the account holds the role of that
 	// exact name. A failed lookup counts as not holding it: the answer only
 	// ever withholds.

@@ -82,7 +82,10 @@ func staffRetention(owner string) tableRetention {
 // tableRetentions classifies every table of the schema.
 var tableRetentions = map[string]tableRetention{
 	"auth.organization_account_roles":                       parent("auth.accounts"),
+	"auth.traeger_invitations":                              own("hourly token-cleanup, DeleteExpiredSchoolInvitations also deletes expired Träger invitations (expires_at < now, #4650)"),
+	"audit.traeger_account_changes":                         own("hourly token-cleanup, operator audit log retention, DeleteExpiredOperatorAuditLog also deletes Träger account ledger entries (before 1 January of last year, #4650)"),
 	"platform.organization_accounts":                        parent("auth.accounts"),
+	"platform.organization_erasure_orders":                  own("administrative platform.delete_expired_organization_erasure_orders: completed and withdrawn orders expire three years after completion or withdrawal; an open order remains until it is withdrawn or completed (#4657)"),
 	"platform.school_erasures":                              own("administrative platform.delete_expired_school_erasures: completed evidence expires three years after completion; unresolved orders remain for recovery (#3837)"),
 	"active.activity_session_attendance":                    parent("schedule.instance_students"),
 	"active.activity_sessions":                              parent("schedule.activity_instances"),
@@ -212,6 +215,9 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.change_request_messages":                    parent("enrollment.change_requests"),
 	"enrollment.change_requests":                            parent("enrollment.requests"),
 	"enrollment.form_schemas":                               notPersonal("enrollment form definitions"),
+	"enrollment.holiday_period_weeks":                       notPersonal("week of a Träger holiday period (#4659): dates and the host school ID, no person"),
+	"enrollment.holiday_periods":                            notPersonal("holiday period of a Träger (#4659): dates, hints and status, no person"),
+	"enrollment.holiday_week_time_models":                   notPersonal("time model of a Träger holiday week (#4659): name, times and price, no person"),
 	"enrollment.late_invites":                               own("nightly retention step settled_enrollment_retention (api/worker_retention.go), DeleteLateInvitesSettledBefore; used invites go with their request (DeleteRequestTree)"),
 	"enrollment.offering_change_requests":                   parent("users.student_profiles"),
 	"enrollment.phases":                                     notPersonal("enrollment phase configuration"),

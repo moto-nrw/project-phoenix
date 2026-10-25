@@ -168,7 +168,15 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
 ] as const;
 
 /** Träger portal pages under `app/traeger`, as the Träger host shows them. */
-export const TRACKED_TRAEGER_ROUTE_TEMPLATES = ["/", "/login"] as const;
+export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
+  "/",
+  "/accounts",
+  "/ferien",
+  "/ferien/:id",
+  "/ferien/neu",
+  "/invite",
+  "/login",
+] as const;
 
 /** Public pages of the bare domain: school choice, start, demo, help. */
 export const TRACKED_PUBLIC_ROUTE_TEMPLATES = [

@@ -146,6 +146,18 @@ func (s *AccountAuthentication) mintTraegerSession(ctx context.Context, account 
 	return &identityaccess.TraegerLoginResult{Status: identityaccess.TraegerLoginAuthenticated, AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
+// CheckPasswordLogin checks an account's password like the login does, with
+// its attempt counting and lockout, and returns the account. The Träger
+// invitation proves an existing account with it (#4650). It must run outside
+// the caller's transaction: a refused attempt commits on its own.
+func (s *AccountAuthentication) CheckPasswordLogin(ctx context.Context, email, password, ipAddress, userAgent string) (int64, error) {
+	if s == nil {
+		return 0, errAccountAuthenticationUnavailable
+	}
+	account, err := s.validateLoginCredentials(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent)
+	return account.ID, err
+}
+
 // traegerMintGuard re-checks the Träger membership and loads the Träger roles
 // inside the session transaction, under the account lock: the claims and the
 // session commit together or not at all.
@@ -284,4 +296,26 @@ func (s *AccountAuthentication) ListTraegerAccounts(ctx context.Context, organiz
 		result = append(result, identityaccess.TraegerAccount(account))
 	}
 	return result, nil
+}
+
+// EndTraegerSessions deletes every Träger session of the Träger: the moto team
+// deactivated it (#4657). Refresh and hand-off of those sessions fail from
+// the commit on; a Träger access token still in flight reaches no school,
+// because the Träger projection serves only an active Träger. It participates
+// in the caller's administrative transaction and never opens one itself.
+func (s *AccountAuthentication) EndTraegerSessions(ctx context.Context, organizationID int64) (int64, error) {
+	if s == nil {
+		return 0, errAccountAuthenticationUnavailable
+	}
+	if organizationID <= 0 {
+		return 0, identityaccess.ErrInvalidToken
+	}
+	if !s.runtime.HasTransaction(ctx) || !s.runtime.IsAdminTx(ctx) {
+		return 0, identityaccess.ErrTraegerTransactionRequired
+	}
+	ended, _, err := s.store.DeleteTraegerSessions(ctx, organizationID)
+	if err != nil {
+		return 0, failed("end Träger sessions", err)
+	}
+	return ended, nil
 }

@@ -7,9 +7,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/traegerportal"
+	"github.com/moto-nrw/project-phoenix/modules/traegerview"
 	traegerViewCompose "github.com/moto-nrw/project-phoenix/modules/traegerview/compose"
 	traegerViewHTTP "github.com/moto-nrw/project-phoenix/modules/traegerview/http"
 )
@@ -27,25 +31,45 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 	return nil
 }
 
-// TraegerPortalIdentity is what the Träger-Portal takes from Identity &
-// Access: the Träger sign-in and the account second factor.
+// TraegerPortalIdentity is what the Träger-Portal serves of Identity &
+// Access: the sign-in, the account second factor and the Träger-Büro account
+// management.
 type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
 	identityaccess.AccountMFAChallenges
 	identityaccess.AccountMFAEnrollment
+	identityaccess.TraegerAccountManagement
 }
 
-// NewTraegerPortalHTTP binds the Träger sign-in, its second factor and the
-// Träger projection to the portal's route ports.
+// NewTraegerPortalHTTP binds the Träger sign-in, its second factor, the
+// account management, the Träger projection and the holiday periods of
+// Enrollment to the portal's route ports.
 func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery) (*traegerportal.Resource, error) {
 	if identity == nil || organizations == nil {
 		return nil, errors.New("traeger portal: identity and organizations are required")
 	}
-	overview, err := traegerViewCompose.New(organizations)
+	overview, err := traegerViewCompose.New(traegerSchoolIDs{organizations: organizations})
 	if err != nil {
 		return nil, err
 	}
-	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity), traegerViewHTTP.NewResource(overview)), nil
+	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(),
+		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
+	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity), traegerViewHTTP.NewResource(overview), holidayPeriods, identity), nil
+}
+
+// traegerSchoolIDs binds the Träger projection's school set to Organisation &
+// Tenancy and translates a deactivated, deleted or unknown Träger into the
+// projection's contract (#4657).
+type traegerSchoolIDs struct {
+	organizations organizationtenancy.TraegerMembershipQuery
+}
+
+func (s traegerSchoolIDs) ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
+	ids, err := s.organizations.ListTraegerSchoolIDs(ctx, organizationID)
+	if errors.Is(err, organizationtenancy.ErrOrganizationInactive) || errors.Is(err, organizationtenancy.ErrOrganizationNotFound) {
+		return nil, traegerview.ErrTraegerUnavailable
+	}
+	return ids, err
 }
 
 // TraegerPortalAuth binds the Träger-Portal's session port to Identity &

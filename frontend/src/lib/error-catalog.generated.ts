@@ -331,6 +331,14 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie Vor- und Nachnamen ein.",
       "enrollment.guardian_phone_required":
         "Bitte geben Sie eine Telefonnummer ein.",
+      "enrollment.holiday_host_school_outside_traeger":
+        "Diese Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie eine Schule aus der Liste.",
+      "enrollment.holiday_period_incomplete":
+        "Der Ferienzeitraum braucht mindestens eine Woche. Jede Woche braucht mindestens ein Zeitmodell.",
+      "enrollment.holiday_period_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "enrollment.holiday_period_not_found":
+        "Diesen Ferienzeitraum gibt es nicht. Bitte öffnen Sie ihn aus der Liste der Ferien.",
       "enrollment.invalid_email":
         "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
       "enrollment.invalid_phone":
@@ -580,6 +588,8 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "meals.registration_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "module.not_booked":
+        "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
       "operator.audit_unavailable":
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
       "pickup.bulk_exception_confirmation_required":
@@ -650,6 +660,14 @@ export const ERROR_CATALOG = {
         "Diesen Slug hat schon eine andere Schule dieses Trägers. Bitte wählen Sie einen anderen.",
       "provisioning.school_subdomain_taken":
         "Diese Subdomain hat schon eine andere Schule. Bitte wählen Sie eine andere.",
+      "provisioning.traeger_active":
+        "Der Träger ist noch aktiv. Bitte deaktivieren Sie ihn zuerst.",
+      "provisioning.traeger_erasure_order_not_found":
+        "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
+      "provisioning.traeger_erasure_order_open":
+        "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
+      "provisioning.traeger_erasure_started":
+        "Die Löschung hat schon begonnen. Der Löschauftrag kann nicht mehr zurückgenommen werden.",
       "rollover.deadline_required":
         "Bitte geben Sie eine Frist für die Rückmeldung ein.",
       "rollover.duplicate_name":
@@ -1122,6 +1140,11 @@ export const ERROR_CATALOG = {
         "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
       "timetable.window_too_large":
         "Der Zeitraum ist zu lang. Bitte wählen Sie höchstens {max_days} Tage.",
+      "traeger.already_member": "Diese Person gehört schon zum Träger-Büro.",
+      "traeger.last_administrator":
+        "Das Träger-Büro braucht mindestens eine Person mit der Rolle Verwaltung. Geben Sie die Rolle zuerst einer anderen Person.",
+      "traeger.member_not_found":
+        "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",
       "traeger.no_membership":
         "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
       "workforce.absence_allowance_exceeded":
@@ -1462,6 +1485,13 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required":
         "Please enter the first and last name.",
       "enrollment.guardian_phone_required": "Please enter a phone number.",
+      "enrollment.holiday_host_school_outside_traeger":
+        "This school does not belong to your Träger. Please choose a school from the list.",
+      "enrollment.holiday_period_incomplete":
+        "The holiday period needs at least one week. Every week needs at least one time model.",
+      "enrollment.holiday_period_invalid": "Please check the marked fields.",
+      "enrollment.holiday_period_not_found":
+        "This holiday period does not exist. Please open it from the holiday list.",
       "enrollment.invalid_email": "Please enter a valid email address.",
       "enrollment.invalid_phone": "Please enter a valid phone number.",
       "enrollment.late_invite_invalid":
@@ -1549,6 +1579,8 @@ export const ERROR_CATALOG = {
         "{object} is not available here at the moment. Please ask your contact person.",
       "meals.registration_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "module.not_booked":
+        "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "staff.external_access_invalid":
         "Please choose which access this person gets.",
       "staff.external_email_invalid":
@@ -1584,6 +1616,12 @@ export const ERROR_CATALOG = {
         "Homework feedback is only possible in a study time you supervise.",
       "timetable.homework_feedback_without_homework":
         "No homework is entered for this child's class today.",
+      "traeger.already_member":
+        "This person already belongs to the Träger office.",
+      "traeger.last_administrator":
+        "The Träger office needs at least one person with the role Verwaltung. Give this role to someone else first.",
+      "traeger.member_not_found":
+        "This person no longer belongs to the Träger office. Please reload the page.",
       "traeger.no_membership":
         "Your account has no access to the Träger portal. Please contact the moto team.",
     },
@@ -1876,6 +1914,8 @@ export const ERROR_CATALOG = {
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "meals.registration_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "module.not_booked":
+        "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "students.care_exception_raced":
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
       "students.care_offerings_disabled":
@@ -2202,6 +2242,8 @@ export const ERROR_CATALOG = {
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "meals.registration_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "module.not_booked":
+        "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "students.care_exception_raced":
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
       "students.care_offerings_disabled":
@@ -2517,6 +2559,8 @@ export const ERROR_CATALOG = {
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "meals.registration_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "module.not_booked":
+        "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "students.care_exception_raced":
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
       "students.care_offerings_disabled":
@@ -2837,6 +2881,8 @@ export const ERROR_CATALOG = {
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "meals.registration_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "module.not_booked":
+        "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "students.care_exception_raced":
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
       "students.care_offerings_disabled":
@@ -3149,6 +3195,8 @@ export const ERROR_CATALOG = {
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "meals.registration_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "module.not_booked":
+        "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "students.care_exception_raced":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
       "students.care_offerings_disabled":

@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeIdentityTenantAccessDenied                     = "identity.tenant_access_denied"
+	CodeIdentityTenantAccessNotFound                   = "identity.tenant_access_not_found"
+	CodeIdentityUseParentPortal                        = "identity.use_parent_portal"
+	CodeIdentityUseSchoolPortal                        = "identity.use_school_portal"
 	CodeIdentityUsernameTaken                          = "identity.username_taken"
 	CodeImportFileColumnsMissing                       = "import.file_columns_missing"
 	CodeImportFileMissing                              = "import.file_missing"
@@ -56,6 +60,7 @@ const (
 	CodeMealsPlanDisabled                              = "meals.plan_disabled"
 	CodeMealsPlanWeekOutOfRange                        = "meals.plan_week_out_of_range"
 	CodeMealsRegistrationDisabled                      = "meals.registration_disabled"
+	CodeModuleNotBooked                                = "module.not_booked"
 	CodeOperatorAuditUnavailable                       = "operator.audit_unavailable"
 	CodePickupBulkExceptionConfirmationRequired        = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                        = "pickup.future_manual_reset"
@@ -92,6 +97,10 @@ const (
 	CodeProvisioningSchoolNotFound                     = "provisioning.school_not_found"
 	CodeProvisioningSchoolSlugTaken                    = "provisioning.school_slug_taken"
 	CodeProvisioningSchoolSubdomainTaken               = "provisioning.school_subdomain_taken"
+	CodeProvisioningTraegerActive                      = "provisioning.traeger_active"
+	CodeProvisioningTraegerErasureOrderNotFound        = "provisioning.traeger_erasure_order_not_found"
+	CodeProvisioningTraegerErasureOrderOpen            = "provisioning.traeger_erasure_order_open"
+	CodeProvisioningTraegerErasureStarted              = "provisioning.traeger_erasure_started"
 	CodeRolloverDeadlineRequired                       = "rollover.deadline_required"
 	CodeRolloverDuplicateName                          = "rollover.duplicate_name"
 	CodeRolloverInvalidRequest                         = "rollover.invalid_request"
@@ -293,18 +302,13 @@ const (
 	CodeTimetableReopenSupervisionChanged              = "timetable.reopen_supervision_changed"
 	CodeTimetableRoomOccupied                          = "timetable.room_occupied"
 	CodeTimetableSeriesEndBeforeStart                  = "timetable.series_end_before_start"
-	CodeTimetableSeriesEndOutsidePeriod                = "timetable.series_end_outside_period"
-	CodeTimetableSickAbsenceScopeLocked                = "timetable.sick_absence_scope_locked"
-	CodeTimetableSlotListDrifted                       = "timetable.slot_list_drifted"
-	CodeTimetableSlotListGroupingInvalid               = "timetable.slot_list_grouping_invalid"
-	CodeTimetableSlotListPickupPastDate                = "timetable.slot_list_pickup_past_date"
-	CodeTimetableSlotListReconciliationFutureDate      = "timetable.slot_list_reconciliation_future_date"
-	CodeTimetableSlotListsDisabled                     = "timetable.slot_lists_disabled"
-	CodeTimetableSpontaneousActivitiesDisabled         = "timetable.spontaneous_activities_disabled"
-	CodeTimetableSpontaneousCategoryArchived           = "timetable.spontaneous_category_archived"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.tenant_access_denied":                        "permission",
+	"identity.tenant_access_not_found":                     "business_rejection",
+	"identity.use_parent_portal":                           "permission",
+	"identity.use_school_portal":                           "permission",
 	"identity.username_taken":                              "business_rejection",
 	"import.file_columns_missing":                          "input",
 	"import.file_missing":                                  "input",
@@ -359,6 +363,7 @@ var errorCodeClasses1 = map[string]string{
 	"meals.plan_disabled":                                  "permission",
 	"meals.plan_week_out_of_range":                         "input",
 	"meals.registration_disabled":                          "permission",
+	"module.not_booked":                                    "permission",
 	"operator.audit_unavailable":                           "unavailable",
 	"pickup.bulk_exception_confirmation_required":          "input",
 	"pickup.future_manual_reset":                           "business_rejection",
@@ -395,6 +400,10 @@ var errorCodeClasses1 = map[string]string{
 	"provisioning.school_not_found":                        "business_rejection",
 	"provisioning.school_slug_taken":                       "business_rejection",
 	"provisioning.school_subdomain_taken":                  "business_rejection",
+	"provisioning.traeger_active":                          "business_rejection",
+	"provisioning.traeger_erasure_order_not_found":         "business_rejection",
+	"provisioning.traeger_erasure_order_open":              "business_rejection",
+	"provisioning.traeger_erasure_started":                 "business_rejection",
 	"rollover.deadline_required":                           "input",
 	"rollover.duplicate_name":                              "business_rejection",
 	"rollover.invalid_request":                             "input",
@@ -596,15 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.reopen_supervision_changed":                 "business_rejection",
 	"timetable.room_occupied":                              "business_rejection",
 	"timetable.series_end_before_start":                    "input",
-	"timetable.series_end_outside_period":                  "input",
-	"timetable.sick_absence_scope_locked":                  "business_rejection",
-	"timetable.slot_list_drifted":                          "business_rejection",
-	"timetable.slot_list_grouping_invalid":                 "input",
-	"timetable.slot_list_pickup_past_date":                 "input",
-	"timetable.slot_list_reconciliation_future_date":       "input",
-	"timetable.slot_lists_disabled":                        "permission",
-	"timetable.spontaneous_activities_disabled":            "permission",
-	"timetable.spontaneous_category_archived":              "business_rejection",
 }
 
 func init() {

@@ -161,6 +161,7 @@ export const HELP_TOPICS = {
   leadInfoDisplays: "info-display-verwalten",
   leadBirthdays: "geburtstage-auf-der-startseite",
   leadMissingMenu: "person-sieht-einen-menuepunkt-nicht",
+  leadModules: "welche-module-hat-meine-schule",
 
   // Eltern-Portal. Das Gerüst folgt der echten Navigation der Eltern-App
   // (`PARENT_PRIMARY_NAV` und `PARENT_MORE_NAV` in
@@ -199,6 +200,9 @@ export const HELP_TOPICS = {
   teacherAccess: "zugang-zu-moto-schule-einrichten",
   teacherLogin: "bei-moto-schule-anmelden",
   traegerLogin: "traeger-anmelden",
+  traegerInvitation: "einladung-ins-traeger-buero-annehmen",
+  traegerAccounts: "personen-ins-traeger-buero-einladen",
+  traegerHolidayPeriod: "traeger-ferienzeitraum",
   teacherSettings: "als-lehrkraft-benachrichtigungen-einstellen",
   teacherClassDay: "meinen-klassentag-ansehen",
   teacherClassList: "die-liste-einer-klasse-lesen",

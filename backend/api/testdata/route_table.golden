@@ -97,6 +97,7 @@ DELETE /operator/auth/passkeys/{passkeyId}
 DELETE /operator/devices/{id}
 DELETE /operator/invitations/{id}
 DELETE /operator/organizations/{id}
+DELETE /operator/organizations/{id}/erasure-order
 DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa
 DELETE /operator/persons/{id}
 DELETE /operator/schools/{id}
@@ -115,6 +116,8 @@ DELETE /school/class-day/handover/{schoolClass}/{date}
 DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
+DELETE /traeger/accounts/invitations/{invitationId}
+DELETE /traeger/accounts/{accountId}
 GET /
 GET /.well-known/caldav
 GET /analytics-consent/
@@ -515,6 +518,7 @@ GET /operator/organizations/
 GET /operator/organizations/summaries
 GET /operator/organizations/{id}/accounts
 GET /operator/organizations/{id}/devices
+GET /operator/organizations/{id}/erasure-order
 GET /operator/organizations/{id}/persons
 GET /operator/organizations/{id}/schools
 GET /operator/organizations/{id}/traeger-members
@@ -601,6 +605,10 @@ GET /school/staff-notices/today
 GET /school/supervisions/
 GET /school/supervisions/{id}/roster
 GET /school/supervisions/{id}/students/{student_id}/sheet
+GET /traeger/accounts/
+GET /traeger/holiday-periods/
+GET /traeger/holiday-periods/{id}
+GET /traeger/invitations/{token}
 GET /traeger/schools/
 HEAD /.well-known/caldav
 HEAD /api/caldav
@@ -932,6 +940,7 @@ POST /operator/invitations/{id}/resend
 POST /operator/operators/{id}/deactivate
 POST /operator/operators/{id}/reactivate
 POST /operator/organizations/
+POST /operator/organizations/{id}/erasure-order
 POST /operator/organizations/{id}/restore
 POST /operator/organizations/{id}/traeger-members
 POST /operator/profile/email-change
@@ -988,11 +997,15 @@ POST /school/supervisions/{id}/complete
 POST /school/supervisions/{id}/start
 POST /school/supervisions/{id}/students/{student_id}/check-in
 POST /school/supervisions/{id}/students/{student_id}/check-out
+POST /traeger/accounts/invitations
 POST /traeger/auth/login
 POST /traeger/auth/mfa/enroll/confirm
 POST /traeger/auth/mfa/enroll/start
 POST /traeger/auth/mfa/resend
 POST /traeger/auth/mfa/verify
+POST /traeger/holiday-periods/
+POST /traeger/holiday-periods/{id}/publish
+POST /traeger/invitations/{token}/accept
 PUT /.well-known/caldav
 PUT /analytics-consent/
 PUT /api/absence-types/{id}
@@ -1123,6 +1136,8 @@ PUT /school/class-day/homework/{schoolClass}/{homeworkId}
 PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
 PUT /school/supervisions/{id}/students/{student_id}/homework-feedback
+PUT /traeger/accounts/{accountId}/roles
+PUT /traeger/holiday-periods/{id}
 QUERY /.well-known/caldav
 QUERY /api/caldav
 QUERY /api/caldav/*

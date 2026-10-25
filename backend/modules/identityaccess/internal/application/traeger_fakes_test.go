@@ -24,3 +24,7 @@ func (s *fakeStore) InsertTraegerRole(context.Context, int64, int64, string) (do
 func (s *fakeStore) ListTraegerAccounts(context.Context, int64, []int64) ([]domain.TraegerAccount, domain.OperationStats, error) {
 	return nil, domain.OperationStats{}, nil
 }
+
+func (s *fakeStore) DeleteTraegerSessions(context.Context, int64) (int64, domain.OperationStats, error) {
+	return 0, domain.OperationStats{}, nil
+}

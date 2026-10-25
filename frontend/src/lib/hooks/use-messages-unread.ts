@@ -4,7 +4,11 @@ import { useSession } from "next-auth/react";
 import { hasPermission } from "~/lib/auth-utils";
 import { fetchUnreadCount } from "~/lib/parent-messages-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { useTenantSafe, useTenantSlugSafe } from "~/lib/tenant-context";
+import {
+  useModuleBooked,
+  useTenantSafe,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
 import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
@@ -21,7 +25,10 @@ export function useMessagesUnread() {
   // hook (enabled is a refresh dep) and clears the badge to 0 immediately,
   // instead of leaving a cached non-zero count until an unrelated refresh; and
   // re-enabling re-fetches the real count once the flag re-resolves.
+  // Elternnachrichten gehören zum Modul Eltern-App (#4894).
+  const elternAppBooked = useModuleBooked("eltern_app");
   const messagingEnabled = useTenantSafe()?.tenant?.messagingEnabled === true;
+  const messagesAvailable = messagingEnabled && elternAppBooked;
   // Per-tenant AND per-account cache key: the unread count is computed for the
   // current account and its student-read scope, so two staff users sharing a
   // browser on the same tenant must not see each other's cached badge. The
@@ -31,12 +38,13 @@ export function useMessagesUnread() {
   // changes.
   const tenantSlug = useTenantSlugSafe();
   const accountId = session?.user?.id ?? "";
+  const shellSeed = useShellSeed();
   return useUnreadCount({
     // The inbox requires users:read; the role „AG-Leitung“ (#4573) lacks it.
     enabled:
       status === "authenticated" &&
       mode === "teacher" &&
-      messagingEnabled &&
+      messagesAvailable &&
       hasPermission(session, "users:read"),
     fetcher: fetchUnreadCount,
     cacheKey: `messages_unread_count:${tenantSlug ?? ""}:${accountId}`,
@@ -49,6 +57,8 @@ export function useMessagesUnread() {
     // the badge would stay stale until a full reload. A focus refetch heals it
     // when the staffer returns to the tab.
     refetchOnFocus: true,
-    initialCount: useShellSeed()?.counts.messagesUnread,
+    initialCount: messagesAvailable
+      ? shellSeed?.counts.messagesUnread
+      : undefined,
   });
 }

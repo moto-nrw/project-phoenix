@@ -26,6 +26,10 @@ func (fakeOwnerStore) UpsertActiveTraegerMembership(context.Context, int64, int6
 	return organizationtenancy.TraegerMembership{}, domain.OperationStats{}, nil
 }
 
+func (fakeOwnerStore) DeactivateTraegerMembership(context.Context, int64, int64) (bool, domain.OperationStats, error) {
+	return false, domain.OperationStats{}, nil
+}
+
 func (*fakeIdentity) FindAccountIDByEmail(context.Context, string) (int64, bool, error) {
 	return 0, false, nil
 }
@@ -37,3 +41,17 @@ func (*fakeIdentity) ListTraegerAccounts(context.Context, int64, []int64) ([]org
 }
 
 func (*fakeIdentity) ResetTraegerMFA(context.Context, int64) error { return nil }
+
+func (*fakeIdentity) EndTraegerSessions(context.Context, int64) (int, error) { return 0, nil }
+
+func (fakeOwnerStore) FindOpenTraegerErasureOrder(context.Context, int64, string) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error) {
+	return organizationtenancy.TraegerErasureOrder{}, false, domain.OperationStats{}, nil
+}
+
+func (fakeOwnerStore) InsertTraegerErasureOrder(context.Context, organizationtenancy.NewTraegerErasureOrder) (organizationtenancy.TraegerErasureOrder, domain.OperationStats, error) {
+	return organizationtenancy.TraegerErasureOrder{}, domain.OperationStats{}, nil
+}
+
+func (fakeOwnerStore) WithdrawTraegerErasureOrder(context.Context, int64, int64) (bool, domain.OperationStats, error) {
+	return false, domain.OperationStats{}, nil
+}

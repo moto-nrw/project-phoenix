@@ -2483,7 +2483,11 @@
         "submission_rate_limited": "Надіслано забагато заявок. Спробуйте ще раз через годину.",
         "waitlist_disabled": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "window_closed": "Термін запису минув або ще не почався. Зверніться до школи.",
-        "withdraw_not_allowed": "Цей запис більше не можна відкликати. Зверніться до школи."
+        "withdraw_not_allowed": "Цей запис більше не можна відкликати. Зверніться до школи.",
+        "holiday_host_school_outside_traeger": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "holiday_period_incomplete": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "holiday_period_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "holiday_period_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "files": {
         "announcement_published": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2966,6 +2970,10 @@
         "organization_not_deleted": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "organization_has_schools": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "organization_deleted": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "traeger_active": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "traeger_erasure_order_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "traeger_erasure_order_open": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "traeger_erasure_started": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "school_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "school_inactive": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "school_already_deleted": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2994,6 +3002,9 @@
         "module_requires": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "module_required_by": "Не вдалося зберегти: {object}. Перевірте введені дані."
       },
+      "module": {
+        "not_booked": "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto."
+      },
       "devices": {
         "tag_scan_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "tag_scan_already_resolved": "Не вдалося змінити: {object}. Перевірте поточний стан."
@@ -3019,6 +3030,9 @@
         "audit_unavailable": "{object} зараз недоступний. Спробуйте ще раз."
       },
       "traeger": {
+        "already_member": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "last_administrator": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "member_not_found": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "no_membership": "У вас немає доступу до: {object}. Зверніться до школи."
       }
     },

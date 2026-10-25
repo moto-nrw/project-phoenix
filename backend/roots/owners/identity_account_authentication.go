@@ -29,20 +29,22 @@ type sessionRepositories struct {
 	persons           personRows
 	authEvents        authEventLedger
 	pushSubscriptions pushSubscriptionRows
-	Lifecycle         LifecycleRepositories
+	// traeger serves the Träger-Büro account management's membership port.
+	traeger   organizationtenancy.Capability
+	Lifecycle LifecycleRepositories
 }
 
 // SessionRepositoriesOf binds the session seams to the identity chain rows
 // in people (persons, staff, teachers, students, guardian profiles and
 // relationships) and the given ledgers.
-func SessionRepositoriesOf(people LifecycleRepositories, organizations organizationtenancy.Query, authEvents authEventLedger, pushSubscriptions pushSubscriptionRows) sessionRepositories {
+func SessionRepositoriesOf(people LifecycleRepositories, organizations organizationtenancy.Capability, authEvents authEventLedger, pushSubscriptions pushSubscriptionRows) sessionRepositories {
 	if people.Persons == nil {
 		return sessionRepositories{}
 	}
 	lifecycle := people
 	lifecycle.AuthEvents = authEvents
 	return sessionRepositories{
-		schools: SchoolDirectory{Schools: organizations},
+		schools: SchoolDirectory{Schools: organizations}, traeger: organizations,
 		persons: people.Persons, authEvents: authEvents, pushSubscriptions: pushSubscriptions,
 		Lifecycle: lifecycle,
 	}
@@ -73,6 +75,12 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 		Audit:               AuthAudit{Command: audit, Events: repos.authEvents},
 		Push:                PushSubscriptionCleanup{Subscriptions: repos.pushSubscriptions},
 		Logger:              logger,
+	}
+	if base.Traeger != nil {
+		traeger := *base.Traeger
+		traeger.Memberships = TraegerBueroDirectory{Organizations: repos.traeger}
+		traeger.Audit = TraegerAccountLedger{Command: audit}
+		base.Traeger = &traeger
 	}
 	return identityaccessCompose.New(base)
 }

@@ -35,8 +35,8 @@ func (s cleanupRetentionSettings) HasTenantOverride(context.Context, string) (bo
 	return false, nil
 }
 
-func (s cleanupRetentionSettings) ResolveBool(context.Context, string) (bool, error) {
-	return false, nil
+func (s cleanupRetentionSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	return key == settingKeyModuleOnlineAnmeldung, nil
 }
 
 func (s cleanupRetentionSettings) ResolveString(context.Context, string) (string, error) {

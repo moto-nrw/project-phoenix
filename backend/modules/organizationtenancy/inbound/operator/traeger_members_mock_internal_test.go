@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"net"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
@@ -18,5 +19,17 @@ func (m *mockProvisioningService) AssignTraegerMember(context.Context, organizat
 }
 
 func (m *mockProvisioningService) ResetTraegerMemberMFA(context.Context, organizationtenancy.ResetTraegerMemberMFA) error {
+	return nil
+}
+
+func (m *mockProvisioningService) FindOpenTraegerErasureOrder(context.Context, int64) (organizationtenancy.TraegerErasureOrder, bool, error) {
+	return organizationtenancy.TraegerErasureOrder{}, false, nil
+}
+
+func (m *mockProvisioningService) RecordTraegerErasureOrder(context.Context, organizationtenancy.RecordTraegerErasureOrder) (organizationtenancy.TraegerErasureOrder, error) {
+	return organizationtenancy.TraegerErasureOrder{}, nil
+}
+
+func (m *mockProvisioningService) WithdrawTraegerErasureOrder(context.Context, int64, int64, net.IP) error {
 	return nil
 }
