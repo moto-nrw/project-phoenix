@@ -29138,6 +29138,28 @@
       "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindOrganization",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "caa5591946451b156c7bae8333b1302c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindOrganization. ADR 0113: the parents portal prefill resolves the Träger of a holiday registration link and its undeleted schools in the administrative transaction of the link lookup, through the same directory as the public link (ADR 0110)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "8c96b95244ed7084b0014c1cbc3abd16",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.ListSchoolsByOrganization. ADR 0113: the parents portal prefill resolves the Träger of a holiday registration link and its undeleted schools in the administrative transaction of the link lookup, through the same directory as the public link (ADR 0110)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy",
       "binding_digest": "ebc72ba17d1d397ddadea255e2df5e84",

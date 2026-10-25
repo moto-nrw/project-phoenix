@@ -14,6 +14,7 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
+	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 // mountTraegerRoutes serves the Träger-Portal at /traeger and the public
@@ -100,4 +101,33 @@ func (m holidayTraegerMail) EnqueueTraegerMail(ctx context.Context, mail enrollm
 		Related: deliveryContract.RelatedEntity{Type: mail.RelatedType, ID: mail.RelatedID},
 	})
 	return err
+}
+
+// parentHolidayRegistrationLinks resolves the link of a holiday period for
+// the parents portal's prefill (#4662, ADR 0113): the Träger and its
+// undeleted schools, in the caller's administrative transaction.
+type parentHolidayRegistrationLinks struct {
+	registrations enrollmentOwner.HolidayRegistrations
+}
+
+// newParentHolidayRegistrationLinks binds the parents portal to Enrollment's
+// link resolution over the same Träger directory as the public link.
+func newParentHolidayRegistrationLinks(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, logger *slog.Logger) parentAPI.HolidayRegistrationLinks {
+	return parentHolidayRegistrationLinks{registrations: enrollmentCompose.NewHolidayRegistrations(holidayTraegerDirectory{organizations: organizations},
+		holidayTraegerMail{delivery: delivery}, logger.With("service", "parent-holiday-registrations"))}
+}
+
+func (l parentHolidayRegistrationLinks) ResolveHolidayRegistrationSchools(ctx context.Context, token string) (int64, []int64, error) {
+	link, err := l.registrations.ResolveHolidayRegistrationLink(ctx, token)
+	if errors.Is(err, enrollmentOwner.ErrHolidayRegistrationNotFound) {
+		return 0, nil, parentAPI.ErrHolidayRegistrationLinkNotFound
+	}
+	if err != nil {
+		return 0, nil, err
+	}
+	schoolIDs := make([]int64, 0, len(link.Traeger.Schools))
+	for _, school := range link.Traeger.Schools {
+		schoolIDs = append(schoolIDs, school.ID)
+	}
+	return link.OrganizationID, schoolIDs, nil
 }

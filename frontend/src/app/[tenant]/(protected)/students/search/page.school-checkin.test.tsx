@@ -147,6 +147,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   PickupTimeRow: () => <div />,
   ArrivalTimeRow: () => <div />,
+  StudentAbsenceRow: () => <div />,
 }));
 
 const mockPush = vi.fn();
@@ -175,7 +176,21 @@ vi.mock("~/components/ui/loading", () => ({
 }));
 
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message }: { message: string }) => <div>{message}</div>,
+  Alert: ({
+    title,
+    message,
+    action,
+  }: {
+    title?: string;
+    message: string;
+    action?: React.ReactNode;
+  }) => (
+    <div>
+      {title ? <p>{title}</p> : null}
+      {message}
+      {action}
+    </div>
+  ),
 }));
 
 vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
@@ -637,5 +652,186 @@ describe("StudentSearchPage — school check-in wiring", () => {
       expect(mockRunBulk).toHaveBeenCalledTimes(2);
     });
     expect(mockRunBulk).toHaveBeenLastCalledWith("out", ["7"]);
+  });
+
+  // „Alle N auswählen“ (#4762) marks exactly the visible cards: a filter
+  // hides children, and children absent today stay out with their count
+  // named in the bar.
+  describe("Alle auswählen", () => {
+    const classStudents = [
+      {
+        id: "7",
+        first_name: "Max",
+        second_name: "Mustermann",
+        school_class: "1a",
+        current_location: "Zuhause",
+        has_full_access: true,
+      },
+      {
+        id: "8",
+        first_name: "Lena",
+        second_name: "Krank",
+        school_class: "1a",
+        current_location: "Zuhause",
+        sick: true,
+        has_full_access: true,
+      },
+      {
+        id: "9",
+        first_name: "Tom",
+        second_name: "Fern",
+        school_class: "1a",
+        current_location: "Zuhause",
+        day_planning_status: "not_coming_today",
+        day_planning_label: "Ferienbetreuung abgemeldet",
+        has_full_access: true,
+      },
+      {
+        id: "10",
+        first_name: "Anna",
+        second_name: "Da",
+        school_class: "1a",
+        current_location: "Anwesend",
+        has_full_access: true,
+      },
+      {
+        id: "11",
+        first_name: "Ben",
+        second_name: "Becker",
+        school_class: "1a",
+        current_location: "Schule",
+        has_full_access: true,
+      },
+    ];
+
+    function mockSelectionMode(overrides: Record<string, unknown> = {}) {
+      const setSelected = vi.fn();
+      mockUseSchoolCheckinMode.mockReturnValue({
+        isActive: true,
+        toggleActive: mockToggleActive,
+        deactivate: vi.fn(),
+        pendingIds: new Set<string>(),
+        successCount: 0,
+        toggle: mockToggleStudent,
+        selectionActive: true,
+        setSelectionActive: vi.fn(),
+        selectedIds: new Set<string>(),
+        toggleSelected: vi.fn(),
+        setSelected,
+        clearSelection: vi.fn(),
+        isBulkRunning: false,
+        runBulk: vi.fn(),
+        ...overrides,
+      });
+      return setSelected;
+    }
+
+    beforeEach(() => {
+      // The page keeps its filters in localStorage; a filter one test sets
+      // must not narrow the list of the next.
+      window.localStorage.clear();
+      vi.mocked(useSWRAuth).mockImplementation((key) => {
+        if (key === "search-rooms-list") {
+          return { data: [], isLoading: false, error: null } as never;
+        }
+        return {
+          data: { students: classStudents },
+          isLoading: false,
+          error: null,
+        } as never;
+      });
+    });
+
+    it("marks every visible child except those absent today", async () => {
+      const setSelected = mockSelectionMode();
+      render(<StudentSearchPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Alle 3 auswählen" }));
+
+      expect(setSelected).toHaveBeenCalledWith(["7", "10", "11"], true);
+      expect(
+        screen.getByText(
+          "2 ausgelassen: krank, entschuldigt, auf Klassenfahrt oder „Kommt heute nicht“",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("covers only the cards a status filter leaves on screen", async () => {
+      mockSearchParams.set("status", "abwesend");
+      const setSelected = mockSelectionMode();
+      render(<StudentSearchPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+      });
+      expect(screen.getByTestId("student-card-9")).toBeInTheDocument();
+      expect(screen.queryByTestId("student-card-10")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Alle 1 auswählen" }));
+
+      // Max is the only visible child left: Lena (sick) drops out of the
+      // „Zuhause“ filter, Tom is visible but not expected today.
+      expect(setSelected).toHaveBeenCalledWith(["7"], true);
+      expect(
+        screen.getByText(
+          "1 ausgelassen: krank, entschuldigt, auf Klassenfahrt oder „Kommt heute nicht“",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("is disabled once every child it would mark is marked", async () => {
+      mockSelectionMode({ selectedIds: new Set(["7", "10", "11"]) });
+      render(<StudentSearchPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByRole("button", { name: "Alle 3 auswählen" }),
+      ).toBeDisabled();
+    });
+
+    it("names the children still missing after Anmelden", async () => {
+      const runBulk = vi.fn().mockResolvedValue({
+        action: "in",
+        results: [{ studentId: "10", ok: true, changed: true }],
+        succeeded: 1,
+        failed: 0,
+      });
+      mockSelectionMode({ selectedIds: new Set(["10"]), runBulk });
+      render(<StudentSearchPage />);
+      await waitFor(() => {
+        expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByText(/Noch nicht angemeldet/),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("1 ausgewählt")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+
+      expect(
+        await screen.findByText("Noch nicht angemeldet: 2 Kinder"),
+      ).toBeInTheDocument();
+      // Lena (sick) and Tom (not expected) are not waited for; the names
+      // follow the order of the cards.
+      expect(
+        screen.getByText("Ben Becker, Max Mustermann"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Nur „Schule“ zeigen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Nur „Zuhause“ zeigen" }),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Ausblenden" }));
+      expect(
+        screen.queryByText("Noch nicht angemeldet: 2 Kinder"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("1 ausgewählt")).toBeInTheDocument();
+    });
   });
 });

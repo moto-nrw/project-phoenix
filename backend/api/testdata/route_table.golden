@@ -568,6 +568,7 @@ GET /parent-news-attachments/{announcementId}/{attachmentId}/download
 GET /parent-sse/events
 GET /parent/enrollments/{tenantSlug}/bootstrap/{phaseId}
 GET /parent/enrollments/{tenantSlug}/profile
+GET /parent/holiday-registrations/{token}/family
 GET /parent/me/calendar
 GET /parent/me/calendar/appointments/{appointmentId}/ics
 GET /parent/me/calendar/appointments/{appointmentId}/overview

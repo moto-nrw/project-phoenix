@@ -6,12 +6,18 @@ import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import {
+  leftOutLabel,
+  type SelectAllControl,
+} from "~/components/students/school-checkin-select-all";
 
 const CHECKIN_BAR_OFFSET_VAR = "--moto-checkin-bar-offset";
 // Measured bar height plus the install hint's clearance (#4358): 106 px in
-// "Direkt", 151 px in "Mehrere" at 360 to 390 px viewport width.
+// "Direkt", 151 px in "Mehrere" at 360 to 390 px viewport width. The line
+// naming left-out children (#4762) wraps to two rows there: 187 px.
 const CHECKIN_BAR_OFFSET = "7.25rem";
 const CHECKIN_SELECTION_BAR_OFFSET = "9.5rem";
+const CHECKIN_SELECTION_LEFT_OUT_BAR_OFFSET = "11.75rem";
 
 interface SchoolCheckinModeMobileProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -30,6 +36,8 @@ interface SchoolCheckinModeMobileProps {
   readonly onClearSelection?: () => void;
   readonly onBulkAction?: (action: "in" | "out") => void;
   readonly runningAction?: "in" | "out" | null;
+  /** „Alle N auswählen“ for the children on screen (#4762). */
+  readonly selectAll?: SelectAllControl;
   /**
    * Locks the trigger, e.g. while a bulk request is in flight (#2359): the
    * hook ignores mode exits during a run, so "Fertig" mirrors that as a
@@ -63,9 +71,15 @@ export function SchoolCheckinModeMobile({
   onClearSelection,
   onBulkAction,
   runningAction = null,
+  selectAll,
   disabled = false,
 }: SchoolCheckinModeMobileProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
+  const leftOut =
+    selectionActive && selectAll ? leftOutLabel(selectAll.leftOutCount) : null;
+  const selectionOffset = leftOut
+    ? CHECKIN_SELECTION_LEFT_OUT_BAR_OFFSET
+    : CHECKIN_SELECTION_BAR_OFFSET;
 
   useEffect(() => {
     if (!attendanceWebEnabled || !isActive) return;
@@ -75,7 +89,7 @@ export function SchoolCheckinModeMobile({
       if (mediaQuery.matches) {
         root.style.setProperty(
           CHECKIN_BAR_OFFSET_VAR,
-          selectionActive ? CHECKIN_SELECTION_BAR_OFFSET : CHECKIN_BAR_OFFSET,
+          selectionActive ? selectionOffset : CHECKIN_BAR_OFFSET,
         );
       } else {
         root.style.removeProperty(CHECKIN_BAR_OFFSET_VAR);
@@ -87,7 +101,7 @@ export function SchoolCheckinModeMobile({
       mediaQuery.removeEventListener("change", publishOffset);
       root.style.removeProperty(CHECKIN_BAR_OFFSET_VAR);
     };
-  }, [attendanceWebEnabled, isActive, selectionActive]);
+  }, [attendanceWebEnabled, isActive, selectionActive, selectionOffset]);
 
   if (!attendanceWebEnabled) return null;
   if (!isActive) {
@@ -205,6 +219,21 @@ export function SchoolCheckinModeMobile({
                 aria-hidden
               />
             ) : null}
+
+            {selectionActive && selectAll ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                className="shrink-0 shadow-none"
+                onClick={selectAll.onSelectAll}
+                disabled={
+                  selectAll.count === 0 || selectAll.allSelected || disabled
+                }
+              >
+                Alle {selectAll.count} auswählen
+              </Button>
+            ) : null}
           </div>
         ) : null}
 
@@ -266,6 +295,10 @@ export function SchoolCheckinModeMobile({
               Abmelden
             </Button>
           </div>
+        ) : null}
+
+        {leftOut ? (
+          <p className="mt-1 text-xs text-gray-600">{leftOut}</p>
         ) : null}
       </div>
     </div>

@@ -147,6 +147,66 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	assert.Equal(t, []any{map[string]any{"week_id": float64(52), "time_model_id": float64(63)}}, duplicateChildren[0].(map[string]any)["bookings"])
 }
 
+// The first seeded parent reads the prefill of the published link with the
+// parents portal session (#4662); a family without a known child fails the
+// step, so seed-smoke proves the prefill contract.
+func TestSeedTraegerHolidayPeriodStepReadsTheParentPrefill(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		children string
+		wantErr  bool
+	}{
+		{name: "known child", children: `[{"student_id":"7"}]`},
+		{name: "no known child", children: `[]`, wantErr: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var prefill string
+			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/traeger/auth/login":
+					_, _ = w.Write([]byte(`{"status":"authenticated","access_token":"traeger-token","refresh_token":"r"}`))
+				case "/traeger/schools/":
+					_, _ = w.Write([]byte(`{"status":"success","data":[{"id":31}]}`))
+				case "/traeger/holiday-periods/":
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
+				case "/traeger/holiday-periods/5/publish":
+					_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[` +
+						`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63}]}]}}`))
+				case "/parent/auth/login":
+					_, _ = w.Write([]byte(`{"status":"success","data":{"access_token":"parent-token"}}`))
+				case "/parent/holiday-registrations/link-key/family":
+					prefill = r.Method + " " + r.Header.Get("Authorization")
+					_, _ = w.Write([]byte(`{"status":"success","data":{"guardian":{},"children":` + tc.children + `}}`))
+				default:
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
+				}
+			})
+			defer srv.Close()
+
+			client := newTestClient(srv.URL, false)
+			runtime := &Runtime{
+				Adapter:   client.adapter,
+				Client:    client,
+				Bootstrap: &bootstrapSeedState{AdminEmail: "admin@example.test", AdminPassword: testpkg.NewTestPassword()},
+				Parents:   []ParentCredentials{{Email: "eltern@example.test", Password: testpkg.NewTestPassword()}},
+			}
+			err := (seedTraegerHolidayPeriodStep{}).Run(context.Background(), runtime)
+			assert.Equal(t, "GET Bearer parent-token", prefill, "the prefill is read with the parent's session")
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestSeedTraegerSettingsStepSetsAValueThroughTheTraegerPortal(t *testing.T) {
 	t.Parallel()
 

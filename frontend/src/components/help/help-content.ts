@@ -681,10 +681,28 @@ function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Wählen Sie danach `Fertig`.",
         ],
       },
+      {
+        // #4762: „Alle N auswählen“ nimmt nur die sichtbaren Karten und
+        // lässt Kinder aus, die heute krank, entschuldigt oder nicht
+        // erwartet sind.
+        title: "Eine ganze Klasse anmelden",
+        steps: [
+          "Öffnen Sie `Alle Kinder`.",
+          "Wählen Sie im Filter `Klasse` die Klasse.",
+          "Wählen Sie `An- & Abmelden` und danach `Mehrere`.",
+          "Tippen Sie auf den Knopf mit `Alle` und der Zahl der Kinder.",
+          "Die Zahl nennt die ausgewählten Kinder.",
+          "Tippen Sie Kinder an, die nicht da sind. So nehmen Sie sie wieder heraus.",
+          "Wählen Sie `Anmelden`.",
+          "Lesen Sie den Hinweis `Noch nicht angemeldet`. Er nennt die Kinder, die noch fehlen.",
+        ],
+      },
     ],
     result,
     notes: [
       "Möchten Sie mehrere Kinder ändern? Wählen Sie `Mehrere`.",
+      "Der Knopf mit `Alle` lässt kranke und entschuldigte Kinder aus. Das gilt auch für Kinder auf Klassenfahrt oder mit „Kommt heute nicht“. Die Leiste nennt ihre Zahl.",
+      "Im Hinweis `Noch nicht angemeldet` zeigt `Nur „Schule“ zeigen` die Kinder, die noch im Unterricht sind.",
       "In der Listenansicht kreuzen Sie die Kinder links an und wählen oben `Anmelden` oder `Abmelden`.",
       // Live geprueft: in `Direkt` schreibt jeder Tipp sofort, ohne Rueckfrage.
       // Ausnahme seit #3324: frühes Gehen öffnet vorher ein Fenster.
@@ -7604,6 +7622,8 @@ function parentHolidayRegistrationTopic(): HelpTopic {
     ],
     differences: [
       "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
+      "Sind Sie mit Ihrem Elternkonto in moto angemeldet? Dann steht unter `Kinder` der Abschnitt `Ihre Kinder aus dem Elternkonto`. Setzen Sie den Haken bei Ihrem Kind. Name, Geburtsdatum und Schule stehen dann schon im Formular, Ihre Angaben auch.",
+      "Sie können diese Angaben vor dem Absenden ändern. Das gilt nur für die Ferienanmeldung. Bei der Schule ändert sich nichts.",
     ],
     troubleshootingDetails: [
       "moto sagt, die Anmeldung sei nicht offen? Oben auf der Seite stehen die Tage, an denen Sie anmelden können.",

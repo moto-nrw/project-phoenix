@@ -81,6 +81,11 @@ type fakeParentService struct {
 	grantConsentErr    error
 	gotConsentAccount  int64
 	gotConsentStudent  int64
+
+	holidayFamily          *parentService.HolidayRegistrationFamily
+	gotHolidayAccount      int64
+	gotHolidayOrganization int64
+	gotHolidaySchools      []int64
 }
 
 // GetChildTodayStatus haelt das Double am Service-Interface. Ohne gesetzten
@@ -125,6 +130,13 @@ func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, in
 		return f.submitStatus, nil
 	}
 	return &parentService.GuardianSubmitStatus{}, nil
+}
+func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error) {
+	f.gotHolidayAccount, f.gotHolidayOrganization, f.gotHolidaySchools = accountID, organizationID, schoolIDs
+	if f.holidayFamily != nil {
+		return f.holidayFamily, nil
+	}
+	return &parentService.HolidayRegistrationFamily{}, nil
 }
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentService.EnrollmentRequestSummary, error) {
 	return nil, nil

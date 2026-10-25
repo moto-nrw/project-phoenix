@@ -182,3 +182,79 @@ export async function submitHolidayRegistration(
     );
   }
 }
+
+/** A child of the parent's account the registration can start from (#4662). */
+export interface HolidayKnownChild {
+  readonly studentId: string;
+  readonly schoolId: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  /** "YYYY-MM-DD", or "" when the school knows no date of birth. */
+  readonly birthDate: string;
+}
+
+/** What the schools of the Träger know of a parent with an account. */
+export interface HolidayKnownFamily {
+  readonly guardian: {
+    readonly firstName: string;
+    readonly lastName: string;
+    readonly email: string;
+    readonly phone: string;
+  };
+  readonly children: readonly HolidayKnownChild[];
+}
+
+interface BackendFamily {
+  guardian: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+  };
+  children?:
+    | {
+        student_id: string;
+        school_id: string;
+        first_name: string;
+        last_name: string;
+        birth_date?: string;
+      }[]
+    | null;
+}
+
+/**
+ * Loads the prefill for a parent with an account: the children the parent
+ * may register at the schools of the link's Träger, and the parent's contact
+ * data. Answers null without a parent session; the form then starts empty.
+ */
+export async function fetchHolidayRegistrationFamily(
+  token: string,
+): Promise<HolidayKnownFamily | null> {
+  const response = await request(
+    `/api/parent/holiday-registrations/${encodeURIComponent(token)}/family`,
+    { cache: "no-store" },
+  );
+  if (response.status === 401) return null;
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Bekannte Angaben konnten nicht geladen werden",
+    );
+  }
+  const { data } = (await response.json()) as { data: BackendFamily };
+  return {
+    guardian: {
+      firstName: data.guardian.first_name,
+      lastName: data.guardian.last_name,
+      email: data.guardian.email,
+      phone: data.guardian.phone,
+    },
+    children: (data.children ?? []).map((child) => ({
+      studentId: child.student_id,
+      schoolId: child.school_id,
+      firstName: child.first_name,
+      lastName: child.last_name,
+      birthDate: child.birth_date ?? "",
+    })),
+  };
+}
