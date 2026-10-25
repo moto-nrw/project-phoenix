@@ -69,7 +69,7 @@ func TestAbsenceMailOutboxIsAtomicWithDecision(t *testing.T) {
 			audits := owners.NewTestAuditPersistence(database, nil)
 			service, err := newTimeTrackingTestModule(database, rows, members.Staff, presence, settings.Settings, timeTrackingTestGraph{
 				Audits: owners.TimeTrackingAudits{WorkSessionEdit: audits.WorkSessionEdit, TimeTrackingDeletion: audits.TimeTrackingDeletion, DataAccessLog: audits.DataAccessLog, TimeTrackingAuditLog: audits.TimeTrackingAuditLog},
-				Events: owners.TimeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), People: people, Holidays: noHolidays{}, ShiftPlanSync: noSickCascade{}, Logger: slog.Default(),
+				Events: owners.TimeTrackingEvents(deliveryCompose.NewRealtimeHub(slog.Default())), People: people, Holidays: noHolidays{}, Logger: slog.Default(),
 			}, &workforceCompose.AbsenceEmailDeps{Settings: absenceMailEnabled{}, Dispatcher: owners.AbsenceEmailDispatcher{Durable: outbox, From: email.NewEmail("moto", "no-reply@example.test")},
 				StaffRepo: contacts, SchoolRepo: absenceMailSchool{}, FrontendURL: "http://localhost:3000", Logger: slog.Default(),
 			})

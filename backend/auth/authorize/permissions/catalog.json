@@ -56,8 +56,24 @@
     "action": "own"
   },
   {
+    "resource": "calendar",
+    "action": "school"
+  },
+  {
     "resource": "class_day",
     "action": "arrival_exception_write"
+  },
+  {
+    "resource": "class_day",
+    "action": "class_trip_write"
+  },
+  {
+    "resource": "class_day",
+    "action": "handover_write"
+  },
+  {
+    "resource": "class_day",
+    "action": "morning_attendance_write"
   },
   {
     "resource": "class_day",
@@ -81,6 +97,10 @@
   },
   {
     "resource": "display",
+    "action": "read"
+  },
+  {
+    "resource": "enrollment_uploads",
     "action": "read"
   },
   {
@@ -298,6 +318,10 @@
   {
     "resource": "student_documents",
     "action": "legal"
+  },
+  {
+    "resource": "students",
+    "action": "read"
   },
   {
     "resource": "substitutions",

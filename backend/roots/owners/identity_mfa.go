@@ -41,11 +41,10 @@ func NewMFADependencies(codec identityPorts.MFAChallengeCodec, settings settings
 	}, nil
 }
 
-// mfaSettingsFor binds the gate's parameters to the settings service; a root
-// composed without one gets Identity & Access's answers for that case.
+// mfaSettingsFor requires the school-policy resolver at composition time.
 func mfaSettingsFor(settings settingsCompose.SettingsService) identityPorts.MFASettings {
 	if settings == nil {
-		return identityaccess.MFASettingsWithoutService{}
+		panic("identity access MFA: settings are required")
 	}
 	return mfaSettings{settings: settings}
 }
@@ -71,6 +70,9 @@ func (s mfaSettings) MFAModeInTx(ctx context.Context, tenantID int64) (string, e
 
 func (s mfaSettings) TrustedDeviceEnabled(ctx context.Context, tenantID int64) (bool, error) {
 	if tenantID > 0 {
+		if _, inTx := tenant.TransactionFromContext(ctx); inTx {
+			return s.settings.ResolveBoolForTenantInTx(ctx, tenantID, configModel.KeyMFATrustedDeviceEnabled)
+		}
 		return s.settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyMFATrustedDeviceEnabled)
 	}
 	return s.settings.ResolveBool(ctx, configModel.KeyMFATrustedDeviceEnabled)

@@ -129,7 +129,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	targetDir := filepath.Join(avatarDir, globalAvatarDir)
-	filePath, err := common.SaveImage(uploaded.File, targetDir, fmt.Sprintf("%d", account.ID), uploaded.ContentType, res.uploads)
+	filePath, err := common.SavePrivateImage(uploaded.File, targetDir, fmt.Sprintf("%d", account.ID), uploaded.ContentType, res.uploads)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
 		common.RenderError(w, r, common.ErrorInternalServer(err))

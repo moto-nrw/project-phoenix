@@ -36,13 +36,13 @@ func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 }
 
 // checkAndRunDailyGDPRCleanup is the shared per-tenant gate for the nightly
-// retention jobs (visits, timetable, time-tracking). All three share
+// retention jobs. They share
 // KeyDataCleanupEnabled + KeyDataCleanupTime — one switch and one nightly
 // window for all retention. A job runs at the configured minute unless it
 // already succeeded today, and catches up at any minute once a scheduled run
 // was missed (#3950, see cleanupDue). The success is stored in the tenant
 // transaction, so a rollback leaves the run due. Returning an error through
-// forEachTenantSettings also rolls back cleanup audit rows and their
+// forEachCleanupTenantSettings also rolls back cleanup audit rows and their
 // corresponding deletes atomically.
 func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *ScheduledTask, dayCache *sync.Map, opName string, runForTenant func(ctx context.Context, tenantID int64, cleanupTime string) error) {
 	task.mu.Lock()
@@ -61,7 +61,7 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *Sched
 	ctx, cancel := s.taskContext(ctx, 2*time.Hour)
 	defer cancel()
 
-	s.forEachTenantSettings(ctx, opName, func(tenantCtx context.Context, tenantID int64) error {
+	s.forEachCleanupTenantSettings(ctx, opName, func(tenantCtx context.Context, tenantID int64) error {
 		return s.runDailyGDPRCleanupForTenant(tenantCtx, tenantID, dayCache, task.Name, runForTenant)
 	})
 }
@@ -86,7 +86,10 @@ func (s *Scheduler) checkAndRunCleanup(ctx context.Context, task *ScheduledTask)
 			slog.String("cleanup_time", cleanupTime),
 		)
 
-		timeoutMinutes := s.resolveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes, 30)
+		timeoutMinutes, err := s.resolveRequiredPositiveIntSetting(tenantCtx, settingDataCleanupTimeoutMinutes)
+		if err != nil {
+			return fmt.Errorf("resolve %s: %w", settingDataCleanupTimeoutMinutes, err)
+		}
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
@@ -177,7 +180,10 @@ func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tena
 
 	enabled, err := s.dataCleanupEnabled(tenantCtx)
 	if err != nil {
-		cleanupTime := s.resolveStringSetting(tenantCtx, settingDataCleanupTime, "02:00")
+		cleanupTime, timeErr := s.settings.ResolveString(tenantCtx, settingDataCleanupTime)
+		if timeErr != nil {
+			return fmt.Errorf("resolve %s: %w", settingDataCleanupTime, errors.Join(err, timeErr))
+		}
 		now := s.cleanupNow()
 		due, dueErr := s.dailyCleanupDue(tenantCtx, dayCache, taskName, tenantID, cleanupTime, now)
 		if dueErr != nil {
@@ -192,7 +198,10 @@ func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tena
 		return nil
 	}
 
-	cleanupTime := s.resolveStringSetting(tenantCtx, settingDataCleanupTime, "02:00")
+	cleanupTime, timeErr := s.settings.ResolveString(tenantCtx, settingDataCleanupTime)
+	if timeErr != nil {
+		return fmt.Errorf("resolve %s: %w", settingDataCleanupTime, errors.Join(err, timeErr))
+	}
 	now := s.cleanupNow()
 	due, err := s.dailyCleanupDue(tenantCtx, dayCache, taskName, tenantID, cleanupTime, now)
 	if err != nil || !due {

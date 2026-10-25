@@ -247,6 +247,13 @@ type StaffRepository interface {
 	// staff aren't invited as recipients.
 	FindReachableCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
 
+	// FindSchoolPortalStaffIDs returns the staff of the current tenant whose
+	// active account holds a school-portal role there: the Lehrkräfte of
+	// moto schule (#4798).
+	FindSchoolPortalStaffIDs(ctx context.Context) (map[int64]bool, error)
+	// FindReachableSchoolCalendarStaffIDs keeps accounts with calendar:school.
+	FindReachableSchoolCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
+
 	// FindWithPerson retrieves a staff member with their associated person data
 	FindWithPerson(ctx context.Context, id int64) (*peopledirectory.Staff, error)
 
@@ -289,9 +296,6 @@ type StaffRepository interface {
 	// date, opt-outs included. Backs the administrative Geburtstagsliste,
 	// which is gated on the same permission as the Stammdaten it reads.
 	ListBirthdaysForExport(ctx context.Context) ([]peopleBirthday.BirthdayEntry, error)
-
-	// SetBirthdayDisplayOptOut flips one staff member's dashboard opt-out.
-	SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error
 }
 
 // TeacherRepository defines operations for managing teachers
@@ -330,15 +334,17 @@ type TeacherRepository interface {
 	FindWithStaffAndPersonByIDs(ctx context.Context, ids []int64) ([]*peopledirectory.Teacher, error)
 }
 
-// GuestRepository defines operations for managing guests
-type GuestRepository interface {
-	CRUDRepository[*peopledirectory.Guest]
+// ExternalCaregiverRecordRepository defines operations for managing
+// external caregiver records.
+type ExternalCaregiverRecordRepository interface {
+	CRUDRepository[*peopledirectory.ExternalCaregiverRecord]
 
-	// FindByStaffID retrieves a guest by their staff ID
-	FindByStaffID(ctx context.Context, staffID int64) (*peopledirectory.Guest, error)
+	// FindByStaffID retrieves the record of a staff member
+	FindByStaffID(ctx context.Context, staffID int64) (*peopledirectory.ExternalCaregiverRecord, error)
 
-	// ActiveGuests retrieves the guests whose start/end window covers today.
-	ActiveGuests(ctx context.Context) ([]*peopledirectory.Guest, error)
+	// ActiveExternalCaregiverRecords retrieves the records whose start/end
+	// window covers today.
+	ActiveExternalCaregiverRecords(ctx context.Context) ([]*peopledirectory.ExternalCaregiverRecord, error)
 }
 
 // StudentGuardianRepository is the retained composition seam over the

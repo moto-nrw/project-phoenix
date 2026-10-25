@@ -110,11 +110,14 @@ DELETE /parent/me/children/{studentId}/meal-participation/{date}
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
+DELETE /school/calendar/appointments/{appointmentId}
 DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
+DELETE /school/class-day/handover/{schoolClass}/{date}
 DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
 GET /
 GET /.well-known/caldav
+GET /analytics-policy
 GET /api/absence-types/
 GET /api/absence-types/{id}/allowances/{staffId}
 GET /api/absence-types/{id}/allowances/{staffId}/preview
@@ -192,6 +195,7 @@ GET /api/enrollment/admin/requests/{id}/
 GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact
 GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments
 GET /api/enrollment/admin/requests/{id}/delete-impact
+GET /api/enrollment/admin/requests/{id}/uploads/{uploadId}
 GET /api/enrollment/admin/students/{studentId}/requests/
 GET /api/enrollment/captcha-config/{tenantSlug}
 GET /api/enrollment/care-offerings/
@@ -290,9 +294,14 @@ GET /api/meal-plan/orders
 GET /api/meal-plan/orders/month/export
 GET /api/meal-plan/participants
 GET /api/meal-plan/participants/export
+GET /api/meal-plan/participants/week
+GET /api/meal-plan/participants/week/export
 GET /api/meal-plan/participation/{studentId}
 GET /api/messages/
 GET /api/messages/count-scope
+GET /api/messages/group-threads
+GET /api/messages/group-threads/audience
+GET /api/messages/group-threads/{groupThreadId}
 GET /api/messages/reachable-students
 GET /api/messages/students/{studentId}/guardians
 GET /api/messages/students/{studentId}/threads
@@ -567,6 +576,8 @@ GET /parent/me/enrollments
 GET /parent/me/messages
 GET /parent/me/messages/children/{studentId}
 GET /parent/me/messages/children/{studentId}/threads
+GET /parent/me/messages/group-threads
+GET /parent/me/messages/group-threads/{groupThreadId}
 GET /parent/me/messages/unread-count
 GET /parent/me/news
 GET /parent/me/news/unread-count
@@ -579,7 +590,10 @@ GET /public/enrollment-form-legal-documents/{filename}
 GET /public/enrollment-legal-documents/{filename}
 GET /public/login-image/{filename}
 GET /public/request-feed/{token}
+GET /ready
 GET /school-sse/events
+GET /school/calendar/feed
+GET /school/calendar/my
 GET /school/class-day/
 GET /school/class-day/arrival-exceptions
 GET /school/class-day/arrival-exceptions/block-start
@@ -681,6 +695,7 @@ POST /api/enrollment/requests/{statusToken}/confirm-renewal
 POST /api/enrollment/requests/{statusToken}/withdraw
 POST /api/enrollment/schema/
 POST /api/enrollment/{tenantSlug}/submit
+POST /api/enrollment/{tenantSlug}/uploads
 POST /api/feedback/
 POST /api/feedback/batch
 POST /api/files/folders
@@ -728,6 +743,9 @@ POST /api/iot/staff-clock/state
 POST /api/iot/staff/{staffId}/rfid
 POST /api/me/profile/avatar
 POST /api/meal-caterer/invitations
+POST /api/messages/group-threads
+POST /api/messages/group-threads/{groupThreadId}/close
+POST /api/messages/group-threads/{groupThreadId}/messages
 POST /api/messages/mark-all-read
 POST /api/messages/threads
 POST /api/messages/threads/open
@@ -762,6 +780,7 @@ POST /api/staff/absences/{absenceId}/approve
 POST /api/staff/absences/{absenceId}/deny
 POST /api/staff/absences/{absenceId}/question
 POST /api/staff/externals
+POST /api/staff/externals/{id}/invitation
 POST /api/staff/time-tracking/export/sftp
 POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences
@@ -939,6 +958,7 @@ POST /parent/auth/login
 POST /parent/auth/password-reset
 POST /parent/auth/password-reset/confirm
 POST /parent/enrollments/{tenantSlug}/submit
+POST /parent/enrollments/{tenantSlug}/uploads
 POST /parent/me/calendar/feed/rotate
 POST /parent/me/calendar/recipients/{recipientId}/response
 POST /parent/me/children/{studentId}/care-exception
@@ -965,6 +985,10 @@ POST /school/auth/mfa/verify
 POST /school/auth/password-reset
 POST /school/auth/password-reset/confirm
 POST /school/auth/switch-school
+POST /school/calendar/appointments
+POST /school/calendar/feed/rotate
+POST /school/calendar/recipients/{recipientId}/response
+POST /school/class-day/class-trips/{schoolClass}
 POST /school/notifications/push/subscriptions
 POST /school/notifications/test
 POST /school/staff-messages/threads/open
@@ -1097,7 +1121,10 @@ PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
 PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
+PUT /school/calendar/appointments/{appointmentId}
 PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
+PUT /school/class-day/handover/{schoolClass}/{date}
+PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
 QUERY /.well-known/caldav
 QUERY /api/caldav

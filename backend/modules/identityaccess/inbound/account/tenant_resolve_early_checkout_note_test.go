@@ -50,7 +50,7 @@ func TestResolveTenant_EarlyCheckoutNote_DefaultOnWithFifteenMinutes(t *testing.
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)
@@ -68,7 +68,7 @@ func TestResolveTenant_EarlyCheckoutNote_SchoolOverrides(t *testing.T) {
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyEarlyCheckoutNoteEnabled, false, nil, nil))
 	require.NoError(t, tenantSettings.SetValue(ctx, settings.KeyEarlyCheckoutNoteToleranceMinutes, 30, nil, nil))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	resp := resolveEarlyCheckoutNote(t, resource, slug)
@@ -76,8 +76,8 @@ func TestResolveTenant_EarlyCheckoutNote_SchoolOverrides(t *testing.T) {
 	assert.Equal(t, 30, resp.Data.EarlyCheckoutNoteToleranceMinutes)
 }
 
-// An unreadable tolerance hides the note field instead of guessing a window.
-func TestResolveTenant_EarlyCheckoutNote_UnreadableValueFailsClosed(t *testing.T) {
+// An unreadable tolerance fails the shell instead of guessing a window.
+func TestResolveTenant_EarlyCheckoutNote_UnreadableValueFailsRequest(t *testing.T) {
 	t.Parallel()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
@@ -85,10 +85,13 @@ func TestResolveTenant_EarlyCheckoutNote_UnreadableValueFailsClosed(t *testing.T
 	storeRawTenantSetting(t, db, scope.TenantID,
 		settings.KeyEarlyCheckoutNoteToleranceMinutes, json.RawMessage(`"viel"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
-	resp := resolveEarlyCheckoutNote(t, resource, slug)
-	assert.False(t, resp.Data.EarlyCheckoutNoteEnabled)
-	assert.Zero(t, resp.Data.EarlyCheckoutNoteToleranceMinutes)
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/auth/tenant/resolve?slug="+slug, nil))
+	require.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	assert.NotContains(t, response.Body.String(), `"data"`)
 }

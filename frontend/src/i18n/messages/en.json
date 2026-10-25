@@ -264,7 +264,13 @@
     "cancelWeekConfirm": "Cancel",
     "cancelWeekDone": "The week is cancelled.",
     "cancelWeekLocked": "These days were already ordered and stay registered: {days}.",
-    "errorObjectWeekCancel": "the cancellation for the week"
+    "registerWeek": "Register week",
+    "registerWeekDone": "The week is registered.",
+    "registerWeekLocked": "The registration deadline for these days has passed; they stay unregistered: {days}.",
+    "errorObjectWeekCancel": "the cancellation for the week",
+    "errorObjectWeekRegister": "the registration for the week",
+    "participationCutoffLead": "You can change the registration until {time} {days, plural, one {on the working day before the meal} other {# working days before the meal}}.",
+    "participationSicknessLead": "A confirmed sick note by {time} {days, plural, one {on the working day before the meal} other {# working days before the meal}} cancels lunch. After that, the registration remains unchanged."
   },
   "mealOrders": {
     "title": "Order",
@@ -296,6 +302,30 @@
     "deliveryExcel": "Delivery list as Excel",
     "deliveryCsv": "Delivery list as CSV",
     "errorObjectDelivery": "the delivery list"
+  },
+  "mealAllergens": {
+    "legendTitle": "Allergens",
+    "choose": "Choose allergens",
+    "marksShort": "Allergens: {letters}",
+    "marksLabel": "Contains: {names}",
+    "noneThisWeek": "No allergens are listed for this week.",
+    "source": "This information comes from the school or the caterer. A dish without a letter is not guaranteed to be free of allergens. If you have questions, please ask the OGS.",
+    "names": {
+      "gluten": "Cereals containing gluten",
+      "crustaceans": "Crustaceans",
+      "eggs": "Eggs",
+      "fish": "Fish",
+      "peanuts": "Peanuts",
+      "soybeans": "Soy",
+      "milk": "Milk (including lactose)",
+      "nuts": "Tree nuts",
+      "celery": "Celery",
+      "mustard": "Mustard",
+      "sesame": "Sesame",
+      "sulphites": "Sulphur dioxide and sulphites",
+      "lupin": "Lupin",
+      "molluscs": "Molluscs"
+    }
   },
   "mealParticipantList": {
     "title": "Daily list for the kitchen",
@@ -338,7 +368,27 @@
     "errorObjectChange": "the registration",
     "asRegular": "As on regular days",
     "scheduleLoading": "Loading the regular days…",
-    "errorObjectSchedule": "the regular days"
+    "errorObjectSchedule": "the regular days",
+    "cutoffLead": "Changes for this day are possible until {time} {days, plural, one {on the working day before} other {# working days before}}.",
+    "viewAria": "Kitchen list view",
+    "viewDay": "Day",
+    "viewWeek": "Week",
+    "weekTitle": "Weekly list for the kitchen",
+    "weekDescription": "The list shows all children registered for lunch in this week.",
+    "weekCutoff": "Changes are possible until {time} {days, plural, =0 {on the day of the meal} one {on the working day before} other {# working days before}}.",
+    "weekDateAria": "Week from {from}",
+    "weekDownloadGroup": "Download weekly list",
+    "weekDownloadPdf": "Download weekly list as PDF",
+    "weekDownloadExcel": "Download weekly list as an Excel file",
+    "weekErrorObject": "the weekly list",
+    "weekCaption": "Lunch from {from} to {to}",
+    "weekEmptyTitle": "No registrations this week",
+    "weekEmptyDescription": "No child is on the kitchen list for this week.",
+    "weekRegistered": "registered",
+    "weekNotRegistered": "not registered",
+    "weekCountsLabel": "Number of meals per day",
+    "weekCount": "{count, plural, one {# child} other {# children}}",
+    "weekClosed": "no meal"
   },
   "parentDashboard": {
     "eyebrow": "Parent portal",
@@ -416,6 +466,7 @@
     "deadline": "Deadline {date}",
     "closed": "Deadline passed",
     "passwordNote": "moto asks for your password before you answer.",
+    "signatureNote": "To agree, you sign with your finger or the mouse.",
     "state": {
       "open": "Open",
       "partial": "Partly answered",
@@ -467,6 +518,22 @@
     "confirmVersion": "Text",
     "confirmRecorded": "moto saves your answer with date and time. The school can see it.",
     "passwordLabel": "Password of your parent account",
+    "signature": {
+      "label": "Your signature",
+      "hint": "Sign in the box with your finger, a pen or the mouse.",
+      "canvas": "Box for your signature",
+      "clear": "Clear field",
+      "typeInstead": "Type your name",
+      "drawInstead": "Draw instead",
+      "typedName": "Your first and last name",
+      "confirm": "Confirm signature",
+      "confirmed": "Your signature is ready.",
+      "confirmedTyped": "Your typed name is ready.",
+      "change": "Sign again",
+      "preview": "Your signature",
+      "emptyDrawing": "Please sign in the box.",
+      "nameTooShort": "Please type your name."
+    },
     "revokeTitle": "Withdraw consent",
     "revokeBody": "You withdraw your consent for {name}.",
     "revokeConfirm": "Withdraw",
@@ -475,7 +542,8 @@
     "saved": "Your answer for {name} has been saved.",
     "errors": {
       "passwordRequired": "Please enter your password.",
-      "uncertainReload": "The current status is being reloaded. Please check it before you reply again."
+      "uncertainReload": "The current status is being reloaded. Please check it before you reply again.",
+      "signatureRequired": "Please sign and tap “Confirm signature”."
     },
     "errorObjectAnswer": "the reply"
   },
@@ -498,10 +566,14 @@
     "entryVersion": "Version {version}",
     "passwordYes": "Confirmed with password",
     "passwordNo": "Without password",
+    "signatureAlt": "Signature of {name}",
+    "signatureDrawn": "Drawn with finger or mouse",
+    "signatureTyped": "Typed: {name}",
     "versionsTitle": "Text from the school",
     "versionHeading": "Version {version}, published on {date}",
     "attachments": "Files",
     "note": "This proof documents a simple electronic declaration. It does not replace a signature on paper that is required by law.",
+    "noteSigned": "Signed answers were given as a simple electronic signature with a drawn signature.",
     "errorObjectProof": "the proof document",
     "errorObjectPdf": "the PDF"
   },
@@ -1174,7 +1246,8 @@
       "pickupConfirm": "Please confirm the pickup arrangement (select days or leave empty).",
       "weekdayRequired": "Please select at least one weekday.",
       "weekdayModeConfirm": "Please confirm the departure arrangement.",
-      "weekdayMultiModeRequired": "Please choose at least one way home for each care day."
+      "weekdayMultiModeRequired": "Please choose at least one way home for each care day.",
+      "file": "Please upload at least one file."
     },
     "actions": {
       "addChild": "Add another child",
@@ -1326,6 +1399,23 @@
       "noCare": "No offerings booked.",
       "hint": "Changes for {name} now go through the parents app.",
       "noAccess": "Cannot access the parents app? Please contact the OGS."
+    },
+    "upload": {
+      "errorObject": "the file",
+      "choose": "Choose file",
+      "chooseMore": "Choose another file",
+      "allowed": "Allowed: {types}, at most {max} MB per file.",
+      "upTo": "Up to {count} files.",
+      "camera": "On a phone you can also take a photo.",
+      "uploading": "Uploading …",
+      "remove": "Remove {name}",
+      "wrongType": "This file has the wrong type. Allowed: {types}.",
+      "tooLarge": "This file is too large. At most {max} MB is allowed.",
+      "empty": "This file is empty. Please choose another file.",
+      "onlyOne": "You can only upload one file here.",
+      "tooMany": "You can upload at most {count} files here.",
+      "pendingSubmit": "Please wait until all files are uploaded.",
+      "previewDisabled": "You cannot upload files in the preview."
     }
   },
   "enrollmentStatus": {
@@ -2069,6 +2159,25 @@
     "errorObjectMessage": "the message",
     "errorObjectList": "the list of conversations"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "Group messages from the OGS",
+    "sectionDescription": "Here the OGS writes to your child's group, class or club.",
+    "closed": "Closed",
+    "forChildren": "For {names}",
+    "privacyNote": "Your reply goes only to the OGS. Other parents do not see it.",
+    "replyTitle": "Reply to the OGS",
+    "replyChildLabel": "Reply for",
+    "replyPlaceholder": "Write a reply to the OGS",
+    "replyFieldLabel": "Reply",
+    "sentConfirmation": "The OGS has received your reply.",
+    "toChat": "Go to the chat with the OGS",
+    "closedNote": "This group message is closed. You can still write to the OGS in the chat about your child.",
+    "writingDisabled": "You cannot reply to this message. You can still read it.",
+    "answerTo": "Reply to: {title}",
+    "errorObjectThread": "the group message",
+    "errorObjectAnswer": "the reply",
+    "errorObjectList": "the group messages"
+  },
   "parentCalendar": {
     "kicker": "Appointments at a glance",
     "title": "Calendar",
@@ -2201,6 +2310,8 @@
         "declaration_not_permitted": "You may not answer for this child. If you have questions, please contact the OGS.",
         "declaration_password_incorrect": "The password is not correct. Please try again.",
         "declaration_password_required": "Please enter your password.",
+        "declaration_signature_invalid": "The signature could not be saved. Please sign again.",
+        "declaration_signature_required": "Please sign before you agree.",
         "declaration_version_changed": "The school has changed the text. Please read it again and then answer again.",
         "excused_request_not_pending": "{object} is no longer open. Please reload the page.",
         "excused_request_overlap": "The times for {object} overlap. Please check the details.",
@@ -2251,6 +2362,21 @@
         "arrival_exception_editor_required": "You cannot access {object}. Please contact the school.",
         "arrival_exception_past_date": "{object} could not be saved. Please check your entries.",
         "arrival_exception_weekend": "{object} could not be saved. Please check your entries.",
+        "class_handover_no_school_day": "Today is not a school day. A class can only be handed over on school days.",
+        "class_handover_not_found": "The class has not been handed over today. Please reload the page.",
+        "class_handover_not_today": "A class can only be handed over today. Please open today.",
+        "class_handover_unknown_child": "A child no longer belongs to this class. Please reload the page.",
+        "class_trip_arrival_conflict": "{object} could not be changed. Please check its current status.",
+        "class_trip_invalid_range": "{object} could not be saved. Please check your entries.",
+        "class_trip_no_students": "{object} could not be saved. Please check your entries.",
+        "class_trip_past_date": "{object} could not be saved. Please check your entries.",
+        "class_trip_return_time_multi_day": "{object} could not be saved. Please check your entries.",
+        "class_trip_return_time_weekend": "{object} could not be saved. Please check your entries.",
+        "class_trip_status_conflict": "{object} could not be changed. Please check its current status.",
+        "class_trip_student_not_in_class": "{object} could not be changed. Please check its current status.",
+        "morning_attendance_no_school_day": "Today is not a school day. Attendance can only be recorded on school days.",
+        "morning_attendance_not_today": "Attendance can only be recorded for today. Please open today.",
+        "morning_attendance_unknown_child": "A child no longer belongs to this class. Please reload the page.",
         "school_write_disabled": "You cannot access {object}. Please contact the school."
       },
       "communication": {
@@ -2265,7 +2391,9 @@
         "staff_messaging_disabled": "You cannot access {object}. Please contact the school.",
         "staff_notice_outdated": "{object} could not be changed. Please check its current status.",
         "system_announcement_immutable": "{object} could not be changed. Please check its current status.",
-        "announcement_not_found": "{object} could not be changed. Please check its current status."
+        "announcement_not_found": "{object} could not be changed. Please check its current status.",
+        "group_thread_closed": "This group message is closed. You can no longer reply.",
+        "group_thread_no_recipients": "No child in this group has parents with access to moto. The message was not sent."
       },
       "enrollment": {
         "form_attachment_invalid": "Please check the label and the PDF file.",
@@ -2350,6 +2478,11 @@
         "legal_block_key_invalid": "{object} could not be saved. Please check your entries.",
         "legal_block_required_not_allowed": "{object} could not be saved. Please check your entries.",
         "legal_document_invalid": "{object} could not be saved. Please check your entries.",
+        "form_field_file_options_invalid": "Please check the file question. Choose at least one file type and a size from 1 to 10 MB.",
+        "upload_invalid": "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
+        "upload_expired": "An uploaded file has expired. Please upload it again.",
+        "upload_rate_limited": "Too many files were uploaded. Please try again later.",
+        "upload_not_found": "This file no longer exists. Please upload it again.",
         "message_required": "Please write a message.",
         "offering_adjustment_invalid": "{object} could not be saved. Please check your entries.",
         "phase_care_offering_conflict": "{object} could not be changed. Please check its current status.",
@@ -2436,6 +2569,7 @@
         "preview_token_invalid": "You cannot access {object}. Please contact the school.",
         "read_only_preview": "You cannot access {object}. Please contact the school.",
         "role_name_taken": "{object} could not be changed. Please check its current status.",
+        "role_platform_permission": "{object} could not be saved. Please check your entries.",
         "session_account_inactive": "Your account is switched off. Please contact your school's management.",
         "tenant_access_denied": "You cannot access {object}. Please contact the school.",
         "use_parent_portal": "You cannot access {object}. Please contact the school.",
@@ -2448,6 +2582,8 @@
         "email_change_rate_limited": "{object} is unavailable right now. Please try again.",
         "email_change_same_email": "{object} could not be saved. Please check your entries.",
         "email_change_link_invalid": "{object} could not be changed. Please check its current status.",
+        "mfa_status_unavailable": "Sign-in verification is currently unavailable. Please try again.",
+        "mfa_session_required": "Signing in to {object} requires a second verification. Use the button to sign out and open that school’s sign-in page. Sign in there again and complete the verification.",
         "mfa_not_enrolled": "{object} could not be changed. Please check its current status.",
         "mfa_already_enrolled": "{object} could not be changed. Please check its current status.",
         "passkey_not_found": "{object} could not be changed. Please check its current status.",
@@ -2511,6 +2647,7 @@
         "child_not_enrolled": "{object} is not possible. The child is not in care on this day.",
         "day_closed": "{object} is not possible. The school is closed on this day.",
         "day_past": "{object} is no longer possible. The day is already over.",
+        "invalid_allergens": "The allergens could not be saved. Please select them again.",
         "invalid_dishes": "{object} could not be saved. Please check your entries.",
         "invalid_meal_date": "{object} could not be saved. Please check your entries.",
         "invalid_participation": "{object} contains invalid details. Please check your entries.",
@@ -2519,6 +2656,7 @@
         "plan_disabled": "{object} is not available here at the moment. Please ask your contact person.",
         "plan_week_out_of_range": "{object} could not be saved. Please check your entries.",
         "registration_disabled": "{object} is not available here at the moment. Please ask your contact person.",
+        "delivery_range_too_long": "The delivery list covers at most seven days. Please choose a shorter period.",
         "not_supplied": "You no longer supply this school. Please ask the school.",
         "order_not_found": "This order does not exist. Please reload the page.",
         "supply_active": "{object} is not possible right now. A caterer still supplies the school. Please end that supply first."
@@ -2573,6 +2711,7 @@
         "care_exit_preview_changed": "{object} could not be changed. Please check its current status.",
         "care_exit_too_many_students": "{object} could not be saved. Please check your entries.",
         "care_offerings_disabled": "{object} is not available here at the moment. Please ask your contact person.",
+        "care_resume_alumnus": "{object} could not be changed. Please check its current status.",
         "care_resume_missing": "{object} could not be changed. Please check its current status.",
         "care_resume_not_checked": "{object} could not be saved. Please check your entries.",
         "care_resume_not_ended": "{object} could not be changed. Please check its current status.",
@@ -2887,7 +3026,9 @@
         "presence_mode_switch_blocked": "{object} could not be changed. Please check its current status.",
         "booking_authority_blocked": "{object} could not be changed. Please check its current status.",
         "attendance_visible_exceeds_retention": "{object} could not be saved. Please check your entries.",
-        "attendance_retention_below_visible": "{object} could not be saved. Please check your entries."
+        "attendance_retention_below_visible": "{object} could not be saved. Please check your entries.",
+        "module_requires": "{object} could not be saved. Please check your entries.",
+        "module_required_by": "{object} could not be saved. Please check your entries."
       },
       "devices": {
         "tag_scan_not_found": "{object} could not be changed. Please check its current status.",
@@ -2901,6 +3042,17 @@
       },
       "feedback": {
         "disabled": "You cannot access {object}. Please contact the school."
+      },
+      "staff": {
+        "external_access_invalid": "Please choose which access this person gets.",
+        "external_email_invalid": "This email address is not valid. Please check it.",
+        "external_email_invited": "This email address already has an open invitation for someone else. Please use another address.",
+        "external_email_required": "Please enter an email address.",
+        "external_has_account": "This person already has an account. No invitation is needed.",
+        "not_external": "This person is not listed as external. Please invite them like other staff members."
+      },
+      "operator": {
+        "audit_unavailable": "{object} is unavailable right now. Please try again."
       }
     },
     "actions": {

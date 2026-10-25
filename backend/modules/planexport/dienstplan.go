@@ -14,7 +14,7 @@ import (
 
 // areaWithoutShiftType labels shifts that carry no Schichtart, so they still
 // have a row in the Einsatzbereich view instead of quietly disappearing.
-const areaWithoutShiftType = "Dienst ohne Schichtart"
+const areaWithoutShiftType = "Ohne Dienstart"
 
 // ExportDienstplan renders the staff week: who works when, where, on what.
 //

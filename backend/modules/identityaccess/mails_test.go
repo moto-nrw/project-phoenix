@@ -27,10 +27,12 @@ func TestSchoolInvitationMailPicksThePortalAndTheRoleName(t *testing.T) {
 	assert.Equal(t, "Einladung zu moto – OGS Am Berg", mail.Subject)
 	assert.Equal(t, "invitation.html", mail.Template)
 	assert.Equal(t, "https://staff.example/invite?token=tok", content(t, mail)["InvitationURL"])
-	assert.Equal(t, "Betreuer", content(t, mail)["RoleName"])
+	assert.Equal(t, "Betreuung", content(t, mail)["RoleName"])
 	assert.Equal(t, 48, content(t, mail)["ExpiryHours"])
 	assert.Equal(t, "Einladung zu moto", identityaccess.SchoolInvitationMail(invitation, "", "o", time.Hour).Subject)
 	assert.Equal(t, "Förderkraft", identityaccess.RoleDisplayName("Förderkraft"), "a school's own role keeps its name")
+	assert.Equal(t, "AG-Leitung", identityaccess.RoleDisplayName(identityaccess.AGLeitungRoleName))
+	assert.Equal(t, "Gast", identityaccess.RoleDisplayName(identityaccess.GuestRoleName))
 }
 
 // A welcome is cancelled once its invitation can no longer be redeemed and
@@ -56,9 +58,11 @@ func TestStaffWelcomeCancelledOnlyForSpentInvitations(t *testing.T) {
 func TestGuardianInvitationExpiryAndMail(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, 12*time.Hour, identityaccess.GuardianInvitationExpiry(12, 24*time.Hour))
-	assert.Equal(t, 24*time.Hour, identityaccess.GuardianInvitationExpiry(0, 24*time.Hour))
-	assert.Equal(t, 48*time.Hour, identityaccess.GuardianInvitationExpiry(0, 0))
+	expiry, err := identityaccess.GuardianInvitationExpiry(12)
+	require.NoError(t, err)
+	assert.Equal(t, 12*time.Hour, expiry)
+	_, err = identityaccess.GuardianInvitationExpiry(0)
+	require.Error(t, err)
 
 	recipient := identityaccess.GuardianMailRecipient{FirstName: " Kim ", LastName: "Beispiel", Email: " kim@example.test "}
 	invitation := identityaccess.GuardianInvitationMailOf(recipient, "", "tok", time.Now().Add(10*time.Minute), "")

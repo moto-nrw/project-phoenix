@@ -1,14 +1,7 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
-import {
-  Fragment,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { Fragment, Suspense, useCallback, useEffect, useMemo } from "react";
 import { NavLink } from "~/components/ui/nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -29,17 +22,23 @@ import {
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import type { SupervisedRoom } from "~/lib/supervision-derive";
+import {
+  isSharedOpenRoom,
+  type SupervisedRoom,
+} from "~/lib/supervision-derive";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { isDemoBannerShown } from "~/components/demo/demo-banner";
 import { useDemoEveningActive } from "~/components/demo/demo-evening-notice";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   hasRole,
   isCaregiver,
   leadsSchool,
 } from "~/lib/auth-utils";
+import { STUDENT_READ_PERMISSIONS } from "~/lib/student-access";
+import { canOpenActiveSupervision } from "~/lib/active-supervision-access";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
@@ -165,31 +164,37 @@ const NAV_ITEMS: NavItem[] = [
     hideForAdmin: true,
   },
   {
+    // Alle Kinder liest das Schülerverzeichnis: users:read oder, für die
+    // Rolle „Gast“, students:read (ADR 0091). Ohne beides, etwa als
+    // AG-Leitung, wäre der Eintrag eine Sackgasse.
     ...STAFF_FLAT_PAGES.studentSearch,
     icon: navigationIcons.userSingle,
     concept: "children",
-    alwaysShow: true,
+    requiresPermission: STUDENT_READ_PERMISSIONS,
   },
   {
     ...STAFF_FLAT_PAGES.activities,
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
     concept: "activities",
     activeColor: "text-moto-coral",
-    alwaysShow: true,
+    // Dasselbe Recht wie GET /api/activities (#4573, AG-Leitung).
+    requiresPermission: ["activities:list", "activities:read"],
   },
   {
     ...STAFF_FLAT_PAGES.rooms,
     icon: navigationIcons.rooms,
     concept: "rooms",
     activeColor: "text-moto-navy",
-    alwaysShow: true,
+    // Dasselbe Recht wie GET /api/rooms (#4573, AG-Leitung).
+    requiresPermission: "rooms:read",
   },
   {
     ...STAFF_FLAT_PAGES.staff,
     concept: "staff",
     icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
     activeColor: "text-moto-orange",
-    alwaysShow: true,
+    // Dasselbe Recht wie GET /api/staff (#4573, AG-Leitung).
+    requiresPermission: ["users:read", "staff:manage", "staff:stammdaten"],
   },
   {
     ...STAFF_FLAT_PAGES.calendar,
@@ -207,6 +212,8 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     concept: "groupAccess",
     activeColor: "text-moto-purple",
+    // Die Seite öffnet nur mit substitutions:read (#4573, AG-Leitung).
+    requiresPermission: "substitutions:read",
   },
   {
     ...STAFF_FLAT_PAGES.infoDisplays,
@@ -219,7 +226,9 @@ const NAV_ITEMS: NavItem[] = [
     ...STAFF_FLAT_PAGES.timeTracking,
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
     concept: "timeTracking",
-    alwaysShow: true,
+    // Die eigene Zeiterfassung liest das Backend nur mit time_tracking:own;
+    // externe Kräfte (#4573) erfassen keine Arbeitszeit.
+    requiresPermission: "time_tracking:own",
   },
   {
     // Eigener Dienstplan (#3821): die Route liest nur über time_tracking:own.
@@ -274,7 +283,9 @@ const NAV_ITEMS: NavItem[] = [
     icon: navigationIcons.emergency,
     concept: "emergency",
     activeColor: "text-moto-wine",
-    alwaysShow: true,
+    // Die Notfallliste exportiert das Backend nur mit users:read (#4573,
+    // AG-Leitung).
+    requiresPermission: "users:read",
     bottomPinned: true,
   },
   {
@@ -664,6 +675,7 @@ function SidebarContent({
   const userIsAdmin = hasRole(session, "admin");
   const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
+  const canReadSupervisions = canReadSupervisionData(session);
   // Leitung der Einrichtung: Adminzuschnitt oder config:manage, das Recht
   // hinter Anmeldungen und Einstellungen (#3469). Entscheidet über die
   // Anmeldungen und die Rolle der Hilfe, nicht über einzelne Rechte.
@@ -781,7 +793,9 @@ function SidebarContent({
       PARENT_SUB_PAGES.filter((page) => {
         switch (page.feature) {
           case "messages":
-            return true;
+            // Elternnachrichten verlangen users:read (#4573: nicht für
+            // die AG-Leitung).
+            return userIsAdmin || hasPermission(session, "users:read");
           case "approvals":
             // Lesen users:manage, Entscheiden users:update (#3469).
             return canReviewGuardianApprovals(session);
@@ -945,6 +959,15 @@ function SidebarContent({
     return null;
   };
 
+  // Ein offener Raum ohne eigene Aufsicht, geöffnet über seine Raumseite,
+  // gehört in der Navigation zu „Räume“, nicht zu „Aktuelle Aufsicht“ (#4372).
+  const isViewingSharedOpenRoom =
+    pathname.startsWith("/active-supervisions") &&
+    isSharedOpenRoom(supervisedRooms, {
+      roomId: searchParams.get("room"),
+      sessionId: searchParams.get("session"),
+    });
+
   // Check if a navigation link should be highlighted as active
   const isActiveLink = (href: string) => {
     if (objectRouteActiveHref !== null) {
@@ -955,6 +978,7 @@ function SidebarContent({
       return href === operatorDrillInHref;
     }
     if (href === "/home") return pathname === "/home";
+    if (isViewingSharedOpenRoom) return href === STAFF_FLAT_PAGES.rooms.href;
     // Ohne eigene Einträge gehören Gruppen- und Aufsichtsseite zu „Alle
     // Kinder“, von wo aus sie geöffnet werden (#1321).
     if (
@@ -1244,43 +1268,17 @@ function SidebarContent({
     "supervision-last-session",
     childFromParam?.startsWith("/active-supervisions") ?? false,
   );
-  // Offene Räume (#3065) stehen in einem eigenen Bereich unter der eigenen
-  // Aufsicht: für alle erreichbar, aber nicht die
-  // eigene Aufsicht. `null` heißt wie dort: richtet sich nach dem geöffneten
-  // Raum, ein Klick übersteuert.
-  const ownSupervisedRooms = useMemo(
-    () => supervisedRooms.filter((room) => !room.isOpenRoom),
+  // „Aktuelle Aufsicht“ zeigt nur laufende Aufsichten: eigene, mit der
+  // Schulübersicht auch fremde. Ein offener Raum (#3065) steht hier nur, wenn
+  // die Person dort selbst Aufsicht führt (#4349). Alle anderen offenen Räume
+  // erreicht sie über „Räume“, wo sie oben stehen (#4372).
+  const supervisionNavRooms = useMemo(
+    () =>
+      supervisedRooms.filter(
+        (room) => !room.isOpenRoom || room.isOwnSupervision,
+      ),
     [supervisedRooms],
   );
-  const openSupervisedRooms = useMemo(
-    () => supervisedRooms.filter((room) => room.isOpenRoom),
-    [supervisedRooms],
-  );
-  // Eine eigene Aufsicht in einem offenen Raum steht nur dort (#4349).
-  // „Aktuelle Aufsicht“ sagt dann, wo sie zu finden ist, auch wenn dort mit
-  // der Schulübersicht fremde Aufsichten stehen.
-  const hasOwnSupervisionInOpenRoom = openSupervisedRooms.some(
-    (room) => room.isOwnSupervision,
-  );
-  const [openRoomsExpanded, setOpenRoomsExpanded] = useState<boolean | null>(
-    null,
-  );
-  const hasSelectedOpenRoom = openSupervisedRooms.some(
-    (room) =>
-      room.id === currentRoomParam ||
-      room.id === childRoomId ||
-      (currentSessionParam !== null &&
-        (room.sessionIds?.includes(currentSessionParam) ?? false)),
-  );
-  const areOpenRoomsExpanded =
-    expanded === "supervisions" && (openRoomsExpanded ?? hasSelectedOpenRoom);
-
-  useEffect(() => {
-    if (expanded !== "supervisions") {
-      setOpenRoomsExpanded(null);
-    }
-  }, [expanded]);
-
   // Persist last selected sub-item per accordion section to localStorage.
   // Pages read this on mount to restore the user's last selection.
   useEffect(() => {
@@ -1334,34 +1332,48 @@ function SidebarContent({
   }, [groups.length, pathname, router, toggle]);
 
   const handleSupervisionsToggle = useCallback(() => {
-    if (areOpenRoomsExpanded) {
-      setOpenRoomsExpanded(false);
-      return;
+    // Aus einem offenen Raum ohne eigene Aufsicht heraus führt der Eintrag
+    // in die eigene Aufsicht und bleibt dabei aufgeklappt.
+    if (!isViewingSharedOpenRoom || expanded !== "supervisions") {
+      toggle("supervisions");
     }
-    toggle("supervisions");
-    if (!pathname.startsWith("/active-supervisions")) {
+    if (
+      !pathname.startsWith("/active-supervisions") ||
+      isViewingSharedOpenRoom
+    ) {
       // Own supervisions use their session key (#2265). A saved session that
       // belongs to a released room instead identifies that room's shared view.
+      // Only entries listed under „Aktuelle Aufsicht“ qualify: a released room
+      // without an own supervision lives under „Räume“ (#4372).
       const savedSessionId = localStorage.getItem("supervision-last-session");
       const savedRoomId = localStorage.getItem("sidebar-last-room");
       const targetRoom =
         (savedSessionId
-          ? (supervisedRooms.find(
+          ? (supervisionNavRooms.find(
               (r) => !r.isOpenRoom && r.groupId === savedSessionId,
             ) ??
-            supervisedRooms.find((r) => r.sessionIds?.includes(savedSessionId)))
+            supervisionNavRooms.find((r) =>
+              r.sessionIds?.includes(savedSessionId),
+            ))
           : undefined) ??
         (savedRoomId
-          ? supervisedRooms.find((r) => r.id === savedRoomId)
+          ? supervisionNavRooms.find((r) => r.id === savedRoomId)
           : undefined) ??
-        supervisedRooms[0];
+        supervisionNavRooms[0];
       if (targetRoom) {
         router.push(supervisionHref(targetRoom));
       } else {
         router.push("/active-supervisions");
       }
     }
-  }, [areOpenRoomsExpanded, toggle, pathname, supervisedRooms, router]);
+  }, [
+    toggle,
+    expanded,
+    pathname,
+    isViewingSharedOpenRoom,
+    supervisionNavRooms,
+    router,
+  ]);
 
   const handleDatabaseToggle = useCallback(() => {
     // Die Leitung landet auf dem Hub. Delegierte Personen haben nur einen
@@ -1414,12 +1426,13 @@ function SidebarContent({
     }
   }, [toggle, pathname, router]);
 
-  // Caregivers see their own supervision. A successful overview request also
-  // covers effective admins and verified staff under all_staff (#2380).
+  // Everyone with group-read access sees own supervisions. A successful
+  // overview request also covers effective admins and verified staff under
+  // all_staff (#2380).
   // overviewEnabled keeps a released room (#3065) from opening the accordion:
   // it is reachable for everyone and grants no supervision, so it must not
   // stand for one when the school keeps everyone on their own supervisions.
-  const showStaffAccordions = userIsCaregiver || overviewEnabled;
+  const showStaffAccordions = canReadSupervisions || overviewEnabled;
   const showGroupAccordion = showStaffAccordions || userHasEffectiveAdminScope;
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
@@ -1536,52 +1549,53 @@ function SidebarContent({
     ) : null;
 
   // Aktuelle Aufsicht (staff only; hidden in binary mode because room-level
-  // supervision has no meaning without visits). Offene Räume darunter als
-  // eigener Bereich (#3065).
+  // supervision has no meaning without visits). Offene Räume ohne eigene
+  // Aufsicht stehen unter „Räume“ (#4372). Mit `schedules:read` allein
+  // (#4573) zeigt die Seite die eigene laufende Aufsicht.
   const renderSupervisionsSection = () =>
-    showStaffAccordions && !isBinaryMode && !childSearchOnlyNavigation ? (
+    (overviewEnabled || canOpenActiveSupervision(session)) &&
+    !isBinaryMode &&
+    !childSearchOnlyNavigation ? (
       <>
         <SidebarAccordionSection
           icon={SUPERVISION_NAV_ICON}
           concept="supervision"
           label={
-            ownSupervisedRooms.length > 1
+            supervisionNavRooms.length > 1
               ? "Aktuelle Aufsichten"
               : "Aktuelle Aufsicht"
           }
           tourId="nav-section-supervisions"
           activeColor="text-moto-purple"
-          isExpanded={expanded === "supervisions" && !areOpenRoomsExpanded}
-          {...sectionProps("supervisions", handleSupervisionsToggle, () =>
-            // Das Icon im Streifen heißt "Aktuelle Aufsicht". Ohne diesen
-            // Rücksetzer öffnete es die Leiste im zuletzt gewählten
-            // Unterbereich "Offene Räume".
-            setOpenRoomsExpanded(false),
-          )}
-          isActive={isAccordionSectionActive(
-            "/active-supervisions",
-            Boolean(currentRoomParam) ||
-              Boolean(childRoomId) ||
-              supervisedRooms.length > 0,
-          )}
+          isExpanded={expanded === "supervisions"}
+          {...sectionProps("supervisions", handleSupervisionsToggle)}
+          isActive={
+            !isViewingSharedOpenRoom &&
+            isAccordionSectionActive(
+              "/active-supervisions",
+              Boolean(currentRoomParam) ||
+                Boolean(childRoomId) ||
+                supervisionNavRooms.length > 0,
+            )
+          }
           isIconActive={
-            pathname.startsWith("/active-supervisions") || Boolean(childRoomId)
+            !isViewingSharedOpenRoom &&
+            (pathname.startsWith("/active-supervisions") ||
+              Boolean(childRoomId))
           }
           isLoading={isLoadingSupervision}
           emptyText="Keine aktive Aufsicht"
-          hasChildren={
-            ownSupervisedRooms.length > 0 || hasOwnSupervisionInOpenRoom
-          }
+          hasChildren={supervisionNavRooms.length > 0}
         >
-          {ownSupervisedRooms.map((room, index) => (
+          {supervisionNavRooms.map((room, index) => (
             <SidebarSubItem
-              key={`${room.id}-${room.groupId ?? index}`}
+              key={`${room.id}-${room.isOpenRoom ? "open" : room.groupId}`}
               href={supervisionHref(room)}
               label={room.name}
               isActive={isRoomSubItemActive(
                 childSessionId,
                 childRoomId,
-                room.groupId,
+                room.isOpenRoom ? null : room.groupId,
                 room.sessionIds ?? [],
                 room.id,
                 pathname,
@@ -1591,84 +1605,7 @@ function SidebarContent({
               )}
             />
           ))}
-          {hasOwnSupervisionInOpenRoom && (
-            <p className="py-2 pr-3 pl-11 text-xs text-gray-400">
-              Ihre Aufsicht steht unter „Offene Räume“.
-            </p>
-          )}
         </SidebarAccordionSection>
-        {/* Offene Räume sind ein Raum-Bereich, keine zweite eigene Aufsicht:
-            Das Tür-Icon trennt sie in der Navigation sichtbar von der
-            aktuellen Aufsicht. Im eingeklappten Streifen blendet der Bereich
-            aus und zieht seine Höhe mit der Breite der Leiste auf null. */}
-        {openSupervisedRooms.length > 0 && (!collapsed || labelsMounted) && (
-          <div
-            aria-hidden={!labelsVisible}
-            className={`grid motion-safe:transition-[grid-template-rows,opacity] motion-safe:duration-200 motion-safe:ease-in-out ${
-              labelsVisible
-                ? "grid-rows-[1fr] opacity-100"
-                : "grid-rows-[0fr] opacity-0"
-            }`}
-          >
-            {/* inert: der ausblendende Bereich darf keinen
-                Tastaturfokus mehr fangen. */}
-            <div className="overflow-hidden" inert={!labelsVisible}>
-              <SidebarAccordionSection
-                icon={SUPERVISION_NAV_ICON}
-                concept="rooms"
-                label="Offene Räume"
-                activeColor="text-moto-purple"
-                isExpanded={areOpenRoomsExpanded}
-                collapsed={collapsed}
-                labelsMounted={labelsMounted}
-                labelsVisible={labelsVisible}
-                // Die Hülle darüber zieht die ganze Höhe zusammen; der Inhalt
-                // behält seine Höhe solange bei (#2923).
-                keepBodyExpandedWhileCollapsing={labelsMounted}
-                onToggle={() => {
-                  // Aus dem Streifen heraus zuerst aufklappen: die Räume
-                  // sind sonst nicht sichtbar.
-                  if (collapsed) onExpandSidebar();
-                  if (expanded !== "supervisions") {
-                    toggle("supervisions");
-                  }
-                  setOpenRoomsExpanded(
-                    (current) => !(current ?? hasSelectedOpenRoom),
-                  );
-                }}
-                isActive={isAccordionSectionActive(
-                  "/active-supervisions",
-                  hasSelectedOpenRoom,
-                )}
-                isIconActive={
-                  pathname.startsWith("/active-supervisions") ||
-                  Boolean(childRoomId)
-                }
-                hasChildren
-              >
-                {openSupervisedRooms.map((room, index) => (
-                  <SidebarSubItem
-                    key={`${room.id}-open`}
-                    href={supervisionHref(room)}
-                    label={room.name}
-                    ownSupervision={room.isOwnSupervision}
-                    isActive={isRoomSubItemActive(
-                      childSessionId,
-                      childRoomId,
-                      null,
-                      room.sessionIds ?? [],
-                      room.id,
-                      pathname,
-                      currentSessionParam,
-                      currentRoomParam,
-                      ownSupervisedRooms.length + index,
-                    )}
-                  />
-                ))}
-              </SidebarAccordionSection>
-            </div>
-          </div>
-        )}
       </>
     ) : null;
 

@@ -1,12 +1,43 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync, symlinkSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 const source = dirname(fileURLToPath(import.meta.url));
+
+test('Go imports hook preserves tool failures and rejects formatting diffs', async t => {
+  const hooks = readFileSync(join(source, '../lefthook.yml'), 'utf8');
+  const block = hooks.match(/    go-imports:\n[\s\S]*?      run: \|\n((?:        .*\n|\n)*)/);
+  assert.ok(block, 'Go imports run block must exist');
+  const command = block[1].replace(/^        /gm, '').replaceAll('{staged_files}', 'backend/example.go');
+  for (const [name, extra, status] of [
+    ['stderr-only tool failure', { TOOL_STATUS: '2', TOOL_ERROR: 'parse error\n' }, 2],
+    ['tool failure with output', { TOOL_STATUS: '7', TOOL_OUTPUT: 'partial diff\n', TOOL_ERROR: 'tool failed\n' }, 7],
+    ['clean run', {}, 0],
+    ['formatting diff', { TOOL_OUTPUT: 'formatting diff\n' }, 1],
+  ]) {
+    await t.test(name, t => {
+      const f = fixture(t);
+      f.write('backend/example.go', 'package example\n');
+      f.write('scripts/run-go-toolchain.sh', `#!/bin/sh
+printf '%s\\n' "$@" > ../tool-args
+printf '%s' "\${TOOL_OUTPUT:-}"
+printf '%s' "\${TOOL_ERROR:-}" >&2
+exit "\${TOOL_STATUS:-0}"
+`);
+      const result = f.run('sh', ['-c', command], { env: { ...f.env, ...extra } });
+      assert.equal(result.status, status, result.stdout + result.stderr);
+      assert.deepEqual(readFileSync(join(f.root, 'tool-args'), 'utf8').trim().split('\n'), ['go', 'tool', 'goimports', '-d', 'example.go']);
+      assert.equal(result.stderr, extra.TOOL_ERROR ?? '');
+      if (extra.TOOL_STATUS) assert.doesNotMatch(result.stdout, /Go imports not organized/);
+      else if (extra.TOOL_OUTPUT) assert.match(result.stdout, /Go imports not organized/);
+      else assert.equal(result.stdout, '');
+    });
+  }
+});
 
 test('Lefthook forwards every push to the runner and CI shares its quality commands', () => {
   const hooks = readFileSync(join(source, '../lefthook.yml'), 'utf8');
@@ -288,6 +319,36 @@ test('invalid base fails rather than selecting an empty check set', t => {
   assert.doesNotMatch(result.stdout, /quality checks passed/);
 });
 
+test('push checks use a private cache workspace when system temporary storage is unavailable', t => {
+  const f = fixture(t);
+  f.commit('README.md', 'documentation change\n');
+  f.write('.devbox/nix/profile/default/bin/mktemp', `#!/bin/bash
+if [[ $# -eq 0 ]]; then echo 'system temporary storage quota exceeded' >&2; exit 73; fi
+exec /usr/bin/mktemp "$@"
+`);
+  f.write('.devbox/nix/profile/default/bin/gitleaks', `#!/bin/bash
+[[ -d "$TMPDIR" ]] || exit 74
+printf '%s' "$TMPDIR" > "$(git rev-parse --git-path observed-temp)"
+exit "\${FAIL_SECRETS:-0}"
+`);
+  const cache = f.git('rev-parse', '--path-format=absolute', '--git-path', 'pre-push-cache');
+  const path = `${join(f.root, '.devbox/nix/profile/default/bin')}:${f.env.PATH}`;
+  for (const status of [0, 9]) {
+    const result = f.check({ TMPDIR: '', PATH: path, FAIL_SECRETS: String(status) });
+    assert.equal(result.status, status, result.stdout + result.stderr);
+    const observed = readFileSync(join(f.root, '.git/observed-temp'), 'utf8');
+    assert.ok(observed.startsWith(`${cache}/work.`), observed);
+    assert.deepEqual(readdirSync(cache).filter(name => name.startsWith('work.')), []);
+  }
+  const callerTemp = join(f.root, '.devbox/caller-temp');
+  mkdirSync(callerTemp);
+  const result = f.check({ TMPDIR: callerTemp, PATH: path });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(readFileSync(join(f.root, '.git/observed-temp'), 'utf8'), callerTemp);
+  assert.deepEqual(readdirSync(callerTemp), []);
+  assert.deepEqual(readdirSync(cache).filter(name => name.startsWith('work.')), []);
+});
+
 test('hook rejects pushing a revision other than the checkout', t => {
   const f = fixture(t);
   const old = f.git('rev-parse', 'HEAD');
@@ -416,4 +477,26 @@ test('frontend cached results survive docs but invalidate on source and generate
   assert.match(f.check().stdout, /\[frontend-quality\] cache miss/);
   f.commit('frontend/example.ts', 'export const changed = true;\n');
   assert.match(f.check().stdout, /\[frontend-quality\] cache miss/);
+});
+
+test('architecture decision changes invalidate architecture evidence without rerunning unrelated checks', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  f.commit('docs/adr/0083-effects.md', '# Accepted effects decision\n');
+  assert.equal(f.check().status, 0);
+  f.commit('docs/adr/0083-effects.md', '# Changed effects decision\n');
+  const result = f.check();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /\[architecture\] cache miss/);
+  for (const stage of ['backend-quality', 'backend-lint']) assert.match(result.stdout, new RegExp(`\\[${stage}\\] cache hit`));
+});
+
+test('pass-through register changes invalidate architecture evidence', t => {
+  const f = fixture(t);
+  f.commit('backend/architecture/passthrough.json', '{"sites":[]}\n');
+  assert.equal(f.check().status, 0);
+  f.commit('backend/architecture/passthrough.json', '{"sites":[{"id":"changed"}]}\n');
+  const result = f.check();
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /\[architecture\] cache miss/);
 });

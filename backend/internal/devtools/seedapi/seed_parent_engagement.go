@@ -27,6 +27,9 @@ func (seedParentEngagementStep) Run(ctx context.Context, rt *Runtime) error {
 	if err := seedParentConversation(rt, auth, studentID); err != nil {
 		return err
 	}
+	if err := seedParentGroupThreads(rt, auth, studentID); err != nil {
+		return err
+	}
 	if err := seedParentGuardianChanges(rt, auth, studentID); err != nil {
 		return err
 	}
@@ -43,7 +46,7 @@ func (seedParentEngagementStep) Run(ctx context.Context, rt *Runtime) error {
 		return err
 	}
 	rt.Client.BindAuth(rt.TenantAuth)
-	fmt.Println("  1 parent preference, 1 conversation, audited contact/consent changes, 1 master-data request, lunch participation and parent appointments created")
+	fmt.Println("  1 parent preference, 1 conversation, 2 group threads, audited contact/consent changes, 1 master-data request, lunch participation and parent appointments created")
 	return nil
 }
 
@@ -110,6 +113,9 @@ func seedParentAppointments(rt *Runtime, studentID int64) error {
 	closingDay := seedWeekdayOnOrAfter(today.AddDays(24)).String()
 	festival := nextWeekday(today.AddDays(30).UTCMidnight(), time.Friday).Format(seedDateLayout)
 	allParents := []map[string]any{{"type": "all_school_parents"}, {"type": "all_staff"}}
+	// Termine, die auch die Schule betreffen, sehen die Lehrkräfte in moto
+	// schule (#4798).
+	withTeachers := []map[string]any{{"type": "all_school_parents"}, {"type": "all_staff"}, {"type": "all_teachers"}}
 	appointments := []map[string]any{
 		{
 			"title": "Elternabend der Gruppe", "location": "Gruppenraum",
@@ -129,13 +135,13 @@ func seedParentAppointments(rt *Runtime, studentID int64) error {
 			"title":       "Pädagogischer Tag: OGS geschlossen",
 			"description": "Das Team bildet sich fort. An diesem Tag findet keine Betreuung statt.",
 			"start_date":  closingDay, "end_date": closingDay, "start_time": "00:00", "end_time": "23:59", "all_day": true,
-			"delivery_mode": "informational", "targets": allParents, "send_email": false,
+			"delivery_mode": "informational", "targets": withTeachers, "send_email": false,
 		},
 		{
 			"title": "Laternenfest", "location": "Schulhof",
 			"description": "Die Kinder basteln ihre Laternen in der OGS. Wir ziehen gemeinsam durch das Viertel.",
 			"start_date":  festival, "end_date": festival, "start_time": "17:00", "end_time": "19:00", "all_day": false,
-			"delivery_mode": "rsvp_required", "overview_visibility": "all", "targets": allParents, "send_email": false,
+			"delivery_mode": "rsvp_required", "overview_visibility": "all", "targets": withTeachers, "send_email": false,
 		},
 	}
 	for _, appointment := range appointments {

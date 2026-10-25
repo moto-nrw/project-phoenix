@@ -453,6 +453,7 @@ frontend/rebuild-and-test.sh
 .cursor/*
 
 backend/.seed-state.json
+**/.seed-sessions/
 .cache_ggshield
 gitleaks-report.json
 
@@ -479,7 +480,6 @@ node_modules/
 .playwright/**/*
 .playwright-mcp
 .husky/
-.gitattributes
 .beads/
 /qodana.yaml
 

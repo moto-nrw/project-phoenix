@@ -111,9 +111,11 @@ type OperatorRetention struct {
 }
 
 // AccountRetention tombstones the accounts no school needs any more (#4043)
-// in the hourly cleanup.
+// in the hourly cleanup, then deletes the caterer businesses nobody needs.
 type AccountRetention interface {
 	EraseUnusedAccounts(ctx context.Context) (int, error)
+	CleanupErasedAccountAvatars(ctx context.Context) (int, error)
+	DeleteUnusedCaterers(ctx context.Context) (int, error)
 }
 
 // SignInDataCleaner exposes the fixed retention of the short-lived sign-in

@@ -109,8 +109,8 @@ func (p *Provisioning) listDevices(ctx context.Context, filter deviceFilter) ([]
 func operatorDevice(device domain.Device, school organizationtenancy.DashboardSchool) organizationtenancy.OperatorDevice {
 	view := organizationtenancy.OperatorDevice{
 		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType,
-		Name: device.Name, Status: device.Status, APIKey: device.APIKey,
-		MaskedAPIKey: maskAPIKey(device.APIKey), LastSeen: device.LastSeen,
+		Name: device.Name, Status: device.Status,
+		MaskedAPIKey: device.MaskedAPIKey, LastSeen: device.LastSeen,
 		SchoolID: school.ID, SchoolName: school.Name,
 		OrganizationID: school.OrganizationID, OrganizationName: school.OrganizationName,
 		CreatedAt: device.CreatedAt, UpdatedAt: device.UpdatedAt,
@@ -119,17 +119,6 @@ func operatorDevice(device domain.Device, school organizationtenancy.DashboardSc
 		view.IsOnline = time.Since(*device.LastSeen) <= listedDeviceOnlineWindow
 	}
 	return view
-}
-
-// maskAPIKey returns the first 10 characters followed by an ellipsis.
-func maskAPIKey(key *string) string {
-	if key == nil || *key == "" {
-		return ""
-	}
-	if len(*key) <= 10 {
-		return *key
-	}
-	return (*key)[:10] + "..."
 }
 
 // listedDevice re-reads one device after a write for the response.
@@ -148,16 +137,16 @@ func (p *Provisioning) listedDevice(ctx context.Context, op string, deviceRowID 
 	return &devices[0], nil
 }
 
-// apiKey returns the operator's key, or generates one when none was given.
+// apiKey rejects custom operator credentials and generates a fresh key.
 func (p *Provisioning) apiKey(provided *string) (string, error) {
 	if provided != nil && *provided != "" {
-		return *provided, nil
+		return "", invalidData("api_key must be generated; custom keys are not accepted")
 	}
 	return p.secrets.APIKey()
 }
 
 // CreateDevice registers a device at an active school. A generated API key
-// that collides is regenerated; an operator-supplied one is a conflict.
+// that collides is regenerated; custom operator keys are rejected.
 func (p *Provisioning) CreateDevice(ctx context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*organizationtenancy.OperatorDevice, error) {
 	if schoolID <= 0 {
 		return nil, invalidData("school_id is required")
@@ -168,7 +157,6 @@ func (p *Provisioning) CreateDevice(ctx context.Context, schoolID int64, deviceI
 	if strings.TrimSpace(deviceType) == "" {
 		return nil, invalidData("device_type is required")
 	}
-	manual := apiKey != nil && *apiKey != ""
 	return adminValue(ctx, p, func(adminCtx context.Context) (*organizationtenancy.OperatorDevice, error) {
 		if _, err := p.findOperableSchool(adminCtx, schoolID); err != nil {
 			return nil, err
@@ -176,7 +164,7 @@ func (p *Provisioning) CreateDevice(ctx context.Context, schoolID int64, deviceI
 		device, err := p.createDeviceWithKey(adminCtx, domain.NewDevice{
 			TenantID: schoolID, DeviceID: strings.TrimSpace(deviceID), DeviceType: strings.TrimSpace(deviceType),
 			Name: name, Status: domain.DeviceStatusActive,
-		}, apiKey, manual)
+		}, apiKey)
 		if err != nil {
 			return nil, err
 		}
@@ -184,13 +172,17 @@ func (p *Provisioning) CreateDevice(ctx context.Context, schoolID int64, deviceI
 			"device_id":    device.DeviceID,
 			"device_type":  device.DeviceType,
 			"school_id":    schoolID,
-			"api_key_mode": apiKeyMode(manual),
+			"api_key_mode": "auto",
 		})
-		return p.listedDevice(adminCtx, "CreateDevice", device.ID)
+		view, err := p.listedDevice(adminCtx, "CreateDevice", device.ID)
+		if err == nil {
+			view.APIKey = device.APIKey
+		}
+		return view, err
 	})
 }
 
-func (p *Provisioning) createDeviceWithKey(ctx context.Context, device domain.NewDevice, apiKey *string, manual bool) (domain.Device, error) {
+func (p *Provisioning) createDeviceWithKey(ctx context.Context, device domain.NewDevice, apiKey *string) (domain.Device, error) {
 	for attempt := 0; attempt < maxAPIKeyRetries; attempt++ {
 		key, err := p.apiKey(apiKey)
 		if err != nil {
@@ -202,9 +194,7 @@ func (p *Provisioning) createDeviceWithKey(ctx context.Context, device domain.Ne
 		case err == nil:
 			return created, nil
 		case errors.Is(err, domain.ErrDeviceAPIKeyTaken):
-			if manual {
-				return domain.Device{}, conflict(organizationtenancy.ConflictDeviceAPIKey, "api_key already in use")
-			}
+			// Retry with another generated key.
 		case errors.Is(err, domain.ErrDeviceIDTaken):
 			return domain.Device{}, conflict(organizationtenancy.ConflictDeviceID, "device_id already exists for this school")
 		default:
@@ -219,7 +209,6 @@ func (p *Provisioning) SetDeviceAPIKey(ctx context.Context, id int64, apiKey *st
 	if id <= 0 {
 		return nil, invalidData("device id is required")
 	}
-	manual := apiKey != nil && *apiKey != ""
 	return adminValue(ctx, p, func(adminCtx context.Context) (*organizationtenancy.OperatorDevice, error) {
 		// Load and lock the device without its tenant-scoped room projection.
 		device, err := p.findDevice(adminCtx, id)
@@ -234,38 +223,43 @@ func (p *Provisioning) SetDeviceAPIKey(ctx context.Context, id int64, apiKey *st
 			}
 			return nil, err
 		}
-		if err := p.rotateDeviceKey(adminCtx, device, apiKey, manual); err != nil {
+		key, err := p.rotateDeviceKey(adminCtx, device, apiKey)
+		if err != nil {
 			return nil, err
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionRotateAPIKey, domain.AuditResourceDevice, &id, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionRotateAPIKey, domain.AuditResourceDevice, &id, clientIP, map[string]any{
 			"device_id":    device.DeviceID,
 			"school_id":    device.TenantID,
-			"api_key_mode": apiKeyMode(manual),
-		})
-		return p.listedDevice(adminCtx, "SetDeviceAPIKey", id)
+			"api_key_mode": "auto",
+		}); err != nil {
+			return nil, err
+		}
+		view, err := p.listedDevice(adminCtx, "SetDeviceAPIKey", id)
+		if err == nil {
+			view.APIKey = &key
+		}
+		return view, err
 	})
 }
 
-func (p *Provisioning) rotateDeviceKey(ctx context.Context, device domain.Device, apiKey *string, manual bool) error {
+func (p *Provisioning) rotateDeviceKey(ctx context.Context, device domain.Device, apiKey *string) (string, error) {
 	for attempt := 0; attempt < maxAPIKeyRetries; attempt++ {
 		key, err := p.apiKey(apiKey)
 		if err != nil {
-			return fmt.Errorf("SetDeviceAPIKey: generate API key: %w", err)
+			return "", fmt.Errorf("SetDeviceAPIKey: generate API key: %w", err)
 		}
 		device.APIKey = &key
 		err = p.devices.UpdateDevice(ctx, device)
 		switch {
 		case err == nil:
-			return nil
+			return key, nil
 		case errors.Is(err, domain.ErrDeviceAPIKeyTaken):
-			if manual {
-				return conflict(organizationtenancy.ConflictDeviceAPIKey, "api_key already in use")
-			}
+			// Retry with another generated key.
 		default:
-			return err
+			return "", err
 		}
 	}
-	return fmt.Errorf("SetDeviceAPIKey: failed to generate unique API key after %d attempts", maxAPIKeyRetries)
+	return "", fmt.Errorf("SetDeviceAPIKey: failed to generate unique API key after %d attempts", maxAPIKeyRetries)
 }
 
 // DeleteDevice removes a device that no attendance or session row
@@ -288,11 +282,13 @@ func (p *Provisioning) DeleteDevice(ctx context.Context, id int64, operatorID in
 			}
 			return fmt.Errorf("DeleteDevice: %w", err)
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionDelete, domain.AuditResourceDevice, &id, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionDelete, domain.AuditResourceDevice, &id, clientIP, map[string]any{
 			"device_id":   device.DeviceID,
 			"device_type": device.DeviceType,
 			"school_id":   device.TenantID,
-		})
+		}); err != nil {
+			return err
+		}
 		return nil
 	})
 }
@@ -335,13 +331,15 @@ func (p *Provisioning) TransferDevice(ctx context.Context, id, targetSchoolID, o
 		if err != nil {
 			return nil, err
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionTransfer, domain.AuditResourceDevice, &id, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionTransfer, domain.AuditResourceDevice, &id, clientIP, map[string]any{
 			"device_id":        source.DeviceID,
 			"source_device_id": id,
 			"target_device_id": target.ID,
 			"source_school_id": source.TenantID,
 			"target_school_id": targetSchoolID,
-		})
+		}); err != nil {
+			return nil, err
+		}
 		return p.listedDevice(adminCtx, "TransferDevice", target.ID)
 	})
 }
@@ -441,14 +439,12 @@ func (p *Provisioning) deviceOnlineWindow(ctx context.Context, tenantID int64) t
 
 func (p *Provisioning) archiveAndTransfer(ctx context.Context, source domain.Device, targetSchoolID int64) (domain.Device, error) {
 	originalStatus := source.Status
-	var transferredAPIKey *string
-	if source.APIKey != nil {
-		key := *source.APIKey
-		transferredAPIKey = &key
-	}
+	transferredHash, transferredMask := source.APIKeyHash, source.MaskedAPIKey
 	now := time.Now()
 	source.ArchivedAt = &now
 	source.APIKey = nil
+	source.APIKeyHash = nil
+	source.MaskedAPIKey = ""
 	source.Status = domain.DeviceStatusInactive
 	source.RoomID = nil
 	source.RegisteredByID = nil
@@ -457,7 +453,7 @@ func (p *Provisioning) archiveAndTransfer(ctx context.Context, source domain.Dev
 	}
 	target, err := p.devices.CreateDevice(ctx, domain.NewDevice{
 		TenantID: targetSchoolID, DeviceID: source.DeviceID, DeviceType: source.DeviceType,
-		Name: source.Name, Status: originalStatus, APIKey: transferredAPIKey,
+		Name: source.Name, Status: originalStatus, APIKeyHash: transferredHash, MaskedAPIKey: transferredMask,
 	})
 	switch {
 	case errors.Is(err, domain.ErrDeviceAPIKeyTaken):
@@ -503,13 +499,6 @@ func isSchoolStateError(err error) bool {
 	var deleted *organizationtenancy.SchoolAlreadyDeletedError
 	var inactive *organizationtenancy.SchoolInactiveError
 	return errors.As(err, &deleted) || errors.As(err, &inactive)
-}
-
-func apiKeyMode(manual bool) string {
-	if manual {
-		return "manual"
-	}
-	return "auto"
 }
 
 func conflict(kind organizationtenancy.ProvisioningConflictKind, message string) error {

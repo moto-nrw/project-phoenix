@@ -32,7 +32,6 @@ import (
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -44,6 +43,7 @@ import (
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -55,7 +55,6 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -86,6 +85,7 @@ func workerRetentionOf(
 		workforceCompose.NewSickNoteRetention(StaffSickNoteRetentionSettings{Settings: settings}),
 		audit, deliveryCompose.NewRetention(),
 	)
+	steps = append(steps, enrollmentUploadRetentionStep(settings, logger))
 	steps = append(steps, protocolRetentionSteps(
 		audit, settingsCompose.NewAuditRetention(), exportTransferCompose.NewJournalRetention(),
 	)...)
@@ -196,7 +196,7 @@ func workerTracer(tracer *observability.Tracer) schedulerPorts.WorkerTracer {
 func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, tracer *observability.Tracer, tracker ProductEventTracker, tokensFor func() (TokenAdapter, error), communicationSession interface {
 	AccountID(context.Context) int64
 	Permissions(context.Context) []string
-}, timetableSession timetablePorts.RequestSession, principal func(context.Context) studentpresence.RequestPrincipal, withStaff func(context.Context, int64, int64) context.Context, documentPermissions carePlanCompose.StudentDocumentPermissions, schoolNames SchoolNamesPublisher) (schedulerPorts.Worker, error) {
+}, timetableSession timetablePorts.RequestSession, principal func(context.Context) studentpresence.RequestPrincipal, withStaff func(context.Context, int64, int64) context.Context, documentPermissions carePlanCompose.StudentDocumentPermissions, buildAnalytics func(ProductEventTracker, settingsValues.TenantReader, bool) ProductEventTracker, schoolNames func(ProductEventTracker) SchoolNamesPublisher) (schedulerPorts.Worker, error) {
 	unit := db.UnitOfWork()
 	communicationCompose.InstrumentMessageQueries(db.Pool(), false)
 	renderer := lists.NewRendererService()
@@ -226,7 +226,6 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		carePlan         carePlanModule.Owner
 		appointments     appointmentsModule.Capability
 		operatorAuditLog OperatorAuditEntries
-		mealPlanSettings *mealplanCompose.Settings
 		mealPlan         mealplanModule.Capability
 		feedbackSettings *feedbackCompose.Settings
 		feedback         feedbackModule.Capability
@@ -274,7 +273,6 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		requests         CarePlanRequests
 		chat             CommunicationMessaging
 		calendarApp      calendarCompose.Application
-		parent           *parentportal.Portal
 		fileStore        filestorageModule.Capability
 		planExport       planexport.Service
 		workforce        WorkforcePlanning
@@ -304,7 +302,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		func() (err error) { membership, err = ComposeSchoolMembership(db); return },
 		func() error { bookings = NewEnrollmentBookings(); return nil },
 		func() (err error) {
-			settings, err = BuildSettingsOwner(db, unit, env, organizations, hub, bookings)
+			settings, tracker, err = buildWorkerAnalyticsSettings(db, unit, env, organizations, hub, bookings, tracker, buildAnalytics)
 			return
 		},
 		func() (err error) {
@@ -337,11 +335,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) { appointments, err = BuildServeAppointments(db); return },
 		func() error { operatorAuditLog = NewOperatorAuditLog(db); return nil },
-		func() (err error) { mealPlanSettings, err = BuildMealPlanSettings(settings.Service); return },
-		func() (err error) {
-			mealPlan, err = BuildServeMealPlan(db, mealPlanSettings, NewStudentRootReads(people.Students), persons, calendar)
-			return
-		},
+		func() (err error) { mealPlan, err = workerMealPlan(db, settings, people, persons, calendar); return },
 		func() (err error) { feedbackSettings, err = BuildFeedbackSettings(settings.Service); return },
 		func() (err error) { feedback, err = BuildServeFeedback(db, feedbackSettings); return },
 		func() (err error) {
@@ -499,12 +493,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return nil
 		},
 		func() (err error) {
-			parent, err = BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices)
-			return
-		},
-		func() (err error) {
-			fileStore, err = BuildFileStore(db, env, objects, identity, persons, settings.Service, audit, announcements, parent)
+			fileStore, err = BuildFileStore(db, env, objects, identity, persons, settings.Service, audit, announcements)
 			return
 		},
 		func() (err error) {
@@ -552,5 +541,23 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 	return NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames)
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames(tracker))
+}
+
+func buildWorkerAnalyticsSettings(db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, organizations organizationtenancy.Capability, hub *realtime.Hub, bookings enrollmentPhaseRestrictions, tracker ProductEventTracker, bind func(ProductEventTracker, settingsValues.TenantReader, bool) ProductEventTracker) (SettingsOwner, ProductEventTracker, error) {
+	values, err := BuildSettingsOwner(db, unit, env, organizations, hub, bookings)
+	if err != nil {
+		return SettingsOwner{}, nil, err
+	}
+	return values, bind(tracker, values.Service, email.IsDemoEnvironment(env.Config.AppEnv)), nil
+}
+
+// workerMealPlan composes the Meal Plan whose orders the worker settles
+// at their deadline (ADR 0078).
+func workerMealPlan(db transactionruntime.Database, settings SettingsOwner, people PeopleRows, persons *peopleCompose.Directory, calendar schoolcalendar.Days) (mealplanModule.Capability, error) {
+	mealPlanSettings, err := BuildMealPlanSettings(settings.Service)
+	if err != nil {
+		return nil, err
+	}
+	return BuildServeMealPlan(db, mealPlanSettings, NewStudentRootReads(people.Students), persons, calendar)
 }

@@ -16,11 +16,11 @@ import (
 
 // Keys of the tenant settings other owners read.
 const (
+	KeyAnalyticsEnabled                      = configModel.KeyAnalyticsEnabled
 	KeyAnalyticsFreigabe                     = configModel.KeyAnalyticsFreigabe
 	KeyAnalyticsRecordingSamplePercent       = configModel.KeyAnalyticsRecordingSamplePercent
 	KeyAttendanceEditScope                   = configModel.KeyAttendanceEditScope
 	KeyAttendanceLogEnabled                  = configModel.KeyAttendanceLogEnabled
-	KeyAttendanceNFCEnabled                  = configModel.KeyAttendanceNFCEnabled
 	KeyAttendanceVisibleDays                 = configModel.KeyAttendanceVisibleDays
 	KeyAttendanceWebEnabled                  = configModel.KeyAttendanceWebEnabled
 	KeyCalendarCalDAVEnabled                 = configModel.KeyCalendarCalDAVEnabled
@@ -48,6 +48,7 @@ const (
 	KeyGDPRWithdrawnEnrollmentRetentionDays  = configModel.KeyGDPRWithdrawnEnrollmentRetentionDays
 	KeyGDPRStatusDayRetentionDays            = configModel.KeyGDPRStatusDayRetentionDays
 	KeyGDPRAttendanceRetentionDays           = configModel.KeyGDPRAttendanceRetentionDays
+	KeyGDPRMorningAttendanceRetentionDays    = configModel.KeyGDPRMorningAttendanceRetentionDays
 	KeyGDPRStaffSickNoteRetentionDays        = configModel.KeyGDPRStaffSickNoteRetentionDays
 	KeyGDPRStudentRetentionDays              = configModel.KeyGDPRStudentRetentionDays
 	KeyGDPRTimetableRetentionDays            = configModel.KeyGDPRTimetableRetentionDays
@@ -147,7 +148,7 @@ type TenantReader interface {
 
 // Resolver resolves the request tenant's settings inside its tenant
 // middleware: the tenant override, else the registry default.
-// HasTenantOverride tells the two apart for the Resolve*OrDefault helpers.
+// HasTenantOverride distinguishes explicit choices from registry defaults.
 type Resolver interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveBool(ctx context.Context, key string) (bool, error)
@@ -155,17 +156,9 @@ type Resolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// ResolveBoolOrDefault returns the tenant override of a boolean setting, or
-// fallback when the tenant has none, the resolver is missing or the read
-// fails. Failures are logged, never returned.
-func ResolveBoolOrDefault(ctx context.Context, resolver interface {
-	HasTenantOverride(context.Context, string) (bool, error)
-	ResolveBool(context.Context, string) (bool, error)
-}, key string, fallback bool, logger *slog.Logger) bool {
-	return configSvc.ResolveBoolOrDefault(ctx, resolver, key, fallback, logger)
-}
-
-// ResolveIntOrDefault is ResolveBoolOrDefault for an integer setting.
+// ResolveIntOrDefault resolves the tenant override or registry default.
+// Only unavailable reads use fallback. Privacy and authorization callers use
+// the typed resolver directly so they can propagate errors. Missing wiring panics.
 func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fallback int, logger *slog.Logger) int {
 	return configSvc.ResolveIntOrDefault(ctx, resolver, key, fallback, logger)
 }
@@ -174,15 +167,6 @@ func ResolveIntOrDefault(ctx context.Context, resolver Resolver, key string, fal
 // resolves many keys at once returns it from
 // ResolveManyForTenant(ctx, tenantID, keys).
 type Snapshot = configModel.SettingsSnapshot
-
-// ResolvePresenceModeForTenant returns the tenant's presence mode, or the
-// detailed mode when the reader is missing or fails.
-func ResolvePresenceModeForTenant(ctx context.Context, reader TenantReader, tenantID int64) string {
-	if reader == nil {
-		return PresenceModeDetailed
-	}
-	return configSvc.ResolvePresenceModeForTenant(ctx, reader, tenantID, nil)
-}
 
 // The settings errors the operator routes map to responses.
 type (

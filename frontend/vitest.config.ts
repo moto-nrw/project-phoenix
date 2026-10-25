@@ -92,7 +92,23 @@ export default defineConfig({
           // Seitenleiste, #2825) sollen in Tests den Desktop-Zustand
           // rendern, wie ihn auch der Server-Snapshot annimmt.
           environmentOptions: {
-            happyDOM: { width: 1920, height: 1080 },
+            happyDOM: {
+              width: 1920,
+              height: 1080,
+              // Component markup must not fetch marketing pages or vendor
+              // resources. Tests mock fetch explicitly when that is their seam.
+              settings: {
+                navigation: {
+                  disableMainFrameNavigation: true,
+                  disableChildFrameNavigation: true,
+                  disableChildPageNavigation: true,
+                },
+                disableCSSFileLoading: true,
+                disableJavaScriptFileLoading: true,
+                enableImageFileLoading: false,
+                handleDisabledFileLoadingAsSuccess: true,
+              },
+            },
           },
           setupFiles: ["./src/test/setup-common.ts", "./src/test/setup.ts"],
           sequence: { groupOrder: 1 },

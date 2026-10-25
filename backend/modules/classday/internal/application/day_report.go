@@ -29,6 +29,8 @@ type dayReports struct {
 	students          SheetStudents
 	emergencyContacts EmergencyContacts
 	accessLog         AccessLog
+	morning           morningAttendance
+	handover          classHandover
 }
 
 func newDayReports(deps ClassDayDependencies) *dayReports {
@@ -36,7 +38,7 @@ func newDayReports(deps ClassDayDependencies) *dayReports {
 		rosters: deps.Rosters, statusDays: deps.StatusDays, times: deps.Times, careDays: deps.CareDays,
 		classExceptions: deps.ClassArrivalExceptions, companions: deps.Companions,
 		students: deps.Students, emergencyContacts: deps.EmergencyContacts,
-		accessLog: deps.AccessLog,
+		accessLog: deps.AccessLog, morning: newMorningAttendance(deps), handover: newClassHandover(deps),
 	}
 }
 
@@ -139,6 +141,12 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date cale
 		if report.ClassArrivalException, err = s.classDayArrivalException(ctx, schoolClass, date); err != nil {
 			return nil, err
 		}
+	}
+	if err := s.morning.applyMorningAttendance(ctx, report, date); err != nil {
+		return nil, err
+	}
+	if err := s.handover.applyClassHandover(ctx, report, date); err != nil {
+		return nil, err
 	}
 	if !report.EnrollmentKnown {
 		// Without a covering phase the stays/leaves split is unknowable —

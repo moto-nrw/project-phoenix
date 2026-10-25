@@ -1,4 +1,5 @@
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
+import type { ClassHandover } from "~/lib/class-handover";
 import type { Student } from "~/lib/student-helpers";
 import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
@@ -350,29 +351,26 @@ export function resolveSupervisionSelection(options: {
   }
 
   // With no explicit target, prefer an own session that does not already sit
-  // in a released room. The navigation has one entry for a released room, not
-  // one per session in it, so selecting such a session by default would leave
-  // the sidebar without a matching entry. If every running session is in a
-  // released room, select that session's room — the matching sidebar row —
-  // not the first released room by name. Home "Zur Aufsicht" lands here with
-  // no query.
+  // in a released room. The overview can also contain foreign sessions, which
+  // must never become the caller's default selection. The navigation has one
+  // entry for a released room, not one per session in it, so an own session in
+  // such a room selects the room rather than the session. Without an own
+  // session no released room opens: it belongs to „Räume“, not to the caller's
+  // supervision (#4372).
   if (openRoomIds.size > 0) {
     const ownSession = rooms.find(
-      (room) => !room.room_id || !openRoomIds.has(room.room_id),
+      (room) =>
+        room.isCurrentUserSupervising === true &&
+        (!room.room_id || !openRoomIds.has(room.room_id)),
     );
     if (ownSession) return sessionTarget(ownSession);
-    const firstOwn = rooms[0];
-    if (firstOwn) return sessionTarget(firstOwn);
-    const firstOpenRoomId = openRoomIds.values().next().value as
-      string | undefined;
-    if (firstOpenRoomId) {
-      return (
-        roomTarget(firstOpenRoomId) ?? {
-          kind: "open-room",
-          roomId: firstOpenRoomId,
-        }
-      );
-    }
+    const ownOpenRoomSession = rooms.find(
+      (room) =>
+        room.isCurrentUserSupervising === true &&
+        room.room_id !== undefined &&
+        openRoomIds.has(room.room_id),
+    );
+    if (ownOpenRoomSession) return sessionTarget(ownOpenRoomSession);
   }
   return { kind: "persist-first" };
 }
@@ -452,6 +450,7 @@ export interface VisitDisplayLike {
   sickSince?: string;
   excused?: boolean;
   excusedSince?: string;
+  classHandover?: ClassHandover;
   photoUrl?: string;
 }
 
@@ -649,6 +648,7 @@ function mapVisitToSupervisionStudent(
     sick_since: visit.sickSince,
     excused: visit.excused,
     excused_since: visit.excusedSince,
+    class_handover: visit.classHandover,
     actual_arrival_time: visit.actualArrivalTime,
     actual_pickup_time: visit.actualPickupTime,
     activeGroupId: visit.activeGroupId,

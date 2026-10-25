@@ -120,7 +120,7 @@ Reihenfolge funktioniert auch beim erneuten Setzen aus dem jeweils anderen
 gültigen Sicht-/Bearbeitungszustand. Der vollständige Seed-Lauf bleibt eine
 separate Integrationsprüfung, zusätzlich zu den HTTP-Vertragstests.
 
-Die Settings-Tests unter `backend/services/config/` prüfen die alten
+Die Settings-Tests unter `backend/modules/settings/` prüfen die alten
 Haupt-/Bestätigungskombinationen, unabhängige Änderungen, Reset, konkurrierende
 Zugriffe und Transaktionsabbruch. Die Usercontext-Tests prüfen geerbte und
 ausdrückliche Freigaben sowie aktuelle und abgelaufene Vertretungen.
@@ -185,7 +185,7 @@ Er prüft folgende Übergänge mit unveränderten Claims auf folgenden Requests:
   Weder Ankunft noch Raumaufenthalt entstehen.
 
 Nach dem letzten Testausbau bestanden der gezielte API-Test,
-`TestHermeticTestPatterns` und der Linter für `api/students` (0 Meldungen).
+`TestHermeticTestPatterns` und der Linter für das damalige `api/students` (0 Meldungen).
 Der Architekturcheck blieb bei 793 Composition-Feldern/-Settern und
 1624 Legacy-Verstößen. Der unten dokumentierte vollständige Backend-Lauf
 enthält auch den ergänzten gemischten Sammelfall.

@@ -1,12 +1,9 @@
 ---
 paths:
-  - "backend/auth/**"
   - "backend/api/**"
-  - "backend/services/**"
   - "backend/workflows/**"
   - "backend/modules/**"
-  - "backend/models/users/**"
-  - "backend/database/repositories/**"
+  - "backend/roots/owners/parent_portal*.go"
   - "frontend/src/**"
 ---
 
@@ -24,13 +21,18 @@ Do not authorize parent portal access or writes only from:
 
 Those facts prove school membership and a guardian relationship. They do not prove parent portal authority.
 
-Parent portal code must check explicit `parent_portal.*` permissions stored on `auth.guardian_student_access.permissions` through shared helpers in `backend/auth/authorize`.
+Parent portal code must check explicit `parent_portal.*` permissions stored on
+`auth.guardian_student_access.permissions`. The Parent Portal workflow uses its
+own action constants and the root-bound `GuardianPolicy` port, not a direct
+Security Runtime import. Packages explicitly allowed by
+`backend/architecture/policy.json`, such as `backend/modules/careplan/http`,
+may use Security Runtime's public helpers for their authorization checks.
 
 ## Separate Permission Systems
 
 Staff/admin permissions and parent guardian permissions are different systems:
 
-- Staff/admin permissions are account and tenant scoped. They use `auth.roles`, `auth.permissions`, JWT permissions, and `authorize.RequiresPermission`.
+- Staff/admin permissions are account and tenant scoped. They use `auth.roles`, `auth.permissions`, JWT permissions, and `common.RequiresPermission` (`backend/api/common/security_principal_middleware.go`).
 - Parent portal guardian permissions are student relationship scoped. They use `users.student_guardian_relationships.guardian_role` and `auth.guardian_student_access.permissions`.
 
 Do not model per-child parent portal authority only with `auth.roles` or account-level permissions. One person may be a primary guardian for one student and pickup-only for another.
@@ -49,11 +51,19 @@ Role presets such as `primary_guardian`, `legal_guardian`, `co_guardian`, `picku
 ## Expected Checks
 
 Parent portal flows resolve a permitted child with the required action through
-the gate in `backend/workflows/parentportal/care` (`ResolvePermittedChild`):
+the gate in `backend/workflows/parentportal/internal/care` (`ResolvePermittedChild`):
 
 ```go
-s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
+s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionSickNoteSubmit)
 ```
+
+The constant belongs to the workflow's `guardian_policy.go` in that package.
+`ResolvePermittedChild` checks the resolved child's `GuardianPermissions`;
+relationship permission-value and role decisions use the workflow's
+`GuardianPolicy` port. `NewParentGuardianPolicy` in
+`backend/roots/owners/parent_portal_platform.go` binds it to canonical policies,
+including Security Runtime's public helpers. Do not import `securityruntime`
+into the workflow: the policy grants it no such dependency.
 
 An owner command a flow calls (Care Plan, People Directory, Audit Platform)
 does not repeat the relationship check: the flow keeps it, with the same
@@ -67,12 +77,16 @@ Use action-specific permissions:
 - enrollment request visibility: `parent_portal.enrollments.view`
 - enrollment submit when tied to an existing child: `parent_portal.enrollment.submit`
 - meal participation changes: `parent_portal.meal_participation.manage`
+- inviting or removing connected accounts: `parent_portal.related_accounts.manage`
+
+Editing an open request needs the permission that submitting it needs.
 
 School-level feature flags still apply after guardian permission passes.
 
 ## Where Code Belongs
 
-- Permission constants and pure helper functions belong in `backend/auth/authorize`.
+- Parent Portal's action constants and `GuardianPolicy` port live in `backend/workflows/parentportal/internal/care/guardian_policy.go`; bindings belong in `backend/roots/owners/parent_portal_platform.go`.
+- Security Runtime exposes canonical guardian constants and pure helpers through `backend/modules/securityruntime/guardian_role.go`; private decisions live in `backend/modules/securityruntime/internal/application/authorize/`. Only policy-authorized consumers import its public package directly.
 - Repository queries may filter by stored `parent_portal.*` permissions when they are the data-access boundary for parent portal visibility.
 - Services orchestrate permission checks and feature flags.
 - Handlers should not implement new inline guardian authorization rules.

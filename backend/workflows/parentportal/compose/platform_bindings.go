@@ -23,7 +23,7 @@ type MealPlanProvider interface {
 func newMealPlan(provider MealPlanProvider) care.MealPlan {
 	return care.NewMealPlan(provider, care.MealPlanRows[mealplanModule.Date, mealplanModule.Entry, mealplanModule.ParticipationPlan, mealplanModule.Weekday, mealplanModule.ParticipationDay, mealplanModule.ReplaceParticipationSchedule, mealplanModule.SetParticipationDay]{
 		Entry: func(row mealplanModule.Entry) care.MealPlanEntry {
-			return care.MealPlanEntry{Date: string(row.Date), Position: row.Position, Dish: row.Dish, Note: row.Note}
+			return care.MealPlanEntry{Date: string(row.Date), Position: row.Position, Dish: row.Dish, Note: row.Note, Allergens: row.AllergenCodes()}
 		},
 		Plan: func(row mealplanModule.ParticipationPlan) (care.MealParticipationPlan, []mealplanModule.Weekday, []mealplanModule.ParticipationDay) {
 			return care.MealParticipationPlan{

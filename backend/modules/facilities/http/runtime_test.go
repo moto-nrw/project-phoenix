@@ -3,6 +3,7 @@ package httpadapter
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -785,4 +786,16 @@ func TestGetRoomHistory_DurationMinutesPopulated(t *testing.T) {
 	// EXTRACT(EPOCH)/60 is integer-cast; allow ±1 minute for clock drift
 	// between fixture creation, the UPDATE, and the handler call.
 	assert.InDelta(t, 90.0, duration, 1.0, "duration_minutes should be ~90 for a 90-minute session")
+}
+
+func TestRoomHistorySettingsFailureHidesPrivateDetails(t *testing.T) {
+	t.Parallel()
+	tc := setupRoomsRoute(t)
+	tc.resource.runtime.HistoryConfig = func(ctx context.Context) (context.Context, bool, int, error) {
+		return ctx, false, 0, errors.New("private room history settings failure")
+	}
+	response := testutil.ExecuteWithAuth(t, tc.router, testutil.NewRequest("GET", "/1/history", nil), testutil.AdminTestClaims(42))
+	assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	assert.NotContains(t, response.Body.String(), "private room history settings failure")
+	assert.NotContains(t, response.Body.String(), `"data"`)
 }

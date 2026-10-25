@@ -33,8 +33,11 @@ func (s *service) RenderList(ctx context.Context, requested classday.Params, for
 	}
 
 	pickupBased := params.Target == classday.TargetPickupCohort
-	columns := slotListExportColumns(pickupBased)
-	docRows := slotListExportRows(result.Rows, pickupBased)
+	// Only a planned list is ticked off on paper; an actual or reconciliation
+	// list already records who came (#2077).
+	checklist := params.Source == classday.SourcePlanned
+	columns := slotListExportColumns(pickupBased, checklist)
+	docRows := slotListExportRows(result.Rows, pickupBased, checklist)
 
 	doc := classday.ExportDocument{
 		Title:       documentTitle(result),
@@ -50,7 +53,7 @@ func (s *service) RenderList(ctx context.Context, requested classday.Params, for
 	return s.listExport.Render(doc, format, filename)
 }
 
-func slotListExportColumns(pickupBased bool) []classday.ExportColumn {
+func slotListExportColumns(pickupBased, checklist bool) []classday.ExportColumn {
 	columns := []classday.ExportColumn{
 		{ID: classday.ExportColumnName, Label: "Name"},
 		{ID: classday.ExportColumnSchoolClass, Label: "Klasse"},
@@ -61,6 +64,9 @@ func slotListExportColumns(pickupBased bool) []classday.ExportColumn {
 		columns = append(columns, classday.ExportColumn{ID: classday.ExportColumnPlannedPickup, Label: "Geplante Abholung"})
 	}
 	columns = append(columns, classday.ExportColumn{ID: classday.ExportColumnPresenceStatus, Label: "Status"})
+	if checklist {
+		columns = append(columns, classday.ExportColumn{ID: classday.ExportColumnChecklist, Label: "Abhaken"})
+	}
 
 	return columns
 }
@@ -70,7 +76,7 @@ func slotListExportColumns(pickupBased bool) []classday.ExportColumn {
 // section followed by plain value rows — the same shape the grouped
 // student exports produce. Rows arrive sorted by GroupTitle (sortRows),
 // so sections are contiguous.
-func slotListExportRows(rows []classday.Row, pickupBased bool) []classday.ExportRow {
+func slotListExportRows(rows []classday.Row, pickupBased, checklist bool) []classday.ExportRow {
 	docRows := make([]classday.ExportRow, 0, len(rows))
 	currentGroup := ""
 	for _, row := range rows {
@@ -87,6 +93,9 @@ func slotListExportRows(rows []classday.Row, pickupBased bool) []classday.Export
 		}
 		if pickupBased {
 			values[classday.ExportColumnPlannedPickup] = row.PickupTime
+		}
+		if checklist {
+			values[classday.ExportColumnChecklist] = ""
 		}
 		docRows = append(docRows, classday.ExportRow{Values: values})
 	}

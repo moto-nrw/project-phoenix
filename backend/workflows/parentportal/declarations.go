@@ -15,4 +15,6 @@ var (
 	ErrDeclarationActionNotAllowed  = messaging.ErrDeclarationActionNotAllowed
 	ErrDeclarationPasswordRequired  = messaging.ErrDeclarationPasswordRequired
 	ErrDeclarationPasswordIncorrect = messaging.ErrDeclarationPasswordIncorrect
+	ErrDeclarationSignatureRequired = messaging.ErrDeclarationSignatureRequired
+	ErrDeclarationSignatureInvalid  = messaging.ErrDeclarationSignatureInvalid
 )

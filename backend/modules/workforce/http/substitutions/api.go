@@ -80,12 +80,24 @@ func RequestCaller(ctx context.Context) (workforce.SubstitutionCaller, error) {
 	}, nil
 }
 
+// Substitutions is the operations entry behind /api/substitutions: the
+// overview of running handovers and supervisions, assigning a substitute, and
+// ending an assignment. Every operation runs for the given caller and
+// enforces that caller's access itself. The root binds School Structure's
+// substitution module for the group targets and the shift-plan-sync
+// workflow's Terminvertretung entry for the schedule target (#4825).
+type Substitutions interface {
+	Overview(context.Context, workforce.SubstitutionCaller, workforce.SubstitutionOverviewQuery) (*workforce.SubstitutionOverviewResult, error)
+	Assign(context.Context, workforce.SubstitutionCaller, workforce.SubstitutionAssignment) (*workforce.SubstitutionAssignmentResult, error)
+	End(context.Context, workforce.SubstitutionCaller, workforce.SubstitutionEndRequest) error
+}
+
 type Resource struct {
-	substitutions workforce.Substitutions
+	substitutions Substitutions
 	runtime       Runtime
 }
 
-func NewResource(substitutions workforce.Substitutions, runtime Runtime) *Resource {
+func NewResource(substitutions Substitutions, runtime Runtime) *Resource {
 	return &Resource{substitutions: substitutions, runtime: runtime}
 }
 

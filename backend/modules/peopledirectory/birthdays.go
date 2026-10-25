@@ -68,6 +68,12 @@ type Birthdays interface {
 	// Overview returns the week containing weekOf; nil means the current week.
 	Overview(ctx context.Context, visibility BirthdayVisibility, weekOf *calendar.Date) (BirthdayOverview, error)
 	GetOptOut(ctx context.Context, accountID int64) (bool, error)
-	SetOptOut(ctx context.Context, accountID int64, optOut bool) error
+	OwnStaffBirthday(ctx context.Context, accountID int64) (StaffBirthdayPreference, error)
 	ListStaffBirthdays(ctx context.Context, months map[time.Month]bool) ([]StaffBirthday, error)
+}
+
+// StaffBirthdayPreference is the caller's live staff identity and display choice.
+type StaffBirthdayPreference struct {
+	StaffID int64
+	OptOut  bool
 }

@@ -18,7 +18,9 @@ func TestPublicMealPlanContractPersistsNormalizedDishes(t *testing.T) {
 	require.NoError(t, err)
 	module, err := compose.New(compose.Dependencies{DB: testpkg.SetupTestDB(t), Settings: settings, Observe: func(compose.Observation) {}, Now: time.Now, Participants: func(context.Context, string) ([]mealplan.ParticipantCandidate, error) { return nil, nil },
 		StudentNames: func(context.Context, []int64) ([]mealplan.ParticipantCandidate, error) { return nil, nil },
-		Calendar:     func(context.Context, string, string) (map[string]bool, map[string]bool, error) { return nil, nil, nil }})
+		Calendar: func(context.Context, string, string) (map[string]bool, []mealplan.HolidayPeriod, error) {
+			return nil, nil, nil
+		}})
 	require.NoError(t, err)
 	require.NoError(t, module.ReplaceDay(testpkg.Ctx(t), mealplan.ReplaceDay{Date: "2026-09-07", Dishes: []mealplan.Dish{{Dish: "  Suppe  "}, {Dish: "  "}}}))
 	entries, err := module.Week(testpkg.Ctx(t), "2026-09-07")

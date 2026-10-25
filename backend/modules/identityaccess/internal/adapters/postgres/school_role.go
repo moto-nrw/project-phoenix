@@ -9,15 +9,16 @@ import (
 )
 
 type schoolRoleRow struct {
-	ID       int64   `bun:"id"`
-	TenantID *int64  `bun:"tenant_id"`
-	Name     string  `bun:"name"`
-	IsSystem bool    `bun:"is_system"`
-	BaseRole *string `bun:"base_role"`
+	ID           int64   `bun:"id"`
+	TenantID     *int64  `bun:"tenant_id"`
+	Name         string  `bun:"name"`
+	IsSystem     bool    `bun:"is_system"`
+	BaseRole     *string `bun:"base_role"`
+	SchoolPortal bool    `bun:"school_portal"`
 }
 
 func (r schoolRoleRow) value() *domain.SchoolRole {
-	return &domain.SchoolRole{ID: r.ID, TenantID: r.TenantID, Name: r.Name, IsSystem: r.IsSystem, BaseRole: r.BaseRole}
+	return &domain.SchoolRole{ID: r.ID, TenantID: r.TenantID, Name: r.Name, IsSystem: r.IsSystem, BaseRole: r.BaseRole, SchoolPortal: r.SchoolPortal}
 }
 
 func (s *Store) ListSchoolRoles(ctx context.Context, tenantID int64) ([]*domain.SchoolRole, domain.OperationStats, error) {
@@ -27,7 +28,7 @@ func (s *Store) ListSchoolRoles(ctx context.Context, tenantID int64) ([]*domain.
 	}
 	var rows []schoolRoleRow
 	started := time.Now()
-	err = db.NewRaw(`SELECT id, tenant_id, name, is_system, base_role FROM auth.roles
+	err = db.NewRaw(`SELECT id, tenant_id, name, is_system, base_role, school_portal FROM auth.roles
 		WHERE tenant_id = ? OR tenant_id IS NULL`, tenantID).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
@@ -47,7 +48,7 @@ func (s *Store) FindSchoolRoleByName(ctx context.Context, name string, tenantID 
 	}
 	var rows []schoolRoleRow
 	started := time.Now()
-	err = db.NewRaw(`SELECT id, tenant_id, name, is_system, base_role FROM auth.roles
+	err = db.NewRaw(`SELECT id, tenant_id, name, is_system, base_role, school_portal FROM auth.roles
 		WHERE LOWER(name) = ? AND (tenant_id = ? OR tenant_id IS NULL)
 		ORDER BY tenant_id IS NULL ASC LIMIT 1`, name, tenantID).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}

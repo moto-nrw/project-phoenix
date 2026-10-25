@@ -76,6 +76,7 @@ func TimeTrackingPorts(
 	ports.StaffSchedules = workforceCompose.StaffScheduleAssignments(employment)
 	ports.MonthCloseStaff, ports.OverviewStaff = MonthCloseStaff(staff), OverviewStaff(staff)
 	ports.ExportStaff, ports.StaffNames = TimeExportStaff(staff), StaffDisplayNames(staff)
+	ports.ExternalCaregivers = externalCaregiverLookup(staff)
 	ports.Schedules = NewWorkSessionSchedules(schedules)
 	ports.TimeModels = NewWorkSessionTimeModels(timeModels)
 	ports.ScheduleTargets = NewWorkScheduleTargets(schedules)

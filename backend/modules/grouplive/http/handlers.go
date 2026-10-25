@@ -62,8 +62,11 @@ func parseOptionalGroupID(w http.ResponseWriter, r *http.Request) (int64, bool) 
 type Resource struct{ OGSGroupLiveService grouplive.Query }
 
 func NewResource(query grouplive.Query) *Resource { return &Resource{OGSGroupLiveService: query} }
+
+// Register mounts the live view; it also opens for students:read, the
+// view-only child access of the role guest (ADR 0091).
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
-	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
+	r.With(common.RequiresAnyPermission(permissions.UsersRead, permissions.StudentsRead), withTx).Get("/ogs-group-live", rs.getOGSGroupLive)
 	r.With(withTx).Get("/ogs-group-navigation", common.Fetch(func(ctx context.Context) ([]grouplive.Group, error) {
 		if rs.OGSGroupLiveService == nil {
 			return nil, errors.New("OGS group live service is not configured")

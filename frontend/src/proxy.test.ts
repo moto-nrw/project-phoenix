@@ -143,6 +143,110 @@ describe("PostHog reverse proxy", () => {
   });
 });
 
+describe("CSP security boundaries", () => {
+  it.each([
+    ["school-a.localhost:3000", "/dashboard"],
+    [PARENTS_HOSTNAME, "/login"],
+    [SCHOOL_HOSTNAME, "/login"],
+    [OPERATOR_HOSTNAME, "/login"],
+    ["localhost:3000", "/demo"],
+    ["demo-school.localhost:3000", "/demo"],
+    [PARENTS_HOSTNAME, "/demo"],
+    ["school-a.localhost:3000", "/anmeldung/5"],
+    ["localhost:3000", "/school-a/anmeldung/5"],
+  ])("restricts objects, base URLs and form targets on %s%s", (host, path) => {
+    const res = proxy(makeRequest(`http://${host}${path}`, host));
+    expect(res.status).toBe(200);
+    const directives = res.headers.get("Content-Security-Policy")?.split("; ");
+    expect(directives).toContain("object-src 'none'");
+    expect(directives).toContain("base-uri 'self'");
+    expect(directives).toContain("form-action 'self'");
+    expect(directives).toContain("frame-ancestors 'none'");
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+    expect(res.headers.get("Referrer-Policy")).toBe(
+      "strict-origin-when-cross-origin",
+    );
+  });
+
+  it.each(["production", "development"])(
+    "keeps the expected script sources in %s",
+    async (environment) => {
+      const previousNodeEnv = process.env.NODE_ENV;
+      vi.stubEnv("NODE_ENV", environment);
+      vi.resetModules();
+      try {
+        const { proxy: configuredProxy } = await import("./proxy");
+        for (const path of ["/dashboard", "/anmeldung/5"]) {
+          const host = "school-a.localhost:3000";
+          const res = configuredProxy(
+            makeRequest(`http://${host}${path}`, host),
+          );
+          expect(res.status).toBe(200);
+          const directives = res.headers
+            .get("Content-Security-Policy")
+            ?.split("; ");
+          const scriptSources = directives?.find((directive) =>
+            directive.startsWith("script-src "),
+          );
+          const turnstile =
+            path === "/anmeldung/5" ? " https://challenges.cloudflare.com" : "";
+          const evalSource =
+            environment === "development" ? " 'unsafe-eval'" : "";
+          expect(scriptSources).toBe(
+            `script-src 'self'${turnstile} 'unsafe-inline'${evalSource}`,
+          );
+          expect(directives).toContain("object-src 'none'");
+          expect(directives).toContain("base-uri 'self'");
+          expect(directives).toContain("form-action 'self'");
+        }
+      } finally {
+        vi.stubEnv("NODE_ENV", previousNodeEnv);
+        vi.resetModules();
+      }
+    },
+  );
+});
+
+describe("Turnstile CSP", () => {
+  it.each([
+    ["school-a.localhost:3000", "/anmeldung/5"],
+    ["school-a.localhost:3000", "/school-a/anmeldung/5"],
+    ["localhost:3000", "/school-a/anmeldung/5"],
+  ])("allows only Turnstile scripts and frames on %s%s", (host, path) => {
+    const res = proxy(makeRequest(`http://${host}${path}`, host));
+    expect(res.status).toBe(200);
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    const directives = csp.split("; ");
+    expect(directives.find((value) => value.startsWith("script-src "))).toBe(
+      "script-src 'self' https://challenges.cloudflare.com 'unsafe-inline'",
+    );
+    expect(directives).toContain("frame-src https://challenges.cloudflare.com");
+    expect(directives).toContain("connect-src 'self'");
+    expect(directives).toContain("frame-ancestors 'none'");
+    expect(csp).not.toMatch(/jsdelivr|worker-src/);
+  });
+
+  it.each([
+    ["school-a.localhost:3000", "/dashboard"],
+    ["school-a.localhost:3000", "/anmeldung"],
+    ["school-a.localhost:3000", "/anmeldung/preview"],
+    ["school-a.localhost:3000", "/anmeldung/submitted"],
+    ["school-a.localhost:3000", "/anmeldung/status/request/edit"],
+    [PARENTS_HOSTNAME, "/anmeldung/school-a/5"],
+    [PARENTS_HOSTNAME, "/parents/anmeldung/school-a/5"],
+    [SCHOOL_HOSTNAME, "/anmeldung/5"],
+    [OPERATOR_HOSTNAME, "/anmeldung/5"],
+    ["school-a.localhost:3000", "/api/enrollment/captcha-config/school-a"],
+  ])("keeps the original CSP on %s%s", (host, path) => {
+    const res = proxy(makeRequest(`http://${host}${path}`, host));
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    expect(csp).toContain("script-src 'self' 'unsafe-inline';");
+    expect(csp).toContain("connect-src 'self';");
+    expect(csp).not.toContain("challenges.cloudflare.com");
+  });
+});
+
 describe("trailing slash", () => {
   it("drops the trailing slash of app paths, as Next.js did before", () => {
     const res = proxy(
@@ -616,6 +720,42 @@ describe("proxy", () => {
 
       expect(res.status).toBe(404);
     });
+
+    it.each([
+      ["operator", OPERATOR_HOSTNAME],
+      ["school", SCHOOL_HOSTNAME],
+      ["tenant", "school-a.localhost:3000"],
+      ["bare domain", "localhost:3000"],
+    ])("keeps the caterer API off the %s host", (_, host) => {
+      for (const path of [
+        "/api/caterer",
+        "/api/caterer/schools",
+        "/api/caterer/auth/login",
+      ]) {
+        expect(proxy(makeRequest(`http://${host}${path}`, host)).status).toBe(
+          404,
+        );
+      }
+    });
+
+    it("still serves other API routes on the operator and tenant hosts", () => {
+      expect(
+        proxy(
+          makeRequest(
+            `http://${OPERATOR_HOSTNAME}/api/operator/organizations`,
+            OPERATOR_HOSTNAME,
+          ),
+        ).status,
+      ).toBe(200);
+      expect(
+        proxy(
+          makeRequest(
+            "http://school-a.localhost:3000/api/groups",
+            "school-a.localhost:3000",
+          ),
+        ).status,
+      ).toBe(200);
+    });
   });
 
   describe("school subdomain (moto schule, #2207)", () => {
@@ -686,6 +826,16 @@ describe("proxy", () => {
 
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/school/tagesinformationen",
+      );
+    });
+
+    it("rewrites /kalender to /school/kalender (#4798)", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/kalender`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/kalender",
       );
     });
 

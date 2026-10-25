@@ -77,6 +77,7 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 	school := testpkg.Tenant(t)
 	staff := testpkg.CreateTestAccount(t, db, fmt.Sprintf("caterer-staff-%d@test.local", time.Now().UnixNano()))
 	staffToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:manage", "meals:read"))
+	adminToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "admin:*"))
 	email := fmt.Sprintf("kueche-%d@example.com", time.Now().UnixNano())
 	forgetContractCaterer(t, db, email)
 	request := func(method, path, body, token string) (int, []byte) {
@@ -84,7 +85,10 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 		return response.Code, response.Body.Bytes()
 	}
 
-	status, body := request(http.MethodPost, "/api/meal-caterer/invitations", fmt.Sprintf(`{"email":%q,"caterer_name":"Küche am Markt","delivery_address":"Schulstraße 1"}`, email), staffToken)
+	invitationBody := fmt.Sprintf(`{"email":%q,"caterer_name":"Küche am Markt","delivery_address":"Schulstraße 1"}`, email)
+	status, body := request(http.MethodPost, "/api/meal-caterer/invitations", invitationBody, staffToken)
+	require.Equal(t, http.StatusForbidden, status, "only admins invite a caterer: %s", body)
+	status, body = request(http.MethodPost, "/api/meal-caterer/invitations", invitationBody, adminToken)
 	require.Equal(t, http.StatusCreated, status, string(body))
 	assert.NotContains(t, string(body), "einladung", "the school never sees the link")
 	var invitation struct {
@@ -177,9 +181,14 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 	decodeCatererResponse(t, body, &orders)
 	assert.Equal(t, "Schulstraße 1", orders.DeliveryAddress)
 	assert.Empty(t, orders.Days, "a week before the supply started shows no day")
+	for _, deniedToken := range []string{staffToken, registerToken} {
+		status, body = request(http.MethodGet, "/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", "", deniedToken)
+		require.Equal(t, http.StatusForbidden, status, "delivery exports require meals:orders: %s", body)
+	}
+	ordersToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:orders"))
 	for _, export := range []struct{ path, token, contentType string }{
 		{"/caterer/orders/export?from=2026-09-07&to=2026-09-11&format=pdf", catererToken, "application/pdf"},
-		{"/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", staffToken, "text/csv; charset=utf-8"},
+		{"/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", ordersToken, "text/csv; charset=utf-8"},
 	} {
 		response := checkpointRequest(graph, checkpointScenario{Method: http.MethodGet, Path: export.path, Authenticated: true}, export.token)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
@@ -201,11 +210,13 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 	require.NoError(t, err)
 
 	status, body = request(http.MethodDelete, "/api/meal-caterer/supply", "", staffToken)
+	require.Equal(t, http.StatusForbidden, status, "only admins end the supply: %s", body)
+	status, body = request(http.MethodDelete, "/api/meal-caterer/supply", "", adminToken)
 	require.Equal(t, http.StatusNoContent, status, string(body))
 	status, body = request(http.MethodGet, "/caterer/schools/"+schoolID+"/orders?from=2026-09-07&to=2026-09-11", "", catererToken)
 	assert.Equal(t, http.StatusForbidden, status)
 	assert.Equal(t, "meals.not_supplied", decodeCatererResponse(t, body, nil), "the end takes the school at once")
-	status, body = request(http.MethodGet, "/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", "", staffToken)
+	status, body = request(http.MethodGet, "/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", "", ordersToken)
 	assert.Equal(t, http.StatusForbidden, status)
 	assert.Equal(t, "meals.not_supplied", decodeCatererResponse(t, body, nil), "no delivery list without an active supply")
 }

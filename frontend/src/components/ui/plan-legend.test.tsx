@@ -33,7 +33,7 @@ describe("PlanLegend", () => {
 
   it("falls back to the neutral swatch color when no color is given", () => {
     const { container } = render(
-      <PlanLegend entries={[{ key: "untyped", label: "Ohne Schichtart" }]} />,
+      <PlanLegend entries={[{ key: "untyped", label: "Ohne Dienstart" }]} />,
     );
 
     const swatch = container.querySelector('[aria-hidden="true"]');

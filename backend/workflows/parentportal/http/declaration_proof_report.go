@@ -17,8 +17,12 @@ import (
 // both. The PDF is German like the school's own record; the portal page
 // stays in the guardian's language.
 type (
-	// ReportField is one label/value line.
-	ReportField = struct{ Label, Value string }
+	// ReportField is one label/value line. PNG, when set, is an image
+	// printed below the label (a signature, #4785).
+	ReportField = struct {
+		Label, Value string
+		PNG          []byte
+	}
 	// ReportBlock is an indented block inside a card.
 	ReportBlock = struct {
 		Title  string
@@ -102,7 +106,7 @@ func declarationProofReport(proof *parentService.DeclarationProof, now time.Time
 		{Label: "Kind", Value: proof.ChildName},
 		{Label: "Schule", Value: proof.SchoolName},
 		{Label: "Titel", Value: proof.Title},
-		{Label: "Verfahren", Value: methodLabel},
+		{Label: "Verfahren", Value: proofMethodLabel(proof)},
 		{Label: "Prüfung", Value: integrity},
 	}}
 	return ReportDocument{
@@ -128,13 +132,23 @@ func proofHistoryCards(proof *parentService.DeclarationProof) []ReportCard {
 		if sub.PasswordConfirmed {
 			confirmed = "Ja"
 		}
+		fields := []ReportField{
+			{Label: "Von", Value: sub.SignerName + " (" + labelOr(proofRoleLabels, sub.GuardianRole) + ")"},
+			{Label: "Fassung", Value: version},
+			{Label: "Passwort bestätigt", Value: confirmed},
+		}
+		if s := proofSignatureForRendering(proof, sub); s != nil {
+			typed := ""
+			if s.TypedName != "" {
+				typed = "Name getippt: " + s.TypedName
+			}
+			fields = append(fields,
+				ReportField{Label: "Unterschrift", Value: typed, PNG: s.PNG},
+				ReportField{Label: "Prüfsumme der unterschriebenen Fassung", Value: s.DocumentSHA256})
+		}
 		cards = append(cards, ReportCard{
-			Title: labelOr(proofActionLabels, sub.Action) + " am " + proofStamp(sub.SubmittedAt),
-			Fields: []ReportField{
-				{Label: "Von", Value: sub.SignerName + " (" + labelOr(proofRoleLabels, sub.GuardianRole) + ")"},
-				{Label: "Fassung", Value: version},
-				{Label: "Passwort bestätigt", Value: confirmed},
-			},
+			Title:  labelOr(proofActionLabels, sub.Action) + " am " + proofStamp(sub.SubmittedAt),
+			Fields: fields,
 		})
 	}
 	return cards

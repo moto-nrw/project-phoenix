@@ -119,13 +119,13 @@ export function MealRegistrationChangeModal({
   // die Tage leer und Speichern gesperrt, damit nie die Tage eines anderen
   // Kindes gespeichert werden.
   const loadSchedule = useCallback(
-    async (child: string) => {
+    async (child: string, scheduleDate: string) => {
       const request = ++scheduleRequest.current;
       setWeekdays([]);
       setScheduleState("loading");
       clearScheduleError();
       try {
-        const schedule = await getChildMealSchedule(child, date);
+        const schedule = await getChildMealSchedule(child, scheduleDate);
         if (request !== scheduleRequest.current) return;
         setWeekdays(schedule.weekdays);
         setScheduleState("loaded");
@@ -137,17 +137,17 @@ export function MealRegistrationChangeModal({
         setScheduleState("failed");
         void showScheduleError(cause, {
           object: t("errorObjectSchedule"),
-          retry: () => void loadSchedule(child),
+          retry: () => void loadSchedule(child, scheduleDate),
         });
       }
     },
-    [clearScheduleError, date, showScheduleError, t],
+    [clearScheduleError, showScheduleError, t],
   );
 
   function chooseChild(child: string) {
     setStudentId(child);
     setChoice(eating.has(child) ? "skips" : "eats");
-    void loadSchedule(child);
+    void loadSchedule(child, effectiveFrom);
   }
 
   // Die Schule legt feste Tage höchstens ein Jahr im Voraus fest.
@@ -293,7 +293,10 @@ export function MealRegistrationChangeModal({
             <ISODatePicker
               label={t("effectiveFrom")}
               value={effectiveFrom}
-              onChange={setEffectiveFrom}
+              onChange={(nextDate) => {
+                setEffectiveFrom(nextDate);
+                if (studentId) void loadSchedule(studentId, nextDate);
+              }}
               min={today}
               max={latestStart}
               hideClearButton

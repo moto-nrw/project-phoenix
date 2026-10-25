@@ -59,6 +59,8 @@ export const PARENT_PORTAL_ERROR_CODES = [
   "care.declaration_not_permitted",
   "care.declaration_password_incorrect",
   "care.declaration_password_required",
+  "care.declaration_signature_invalid",
+  "care.declaration_signature_required",
   "care.declaration_version_changed",
   "care.excused_request_not_pending",
   "care.excused_request_overlap",

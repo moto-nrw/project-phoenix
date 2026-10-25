@@ -9,31 +9,66 @@ Diese Datei ist keine Arbeitsliste mehr, sondern der Verlauf der Migration.
 
 ## Endstand
 
-Stand `development` @ `7c00e51003` (20.10.2026). Maßgeblich ist die jeweilige
-Quelle im Code; die Tabelle hält nur den Endstand fest.
+Neu gemessen auf `origin/development` @
+`8aca1925f79c1e723e35f14e65398cc82877fd7f` (23.10.2026, nach #4726 und #4729).
+Maßgeblich bleiben Code und Policy; diese Tabelle ist eine datierte Messung,
+kein zusätzlicher Sollwert. Die Ratchets vergleichen ihre tatsächlich gescannten
+Werte mit den Registern; die Summen unten sind nicht aus früheren PRs übernommen.
 
-| Register | Endstand | Quelle |
+| Register | Gemessener Stand | Quelle |
 |---|---:|---|
 | Ratchet-Keys | 0 | `backend/architecture/legacy.jsonl` |
-| Legacy-Composition | 0 | `legacy_composition` in `policy.json` |
-| Policy-Epoche | 88 | `policy_epoch` in `policy.json` |
-| Regeln mit `issue`-Feld oder Übergangsmarker | 0 von 919 | `rules` in `policy.json`, `validateTargetOnlyRule` in `internal/architecture/target_rule.go` |
+| Legacy-Composition | 0 | `legacy_composition` in `backend/architecture/policy.json` |
+| Policy-Epoche | 91 | `policy_epoch` in `backend/architecture/policy.json` |
+| Regeln mit `issue`-Feld oder Übergangsmarker | 0 von 927 | `rules` in `backend/architecture/policy.json`, `validateTargetOnlyRule` in `backend/internal/architecture/target_rule.go` |
 | Composition-Surface | 0 | `scripts/backend-architecture.sh check` |
-| Legacy-LOC in `legacy/`-Bäumen und `legacy_*.go` | 0 und 0 | `backend/test/module_legacy_budget_ratchet_test.go` |
-| Compose-LOC | 12.489 in 54 Paketen | `moduleComposeBudgetTotal`, ebenda |
-| Pass-through-Methoden | 2.925 | `modulePassthroughOwnerBudgetTotal` in `backend/test/module_passthrough_ratchet_test.go` |
+| Legacy-LOC in `legacy/`-Bäumen | 0 | `moduleLegacyBudgetTotal` in `backend/test/module_legacy_budget_ratchet_test.go` |
+| Legacy-LOC in `legacy_*.go` außerhalb solcher Bäume | 246 in 1 Datei | `moduleLegacyFileBudgets`, ebenda; `backend/roots/owners/legacy_workforce_schedule_adapter.go` (ADR 0082) |
+| Compose-LOC | 12.384 in 55 Paketen | `moduleComposeBudgets` / `moduleComposeBudgetTotal`, ebenda |
+| Pass-through-Methoden | 1.408 in 30 Ownern | `modulePassthroughOwnerBudgets` / `modulePassthroughOwnerBudgetTotal` in `backend/test/module_passthrough_ratchet_test.go` |
+| Dateigrößen-Ausnahmen, inkl. Roots | 2 Dateien: 1.348 und 1.139 LOC | `moduleFileSizeAllowlist` in `backend/test/module_file_size_ratchet_test.go` |
+| Funktionslängen-Ausnahmen, inkl. Roots | 27 Funktionen, Summe 3.834 Body-Zeilen | `moduleFuncLenAllowlist` in `backend/test/module_function_length_ratchet_test.go` |
+| Komplexitäts-Ausnahmen, inkl. Roots | 13 Funktionen, Summe 285 | `moduleComplexityAllowlist` in `backend/test/module_complexity_ratchet_test.go` |
 
-Die Regeln, die weiter gelten, stehen in den Prinzip-ADRs 0066 bis 0071
-([Übersicht](README.md#architecture-principles)) und in `backend/CLAUDE.md`.
+Messbefehle vom Repository-Root:
+
+```bash
+git rev-parse origin/development
+wc -l backend/architecture/legacy.jsonl
+jq '{policy_epoch, rules: (.rules | length), issue_rules: ([.rules[] | select(has("issue"))] | length), legacy_composition: (.legacy_composition | length)}' backend/architecture/policy.json
+scripts/run-go-toolchain.sh scripts/backend-architecture.sh check
+scripts/run-go-toolchain.sh go -C backend test -tags=testhooks ./test -run '^(TestModulePassthroughRatchet|TestModuleLegacyBudgetRatchet|TestModuleFileSizeRatchet|TestModuleFunctionLengthRatchet|TestModuleComplexityRatchet)$' -count=1 -v
+```
+
+Die Register wurden zusätzlich nach Einträgen und Summen ausgezählt. Die
+Root-Erweiterung folgt ADR 0082, nicht einer neuen Pass-through-Freigabe.
+ADR 0083 verlangt getestete Nachfolger für Formzähler und Compose-LOC;
+die vorhandenen Gates bleiben bis dahin bestehen. Nicht alle Register haben
+null als sinnvolles Ziel.
+
+Die Regeln stehen in den Prinzip-ADRs 0066 bis 0071
+([Übersicht](README.md#architecture-principles)), ihren Nachträgen und in
+`backend/CLAUDE.md`.
 
 ## Folgearbeit außerhalb von #2580
 
-Den Stand zeigt jeweils das Issue:
+Issue-Status per GitHub API geprüft am 23.10.2026. Die früher hier als offen
+geführten #3423, #4408, #4407, #2809 und #2821 sind geschlossen.
+Tatsächlich offen sind unter anderem diese anschließenden Arbeiten:
 
-- #3423: Code-Shape-Register der Modul-Ratchets; die Pass-through-Entscheidung liegt in #4403.
-- #4408: ST1005-`nolint`-Direktiven.
-- #4407: Care-Resume bei unbekanntem oder ausgeschiedenem Kind.
-- #2809 und #2821: Träger-Portal an der Zielarchitektur.
+- #4605: Transaktionsregister und drei Verdachtsfälle prüfen.
+- #4601: maskierte oder verworfene Fehler sowie falsche Erfolgsantworten.
+- #4602: Fehler beim Einreihen der Eltern-Einladungsmail durchreichen.
+- #4611: Spec der Träger-App; Architekturentscheidungen dazu in #4646
+  (Settings), #4647 (Elternabrechnung/Vertrag) und #4648 (Personal).
+
+ADR 0083 nennt außerdem **Folge-Vorschläge ohne neu angelegte Issues**:
+typisierte Command-Effekte, methoden-/formgenaue Pass-through-Erfassung,
+vollständige Produktionsquellen-Gates, typisierte Liveness und semantische
+Nähte für Care-Workflows und delegierte Autorisierung. Die Trennung der
+Architektur-README in Live-Vertrag und Historie ist ein eigener späterer
+Dokumentationsschnitt, nicht Teil von #4541. Eine kompaktere Policy-Notation
+setzt eine gemessene Ersparnis und den Nachweis identischer Rechte voraus.
 
 ## Historischer Verlauf bis 19.10.2026
 
@@ -52,7 +87,7 @@ Stand 19.10.2026 · Ratchet 0 · Composition 0 · Policy-Epoche 86 ·
 der Check ohne Baseline müssen beide mit null Verstößen bestehen. Der letzte
 Data-Import-Autorisierungsport wird in der Root an Security Runtime gebunden.
 Der Nachweis deckt den letzten Key von #4004 ab:
-[Zero-Ratchet-Cutover](zero-ratchet-owner-cutover-4004.json).
+[Zero-Ratchet-Cutover](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/zero-ratchet-owner-cutover-4004.json).
 
 | Carrier | Keys |
 |---|---:|
@@ -108,7 +143,7 @@ Policy-Diff null; aktuell 842 Regeln, Epoche 72 und Composition 1.657.
 Communication-Composition 1.481 → 1.480, People-Vokabular 110 → 106,
 Compose-Gesamtstand 34.546 LOC. Keine neue Freigabe, kein Alias, keine
 Ausnahme und kein höheres Budget.
-Nachweis: [native Communication-Records](communication-native-staff-announcements-4074.json).
+Nachweis: [native Communication-Records](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-staff-announcements-4074.json).
 
 #4074: Elternnachrichten verwenden vollständige native Workflow-Werte und
 Ports. Die gebundenen Stores bieten native Facetten; Schul- und Gruppen-
@@ -125,7 +160,7 @@ Communication-Compose sinkt 1.486 → 1.481 LOC, die Summe 34.577 → 34.572.
 Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Root-Graph-Felder
 oder höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte,
 Sessions und Portal-Isolation bleiben unverändert.
-Nachweis: [native Elternnachrichten](communication-native-parent-messages-4074.json).
+Nachweis: [native Elternnachrichten](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-parent-messages-4074.json).
 
 #4074: Der Staff-Store bindet native Records direkt an dieselben SQL-Stores
 und dieselbe Inbox-Projektion. Die Root bindet Picker, Berechtigungsprüfung
@@ -137,7 +172,7 @@ Regeln 844, Epoche 72, Composition 1.657 und Compose 34.584 bleiben gleich.
 Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Graph-Felder oder
 höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions
 und Portal-Isolation bleiben unverändert.
-Nachweis: [nativer Staff-Store](communication-native-staff-store-4074.json).
+Nachweis: [nativer Staff-Store](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-staff-store-4074.json).
 
 #4074: Staff-Messaging verwendet native Workflow-Records und eigene Ports für
 Threads, Nachrichten, Inbox und Empfänger. Dieselben gebundenen Stores bieten
@@ -151,7 +186,7 @@ Compose-Summe 34.584 bleiben gleich. Keine neue Freigabe, Go-Typalias,
 Klassifizierung, Ausnahme, Root-Graph-Felder oder höheren Budgets. Die übrigen
 Store-Keys bleiben sichtbar. Routen, Antworten, Goldens, IoT, Beziehungsrechte,
 Sessions und Portal-Isolation bleiben unverändert.
-Nachweis: [native Staff-Records](communication-native-staff-records-4074.json).
+Nachweis: [native Staff-Records](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-staff-records-4074.json).
 
 #4074: Communication besitzt native Mail-Werte und schmale Lese- und Schreibports.
 Die Root bindet dieselbe Outbox, denselben Mail-Transport und dieselbe Audit-Facette.
@@ -167,7 +202,7 @@ die Summe 34.612 → 34.584, das Dateigrößenbudget 1.183 → 1.178.
 Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Graph-Felder oder
 höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions und
 Portal-Isolation bleiben unverändert.
-Nachweis: [native Communication-Mail](communication-native-mail-4074.json).
+Nachweis: [native Communication-Mail](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-mail-4074.json).
 
 #4074: Communication besitzt native Application-Events und schmale Delivery-Ports.
 Die Root bindet denselben Router über öffentliche Commands. Alle Event- und
@@ -180,7 +215,7 @@ bleiben gleich. Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme,
 Graph-Felder oder höheren Budgets. Eine überholte Funktionslängen-Ausnahme
 entfällt; das Dateigrößenbudget sinkt 1.188 → 1.183. Routen, Antworten, Goldens, IoT, Beziehungsrechte, Sessions und
 Portal-Isolation bleiben unverändert.
-Nachweis: [native Communication-Notifications](communication-native-notifications-4074.json).
+Nachweis: [native Communication-Notifications](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-notifications-4074.json).
 
 #4074: Communication besitzt eigene semantische Settings-Ports. Die Root
 bindet fünf schmale öffentliche Settings-Facetten an denselben Resolver.
@@ -192,7 +227,7 @@ fallen: 158 → 151, #4074 41 → 34. Regeln 844, Epoche 72, Composition 1.657 u
 Compose 34.612 LOC bleiben gleich. Das Dateigrößenbudget sinkt 1.189 → 1.188.
 Keine neue Freigabe, Go-Typalias, Ausnahme oder höheren Budgets. Routen,
 Antworten, Goldens, IoT, Beziehungsrechte, Sessions und Portal-Isolation bleiben unverändert.
-Nachweis: [native Communication-Settings](communication-native-settings-4074.json).
+Nachweis: [native Communication-Settings](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-settings-4074.json).
 
 #4074: Communication besitzt schmale Ports für Schul-ID, After-Commit und
 Detached-Transaktionen. Die Root bindet dieselbe öffentliche Tenant Runtime.
@@ -206,7 +241,7 @@ Compose sinkt 1.518 → 1.514 LOC, Transaction Runtime 173 → 172,
 die Summe 34.617 → 34.612. Keine neue Freigabe,
 Alias, Ausnahme oder höheren Budgets. Routen, Antworten, Goldens, IoT,
 Beziehungsrechte, Sessions und Portal-Isolation bleiben unverändert.
-Nachweis: [native Communication-Runtime](communication-native-runtime-4074.json).
+Nachweis: [native Communication-Runtime](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/communication-native-runtime-4074.json).
 
 #4073: Messaging verwendet vollständige native Workflow-Werte für Feed,
 Deklarationen, Nachrichten, Inbox, Familienschutz und Request-Sharing. Die Root
@@ -223,7 +258,7 @@ seine alten Adapterverträge bleiben sichtbar. Regeln 844, Epoche 72,
 Composition 1.657 und alle Budgets bleiben gleich. Keine neue Freigabe, Alias,
 Klassifizierung, Ausnahme oder höheren Limits. Routen, Antworten, Goldens,
 IoT, Beziehungsrechte, Sessions und falsches Portal bleiben unverändert.
-Nachweis: [native Messaging-Werte](parent-portal-native-messaging-4073.json).
+Nachweis: [native Messaging-Werte](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/parent-portal-native-messaging-4073.json).
 
 #4073: Care verwendet eigene Plan-, Ausnahme-, Abwesenheits- und Angebots-DTOs
 sowie schmale Ports. Die Root bindet die öffentlichen Care-Plan-Facetten;
@@ -237,7 +272,7 @@ Zwei Produktionskeys fallen: 164 → 162, #4073 2 → 1 und #4004 82 → 81.
 Portal-Compose sinkt 478 → 465 LOC, die Summe 34.630 → 34.617. Keine neue
 Freigabe, Regel, Ausnahme, Alias oder höheren Budgets. Routen, Antworten,
 Goldens, IoT, Beziehungsrechte und Portal-Isolation bleiben unverändert.
-Nachweis: [native Care-Plan-Ports](parent-portal-native-care-plan-4073.json).
+Nachweis: [native Care-Plan-Ports](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/parent-portal-native-care-plan-4073.json).
 
 #4073: Care verwendet native Workflow-Werte für Beziehungen, Stammdaten-Anträge
 und Ledger-Ereignisse. Die Root bindet die öffentlichen Owner-Facetten an eigene
@@ -250,7 +285,7 @@ Regeln 844, Epoche 72 und Composition 1.657 bleiben gleich. Portal-Compose sinkt
 von 479 auf 478 LOC, die Summe von 34.631 auf 34.630. Keine neue Freigabe,
 Klassifizierung oder Ausnahme; keine neuen Typaliase und keine höheren Budgets. Routen, Antworten,
 Goldens, IoT und Portal-Isolation bleiben unverändert.
-Nachweis: [native Care-Werte](parent-portal-native-care-records-4073.json).
+Nachweis: [native Care-Werte](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/parent-portal-native-care-records-4073.json).
 
 #4073: Die äußere Workflow-Suite konstruiert Beziehungen, Telefone und
 Schutzereignisse mit nativen Testwerten. Die Root bindet Test-Facetten derselben

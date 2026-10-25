@@ -18,8 +18,13 @@ import type { AppLocale } from "~/i18n/locales";
 import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
+import {
+  normalizeMealAllergens,
+  type MealAllergen,
+} from "~/lib/meal-allergens";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
+import { type SignatureValue, signatureRequestBody } from "~/lib/signature";
 import type {
   MeProfileResponse,
   SubmitEnrollmentPayload,
@@ -244,6 +249,10 @@ export interface ChildFeatures {
   readonly pickup_change_today_closed?: boolean;
   readonly pickup_manage_allowed?: boolean;
   readonly guardian_contact_manage_allowed: boolean;
+  // Ob die Person ihre eigenen offenen Abwesenheitsanfragen ändern darf
+  // (parent_portal.sick_note.submit, #4603). Fehlt das Feld (älteres
+  // Backend), bleibt der Knopf aus.
+  readonly absence_request_edit_enabled?: boolean;
   readonly related_accounts_invite_enabled: boolean;
   readonly related_accounts_remove_enabled: boolean;
   readonly master_data_edit_enabled: boolean;
@@ -273,6 +282,8 @@ export interface MealPlanEntry {
   readonly position: number;
   readonly dish: string;
   readonly note?: string | null;
+  /** Codes of the main allergens, in legend order; empty when unmarked. */
+  readonly allergens: readonly MealAllergen[];
 }
 
 // One day's pickup override plus OGS-owned arrival state for display.
@@ -832,11 +843,17 @@ export async function getChildMealPlan(
   studentId: string,
   weekStart: string,
 ): Promise<MealPlanEntry[]> {
-  return getJson<MealPlanEntry[]>(
+  const entries = await getJson<
+    Array<Omit<MealPlanEntry, "allergens"> & { allergens?: string[] | null }>
+  >(
     `/api/parent/me/children/${encodeURIComponent(
       studentId,
     )}/meal-plan?week_start=${encodeURIComponent(weekStart)}`,
   );
+  return (entries ?? []).map((entry) => ({
+    ...entry,
+    allergens: normalizeMealAllergens(entry.allergens),
+  }));
 }
 
 // "absent": excused or on a class trip; "closed": a closing day or public
@@ -956,7 +973,12 @@ export async function listSickDays(studentId: string): Promise<StatusDay[]> {
 // own messages, "staff" for replies from the OGS. For staff messages
 // `sender_name` is the "OGS [Schulname]" label.
 // The wire message shape is shared with the staff client; see ChatMessage.
-export type ParentMessage = ChatMessage;
+export type ParentMessage = ChatMessage & {
+  // The group thread this own message answers (#4784). Only the guardian and
+  // the OGS see the answer.
+  readonly group_thread_id?: string;
+  readonly group_thread_title?: string;
+};
 
 // One row on the messages landing page: a child's conversation, with the
 // guardian's unread (staff-sent) count and last-activity metadata.
@@ -1061,6 +1083,8 @@ export interface ParentDeclaration {
   readonly signers: "any" | "all";
   readonly revocable: boolean;
   readonly requires_password: boolean;
+  /** Agreeing needs a signature with finger, pen or mouse (#4785). */
+  readonly requires_signature: boolean;
   readonly deadline: string | null;
   readonly closed: boolean;
   readonly version: {
@@ -1244,6 +1268,8 @@ export async function submitDeclaration(
     readonly action: ParentDeclarationAction;
     readonly versionId: string;
     readonly password?: string;
+    /** Sent only when agreeing to an Einverständnis that asks for it. */
+    readonly signature?: SignatureValue;
   },
 ): Promise<{ submission: ParentDeclarationSubmission; created: boolean }> {
   return postJson<{
@@ -1254,7 +1280,20 @@ export async function submitDeclaration(
     action: input.action,
     version_id: input.versionId,
     ...(input.password === undefined ? {} : { password: input.password }),
+    ...(input.signature === undefined
+      ? {}
+      : { signature: signatureRequestBody(input.signature) }),
   });
+}
+
+/** A stored signature as the own proof shows it (#4785). */
+interface ParentDeclarationProofSignature {
+  readonly method: "drawn" | "typed";
+  readonly typed_name: string | null;
+  /** `data:image/png;base64,…` */
+  readonly image_data_url: string;
+  readonly image_sha256: string;
+  readonly signed_at: string;
 }
 
 /** One version of an Einverständnis as frozen on publishing (#3430). */
@@ -1286,6 +1325,7 @@ interface ParentDeclarationProofEntry {
   readonly method: string;
   readonly content_hash: string;
   readonly record_hash: string;
+  readonly signature: ParentDeclarationProofSignature | null;
 }
 
 /** The proof (Nachweis) of this account's Einverständnis for one child. */
@@ -1372,10 +1412,62 @@ export async function getChildConversation(
 export async function postChildMessage(
   studentId: string,
   body: string,
+  groupThreadId?: string,
 ): Promise<ThreadView> {
   return postJson<ThreadView>(
     `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
-    { body },
+    groupThreadId ? { body, group_thread_id: groupThreadId } : { body },
+  );
+}
+
+// Gruppennachrichten (#4784): the OGS writes to a group, class or AG. The
+// guardian sees only what reached them, for their own children; an answer
+// goes into the child's conversation with the OGS.
+
+/** One of the guardian's own children a group thread reached. */
+export interface GroupThreadChild {
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+}
+
+/** One row of the guardian's group thread list. */
+export interface GroupThreadSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly target_label: string;
+  readonly school_name: string;
+  readonly counterpart_name: string; // "OGS [Schulname]"
+  readonly closed: boolean;
+  readonly last_message_at?: string; // ISO timestamp
+  readonly last_message_body: string;
+  readonly unread: number;
+  readonly children: readonly GroupThreadChild[];
+}
+
+/** One OGS message of a group thread; the sender is always the OGS. */
+interface GroupThreadMessage {
+  readonly id: string;
+  readonly body: string;
+  readonly created_at: string; // ISO timestamp
+}
+
+/** An opened group thread. */
+export interface GroupThreadView extends GroupThreadSummary {
+  readonly messages: readonly GroupThreadMessage[];
+}
+
+/** Lists the group threads that reached the guardian, newest first. */
+export async function listGroupThreads(): Promise<GroupThreadSummary[]> {
+  return getJson<GroupThreadSummary[]>("/api/parent/me/messages/group-threads");
+}
+
+/** Opens one group thread. Reading marks it read server-side. */
+export async function getGroupThread(
+  groupThreadId: string,
+): Promise<GroupThreadView> {
+  return getJson<GroupThreadView>(
+    `/api/parent/me/messages/group-threads/${encodeURIComponent(groupThreadId)}`,
   );
 }
 

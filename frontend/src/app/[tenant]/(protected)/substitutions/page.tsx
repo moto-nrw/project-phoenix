@@ -27,6 +27,7 @@ import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
+import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
@@ -164,8 +165,8 @@ function ScheduleSection({
     return (
       <EmptyState
         variant="compact"
-        title="Keine Terminvertretungen verfügbar"
-        description="Bitten Sie einen Admin um Zugriff auf Terminvertretungen."
+        title="Keine Vertretungen verfügbar"
+        description="Bitten Sie einen Admin um Zugriff auf Vertretungen."
       />
     );
   }
@@ -176,7 +177,7 @@ function ScheduleSection({
     return (
       <EmptyState
         variant="compact"
-        title="Heute keine Terminvertretungen"
+        title="Heute keine Vertretungen"
         description="Für heute ist keine Vertretung eingetragen."
       />
     );
@@ -760,7 +761,7 @@ function ScheduleCardContent({
   // Ladefehler vor Ort mit Wiederholen, nie als leere Liste (#2516).
   const loadError = useSwrLoadError(
     data.scheduleError,
-    "die Liste der Terminvertretungen",
+    "die Liste der Vertretungen",
     () => data.scheduleMutate(),
   );
   if (data.scheduleError && loadError !== null) {
@@ -769,7 +770,7 @@ function ScheduleCardContent({
   // Bis der Katalogtext da ist, bleibt das Skelett stehen.
   if (data.scheduleLoading || data.scheduleError) {
     return (
-      <SkeletonRegion label="Terminvertretungen werden geladen">
+      <SkeletonRegion label="Vertretungen werden geladen">
         <ListSkeleton rows={2} />
       </SkeletonRegion>
     );
@@ -789,7 +790,7 @@ function ScheduleCard({
 }: Readonly<{ data: ReturnType<typeof useOverviewData> }>) {
   return (
     <InfoCard
-      title="Termine"
+      title="Vertretungen heute"
       icon={
         <CalendarClock className="h-5 w-5 text-gray-600" aria-hidden="true" />
       }
@@ -805,7 +806,7 @@ function ScheduleCard({
           size="compact"
           href={data.scheduleHref()}
         >
-          Alle Termine öffnen
+          Vertretungsplan öffnen
         </ButtonLink>
       ) : null}
     </InfoCard>
@@ -882,6 +883,7 @@ type PageOverlaysProps = Readonly<{
   data: ReturnType<typeof useOverviewData>;
   admin: boolean;
   canCreateExternalCaregiver: boolean;
+  canGrantExternalView: boolean;
   assignOpen: boolean;
   runningId: string | null;
   ending: Substitution | null;
@@ -909,6 +911,7 @@ function PageOverlays(props: PageOverlaysProps) {
         <AddSupervisorModal
           activeGroupId={props.runningId}
           canCreateExternalCaregiver={props.canCreateExternalCaregiver}
+          canGrantExternalView={props.canGrantExternalView}
           isOpen
           onClose={props.closeRunning}
           onAdded={data.mutate}
@@ -963,13 +966,13 @@ function OverviewLoadError({
 }: Readonly<{ error: unknown; retry: () => unknown }>) {
   const loadError = useSwrLoadError(
     error,
-    "die Übersicht der Vertretungen",
+    "die Übersicht der Übergaben",
     retry,
   );
   if (loadError === null) {
     // Bis der Katalogtext da ist: Skelett statt leerer Fläche.
     return (
-      <SkeletonRegion label="Vertretungen werden geladen">
+      <SkeletonRegion label="Übergaben werden geladen">
         <ListSkeleton rows={6} />
       </SkeletonRegion>
     );
@@ -1017,12 +1020,13 @@ function LoadedPage({ session, data, openCare }: LoadedPageProps) {
     // Die Kopfkarte des Gerüsts ersetzt den früheren PageHeader; Dialoge
     // stehen im overlays-Slot, damit sie in jedem Zustand gemountet bleiben.
     <TenantPage
-      title="Vertretungen"
+      title="Übergaben"
       overlays={
         <PageOverlays
           data={data}
           admin={hasEffectiveAdminScope(session)}
           canCreateExternalCaregiver={hasPermission(session, "users:create")}
+          canGrantExternalView={canGrantExternalViewAccess(session)}
           assignOpen={dialogs.assignOpen}
           runningId={dialogs.runningId}
           ending={dialogs.ending}
@@ -1060,11 +1064,11 @@ function SubstitutionPageContent() {
 function LoadingFallback() {
   return (
     <TenantPage
-      title="Vertretungen"
+      title="Übergaben"
       // Das Gerüst trägt die vorlesbare Ankündigung selbst — ein zweites
       // role="status" darunter wäre eine doppelte Meldung.
       loading={<ListSkeleton rows={6} />}
-      loadingLabel="Vertretungen werden geladen"
+      loadingLabel="Übergaben werden geladen"
     />
   );
 }

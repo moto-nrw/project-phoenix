@@ -253,6 +253,9 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, common.ErrorNotFound(authErr.Err))
 			case errors.Is(authErr.Err, identityaccess.ErrAccountInactive):
 				common.RenderError(w, r, common.ErrorConflict(authErr.Err))
+			case errors.Is(authErr.Err, identityaccess.ErrEmailAlreadyExists):
+				// A caterer account joins no school (ADR 0077).
+				common.RenderError(w, r, common.ErrorConflictOnField(identityaccess.ErrEmailAlreadyExists, common.CodeIdentityEmailAlreadyExists, "email"))
 			case errors.Is(authErr.Err, identityaccess.ErrRoleNotAssignable),
 				errors.Is(authErr.Err, identityaccess.ErrRoleForeignTenant),
 				errors.Is(authErr.Err, identityaccess.ErrRoleGuardianNotAssignable),
@@ -426,6 +429,8 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
+			case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
+				common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityMfaStatusUnavailable))
 			case errors.Is(err, identityaccess.ErrInvalidToken):
 				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
 			case errors.Is(err, identityaccess.ErrTokenExpired):
@@ -540,6 +545,8 @@ func (rs *Resource) canGrantRole(role *identityaccess.AssignableSchoolRole, perm
 		Name:     role.Name,
 		IsSystem: role.IsSystem,
 		BaseRole: role.BaseRole,
+		// A Lehrkraft copy is graded like the Lehrkraft role (#4574).
+		SchoolPortal: role.SchoolPortal,
 	}
 	return rs.RoleGrants.CanGrantRole(facts, permissions, append([]string(nil), role.Permissions...))
 }

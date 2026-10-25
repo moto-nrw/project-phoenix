@@ -34,6 +34,8 @@ import (
 
 // setupCleanupService creates a cleanup service with real database connection
 func setupCleanupService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) active.CleanupService {
+	_, err := db.NewRaw(`INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?, 'gdpr.attendance_log_enabled', 'true'::jsonb) ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value`, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
 	serviceFactoryCleanup, err := api.NewTestPresenceCleanup(testpkg.NewDatabase(t, db), slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactoryCleanup

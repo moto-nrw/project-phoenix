@@ -9,6 +9,7 @@ import (
 // Operator audit vocabulary the provisioning flows record (#3253). The
 // values are the stored platform.operator_audit_log strings.
 const (
+	AuditActionView         = "view"
 	AuditActionCreate       = "create"
 	AuditActionUpdate       = "update"
 	AuditActionDelete       = "delete"
@@ -23,6 +24,8 @@ const (
 	AuditResourceDevice       = "device"
 	AuditResourceAccount      = "account"
 	AuditResourcePerson       = "person"
+	AuditResourceAnnouncement = "announcement"
+	AuditResourceTagScan      = "unregistered_tag_scan"
 )
 
 // Device vocabulary shared with Device Fleet.
@@ -172,6 +175,8 @@ type Device struct {
 	Name                  *string
 	Status                string
 	APIKey                *string
+	APIKeyHash            *string
+	MaskedAPIKey          string
 	LastSeen              *time.Time
 	RegisteredByID        *int64
 	RoomID                *int64
@@ -181,12 +186,14 @@ type Device struct {
 
 // NewDevice registers a device at one school.
 type NewDevice struct {
-	TenantID   int64
-	DeviceID   string
-	DeviceType string
-	Name       *string
-	Status     string
-	APIKey     *string
+	TenantID     int64
+	DeviceID     string
+	DeviceType   string
+	Name         *string
+	Status       string
+	APIKey       *string
+	APIKeyHash   *string
+	MaskedAPIKey string
 }
 
 // DeviceSession is the open kiosk session of a device.

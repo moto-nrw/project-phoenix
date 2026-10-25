@@ -9,17 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  Check,
-  ChevronDown,
-  Clock,
-  Download,
-  ExternalLink,
-  FileSpreadsheet,
-  FileText,
-  Inbox,
-  X,
-} from "lucide-react";
+import { Check, Clock, ExternalLink, Inbox, X } from "lucide-react";
 import {
   type AdminRequestSummary,
   type ChildStatus,
@@ -29,6 +19,11 @@ import {
   setAdminRequestRead,
 } from "~/lib/enrollment-admin-api";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import {
+  ExportMenu,
+  exportFormatOptions,
+  type ExportMenuOption,
+} from "~/components/ui/export-menu";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   getPhaseResponseOverview,
@@ -37,6 +32,7 @@ import {
   type PhaseResponseOverview,
 } from "~/lib/enrollment-phase-api";
 import { PhaseResponseOverview as PhaseResponseOverviewPanel } from "~/components/enrollment/phase-response-overview";
+import { PhaseOfferingOccupancy } from "~/components/enrollment/phase-offering-occupancy";
 import {
   type EnrollmentExportFormat,
   exportPhaseRegistrations,
@@ -83,7 +79,6 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
@@ -128,17 +123,7 @@ const TERMINAL_STATUSES = new Set<ChildStatus>([
   "withdrawn",
 ]);
 
-const EXPORT_MENU_LABELS: Record<EnrollmentExportFormat, string> = {
-  pdf: "Als PDF exportieren",
-  docx: "Als Word-Dokument exportieren",
-  xlsx: "Als Excel-Datei exportieren",
-};
-
-const REPORT_EXPORT_LABELS: Record<EnrollmentReportFormat, string> = {
-  docx: "Word",
-  pdf: "PDF",
-  xlsx: "Excel",
-};
+const ENROLLMENT_EXPORT_OPTIONS = exportFormatOptions(["pdf", "docx", "xlsx"]);
 
 const DAY_LABELS: Record<string, string> = {
   mon: "Mo",
@@ -195,8 +180,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     useState<CareUsageRow | null>(null);
   const [exportingFormat, setExportingFormat] =
     useState<EnrollmentExportFormat | null>(null);
-  const [exportingReportFormat, setExportingReportFormat] =
-    useState<EnrollmentReportFormat | null>(null);
+  const [exportingReportKey, setExportingReportKey] = useState<string | null>(
+    null,
+  );
   const [exportingClassRosterFormat, setExportingClassRosterFormat] =
     useState<EnrollmentReportFormat | null>(null);
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId });
@@ -341,7 +327,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       format: EnrollmentReportFormat,
       layout: EnrollmentReportLayout = "detailed",
     ) => {
-      setExportingReportFormat(format);
+      setExportingReportKey(`${format}-${layout}`);
       try {
         if (layout === "compact") {
           await exportCareUsageReport(reportFilters, format, "compact");
@@ -358,7 +344,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         });
         await showActionError(err, { object: "die Auswertung" });
       } finally {
-        setExportingReportFormat(null);
+        setExportingReportKey(null);
       }
     },
     [phaseId, reportFilters, toast, showActionError],
@@ -904,12 +890,14 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <DataTableStatusBadge active={phase.is_active} />
-          <ExportMenuButton
+          <ExportMenu
             label="Anmeldungen exportieren"
-            menuAriaLabel="Exportformat auswählen"
-            formats={["pdf", "docx", "xlsx"]}
-            exportingFormat={exportingFormat}
-            onExport={(format) => void handleExport(format)}
+            options={ENROLLMENT_EXPORT_OPTIONS}
+            busyKey={exportingFormat}
+            onSelect={(option) => {
+              if (option.format && option.format !== "csv")
+                void handleExport(option.format);
+            }}
           />
           <ButtonLink
             href={tenantPath(`/anmeldung/${encodeURIComponent(phase.id)}`)}
@@ -996,6 +984,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             />
           </div>
 
+          {careOfferingsEnabled ? (
+            <PhaseOfferingOccupancy phaseId={phaseId} />
+          ) : null}
+
           <ClassRosterExportPanel
             schoolClassOptions={schoolClassOptions}
             selectedSchoolClass={classRosterSchoolClass}
@@ -1013,7 +1005,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               <ReportStats
                 report={report}
                 loading={reportLoading}
-                exportingFormat={exportingReportFormat}
+                exportingKey={exportingReportKey}
                 onExport={(format, layout) =>
                   void handleReportExport(format, layout)
                 }
@@ -1128,13 +1120,15 @@ function ClassRosterExportPanel({
           </SelectField>
         </div>
 
-        <ExportMenuButton
+        <ExportMenu
           label="Klassenliste exportieren"
-          menuAriaLabel="Klassenliste exportieren"
-          formats={["pdf", "docx", "xlsx"]}
-          exportingFormat={exportingFormat}
-          disabled={schoolClassOptions.length === 0}
-          onExport={onExport}
+          options={ENROLLMENT_EXPORT_OPTIONS}
+          busyKey={exportingFormat}
+          unavailable={schoolClassOptions.length === 0}
+          onSelect={(option) => {
+            if (option.format && option.format !== "csv")
+              onExport(option.format);
+          }}
         />
       </div>
     </section>
@@ -1144,12 +1138,12 @@ function ClassRosterExportPanel({
 function ReportStats({
   report,
   loading,
-  exportingFormat,
+  exportingKey,
   onExport,
 }: Readonly<{
   report: CareUsageReport | null;
   loading: boolean;
-  exportingFormat: EnrollmentReportFormat | null;
+  exportingKey: string | null;
   onExport: (
     format: EnrollmentReportFormat,
     layout: EnrollmentReportLayout,
@@ -1172,10 +1166,7 @@ function ReportStats({
             }
           />
         ))}
-        <ReportExportCard
-          exportingFormat={exportingFormat}
-          onExport={onExport}
-        />
+        <ReportExportCard exportingKey={exportingKey} onExport={onExport} />
       </div>
       <DeploymentPlanningStats report={report} loading={loading} />
     </section>
@@ -1238,88 +1229,61 @@ function DeploymentPlanningStats({
 
 // Excel is always tabular; PDF and Word offer the detailed record layout and
 // the compact class-roster-style table (#2215).
-const REPORT_EXPORT_OPTIONS: readonly ExportMenuItem[] = [
-  { format: "xlsx", layout: "detailed", label: "Als Excel-Datei exportieren" },
+const REPORT_EXPORT_OPTIONS: readonly (ExportMenuOption & {
+  readonly layout: EnrollmentReportLayout;
+})[] = [
+  { key: "xlsx-detailed", format: "xlsx", layout: "detailed", label: "Excel" },
   {
+    key: "pdf-detailed",
     format: "pdf",
     layout: "detailed",
-    label: "Als PDF exportieren (ausführlich)",
+    label: "PDF, ausführlich",
   },
   {
+    key: "pdf-compact",
     format: "pdf",
     layout: "compact",
-    label: "Als PDF exportieren (kompakte Tabelle)",
+    label: "PDF, kompakte Tabelle",
   },
   {
+    key: "docx-detailed",
     format: "docx",
     layout: "detailed",
-    label: "Als Word-Dokument exportieren (ausführlich)",
+    label: "Word, ausführlich",
   },
   {
+    key: "docx-compact",
     format: "docx",
     layout: "compact",
-    label: "Als Word-Dokument exportieren (kompakte Tabelle)",
+    label: "Word, kompakte Tabelle",
   },
 ];
 
 function ReportExportCard({
-  exportingFormat,
+  exportingKey,
   onExport,
 }: Readonly<{
-  exportingFormat: EnrollmentReportFormat | null;
+  exportingKey: string | null;
   onExport: (
     format: EnrollmentReportFormat,
     layout: EnrollmentReportLayout,
   ) => void;
 }>) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const closeMenu = useCallback(() => setOpen(false), []);
-  useClickOutside(containerRef, closeMenu, open);
-  const disabled = exportingFormat !== null;
-
   return (
-    <div
-      className="moto-content-surface relative overflow-visible rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md"
-      ref={containerRef}
-    >
+    <div className="moto-content-surface flex flex-col gap-1 rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md">
       <p className="truncate text-xs font-medium text-gray-500">Auswertung</p>
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        disabled={disabled}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="mt-1 inline-flex min-h-6 w-full items-center justify-between gap-2 rounded-md text-left text-sm font-semibold text-gray-900 transition-colors hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <span className="truncate">
-          {exportingFormat === null
-            ? "Auswertung exportieren"
-            : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}…`}
-        </span>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${
-            open ? "rotate-180" : ""
-          }`}
-          aria-hidden="true"
-        />
-      </button>
-
-      {open ? (
-        <div
-          role="menu"
-          aria-label="Auswertung exportieren"
-          className="moto-popover-surface absolute right-0 z-40 mt-2 min-w-64 overflow-hidden rounded-xl border py-1"
-        >
-          <ExportMenuItems
-            items={REPORT_EXPORT_OPTIONS}
-            onSelect={(item) => {
-              setOpen(false);
-              onExport(item.format, item.layout ?? "detailed");
-            }}
-          />
-        </div>
-      ) : null}
+      <ExportMenu
+        label="Auswertung exportieren"
+        options={REPORT_EXPORT_OPTIONS}
+        busyKey={exportingKey}
+        onSelect={(option) => {
+          const entry = REPORT_EXPORT_OPTIONS.find(
+            (item) => item.key === option.key,
+          );
+          if (entry?.format && entry.format !== "csv")
+            onExport(entry.format, entry.layout);
+        }}
+      />
     </div>
   );
 }
@@ -1391,114 +1355,6 @@ function formatOfferingDaySource(
 
 function formatDayCountLabel(count: number): string {
   return count === 1 ? "1 Tag" : `${count} Tage`;
-}
-
-interface ExportMenuItem {
-  readonly format: EnrollmentExportFormat;
-  readonly label: string;
-  readonly layout?: EnrollmentReportLayout;
-}
-
-function ExportMenuItems({
-  items,
-  onSelect,
-}: {
-  readonly items: readonly ExportMenuItem[];
-  readonly onSelect: (item: ExportMenuItem) => void;
-}) {
-  return (
-    <>
-      {items.map((item) => (
-        <button
-          key={`${item.format}-${item.layout ?? "detailed"}`}
-          type="button"
-          role="menuitem"
-          onClick={() => onSelect(item)}
-          className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
-        >
-          <ExportFormatIcon format={item.format} />
-          <span className="flex-1">{item.label}</span>
-        </button>
-      ))}
-    </>
-  );
-}
-
-function ExportMenuButton({
-  label,
-  menuAriaLabel,
-  formats,
-  exportingFormat,
-  disabled = false,
-  onExport,
-}: {
-  readonly label: string;
-  readonly menuAriaLabel: string;
-  readonly formats: readonly EnrollmentExportFormat[];
-  readonly exportingFormat: EnrollmentExportFormat | null;
-  readonly disabled?: boolean;
-  readonly onExport: (format: EnrollmentExportFormat) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const closeMenu = useCallback(() => setOpen(false), []);
-  useClickOutside(containerRef, closeMenu, open);
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        onClick={() => setOpen((value) => !value)}
-        disabled={disabled || exportingFormat !== null}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className="inline-flex items-center justify-center gap-2"
-      >
-        <Download className="h-4 w-4" aria-hidden="true" />
-        {exportingFormat === null
-          ? label
-          : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}…`}
-        <ChevronDown
-          className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
-          aria-hidden="true"
-        />
-      </Button>
-
-      {open ? (
-        <div
-          role="menu"
-          aria-label={menuAriaLabel}
-          className="moto-popover-surface absolute right-0 z-30 mt-2 min-w-64 overflow-hidden rounded-xl border py-1"
-        >
-          <ExportMenuItems
-            items={formats.map((format) => ({
-              format,
-              label: EXPORT_MENU_LABELS[format],
-            }))}
-            onSelect={(item) => {
-              setOpen(false);
-              onExport(item.format);
-            }}
-          />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ExportFormatIcon({
-  format,
-}: {
-  readonly format: EnrollmentExportFormat;
-}) {
-  const Icon = format === "xlsx" ? FileSpreadsheet : FileText;
-  return (
-    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 text-gray-600">
-      <Icon className="h-4 w-4" aria-hidden="true" />
-    </span>
-  );
 }
 
 function coerceSchoolClassOptions(value: unknown): string[] {

@@ -2490,6 +2490,30 @@ describe("api.ts helper functions", () => {
       }
     });
 
+    it("keeps a request without a response marked as such (#2512)", async () => {
+      const { unavailableApiError } = await import("./api-error");
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockRejectedValue(
+        unavailableApiError(new TypeError("Failed to fetch")),
+      );
+
+      const { getSession } = await import("next-auth/react");
+      vi.mocked(getSession).mockResolvedValue({
+        user: { token: "test-token" },
+      } as never);
+
+      const { studentService } = await import("./api");
+
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          studentService.getStudents({ token: "test" }),
+        ).rejects.toMatchObject({ status: 503, noResponse: true });
+      } finally {
+        restore();
+      }
+    });
+
     it("takes the diagnostic message from the envelope detail", async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,

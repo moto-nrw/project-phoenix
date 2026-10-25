@@ -3,6 +3,14 @@ import type { BrowserOptions, ErrorEvent, Event } from "@sentry/nextjs";
 const routerStateParseMessage =
   "The router state header was sent but could not be parsed.";
 
+/**
+ * Error name of a tenant lookup the backend rate limit rejected (HTTP 429).
+ * Scanner bursts cause it, not a defect; the backend counts every rejection
+ * in its rate-limit metric, so Sentry drops these events.
+ */
+export const tenantResolutionRateLimitedError =
+  "TenantResolutionRateLimitedError";
+
 // Calendar- and request-feed capability tokens ride in URL paths. Redact them
 // from every recorded URL/path so a Sentry event cannot leak a replayable
 // secret. This mirrors the backend request-log redactor.
@@ -47,7 +55,10 @@ function scrubText(text: string): string {
  * Used by client, server, and edge configs to keep scrubbing rules in sync.
  */
 export function scrubEvent(event: ErrorEvent): ErrorEvent | null {
-  if (isKnownRscRouterStateParseError(event)) {
+  if (
+    isKnownRscRouterStateParseError(event) ||
+    hasExceptionType(event, tenantResolutionRateLimitedError)
+  ) {
     return null;
   }
 
@@ -274,6 +285,10 @@ function isKnownRscRouterStateParseError(event: ErrorEvent): boolean {
   }
 
   return event.request?.url?.includes("_rsc=") ?? false;
+}
+
+function hasExceptionType(event: ErrorEvent, type: string): boolean {
+  return event.exception?.values?.some((value) => value.type === type) ?? false;
 }
 
 function eventHasMessage(event: ErrorEvent, message: string): boolean {

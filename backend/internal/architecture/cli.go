@@ -10,19 +10,40 @@ import (
 )
 
 type CLIDependencies struct {
-	IssueClient IssueClient
-	Getenv      func(string) string
-	ProjectRoot string
+	IssueClient  IssueClient
+	Getenv       func(string) string
+	ProjectRoot  string
+	CheckProject func(project, baseRef string) error
 }
 
 func RunCLI(args []string, dependencies CLIDependencies) error {
 	if len(args) == 0 {
-		return fmt.Errorf("command is required: check, explain, diagram, dependencies, cycles, audit-issues, relocations, or validate-ticket")
+		return fmt.Errorf("command is required: check, effects, passthrough-snapshot, explain, diagram, dependencies, cycles, audit-issues, or relocations")
 	}
 
 	switch args[0] {
 	case "check":
-		return runCheck(args[1:])
+		options, err := parseCheckOptions(args[1:])
+		if err != nil {
+			return err
+		}
+		if err := runCheck(options); err != nil {
+			return err
+		}
+		if dependencies.CheckProject != nil {
+			return dependencies.CheckProject(options.project, options.baseRef)
+		}
+		return nil
+	case "effects":
+		options, err := parseCheckOptions(args[1:])
+		if err != nil {
+			return err
+		}
+		policy, err := LoadPolicy(options.policy)
+		if err != nil {
+			return err
+		}
+		return GenerateCommandEffects(options.project, policy)
 	case "relocations":
 		return runRelocations(args[1:])
 	case "explain":
@@ -35,10 +56,8 @@ func RunCLI(args []string, dependencies CLIDependencies) error {
 		return runDependencies(args[1:])
 	case "cycles":
 		return runCycles(args[1:])
-	case "validate-ticket":
-		return runValidateMigrationTicket(args[1:], dependencies)
 	default:
-		return fmt.Errorf("unknown command %q: expected check, explain, diagram, dependencies, cycles, audit-issues, relocations, or validate-ticket", args[0])
+		return fmt.Errorf("unknown command %q: expected check, effects, passthrough-snapshot, explain, diagram, dependencies, cycles, audit-issues, or relocations", args[0])
 	}
 }
 
@@ -66,11 +85,7 @@ func runExplain(args []string) error {
 	return nil
 }
 
-func runCheck(args []string) error {
-	options, err := parseCheckOptions(args)
-	if err != nil {
-		return err
-	}
+func runCheck(options checkOptions) error {
 	policy, err := LoadPolicy(options.policy)
 	if err != nil {
 		return err
@@ -144,6 +159,7 @@ func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManif
 		CompareCandidateLegacyBaselines(options.project, options.baseRef, manifest, baseManifest, basePolicy, policy),
 		CompareCompositionSurface(options.project, options.baseRef, basePolicy, policy),
 		CompareRatchetBudgets(options.project, options.baseRef),
+		compareCommandEffectsIfEnabled(options.project, options.baseRef, policy),
 	)
 }
 

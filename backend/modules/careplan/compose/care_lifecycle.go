@@ -15,9 +15,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The care lifecycle, the companion graph and the child documents (#3427)
-// drive owners around Care Plan through consumer-owned ports. The composition
-// that holds those owners binds them here.
+// Root binds the lifecycle, companion and document ports (#3427).
 type (
 	CareLifecycleOwners      = application.CareLifecycleOwners
 	CareStudentDirectory     = ports.CareStudentDirectory
@@ -67,6 +65,8 @@ type CareLifecycleDependencies struct {
 }
 
 // NewCareLifecycle composes the one care-lifecycle capability.
+// Workflow entries belong to their transport consumer, not these dependencies.
+// Root binds resumption separately so this capability cannot invoke it.
 func NewCareLifecycle(deps CareLifecycleDependencies) (careplan.CareLifecycle, error) {
 	if deps.DB == nil || deps.StudentDirectory == nil {
 		return nil, errors.New("care lifecycle compose: database and student directory are required")
@@ -76,7 +76,7 @@ func NewCareLifecycle(deps CareLifecycleDependencies) (careplan.CareLifecycle, e
 		today = calendar.TodayDate
 	}
 	return application.NewCareLifecycle(application.CareLifecycleDependencies{
-		Owners: deps.Owners, Records: deps.Records,
+		Owners: deps.Owners, Records: deps.Records, SourceBookings: NewOfferingBookings(),
 		Directory:             postgres.NewDirectoryStore(postgres.New(postgres.CarePlanDatabase(deps.DB)), deps.StudentDirectory),
 		Unit:                  tenant.NewTransactionRunner().RunInTx,
 		LockCareBookingWrites: deps.LockCareBookingWrites,

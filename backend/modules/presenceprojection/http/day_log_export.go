@@ -29,7 +29,12 @@ func (rs *Resource) exportStudentsDayLog(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	logger := rs.dayLogLogger()
 
-	if !resolveBoolSetting(ctx, rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
+	enabled, err := rs.SettingsService.ResolveBool(ctx, settingAttendanceLogEnabled)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to resolve attendance settings", err))
+		return
+	}
+	if !enabled {
 		renderError(w, r, common.ErrorForbiddenWithCode(errors.New("feature_disabled"), common.CodeStudentsDayLogDisabled))
 		return
 	}

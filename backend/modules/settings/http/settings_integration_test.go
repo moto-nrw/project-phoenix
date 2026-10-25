@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
@@ -20,6 +23,7 @@ type settingsTestContext struct {
 	resource *settingsHTTP.SettingsResource
 	settings interface {
 		ResolveStringForTenant(context.Context, int64, string) (string, error)
+		ResolveBoolForTenant(context.Context, int64, string) (bool, error)
 	}
 }
 
@@ -171,7 +175,7 @@ func TestSettingsSetHomeLayout_LegacyPayloadPreservesArrangement(t *testing.T) {
 }
 
 // The demo seeder writes the device PIN into schools with NFC off. The PIN's
-// dependency on attendance.nfc_enabled hides it in the settings screen, but
+// dependency on module.nfc_anwesenheit hides it in the settings screen, but
 // the school admin's write must still succeed and reach device auth.
 func TestSettingsSetValue_DevicePINWritableWhileNFCDisabled(t *testing.T) {
 	t.Parallel()
@@ -179,6 +183,12 @@ func TestSettingsSetValue_DevicePINWritableWhileNFCDisabled(t *testing.T) {
 	ctx := setupSettingsModule(t)
 	router := ctx.resource.SettingsRouter()
 	const key = "security.ogs_device_pin"
+	// The module switch defaults to booked (#4892); this school has no NFC.
+	// Only the moto team books modules, so the fixture writes the row.
+	_, err := ctx.db.ExecContext(testpkg.Ctx(t), `
+		INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'module.nfc_anwesenheit', 'false'::jsonb)`, testpkg.Tenant(t))
+	require.NoError(t, err)
 
 	schema := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "GET", "/schema", nil, testutil.WithTestTenant(t)))
 	testutil.AssertSuccessResponse(t, schema, 200)
@@ -201,7 +211,7 @@ func TestSettingsSetValue_DevicePINWritableWhileNFCDisabled(t *testing.T) {
 			for _, item := range category.Items {
 				if item.Key == key {
 					found = true
-					assert.False(t, item.Visible, "a fresh school has NFC off, which hides the PIN")
+					assert.False(t, item.Visible, "a school without NFC does not see the PIN")
 				}
 			}
 		}
@@ -691,4 +701,23 @@ func TestSettingsGetSchema_HidesOperatorOnly(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestSchoolAdminCanSwitchUsageAnalyticsOffAndResetToDefault(t *testing.T) {
+	t.Parallel()
+	ctx := setupSettingsModule(t)
+	router := ctx.resource.SettingsRouter()
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/analytics.enabled",
+		map[string]interface{}{"value": false}, testutil.WithTestTenant(t))
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	value, err := ctx.settings.ResolveBoolForTenant(context.Background(), testpkg.Tenant(t), settings.KeyAnalyticsEnabled)
+	require.NoError(t, err)
+	assert.False(t, value)
+	reset := testutil.NewAuthenticatedRequest(t, "DELETE", "/values/analytics.enabled", nil, testutil.WithTestTenant(t))
+	result := testutil.ExecuteRequest(router, reset)
+	require.Equal(t, http.StatusNoContent, result.Code, result.Body.String())
+	value, err = ctx.settings.ResolveBoolForTenant(context.Background(), testpkg.Tenant(t), settings.KeyAnalyticsEnabled)
+	require.NoError(t, err)
+	assert.True(t, value)
 }

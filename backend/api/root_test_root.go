@@ -305,7 +305,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		func() (err error) {
 			structureViews.Education = buildGroupManagement(db, hub, structure, people, substitutions, audit)
 			structureViews.Substitution, err = buildSubstitutions(db, env, hub, structure, people, substitutions, workTime,
-				caller.Caller(), presence.SessionRecords, supervisions, active, lifecycle.Deviations, timetableRows, audit, settings.Service)
+				caller.Caller(), presence.SessionRecords, supervisions, active, lifecycle.Deviations, timetableRows, audit, settings.Service, identity)
 			return
 		},
 		func() error {
@@ -323,7 +323,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return nil
 		},
 		func() (err error) {
-			settingsWrites, err = buildSettingsWrites(env, settings, payroll, yard, schedules.Lifecycle, services.StudentPhotos, hub)
+			settingsWrites, err = buildSettingsWrites(env, settings, payroll, yard, schedules.Lifecycle, services.StudentPhotos, owners.BuildPresenceCleanup(env, presence, audit, settings.Service), hub)
 			return
 		},
 		func() error {

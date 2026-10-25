@@ -15,6 +15,10 @@ import (
 // Missing active challenges and devices may return a not-found error;
 // callers refuse verification for either an error or found=false.
 type AccountMFARecords interface {
+	// MFAAccountPermissions returns effective grants at one school, or across
+	// active school mappings when tenantID is zero (operator global override).
+	MFAAccountPermissions(ctx context.Context, accountID, tenantID int64) ([]string, error)
+	InvalidateSessionMFA(ctx context.Context, accountID int64) error
 	AccountDirectory
 	// AccountBelongsToTenant reports an active school mapping.
 	AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error)

@@ -106,7 +106,7 @@ func buildListSetup(t *testing.T) *listSetup {
 	}
 
 	data := testTimetableData(db)
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		Templates:         data,
 		TimetableData:     data.TimetableData(),
 		ConflictDetection: data.ConflictDetection(),
@@ -191,7 +191,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 
 	sourceID := time.Now().UnixNano()
 	serviceStart := calendar.NewDate(2026, 8, 13)
-	resource := NewResource(Dependencies{OfferingSourceOptions: &stubOfferingSources{
+	resource := newResourceForTest(Dependencies{OfferingSourceOptions: &stubOfferingSources{
 		options: []timetable.OfferingSourceOption{{
 			ID:                sourceID,
 			PhaseName:         "Schuljahr 2026/27",
@@ -662,7 +662,7 @@ func TestListInstances_DateValidation(t *testing.T) {
 func TestEnforcePlannedEndDefaultsTrue(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{})
+	res := newResourceForTest(Dependencies{})
 	got, err := res.enforcePlannedEnd(context.Background())
 	require.NoError(t, err)
 	assert.True(t, got)
@@ -671,7 +671,7 @@ func TestEnforcePlannedEndDefaultsTrue(t *testing.T) {
 func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		SettingsService: &settingsDouble{
 			ResolveBoolFn: func(context.Context, string) (bool, error) {
 				return false, errors.New("settings down")
@@ -682,26 +682,10 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
 }
 
-func TestCompleteLeadMinutesRejectsMissingSettings(t *testing.T) {
-	t.Parallel()
-
-	res := NewResource(Dependencies{})
-	_, err := res.completeLeadMinutes(context.Background())
-	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
-}
-
-func TestCompletionAvailabilityRejectsMissingSettings(t *testing.T) {
-	t.Parallel()
-
-	res := NewResource(Dependencies{})
-	_, err := res.completionAvailability(context.Background(), timetable.ScheduledInstance{})
-	require.ErrorIs(t, err, timetable.ErrLifecycleSettings)
-}
-
 func TestCompleteLeadMinutesResolvesZero(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		SettingsService: &settingsDouble{
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {
 				require.Equal(t, settings.KeyTimetableCompleteLeadMinutes, key)
@@ -717,7 +701,7 @@ func TestCompleteLeadMinutesResolvesZero(t *testing.T) {
 func TestCompleteLeadMinutesPropagatesResolveError(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		SettingsService: &settingsDouble{
 			ResolveIntFn: func(context.Context, string) (int, error) {
 				return 0, errors.New("settings down")
@@ -733,7 +717,7 @@ func TestCompleteLeadMinutesPropagatesResolveError(t *testing.T) {
 func TestCompletionAvailabilityAppliesCompleteLead(t *testing.T) {
 	t.Parallel()
 
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		SettingsService: &settingsDouble{
 			ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {

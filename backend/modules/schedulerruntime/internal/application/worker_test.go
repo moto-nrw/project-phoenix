@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"testing"
 	"time"
@@ -27,6 +28,10 @@ func (fakeOperatorRetention) DeleteDeactivatedOperators(context.Context) (int, e
 type fakeAccountRetention struct{}
 
 func (fakeAccountRetention) EraseUnusedAccounts(context.Context) (int, error) { return 0, nil }
+
+func (fakeAccountRetention) CleanupErasedAccountAvatars(context.Context) (int, error) { return 0, nil }
+
+func (fakeAccountRetention) DeleteUnusedCaterers(context.Context) (int, error) { return 0, nil }
 
 type fakeFeedbackCleaner struct{ err error }
 
@@ -135,4 +140,68 @@ func TestCleanupJobsEraseUnusedAccounts(t *testing.T) {
 		descriptions = append(descriptions, job.Description)
 	}
 	require.Contains(t, descriptions, "Unused account erasure")
+	require.Contains(t, descriptions, "Erased account avatar cleanup")
+}
+
+type cleanupTransactionKey struct{}
+
+type markingCleanupRuntime struct{ ports.TenantRuntime }
+
+func (r markingCleanupRuntime) WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return fn(context.WithValue(ctx, cleanupTransactionKey{}, true))
+}
+
+type transactionalAccountRetention struct {
+	t        *testing.T
+	err      error
+	erased   bool
+	cleaned  bool
+	caterers bool
+}
+
+func (r *transactionalAccountRetention) EraseUnusedAccounts(ctx context.Context) (int, error) {
+	r.t.Helper()
+	require.Equal(r.t, true, ctx.Value(cleanupTransactionKey{}), "anonymization uses the scheduler transaction")
+	r.erased = true
+	return 0, nil
+}
+
+func (r *transactionalAccountRetention) DeleteUnusedCaterers(ctx context.Context) (int, error) {
+	r.t.Helper()
+	require.Equal(r.t, true, ctx.Value(cleanupTransactionKey{}), "the caterer deletion uses the scheduler transaction")
+	require.True(r.t, r.erased, "caterers go after the account erasure, which decides whether their accounts are still needed")
+	r.caterers = true
+	return 0, nil
+}
+
+func (r *transactionalAccountRetention) CleanupErasedAccountAvatars(ctx context.Context) (int, error) {
+	r.t.Helper()
+	require.Nil(r.t, ctx.Value(cleanupTransactionKey{}), "file cleanup must own its commit so a partial error cannot roll it back")
+	r.cleaned = true
+	return 1, r.err
+}
+
+func TestAccountAvatarJobOwnsItsTransactionAndReportsPartialFailure(t *testing.T) {
+	t.Parallel()
+	deps := minimalWorkerDependencies(t)
+	deps.TenantRuntime = markingCleanupRuntime{unitTenantRuntime()}
+	partial := errors.New("one file remains for retry")
+	retention := &transactionalAccountRetention{t: t, err: partial}
+	deps.AccountRetention = retention
+	err := newScheduler(deps).runCleanupJobs(t.Context())
+	require.ErrorIs(t, err, partial)
+	require.True(t, retention.cleaned)
+	require.True(t, retention.caterers, "a file failure does not stop the caterer deletion")
+}
+
+func TestNewWorkerRejectsMissingSettings(t *testing.T) {
+	t.Parallel()
+	deps := minimalWorkerDependencies(t)
+	deps.Settings = nil
+	_, err := NewWorker(deps)
+	require.ErrorContains(t, err, "worker dependency settings is required")
+	var typedNil *stubSettingsResolver
+	deps.Settings = typedNil
+	_, err = NewWorker(deps)
+	require.ErrorContains(t, err, "worker dependency settings is required")
 }

@@ -110,8 +110,10 @@ jobs:
               - 'backend/go.sum'
               - 'backend/architecture/policy.json'
               - 'backend/**/testdata/**'
+              # Shrink-only ratchet registers, read by ./test.
+              - 'backend/test/*.json'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
-              - 'backend/services/listexport/assets/**'
+              - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
               - 'scripts/backend-architecture.sh'
               - 'scripts/backend-architecture/**'
@@ -140,10 +142,7 @@ jobs:
               - 'backend/internal/architecture/**'
               - 'scripts/backend-architecture.sh'
               - 'scripts/backend-architecture/**'
-              - 'docs/runtime-checkpoints/**'
-              - 'docs/operations/**'
-              - 'scripts/check-migration-evidence*'
-              # The evidence gate reads docs/ markdown, never backend/ notes.
+              # The architecture check reads Go and policy, never backend/ notes.
               - '!backend/**/*.md'
             backend-lint-full:
               - 'backend/go.mod'
@@ -158,7 +157,7 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
-              - 'backend/services/listexport/assets/**'
+              - 'backend/modules/documentrendering/internal/application/listrenderer/assets/**'
               - 'backend/templates/email/**'
             seed-smoke-infra:
               - '.github/workflows/main.yml'
@@ -213,11 +212,19 @@ jobs:
             # Release, deploy and demo tooling and the workflow files the
             # script suites read. None of it feeds the test or lint suites.
             tooling:
+              - 'docs/operations/daily-restore.compose.yml'
+              - 'scripts/daily-backup*'
+              - 'scripts/*erasure-ledger*'
+              - 'monitoring/grafana/provisioning/alerting/daily-backup.yml'
+              - 'scripts/daily_backup.py'
+              - 'scripts/restore-daily-backup.sh'
+              - 'scripts/systemd/moto-*backup*'
+              - 'scripts/systemd/moto-release-retention*'
               - 'scripts/check-release-architecture*'
-              - 'scripts/check-migration-evidence*'
               - 'scripts/release-backup*'
               - 'scripts/demo-environment.test.mjs'
               - 'scripts/report-sentry-deploy*'
+              - 'scripts/deploy-grafana-provisioning*'
               - 'scripts/posthog-dashboards*'
               - 'scripts/create-demo-env.py'
               - 'scripts/test-support/release-docker.mjs'
@@ -238,8 +245,10 @@ jobs:
               - 'scripts/runtime_checkpoint_*_test.py'
               - 'scripts/check-agent-context*'
               - 'scripts/check-test-runners*'
+              - 'scripts/check-pr-body*'
               - '**/*.test.{js,cjs,mjs,ts,cts,mts}'
               - '**/*_test.py'
+              - '**/*.test.py'
               - '**/*_test.sh'
               - 'frontend/e2e/**'
               - 'frontend/playwright*.config.ts'
@@ -279,18 +288,27 @@ jobs:
             error-codes:
               - 'error-registry.json'
               - 'scripts/generate-error-codes*'
-              - 'backend/api/common/error_codes.generated.go'
+              - 'backend/api/common/error_codes*.generated.go'
               - 'frontend/src/lib/error-codes.generated.ts'
               - '.github/workflows/lint.yml'
 
       # A large refactor must not squeeze almost the whole suite through the
       # affected-only runner. This cheap file-list check also avoids a serial
       # Go planning job for changes that are already obviously broad.
+      # Linux caps one environment value at 128 KiB; a list of thousands of
+      # paths stops bash from starting at all. At 500 files and more the list
+      # stays out of the environment and the scope is full. Keep both 500s equal.
       - name: Size backend test scope
         id: backend-size
         env:
-          CHANGED_FILES: ${{ steps.filter.outputs.backend-tests_files }}
+          CHANGED_COUNT: ${{ steps.filter.outputs.backend-tests_count }}
+          CHANGED_FILES: ${{ fromJSON(steps.filter.outputs.backend-tests_count) < 500 && steps.filter.outputs.backend-tests_files || '[]' }}
         run: |
+          : "${CHANGED_COUNT:?changed-file count is required}"
+          if [ "$CHANGED_COUNT" -ge 500 ]; then
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           : "${CHANGED_FILES:?changed-file list is required}"
           full=$(jq 'any(.[]; . == "backend/go.mod" or . == "backend/go.sum") or
             (map(select(endswith(".go")) | split("/")[:-1] | join("/")) | unique | length >= 64)' <<< "$CHANGED_FILES")
@@ -323,12 +341,12 @@ jobs:
 
       - name: Verify pre-push failure and selection behavior
         if: matrix.suite == 'unit'
-        run: node --test scripts/pre-push.test.mjs scripts/check-secrets.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/check-migration-evidence.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/posthog-dashboards.test.mjs
+        run: node --test scripts/pre-push.test.mjs scripts/check-secrets.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/deploy-grafana-provisioning.test.mjs scripts/posthog-dashboards.test.mjs
 
       - name: Verify repository script suites
         if: matrix.suite == 'unit'
         run: |
-          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs
+          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py
 
       # Lists test files that no workflow runs (#4436).
@@ -339,6 +357,31 @@ jobs:
       - name: Verify complete release restore with PostgreSQL
         if: matrix.suite == 'restore'
         run: node --test scripts/release-backup.integration.test.mjs
+
+      - name: Install daily backup test tools
+        if: matrix.suite == 'restore'
+        run: sudo apt-get update -qq && sudo apt-get install -y age rclone
+
+      - name: Verify encrypted daily backup and isolated restore
+        if: matrix.suite == 'restore'
+        run: |
+          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs
+          sudo install -d /usr/local/lib/moto-backup
+          sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
+          systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service
+          systemd-analyze verify scripts/systemd/moto-release-retention@.service scripts/systemd/moto-release-retention@.timer
+
+      - name: Verify external erasure ledger unit and restore suites
+        if: matrix.suite == 'restore'
+        run: |
+          python3 scripts/erasure-ledger.test.py
+          node --test scripts/erasure-ledger.integration.test.mjs
+
+      - name: Setup Node.js for error-code generator fixtures
+        if: matrix.suite == 'ratchets'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
 
       # TestToolchainPinsRatchet reads the files of the toolchain filter.
       # Changed-test selection adds ./test only for backend changes, so such a
@@ -450,13 +493,6 @@ jobs:
           else
             scripts/backend-architecture.sh check
           fi
-      - name: Validate migration evidence and retirement coverage
-        # The validator discovers every architecture JSON except the named
-        # policy, composition, checkpoint registry and contract-active-2737-progress.json
-        # documents. The progress file is historical notes, not cutover evidence.
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/check-migration-evidence.mjs
       - name: Generate and validate current architecture projections
         run: |
           output_directory=$(mktemp -d)

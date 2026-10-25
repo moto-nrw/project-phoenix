@@ -3,25 +3,38 @@ import {
   getAccountRoleLabel,
   getRoleDisplayName,
   getRoleDisplayDescription,
+  isAssignableStaffRole,
   toAssignableRoleOptions,
   type Role,
 } from "./auth-helpers";
 
 describe("getRoleDisplayName", () => {
-  it("translates admin to Administrator", () => {
-    expect(getRoleDisplayName("admin")).toBe("Administrator");
+  // ADR 0091: „Extern“ ist keine Rolle mehr; eine gleichnamige Schulrolle
+  // bleibt, wie sie gespeichert ist.
+  it("keeps custom school roles as stored, extern included", () => {
+    expect(getRoleDisplayName("extern")).toBe("extern");
+    expect(getRoleDisplayName("externe-ag")).toBe("externe-ag");
   });
 
-  it("translates Admin (case-insensitive) to Administrator", () => {
-    expect(getRoleDisplayName("Admin")).toBe("Administrator");
+  it("translates the system role ag-leitung to AG-Leitung", () => {
+    expect(getRoleDisplayName("ag-leitung")).toBe("AG-Leitung");
+    expect(getRoleDisplayName("AG-Leitung")).toBe("AG-Leitung");
   });
 
-  it("translates ADMIN (uppercase) to Administrator", () => {
-    expect(getRoleDisplayName("ADMIN")).toBe("Administrator");
+  it("translates admin to Verwaltung", () => {
+    expect(getRoleDisplayName("admin")).toBe("Verwaltung");
   });
 
-  it("translates user to Betreuer", () => {
-    expect(getRoleDisplayName("user")).toBe("Betreuer");
+  it("translates Admin (case-insensitive) to Verwaltung", () => {
+    expect(getRoleDisplayName("Admin")).toBe("Verwaltung");
+  });
+
+  it("translates ADMIN (uppercase) to Verwaltung", () => {
+    expect(getRoleDisplayName("ADMIN")).toBe("Verwaltung");
+  });
+
+  it("translates user to Betreuung", () => {
+    expect(getRoleDisplayName("user")).toBe("Betreuung");
   });
 
   it("translates guest to Gast", () => {
@@ -36,8 +49,8 @@ describe("getRoleDisplayName", () => {
     expect(getRoleDisplayName("staff")).toBe("staff");
   });
 
-  it("translates guardian to Erziehungsberechtigter", () => {
-    expect(getRoleDisplayName("guardian")).toBe("Erziehungsberechtigter");
+  it("translates guardian to Eltern", () => {
+    expect(getRoleDisplayName("guardian")).toBe("Eltern");
   });
 
   it("returns original name for non-system roles", () => {
@@ -48,19 +61,26 @@ describe("getRoleDisplayName", () => {
 describe("getRoleDisplayDescription", () => {
   it("translates admin description to German", () => {
     expect(getRoleDisplayDescription("admin", "System administrator")).toBe(
-      "Systemadministrator mit vollem Zugriff",
+      "Darf alles an der Schule einrichten und verwalten.",
     );
   });
 
-  it("translates user description to Betreuer description", () => {
+  it("translates user description to Betreuung description", () => {
     expect(getRoleDisplayDescription("user", "Standard user")).toBe(
-      "Pädagogische Fachkraft mit Betreuungsrechten",
+      "Betreut Kinder und Gruppen im Alltag.",
     );
   });
 
+  // ADR 0091: Gast is a signed-in account that only reads.
   it("translates guest description to German", () => {
     expect(getRoleDisplayDescription("guest", "Limited access")).toBe(
-      "Eingeschränkter Zugriff für nicht authentifizierte Benutzer",
+      "Nur ansehen: Kinder, Räume und AGs. Keine Elterndaten, keine Nachrichten.",
+    );
+  });
+
+  it("describes the system role ag-leitung", () => {
+    expect(getRoleDisplayDescription("ag-leitung", "Supervises")).toBe(
+      "Betreut eigene Termine: starten, Kinder ein- und auschecken, beenden",
     );
   });
 
@@ -78,7 +98,7 @@ describe("getRoleDisplayDescription", () => {
 
   it("translates guardian description to German", () => {
     expect(getRoleDisplayDescription("guardian", "Parent access")).toBe(
-      "Eingeschränkter Zugriff auf Daten der eigenen Kinder",
+      "Sieht die Daten der eigenen Kinder.",
     );
   });
 
@@ -90,7 +110,7 @@ describe("getRoleDisplayDescription", () => {
 
   it("handles case-insensitive role names", () => {
     expect(getRoleDisplayDescription("ADMIN", "Admin")).toBe(
-      "Systemadministrator mit vollem Zugriff",
+      "Darf alles an der Schule einrichten und verwalten.",
     );
   });
 });
@@ -118,6 +138,25 @@ describe("toAssignableRoleOptions", () => {
     expect(options.map((option) => option.id)).toEqual(["3", "4"]);
   });
 
+  // ADR 0091: Gast is the view-only access, AG-Leitung supervises own
+  // appointments; both are offered again.
+  it("offers the system roles Gast and AG-Leitung", () => {
+    const options = toAssignableRoleOptions([
+      role("1", "guest", true),
+      role("2", "user", true),
+      role("3", "ag-leitung", true),
+      role("4", "guardian", true),
+    ]);
+
+    expect(options.map((option) => option.name)).toEqual([
+      "Gast",
+      "Betreuung",
+      "AG-Leitung",
+    ]);
+    expect(isAssignableStaffRole("guest", true)).toBe(true);
+    expect(isAssignableStaffRole("guardian", true)).toBe(false);
+  });
+
   it("excludes roles based on the guardian base role", () => {
     const options = toAssignableRoleOptions([
       { ...role("1", "Elternkoordination", false), baseRole: "guardian" },
@@ -125,6 +164,16 @@ describe("toAssignableRoleOptions", () => {
     ]);
 
     expect(options.map((option) => option.id)).toEqual(["2"]);
+  });
+
+  it("offers the system role ag-leitung as AG-Leitung in the invitation picker", () => {
+    const options = toAssignableRoleOptions([
+      { ...role("6", "ag-leitung", true), baseRole: "user" },
+    ]);
+
+    expect(options).toEqual([
+      { id: "6", name: "AG-Leitung", systemName: "ag-leitung" },
+    ]);
   });
 });
 
@@ -134,9 +183,9 @@ describe("getAccountRoleLabel", () => {
     expect(getAccountRoleLabel(["betreuungskraft"])).toBe("Betreuungskraft");
   });
 
-  it("keeps Admin for an administrator", () => {
-    expect(getAccountRoleLabel(["admin"])).toBe("Admin");
-    expect(getAccountRoleLabel(["ogs-leitung", "admin"])).toBe("Admin");
+  it("names an administrator Verwaltung", () => {
+    expect(getAccountRoleLabel(["admin"])).toBe("Verwaltung");
+    expect(getAccountRoleLabel(["ogs-leitung", "admin"])).toBe("Verwaltung");
   });
 
   it("prefers a school role over the system role behind it", () => {
@@ -146,15 +195,22 @@ describe("getAccountRoleLabel", () => {
   });
 
   it("falls back to the system roles", () => {
-    expect(getAccountRoleLabel(["user"])).toBe("Betreuer");
-    expect(getAccountRoleLabel(["teacher"])).toBe("Betreuer");
-    expect(getAccountRoleLabel([])).toBe("Betreuer");
+    expect(getAccountRoleLabel(["user"])).toBe("Betreuung");
+    expect(getAccountRoleLabel(["teacher"])).toBe("Betreuung");
+    expect(getAccountRoleLabel([])).toBe("Betreuung");
     expect(getAccountRoleLabel(["guest"])).toBe("Gast");
+  });
+
+  // ADR 0091: the two access levels of external caregivers are system roles.
+  it("names the system roles Gast and AG-Leitung", () => {
+    expect(getAccountRoleLabel(["ag-leitung"])).toBe("AG-Leitung");
+    expect(getAccountRoleLabel(["ag-leitung"], [true])).toBe("AG-Leitung");
+    expect(getAccountRoleLabel(["guest"], [true])).toBe("Gast");
   });
 
   it("uses the role origin when a school role has a system role's name", () => {
     expect(getAccountRoleLabel(["user"], [false])).toBe("User");
-    expect(getAccountRoleLabel(["user"], [true])).toBe("Betreuer");
+    expect(getAccountRoleLabel(["user"], [true])).toBe("Betreuung");
     expect(getAccountRoleLabel(["user", "user"], [true, false])).toBe("User");
   });
 });

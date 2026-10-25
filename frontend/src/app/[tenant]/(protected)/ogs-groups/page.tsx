@@ -1,6 +1,11 @@
 "use client";
 
 import {
+  HANDOVER_ABSENT_WORDING,
+  handoverDetail,
+  handoverLine,
+} from "~/lib/class-handover";
+import {
   useState,
   useEffect,
   Suspense,
@@ -56,11 +61,14 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
   StudentAbsenceRow,
+  StudentInfoRow,
   StudentPendingExcusedRow,
+  SchoolClassIcon,
 } from "~/components/students/student-card";
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
+import { canCheckInChildren } from "~/lib/student-access";
 import {
   deriveCheckinState,
   useSchoolCheckinMode,
@@ -252,6 +260,7 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
     day_planning_reason: student.day_planning_reason,
     day_planning_label: student.day_planning_label,
     pending_excused_note: student.pending_excused_note,
+    class_handover: student.class_handover,
     actual_arrival_time: student.actual_arrival_time,
     actual_pickup_time: student.actual_pickup_time,
     // Photo URL is forwarded as-is. Backend has already rewritten it
@@ -357,6 +366,8 @@ function OGSGroupPageContent() {
   // it did before this feature landed.
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
+  // Der An- und Abmelde-Modus nur mit users:checkin; der Gast hat es nicht.
+  const offersCheckinMode = isBinaryMode && canCheckInChildren(session);
 
   // Photo feature flag — only the OGS-groups view has compact StudentCards
   // (no Klasse / Gruppe rows in extraContent because the user is already
@@ -1128,7 +1139,7 @@ function OGSGroupPageContent() {
               const checkinState = deriveCheckinState(student.current_location);
               const studentIdStr = student.id.toString();
               const isGroupCardCheckinMode =
-                isBinaryMode && schoolCheckin.isActive;
+                offersCheckinMode && schoolCheckin.isActive;
               return (
                 <StudentCard
                   key={student.id}
@@ -1183,6 +1194,17 @@ function OGSGroupPageContent() {
                           note={student.pending_excused_note}
                         />
                       )}
+                      {student.class_handover &&
+                        (student.class_handover.absent ? (
+                          <StudentAbsenceRow
+                            wording={HANDOVER_ABSENT_WORDING}
+                            label={handoverDetail(student.class_handover)}
+                          />
+                        ) : (
+                          <StudentInfoRow icon={<SchoolClassIcon />}>
+                            {handoverLine(student.class_handover)}
+                          </StudentInfoRow>
+                        ))}
                       {studentAbsence && !student.actual_pickup_time ? (
                         <StudentAbsenceRow
                           label={studentAbsence.label}
@@ -1315,7 +1337,7 @@ function OGSGroupPageContent() {
                 onChange={changeView}
               />
             </div>
-            {isBinaryMode && !showTable ? (
+            {offersCheckinMode && !showTable ? (
               <div className="hidden lg:block">
                 <SchoolCheckinFab
                   variant="inline"
@@ -1435,7 +1457,7 @@ function OGSGroupPageContent() {
             desktop the header inline pill, both rendered below. */}
         {/* In der Liste markieren die Kästchen; der Modus gehört zu den
             Kacheln (#3834). */}
-        {isBinaryMode && !showTable && (
+        {offersCheckinMode && !showTable && (
           <div className="md:hidden">
             <SchoolCheckinModeMobile
               isActive={schoolCheckin.isActive}
@@ -1465,7 +1487,7 @@ function OGSGroupPageContent() {
       {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
           renders the inline pill / sticky bar combo above; desktop
           renders the inline pill inside the page header. */}
-      {isBinaryMode && !showTable && (
+      {offersCheckinMode && !showTable && (
         <div className="hidden md:block lg:hidden">
           <SchoolCheckinFab
             variant="floating"

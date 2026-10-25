@@ -28,6 +28,7 @@ func NewService(cfg ServiceConfig, runtime Runtime, policy ParentDeliveryPolicy)
 		preferences:      cfg.Preferences,
 		deliveries:       cfg.Deliveries,
 		fingerprints:     cfg.Fingerprints,
+		signatures:       cfg.Signatures,
 		attachments:      cfg.Attachments,
 		parentsURL:       cfg.ParentsURL,
 		logger:           logger,

@@ -95,8 +95,8 @@ type (
 )
 
 // groupLiveSources are the owner reads the root binds to the live-group
-// projection. Logger, Now and ExcusedRequests are optional; every other
-// source is required.
+// projection. Logger, Now, ExcusedRequests and Handovers are optional; every
+// other source is required.
 type groupLiveSources struct {
 	Presence          groupLivePresenceRows
 	People            GroupRoster
@@ -111,6 +111,7 @@ type groupLiveSources struct {
 	CareDays          groupLiveCareDays
 	CareParticipation groupLiveCareParticipation
 	ExcusedRequests   grouplive.PendingExcusedReader
+	Handovers         grouplive.HandoverReader
 	StatusDays        groupLiveStatusDays
 	Logger            *slog.Logger
 	Now               func() time.Time
@@ -142,6 +143,7 @@ func newGroupLive(sources groupLiveSources) (grouplive.Query, error) {
 		Settings:        groupLiveSettings{settings: sources.Settings},
 		Calendar:        groupLiveCalendar{now: sources.Now},
 		ExcusedRequests: sources.ExcusedRequests,
+		Handovers:       sources.Handovers,
 		Logger:          sources.Logger,
 	}), nil
 }
@@ -160,6 +162,7 @@ func (a groupLiveAccess) Caller(ctx context.Context) (grouplive.Caller, error) {
 	}
 	userPermissions := sessiontoken.PermissionsFromCtx(ctx)
 	return grouplive.Caller{
+		CanReadStudentPlans:      securityruntime.HasAdminWildcard(userPermissions) || securityruntime.HasPermission(permissions.UsersRead, userPermissions),
 		CanReadGroups:            securityruntime.HasPermission(groupLiveHTTP.GroupReadPermission, userPermissions),
 		CanReviewExcusedRequests: securityruntime.CanReviewExcusedAbsenceRequests(userPermissions),
 		OperationalOverview:      overview,

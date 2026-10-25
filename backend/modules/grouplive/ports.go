@@ -24,6 +24,8 @@ type Date string
 // Caller carries the request principal's projection-relevant rights. The
 // access port resolves them once per request from the shared authorize rules.
 type Caller struct {
+	// CanReadStudentPlans is users:read, required for plans, notes and absence statuses.
+	CanReadStudentPlans bool
 	// CanReadGroups is the groups:read permission gating the group-derived
 	// sections (room status, transfers, tracking indicators).
 	CanReadGroups bool
@@ -37,9 +39,9 @@ type Caller struct {
 // Access resolves the caller's rights for the current request.
 type Access interface {
 	Caller(ctx context.Context) (Caller, error)
-	// FullStudentAccess reports whether the caller sees unredacted student
-	// records (admin or verified staff, #2329). It is resolved only once a
-	// roster is about to be projected.
+	// FullStudentAccess reports staff/admin eligibility (#2329), used for
+	// photos and locations. Planning additionally requires CanReadStudentPlans.
+	// It is resolved only once a roster is about to be projected.
 	FullStudentAccess(ctx context.Context) (bool, error)
 }
 
@@ -255,4 +257,20 @@ type Calendar interface {
 	Clock(at time.Time) string
 	// Now is the current instant.
 	Now() time.Time
+}
+
+// ClassHandover is today's handover of a child to the OGS with its class
+// (#4794): the class, the moment, the Lehrkraft's name (empty when she was
+// removed since) and whether she marked the child "nicht da".
+type ClassHandover struct {
+	SchoolClass  string    `json:"school_class"`
+	HandedOverAt time.Time `json:"handed_over_at"`
+	HandedOverBy string    `json:"handed_over_by,omitempty"`
+	Absent       bool      `json:"absent"`
+}
+
+// HandoverReader returns, in one read, the handover on day of each child
+// among studentIDs the Lehrkraft handed over to the OGS.
+type HandoverReader interface {
+	ClassHandovers(ctx context.Context, studentIDs []int64, day Date) (map[int64]ClassHandover, error)
 }

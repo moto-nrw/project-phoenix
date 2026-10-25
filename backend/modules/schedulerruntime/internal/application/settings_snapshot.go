@@ -33,6 +33,7 @@ var schedulerPollingSettingKeys = []string{
 	settingDataCleanupTimeoutMinutes,
 	settingStatusDayRetentionDays,
 	settingAttendanceRetentionDays,
+	settingMorningAttendanceRetentionDays,
 	settingGuardianRetentionDays,
 	settingParentMessageRetentionDays,
 	settingStaffMessageRetentionDays,
@@ -84,6 +85,24 @@ var schedulerPollingSettingKeys = []string{
 // getMinuteSnapshot coalesces concurrent scheduler goroutines into one active
 // tenant query and one config.setting_values batch query per wall-clock minute.
 func (s *Scheduler) getMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnapshot, error) {
+	loader := func(ctx context.Context) (*schedulerMinuteSnapshot, error) { return s.loadMinuteSnapshot(ctx, false) }
+	if s.minuteSnapshotLoader != nil {
+		loader = s.minuteSnapshotLoader
+	}
+	return s.getSettingsMinuteSnapshot(ctx, &s.minuteSnapshotLoad, loader)
+}
+
+// Cleanup has its own minute snapshot: extending its school list must never
+// activate reminders, session maintenance or other active-school jobs.
+func (s *Scheduler) getCleanupMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnapshot, error) {
+	loader := func(ctx context.Context) (*schedulerMinuteSnapshot, error) { return s.loadMinuteSnapshot(ctx, true) }
+	if s.cleanupMinuteSnapshotLoader != nil {
+		loader = s.cleanupMinuteSnapshotLoader
+	}
+	return s.getSettingsMinuteSnapshot(ctx, &s.cleanupMinuteSnapshotLoad, loader)
+}
+
+func (s *Scheduler) getSettingsMinuteSnapshot(ctx context.Context, slot **schedulerMinuteSnapshotLoad, loader func(context.Context) (*schedulerMinuteSnapshot, error)) (*schedulerMinuteSnapshot, error) {
 	ctx = s.withUnitOfWork(ctx)
 	now := time.Now
 	if s.minuteSnapshotNow != nil {
@@ -94,7 +113,7 @@ func (s *Scheduler) getMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnap
 	bucket := now().Truncate(time.Minute) //nolint:forbidigo
 
 	s.minuteSnapshotMu.Lock()
-	if load := s.minuteSnapshotLoad; load != nil && load.bucket.Equal(bucket) {
+	if load := *slot; load != nil && load.bucket.Equal(bucket) {
 		s.minuteSnapshotMu.Unlock()
 		select {
 		case <-load.ready:
@@ -110,13 +129,9 @@ func (s *Scheduler) getMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnap
 		bucket: bucket,
 		ready:  make(chan struct{}),
 	}
-	s.minuteSnapshotLoad = load
+	*slot = load
 	s.minuteSnapshotMu.Unlock()
 
-	loader := s.loadMinuteSnapshot
-	if s.minuteSnapshotLoader != nil {
-		loader = s.minuteSnapshotLoader
-	}
 	load.snapshot, load.err = loader(ctx)
 
 	s.minuteSnapshotMu.Lock()
@@ -125,11 +140,18 @@ func (s *Scheduler) getMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnap
 	return load.snapshot, load.err
 }
 
-func (s *Scheduler) loadMinuteSnapshot(ctx context.Context) (*schedulerMinuteSnapshot, error) {
+func (s *Scheduler) loadMinuteSnapshot(ctx context.Context, cleanup bool) (*schedulerMinuteSnapshot, error) {
 	ctx = s.withUnitOfWork(ctx)
 	result := &schedulerMinuteSnapshot{}
+	if s.schoolRepo == nil {
+		return result, errTenantRuntimeRequired
+	}
 	err := s.tenantRuntime.WithinAdmin(ctx, func(txCtx context.Context) error {
-		tenantIDs, listErr := s.schoolRepo.ListActiveTenantIDs(txCtx)
+		list := s.schoolRepo.ListActiveTenantIDs
+		if cleanup {
+			list = s.schoolRepo.ListCleanupTenantIDs
+		}
+		tenantIDs, listErr := list(txCtx)
 		if listErr != nil {
 			return listErr
 		}
@@ -137,7 +159,7 @@ func (s *Scheduler) loadMinuteSnapshot(ctx context.Context) (*schedulerMinuteSna
 		return nil
 	})
 	if err != nil {
-		return result, fmt.Errorf("list active tenants: %w", err)
+		return result, fmt.Errorf("list scheduler tenants: %w", err)
 	}
 
 	batch, ok := s.settings.(ports.SettingsSnapshotSource)

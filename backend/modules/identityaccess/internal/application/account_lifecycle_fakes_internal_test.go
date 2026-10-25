@@ -857,8 +857,10 @@ type lifecycleDelivery struct {
 	existingAccountQueued bool
 }
 
-func (lifecycleDelivery) InvitationExpiry(context.Context) time.Duration { return 48 * time.Hour }
-func (lifecycleDelivery) SchoolName(context.Context, int64) string       { return "OGS Musterschule" }
+func (lifecycleDelivery) InvitationExpiry(context.Context) (time.Duration, error) {
+	return 48 * time.Hour, nil
+}
+func (lifecycleDelivery) SchoolName(context.Context, int64) string { return "OGS Musterschule" }
 func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) (int64, bool) {
 	d.emails = append(d.emails, invitation)
 	return int64(len(d.emails)), d.invitationMailQueued
@@ -913,7 +915,7 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 	schools.add(lifecycleTenant, lifecycleTenant*10, "lifecycle", true, false)
 	persons := newFakePersons(runtime)
 	auth, err := NewAccountAuthentication(sessions, AccountAuthenticationDependencies{
-		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, Codec: fakeCodec{},
+		Store: store, Schools: schools, Persons: persons, Passwords: fakePasswords{}, PasswordPolicy: testPasswordLoginPolicy, Codec: fakeCodec{},
 		MFA: &fakeMFA{}, MFALock: &fakeMFALock{store: store.fakeStore}, Audit: &fakeAudit{}, Push: &fakePush{},
 		Runtime: runtime, Rotation: fakeRotation{}, Logger: logger,
 	})

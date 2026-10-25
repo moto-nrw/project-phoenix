@@ -2,7 +2,6 @@ package presenceprojectionhttp
 
 import (
 	context "context"
-	slog "log/slog"
 )
 
 // TenantSettings is the consumer-owned port to the Settings Platform (#3356):
@@ -39,41 +38,3 @@ const (
 	schoolPeriodCount                      = 8
 	schoolPeriodEndSettingPrefix           = "school_periods.end_"
 )
-
-// resolveBoolSetting reads a boolean setting for a handler that degrades
-// instead of failing: a missing port or a failed read answers fallback, which
-// every caller sets to the registry default, and logs the failure.
-func resolveBoolSetting(ctx context.Context, settings TenantSettings, key string, fallback bool, logger *slog.Logger) bool {
-	if settings == nil {
-		return fallback
-	}
-	value, err := settings.ResolveBool(ctx, key)
-	if err != nil {
-		logSettingFallback(logger, key, err)
-		return fallback
-	}
-	return value
-}
-
-// resolveIntSetting mirrors resolveBoolSetting for integer settings.
-func resolveIntSetting(ctx context.Context, settings TenantSettings, key string, fallback int, logger *slog.Logger) int {
-	if settings == nil {
-		return fallback
-	}
-	value, err := settings.ResolveInt(ctx, key)
-	if err != nil {
-		logSettingFallback(logger, key, err)
-		return fallback
-	}
-	return value
-}
-
-func logSettingFallback(logger *slog.Logger, key string, err error) {
-	if logger == nil {
-		return
-	}
-	logger.Warn("settings resolve failed, using fallback",
-		slog.String("key", key),
-		slog.String("error", err.Error()),
-	)
-}

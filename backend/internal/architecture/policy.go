@@ -349,7 +349,7 @@ func (p *Policy) validateReadProjections(owners map[string]Owner, objects map[st
 		if !ok {
 			return fmt.Errorf("read projection %q references unknown package %q", projection.ID, projection.Package)
 		}
-		if owners[pkg.Owner].Kind != "projection" {
+		if !p.readProjectionOwnerAllowed(projection, pkg, owners) {
 			return fmt.Errorf("read projection %q package %q is not owned by a projection", projection.ID, projection.Package)
 		}
 		if pkg.Role != "adapter" && pkg.Role != "postgres" {
@@ -557,6 +557,11 @@ func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[strin
 		}
 		if p.PolicyEpoch >= targetOnlyRulesEpoch {
 			if err := validateTargetOnlyRule(rule, owners); err != nil {
+				return err
+			}
+		}
+		if p.PolicyEpoch >= domainProjectionRulesEpoch {
+			if err := validateDomainProjectionRule(rule, owners); err != nil {
 				return err
 			}
 		}

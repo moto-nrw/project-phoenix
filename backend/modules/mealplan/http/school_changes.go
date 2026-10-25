@@ -64,7 +64,7 @@ func (rs *Resource) getChildParticipation(w http.ResponseWriter, r *http.Request
 		rs.runtime.InvalidRequest(w, r, errors.New("from and to must be in YYYY-MM-DD format"))
 		return
 	}
-	plan, err := rs.module.Participation(r.Context(), studentID, from, to)
+	plan, err := rs.module.ParticipationBySchool(r.Context(), studentID, from, to)
 	if err != nil {
 		rs.runtime.ModuleFailure(w, r, err, "failed to load meal participation")
 		return

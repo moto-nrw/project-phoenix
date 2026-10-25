@@ -1,3 +1,5 @@
+import { MODULE_SETTING_KEYS } from "./modules";
+
 // Keys whose value rides on /auth/tenant/resolve. The settings PUT/DELETE
 // proxies (tenant-side `/api/settings/values/[key]` and operator-side
 // `/api/operator/provisioning/schools/[id]/settings/values/[key]`) consult
@@ -11,6 +13,9 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // switching them leaves the navigation stale for up to 300s.
   "operations.meal_plan_enabled",
   "operations.meal_registration_enabled",
+  // Expire the analytics policy immediately so reloads and new tabs cannot
+  // start capturing with a stale enabled value after the school opts out.
+  "analytics.enabled",
   "calendar.caldav_enabled",
   "operations.student_photos_enabled",
   // presence_mode is served via /auth/tenant/resolve and drives the
@@ -18,9 +23,10 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // operator flipping it leaves reloads/new tabs on the old mode for
   // up to the layout cache TTL (300s).
   "operations.presence_mode",
-  // nfc_enabled is also served through /auth/tenant/resolve so every staff
-  // user can hide NFC-only navigation without config:read.
-  "attendance.nfc_enabled",
+  // The module switches (#4892) ride on /auth/tenant/resolve as
+  // booked_modules, so every staff member's navigation follows a booking
+  // without config:read. The moto team switches them in the operator portal.
+  ...MODULE_SETTING_KEYS,
   // parent_notes_enabled rides on /auth/tenant/resolve too (as
   // parent_messaging_enabled) so non-admin staff can hide the "Neue Nachricht"
   // compose entry points without config:read. Without revalidation, toggling it

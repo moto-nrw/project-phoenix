@@ -7,7 +7,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -48,6 +47,11 @@ import {
   type MealPlanEntry,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { usedMealAllergens } from "~/lib/meal-allergens";
+import {
+  MealAllergenLegend,
+  MealAllergenMarks,
+} from "~/components/meal-plan/meal-allergens";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 
 const logger = createLogger({ component: "ParentMealPlanPage" });
@@ -125,6 +129,7 @@ function DishCard({
       {entry.note ? (
         <p className="mt-1 text-sm leading-snug text-gray-500">{entry.note}</p>
       ) : null}
+      <MealAllergenMarks allergens={entry.allergens} className="mt-1" />
     </div>
   );
 }
@@ -216,7 +221,6 @@ function WeekNavigation({
   weekRange,
   weekReady,
   onWeekChange,
-  action,
 }: Readonly<{
   weekOffset: WeekOffset;
   lastWeek: WeekOffset;
@@ -224,8 +228,6 @@ function WeekNavigation({
   weekRange: string;
   weekReady: boolean;
   onWeekChange: (offset: WeekOffset) => void;
-  /** Eine Aktion für die ganze Woche, rechts in derselben Zeile. */
-  action?: ReactNode;
 }>) {
   const t = useTranslations("parentMealPlan");
   const weekLabel =
@@ -236,52 +238,45 @@ function WeekNavigation({
         : t("inWeeks", { count: weekOffset });
 
   return (
-    <div className="relative flex flex-wrap items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5">
-      <nav
-        aria-label={t("weekNavigation")}
-        className="flex items-center justify-center gap-2"
+    <nav
+      aria-label={t("weekNavigation")}
+      className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="min-h-11 min-w-11"
+        aria-label={t("previousWeek")}
+        disabled={!weekReady || weekOffset === 0}
+        onClick={() => onWeekChange((weekOffset - 1) as WeekOffset)}
       >
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="min-h-11 min-w-11"
-          aria-label={t("previousWeek")}
-          disabled={!weekReady || weekOffset === 0}
-          onClick={() => onWeekChange((weekOffset - 1) as WeekOffset)}
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-        </Button>
-        <div
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className="min-w-40 text-center"
-        >
-          <p className="text-sm font-semibold text-gray-900">
-            {t("calendarWeek", { week: isoWeek(mondayISO) })}
-            <span className="ml-1.5 text-gray-500">· {weekLabel}</span>
-          </p>
-          <p className="text-xs text-gray-500">{weekRange}</p>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="min-h-11 min-w-11"
-          aria-label={t("nextWeek")}
-          disabled={!weekReady || weekOffset >= lastWeek}
-          onClick={() => onWeekChange((weekOffset + 1) as WeekOffset)}
-        >
-          <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </Button>
-      </nav>
-      {action ? (
-        <div className="flex w-full justify-center sm:absolute sm:inset-y-0 sm:right-5 sm:w-auto sm:items-center">
-          {action}
-        </div>
-      ) : null}
-    </div>
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+      </Button>
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="min-w-40 text-center"
+      >
+        <p className="text-sm font-semibold text-gray-900">
+          {t("calendarWeek", { week: isoWeek(mondayISO) })}
+          <span className="ml-1.5 text-gray-500">· {weekLabel}</span>
+        </p>
+        <p className="text-xs text-gray-500">{weekRange}</p>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="min-h-11 min-w-11"
+        aria-label={t("nextWeek")}
+        disabled={!weekReady || weekOffset >= lastWeek}
+        onClick={() => onWeekChange((weekOffset + 1) as WeekOffset)}
+      >
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    </nav>
   );
 }
 
@@ -404,6 +399,9 @@ function ParticipationWeek({
 }>) {
   const t = useTranslations("parentMealPlan");
   const locale = useLocale();
+  const weekDishes = weekDates.flatMap((date) => dishesByDate.get(date) ?? []);
+  const hasDishes = weekDishes.length > 0;
+  const weekAllergens = usedMealAllergens(weekDishes);
   const [participation, setParticipation] = useState<MealParticipation | null>(
     null,
   );
@@ -419,6 +417,7 @@ function ParticipationWeek({
   const [confirmingWeek, setConfirmingWeek] = useState(false);
   const [weekResult, setWeekResult] = useState<{
     readonly monday: string;
+    readonly participating: boolean;
     readonly locked: string[];
   } | null>(null);
   const {
@@ -640,23 +639,31 @@ function ParticipationWeek({
     setSaving(false);
   }
 
-  async function cancelWeek() {
+  // Registers or cancels every day of the week the family may still change;
+  // the backend leaves out the days whose deadline has passed.
+  async function saveWeek(participating: boolean) {
     setSaving(true);
     clearSaveError();
     try {
       const change = await setMealParticipationWeek(
         studentId,
         mondayISO,
-        false,
+        participating,
       );
-      setWeekResult({ monday: mondayISO, locked: change.locked });
+      setWeekResult({
+        monday: mondayISO,
+        participating,
+        locked: change.locked,
+      });
     } catch (err) {
       logger.error("parent_meal_participation_week_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void showSaveError(err, {
-        object: t("errorObjectWeekCancel"),
-        retry: () => void cancelWeek(),
+        object: participating
+          ? t("errorObjectWeekRegister")
+          : t("errorObjectWeekCancel"),
+        retry: () => void saveWeek(participating),
       });
       setSaving(false);
       setConfirmingWeek(false);
@@ -736,6 +743,19 @@ function ParticipationWeek({
     weekDates.some((date) => {
       const day = participationByDate.get(date);
       return day?.participating === true && day.can_cancel;
+    });
+  // A sick or absent day stays registered; registering the week leaves it.
+  const weekRegistrable =
+    !isEditing &&
+    weekDates.some((date) => {
+      const day = participationByDate.get(date);
+      return (
+        day?.participating === false &&
+        day.source !== "sick" &&
+        day.source !== "absent" &&
+        day.source !== "closed" &&
+        day.can_register
+      );
     });
   const lockedLabel = (dates: string[]) =>
     new Intl.ListFormat(locale, { style: "long", type: "conjunction" }).format(
@@ -856,41 +876,59 @@ function ParticipationWeek({
           weekRange={weekRange}
           weekReady={weekReady && !isEditing}
           onWeekChange={onWeekChange}
-          action={
-            weekReady && !loading && weekCancellable ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="compact"
-                className="min-h-11"
-                disabled={saving}
-                onClick={() => {
-                  clearSaveError();
-                  setConfirmingWeek(true);
-                }}
-              >
-                {t("cancelWeek")}
-              </Button>
-            ) : null
-          }
         />
       </div>
 
-      {/* „Woche abmelden“ steht in der Zeile des Wochenwechsels; eine eigene
-          Zeile gibt es nur noch für das Ergebnis oder einen Fehler. */}
       {weekReady &&
       !loading &&
-      (weekResult?.monday === mondayISO || (weekCancellable && saveError)) ? (
+      (weekCancellable ||
+        weekRegistrable ||
+        weekResult?.monday === mondayISO) ? (
         <div className="flex flex-col gap-3 border-b border-gray-200 px-4 py-3 sm:px-5">
           {weekResult?.monday === mondayISO ? (
             <Alert
               type="success"
               message={
-                weekResult.locked.length > 0
-                  ? `${t("cancelWeekDone")} ${t("cancelWeekLocked", { days: lockedLabel(weekResult.locked) })}`
-                  : t("cancelWeekDone")
+                weekResult.participating
+                  ? weekResult.locked.length > 0
+                    ? `${t("registerWeekDone")} ${t("registerWeekLocked", { days: lockedLabel(weekResult.locked) })}`
+                    : t("registerWeekDone")
+                  : weekResult.locked.length > 0
+                    ? `${t("cancelWeekDone")} ${t("cancelWeekLocked", { days: lockedLabel(weekResult.locked) })}`
+                    : t("cancelWeekDone")
               }
             />
+          ) : null}
+          {weekRegistrable || weekCancellable ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              {weekRegistrable ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  className="min-h-11"
+                  disabled={saving}
+                  onClick={() => void saveWeek(true)}
+                >
+                  {t("registerWeek")}
+                </Button>
+              ) : null}
+              {weekCancellable ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  className="min-h-11"
+                  disabled={saving}
+                  onClick={() => {
+                    clearSaveError();
+                    setConfirmingWeek(true);
+                  }}
+                >
+                  {t("cancelWeek")}
+                </Button>
+              ) : null}
+            </div>
           ) : null}
           {!isEditing && saveError ? (
             <FormErrorAlert message={saveError} />
@@ -901,7 +939,7 @@ function ParticipationWeek({
       <ConfirmationModal
         isOpen={confirmingWeek}
         onClose={() => setConfirmingWeek(false)}
-        onConfirm={() => void cancelWeek()}
+        onConfirm={() => void saveWeek(false)}
         title={t("cancelWeekTitle")}
         confirmText={t("cancelWeekConfirm")}
         cancelText={t("cancel")}
@@ -1017,6 +1055,7 @@ function ParticipationWeek({
                                 {entry.note}
                               </p>
                             ) : null}
+                            <MealAllergenMarks allergens={entry.allergens} />
                           </div>
                         ))}
                       </div>
@@ -1044,9 +1083,9 @@ function ParticipationWeek({
                               dayEditTriggerRefs.current.set(date, node);
                             }}
                             type="button"
-                            variant="outline"
+                            variant="ghost"
                             size="compact"
-                            className="ml-auto min-h-11"
+                            className="-mr-2.5 ml-auto min-h-11 text-sm underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
                             aria-label={t("editDayRegistration", {
                               date: fullDate(date),
                             })}
@@ -1146,6 +1185,12 @@ function ParticipationWeek({
               );
             })}
           </ul>
+          {hasDishes ? (
+            <MealAllergenLegend
+              allergens={weekAllergens}
+              className="border-t border-gray-200 px-4 py-3 sm:px-5"
+            />
+          ) : null}
         </>
       )}
 
@@ -1542,6 +1587,9 @@ export function ParentMealPlanPage() {
                                         {entry.note}
                                       </p>
                                     ) : null}
+                                    <MealAllergenMarks
+                                      allergens={entry.allergens}
+                                    />
                                   </div>
                                 ))
                               ) : (
@@ -1606,6 +1654,10 @@ export function ParentMealPlanPage() {
                   })}
                 </div>
               </div>
+              <MealAllergenLegend
+                allergens={usedMealAllergens(entries)}
+                className="border-t border-gray-200 px-4 py-3 sm:px-5"
+              />
             </>
           )}
         </section>

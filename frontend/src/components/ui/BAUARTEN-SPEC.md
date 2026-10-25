@@ -104,7 +104,7 @@ Aktivitäten, Gruppen, Rollen, Geräte, Dateien, Nachrichten, Anfragen.
    nur im Zustand des Formulars, ein Wechsel im selben Tab wirft ihn weg.
    Beim Zurückkommen lädt die Auswahl ihre Einträge neu (`focus`), sodass
    der eben angelegte Eintrag ohne Zutun dasteht. Eine Kopf-Aktion einer
-   Seite („Schichtarten verwalten") hat keinen Entwurf zu verlieren und
+   Seite („Dienstarten verwalten") hat keinen Entwurf zu verlieren und
    führt im selben Tab auf die Route.
 
    Nicht gemeint sind die Einträge des Objekts, um das der Dialog ohnehin

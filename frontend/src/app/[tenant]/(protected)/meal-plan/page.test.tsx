@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -7,10 +7,12 @@ import { catalogText } from "~/test/error-catalog-text";
 
 import MealPlanPage from "./page";
 
-const { getMealPlanWeek, rights, features } = vi.hoisted(() => ({
+const { getMealPlanWeek, getMealOrders, setDay, rights, features } = vi.hoisted(() => ({
   features: { mealPlanEnabled: true },
   rights: { admin: true, permissions: [] as string[] },
   getMealPlanWeek: vi.fn(),
+  getMealOrders: vi.fn(),
+  setDay: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -52,6 +54,8 @@ vi.mock("~/lib/hooks/use-berlin-today", () => ({
 vi.mock("~/lib/meal-plan-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/meal-plan-api")>()),
   getMealPlanWeek,
+  getMealOrders,
+  setDay,
 }));
 
 vi.mock("~/lib/tenant-context", async (importOriginal) => ({
@@ -63,15 +67,19 @@ vi.mock("~/components/meal-plan/meal-participant-list", () => ({
   MealParticipantList: ({
     canRegister,
     canExport,
+    onRegistrationChanged,
   }: {
     canRegister: boolean;
     canExport: boolean;
+    onRegistrationChanged: () => void;
   }) => (
     <div
       data-testid="participants"
       data-register={String(canRegister)}
       data-export={String(canExport)}
-    />
+    >
+      <button onClick={onRegistrationChanged}>Save registration</button>
+    </div>
   ),
 }));
 
@@ -83,11 +91,27 @@ function renderPage() {
   );
 }
 
-describe("Essensplan: Statuszeile bei Ladefehler (#2517)", () => {
+describe("Speiseplan: Statuszeile bei Ladefehler (#2517)", () => {
   beforeEach(() => {
     getMealPlanWeek.mockReset();
+    getMealOrders.mockReset();
+    getMealOrders.mockResolvedValue({
+      rhythm: "daily",
+      detail: "total",
+      days: [],
+    });
     rights.admin = true;
     rights.permissions = [];
+  });
+
+  it("reloads the order overview after saving a registration", async () => {
+    getMealPlanWeek.mockResolvedValue([]);
+    renderPage();
+    await waitFor(() => expect(getMealOrders).toHaveBeenCalledTimes(1));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save registration" }),
+    );
+    await waitFor(() => expect(getMealOrders).toHaveBeenCalledTimes(2));
   });
 
   it("shows the catalog load error and no planned-days count", async () => {
@@ -99,7 +123,7 @@ describe("Essensplan: Statuszeile bei Ladefehler (#2517)", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Woche im Essensplan"),
+        catalogText("general.unavailable", "die Woche im Speiseplan"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Tagen geplant/)).not.toBeInTheDocument();
@@ -149,7 +173,7 @@ describe("meal plan feature gate", () => {
     features.mealPlanEnabled = false;
     const { rerender } = renderPage();
 
-    expect(screen.getByText("Essensplan")).toBeInTheDocument();
+    expect(screen.getByText("Speiseplan")).toBeInTheDocument();
     expect(getMealPlanWeek).not.toHaveBeenCalled();
 
     features.mealPlanEnabled = true;
@@ -164,5 +188,61 @@ describe("meal plan feature gate", () => {
     ).toBeInTheDocument();
     expect(getMealPlanWeek).toHaveBeenCalledOnce();
     expect(getMealPlanWeek).toHaveBeenCalledWith("2026-10-05");
+  });
+});
+
+describe("Speiseplan: Allergene je Gericht (#4777)", () => {
+  beforeEach(() => {
+    getMealPlanWeek.mockReset();
+    setDay.mockReset();
+    setDay.mockResolvedValue(undefined);
+  });
+
+  it("shows the stored marks and saves the chosen allergens", async () => {
+    getMealPlanWeek.mockResolvedValue([
+      {
+        date: "2026-10-05",
+        position: 0,
+        dish: "Fischstäbchen",
+        note: null,
+        allergens: ["gluten", "fish"],
+      },
+    ]);
+
+    renderPage();
+
+    // Every dish card carries its own choice; the Monday dish shows its
+    // letters, and its name spells the allergens out for screen readers.
+    const trigger = await screen.findByRole("button", {
+      name: "Allergene: Glutenhaltiges Getreide, Fisch",
+    });
+    expect(trigger).toHaveTextContent("A, D");
+    expect(
+      screen.getAllByRole("button", { name: "Allergene wählen" }),
+    ).toHaveLength(4);
+    // The legend under the plan explains the letters used this week.
+    const legend = screen.getByRole("list", { name: "Allergene" });
+    expect(legend).toHaveTextContent("A Glutenhaltiges Getreide");
+    expect(legend).toHaveTextContent("D Fisch");
+    expect(legend).not.toHaveTextContent("Milch");
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByLabelText("Milch (auch Laktose) (G)"));
+    expect(trigger).toHaveTextContent("A, D, G");
+    expect(legend).toHaveTextContent("G Milch (auch Laktose)");
+    expect(trigger).toHaveAccessibleName(
+      "Allergene: Glutenhaltiges Getreide, Fisch, Milch (auch Laktose)",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(setDay).toHaveBeenCalledTimes(1));
+    expect(setDay).toHaveBeenCalledWith("2026-10-05", [
+      {
+        dish: "Fischstäbchen",
+        note: null,
+        allergens: ["gluten", "fish", "milk"],
+      },
+    ]);
   });
 });

@@ -60,8 +60,8 @@ const (
 	hoursColumnTarget  listexport.ColumnID = "plan_hours_target"
 	hoursColumnDelta   listexport.ColumnID = "plan_hours_delta"
 
-	hoursLabelUntyped     = "Ohne Schichtart"
-	hoursLabelUnknownType = "Unbekannte Schichtart"
+	hoursLabelUntyped     = "Ohne Dienstart"
+	hoursLabelUnknownType = "Unbekannte Dienstart"
 	// hoursEmpty matches the empty-cell glyph of the other plan sheets.
 	hoursEmpty = "—"
 )

@@ -24,7 +24,7 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	service := module.Invitation
 	// Unrelated route registrations capture method values but never call this
 	// account-lifecycle capability.
-	resource := authAPI.NewResource(module.Auth, service, nil, nil, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(module.Auth, service, nil, nil, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, &settingsDouble{})
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 	owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("http-owner-%d@example.com", testpkg.Tenant(t)), "OwnerPass123!")

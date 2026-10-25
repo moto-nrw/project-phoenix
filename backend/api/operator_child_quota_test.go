@@ -19,6 +19,12 @@ import (
 type childQuotaProvisioning struct {
 	organizationtenancy.Provisioning
 	updateSchoolFn func(context.Context, int64, organizationtenancy.SchoolChanges, int64, net.IP) (*organizationtenancy.School, error)
+	reads          []organizationtenancy.OperatorReadAccess
+}
+
+func (s *childQuotaProvisioning) RecordOperatorRead(_ context.Context, access organizationtenancy.OperatorReadAccess) error {
+	s.reads = append(s.reads, access)
+	return nil
 }
 
 func (s *childQuotaProvisioning) UpdateSchool(ctx context.Context, id int64, changes organizationtenancy.SchoolChanges, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
@@ -53,18 +59,23 @@ func TestOperatorSetsTheKinderkontingentOnTheSchoolRoute(t *testing.T) {
 	var got organizationtenancy.SchoolChanges
 	var actor int64
 	bundles := 2
-	router := childQuotaRouter(t, &childQuotaProvisioning{
+	provisioning := &childQuotaProvisioning{
 		updateSchoolFn: func(_ context.Context, id int64, changes organizationtenancy.SchoolChanges, operatorID int64, _ net.IP) (*organizationtenancy.School, error) {
 			got, actor = changes, operatorID
 			return &organizationtenancy.School{ID: id, ChildQuotaBundles: &bundles, ChildQuotaBundleSize: 50}, nil
 		},
-	})
+	}
+	router := childQuotaRouter(t, provisioning)
 
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, childQuotaRequest(operatorRouteAccessToken(t, 42)))
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.Equal(t, int64(42), actor)
+	require.Len(t, provisioning.reads, 1)
+	assert.Equal(t, organizationtenancy.ReadSchool, provisioning.reads[0].View)
+	assert.EqualValues(t, 10, provisioning.reads[0].SchoolID)
+	assert.EqualValues(t, 42, provisioning.reads[0].OperatorID)
 	require.NotNil(t, got.ChildQuota)
 	assert.Equal(t, &organizationtenancy.ChildQuota{Bundles: 2, BundleSize: 50}, got.ChildQuota.Quota)
 	assert.Contains(t, rr.Body.String(), `"child_quota_bundles":2`)

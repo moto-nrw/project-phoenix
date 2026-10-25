@@ -7,7 +7,9 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 	case PresetOGSCompact:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnDeparture, ColumnPlannedPickup}
 	case PresetClassRoster:
-		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnEnrollmentSummary, ColumnCareDays, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday, ColumnDeparture}
+		// Shared columns first; retain the live source's existing extra
+		// columns rather than removing content while aligning the lists.
+		return append(ClassRosterColumnIDs(), ColumnGroup, ColumnEnrollmentSummary, ColumnCareDays, ColumnDeparture)
 	case PresetDailyPlanning:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDailyStatus, ColumnPlannedArrival, ColumnPlannedPickup, ColumnDailyNotes}
 	case PresetAttendanceSnapshot:
@@ -15,7 +17,7 @@ func DefaultColumnsForPreset(preset Preset) []ColumnID {
 	case PresetPickupList:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDeparture, ColumnPlannedPickup, ColumnDailyNotes}
 	case PresetBlankChecklist:
-		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup}
+		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnChecklist}
 	case PresetBirthdayList:
 		return []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnBirthday, ColumnAge}
 	case PresetStaffBirthdayList:

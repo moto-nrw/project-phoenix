@@ -71,6 +71,15 @@ export interface StaffOnboardingContext {
   canSeeCalendar: boolean;
   /** Die Schule erfasst Räume (detaillierte Anwesenheit). */
   roomsTracked: boolean;
+  /**
+   * Die Person darf „Alle Kinder“ öffnen (`users:read`). Die AG-Leitung
+   * darf es nicht (#4573); auch das An- und Abmelden führt dorthin.
+   */
+  canSearchChildren: boolean;
+  /** Die Person darf eine Aufsicht starten (`groups:update` oder `schedules:read`). */
+  canSupervise: boolean;
+  /** Die Person erfasst Arbeitszeit (`time_tracking:own`); Externe nicht. */
+  canTrackWorkTime: boolean;
 }
 
 export interface StaffOnboardingStep {
@@ -87,14 +96,15 @@ function applies(
     case "groups":
       return context.hasOwnGroup;
     case "attendance":
-      return context.webAttendance;
+      return context.webAttendance && context.canSearchChildren;
     case "calendar":
       return context.canSeeCalendar;
     case "supervision":
-      return context.roomsTracked;
+      return context.roomsTracked && context.canSupervise;
     case "students":
+      return context.canSearchChildren;
     case "work_time":
-      return true;
+      return context.canTrackWorkTime;
   }
 }
 
@@ -397,8 +407,8 @@ export const STAFF_ONBOARDING_TOURS: Readonly<
           '[data-setup-tour="supervision-next"], [data-setup-tour="supervision-empty"]',
         title: "Aufsicht übernehmen",
         text: "Unter „Als Nächstes“ starten Sie Ihren nächsten geplanten Termin. Steht dort nichts, sind Sie noch keinem Betreuungsangebot zugeteilt.",
-        // Ohne Aufsicht, offenen Raum und geplanten Termin zeigt die Seite
-        // nur „Keine aktive Raum-Aufsicht“, ohne „Als Nächstes“.
+        // Ohne Aufsicht und geplanten Termin zeigt die Seite (#4372: auch mit
+        // offenen Räumen) nur „Keine aktive Raum-Aufsicht“, ohne „Als Nächstes“.
         textWhenVisible: {
           selector: '[data-setup-tour="supervision-empty"]',
           text: "Gerade beaufsichtigen Sie keinen Raum, und für Sie ist nichts geplant. Steht ein Termin an, erscheint er hier unter „Als Nächstes“. Dort starten Sie ihn. Erscheint hier nie etwas, sind Sie noch keinem Betreuungsangebot zugeteilt.",

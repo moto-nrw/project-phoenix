@@ -25,7 +25,7 @@ import (
 // TestSchoolScopeRejectedOnAllAPIRoutes: a tenant token gets 401 on every
 // /school/class-day/arrival-exceptions route (permission or not), and a
 // school token with the permission gets 403 school_write_disabled while the
-// school keeps operations.school_portal_write_scope at its default "none".
+// school keeps operations.school_portal_write_scope at its default empty list.
 // setupSchoolArrivalExceptionRoute wires the school portal with the class-day
 // write seam (#2970) the way the service factory composes it; the other school surfaces stay
 // unmounted.
@@ -33,7 +33,7 @@ func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *schoolportal.
 	t.Helper()
 	db, services, classDayModule, _ := setupSchoolPortalModule(t)
 	classDay := classdayhttp.NewResource(classDayModule.ClassDay, nil)
-	return db, NewSchoolPortalHTTP(services.SchoolAuth, services.SchoolMFA, schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil)
+	return db, NewSchoolPortalHTTP(services.SchoolAuth, services.SchoolMFA, schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil, nil)
 }
 
 func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {

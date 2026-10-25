@@ -167,8 +167,31 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/meal-plan/participation/[studentId]": [
     "GET tenant /api/meal-plan/participation/studentId%2F1",
   ],
+  "api/meal-plan/participation/[studentId]/days/[date]": [
+    "DELETE tenant /api/meal-plan/participation/studentId%2F1/days/date%2F1",
+    "PUT tenant /api/meal-plan/participation/studentId%2F1/days/date%2F1",
+  ],
   "api/meal-plan/participation/[studentId]/schedule": [
     "PUT tenant /api/meal-plan/participation/studentId%2F1/schedule",
+  ],
+  "api/meal-plan/participants/week": [
+    "GET tenant /api/meal-plan/participants/week",
+  ],
+  "api/messages/group-threads": [
+    "GET tenant /api/messages/group-threads",
+    "POST tenant /api/messages/group-threads",
+  ],
+  "api/messages/group-threads/[groupThreadId]": [
+    "GET tenant /api/messages/group-threads/groupThreadId%2F1",
+  ],
+  "api/messages/group-threads/[groupThreadId]/close": [
+    "POST tenant /api/messages/group-threads/groupThreadId%2F1/close",
+  ],
+  "api/messages/group-threads/[groupThreadId]/messages": [
+    "POST tenant /api/messages/group-threads/groupThreadId%2F1/messages",
+  ],
+  "api/messages/group-threads/audience": [
+    "GET tenant /api/messages/group-threads/audience",
   ],
   "api/messages/reachable-students": [
     "GET tenant /api/messages/reachable-students",
@@ -268,6 +291,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/unregistered-tag-scans": [
     "GET operator /operator/unregistered-tag-scans",
   ],
+  "api/parent/analytics-policy": ["GET parent /analytics-policy"],
   "api/parent/calendar": ["GET parent /parent/me/calendar"],
   "api/parent/calendar/appointments/[appointmentId]/overview": [
     "GET parent /parent/me/calendar/appointments/appointmentId%2F1/overview",
@@ -390,6 +414,12 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/parent/me/messages/children/[studentId]/threads": [
     "GET parent /parent/me/messages/children/studentId%2F1/threads",
   ],
+  "api/parent/me/messages/group-threads": [
+    "GET parent /parent/me/messages/group-threads",
+  ],
+  "api/parent/me/messages/group-threads/[groupThreadId]": [
+    "GET parent /parent/me/messages/group-threads/groupThreadId%2F1",
+  ],
   "api/parent/me/messages/unread-count": [
     "GET parent /parent/me/messages/unread-count",
   ],
@@ -435,6 +465,18 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school-setup/steps/[step]": [
     "PUT tenant /api/school-setup/steps/step%2F1",
   ],
+  "api/school/analytics-policy": ["GET school /analytics-policy"],
+  "api/school/calendar/appointments": [
+    "POST school /school/calendar/appointments",
+  ],
+  "api/school/calendar/feed": ["GET school /school/calendar/feed"],
+  "api/school/calendar/feed/rotate": [
+    "POST school /school/calendar/feed/rotate",
+  ],
+  "api/school/calendar/my": ["GET school /school/calendar/my"],
+  "api/school/calendar/recipients/[recipientId]/response": [
+    "POST school /school/calendar/recipients/recipientId%2F1/response",
+  ],
   "api/school/class-day": ["GET school /school/class-day/"],
   "api/school/class-day/arrival-exceptions": [
     "GET school /school/class-day/arrival-exceptions",
@@ -446,7 +488,17 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school/class-day/arrival-exceptions/block-start": [
     "GET school /school/class-day/arrival-exceptions/block-start",
   ],
+  "api/school/class-day/class-trips/[schoolClass]": [
+    "POST school /school/class-day/class-trips/schoolClass%2F1",
+  ],
+  "api/school/class-day/handover/[schoolClass]/[date]": [
+    "DELETE school /school/class-day/handover/schoolClass%2F1/date%2F1",
+    "PUT school /school/class-day/handover/schoolClass%2F1/date%2F1",
+  ],
   "api/school/class-day/classes": ["GET school /school/class-day/classes"],
+  "api/school/class-day/morning-attendance/[schoolClass]/[date]": [
+    "PUT school /school/class-day/morning-attendance/schoolClass%2F1/date%2F1",
+  ],
   "api/school/notifications/preferences": [
     "DELETE school /school/notifications/preferences/",
     "GET school /school/notifications/preferences/",

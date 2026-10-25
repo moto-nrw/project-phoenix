@@ -25,12 +25,12 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 )
 
@@ -39,7 +39,7 @@ import (
 // Workforce and Timetable line, #3418).
 type StructureServices struct {
 	Education    schoolstructure.GroupManagement
-	Substitution education.SubstitutionModule
+	Substitution SubstitutionOperations
 }
 
 // buildGroupManagement binds School Structure's group management over the
@@ -53,17 +53,20 @@ func buildGroupManagement(db transactionruntime.Database, hub *realtime.Hub, str
 	)
 }
 
-// buildSubstitutions binds the substitution module; the shift-plan-sync
-// workflow serves its schedule port.
+// buildSubstitutions binds /api/substitutions: School Structure's substitution
+// module serves the group targets, the shift-plan-sync workflow's
+// Terminvertretung entry the schedule target (#4825).
 func buildSubstitutions(
 	db transactionruntime.Database, env owners.RootEnvironment, hub *realtime.Hub, structure owners.StructureRows, people owners.PeopleRows,
 	substitutions owners.GroupSubstitutions, workTime workforce.Capability, callerContext identityaccess.CallerContext,
 	sessions presenceCompose.SessionRecords, supervisions studentpresence.SupervisionRecords, active studentpresence.Presence,
 	deviations timetable.StaffDeviations, owner owners.TimetableOwner, audit owners.AuditOwner, settings settingsCompose.SettingsService,
-) (education.SubstitutionModule, error) {
+	invitations identityaccess.SchoolInvitations,
+) (SubstitutionOperations, error) {
 	repos := owner.Repositories
+	runtime := education.NewLegacyRepositoryRuntime(db.Pool())
 	schedule, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
-		Deviations: deviations, Staff: owners.NewPlanStaffDirectory(people.Staff), Broadcaster: hub,
+		Deviations: deviations, Staff: owners.NewPlanStaffDirectory(people.Staff), Broadcaster: hub, Runtime: runtime,
 		Logger:            env.Logger.With("service", "schedule-substitution"),
 		ActivityInstances: arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance.Reads),
 		InstanceStaff:     arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
@@ -72,18 +75,67 @@ func buildSubstitutions(
 		return nil, err
 	}
 	logger := env.Logger.With("service", "substitution")
-	return education.NewSubstitutionModule(education.SubstitutionDependencies{
-		Groups: structure.Groups, Substitutions: NewEducationHandovers(substitutions, shiftplansync.NewGroupHandovers(workTime)),
+	groups := education.NewSubstitutionModule(education.SubstitutionDependencies{
+		Groups: structure.Groups, Substitutions: NewEducationHandovers(substitutions, workTime),
 		Persons: structure.SubstitutionPersons, Teachers: structure.Caregivers,
-		Staff: structure.StaffChecks, ExternalCaregivers: structure.ExternalCaregivers,
+		Staff: structure.StaffChecks, ExternalCaregivers: structure.ExternalCaregivers.WithInvitations(invitations),
 		Actors:       SubstitutionActorResolver{Identity: callerContext},
 		ActiveGroups: sessions, ActiveSupervisors: supervisions,
 		ActiveSupervisorCreator: active,
 		Audit:                   NewEducationSubstitutionAudit(audit.Persistence.SubstitutionChange),
-		Runtime:                 education.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(hub, logger),
-		Logger: logger, Schedule: schedule,
+		Runtime:                 runtime, Broadcaster: NewGroupEvents(hub, logger),
+		Logger:    logger,
 		CanSeeAll: substitutionOverviewScope(settings), Now: env.Now,
-	}), nil
+	})
+	return SubstitutionEntries{Groups: groups, Schedule: schedule}, nil
+}
+
+// SubstitutionOperations are the /api/substitutions operations in School
+// Structure's substitution vocabulary, as the root composes them from their
+// two entries.
+type SubstitutionOperations interface {
+	Overview(ctx context.Context, caller education.Caller, query education.OverviewQuery) (*education.OverviewResult, error)
+	Assign(ctx context.Context, caller education.Caller, assignment education.Assignment) (*education.AssignmentResult, error)
+	End(ctx context.Context, caller education.Caller, request education.EndRequest) error
+}
+
+// SubstitutionEntries serves /api/substitutions over its two entries: School
+// Structure's substitution module for the group targets and the
+// shift-plan-sync workflow's Terminvertretung entry for the schedule target
+// (#4825). It routes by the requested target as the module did before; each
+// entry keeps its own authorization, transaction and refusals.
+type SubstitutionEntries struct {
+	Groups   education.SubstitutionModule
+	Schedule ScheduleSubstitutionEntry
+}
+
+// ScheduleSubstitutionEntry is the Terminvertretung entry the schedule target
+// is routed to.
+type ScheduleSubstitutionEntry interface {
+	Overview(ctx context.Context, caller education.Caller, query education.OverviewQuery) (*education.OverviewResult, error)
+	Assign(ctx context.Context, caller education.Caller, assignment education.Assignment) (*education.AssignmentResult, error)
+	End(ctx context.Context, caller education.Caller, request education.EndRequest) error
+}
+
+func (e SubstitutionEntries) Overview(ctx context.Context, caller education.Caller, query education.OverviewQuery) (*education.OverviewResult, error) {
+	if query.ScheduleFrom != nil || query.ScheduleTo != nil || query.IncludeScheduleTargets {
+		return e.Schedule.Overview(ctx, caller, query)
+	}
+	return e.Groups.Overview(ctx, caller, query)
+}
+
+func (e SubstitutionEntries) Assign(ctx context.Context, caller education.Caller, assignment education.Assignment) (*education.AssignmentResult, error) {
+	if assignment.Type == education.TargetScheduleSubstitution {
+		return e.Schedule.Assign(ctx, caller, assignment)
+	}
+	return e.Groups.Assign(ctx, caller, assignment)
+}
+
+func (e SubstitutionEntries) End(ctx context.Context, caller education.Caller, request education.EndRequest) error {
+	if request.Type == education.TargetScheduleSubstitution {
+		return e.Schedule.End(ctx, caller, request)
+	}
+	return e.Groups.End(ctx, caller, request)
 }
 
 // buildEmergencySnapshot binds the Notfallliste (#2704): the owner facades
@@ -115,6 +167,7 @@ func buildClassDayViews(
 	carePlanRows owners.CarePlanRows, schedules owners.CarePlanSchedules, carePlan careplan.Capability, people owners.PeopleRows, audit owners.AuditOwner,
 	settings settingsCompose.BatchSettingsService, operations timetable.OperationCapability, presence owners.PresenceOwner,
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
+	emitter presenceStudentsHTTP.GuardianWake,
 ) (ClassDayViews, error) {
 	classDayReads, err := arrivalTimetable.NewPresenceReads(owners.NewTimetablePresenceProjection(db))
 	if err != nil {
@@ -123,7 +176,15 @@ func buildClassDayViews(
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: caller, PickupTimes: schedules.Pickups, ArrivalTimes: schedules.Arrivals, CareDays: schedules.CareDay,
 		Companions: owners.NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
-		BlockStarts: operations,
+		TripStatusDays: NewClassDayTripStatusDays(presenceStudentsHTTP.NewSchoolClassTrips(presenceStudentsHTTP.ResourceConfig{
+			Broadcaster: hub, Logger: env.Logger.With("service", "class-day-class-trips"), ParentEventEmitter: emitter,
+			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
+		})),
+		BlockStarts:                   operations,
+		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
+		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
+			Handovers: presence.Presence, HandoverStaffNames: classHandoverStaffNames(people.Staff),
+		},
 	}, reports, carePlanRows.StatusDays, people.Students, people.Persons, people.StudentGuardians,
 		audit.Persistence.DataAccessLog, settings, hub, env.Logger.With("service", "class-day-arrival-exceptions"))
 	slotLists := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
@@ -148,7 +209,8 @@ func buildGroupLive(
 		Settings: settings, Pickups: schedules.Pickups, Arrivals: schedules.Arrivals,
 		PlannedStudentIDs: lifecycle.Instances.GetPlannedStudentIDsByDate, CareDays: schedules.CareDay,
 		CareParticipation: schedules.Lifecycle, ExcusedRequests: requests.Excused, StatusDays: presence.StatusDays,
-		Logger: env.Logger.With("service", "ogs-group-live"), Now: env.Now,
+		Handovers: groupLiveHandovers{reads: classHandoverReads{handovers: presence.Presence, staff: NewTimetablePeople(users)}},
+		Logger:    env.Logger.With("service", "ogs-group-live"), Now: env.Now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose OGS group live projection: %w", err)
@@ -172,6 +234,7 @@ func buildSupervisionDashboard(
 		Presence: newSupervisionPresence(active, active),
 		Planning: newSupervisionPlanning(schedules.Pickups, schedules.Arrivals),
 		Settings: newSupervisionSettings(settings), Staff: NewTimetablePeople(users), Calendar: supervisionCalendar{}, Now: env.Now,
+		Handovers: supervisionHandovers{reads: classHandoverReads{handovers: presence.Presence, staff: NewTimetablePeople(users)}},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose supervision dashboard projection: %w", err)

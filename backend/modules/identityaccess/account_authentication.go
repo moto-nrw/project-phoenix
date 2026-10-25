@@ -113,10 +113,11 @@ type RefreshClaims struct {
 
 // AccountRole is one role an account holds at a school.
 type AccountRole struct {
-	ID       int64
-	Name     string
-	IsSystem bool
-	TenantID *int64
+	ID           int64
+	Name         string
+	IsSystem     bool
+	TenantID     *int64
+	SchoolPortal bool
 }
 
 // AccountClaims is the tenant-scoped claims material of an account: the
@@ -148,14 +149,16 @@ func (c AccountClaims) IsGuardianOnly() bool {
 	return true
 }
 
-// IsSchoolPortalOnly reports whether every role is a school-portal role
-// (the lehrkraft system role, #2207).
+// IsSchoolPortalOnly reports whether every role is a school-portal role:
+// the lehrkraft system role (#2207) or a school role made from its template
+// (#4574).
 func (c AccountClaims) IsSchoolPortalOnly() bool {
 	if len(c.Roles) == 0 {
 		return false
 	}
 	for _, role := range c.Roles {
-		if !role.IsSystem || !strings.EqualFold(strings.TrimSpace(role.Name), "lehrkraft") {
+		facts := RoleFacts{Name: role.Name, IsSystem: role.IsSystem, SchoolPortal: role.SchoolPortal}
+		if !IsLehrkraftRole(&facts) {
 			return false
 		}
 	}
@@ -178,9 +181,9 @@ type School struct {
 	LogoURL string
 }
 
-// MFAPolicy is a resolved MFA verdict waiting for the role set it applies to.
+// MFAPolicy is a resolved MFA verdict waiting for the permission set it applies to.
 type MFAPolicy interface {
-	RequiredFor(roleNames []string) bool
+	RequiredFor(permissions []string) bool
 }
 
 // Authentication audit event types, as the Audit platform stores them.
@@ -319,6 +322,7 @@ type AccountLogin interface {
 
 // TenantAccountLogin authenticates accounts at the tenant portal.
 type TenantAccountLogin interface {
+	IssueTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error)
 	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
 	LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*LoginResult, error)
 	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
@@ -332,7 +336,8 @@ type ParentAccountLogin interface {
 
 // SchoolAccountLogin authenticates accounts and switches their school portal.
 type SchoolAccountLogin interface {
-	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	IssueSchoolTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error)
+	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent, sourceFamilyID string) (accessToken, refreshToken string, err error)
 	LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error)
 	LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)
 	IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)

@@ -203,7 +203,11 @@ func (p *Provisioning) recordAction(ctx context.Context, operatorID int64, actio
 		entry.Changes = payload
 	}
 	if err := p.audit.RecordOperatorAction(ctx, entry); err != nil {
-		return fmt.Errorf("create operator audit log: %w", err)
+		p.logger.Error("operator audit unavailable",
+			slog.String("action", action),
+			slog.String("resource_type", resourceType),
+		)
+		return &organizationtenancy.OperatorAuditUnavailableError{Err: err}
 	}
 	return nil
 }

@@ -9,7 +9,7 @@ import (
 )
 
 // The care lifecycle (#2487, #3427): ending a child's care ("Betreuung
-// beenden"), cancelling or changing a planned end, resuming care, the guided
+// beenden"), cancelling or changing a planned end, the guided
 // close-out of a full withdrawal, the dated participation decision every
 // operational list applies, and the booking-led care switch. There is one
 // lifecycle contract; there must not be a second way for a child to leave the
@@ -44,6 +44,8 @@ var (
 	ErrCareResumeMissing             = errors.New("für dieses Kind ist keine beendete Betreuung hinterlegt")
 	ErrCareResumeStartInPast         = errors.New("der neue Beginn darf nicht in der Vergangenheit liegen")
 	ErrCareResumeNotChecked          = errors.New("bitte bestätigen Sie zuerst die Prüfung. Gruppe, Angebote, Wochenplan und Zeiten bleiben sonst ungeprüft")
+	ErrCareResumeUnknownStudent      = errors.New("dieses Kind gibt es in Ihrer Schule nicht (mehr)")
+	ErrCareResumeAlumnus             = errors.New("dieses Kind wurde beim Schuljahreswechsel abgemeldet. Sie finden es unter Schuljahreswechsel, Bereich Abgänge")
 	ErrCareWithdrawalNotFound        = errors.New("diese Abmeldung gibt es nicht oder nicht mehr")
 	ErrCareWithdrawalAfterGap        = errors.New("der letzte Betreuungstag muss vor dem ersten Tag ohne Buchung liegen")
 	ErrCareWithdrawalAlreadyResolved = errors.New("die Abmeldung wurde bereits erledigt oder ist nicht mehr aktuell")
@@ -55,7 +57,7 @@ var (
 // headline "Die Betreuung wurde nicht beendet".
 const (
 	CareBlockerUnknown       = "Dieses Kind gibt es in Ihrer Schule nicht (mehr)."
-	CareBlockerAlumnus       = "Dieses Kind wurde beim Jahrgangswechsel abgemeldet. Sie finden es unter Jahrgangswechsel, Bereich Abgänge."
+	CareBlockerAlumnus       = "Dieses Kind wurde beim Schuljahreswechsel abgemeldet. Sie finden es unter Schuljahreswechsel, Bereich Abgänge."
 	CareBlockerAlreadyEnded  = "Die Betreuung dieses Kindes ist bereits beendet."
 	CareBlockerBeforeStart   = "Die Betreuung dieses Kindes beginnt erst am %s. Bitte wählen Sie einen späteren letzten Betreuungstag."
 	CareBlockerResumeMissing = "Für dieses Kind ist keine beendete Betreuung hinterlegt."
@@ -237,7 +239,7 @@ type BookingAuthorityImpact struct {
 	PlannedCompletions []BookingAuthorityImpactChild `json:"planned_completions"`
 }
 
-// CareExitCommands ends, cancels and resumes care, and applies the effect-day
+// CareExitCommands ends and cancels care, and applies the effect-day
 // housekeeping once an end has taken effect.
 type CareExitCommands interface {
 	// Preview describes what ending the care would do, per child.
@@ -247,8 +249,6 @@ type CareExitCommands interface {
 	Confirm(ctx context.Context, token string, input CareExitInput, actorAccountID int64) (*CareExitResult, error)
 	// Cancel withdraws exits that have not taken effect yet.
 	Cancel(ctx context.Context, studentIDs []int64, actorAccountID int64) (int, error)
-	// Resume reopens the care of one child from a new start day.
-	Resume(ctx context.Context, input CareResumeInput) error
 	// ApplyDueEffects performs the effect-day housekeeping for every child
 	// whose care ended before asOf: closing what is still open, freeing the
 	// bracelet, closing the open family requests. Idempotent.

@@ -26,6 +26,9 @@ func (seedOperationsDemoStep) Run(_ context.Context, rt *Runtime) error {
 	if err := enableMealRegistration(rt); err != nil {
 		return err
 	}
+	if err := openSchoolPortalWrites(rt); err != nil {
+		return err
+	}
 	if err := seedClosingDay(rt, today); err != nil {
 		return err
 	}
@@ -51,6 +54,19 @@ func enableMealRegistration(rt *Runtime) error {
 	return nil
 }
 
+// openSchoolPortalWrites opens both writes of moto schule (#2970, #4799), so
+// a Lehrkraft with an assigned class may change the class's arrival time and
+// report a class trip. The seeder assigns no class itself.
+func openSchoolPortalWrites(rt *Runtime) error {
+	key := "operations.school_portal_write_scope"
+	if _, err := rt.Client.Put("/api/settings/values/"+key, map[string]any{
+		"value": []string{"class_arrival_exceptions", "class_trips"},
+	}); err != nil {
+		return fmt.Errorf("open %s: %w", key, err)
+	}
+	return nil
+}
+
 func seedClosingDay(rt *Runtime, today seedDate) error {
 	closingDay := today.AddDays(40)
 	if _, err := rt.Client.Post("/api/timetable/closing-days", map[string]any{
@@ -67,16 +83,16 @@ func seedClosingDay(rt *Runtime, today seedDate) error {
 // and the parents portal open on the current week, and the parents portal
 // also offers the next one (#3894).
 var demoMeals = [10][]map[string]any{
-	{{"dish": "Gemüsenudeln", "note": "Auch ohne Milch erhältlich"}, {"dish": "Obst und Wasser"}},
-	{{"dish": "Hähnchen mit Reis und Erbsen", "note": "Vegetarisch: Gemüsebratling"}},
-	{{"dish": "Kartoffelsuppe mit Brötchen"}, {"dish": "Joghurt mit Beeren"}},
-	{{"dish": "Spaghetti Bolognese", "note": "Vegetarisch: Linsen-Bolognese"}},
-	{{"dish": "Fischstäbchen mit Kartoffelpüree", "note": "Vegetarisch: Gemüsestäbchen"}, {"dish": "Obst"}},
-	{{"dish": "Milchreis mit Zimt und Kirschen"}},
-	{{"dish": "Gemüsecurry mit Reis"}, {"dish": "Apfelschnitze"}},
-	{{"dish": "Linseneintopf mit Würstchen", "note": "Vegetarisch: ohne Würstchen"}},
-	{{"dish": "Gemüselasagne"}, {"dish": "Apfelkompott"}},
-	{{"dish": "Pfannkuchen mit Apfelmus"}, {"dish": "Rohkost"}},
+	{{"dish": "Gemüsenudeln", "note": "Auch ohne Milch erhältlich", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Obst und Wasser"}},
+	{{"dish": "Hähnchen mit Reis und Erbsen", "note": "Vegetarisch: Gemüsebratling", "allergens": []string{"celery"}}},
+	{{"dish": "Kartoffelsuppe mit Brötchen", "allergens": []string{"gluten", "celery", "milk"}}, {"dish": "Joghurt mit Beeren", "allergens": []string{"milk"}}},
+	{{"dish": "Spaghetti Bolognese", "note": "Vegetarisch: Linsen-Bolognese", "allergens": []string{"gluten", "celery"}}},
+	{{"dish": "Fischstäbchen mit Kartoffelpüree", "note": "Vegetarisch: Gemüsestäbchen", "allergens": []string{"gluten", "fish", "milk"}}, {"dish": "Obst"}},
+	{{"dish": "Milchreis mit Zimt und Kirschen", "allergens": []string{"milk"}}},
+	{{"dish": "Gemüsecurry mit Reis", "allergens": []string{"mustard", "nuts"}}, {"dish": "Apfelschnitze"}},
+	{{"dish": "Linseneintopf mit Würstchen", "note": "Vegetarisch: ohne Würstchen", "allergens": []string{"celery", "mustard", "sulphites"}}},
+	{{"dish": "Gemüselasagne", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Apfelkompott"}},
+	{{"dish": "Pfannkuchen mit Apfelmus", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Rohkost"}},
 }
 
 // seedMealPlan publishes lunch for every weekday of the week today lies in

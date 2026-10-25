@@ -9,8 +9,9 @@ import (
 // The caterer is an identity across schools (ADR 0077): a school invites its
 // caterer, the caterer accepts with a password and signs in to the caterer
 // portal. The school-side flows and the acceptance run in the school's
-// transaction the caller opens; the caterer's schools come from the global
-// identity read (#4088).
+// transaction the caller opens; the caller also holds the school's caterer
+// lock across them. The caterer's schools come from the global identity
+// read, filtered on the caterer.
 
 var (
 	// ErrAccountNotCaterer refuses the caterer portal to any other account.
@@ -75,15 +76,18 @@ type CatererRegistration struct {
 
 // CatererAcceptance is the outcome of an accepted invitation.
 type CatererAcceptance struct {
-	AccountID       int64
-	CatererID       int64
-	TenantID        int64
-	DeliveryAddress string
+	AccountID int64
+	CatererID int64
+	TenantID  int64
 }
 
-// CatererAcceptanceHook starts the supply inside the acceptance's
-// transaction, in the invitation's school.
-type CatererAcceptanceHook func(ctx context.Context, acceptance CatererAcceptance) error
+// CatererSupply is a school's running supply by its caterer: who supplies
+// it, where to and since when (ADR 0077).
+type CatererSupply struct {
+	Caterer         Caterer
+	DeliveryAddress string
+	StartedAt       time.Time
+}
 
 // CatererAccessEngine is what the composition binds behind CatererAccess.
 type CatererAccessEngine interface {
@@ -93,12 +97,13 @@ type CatererAccessEngine interface {
 	ListCatererInvitations(ctx context.Context) ([]CatererInvitation, error)
 	RevokeCatererInvitation(ctx context.Context, invitationID int64) error
 	PreviewCatererInvitation(ctx context.Context, token string) (CatererInvitationPreview, error)
-	AcceptCatererInvitation(ctx context.Context, token string, registration CatererRegistration, start CatererAcceptanceHook) (CatererAcceptance, error)
-	// EndCatererSchool ends the school's link to its caterer; the caller
-	// ends the supply in the same transaction.
-	EndCatererSchool(ctx context.Context) (bool, error)
-	// SchoolCaterer names the caterer that supplies the school now.
-	SchoolCaterer(ctx context.Context) (Caterer, bool, error)
+	// AcceptCatererInvitation spends the invitation and starts the school's
+	// supply by the caterer.
+	AcceptCatererInvitation(ctx context.Context, token string, registration CatererRegistration) (CatererAcceptance, error)
+	// EndCatererSchool ends the school's supply by its caterer.
+	EndCatererSchool(ctx context.Context, accountID int64) (bool, error)
+	// SchoolCaterer reads the school's running supply.
+	SchoolCaterer(ctx context.Context) (CatererSupply, bool, error)
 	// CatererSchools names the caterer of an account and the schools it
 	// supplies now.
 	CatererSchools(ctx context.Context, accountID int64) (Caterer, []int64, error)

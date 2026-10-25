@@ -1,12 +1,14 @@
+import { SYSTEM_ROLE_LABELS as ROLE_LABELS } from "~/lib/role-labels";
+
 export type AnnouncementType = "announcement" | "release" | "maintenance";
 export type AnnouncementSeverity = "info" | "warning" | "critical";
 type AnnouncementStatus = "draft" | "published" | "expired";
 export type SystemRole = "admin" | "user" | "guardian";
 
 export const SYSTEM_ROLE_LABELS: Record<SystemRole, string> = {
-  admin: "Administratoren",
-  user: "Betreuer",
-  guardian: "Erziehungsberechtigte",
+  admin: ROLE_LABELS.admin.name,
+  user: ROLE_LABELS.user.name,
+  guardian: ROLE_LABELS.guardian.name,
 };
 
 export interface BackendAnnouncement {

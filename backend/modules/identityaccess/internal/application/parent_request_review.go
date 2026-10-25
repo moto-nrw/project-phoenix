@@ -19,6 +19,9 @@ const (
 	reviewScopeAllStaff     = "all_staff"
 )
 
+// groupModeOpenCare is the group mode of a school without fixed groups.
+const groupModeOpenCare = "open_care"
+
 // ParentRequestReviewDependencies binds the parent request review policy.
 // Permissions evaluates the route-level permission facts the policy narrows;
 // AbsenceReadRequired is the error a caller holding users:absence without
@@ -29,6 +32,7 @@ type ParentRequestReviewDependencies struct {
 	GroupLeaderSettingKey string
 	RequestSettingKey     string
 	AbsenceSettingKey     string
+	GroupModeSettingKey   string
 	AbsenceReadRequired   error
 }
 
@@ -64,7 +68,8 @@ func (p *ParentRequestReview) Scope(ctx context.Context, permissions []string) (
 	if !facts.CanReviewExcused {
 		return false, nil, nil
 	}
-	if p.deps.Settings == nil || p.deps.GroupLeaderSettingKey == "" || p.deps.RequestSettingKey == "" {
+	if p.deps.Settings == nil || p.deps.GroupLeaderSettingKey == "" || p.deps.RequestSettingKey == "" ||
+		p.deps.GroupModeSettingKey == "" {
 		return false, nil, errors.New("parent request review policy is not configured")
 	}
 	scope, err := p.deps.Settings.ResolveString(ctx, p.deps.RequestSettingKey)
@@ -72,16 +77,31 @@ func (p *ParentRequestReview) Scope(ctx context.Context, permissions []string) (
 		return false, nil, fmt.Errorf("resolve parent request review scope: %w", err)
 	}
 	if scope == reviewScopeInherit {
-		enabled, err := p.deps.Settings.ResolveBool(ctx, p.deps.GroupLeaderSettingKey)
-		if err != nil {
-			return false, nil, fmt.Errorf("resolve group-leader request review setting: %w", err)
-		}
-		scope = reviewScopeAdmins
-		if enabled {
-			scope = reviewScopeGroupLeaders
+		if scope, err = p.inheritedScope(ctx); err != nil {
+			return false, nil, err
 		}
 	}
 	return p.scopeOf(ctx, scope)
+}
+
+// inheritedScope follows the old group-leader switch. Open care has no group
+// leaders (#1480), so the switch is not read there and inherit means admins.
+func (p *ParentRequestReview) inheritedScope(ctx context.Context) (string, error) {
+	mode, err := p.deps.Settings.ResolveString(ctx, p.deps.GroupModeSettingKey)
+	if err != nil {
+		return "", fmt.Errorf("resolve group mode: %w", err)
+	}
+	if mode == groupModeOpenCare {
+		return reviewScopeAdmins, nil
+	}
+	enabled, err := p.deps.Settings.ResolveBool(ctx, p.deps.GroupLeaderSettingKey)
+	if err != nil {
+		return "", fmt.Errorf("resolve group-leader request review setting: %w", err)
+	}
+	if enabled {
+		return reviewScopeGroupLeaders, nil
+	}
+	return reviewScopeAdmins, nil
 }
 
 // scopeOf evaluates an explicit scope for a caller who already passed the

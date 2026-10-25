@@ -583,6 +583,11 @@ export function AnnouncementDetail({
                   ? "Erlaubt, auch nach der Frist"
                   : "Nicht erlaubt"}
               </DataField>
+              <DataField label="Unterschrift">
+                {announcement.declaration_requires_signature
+                  ? "Eltern unterschreiben die Zustimmung"
+                  : "Keine Unterschrift"}
+              </DataField>
               <DataField label="Passwort vor dem Antworten">
                 {announcement.declaration_requires_password
                   ? "Wird abgefragt"

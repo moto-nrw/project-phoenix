@@ -69,6 +69,9 @@ const (
 	// (active.attendance, #3957), counted from the care day. The window the
 	// team sees (gdpr.attendance_visible_days) never exceeds it.
 	KeyGDPRAttendanceRetentionDays = "gdpr.attendance_retention_days"
+	// Retention window (days) for the morning attendance a Lehrkraft marks
+	// (active.morning_attendance, #4790), counted from the school day.
+	KeyGDPRMorningAttendanceRetentionDays = "gdpr.morning_attendance_retention_days"
 	// Retention window (days) for the parent/OGS conversations
 	// (users.parent_messages, #3959), counted from sending.
 	KeyGDPRParentMessageRetentionDays = "gdpr.parent_message_retention_days"
@@ -98,14 +101,6 @@ const (
 	KeyAttendanceLogEnabled  = "gdpr.attendance_log_enabled"
 	KeyAttendanceVisibleDays = "gdpr.attendance_visible_days"
 	KeyRoomDetailVisibleDays = "gdpr.room_detail_visible_days"
-)
-
-// The room history (Raumverlauf) reads its switch and window with these
-// fallbacks when a school's value cannot be read: no attendance log and a
-// window of 7 days, the registry defaults.
-const (
-	AttendanceLogEnabledFallback  = false
-	RoomDetailVisibleDaysFallback = 7
 )
 
 // Feedback settings.
@@ -171,16 +166,17 @@ const (
 	// KeyWeekendFollowsFriday makes Saturday and Sunday care days that run
 	// on Friday's weekly plan (#3921). Operator-only; the public demo
 	// schools carry it so the demo has a school day at every hour.
-	KeyWeekendFollowsFriday         = "operations.weekend_follows_friday"
-	KeyAttendanceEditScope          = "operations.attendance_edit_scope"
-	KeyBlockStartScope              = "operations.block_start_scope"
-	KeyBlockCompleteScope           = "operations.block_complete_scope"
-	KeyStudentAbsenceEditScope      = "operations.student_absence_edit_scope"
-	KeyClassArrivalExceptionEditors = "operations.class_arrival_exception_editors"
-	KeySchoolPortalWriteScope       = "operations.school_portal_write_scope"
-	KeyParentRequestReasonPolicy    = "operations.parent_request_reason_policy"
-	KeyMealRegistrationEnabled      = "operations.meal_registration_enabled"
-	KeyMealRegistrationCutoffTime   = "operations.meal_registration_cutoff_time"
+	KeyWeekendFollowsFriday          = "operations.weekend_follows_friday"
+	KeyAttendanceEditScope           = "operations.attendance_edit_scope"
+	KeyBlockStartScope               = "operations.block_start_scope"
+	KeyBlockCompleteScope            = "operations.block_complete_scope"
+	KeyStudentAbsenceEditScope       = "operations.student_absence_edit_scope"
+	KeyClassArrivalExceptionEditors  = "operations.class_arrival_exception_editors"
+	KeySchoolPortalWriteScope        = "operations.school_portal_write_scope"
+	KeySchoolPortalMorningAttendance = "operations.school_portal_morning_attendance"
+	KeyParentRequestReasonPolicy     = "operations.parent_request_reason_policy"
+	KeyMealRegistrationEnabled       = "operations.meal_registration_enabled"
+	KeyMealRegistrationCutoffTime    = "operations.meal_registration_cutoff_time"
 	// The meal ordering rules of a school (#3873): which registration model
 	// it runs, the registration deadline and, where the model has one, the
 	// separate cancellation deadline. Each deadline is either a number of
@@ -208,7 +204,6 @@ const (
 	KeyExcusedClearMode                      = "operations.excused_clear_mode"
 	KeyPresenceMode                          = "operations.presence_mode"
 	KeyAttendanceWebEnabled                  = "attendance.web_enabled"
-	KeyAttendanceNFCEnabled                  = "attendance.nfc_enabled"
 	KeyWebSpontaneousActivities              = "attendance.web_spontaneous_activities_enabled"
 	KeyWebExceedParticipantLimit             = "attendance.web_exceed_participant_limit_enabled"
 	KeyStudentPhotosEnabled                  = "operations.student_photos_enabled"
@@ -399,21 +394,40 @@ const (
 
 // SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970).
 // The OGS decides what a Lehrkraft may write into OGS data through "moto
-// schule"; the default is nothing. A single-select on purpose: the key is
-// meant to carry further school-portal write rights as more values, and a
-// multi-select is built once a second value exists.
+// schule"; the setting is a multi-select (#4794), and the default selects
+// nothing, which keeps the school portal read-only.
 const (
-	// SchoolPortalWriteScopeNone keeps the school portal read-only. Default.
-	SchoolPortalWriteScopeNone = "none"
 	// SchoolPortalWriteScopeClassArrivalExceptions lets a Lehrkraft set the
 	// class-wide arrival day exception (#2962) for her assigned classes.
 	SchoolPortalWriteScopeClassArrivalExceptions = "class_arrival_exceptions"
+	// SchoolPortalWriteScopeClassHandover lets a Lehrkraft hand her
+	// assigned class over to the OGS after lessons and mark the children
+	// who are not there (#4794).
+	SchoolPortalWriteScopeClassHandover = "class_handover"
+	// SchoolPortalWriteScopeClassTrips lets a Lehrkraft report a class trip
+	// (Ausflug or Klassenfahrt) for her assigned classes (#4799).
+	SchoolPortalWriteScopeClassTrips = "class_trips"
 )
 
-// SchoolPortalWritesClassArrivalExceptions reports a write scope that lets
-// the school portal set class-wide arrival day exceptions.
-func SchoolPortalWritesClassArrivalExceptions(scope string) bool {
-	return scope == SchoolPortalWriteScopeClassArrivalExceptions
+// SchoolPortalWriteScopeIncludes reports whether the resolved write scope
+// (the JSON array of KeySchoolPortalWriteScope) selects scope. A value that
+// is no list selects nothing.
+func SchoolPortalWriteScopeIncludes(value any, scope string) bool {
+	switch v := value.(type) {
+	case []string:
+		for _, item := range v {
+			if item == scope {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range v {
+			if s, ok := item.(string); ok && s == scope {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The
@@ -480,6 +494,7 @@ const (
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
 	KeyEnrollmentRequireCaptcha                         = "enrollment.require_captcha"
 	KeyEnrollmentRejectedRetentionDays                  = "enrollment.rejected_retention_days"
+	KeyEnrollmentUploadRetentionDays                    = "enrollment.upload_retention_days"
 	KeyEnrollmentWaitlistEnabled                        = "enrollment.waitlist_enabled"
 	KeyEnrollmentNotifyPerDecision                      = "enrollment.notify_per_decision"
 	KeyEnrollmentOutboxMaxAttempts                      = "enrollment.outbox_max_attempts"
@@ -514,11 +529,6 @@ const (
 	KeyEmailReplyToAddress         = "email.reply_to_address"
 	KeyEnrollmentLegalPhotoEnabled = "enrollment.legal_photo_enabled"
 )
-
-// EnrollmentCareOfferingsEnabledFallback is what the enrollment reports read
-// for enrollment.care_offerings_enabled when no settings resolver is bound:
-// the registry default, care offerings on.
-const EnrollmentCareOfferingsEnabledFallback = true
 
 // Enrollment select-option values.
 const (
@@ -697,6 +707,25 @@ const (
 // user IDs; the parents and school portals never do. The sample percentage
 // has no effect without the Freigabe. Both are operator-only.
 const (
+	KeyAnalyticsEnabled                = "analytics.enabled"
 	KeyAnalyticsFreigabe               = "analytics.freigabe"
 	KeyAnalyticsRecordingSamplePercent = "analytics.recording_sample_percent"
+)
+
+// Module switches (#4892): one per additional module of the module catalog.
+// The moto team books them per school (AccessOperatorManaged); records/modules.go
+// holds the list with names and prerequisites.
+const (
+	KeyModuleNFCAnwesenheit      = "module.nfc_anwesenheit"
+	KeyModuleMittagessen         = "module.mittagessen"
+	KeyModuleElternApp           = "module.eltern_app"
+	KeyModuleOnlineAnmeldung     = "module.online_anmeldung"
+	KeyModuleUnterrichtVormittag = "module.unterricht_vormittag"
+	KeyModuleDienstplan          = "module.dienstplan"
+	KeyModuleZeiterfassung       = "module.zeiterfassung"
+	KeyModulePersonalakte        = "module.personalakte"
+	KeyModuleTraegerUebersicht   = "module.traeger_uebersicht"
+	KeyModuleFerienbetreuung     = "module.ferienbetreuung"
+	KeyModuleVertraege           = "module.vertraege"
+	KeyModuleElternbeitraege     = "module.elternbeitraege"
 )

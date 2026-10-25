@@ -46,7 +46,7 @@ var (
 	ErrConfirmationMismatch = errors.New("der eingegebene Name stimmt nicht mit dem Kind überein")
 	ErrNotAcknowledged      = errors.New("die Unwiderruflichkeit der Löschung muss bestätigt werden")
 	ErrInvalidReason        = errors.New("ungültiger Löschgrund")
-	ErrAlumnus              = errors.New("abgänger werden über den Jahrgangswechsel endgültig gelöscht")
+	ErrAlumnus              = errors.New("abgänger werden über den Schuljahreswechsel endgültig gelöscht")
 	ErrRetentionNotEnded    = errors.New("der Grund „Aufbewahrungsfrist abgelaufen“ gilt nur für Kinder, deren Betreuung beendet ist")
 	// ErrCompanionWouldLoseDeparture refuses a deletion that would strand a
 	// linked child: their plan says "Anderes Kind" for a weekday this child

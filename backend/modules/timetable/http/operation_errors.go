@@ -65,5 +65,5 @@ func codedStatus(build func(error, string) render.Renderer, fallback ...string) 
 // operationErrorRenderer answers an operational refusal; anything unknown
 // is a server error.
 func operationErrorRenderer(err error) render.Renderer {
-	return common.RenderWithRules(err, operationErrorRules, common.ErrorInternalServer)
+	return common.RenderWithRules(err, operationErrorRules, common.ErrorInternalServerRenderer("timetable operation failed"))
 }

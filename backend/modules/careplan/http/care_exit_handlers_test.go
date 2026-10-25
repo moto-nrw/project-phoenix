@@ -1,6 +1,7 @@
 package careplanhttp_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -220,6 +222,44 @@ func TestCareExitHandlers_ValidateCareExitDatesAndReasonNote(t *testing.T) {
 	assert.Contains(t, longNoteResponse.Body.String(), "die Begründung ist zu lang.")
 }
 
+// A child the school no longer knows and a child who left at the grade
+// transition are expected refusals with their own code, not 500s (#4407).
+func TestCareResumeHandler_RefusesUnknownAndGraduatedChildWithCodes(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRouteWithCareLifecycle(t, false, fixedCalendarClock)
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-resume-refusals@example.com")
+	claims := testutil.AdminTestClaims(int(actor.ID))
+	body := map[string]any{"new_start": studentsTestToday.String(), "checked": true}
+
+	graduated := testpkg.CreateTestStudent(t, tc.db, "Api", "Abgang", "4a")
+	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("status = ?", careplan.StudentStatusAlumnus).
+		Where("student_profile_id = ? AND deleted_at IS NULL", graduated.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	cases := []struct {
+		name      string
+		studentID int64
+		status    int
+		code      string
+	}{
+		{"unknown child", graduated.ID + 1_000_000, http.StatusNotFound, common.CodeTimetableStudentNotFound},
+		{"child left at grade transition", graduated.ID, http.StatusConflict, common.CodeStudentsCareResumeAlumnus},
+	}
+	for _, c := range cases {
+		request := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/care-end/resume", c.studentID), body)
+		response := authExec(t, tc, request, claims, []string{"users:delete"})
+		require.Equal(t, c.status, response.Code, "%s. Body: %s", c.name, response.Body.String())
+		var problem struct {
+			Code string `json:"code"`
+		}
+		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &problem))
+		assert.Equal(t, c.code, problem.Code, c.name)
+	}
+}
+
 func flipCareExitTokenHex(t *testing.T, token string) string {
 	t.Helper()
 	require.GreaterOrEqual(t, len(token), 2, "care-exit tokens are SHA-256 hex")
@@ -230,4 +270,52 @@ func flipCareExitTokenHex(t *testing.T, token string) string {
 		flipped[0] = '0'
 	}
 	return string(flipped)
+}
+
+// The transport reaches the workflow even without the domain lifecycle. The
+// real root binding must retain membership, ledger and audit effects.
+func TestCareResumeHandlerUsesIndependentWorkflowEntry(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRouteWithCareLifecycle(t, false, fixedCalendarClock)
+	tc.resource.CareLifecycleService = nil
+	today := studentsTestToday
+	student := testpkg.CreateTestStudent(t, tc.db, "Returning", "Child", "2a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "resume-entry")
+	ctx := testpkg.Ctx(t)
+	ended := today.AddDays(-1)
+	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
+		Set("enrolled_until = ?", ended).Set("status = ?", careplan.StudentStatusInactive).
+		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = tc.db.NewRaw(`INSERT INTO users.student_care_exits (tenant_id, student_id, reason) VALUES (?, ?, 'moved_away')`, testpkg.Tenant(t), student.ID).Exec(ctx)
+	require.NoError(t, err)
+	path := fmt.Sprintf("/%d/care-end/resume", student.ID)
+	request := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, map[string]any{"new_start": today.String(), "checked": true})
+	response := authExec(t, tc, request, testutil.AdminTestClaims(int(actor.ID)), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
+	var body struct {
+		Data struct {
+			Resumed  bool   `json:"resumed"`
+			NewStart string `json:"new_start"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+	assert.True(t, body.Data.Resumed)
+	assert.Equal(t, today.String(), body.Data.NewStart)
+	var membership struct {
+		EnrolledFrom  *calendar.Date `bun:"enrolled_from"`
+		EnrolledUntil *calendar.Date `bun:"enrolled_until"`
+		Status        string         `bun:"status"`
+	}
+	require.NoError(t, tc.db.NewSelect().TableExpr("users.student_school_memberships").Column("enrolled_from", "enrolled_until", "status").Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Scan(ctx, &membership))
+	require.NotNil(t, membership.EnrolledFrom)
+	assert.Equal(t, today, *membership.EnrolledFrom)
+	assert.Nil(t, membership.EnrolledUntil)
+	assert.Equal(t, careplan.StudentStatusActive, membership.Status)
+	exits, err := tc.db.NewSelect().TableExpr("users.student_care_exits").Where("student_id = ?", student.ID).Count(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, exits)
+	edits, err := tc.db.NewSelect().TableExpr("audit.student_field_edits").Where("student_id = ?", student.ID).Where("field_name = ?", "care_end").Where("edited_by = ?", actor.ID).Count(ctx)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, edits, "the workflow keeps the care-end audit")
 }

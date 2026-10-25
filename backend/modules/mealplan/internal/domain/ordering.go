@@ -137,15 +137,30 @@ func (r OrderingRules) Valid() bool {
 }
 
 // RegistrationAt is when registering for day ends. Under the annual model a
-// day follows the cancellation deadline while the annual registration is
-// open; the annual deadline itself is checked separately.
+// day follows the cancellation deadline when an annual deadline is set.
+// Without one, registration stays open until the meal day ends.
 func (r OrderingRules) RegistrationAt(day Date) time.Time {
 	switch r.Model {
 	case ModelAnnual:
+		if r.AnnualDeadline == "" {
+			return day.EndOfDay()
+		}
 		return r.Cancellation.At(day)
 	default:
 		return r.Registration.At(day)
 	}
+}
+
+// ParentRegistrationUntil is the earlier of the day deadline and the annual
+// registration deadline. The annual deadline does not fix the day's order.
+func (r OrderingRules) ParentRegistrationUntil(day Date) time.Time {
+	deadline := r.RegistrationAt(day)
+	if r.Model == ModelAnnual && r.AnnualDeadline != "" {
+		if annual := r.AnnualDeadline.EndOfDay(); annual.Before(deadline) {
+			return annual
+		}
+	}
+	return deadline
 }
 
 // CancellationAt is when cancelling day ends.
@@ -185,7 +200,7 @@ func (r OrderingRules) annualClosed(now time.Time) bool {
 
 // ParentCanRegister reports whether a parent may still register for day.
 func (r OrderingRules) ParentCanRegister(now time.Time, day Date) bool {
-	return open(now, day, r.RegistrationAt(day)) && !r.annualClosed(now)
+	return open(now, day, r.ParentRegistrationUntil(day))
 }
 
 // ParentCanCancel reports whether a parent may still cancel day.
@@ -207,7 +222,10 @@ func (r OrderingRules) ParentCanChangeSchedule(now time.Time) bool {
 func (r OrderingRules) NextEffectiveDate(now time.Time) Date {
 	date := calendar.DateFromTime(now)
 	for range 2 * (maxLeadDays + 14) {
-		if date.Weekday() != time.Saturday && date.Weekday() != time.Sunday && !now.After(r.FreezeAt(date)) {
+		// Both deadline kinds are monotonic within a week, so its first
+		// day has the earliest freeze deadline of the ordering period.
+		periodStart, _ := OrderPeriod(r.Rhythm, date)
+		if date.Weekday() != time.Saturday && date.Weekday() != time.Sunday && now.Before(r.FreezeAt(periodStart)) {
 			return date
 		}
 		date = date.AddDays(1)

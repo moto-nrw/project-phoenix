@@ -24,7 +24,9 @@ var errSchoolTransactionRequired = errors.New("identity access: the caterer flow
 // caterer, the caterer accepts with a password, and signs in to the caterer
 // portal. Nothing here opens a transaction of its own (#4088): writes join
 // the school's transaction the caller opens, and the caterer of an account
-// and its schools come from the global identity read.
+// and its schools come from the global identity read. The caller, the
+// caterer portal workflow, serializes the supply's lifecycle with its own
+// lock; these commands take none.
 type CatererAccess struct {
 	auth      *AccountAuthentication
 	store     ports.CatererStore
@@ -169,33 +171,41 @@ func (c *CatererAccess) RevokeCatererInvitation(ctx context.Context, invitationI
 	return nil
 }
 
-// EndCatererSchool ends the school's link to its caterer, together with the
-// supply the caller ends in the same transaction. The caterer loses the
-// school at once.
-func (c *CatererAccess) EndCatererSchool(ctx context.Context) (bool, error) {
+// EndCatererSchool ends the school's supply by its caterer. The caterer
+// loses the school at once.
+func (c *CatererAccess) EndCatererSchool(ctx context.Context, accountID int64) (bool, error) {
 	ctx = c.attach(ctx)
 	if !c.inSchool(ctx) {
 		return false, catererError(failed("end caterer school", errSchoolTransactionRequired))
 	}
-	ended, _, err := c.store.EndCatererSchool(ctx, c.now())
+	ended, _, err := c.store.EndCatererSchool(ctx, accountID, c.now())
 	if err != nil {
 		return false, catererError(failed("end caterer school", err))
+	}
+	if ended {
+		c.logger.Info("caterer supply ended",
+			slog.Int64("ended_by", accountID),
+			slog.Int64("tenant_id", c.runtime.TenantID(ctx)))
 	}
 	return ended, nil
 }
 
-// SchoolCaterer names the caterer that supplies the school now, from its
-// link to the school: the invitation that started it may long be deleted.
-func (c *CatererAccess) SchoolCaterer(ctx context.Context) (identityaccess.Caterer, bool, error) {
+// SchoolCaterer reads the school's running supply: the caterer, where it
+// delivers and since when. The invitation that started it may long be
+// deleted.
+func (c *CatererAccess) SchoolCaterer(ctx context.Context) (identityaccess.CatererSupply, bool, error) {
 	ctx = c.attach(ctx)
 	if !c.inSchool(ctx) {
-		return identityaccess.Caterer{}, false, catererError(failed("find school caterer", errSchoolTransactionRequired))
+		return identityaccess.CatererSupply{}, false, catererError(failed("find school caterer", errSchoolTransactionRequired))
 	}
-	caterer, found, _, err := c.store.FindSchoolCaterer(ctx)
+	supply, found, _, err := c.store.FindSchoolCaterer(ctx)
 	if err != nil {
-		return identityaccess.Caterer{}, false, catererError(failed("find school caterer", err))
+		return identityaccess.CatererSupply{}, false, catererError(failed("find school caterer", err))
 	}
-	return identityaccess.Caterer(caterer), found, nil
+	return identityaccess.CatererSupply{
+		Caterer:         identityaccess.Caterer(supply.Caterer),
+		DeliveryAddress: supply.DeliveryAddress, StartedAt: supply.StartedAt,
+	}, found, nil
 }
 
 // PreviewCatererInvitation is what the public acceptance page shows. The
@@ -217,7 +227,11 @@ func (c *CatererAccess) preview(ctx context.Context, token string) (domain.Cater
 		return domain.CatererInvitationPreview{}, err
 	}
 	preview := domain.CatererInvitationPreview{Email: invitation.Email, CatererName: invitation.CatererName, ExpiresAt: invitation.ExpiresAt}
-	if school, found, schoolErr := c.schools.FindSchool(ctx, invitation.TenantID); schoolErr == nil && found {
+	school, found, err := c.schools.FindSchool(ctx, invitation.TenantID)
+	if err != nil {
+		return domain.CatererInvitationPreview{}, err
+	}
+	if found {
 		preview.SchoolName = strings.TrimSpace(school.Name)
 	}
 	account, found, _, err := c.store.FindLoginAccountByEmail(ctx, invitation.Email)
@@ -233,18 +247,15 @@ func (c *CatererAccess) preview(ctx context.Context, token string) (domain.Cater
 // the caller opened. A new address gets an account and a caterer of the
 // invited name; the account of an existing caterer confirms with its
 // password and adds the school. An address of another kind of account is
-// refused. The caterer's link to the school and the hook's supply commit
-// with it, so the caterer never exists without its school.
-func (c *CatererAccess) AcceptCatererInvitation(ctx context.Context, token string, registration identityaccess.CatererRegistration, start identityaccess.CatererAcceptanceHook) (identityaccess.CatererAcceptance, error) {
+// refused. The school's supply by the caterer starts with it, so the
+// caterer never exists without its school.
+func (c *CatererAccess) AcceptCatererInvitation(ctx context.Context, token string, registration identityaccess.CatererRegistration) (identityaccess.CatererAcceptance, error) {
 	ctx = c.attach(ctx)
 	if !c.inSchool(ctx) {
 		return identityaccess.CatererAcceptance{}, catererError(failed("accept caterer invitation", errSchoolTransactionRequired))
 	}
 	accepted, err := c.accept(ctx, token, domain.CatererRegistration(registration))
 	acceptance := identityaccess.CatererAcceptance(accepted)
-	if err == nil {
-		err = start(ctx, acceptance)
-	}
 	if err != nil {
 		return identityaccess.CatererAcceptance{}, catererError(failed("accept caterer invitation", err))
 	}
@@ -278,10 +289,12 @@ func (c *CatererAccess) accept(ctx context.Context, token string, registration d
 	case !accepted:
 		return domain.CatererAcceptance{}, domain.ErrInvitationUsed
 	}
-	if _, err := c.store.InsertCatererSchool(ctx, catererID, c.now()); err != nil {
+	// The supply starts with the acceptance; a school has one running
+	// supply (uq_caterer_school_active).
+	if _, err := c.store.InsertCatererSchool(ctx, catererID, invitation.DeliveryAddress, accountID, c.now()); err != nil {
 		return domain.CatererAcceptance{}, err
 	}
-	return domain.CatererAcceptance{AccountID: accountID, CatererID: catererID, TenantID: invitation.TenantID, DeliveryAddress: invitation.DeliveryAddress}, nil
+	return domain.CatererAcceptance{AccountID: accountID, CatererID: catererID, TenantID: invitation.TenantID}, nil
 }
 
 // catererAccount finds or creates the account and caterer the invitation
@@ -318,14 +331,11 @@ func (c *CatererAccess) catererAccount(ctx context.Context, invitation domain.Ca
 	if err != nil {
 		return 0, 0, err
 	}
-	caterer, _, err := c.store.InsertCaterer(ctx, invitation.CatererName)
+	catererID, _, err := c.store.CreateInvitedCaterer(ctx, invitation.ID, created.ID)
 	if err != nil {
 		return 0, 0, err
 	}
-	if _, err := c.store.InsertCatererAccount(ctx, created.ID, caterer.ID); err != nil {
-		return 0, 0, err
-	}
-	return created.ID, caterer.ID, nil
+	return created.ID, catererID, nil
 }
 
 // redeemable resolves the school's invitation by its token and says why it
@@ -345,8 +355,10 @@ func (c *CatererAccess) redeemable(ctx context.Context, token string) (domain.Ca
 }
 
 // CatererSchools names the caterer of an account and the schools it
-// supplies now, through the global identity read. The caterer portal opens
-// each school on its own.
+// supplies now. It is the caterer's one read across schools (ADR 0077, in
+// the shape of ADR 0084): the global identity read, every query filtered on
+// the account or its caterer. The caterer portal opens each school on its
+// own.
 func (c *CatererAccess) CatererSchools(ctx context.Context, accountID int64) (identityaccess.Caterer, []int64, error) {
 	caterer, schools, err := c.catererSchools(c.attach(ctx), accountID)
 	return identityaccess.Caterer(caterer), schools, catererError(err)

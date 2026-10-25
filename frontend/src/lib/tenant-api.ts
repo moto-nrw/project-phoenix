@@ -7,12 +7,27 @@
 import { apiErrorFromResponse } from "./api-error";
 import { clearSessionCache, sessionFetch } from "./session-cache";
 import { mapAccountTenant, type AccountTenantBackend } from "./account-tenants";
+import { parseBookedModules, type ModuleKey } from "./modules";
 
 export interface TenantSettings {
   logoUrl?: string;
   loginImageUrl?: string;
   primaryColor?: string;
   [key: string]: unknown;
+}
+
+/**
+ * The module fields of TenantInfo from the tenant shell's booked_modules.
+ * nfcEnabled is derived so NFC-only areas follow the NFC module.
+ */
+export function bookedModuleFields(
+  raw: unknown,
+): Pick<TenantInfo, "bookedModules" | "nfcEnabled"> {
+  const bookedModules = parseBookedModules(raw);
+  return {
+    bookedModules,
+    nfcEnabled: bookedModules.includes("nfc_anwesenheit"),
+  };
 }
 
 /** Convert a stored login image URL path to the public-serving proxy URL. */
@@ -37,6 +52,12 @@ export interface TenantInfo {
   subdomain: string;
   organizationId: number;
   organizationName: string;
+  /**
+   * The Träger the school portal names next to the school (#4656). Set only
+   * while the Träger runs more than one school; a Träger with a single OGS
+   * sees no Träger level, so the field stays empty.
+   */
+  traegerName?: string;
   hidden?: boolean;
   settings: TenantSettings;
   presenceMode: PresenceMode;
@@ -48,9 +69,14 @@ export interface TenantInfo {
    */
   studentPhotosEnabled: boolean;
   /**
-   * Whether this tenant uses NFC devices for attendance/location capture.
-   * Exposed through tenant resolve so non-admin staff can hide NFC-only
-   * navigation without needing config:read.
+   * The additional modules the school booked (#4892), in module-list order.
+   * Exposed through tenant resolve so every staff member's navigation can
+   * follow them without config:read.
+   */
+  bookedModules: readonly ModuleKey[];
+  /**
+   * Whether the school booked NFC-Anwesenheit, derived from bookedModules.
+   * NFC-only navigation follows it.
    */
   nfcEnabled: boolean;
   /**
@@ -129,6 +155,7 @@ export interface TenantInfo {
    * is true does the OGS portal record masked sessions, send a pseudonymous
    * user ID, and show staff the notice. Missing metadata is off.
    */
+  analyticsEnabled?: boolean;
   analyticsFreigabe?: boolean;
   /** Share of OGS sessions recorded with the Freigabe, 0 to 100. */
   analyticsRecordingSamplePercent?: number;
@@ -173,11 +200,12 @@ interface TenantResolveResponse {
   subdomain: string;
   organization_id: number;
   organization_name: string;
+  traeger_name?: string;
   hidden?: boolean;
   settings: TenantSettings;
   presence_mode?: string;
   student_photos_enabled?: boolean;
-  nfc_enabled?: boolean;
+  booked_modules?: string[];
   parent_messaging_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
@@ -195,6 +223,7 @@ interface TenantResolveResponse {
   meal_registration_enabled?: boolean;
   waitlist_enabled?: boolean;
   grade_level_max: number;
+  analytics_enabled?: boolean;
   analytics_freigabe?: boolean;
   analytics_recording_sample_percent?: number;
   early_checkout_note_enabled?: boolean;
@@ -319,11 +348,12 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       subdomain: data.subdomain,
       organizationId: data.organization_id,
       organizationName: data.organization_name,
+      traegerName: data.traeger_name,
       hidden: data.hidden === true,
       settings: data.settings ?? {},
       presenceMode: normalizePresenceMode(data.presence_mode),
       studentPhotosEnabled: data.student_photos_enabled === true,
-      nfcEnabled: data.nfc_enabled === true,
+      ...bookedModuleFields(data.booked_modules),
       messagingEnabled: data.parent_messaging_enabled === true,
       staffMessagingEnabled: data.staff_messaging_enabled === true,
       displayEnabled: data.display_enabled === true,
@@ -347,7 +377,9 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       mealRegistrationEnabled: data.meal_registration_enabled === true,
       waitlistEnabled: data.waitlist_enabled !== false,
       gradeLevelMax: data.grade_level_max,
-      analyticsFreigabe: data.analytics_freigabe === true,
+      analyticsEnabled: data.analytics_enabled === true,
+      analyticsFreigabe:
+        data.analytics_enabled === true && data.analytics_freigabe === true,
       analyticsRecordingSamplePercent: normalizeRecordingSamplePercent(
         data.analytics_recording_sample_percent,
       ),
@@ -504,10 +536,19 @@ export async function performTenantSwitch(
 export async function switchTenant(
   subdomain: string,
 ): Promise<SwitchTenantResponse> {
-  const response = await sessionFetch("/api/auth/switch-tenant", {
-    method: "POST",
-    body: JSON.stringify({ tenant_slug: subdomain }),
-  });
+  const response = await sessionFetch(
+    "/api/auth/switch-tenant",
+    {
+      method: "POST",
+      body: JSON.stringify({ tenant_slug: subdomain }),
+    },
+    {
+      authRefusals: [
+        "identity.tenant_access_denied",
+        "identity.mfa_session_required",
+      ],
+    },
+  );
   if (!response.ok) {
     // The switch UI branches on the code: identity.tenant_access_denied
     // (401, no access to that school) or identity.use_school_portal (a

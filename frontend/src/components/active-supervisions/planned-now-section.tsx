@@ -1,8 +1,14 @@
 "use client";
 
+import {
+  HANDOVER_ABSENT_WORDING,
+  handoverDetail,
+  handoverLine,
+} from "~/lib/class-handover";
 import { useMemo, useState } from "react";
 import { ChevronDown, CircleAlert, Play } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { StudentAbsenceRow } from "~/components/students/student-card";
 import {
   OwnBlockHint,
   blockTintStyle,
@@ -536,6 +542,21 @@ function RosterPreviewRow({
       </div>
       {classException ? (
         <p className="mt-2 text-xs text-gray-700">{classException.message}</p>
+      ) : null}
+      {/* Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind
+          mit der Klasse übergeben, „da“ oder „nicht da“. */}
+      {row.classHandover?.absent ? (
+        <div className="mt-2">
+          <StudentAbsenceRow
+            wording={HANDOVER_ABSENT_WORDING}
+            label={handoverDetail(row.classHandover)}
+          />
+        </div>
+      ) : null}
+      {row.classHandover && !row.classHandover.absent ? (
+        <p className="mt-2 text-xs text-gray-700">
+          {handoverLine(row.classHandover)}
+        </p>
       ) : null}
       {warnings.length > 0 ? (
         <p className="text-moto-amber-strong mt-2 text-xs">

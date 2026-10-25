@@ -65,7 +65,7 @@ func analyzeSemantics(project string, policy *Policy) ([]Violation, error) {
 			violations = append(violations, packageViolations...)
 		}
 	}
-	return uniqueSortedViolations(violations), nil
+	return finishSemanticEffects(project, policy, loaded, violations)
 }
 
 func loadTypedPackages(project string, build Build) ([]*packages.Package, error) {
@@ -446,24 +446,6 @@ func queryReceiverHasExplicitTable(expr ast.Expr) bool {
 		return true
 	}
 	return queryReceiverHasExplicitTable(selector.X)
-}
-
-func (a semanticAnalyzer) rawSQLViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, selection *types.Selection, method string, args []ast.Expr) []Violation {
-	if isSQLStmtCall(receiver, selection) {
-		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
-	}
-	queryIndex := 0
-	if strings.HasSuffix(method, "Context") {
-		queryIndex = 1
-	}
-	if len(args) <= queryIndex {
-		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
-	}
-	query, ok := constantString(pkg.TypesInfo, args[queryIndex])
-	if !ok {
-		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
-	}
-	return a.sqlStringViolations(pkg.PkgPath, classification.Owner, functionName, method, query, true)
 }
 
 func (a semanticAnalyzer) queryFragmentViolations(pkg *packages.Package, classification Package, functionName, method string, args []ast.Expr) []Violation {

@@ -9,8 +9,8 @@ import { problemResponse } from "~/lib/api-helpers.server";
 
 const logger = createLogger({ component: "StaffTimeTrackingExportRoute" });
 
-// Admin export proxy. Streams CSV/XLSX binary from the backend as a file
-// download. Mirrors /api/time-tracking/export but for a specific staff ID.
+// Streams one person’s PDF/CSV/XLSX time report. The backend checks manage
+// permission or time_tracking:own for the signed-in person’s staff ID.
 async function GETHandler(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },

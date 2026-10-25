@@ -37,6 +37,15 @@ export function expectedFailure(
   source: "server" | "client",
 ): ExpectedFailure | null {
   if (!context) return null;
+  // An entry built by errorLogFields carries no message text. Without a
+  // status, its unavailable class means no response arrived.
+  if (
+    source === "client" &&
+    context.error_class === "unavailable" &&
+    context.status === undefined
+  ) {
+    return "network";
+  }
   const message = typeof context.error === "string" ? context.error : "";
   const status =
     typeof context.status === "number"

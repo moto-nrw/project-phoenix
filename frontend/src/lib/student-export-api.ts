@@ -1,5 +1,10 @@
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import {
+  downloadBlob,
+  filenameFromDisposition,
+  openBlobForPrint,
+} from "~/lib/file-download";
 
 export type StudentExportFormat = "pdf" | "docx" | "xlsx";
 
@@ -33,6 +38,7 @@ export type StudentExportColumn =
   | "current_location"
   | "birthday"
   | "age"
+  | "checklist"
   | "health_info";
 
 export interface StudentExportFilters {
@@ -163,7 +169,7 @@ export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
     id,
     label,
     group: "weekly" as const,
-    description: `Regelmäßige ${weekday}-Ankunft und ${weekday}-Abholung aus dem Wochenplan.`,
+    description: `Regelmäßige ${weekday}-Ankunft und ${weekday}-Abholung aus dem Wochenplan. In der Klassenliste: Abholzeit und Geh-/Abholweise.`,
   })),
   {
     id: "planned_arrival",
@@ -220,6 +226,12 @@ export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
     description:
       "Alter in Jahren am heutigen Tag, berechnet aus dem Geburtsdatum.",
   },
+  {
+    id: "checklist",
+    label: "Abhaken",
+    group: "base",
+    description: "Leere Spalte zum Abhaken auf der gedruckten Liste.",
+  },
 ];
 
 export const STUDENT_EXPORT_PRESETS: Array<{
@@ -260,18 +272,20 @@ export const STUDENT_EXPORT_PRESETS: Array<{
     id: "class_roster",
     label: "Klassenliste",
     description:
-      "Gesamter Klassenverband mit Anmeldestatus, Betreuungstagen und Geh-/Abholweise.",
+      "Ganze Klasse mit Anmeldestatus und Abholangaben je Wochentag.",
+    // Same columns and weekday cell as the Klassenliste of an enrollment
+    // phase (#4749): "14:30 Uhr, wird abgeholt".
     columns: [
       "name",
       "school_class",
-      "group",
-      "enrollment_summary",
-      "care_days",
       "weekly_monday",
       "weekly_tuesday",
       "weekly_wednesday",
       "weekly_thursday",
       "weekly_friday",
+      "group",
+      "enrollment_summary",
+      "care_days",
       "departure",
     ],
   },
@@ -320,7 +334,7 @@ export const STUDENT_EXPORT_PRESETS: Array<{
     id: "blank_checklist",
     label: "Checkliste",
     description: "Einfache Liste zum manuellen Abhaken.",
-    columns: ["name", "school_class", "group"],
+    columns: ["name", "school_class", "group", "checklist"],
   },
   {
     id: "birthday_list",
@@ -424,6 +438,7 @@ export function buildStudentExportPresets(
 
 export async function exportStudents(
   request: StudentExportRequest,
+  printTarget?: Window,
 ): Promise<void> {
   const response = await transportFetch("/api/students/export", {
     method: "POST",
@@ -436,21 +451,14 @@ export async function exportStudents(
   }
 
   const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download =
-    filenameFromDisposition(response) ?? fallbackFilename(request);
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function filenameFromDisposition(response: Response): string | null {
-  const disposition = response.headers.get("content-disposition");
-  const match = /filename="([^"]+)"/.exec(disposition ?? "");
-  return match?.[1] ?? null;
+  if (printTarget) {
+    await openBlobForPrint(blob, printTarget);
+    return;
+  }
+  downloadBlob(
+    blob,
+    filenameFromDisposition(response) ?? fallbackFilename(request),
+  );
 }
 
 function fallbackFilename(request: StudentExportRequest): string {

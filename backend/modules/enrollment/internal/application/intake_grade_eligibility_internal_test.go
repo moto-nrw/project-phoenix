@@ -74,7 +74,7 @@ func TestValidateChildGradeEligibility_RejectsIneligibleSibling(t *testing.T) {
 func TestValidatePhaseChildEligibility_AppliesGradeRestriction(t *testing.T) {
 	t.Parallel()
 
-	svc := NewIntake(IntakeDependencies{})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}})
 	phase := gradeEligibilityPhase(3)
 
 	err := svc.validatePhaseChildEligibility(context.Background(), phase, SubmitRequest{
@@ -92,7 +92,7 @@ func TestValidatePhaseChildEligibility_AppliesGradeRestriction(t *testing.T) {
 func TestValidatePhaseEligibility_AllowClosedPhaseBypassesGradeRestriction(t *testing.T) {
 	t.Parallel()
 
-	svc := NewIntake(IntakeDependencies{})
+	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}})
 	err := svc.validatePhaseEligibility(context.Background(), gradeEligibilityPhase(3), SubmitRequest{
 		AllowClosedPhase: true,
 		Children:         []SubmitChild{{FirstName: "Kim", TargetGradeLevel: gradeLevelPtr(1)}},

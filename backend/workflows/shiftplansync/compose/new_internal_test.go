@@ -27,5 +27,5 @@ func TestNewSubstitutionRejectsAnIncompleteComposition(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, substitution)
 	assert.EqualError(t, err, "shift plan sync compose: schedule substitution needs "+
-		"ActivityInstances, Deviations, InstanceStaff, Staff")
+		"ActivityInstances, Deviations, InstanceStaff, Runtime, Staff")
 }

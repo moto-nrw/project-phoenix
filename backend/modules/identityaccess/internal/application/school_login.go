@@ -29,7 +29,7 @@ func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, emai
 		return nil, err
 	}
 
-	mfaRequired, enrolled, err := s.schoolLoginMFAVerdict(ctx, account.ID, portalTenantID, metadata.RoleNames)
+	mfaRequired, enrolled, err := s.schoolLoginMFAVerdict(ctx, account.ID, portalTenantID, metadata.Permissions)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +45,7 @@ func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, emai
 		return s.mfaChallengeResult(ctx, account, portalTenantID, domain.ScopeSchool, ipAddress)
 	}
 
-	return s.mintSchoolLogin(ctx, account, portalTenantID, mfaRequired, enrolled, email, ipAddress, userAgent)
+	return s.mintSchoolLogin(ctx, account, portalTenantID, mfaRequired, enrolled, email, ipAddress, userAgent, trustedDeviceCookie)
 }
 
 // IssueSchoolTokensForAuthenticatedAccount mints a school-scope pair for an
@@ -53,7 +53,7 @@ func (s *AccountAuthentication) loginSchoolWithMFAGate(ctx context.Context, emai
 // re-validates the school-portal role at the tenant carried in the
 // challenge, so a role revoked mid-challenge cannot be laundered into a
 // school session.
-func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
+func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string, proofs ...identityaccess.VerifiedMFAChallenge) (string, string, error) {
 	account, err := s.loadActiveAccountForSchoolMint(ctx, "issue school tokens", accountID)
 	if err != nil {
 		return "", "", err
@@ -70,7 +70,11 @@ func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx con
 		return "", "", failed("issue school tokens", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
 	var claims *domain.AccountClaimsPayload
-	session, err := s.createRefreshSessionGuarded(ctx, account, tenantID, domain.ScopeSchool, s.schoolMintGuard(account.ID, tenantID, &claims), "")
+	var proof *identityaccess.VerifiedMFAChallenge
+	if len(proofs) > 0 {
+		proof = &proofs[0]
+	}
+	session, err := s.createRefreshSessionGuarded(ctx, account, tenantID, domain.ScopeSchool, s.verifiedMFAMintGuard(proof, identityaccess.MFAChallengeScopeSchool, s.schoolMintGuard(account.ID, tenantID, &claims)), "", true)
 	if err != nil {
 		return "", "", wrapSchoolMintError("issue school tokens", err)
 	}
@@ -82,9 +86,9 @@ func (s *AccountAuthentication) issueSchoolTokensForAuthenticatedAccount(ctx con
 }
 
 // SwitchSchool re-authenticates a school-portal session to another school
-// where the account holds a school-portal role. No MFA gate: the caller
-// already holds a school session whose second factor was settled at login.
-func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (_ string, _ string, err error) {
+// where the account holds a school-portal role. The signed source family must
+// still carry live MFA proof if the target school's current policy requires it.
+func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent, sourceFamilyID string) (_ string, _ string, err error) {
 	if s == nil {
 		return "", "", errAccountAuthenticationUnavailable
 	}
@@ -116,7 +120,7 @@ func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int6
 		return "", "", failed("switch school", identityaccess.ErrAccountNoSchoolPortalRole)
 	}
 	var claims *domain.AccountClaimsPayload
-	session, err := s.createRefreshSessionGuarded(ctx, account, targetTenantID, domain.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &claims), "")
+	session, err := s.createRefreshSessionGuarded(ctx, account, targetTenantID, domain.ScopeSchool, s.schoolMintGuard(accountID, targetTenantID, &claims), sourceFamilyID)
 	if err != nil {
 		return "", "", wrapSchoolMintError("switch school", err)
 	}

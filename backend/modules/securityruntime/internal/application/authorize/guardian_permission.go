@@ -19,7 +19,7 @@ const (
 	// per-child parent-announcement poll response. It is deliberately separate
 	// from portal access because viewing a poll must not imply voting authority.
 	GuardianPermissionPollResponse = "parent_portal.poll.response"
-	// GuardianPermissionRequestSubmit allows a parent to submit (and withdraw)
+	// GuardianPermissionRequestSubmit allows a parent to submit (and edit)
 	// structured change-requests — care-schedule changes that OVERWRITE the
 	// child's permanent weekday schedule once staff confirm them. It is
 	// deliberately separate from notes.write (plain chat): a guardian must not
@@ -56,6 +56,12 @@ const (
 	// revocation. Only roles that carry custody receive it by default; seeing
 	// the Erklärung is covered by parent_portal.access.
 	GuardianPermissionDeclarationSubmit = "parent_portal.declarations.submit"
+	// GuardianPermissionRelatedAccountsManage allows a guardian to invite a
+	// further account to this child or to take an account's access away
+	// (#4603). Both decide who sees the child, so only the full guardian
+	// presets receive it; seeing the connected accounts stays covered by
+	// parent_portal.access.
+	GuardianPermissionRelatedAccountsManage = "parent_portal.related_accounts.manage"
 )
 
 const (
@@ -83,6 +89,7 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionConsentManage,
 	GuardianPermissionMealParticipationManage,
 	GuardianPermissionDeclarationSubmit,
+	GuardianPermissionRelatedAccountsManage,
 }
 
 // Guardian permission checks and grants are authorization concerns, not data

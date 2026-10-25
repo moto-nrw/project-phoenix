@@ -177,7 +177,7 @@ func TestUpdateInstance_UnwiredAndEnrichmentFailure(t *testing.T) {
 
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
-	router := updateRouter(s.ctx, NewResource(Dependencies{InstanceService: s.mock}))
+	router := updateRouter(s.ctx, newResourceForTest(Dependencies{InstanceService: s.mock}))
 
 	body := map[string]any{
 		"date":       "2026-05-06",

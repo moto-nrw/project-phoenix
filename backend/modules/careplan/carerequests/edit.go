@@ -16,7 +16,7 @@ type EditInput struct {
 	GuardianAccountID int64
 	ExpectedVersion   string
 	ReasonRequired    bool
-	Cutoff            DayCutoff
+	Cutoff            SameDayCutoff
 	Payload           json.RawMessage
 	Date              calendar.Date
 	PickupTime        time.Time

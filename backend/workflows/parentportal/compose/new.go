@@ -19,6 +19,7 @@ import (
 // required; optional notifiers may be nil. Tests bind the ports their flows reach.
 type Dependencies struct {
 	GuardianChanges auditlog.GuardianChangeLog
+	Signatures      parentportal.SignatureLedger
 	CarePlanPolicy  care.CarePlanPolicy
 	GuardianPolicy  care.GuardianPolicy
 	DeparturePolicy care.DeparturePolicy
@@ -51,8 +52,7 @@ type Dependencies struct {
 	ExcusedRequests  care.ExcusedAbsenceRequests
 	// CarePlan supplies native day locks, absence reports and pickup commands.
 	CarePlan parentportal.CarePlanCommands
-	// CareExceptions overrides the day-exception reads and locks; nil uses
-	// CarePlan.
+	// CareExceptions overrides the day-exception reads and locks (nil: CarePlan).
 	CareExceptions care.CareExceptions
 
 	CarePeriods      care.CarePeriodReads
@@ -81,6 +81,7 @@ type Dependencies struct {
 	MessageReadRepo           messaging.MessageInboxReads
 	Conversations             messaging.ConversationCore
 	MessagingEnabled          messaging.MessagingGate
+	GroupThreads              messaging.GroupThreads
 	AnnouncementRepo          messaging.AnnouncementAccess
 	CareRequestRepo           messaging.CareRequestReads
 	ExcusedRequestRepo        messaging.ExcusedRequestReads
@@ -104,12 +105,6 @@ func New(deps Dependencies) *parentportal.Portal {
 	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, messaging.NewChildResolver(&childFlows))).MessagingFlows
 	childFlows = parentportal.NewChildFlows(careConfig(deps, bindOwners(deps), messagingFlows))
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
-}
-
-// NewRequestShareVisibility builds the staff queues' request-share
-// visibility (#2267, story 47) over its two required readers.
-func NewRequestShareVisibility(shares messaging.RequestShareRecords, protection messaging.FamilyProtectionReads) (*messaging.ShareRecipients, error) {
-	return messaging.NewShareRecipients(shares, protection)
 }
 
 func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Service) care.Config {
@@ -145,12 +140,11 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 
 func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messaging.Config {
 	return messaging.Config{
-		Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver, GuardianPolicy: deps.GuardianPolicy, Fingerprints: deps.Fingerprints, Declarations: deps.Declarations,
+		SharePolicy: NewRequestSharePolicy(), Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver, GuardianPolicy: deps.GuardianPolicy, Fingerprints: deps.Fingerprints, Declarations: deps.Declarations, Signatures: deps.Signatures,
 		ChildRepo: deps.ChildRepo, EnrollmentRequestRepo: deps.EnrollmentRequestRepo, Settings: deps.Settings,
-		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
-		AnnouncementRepo:  deps.AnnouncementRepo,
+		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo, AnnouncementRepo: deps.AnnouncementRepo,
 		MessageThreadRepo: deps.MessageThreadRepo, MessageRepo: deps.MessageRepo, MessageReadRepo: deps.MessageReadRepo,
-		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
+		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, GroupThreads: deps.GroupThreads, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
 		ChangeRequestRepo: deps.ChangeRequestRepo, CareRequestRepo: deps.CareRequestRepo,
 		ExcusedRequestRepo: deps.ExcusedRequestRepo, OfferingChangeRequestRepo: deps.OfferingChangeRequestRepo,
 		FamilyProtectionEvents: deps.FamilyProtectionEvents, ParentRequestShares: deps.ParentRequestShares,

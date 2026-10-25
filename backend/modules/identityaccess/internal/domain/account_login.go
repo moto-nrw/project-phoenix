@@ -48,21 +48,23 @@ const RefreshTokenIdentifier = "Service login"
 // LoginAccount is the platform account a login authenticates. PasswordHash is
 // empty for accounts without a password.
 type LoginAccount struct {
-	ID           int64
-	Email        string
-	Username     string
-	PasswordHash string
-	Active       bool
-	UpdatedAt    time.Time
+	MFAResetGeneration int64
+	ID                 int64
+	Email              string
+	Username           string
+	PasswordHash       string
+	Active             bool
+	UpdatedAt          time.Time
 }
 
 // RoleAssignment is one role an account holds at a school, with the facts the
 // login decisions read.
 type RoleAssignment struct {
-	RoleID   int64
-	Name     string
-	IsSystem bool
-	TenantID *int64
+	RoleID       int64
+	Name         string
+	IsSystem     bool
+	TenantID     *int64
+	SchoolPortal bool
 }
 
 // School is the tenant fact login resolves: alive, active and its organization.
@@ -195,11 +197,11 @@ func IsGuardianOnly(roleNames []string) bool {
 }
 
 // IsSchoolPortalRole reports whether the role grants access to the school
-// portal (#2207): today exactly the lehrkraft system role. A tenant-scoped
-// custom role that merely shares the label carries arbitrary permissions and
-// keeps its tenant-portal access.
+// portal (#2207): the lehrkraft system role and the school roles made from
+// its template (#4574). A school role that merely shares the label carries
+// arbitrary permissions and keeps its tenant-portal access.
 func IsSchoolPortalRole(role RoleAssignment) bool {
-	return role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), LehrkraftRoleName)
+	return role.SchoolPortal || (role.IsSystem && strings.EqualFold(strings.TrimSpace(role.Name), LehrkraftRoleName))
 }
 
 // IsSchoolPortalOnly reports whether every role the account holds is a

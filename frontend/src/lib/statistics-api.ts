@@ -85,6 +85,7 @@ export interface StatisticsReport {
   students: StatisticsStudentRow[];
   groups: StatisticsGroupRow[];
   rooms: StatisticsRoomRow[];
+  room_history_disabled: boolean;
   room_data_days: number;
   room_data_from: string;
   courses: StatisticsCourseRow[];

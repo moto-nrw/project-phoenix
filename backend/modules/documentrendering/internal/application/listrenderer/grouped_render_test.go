@@ -39,6 +39,7 @@ func TestClassGroupTitle(t *testing.T) {
 		" 2b ":       "Klasse 2b",
 		"Klasse 1a":  "Klasse 1a",
 		"klasse 10a": "klasse 10a",
+		"1. Klasse":  "1. Klasse",
 		"":           "Ohne Klasse",
 	}
 	for in, want := range cases {

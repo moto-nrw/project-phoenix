@@ -14,10 +14,6 @@ import (
 var ErrAlreadyPending = errors.New("schedule: care request already pending for this student")
 var ErrPickupChangeCutoffPassed = errors.New("schedule: same-day pickup change cutoff has passed")
 
-// DayCutoff is resolved by the tenant-aware caller. Closed must evaluate its
-// clock at the write boundary, after any caller-held locks have been acquired.
-type DayCutoff interface{ Closed(calendar.Date) bool }
-
 // PickupChangeCreateInput asks for a Gehzeit, an Abholart, or both for one
 // day. A zero PickupTime or an empty DepartureMode leaves that leg unchanged
 // (#3945); at least one leg is required.
@@ -29,7 +25,10 @@ type PickupChangeCreateInput struct {
 	DepartureMode     string
 	Reason            string
 	ReasonRequired    bool
-	Cutoff            DayCutoff
+	// Cutoff is resolved by the tenant-aware caller; its zero value has no
+	// cutoff. A write-boundary caller builds it with NewSameDayCutoffAt, so
+	// Closed reads the clock after the caller's locks are held.
+	Cutoff SameDayCutoff
 }
 
 // MandatoryReasonPickupChange is the Gehzeit change of the legacy submission
@@ -60,7 +59,7 @@ func ValidatePickupChange(input PickupChangeCreateInput, today calendar.Date) (s
 	if input.Date.Before(today) || input.Date.After(calendar.NewDate(today.Year(), today.Month()+2, today.Day())) {
 		return "", ErrInvalidPayload
 	}
-	if input.Cutoff != nil && input.Cutoff.Closed(input.Date) {
+	if input.Cutoff.Closed(input.Date) {
 		return "", ErrPickupChangeCutoffPassed
 	}
 	return reason, nil

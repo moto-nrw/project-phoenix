@@ -227,18 +227,8 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	parentsURL := strings.TrimRight(cfg.ParentsURL, "/")
 	schoolURL := strings.TrimRight(cfg.SchoolURL, "/")
 	catererURL := strings.TrimRight(cfg.CatererURL, "/")
-	resetMinutes := cfg.PasswordResetExpiryMinutes
-	if resetMinutes <= 0 {
-		resetMinutes = 30
-	} else if resetMinutes > 1440 {
-		resetMinutes = 1440
-	}
-	inviteHours := cfg.InvitationTokenExpiryHours
-	if inviteHours <= 0 {
-		inviteHours = 48
-	} else if inviteHours > 168 {
-		inviteHours = 168
-	}
+	resetMinutes := authTestTokenExpiry(cfg.PasswordResetExpiryMinutes, 30, 1440)
+	inviteHours := authTestTokenExpiry(cfg.InvitationTokenExpiryHours, 48, 168)
 	codec, err := NewConfiguredSessionTokens(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -295,7 +285,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	}
 	mfa.Capability = settingsOverrides.mfaCapability
 	guardianMail, enrollmentClaims, err := owners.GuardianInvitationDependencies(settings.Settings, organizations, owners.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox},
-		parentPortal.ParentEnrollmentRequest, parentsURL, time.Duration(inviteHours)*time.Hour, logger)
+		parentPortal.ParentEnrollmentRequest, parentsURL, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -383,7 +373,11 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork
 		return nil, err
 	}
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
-	mfa, err := owners.NewMFADependencies(codec, nil, owners.MFAMailer{
+	settings, err := owners.NewSettingsTestModule(db, unit)
+	if err != nil {
+		return nil, err
+	}
+	mfa, err := owners.NewMFADependencies(codec, settings.Settings, owners.MFAMailer{
 		FrontendURL: cfg.FrontendURL, Logger: logger,
 	}, owners.NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), mfaTestSecret(), nil, logger)
 	if err != nil {
@@ -409,8 +403,8 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, unit tenant.UnitOfWork
 
 // IdentityAccessTestConfig is what a behaviour test supplies to compose the
 // module beside the tenant runtime and the audit ledger: the session tokens
-// and the portal hosts. The module composes without settings and without a
-// mail transport. Every zero value composes the module without that seam;
+// and the portal hosts. The module uses real registry-backed settings without
+// a mail transport. Zero values leave optional seams unconfigured;
 // nil session tokens sign with the configured secret.
 type IdentityAccessTestConfig struct {
 	SessionTokens       identityaccessCompose.SignedIdentityTokens
@@ -436,3 +430,14 @@ func (d failingStaffMembership) CreateStaff(context.Context, schoolmembership.Cr
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
 func mfaTestSecret() string { return CurrentServiceConfig().JWTSecret }
+
+// authTestTokenExpiry bounds fixture lifetimes while accepting an unset config.
+func authTestTokenExpiry(value, fallback, maximum int) int {
+	if value <= 0 {
+		return fallback
+	}
+	if value > maximum {
+		return maximum
+	}
+	return value
+}

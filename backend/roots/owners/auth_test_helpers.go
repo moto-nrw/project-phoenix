@@ -14,8 +14,8 @@ import (
 // CLI or a fixture that only reads. The flows still run; nothing is sent.
 type UnsentGuardianMail struct{}
 
-func (UnsentGuardianMail) InvitationExpiry(context.Context) time.Duration {
-	return identityaccess.GuardianInvitationExpiryFallback
+func (UnsentGuardianMail) InvitationExpiry(context.Context) (time.Duration, error) {
+	return identityaccess.GuardianInvitationExpiryFallback, nil
 }
 
 func (UnsentGuardianMail) SchoolName(context.Context, int64) string { return "" }

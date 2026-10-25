@@ -124,7 +124,7 @@ type Dependencies struct {
 	PlanningTracks    timetable.PlanningTrackAdministration
 	// PickupExtensions serves the open block decisions for later pickup
 	// times (#3261).
-	PickupExtensions timetable.PickupExtensionCapability
+	PickupExtensions PickupExtensionDecisions
 	// Staffing wakes the tenant's open staff pages after a staffing save
 	// commits (#1844); nil sends nothing.
 	Staffing StaffingAnnouncer
@@ -132,10 +132,23 @@ type Dependencies struct {
 	Now      func() time.Time
 }
 
+// PickupExtensionDecisions are the later-pickup decisions these routes serve:
+// the open tasks, the child of one task, and the resolution. The root binds
+// the Care Exit workflow, which also re-applies the reported attendance
+// (#3261, #4825).
+type PickupExtensionDecisions interface {
+	FindPickupExtensionStudent(ctx context.Context, taskID int64) (int64, error)
+	ListOpenPickupExtensions(ctx context.Context, studentID int64) ([]timetable.PickupExtensionTask, error)
+	ResolvePickupExtension(ctx context.Context, taskID int64, blockIDs []int64) (timetable.PickupExtensionResolution, error)
+}
+
 // NewResource creates a new timetable resource from the given Dependencies.
-// Nil deps are tolerated at construction time; the dependent handler returns
-// 500 at request time if one of its deps is unset.
+// Settings are required at construction time; other route-specific dependencies
+// are checked by their handlers.
 func NewResource(deps Dependencies) *Resource {
+	if deps.SettingsService == nil {
+		panic("timetable API: settings service is required")
+	}
 	if deps.Now == nil {
 		deps.Now = calendar.Now
 	}
@@ -584,9 +597,8 @@ func isCalendarPeriodRosterDeleteConflict(err error) bool {
 }
 
 // defaultChildrenPerStaffRatio mirrors the registry default for
-// timetable.children_per_staff_ratio (services/config/defaults/timetable.go)
-// and is the fallback used when the settings service is unwired (tests) or a
-// tenant override lookup fails.
+// timetable.children_per_staff_ratio (modules/settings/internal/defaults/timetable.go).
+// Only an unreadable operational staffing ratio uses this compatibility value.
 const defaultChildrenPerStaffRatio = 12
 
 // childrenPerStaffRatio resolves the Betreuungsschlüssel setting once per
@@ -606,12 +618,6 @@ func (rs *Resource) childrenPerStaffRatio(ctx context.Context) int {
 }
 
 func (rs *Resource) enforcePlannedEnd(ctx context.Context) (bool, error) {
-	if rs.SettingsService == nil {
-		// Registry default for timetable.enforce_planned_end. Tests and
-		// partial facades may leave settings unwired; a real lookup failure
-		// below must still surface.
-		return true, nil
-	}
 	enforce, err := rs.SettingsService.ResolveBool(ctx, settings.KeyTimetableEnforcePlannedEnd)
 	if err != nil {
 		return false, fmt.Errorf("%w: resolve planned end policy: %w", timetable.ErrLifecycleSettings, err)
@@ -620,9 +626,6 @@ func (rs *Resource) enforcePlannedEnd(ctx context.Context) (bool, error) {
 }
 
 func (rs *Resource) completeLeadMinutes(ctx context.Context) (int, error) {
-	if rs.SettingsService == nil {
-		return 0, fmt.Errorf("%w: settings service is not configured", timetable.ErrLifecycleSettings)
-	}
 	lead, err := rs.SettingsService.ResolveInt(ctx, settings.KeyTimetableCompleteLeadMinutes)
 	if err != nil {
 		return 0, fmt.Errorf("%w: resolve complete lead: %w", timetable.ErrLifecycleSettings, err)

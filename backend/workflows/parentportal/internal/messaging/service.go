@@ -51,11 +51,14 @@ type MessagingGate func(context.Context, int64) bool
 // Config is the dependency bundle of the retained messaging portal services.
 type Config struct {
 	GuardianPolicy PermissionValues
+	SharePolicy    RequestSharePolicy
 	Fingerprints   ContentFingerprints
 	Declarations   DeclarationPolicy
-	Runtime        care.Runtime
-	Logger         *slog.Logger
-	Now            func() time.Time
+	// Signatures stores the signatures of signed Erklärungen (#4785).
+	Signatures SignatureLedger
+	Runtime    care.Runtime
+	Logger     *slog.Logger
+	Now        func() time.Time
 
 	Children ChildResolver
 
@@ -74,6 +77,7 @@ type Config struct {
 	MessageReadRepo       MessageInboxReads
 	Conversations         ConversationCore
 	MessagingEnabled      MessagingGate
+	GroupThreads          GroupThreads
 	ParentMessageNotifier care.StaffParentMessageNotifier
 	Emitter               care.ChildEvents
 
@@ -95,6 +99,9 @@ type Service struct {
 func New(cfg Config) *Service {
 	if cfg.Runtime == nil {
 		panic("messaging: runtime is required")
+	}
+	if cfg.SharePolicy == nil {
+		panic("messaging: request share policy is required")
 	}
 	if cfg.GuardianPolicy == nil {
 		panic("messaging: guardian policy is required")

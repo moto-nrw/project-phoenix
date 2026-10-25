@@ -90,6 +90,7 @@ var mealPlanErrorRules = []apiCommon.ErrorRule{
 	{Target: mealplanModule.ErrDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New(mealplanModule.ErrDisabled.Detail), apiCommon.CodeMealsPlanDisabled)},
 	{Target: mealplanModule.ErrInvalidMealDate, Render: apiCommon.FixedRenderer(apiCommon.ErrorInvalidRequest, errors.New(mealplanModule.ErrInvalidMealDate.Detail))},
 	{Target: mealplanModule.ErrInvalidDishes, Render: apiCommon.ErrorInvalidRequest},
+	{Target: mealplanModule.ErrInvalidAllergens, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorInvalidRequestWithCode, errors.New(mealplanModule.ErrInvalidAllergens.Detail), apiCommon.CodeMealsInvalidAllergens)},
 	{Target: mealplanModule.ErrRegistrationDisabled, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorForbiddenWithCode, errors.New(mealplanModule.ErrRegistrationDisabled.Detail), apiCommon.CodeMealsRegistrationDisabled)},
 	{Target: mealplanModule.ErrInvalidParticipation, Render: apiCommon.ErrorInvalidRequest},
 	{Target: mealplanModule.ErrParticipationCutoff, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrParticipationCutoff.Detail), apiCommon.CodeMealsParticipationCutoffPassed)},

@@ -59,9 +59,7 @@ type Resource struct {
 	GuardianInvitations        identityaccess.GuardianInvitations
 	CaregiverCapabilityService Caregivers
 	SchoolService              SchoolDirectory
-	// SettingsService enriches tenant-shell metadata. Some optional feature
-	// flags retain defensive fallbacks, but resolveTenant requires this service
-	// for the grade-level validation contract and returns 500 when it is absent.
+	// SettingsService is required at construction; unreadable shell policy fails the request.
 	SettingsService settings.TenantReader
 	// RoleGrants is Security Runtime's decision whether the caller may hand
 	// out a role when creating an account (#2736). Without it every grant is
@@ -102,12 +100,16 @@ type RoleGrantPolicy interface {
 
 // NewResource creates a new auth resource. sessions is the Identity & Access
 // capability the session routes (#3251) and the RBAC routes (#3314) call.
-func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, transactions UnitOfWork, constraintViolation func(error) bool) *Resource {
+func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, transactions UnitOfWork, constraintViolation func(error) bool, settingsService settings.TenantReader) *Resource {
 	if constraintViolation == nil {
 		panic("account resource: database failure classifier is required")
 	}
+	if settingsService == nil {
+		panic("account resource: settings service is required")
+	}
 	return &Resource{
 		ConstraintViolation: constraintViolation,
+		SettingsService:     settingsService,
 		AuthService:         lifecycle,
 		Sessions:            sessions,
 		Invitations:         invitations,
@@ -297,6 +299,13 @@ func (rs *Resource) mountAuthenticatedRoutes(r chi.Router, configureSession func
 		r.Delete("/{passkeyId}", rs.passkeyRevoke)
 	})
 
+	// Account management routes
+	r.Route("/accounts", func(r chi.Router) {
+		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
+		r.With(common.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
+		r.Route("/{accountId}", rs.mountAccountRoutes)
+	})
+
 	r.Group(rs.mountAdminRoutes)
 }
 
@@ -320,13 +329,6 @@ func (rs *Resource) mountAdminRoutes(r chi.Router) {
 	r.With(common.RequiresPermission(permUsersManage)).Post("/link-to-tenant", rs.linkToTenant)
 
 	rs.mountRoleAndPermissionRoutes(r)
-
-	// Account management routes
-	r.Route("/accounts", func(r chi.Router) {
-		r.With(common.RequiresPermission(permUsersList)).Get("/", rs.listAccounts)
-		r.With(common.RequiresPermission("users:read")).Get("/by-role/{roleName}", rs.getAccountsByRole)
-		r.Route("/{accountId}", rs.mountAccountRoutes)
-	})
 
 	// Role permission assignments
 	r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
@@ -378,7 +380,14 @@ func (rs *Resource) mountRoleAndPermissionRoutes(r chi.Router) {
 // /accounts/{accountId}.
 func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Account update operations
+	// This single-command handler lets the capability select its unit before
+	// any transaction starts, including cross-school organization updates.
 	r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
+	r.Group(rs.mountTransactionalAccountRoutes)
+}
+
+func (rs *Resource) mountTransactionalAccountRoutes(r chi.Router) {
+	r.Use(common.TenantTxMiddleware)
 	r.With(common.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
 	r.With(common.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
 	r.With(common.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)

@@ -211,9 +211,21 @@ func (w *ExcusedRequests) emitCreatedRequestPill(ctx context.Context, req *carep
 func (w *ExcusedRequests) EditRequest(ctx context.Context, input careplan.ExcusedRequestEditInput) (result *careplan.ExcusedAbsenceRequest, err error) {
 	started := time.Now()
 	defer func() { w.done("excused_request_edit", started, err) }()
-	// Lock regardless of status so ownership is checked BEFORE the
-	// pending-status distinction, like the decide path.
-	req, err := w.carePlan.FindExcusedAbsenceRequest(ctx, input.RequestID, true)
+	// Check ownership before acquiring a child lock: the portal caller may
+	// already hold input.StudentID, and an unrelated request must not make it
+	// lock a second (possibly lower-ID) child.
+	req, err := w.carePlan.FindExcusedAbsenceRequest(ctx, input.RequestID, false)
+	if err != nil {
+		return nil, err
+	}
+	if req.SubmittedBy != input.GuardianAccountID || req.StudentID != input.StudentID {
+		return nil, careplan.ErrExcusedRequestNotFound
+	}
+	if _, err := w.students.LockStudent(ctx, input.StudentID); err != nil {
+		return nil, fmt.Errorf("care plan: lock absence request student: %w", err)
+	}
+	// Re-read and repeat ownership before status/version under the lock.
+	req, err = w.carePlan.FindExcusedAbsenceRequest(ctx, input.RequestID, true)
 	if err != nil {
 		return nil, err
 	}

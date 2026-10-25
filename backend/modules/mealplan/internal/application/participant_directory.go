@@ -2,10 +2,13 @@ package application
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func NewParticipantDirectory(find mealplan.ParticipantFinder, names mealplan.StudentNameFinder) participantDirectory {
@@ -52,6 +55,19 @@ type schoolCalendar struct{ find mealplan.CalendarFinder }
 
 func (c schoolCalendar) Days(ctx context.Context, from, to domain.Date) (domain.CalendarDays, domain.OperationStats, error) {
 	started := time.Now()
-	closed, holiday, err := c.find(ctx, from.String(), to.String())
-	return domain.NewCalendarDays(closed, holiday), domain.OperationStats{Queries: 3, StatementDuration: time.Since(started)}, err
+	closed, periods, err := c.find(ctx, from.String(), to.String())
+	stats := domain.OperationStats{Queries: 3, StatementDuration: time.Since(started)}
+	if err != nil {
+		return domain.CalendarDays{}, stats, err
+	}
+	holidays := make([]domain.HolidayPeriod, 0, len(periods))
+	for _, period := range periods {
+		start, startErr := calendar.ParseDate(period.Start)
+		end, endErr := calendar.ParseDate(period.End)
+		if startErr != nil || endErr != nil {
+			return domain.CalendarDays{}, stats, fmt.Errorf("meal plan: holiday period %q to %q: %w", period.Start, period.End, errors.Join(startErr, endErr))
+		}
+		holidays = append(holidays, domain.HolidayPeriod{Start: start, End: end})
+	}
+	return domain.NewCalendarDays(closed, holidays, from, to), stats, nil
 }

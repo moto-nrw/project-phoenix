@@ -407,7 +407,29 @@ const studentOwnerCompatibilityRouting = `
 // changed rows immediately; ValidateStudentOwnerForeignKeys confirms the
 // existing ones afterwards, outside the lock.
 func repointStudentForeignKeys(ctx context.Context, tx bun.Tx) error {
-	if _, err := tx.ExecContext(ctx, `
+	if _, err := tx.ExecContext(ctx, repointStudentForeignKeysSQL); err != nil {
+		return fmt.Errorf("repoint student foreign keys: %w", err)
+	}
+	return nil
+}
+
+// ValidateStudentOwnerForeignKeys confirms the repointed constraints against
+// the rows that already exist. It runs after the switch transaction:
+// VALIDATE takes a share-update-exclusive lock on the dependent table and a
+// row-share lock on the profiles, so ordinary reads and writes continue while
+// it scans. Validating a constraint that is already valid is a no-op, so an
+// interrupted run is simply repeated — the compatibility command repeats it.
+func ValidateStudentOwnerForeignKeys(ctx context.Context, db *bun.DB) error {
+	if db == nil {
+		return errors.New("student owner cutover: database is required")
+	}
+	if _, err := db.ExecContext(ctx, validateStudentOwnerForeignKeysSQL); err != nil {
+		return fmt.Errorf("student owner cutover: validate repointed foreign keys: %w", err)
+	}
+	return nil
+}
+
+const repointStudentForeignKeysSQL = `
 			ALTER TABLE active.attendance DROP CONSTRAINT fk_attendance_student_tenant;
 			ALTER TABLE active.attendance ADD CONSTRAINT fk_attendance_student_tenant
 				FOREIGN KEY (tenant_id, student_id) REFERENCES users.student_profiles(tenant_id, id) ON DELETE CASCADE NOT VALID;
@@ -594,23 +616,9 @@ func repointStudentForeignKeys(ctx context.Context, tx bun.Tx) error {
 					RAISE EXCEPTION 'a student foreign key was added after this migration was written; repoint it here before Cutover';
 				END IF;
 			END $$;
-	`); err != nil {
-		return fmt.Errorf("repoint student foreign keys: %w", err)
-	}
-	return nil
-}
+	`
 
-// ValidateStudentOwnerForeignKeys confirms the repointed constraints against
-// the rows that already exist. It runs after the switch transaction:
-// VALIDATE takes a share-update-exclusive lock on the dependent table and a
-// row-share lock on the profiles, so ordinary reads and writes continue while
-// it scans. Validating a constraint that is already valid is a no-op, so an
-// interrupted run is simply repeated — the compatibility command repeats it.
-func ValidateStudentOwnerForeignKeys(ctx context.Context, db *bun.DB) error {
-	if db == nil {
-		return errors.New("student owner cutover: database is required")
-	}
-	if _, err := db.ExecContext(ctx, `
+const validateStudentOwnerForeignKeysSQL = `
 		ALTER TABLE active.attendance VALIDATE CONSTRAINT fk_attendance_student_tenant;
 		ALTER TABLE active.excused_absence_requests VALIDATE CONSTRAINT excused_absence_requests_student_id_fkey;
 		ALTER TABLE active.scheduled_checkouts VALIDATE CONSTRAINT fk_scheduled_checkouts_student_tenant;
@@ -678,8 +686,4 @@ func ValidateStudentOwnerForeignKeys(ctx context.Context, db *bun.DB) error {
 				ALTER TABLE schedule.meal_registration_changes VALIDATE CONSTRAINT fk_meal_registration_change_student;
 			END IF;
 		END $$;
-	`); err != nil {
-		return fmt.Errorf("student owner cutover: validate repointed foreign keys: %w", err)
-	}
-	return nil
-}
+	`

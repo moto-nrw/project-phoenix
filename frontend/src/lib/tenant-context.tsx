@@ -14,7 +14,10 @@ import {
   type PresenceMode,
   type TenantInfo,
 } from "~/lib/tenant-api";
+import { setTenantAnalyticsPolicy } from "~/lib/posthog-client";
+import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
 import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
+import type { ModuleKey } from "~/lib/modules";
 
 interface TenantContextValue {
   /** The tenant slug from the URL path segment */
@@ -59,6 +62,11 @@ export function TenantProvider({
     setTenant(serverTenant);
   }, [serverTenant]);
 
+  const analyticsSource = useAnalyticsSchoolPolicy(
+    tenantSlug,
+    tenant?.subdomain === tenantSlug && tenant.analyticsEnabled === true,
+  );
+
   // Sequence-token to drop out-of-order resolveTenant responses when
   // multiple signals land in the same tick. Kept monotonic across slug
   // changes so an in-flight resolve from a previous slug can't satisfy
@@ -67,16 +75,24 @@ export function TenantProvider({
   // any A-resolve still in flight, even if no B-refetch fires before
   // A's response lands.
   const requestSeqRef = useRef(0);
+  const needsInitialResolve = serverTenant === null;
 
   useEffect(() => {
     if (!tenantSlug) return undefined;
 
     const refetch = () => {
+      setTenantAnalyticsPolicy(analyticsSource, { tenantSlug, enabled: false });
       const token = ++requestSeqRef.current;
       const requestedSlug = tenantSlug;
       void resolveTenant(requestedSlug).then((fresh) => {
         if (token !== requestSeqRef.current) return;
-        if (!fresh) return;
+        if (!fresh) {
+          // A failed privacy refresh must not erase operational settings.
+          setTenant((previous) =>
+            previous ? { ...previous, analyticsEnabled: false } : null,
+          );
+          return;
+        }
         // Defence-in-depth: also drop responses whose payload doesn't
         // match the tenant we asked for. The counter-bump on slug change
         // already invalidates stale responses, but the explicit compare
@@ -85,9 +101,16 @@ export function TenantProvider({
         // is the subdomain, while the payload slug column can
         // legitimately differ from it (#1975).
         if (fresh.subdomain !== requestedSlug) return;
+        setTenantAnalyticsPolicy(analyticsSource, {
+          tenantSlug: requestedSlug,
+          enabled: fresh.analyticsEnabled === true,
+        });
         setTenant(fresh);
       });
     };
+
+    // Token edit/adjust pages initially know only the target slug.
+    if (needsInitialResolve) refetch();
 
     const unsubscribeBroadcast = subscribeSettingsChanged(refetch);
 
@@ -134,7 +157,7 @@ export function TenantProvider({
         document.removeEventListener("visibilitychange", onVisibilityChange);
       }
     };
-  }, [tenantSlug]);
+  }, [tenantSlug, analyticsSource, needsInitialResolve]);
 
   const value = useMemo(
     () => ({ tenantSlug, tenant, routingMode }),
@@ -204,15 +227,32 @@ export function usePresenceMode(): PresenceMode {
 }
 
 /**
- * Returns whether the current tenant uses NFC attendance devices.
+ * Returns whether the current tenant uses NFC attendance devices: the school
+ * booked the module NFC-Anwesenheit (#4892).
  *
- * Defaults to false when tenant metadata is unavailable. That matches the
- * registry default and keeps NFC-only navigation hidden until the tenant
- * explicitly opts into NFC.
+ * Defaults to false when tenant metadata is unavailable, so NFC-only
+ * navigation stays hidden until the booking is known.
  */
 export function useNFCEnabled(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.nfcEnabled === true;
+}
+
+const NO_BOOKED_MODULES: readonly ModuleKey[] = [];
+
+/**
+ * Returns the additional modules the current school booked (#4892), in
+ * module-list order. Empty while tenant metadata is unavailable: a module
+ * never appears before its booking is known.
+ */
+export function useBookedModules(): readonly ModuleKey[] {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.bookedModules ?? NO_BOOKED_MODULES;
+}
+
+/** Returns whether the current school booked module (#4892). */
+export function useModuleBooked(module: ModuleKey): boolean {
+  return useBookedModules().includes(module);
 }
 
 /**

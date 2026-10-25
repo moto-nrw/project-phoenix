@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -15,6 +16,16 @@ type CommandTransactions struct {
 	school       func(context.Context) int64
 	withinSchool func(context.Context, func(context.Context) error) error
 	withinAdmin  func(context.Context, func(context.Context) error) error
+}
+
+type globalCredentialScopeKey struct{}
+type standaloneAdminScopeKey struct{}
+
+// withGlobalCredentialScope marks account-wide credential/bootstrap commands,
+// not arbitrary school reads. It affects only a standalone command: an ambient
+// transaction still owns its role, snapshot and rollback.
+func withGlobalCredentialScope(ctx context.Context) context.Context {
+	return context.WithValue(ctx, globalCredentialScopeKey{}, true)
 }
 
 func NewCommandTransactions(attach func(context.Context) context.Context, current func(context.Context) (any, bool), school func(context.Context) int64, withinSchool, withinAdmin func(context.Context, func(context.Context) error) error) CommandTransactions {
@@ -38,7 +49,8 @@ func (r CommandTransactions) RunPlatform(ctx context.Context, fn func(context.Co
 	if _, ok := r.current(ctx); ok {
 		return fn(ctx)
 	}
-	if r.school(ctx) <= 0 {
+	globalCredential, _ := ctx.Value(globalCredentialScopeKey{}).(bool)
+	if r.school(ctx) <= 0 || globalCredential {
 		return r.withinAdmin(ctx, fn)
 	}
 	return r.withinSchool(ctx, fn)
@@ -46,6 +58,9 @@ func (r CommandTransactions) RunPlatform(ctx context.Context, fn func(context.Co
 func (r CommandTransactions) RunAdmin(ctx context.Context, fn func(context.Context) error) error {
 	ctx = r.attach(ctx)
 	if _, ok := r.current(ctx); ok {
+		if standalone, _ := ctx.Value(standaloneAdminScopeKey{}).(bool); standalone {
+			return errors.New("identity access: standalone administrative command cannot join an ambient transaction")
+		}
 		return fn(ctx)
 	}
 	return r.withinAdmin(ctx, fn)

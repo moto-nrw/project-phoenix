@@ -71,9 +71,6 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
 	}
-	if err := verifySchedulerSettingKeys(); err != nil {
-		return nil, err
-	}
 	resolver, err := schedulerSettings(settings)
 	if err != nil {
 		return nil, err

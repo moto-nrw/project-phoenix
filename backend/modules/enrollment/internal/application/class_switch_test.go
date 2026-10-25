@@ -15,7 +15,7 @@ func TestApplyDueClassSwitchesLocksGatesBeforeReadingPlans(t *testing.T) {
 	t.Parallel()
 
 	var calls []string
-	decisions := NewDecisions(DecisionDependencies{
+	decisions := NewDecisions(DecisionDependencies{Settings: unusedDecisionSettings{},
 		Children: classSwitchOrderChildren{calls: &calls},
 		StudentEnrollment: classSwitchOrderStudentEnrollment{
 			calls: &calls,
@@ -52,3 +52,5 @@ func (s classSwitchOrderStudentEnrollment) LockEnrollmentClassWrites(context.Con
 	*s.calls = append(*s.calls, "class-writes")
 	return nil
 }
+
+type unusedDecisionSettings struct{ DecisionSettings }

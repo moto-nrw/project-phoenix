@@ -31,11 +31,11 @@ func welcomeSchoolSettings(t *testing.T, db *bun.DB) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 	settings := api.NewAuthTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
-	require.NoError(t, settings.SetValue(ctx, "attendance.nfc_enabled", true, nil, nil))
+	require.NoError(t, settings.SetValue(ctx, "module.nfc_anwesenheit", false, nil, nil))
 	require.NoError(t, settings.SetValue(ctx, "operations.presence_mode", "binary", nil, nil))
 }
 
-const welcomeSettingsQuery = "nfc_enabled=true&presence_mode=binary&group_mode=fixed_groups"
+const welcomeSettingsQuery = "nfc_enabled=false&presence_mode=binary&group_mode=fixed_groups"
 
 func countTemplate(messages []testpkg.EmailMessage, name string) int {
 	count := 0

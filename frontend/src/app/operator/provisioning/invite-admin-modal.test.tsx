@@ -49,6 +49,7 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({
     error: mockLoggerError,
+    warn: vi.fn(),
   }),
 }));
 
@@ -121,7 +122,7 @@ describe("InviteAdminModal", () => {
       screen.getByText("Admin einladen — Test Schule"),
     ).toBeInTheDocument();
     expect(
-      screen.getByLabelText("Auch als Betreuer einsetzen"),
+      screen.getByLabelText("Auch in der Betreuung einsetzen"),
     ).not.toBeChecked();
     expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
   });
@@ -129,7 +130,7 @@ describe("InviteAdminModal", () => {
   it("shows position only when caregiver capability is enabled", () => {
     renderModal();
 
-    fireEvent.click(screen.getByLabelText("Auch als Betreuer einsetzen"));
+    fireEvent.click(screen.getByLabelText("Auch in der Betreuung einsetzen"));
 
     expect(screen.getByLabelText("Position")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Position"));
@@ -166,7 +167,7 @@ describe("InviteAdminModal", () => {
     renderModal();
 
     fillInviteForm();
-    fireEvent.click(screen.getByLabelText("Auch als Betreuer einsetzen"));
+    fireEvent.click(screen.getByLabelText("Auch in der Betreuung einsetzen"));
     selectCustomOption("Position", "OGS-Büro");
     fireEvent.click(screen.getByText("Einladung senden"));
 
@@ -188,7 +189,7 @@ describe("InviteAdminModal", () => {
   it("resets caregiver fields when reopened", () => {
     const { rerender, onClose } = renderModal();
 
-    fireEvent.click(screen.getByLabelText("Auch als Betreuer einsetzen"));
+    fireEvent.click(screen.getByLabelText("Auch in der Betreuung einsetzen"));
     selectCustomOption("Position", "Extern");
 
     rerender(
@@ -209,7 +210,7 @@ describe("InviteAdminModal", () => {
     );
 
     expect(
-      screen.getByLabelText("Auch als Betreuer einsetzen"),
+      screen.getByLabelText("Auch in der Betreuung einsetzen"),
     ).not.toBeChecked();
     expect(screen.queryByLabelText("Position")).not.toBeInTheDocument();
   });

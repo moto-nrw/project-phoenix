@@ -27,12 +27,21 @@ The project-specific security reference. The load-bearing rules live where they 
 - **Signature**: RSA with PKCS#1 v1.5 padding
 - **Key exchange**: static RSA, anonymous Diffie-Hellman, DHE with weak primes
 
-**Use instead**: SHA-256+, AES-256-GCM, ChaCha20, ECDHE. Passwords/PINs: Argon2id (existing helpers in `backend/auth/userpass/` and `backend/auth/authorize/credentials.go`, served to compositions through `backend/modules/securityruntime` — reuse, never roll your own).
+**Use instead**: SHA-256+, AES-256-GCM, ChaCha20, ECDHE. Passwords/PINs: Argon2id (public helpers in `backend/modules/securityruntime/credentials.go`, backed by `backend/modules/securityruntime/internal/domain/userpass/` and bound to consumers at the root — reuse, never roll your own).
 
 ## Certificates
 
-When touching X.509 material (`config/ssl/`, PEM strings, crypto calls): flag expired certs as CRITICAL; RSA < 2048 or EC < P-256 and MD5/SHA-1 signatures as high-priority; self-signed (issuer == subject) is dev-only. DB connections: `sslmode=require` in dev, `verify-full` in production.
+When touching X.509 material (`config/ssl/`, PEM strings, crypto calls): flag expired certs as CRITICAL; RSA < 2048 or EC < P-256 and MD5/SHA-1 signatures as high-priority; self-signed server certificates are dev-only. A private CA's self-signed trust anchor is not a self-signed server certificate.
+
+DB transport: use `sslmode=require` for local development; use `verify-full`
+with a trusted CA and matching server name for production TCP and external
+diagnostics. A same-host alternative needs documented equivalent protection,
+effective network/access evidence and a risk decision before affected processing;
+a Docker bridge or loopback binding alone is insufficient. Existing deployed
+`require`/`disable` declarations are open findings, not an approved exception.
+When changing DB clients, networks, ports or certificates, follow the path-specific
+[assessment and human verification](../../../docs/operations/db-transportschutz-3842.md).
 
 ## File uploads
 
-New upload endpoints must validate like the existing canonical implementation in `backend/modules/dataimport/inbound/file_upload.go`: size limit, extension check AND content (magic-number) verification — never trust the extension alone.
+New upload endpoints must validate like the existing canonical implementation in `backend/modules/dataimport/http/file_upload.go`: size limit, extension check AND content (magic-number) verification — never trust the extension alone.

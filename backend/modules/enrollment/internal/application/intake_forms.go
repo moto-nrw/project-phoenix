@@ -27,24 +27,22 @@ func (s *Intake) IsEnrollmentEnabled(ctx context.Context) bool {
 }
 
 func (s *Intake) isEnrollmentEnabled(ctx context.Context) bool {
-	if s.deps.Settings == nil {
-		return false
-	}
 	return s.deps.Settings.EnrollmentEnabled(ctx)
 }
 
-func (s *Intake) allowSubmissionEdit(ctx context.Context) bool {
-	if s.deps.Settings == nil {
-		return true
+func (s *Intake) requireSubmissionEdit(ctx context.Context) error {
+	allowed, err := s.deps.Settings.AllowSubmissionEdit(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve enrollment.allow_submission_edit: %w", err)
 	}
-	return s.deps.Settings.AllowSubmissionEdit(ctx)
+	if !allowed {
+		return enrollmentNative.ErrEditNotAllowed
+	}
+	return nil
 }
 
 // collectsSchoolClass resolves the effective school-class capability.
 func (s *Intake) collectsSchoolClass(ctx context.Context) (bool, error) {
-	if s.deps.Settings == nil {
-		return false, errSettingsNotConfigured
-	}
 	collectGrade, err := s.deps.Settings.CollectGradeLevel(ctx)
 	if err != nil {
 		return false, fmt.Errorf("resolve %s: %w", settingCollectGradeLevel, err)
@@ -60,9 +58,6 @@ func (s *Intake) collectsSchoolClass(ctx context.Context) (bool, error) {
 // inputs. collect_school_class is ineffective while grade collection is off,
 // because a class without its grade is ambiguous.
 func (s *Intake) formCapabilities(ctx context.Context) (enrollmentNative.FormCapabilities, error) {
-	if s.deps.Settings == nil {
-		return enrollmentNative.FormCapabilities{}, errSettingsNotConfigured
-	}
 	collectGrade, err := s.deps.Settings.CollectGradeLevel(ctx)
 	if err != nil {
 		return enrollmentNative.FormCapabilities{}, fmt.Errorf("resolve %s: %w", settingCollectGradeLevel, err)
@@ -101,9 +96,6 @@ func effectiveFormCapabilities(capabilities enrollmentNative.FormCapabilities, o
 // resolver, a read failure or an out-of-range value is a configuration
 // error and must not silently change which grades the form accepts.
 func (s *Intake) resolveGradeMax(ctx context.Context) (int, error) {
-	if s.deps.Settings == nil {
-		return 0, errors.New("resolve enrollment.grade_level_max: settings service is not configured")
-	}
 	value, err := s.deps.Settings.GradeLevelMax(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("resolve enrollment.grade_level_max: %w", err)
@@ -119,16 +111,15 @@ func (s *Intake) resolveGradeMax(ctx context.Context) (int, error) {
 	return value, nil
 }
 
-func (s *Intake) resolveStatusTokenExpiry(ctx context.Context) time.Duration {
-	const defaultDays = 365
-	days := defaultDays
-	if s.deps.Settings != nil {
-		days = s.deps.Settings.StatusTokenTTLDays(ctx)
+func (s *Intake) resolveStatusTokenExpiry(ctx context.Context) (time.Duration, error) {
+	days, err := s.deps.Settings.StatusTokenTTLDays(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("resolve enrollment.status_token_ttl_days: %w", err)
 	}
 	if days <= 0 {
-		days = defaultDays
+		return 0, errors.New("enrollment.status_token_ttl_days must be positive")
 	}
-	return time.Duration(days) * 24 * time.Hour
+	return time.Duration(days) * 24 * time.Hour, nil
 }
 
 // LegalTexts resolves the tenant's legal Markdown and derives the public
@@ -140,9 +131,6 @@ func (s *Intake) LegalTexts(ctx context.Context) (enrollmentNative.LegalTexts, e
 }
 
 func (s *Intake) legalTexts(ctx context.Context) (enrollmentNative.LegalTexts, error) {
-	if s.deps.Settings == nil {
-		return enrollmentNative.LegalTexts{}, nil
-	}
 	settings, err := s.deps.Settings.LegalSettings(ctx)
 	if err != nil {
 		return enrollmentNative.LegalTexts{}, err

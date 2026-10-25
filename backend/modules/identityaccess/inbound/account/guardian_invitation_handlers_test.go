@@ -20,7 +20,7 @@ func setupGuardianInvitationRouter(t *testing.T) chi.Router {
 	t.Helper()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, nil, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, nil, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))

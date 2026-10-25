@@ -7,65 +7,126 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
-// AccountRetention tombstones the accounts no school needs any more (#4043)
-// and removes the avatar files they uploaded, from the public directory the
-// avatar upload writes to. The hourly token cleanup runs it in its
-// administrative transaction; it needs no flow dependencies, so every
-// composition serves it. The engine embeds it.
+// AccountRetention anonymizes unused global accounts and drains the durable
+// avatar deletion intents written by the same database transaction.
 type AccountRetention struct {
-	store       ports.AccountRetentionStore
-	attach      func(context.Context) context.Context
-	afterCommit func(context.Context, func())
-	removeFile  func(string) error
-	logger      *slog.Logger
+	store      ports.AccountRetentionStore
+	attach     func(context.Context) context.Context
+	runAdmin   func(context.Context, func(context.Context) error) error
+	removeFile func(string) error
+	logger     *slog.Logger
 }
 
-// NewAccountRetention binds the store; attach adds the composed unit of work
-// to the cleanup's context, like every other flow attaches it.
-func NewAccountRetention(store ports.AccountRetentionStore, attach func(context.Context) context.Context, afterCommit func(context.Context, func()), logger *slog.Logger) *AccountRetention {
-	if store == nil || attach == nil || afterCommit == nil {
+func NewAccountRetention(store ports.AccountRetentionStore, attach func(context.Context) context.Context, runAdmin func(context.Context, func(context.Context) error) error, removeFile func(string) error, logger *slog.Logger) *AccountRetention {
+	if store == nil || attach == nil || runAdmin == nil {
 		panic("identity access application: account retention requires its store and runtime")
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &AccountRetention{store: store, attach: attach, afterCommit: afterCommit, removeFile: os.Remove, logger: logger}
+	if removeFile == nil {
+		removeFile = removeErasedAvatarFile
+	}
+	return &AccountRetention{store: store, attach: attach, runAdmin: runAdmin, removeFile: removeFile, logger: logger}
 }
 
-// EraseUnusedAccounts reports how many accounts it erased. Avatar removal runs
-// after the enclosing cleanup transaction commits, so a later transaction
-// failure cannot leave a still-valid account referring to a removed file.
+// EraseUnusedAccounts joins the hourly cleanup's administrative transaction.
+// No file is touched while anonymization can still roll back.
 func (r *AccountRetention) EraseUnusedAccounts(ctx context.Context) (int, error) {
-	txCtx := r.attach(ctx)
-	erased, _, err := r.store.EraseUnusedAccounts(txCtx)
+	erased, _, err := r.store.EraseUnusedAccounts(r.attach(ctx))
 	if err != nil {
 		return 0, fmt.Errorf("identity access: erase unused accounts: %w", failed("erase unused accounts", err))
 	}
-	r.afterCommit(txCtx, func() { r.removeAvatars(ctx, erased) })
 	if len(erased) > 0 {
-		r.logger.InfoContext(ctx, "unused accounts erased",
-			slog.Int("records_deleted", len(erased)))
+		r.logger.InfoContext(ctx, "unused accounts erased", slog.Int("records_deleted", len(erased)))
 	}
 	return len(erased), nil
 }
 
-func (r *AccountRetention) removeAvatars(ctx context.Context, erased []domain.ErasedAccount) {
-	for _, account := range erased {
-		for _, avatar := range account.AvatarFiles {
-			path := uploadedAvatarPath(avatar)
-			if path == "" {
-				continue
+// DeleteUnusedCaterers joins the hourly cleanup's administrative transaction
+// after the account erasure (ADR 0077). A caterer stays while a school's
+// supply names it, running or ended (the ended one is the school's record
+// until the school is erased), while one of its accounts is not erased or an
+// invitation to one of their addresses is open. Business names are no
+// personal data, so only the count is logged.
+func (r *AccountRetention) DeleteUnusedCaterers(ctx context.Context) (int, error) {
+	deleted, _, err := r.store.DeleteUnusedCaterers(r.attach(ctx))
+	if err != nil {
+		return 0, fmt.Errorf("identity access: delete unused caterers: %w", failed("delete unused caterers", err))
+	}
+	if deleted > 0 {
+		r.logger.InfoContext(ctx, "unused caterers deleted", slog.Int("records_deleted", deleted))
+	}
+	return deleted, nil
+}
+
+// CleanupErasedAccountAvatars owns its administrative transaction. File failures
+// are returned after commit so successful acknowledgements and retry ordering
+// survive a partial failure. A crash before acknowledgement is safe: a missing
+// file counts as success on the next attempt.
+func (r *AccountRetention) CleanupErasedAccountAvatars(ctx context.Context) (int, error) {
+	removed := 0
+	var fileErrors []error
+	// Strengthen the existing administrative boundary, never start a second one.
+	ctx = context.WithValue(ctx, standaloneAdminScopeKey{}, true)
+	err := r.runAdmin(ctx, func(txCtx context.Context) error {
+		pending, err := r.store.PendingAvatarCleanups(txCtx)
+		if err != nil {
+			return fmt.Errorf("list account avatar cleanups: %w", err)
+		}
+		for _, entry := range pending {
+			err := r.removeFile(entry.Avatar)
+			success := err == nil || errors.Is(err, fs.ErrNotExist)
+			if !success {
+				// Filesystem errors may contain identifying paths. Return only
+				// the queue ID, never the path or the underlying error text.
+				fileErrors = append(fileErrors, fmt.Errorf("account avatar cleanup %d: file removal failed", entry.ID))
 			}
-			if err := r.removeFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-				r.logger.WarnContext(ctx, "failed to delete erased account avatar file",
-					slog.Int64("account_id", account.ID),
-					slog.Any("error", err))
+			if err := r.store.FinishAvatarCleanup(txCtx, entry.ID, success); err != nil {
+				return fmt.Errorf("finish account avatar cleanup: %w", err)
+			}
+			if success {
+				removed++
 			}
 		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
 	}
+	return removed, errors.Join(fileErrors...)
+}
+
+// The rooted filesystem accepts both global/ and legacy <school>/ paths but
+// cannot follow traversal or symlinks outside the avatar directory.
+func removeErasedAvatarFile(avatar string) error {
+	return removeErasedAvatarFileFrom("public/uploads/avatars", avatar)
+}
+
+func removeErasedAvatarFileFrom(directory, avatar string) (err error) {
+	const prefix = "/uploads/avatars/"
+	relative, ok := strings.CutPrefix(avatar, prefix)
+	if !ok || relative == "." || !fs.ValidPath(relative) {
+		return errors.New("invalid avatar path")
+	}
+	root, err := os.OpenRoot(directory)
+	if err != nil {
+		// An unavailable mount is not proof that the file is absent. Do not
+		// expose ErrNotExist here: the caller would acknowledge every intent.
+		return errors.New("avatar storage root unavailable")
+	}
+	defer func() { err = errors.Join(err, root.Close()) }()
+	info, err := root.Lstat(relative)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("avatar path is not a regular file")
+	}
+	return root.Remove(relative)
 }

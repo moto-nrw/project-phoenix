@@ -40,7 +40,7 @@ func buildAckSetup(t *testing.T) *ackSetup {
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("ack-%d@example.com", time.Now().UnixNano()))
 
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData: testTimetableData(db).TimetableData(),
 	})
 	return &ackSetup{res: res, db: db, accountID: account.ID}

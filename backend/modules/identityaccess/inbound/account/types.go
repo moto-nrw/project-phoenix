@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 const errPasswordsNotMatch = "passwords do not match"
@@ -39,10 +40,13 @@ type TenantResolveResponse struct {
 	// decide whether to render avatars on student cards. Defaults to false
 	// when the setting is missing or unresolvable.
 	StudentPhotosEnabled bool `json:"student_photos_enabled"`
-	// NFCEnabled is the tenant's resolved attendance.nfc_enabled setting.
-	// It is public tenant-shell metadata because non-admin staff also need to
-	// know whether NFC-only areas like classic activities should appear.
-	NFCEnabled bool `json:"nfc_enabled"`
+	// BookedModules lists the additional modules the school booked
+	// (module.<key> switches, #4892), in module-list order. Public
+	// tenant-shell metadata like the flags below: every staff member's
+	// navigation follows it, also without config:read. NFC-only areas
+	// follow "nfc_anwesenheit" (it replaced attendance.nfc_enabled). A
+	// failed read fails the shell instead of guessing a booking.
+	BookedModules []settings.ModuleKey `json:"booked_modules"`
 	// ParentMessagingEnabled is the tenant's resolved operations.parent_notes_enabled
 	// setting. Surfaced here (like the photo flag) so non-admin staff — who don't
 	// carry config:read — can hide the "Neue Nachricht" compose entry points when
@@ -75,8 +79,7 @@ type TenantResolveResponse struct {
 	GradeLevelMax int `json:"grade_level_max"`
 	// CareOfferingsEnabled is shell metadata for approved-child offering
 	// corrections. Missing metadata stays enabled for compatibility with older
-	// backends; an explicit settings-resolution error fails closed so the UI
-	// cannot offer a mutation that the authoritative service will reject.
+	// backends; a settings-resolution error fails the shell request.
 	CareOfferingsEnabled bool `json:"care_offerings_enabled"`
 	AttendanceWebEnabled bool `json:"attendance_web_enabled"`
 	// AttendanceLogEnabled is the tenant's resolved gdpr.attendance_log_enabled
@@ -126,32 +129,37 @@ type TenantResolveResponse struct {
 	// (#3603): the OGS portal records masked sessions and sends pseudonymous
 	// user IDs only while it is true, and shows staff a notice. Shell metadata
 	// because every page load reads it, so switching it off takes effect at
-	// the next load. Fails closed to false on any resolution error.
+	// the next load. A resolution error fails the shell request.
+	AnalyticsEnabled  bool `json:"analytics_enabled"`
 	AnalyticsFreigabe bool `json:"analytics_freigabe"`
 	// AnalyticsRecordingSamplePercent is the share of OGS sessions recorded
-	// with the Freigabe (analytics.recording_sample_percent). 0 when it cannot
-	// be resolved, which records nothing.
+	// with the Freigabe (analytics.recording_sample_percent). A lookup error
+	// fails the shell request; an explicit zero records nothing.
 	AnalyticsRecordingSamplePercent int `json:"analytics_recording_sample_percent"`
 	// EarlyCheckoutNoteEnabled and EarlyCheckoutNoteToleranceMinutes are the
 	// school's resolved operations.early_checkout_note_* settings (#3324).
 	// Shell metadata: the web checkout dialogs offer an optional note when a
 	// child leaves more than the tolerance before its pickup time, and staff
 	// carry no config:read. The note is never required, so a settings read
-	// error only hides the field (fails closed to false).
+	// error fails the shell request.
 	EarlyCheckoutNoteEnabled          bool `json:"early_checkout_note_enabled"`
 	EarlyCheckoutNoteToleranceMinutes int  `json:"early_checkout_note_tolerance_minutes"`
 	// WeekendFollowsFriday is the tenant's resolved
 	// operations.weekend_follows_friday setting (#3921): Saturday and Sunday
 	// are care days on Friday's plan. Shell metadata so day pickers and day
-	// views stop skipping the weekend. Fails closed (false).
+	// views stop skipping the weekend. A lookup error fails the shell request.
 	WeekendFollowsFriday bool `json:"weekend_follows_friday"`
 	// ChildSearchOnlyNavigation is the tenant's resolved
 	// operations.child_search_only_navigation setting (#1321): staff find
 	// children through the child search alone, and "Meine Gruppe" and
 	// "Aktuelle Aufsicht" leave the navigation. Shell metadata because every
-	// staff member's navigation follows it, also without config:read. Fails
-	// closed (false), which keeps the separate entries.
+	// staff member's navigation follows it, also without config:read. A lookup
+	// error fails the shell request.
 	ChildSearchOnlyNavigation bool `json:"child_search_only_navigation"`
+	// TraegerName is the Träger the school portal shows (#4656). It is set
+	// only while the Träger runs more than one operational school; a Träger
+	// with a single OGS sees no Träger level, so the field is omitted.
+	TraegerName string `json:"traeger_name,omitempty"`
 }
 
 type tenantShellSettings struct {
@@ -160,7 +168,7 @@ type tenantShellSettings struct {
 	mealPlanEnabled           bool
 	mealRegistrationEnabled   bool
 	studentPhotosEnabled      bool
-	nfcEnabled                bool
+	bookedModules             []settings.ModuleKey
 	parentMessagingEnabled    bool
 	staffMessagingEnabled     bool
 	displayEnabled            bool
@@ -174,6 +182,7 @@ type tenantShellSettings struct {
 	reasonPolicy              string
 	showTimetableCounts       bool
 	waitlistEnabled           bool
+	analyticsEnabled          bool
 	analyticsFreigabe         bool
 	analyticsSamplePercent    int
 	earlyCheckoutNote         bool
@@ -395,6 +404,9 @@ type CreateRoleRequest struct {
 	Name        string  `json:"name"`
 	Description string  `json:"description"`
 	BaseRole    *string `json:"base_role,omitempty"`
+	// Template names the system role the new role copies (#4574). It sets
+	// the tier as well, so it replaces base_role.
+	Template *string `json:"template,omitempty"`
 }
 
 // Bind validates the create role request
@@ -404,8 +416,16 @@ func (req *CreateRoleRequest) Bind(_ *http.Request) error {
 	// Empty/blank base_role trims to nil, treated as "field not sent" (preserve
 	// existing value): once set, a base_role cannot be cleared back to NULL via the API.
 	req.BaseRole = trimPtrToNil(req.BaseRole)
+	req.Template = trimPtrToNil(req.Template)
 
-	if err := validateBaseRole(req.BaseRole); err != nil {
+	if req.Template != nil {
+		if req.BaseRole != nil {
+			return errors.New("send either template or base_role, not both")
+		}
+		if !identityaccess.RoleTemplate(*req.Template).Valid() {
+			return fmt.Errorf("template must be one of: %v", identityaccess.RoleTemplates())
+		}
+	} else if err := validateBaseRole(req.BaseRole); err != nil {
 		return err
 	}
 
@@ -498,14 +518,17 @@ func validateBaseRole(br *string) error {
 
 // RoleResponse represents a role response
 type RoleResponse struct {
-	ID          int64    `json:"id,string"`
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	IsSystem    bool     `json:"is_system"`
-	BaseRole    *string  `json:"base_role,omitempty"`
-	CreatedAt   string   `json:"created_at"`
-	UpdatedAt   string   `json:"updated_at"`
-	Permissions []string `json:"permissions,omitempty"`
+	ID          int64   `json:"id,string"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	IsSystem    bool    `json:"is_system"`
+	BaseRole    *string `json:"base_role,omitempty"`
+	// SchoolPortal marks a school role made from the Lehrkraft template: its
+	// accounts use moto schule like the Lehrkraft role (#4574).
+	SchoolPortal bool     `json:"school_portal"`
+	CreatedAt    string   `json:"created_at"`
+	UpdatedAt    string   `json:"updated_at"`
+	Permissions  []string `json:"permissions,omitempty"`
 }
 
 // CreatePermissionRequest represents the create permission request payload

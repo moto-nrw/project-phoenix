@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +23,7 @@ var (
 	errFakeSchoolAccessDenied = errors.New("fake: school access denied")
 	errFakeMFABlocked         = errors.New("fake: mfa blocked")
 	errFakeMFAUnavailable     = errors.New("fake: mfa unavailable")
+	errFakeInvalidSession     = errors.New("fake: missing mfa proof")
 )
 
 // refusalRuntime classifies the fake sentinels like the owner's predicates
@@ -30,10 +33,10 @@ func refusalRuntime(err error) *Resource {
 		return func(got error) bool { return errors.Is(got, target) }
 	}
 	return &Resource{AuthService: AuthRuntime{
-		IssueTokens: func(context.Context, int64, int64, string, string) (string, string, error) {
+		IssueTokens: func(context.Context, VerifiedChallenge, string, string) (string, string, error) {
 			return "", "", err
 		},
-		SwitchSchool: func(context.Context, int64, string, string, string) (string, string, error) {
+		SwitchSchool: func(context.Context, int64, string, string, string, string) (string, string, error) {
 			return "", "", err
 		},
 		Cause:              func(err error) error { return err },
@@ -44,6 +47,7 @@ func refusalRuntime(err error) *Resource {
 		SchoolAccessDenied: is(errFakeSchoolAccessDenied),
 		MFABlocked:         is(errFakeMFABlocked),
 		MFAUnavailable:     is(errFakeMFAUnavailable),
+		InvalidSession:     is(errFakeInvalidSession),
 	}}
 }
 
@@ -105,7 +109,7 @@ func TestSchoolExchangeRefusalsCarryIdentityCodes(t *testing.T) {
 		t.Run(tc.err.Error(), func(t *testing.T) {
 			t.Parallel()
 			recorder := httptest.NewRecorder()
-			refusalRuntime(tc.err).completeSchoolExchange(recorder, httptest.NewRequest(http.MethodPost, "/auth/mfa/verify", nil), 1, 2, false)
+			refusalRuntime(tc.err).completeSchoolExchange(recorder, httptest.NewRequest(http.MethodPost, "/auth/mfa/verify", nil), VerifiedChallenge{AccountID: 1, TenantID: 2}, false)
 			status, code := decodeRefusal(t, recorder)
 			assert.Equal(t, tc.status, status)
 			assert.Equal(t, tc.code, code)
@@ -118,6 +122,8 @@ func TestSchoolSwitchRefusalsCarryIdentityCodes(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []refusalCase{
+		{errFakeInvalidSession, http.StatusUnauthorized, "identity.mfa_session_required"},
+		{errFakeMFAUnavailable, http.StatusServiceUnavailable, "identity.mfa_status_unavailable"},
 		{errFakeInvalidCredentials, http.StatusUnauthorized, "identity.account_not_found"},
 		{errFakeAccountInactive, http.StatusUnauthorized, "identity.session_account_inactive"},
 		{errFakeSchoolNotFound, http.StatusNotFound, "general.input"},
@@ -135,4 +141,21 @@ func TestSchoolSwitchRefusalsCarryIdentityCodes(t *testing.T) {
 			assert.Equal(t, tc.code, code)
 		})
 	}
+}
+
+func TestSchoolSwitchUsesFamilyFromAuthenticatedClaims(t *testing.T) {
+	t.Parallel()
+	resource := refusalRuntime(nil)
+	resource.AuthService.SwitchSchool = func(_ context.Context, _ int64, slug, _, _, family string) (string, string, error) {
+		require.Equal(t, "target", slug)
+		require.Equal(t, "signed-source-family", family)
+		return "example-access", "example-refresh", nil
+	}
+	request := httptest.NewRequest(http.MethodPost, "/auth/switch-school", strings.NewReader(`{"tenant_slug":"target","family_id":"untrusted-family","mfa_verified":true}`))
+	request.Header.Set("Content-Type", "application/json")
+	request = request.WithContext(context.WithValue(request.Context(), sessiontoken.CtxClaims,
+		sessiontoken.AppClaims{FamilyID: "signed-source-family"}))
+	response := httptest.NewRecorder()
+	resource.switchSchool(response, request)
+	require.Equal(t, http.StatusOK, response.Code)
 }

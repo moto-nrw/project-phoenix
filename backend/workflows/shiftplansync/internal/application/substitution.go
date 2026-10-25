@@ -58,10 +58,10 @@ type SubstitutionAdapterDependencies struct {
 	Logger        *slog.Logger
 }
 
-// SubstitutionAdapter serves the schedule half of the substitution module: the
-// appointment overview, the deviation writes and ending one substitution. It
-// implements education.ScheduleAdapter directly, so the composition root needs
-// no mapping bridge of its own.
+// SubstitutionAdapter serves the schedule writes of the Terminvertretung
+// entry: the appointment overview, the deviation writes and ending one
+// substitution, in School Structure's substitution vocabulary, so the
+// composition root needs no mapping bridge of its own.
 type SubstitutionAdapter struct {
 	deps SubstitutionAdapterDependencies
 }
@@ -189,9 +189,11 @@ func (a *SubstitutionAdapter) loadTargets(ctx context.Context, include bool) ([]
 	if err != nil {
 		return nil, err
 	}
+	// An external caregiver may be marked absent but never substitutes
+	// (#4573 D6); the mark lets the pickers leave them out.
 	for _, member := range members {
 		if member != nil {
-			targets = append(targets, education.StaffRef{ID: member.ID, FullName: member.FullName()})
+			targets = append(targets, education.StaffRef{ID: member.ID, FullName: member.FullName(), IsExternal: member.IsExternalCaregiver})
 		}
 	}
 	return targets, nil

@@ -48,10 +48,29 @@ export interface BackendStaffResponse {
   absence_type?: string;
   /** The school's own Abwesenheitsart wording for today's absence (#2403). */
   absence_type_label?: string;
-  /** External caregiver without a moto account (#3823). */
+  /** External caregiver, with or without a moto account (#3823, #4573). */
   is_external?: boolean;
   external_organization?: string | null;
+  /** Account state of an external caregiver; absent for everyone else. */
+  external_account_status?: ExternalAccountStatus | null;
 }
+
+/**
+ * Account state of an external caregiver (#4573): `account` signs in,
+ * `invitation_pending` has an unused invitation, `none` has neither. `none`
+ * is a deliberate state (Kein Zugang), not a gap (ADR 0091).
+ */
+export type ExternalAccountStatus = "account" | "invitation_pending" | "none";
+
+/**
+ * Access chosen for an external caregiver (ADR 0091): `none` records a
+ * placeholder without account, `view` invites into the system role „Gast“,
+ * `supervise` into „AG-Leitung“.
+ */
+export type ExternalAccess = "none" | "view" | "supervise";
+
+/** The two levels an invitation can grant. */
+export type ExternalInvitationAccess = Exclude<ExternalAccess, "none">;
 
 interface ActiveSupervisionResponse {
   id: number;
@@ -111,16 +130,23 @@ export interface Staff {
   absenceTypeLabel?: string;
   isFinancialProfile?: boolean;
   isLimitedProfile?: boolean;
-  /** Externe Betreuungskraft ohne moto-Konto (#3823). */
+  /** Externe Betreuungskraft, mit oder ohne moto-Konto (#3823, #4573). */
   isExternal?: boolean;
   /** Organisation der externen Kraft, z. B. die Musikschule. */
   externalOrganization?: string;
+  /** Kontostand der externen Kraft; `null` für alle anderen (#4573). */
+  externalAccountStatus?: ExternalAccountStatus | null;
 }
 
-/** Name of an external caregiver recorded from a supervision (#3823). */
+/**
+ * An external caregiver to record (#3823, ADR 0091). The email address is
+ * only sent with an access that invites.
+ */
 interface ExternalStaffInput {
   firstName: string;
   lastName: string;
+  access: ExternalAccess;
+  email?: string;
   organization?: string;
 }
 
@@ -326,7 +352,7 @@ function getSupervisionInfo(
   }
   // Priority 2: Time clock home office → always wins
   else if (workStatus === "home_office") {
-    currentLocation = "Homeoffice";
+    currentLocation = "Unterwegs";
   }
   // Priority 3: Not clocked in - check for absence reason
   // (checked_out, no work_status, or legacy fallback)
@@ -385,6 +411,7 @@ function mapStaffMember(
     absenceTypeLabel: staff.absence_type_label,
     isExternal: staff.is_external ?? false,
     externalOrganization: staff.external_organization ?? undefined,
+    externalAccountStatus: staff.external_account_status ?? null,
   };
 }
 
@@ -493,8 +520,9 @@ class StaffService {
     return applyStaffFilters(mappedStaff, filters);
   }
 
-  // Records an external caregiver without a moto account (#3823): a name and,
-  // optionally, the organization. The new entry is selectable right away.
+  // Records an external caregiver (#3823) with the chosen access (ADR 0091);
+  // `view` and `supervise` invite by email. The new entry is selectable
+  // right away, with or without account.
   async createExternal(input: ExternalStaffInput): Promise<Staff> {
     const response = await sessionFetch("/api/staff/externals", {
       method: "POST",
@@ -503,12 +531,42 @@ class StaffService {
         first_name: input.firstName.trim(),
         last_name: input.lastName.trim(),
         organization: input.organization?.trim() ?? "",
+        access: input.access,
+        ...(input.access === "none"
+          ? {}
+          : { email: input.email?.trim() ?? "" }),
       }),
     });
     if (!response.ok) {
       throw await apiErrorFromResponse(
         response,
         `Failed to create external caregiver: ${response.statusText}`,
+      );
+    }
+    const payload = (await response.json()) as { data: BackendStaffResponse };
+    return mapStaffMember(payload.data, {});
+  }
+
+  // Invites an external caregiver who has no account yet (#4573) with the
+  // chosen access (ADR 0091). A second invitation replaces an open one, for
+  // example with a corrected address.
+  async inviteExternal(
+    id: string,
+    email: string,
+    access: ExternalInvitationAccess,
+  ): Promise<Staff> {
+    const response = await sessionFetch(
+      `/api/staff/externals/${encodeURIComponent(id)}/invitation`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), access }),
+      },
+    );
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        `Failed to invite external caregiver: ${response.statusText}`,
       );
     }
     const payload = (await response.json()) as { data: BackendStaffResponse };
@@ -563,6 +621,7 @@ class StaffService {
       absenceTypeLabel: staff.absence_type_label,
       isExternal: staff.is_external ?? false,
       externalOrganization: staff.external_organization ?? undefined,
+      externalAccountStatus: staff.external_account_status ?? null,
     };
   }
 

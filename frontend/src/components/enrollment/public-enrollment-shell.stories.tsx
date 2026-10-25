@@ -21,6 +21,7 @@ const fakeTenant: TenantInfo = {
   presenceMode: "detailed",
   studentPhotosEnabled: false,
   nfcEnabled: true,
+  bookedModules: ["nfc_anwesenheit"],
   messagingEnabled: false,
   staffMessagingEnabled: false,
   displayEnabled: false,

@@ -19,6 +19,8 @@
     "publish:screenshots": "playwright test -c playwright.screenshots.config.ts publish\\.pw",
     "test:layout": "playwright test -c playwright.layout.config.ts",
     "test:e2e": "playwright test",
+    "test:network": "playwright test -c playwright.network.config.ts",
+    "test:tenant-switch": "playwright test -c playwright.tenant-switch.config.ts",
     "generate:locales": "node scripts/generate-locales.mjs",
     "generate:error-catalog": "node scripts/verify-error-catalog.mjs --write",
     "lint": "oxlint .",
@@ -57,7 +59,7 @@
     "date-fns": "^4.4.0",
     "framer-motion": "^12.43.0",
     "lucide-react": "^1.31.0",
-    "next": "^16.3.8",
+    "next": "16.4.1",
     "next-auth": "5.0.0-beta.32",
     "next-intl": "^4.14.9",
     "posthog-js": "^1.415.2",
@@ -72,7 +74,7 @@
     "swr": "^2.5.1",
     "tailwind-merge": "^3.7.0",
     "vaul": "^1.1.2",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
@@ -88,7 +90,7 @@
     "@vitejs/plugin-react": "^6.1.2",
     "@vitest/coverage-v8": "^4.1.12",
     "dependency-cruiser": "^18.6.0",
-    "happy-dom": "^20.11.2",
+    "happy-dom": "^21.0.4",
     "knip": "^6.41.0",
     "lint-staged": "^17.6.0",
     "oxlint": "^1.78.0",

@@ -21,8 +21,8 @@ import (
 )
 
 // deviceAPIKeyConstraint is the unique constraint PostgreSQL generated for
-// iot.devices.api_key (migration 001003009).
-const deviceAPIKeyConstraint = "devices_api_key_key"
+// iot.devices.api_key_hash (migration 1.15.474).
+const deviceAPIKeyConstraint = "devices_api_key_hash_key"
 
 // accountEmailQuery is the operator person listing's account-facts port.
 type accountEmailQuery interface {
@@ -128,7 +128,7 @@ func (d provisioningDevices) FindDeviceForUpdate(ctx context.Context, id int64) 
 func (d provisioningDevices) CreateDevice(ctx context.Context, device organizationCompose.NewProvisioningDevice) (organizationCompose.ProvisioningDevice, error) {
 	created, err := d.devices.CreateDevice(tenant.WithTenantID(ctx, device.TenantID), devicefleet.CreateDevice{
 		DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
-		Status: devicefleet.DeviceStatus(device.Status), APIKey: device.APIKey,
+		Status: devicefleet.DeviceStatus(device.Status), APIKey: device.APIKey, APIKeyHash: device.APIKeyHash, MaskedAPIKey: device.MaskedAPIKey,
 	})
 	if err != nil {
 		return organizationCompose.ProvisioningDevice{}, deviceWriteError(err)
@@ -139,7 +139,7 @@ func (d provisioningDevices) CreateDevice(ctx context.Context, device organizati
 func (d provisioningDevices) UpdateDevice(ctx context.Context, device organizationCompose.ProvisioningDevice) error {
 	_, err := d.devices.UpdateDevice(ctx, devicefleet.UpdateDevice{
 		ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name,
-		Status: devicefleet.DeviceStatus(device.Status), APIKey: device.APIKey, LastSeen: device.LastSeen,
+		Status: devicefleet.DeviceStatus(device.Status), APIKey: device.APIKey, APIKeyHash: device.APIKeyHash, MaskedAPIKey: device.MaskedAPIKey, LastSeen: device.LastSeen,
 		RegisteredByID: device.RegisteredByID, RoomID: device.RoomID, ArchivedAt: device.ArchivedAt,
 		TransferredToDeviceID: device.TransferredToDeviceID,
 	})
@@ -161,7 +161,7 @@ func provisioningDevice(device devicefleet.Device) organizationCompose.Provision
 	return organizationCompose.ProvisioningDevice{
 		ID: device.ID, TenantID: device.TenantID, CreatedAt: device.CreatedAt, UpdatedAt: device.UpdatedAt,
 		DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: device.Name, Status: string(device.Status),
-		APIKey: device.APIKey, LastSeen: device.LastSeen, RegisteredByID: device.RegisteredByID, RoomID: device.RoomID,
+		APIKey: device.APIKey, APIKeyHash: device.APIKeyHash, MaskedAPIKey: device.MaskedAPIKey, LastSeen: device.LastSeen, RegisteredByID: device.RegisteredByID, RoomID: device.RoomID,
 		ArchivedAt: device.ArchivedAt, TransferredToDeviceID: device.TransferredToDeviceID,
 	}
 }

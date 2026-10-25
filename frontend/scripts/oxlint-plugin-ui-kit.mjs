@@ -1,3 +1,5 @@
+import { dirname, normalize } from "node:path/posix";
+
 // UI-kit drift ratchet (issue #1629).
 //
 // Five hard-zero rules that stop drift away from the shared UI kit. The
@@ -29,9 +31,11 @@
 //   ui-kit/no-tiny-text             — sub-12px text utilities; shrink-only
 //                                     baseline
 //   ui-kit/no-tenant-kicker         — no blue mini-heading in the tenant portal
-//   ui-kit/no-handrolled-surface    — no `moto-content-surface … rounded-2xl`
+//   ui-kit/no-hand-rolled-page-card — no `moto-content-surface … rounded-2xl`
 //                                     spelled out in a tenant page/loading
-//                                     file; use the kit cards
+//                                     file; use the kit cards (unlike
+//                                     no-hand-rolled-surface, which bans the
+//                                     plain-Tailwind card chain everywhere)
 //   ui-kit/no-tabs-as-value-switcher — ui/Tabs is for content panels; values
 //                                     go on SegmentedControl
 //
@@ -446,7 +450,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/ui/avatar.tsx",
   "src/components/ui/coverage-indicator.tsx",
   "src/components/ui/location-badge.tsx",
-  "src/components/ui/multi-checkbox-select.tsx",
   "src/components/ui/notification-badge.tsx",
   "src/components/ui/origin-chip.tsx",
   "src/components/ui/page-header/FilterButton.tsx",
@@ -458,7 +461,7 @@ const TINY_TEXT_BASELINE_FILES = new Set([
 ]);
 
 const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@182
+src/app/[tenant]/(protected)/day-log/page.tsx|text-[11px]@193
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]@1335 text-[10px]@1339 text-[10px]@1348 text-[11px]@1348
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271
@@ -466,7 +469,7 @@ src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@230
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
 src/components/activities/activity-management-modal.tsx|text-[10px]@313 text-[10px]@343 text-[10px]@381
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/calendar/personal-calendar.tsx|text-[11px]@802 text-[11px]@830 text-[11px]@917 text-[11px]@978 text-[11px]@982 text-[11px]@988 text-[11px]@1034 text-[11px]@1040 text-[10px]@1060 text-[11px]@1113 text-[11px]@1193 text-[11px]@1199 text-[11px]@1204
+src/components/calendar/personal-calendar.tsx|text-[11px]@877 text-[11px]@905 text-[11px]@992 text-[11px]@1053 text-[11px]@1057 text-[11px]@1063 text-[11px]@1110 text-[11px]@1116 text-[10px]@1136 text-[11px]@1189 text-[11px]@1269 text-[11px]@1280 text-[11px]@1285
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@40 text-[10px]@94
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@968 text-[11px]@987
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1465
@@ -488,7 +491,7 @@ src/components/students/school-checkin-fab.tsx|text-[10px]@198
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@542
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
-src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@479 text-[11px]@523
+src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@163 text-[11px]@233 text-[11px]@266 text-[11px]@343 text-[11px]@349 text-[11px]@397
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
@@ -498,15 +501,14 @@ src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 t
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@396 text-[11px]@461
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
-src/components/timetable/substitution-slide-over.tsx|text-[10px]@576 text-[9px]@581 text-[11px]@740 text-[11px]@744 text-[10px]@784 text-[10px]@788 text-[10px]@792 text-[10px]@796 text-[11px]@1238
+src/components/timetable/substitution-slide-over.tsx|text-[10px]@578 text-[9px]@583 text-[11px]@742 text-[11px]@746 text-[10px]@786 text-[10px]@790 text-[10px]@794 text-[10px]@798 text-[11px]@1240
 src/components/timetable/template-card.tsx|text-[11px]@119 text-[11px]@131 text-[10px]@174
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@400 text-[9px]@416 text-[10px]@479 text-[11px]@479 text-[11px]@484 text-[10px]@507 text-[10px]@542 text-[11px]@542
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
-src/components/ui/location-badge.tsx|text-[11px]@121 text-[11px]@122 text-[10px]@333 text-[10px]@363
-src/components/ui/multi-checkbox-select.tsx|text-[11px]@246
+src/components/ui/location-badge.tsx|text-[11px]@122 text-[11px]@123 text-[10px]@294 text-[10px]@321
 src/components/ui/notification-badge.tsx|text-[10px]@15
 src/components/ui/origin-chip.tsx|text-[11px]@24
 src/components/ui/page-header/FilterButton.tsx|text-[10px]@61
@@ -514,7 +516,7 @@ src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/plan-block.tsx|text-[11px]@154 text-[11px]@175
 src/components/ui/plan-legend.tsx|text-[11px]@106
-src/components/ui/presence-badge.tsx|text-[11px]@80 text-[11px]@81 text-[10px]@257
+src/components/ui/presence-badge.tsx|text-[11px]@82 text-[11px]@83 text-[10px]@232
 `);
 
 const noTinyText = makeClassStringRule({
@@ -560,21 +562,21 @@ const noTenantKicker = {
   },
 };
 
-// ui-kit/no-handrolled-surface — eine Seite baut keine Kartenfläche mehr aus
+// ui-kit/no-hand-rolled-page-card — eine Seite baut keine Kartenfläche mehr aus
 // einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
 // SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
 // StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
 // greift nur in Seitendateien des Tenant-Portals — Kit- und
 // Komponentendateien dürfen die Fläche definieren, sie sind die Quelle.
 const TENANT_PAGE_FILE_RE =
-  /app\/\[tenant\]\/\(protected\)\/.*\/(page|loading)\.tsx$/;
+  /app\/\[tenant\]\/\(protected\)\/(?:.*\/)?(page|loading)\.tsx$/;
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.
 const HANDROLLED_SURFACE_RE =
   /moto-content-surface[^"'`]*rounded-2xl|rounded-2xl[^"'`]*moto-content-surface/;
 
-const noHandrolledSurface = {
+const noHandRolledPageCard = {
   meta: {
     docs: {
       description:
@@ -609,6 +611,26 @@ const noHandrolledSurface = {
           context.report({ node, messageId: "surface" });
         }
       },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
+          return; // already reported by the Literal/TemplateElement visitors
+        }
+        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+        const rendered = combos.find((combo) =>
+          HANDROLLED_SURFACE_RE.test(combo),
+        );
+        if (rendered !== undefined) {
+          context.report({ node, messageId: "surface" });
+        }
+      },
     };
   },
 };
@@ -629,6 +651,141 @@ const VALUE_SWITCHER_LABELS = new Set([
   "Ganzer Tag",
   "Dieser Block",
 ]);
+const VALUE_SWITCHER_VALUES = new Set([
+  "week",
+  "month",
+  "day",
+  "half-year",
+  "series",
+  "week-a",
+  "week-b",
+  "whole-day",
+  "this-block",
+]);
+const UI_KIT_TABS_MODULES = new Set([
+  "~/components/ui/tabs",
+  "@/components/ui/tabs",
+]);
+
+function isUiKitTabsModule(source, filename) {
+  if (UI_KIT_TABS_MODULES.has(source)) return true;
+  if (!source.startsWith(".")) return false;
+  const posixFilename = filename.replaceAll("\\", "/");
+  const sourceStart = posixFilename.lastIndexOf("/src/");
+  const importer =
+    sourceStart === -1 ? posixFilename : posixFilename.slice(sourceStart + 1);
+  return (
+    normalize(`${dirname(importer)}/${source}`) === "src/components/ui/tabs"
+  );
+}
+
+function collectStaticTabText(children, texts) {
+  for (const child of children) {
+    if (child.type === "JSXText") {
+      texts.push(child.value);
+    } else if (child.type === "JSXElement" || child.type === "JSXFragment") {
+      collectStaticTabText(child.children, texts);
+    } else if (child.type === "JSXExpressionContainer") {
+      collectStaticStrings(child.expression, texts);
+    }
+  }
+}
+
+function isTabsElement(node, tabsNames, tabsPrimitiveNamespaces) {
+  const name = node.openingElement?.name;
+  if (tabsNames.has(jsxName(name))) return true;
+  return (
+    name?.type === "JSXMemberExpression" &&
+    tabsPrimitiveNamespaces.has(jsxName(name.object)) &&
+    jsxName(name.property) === "Root"
+  );
+}
+
+function isTabsTriggerElement(node, tabsTriggerNames, tabsPrimitiveNamespaces) {
+  const name = node.openingElement?.name;
+  if (tabsTriggerNames.has(jsxName(name))) return true;
+  return (
+    name?.type === "JSXMemberExpression" &&
+    tabsPrimitiveNamespaces.has(jsxName(name.object)) &&
+    jsxName(name.property) === "Trigger"
+  );
+}
+
+function isTabsContentElement(node, tabsContentNames, tabsPrimitiveNamespaces) {
+  const name = node.openingElement?.name;
+  if (tabsContentNames.has(jsxName(name))) return true;
+  return (
+    name?.type === "JSXMemberExpression" &&
+    tabsPrimitiveNamespaces.has(jsxName(name.object)) &&
+    jsxName(name.property) === "Content"
+  );
+}
+
+function hasTabsContent(
+  node,
+  tabsNames,
+  tabsContentNames,
+  tabsPrimitiveNamespaces,
+  seen = new WeakSet(),
+  isRoot = true,
+) {
+  if (!node || typeof node !== "object" || seen.has(node)) return false;
+  if (node.type === "JSXElement") {
+    if (isTabsContentElement(node, tabsContentNames, tabsPrimitiveNamespaces)) {
+      return true;
+    }
+    if (!isRoot && isTabsElement(node, tabsNames, tabsPrimitiveNamespaces)) {
+      return false;
+    }
+  }
+  seen.add(node);
+
+  return Object.entries(node).some(([key, value]) => {
+    if (key === "parent") return false;
+    if (Array.isArray(value)) {
+      return value.some((child) =>
+        hasTabsContent(
+          child,
+          tabsNames,
+          tabsContentNames,
+          tabsPrimitiveNamespaces,
+          seen,
+          false,
+        ),
+      );
+    }
+    return hasTabsContent(
+      value,
+      tabsNames,
+      tabsContentNames,
+      tabsPrimitiveNamespaces,
+      seen,
+      false,
+    );
+  });
+}
+
+function isTabsWithoutContent(
+  node,
+  tabsNames,
+  tabsContentNames,
+  tabsPrimitiveNamespaces,
+) {
+  for (let ancestor = node.parent; ancestor; ancestor = ancestor.parent) {
+    if (
+      ancestor.type === "JSXElement" &&
+      isTabsElement(ancestor, tabsNames, tabsPrimitiveNamespaces)
+    ) {
+      return !hasTabsContent(
+        ancestor,
+        tabsNames,
+        tabsContentNames,
+        tabsPrimitiveNamespaces,
+      );
+    }
+  }
+  return false;
+}
 
 const noTabsAsValueSwitcher = {
   meta: {
@@ -649,14 +806,65 @@ const noTabsAsValueSwitcher = {
     ).replace(/\\/g, "/");
     if (OTHER_PORTALS_RE.test(filename)) return {};
     if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+    const tabsNames = new Set();
+    const tabsTriggerNames = new Set();
+    const tabsContentNames = new Set();
+    const tabsPrimitiveNamespaces = new Set();
 
     return {
+      ImportDeclaration(node) {
+        const source = node.source.value;
+        if (typeof source !== "string") return;
+
+        for (const specifier of node.specifiers) {
+          if (isUiKitTabsModule(source, filename)) {
+            if (specifier.type !== "ImportSpecifier") continue;
+            if (specifier.imported.name === "Tabs") {
+              tabsNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "TabsTrigger") {
+              tabsTriggerNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "TabsContent") {
+              tabsContentNames.add(specifier.local.name);
+            }
+            continue;
+          }
+          if (source !== "@radix-ui/react-tabs") continue;
+          if (specifier.type === "ImportSpecifier") {
+            if (specifier.imported.name === "Root") {
+              tabsNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "Trigger") {
+              tabsTriggerNames.add(specifier.local.name);
+            } else if (specifier.imported.name === "Content") {
+              tabsContentNames.add(specifier.local.name);
+            }
+          }
+          if (specifier.type === "ImportNamespaceSpecifier") {
+            tabsPrimitiveNamespaces.add(specifier.local.name);
+          }
+        }
+      },
       JSXElement(node) {
-        const name = node.openingElement?.name?.name;
-        if (name !== "TabsTrigger") return;
-        const child = node.children?.find((c) => c.type === "JSXText");
-        const label = child?.value?.trim();
-        if (label && VALUE_SWITCHER_LABELS.has(label)) {
+        if (
+          !isTabsTriggerElement(node, tabsTriggerNames, tabsPrimitiveNamespaces)
+        )
+          return;
+        const texts = [];
+        collectStaticTabText(node.children, texts);
+        if (
+          texts.some((text) => {
+            const token = text.trim();
+            return (
+              VALUE_SWITCHER_LABELS.has(token) ||
+              VALUE_SWITCHER_VALUES.has(token)
+            );
+          }) ||
+          isTabsWithoutContent(
+            node,
+            tabsNames,
+            tabsContentNames,
+            tabsPrimitiveNamespaces,
+          )
+        ) {
           context.report({ node, messageId: "valueSwitcher" });
         }
       },
@@ -730,10 +938,10 @@ export default {
   rules: {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-hand-rolled-overlay": noHandRolledOverlay,
+    "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-rounded-3xl": noRounded3xl,
     "no-tenant-kicker": noTenantKicker,
-    "no-handrolled-surface": noHandrolledSurface,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,
     "no-tiny-text": noTinyText,
     "require-checkbox-label": requireCheckboxLabel,

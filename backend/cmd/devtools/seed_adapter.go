@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	seedapi "github.com/moto-nrw/project-phoenix/internal/devtools/seedapi"
 	"github.com/moto-nrw/project-phoenix/internal/devtools/simulate"
@@ -13,7 +14,19 @@ import (
 type seedCommandAdapter struct{ inner *Adapter }
 
 func newSeedCommandAdapter(baseURL string, verbose bool) seedCommandAdapter {
-	return seedCommandAdapter{inner: NewCommandAdapter(baseURL, verbose)}
+	inner := NewCommandAdapter(baseURL, verbose)
+	inner.tenantSessions = newTenantSessionCache(".seed-sessions")
+	return seedCommandAdapter{inner: inner}
+}
+
+// The deployed sidecar has a read-only filesystem and no Mailpit. It completes
+// real MFA using only the codes accepted by its process-local demo inbox.
+func demoSeedAdapterFactory(fetchCode func(context.Context, string, time.Time) (string, error)) func(string, bool) seedCommandAdapter {
+	return func(baseURL string, verbose bool) seedCommandAdapter {
+		inner := NewCommandAdapter(baseURL, verbose)
+		inner.fetchLatestMFACode = fetchCode
+		return seedCommandAdapter{inner: inner}
+	}
 }
 
 func (a seedCommandAdapter) BaseURL() string { return a.inner.BaseURL() }

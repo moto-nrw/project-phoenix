@@ -22,6 +22,11 @@ var (
 	// ErrCatererAddressTaken refuses an invitation for an address that holds
 	// an account of another kind; one address is one account.
 	ErrCatererAddressTaken = errors.New("address belongs to an account that is not a caterer")
+	// ErrCatererAccountJoinsNoSchool refuses every mapping of a caterer
+	// account to a school: a caterer account signs in to no other portal
+	// (ADR 0077), and a school's admin must not manage an account that
+	// reaches the schools of other Träger.
+	ErrCatererAccountJoinsNoSchool = errors.New("a caterer account joins no school")
 	// ErrInvitationRevoked: the school took the invitation back.
 	ErrInvitationRevoked = errors.New("invitation has been revoked")
 	// ErrCatererAlreadySupplies refuses a new invitation while the school's
@@ -88,7 +93,7 @@ func (i CatererInvitation) Redeemable(now time.Time) error {
 		return ErrInvitationRevoked
 	case i.AcceptedAt != nil:
 		return ErrInvitationUsed
-	case now.After(i.ExpiresAt):
+	case !now.Before(i.ExpiresAt):
 		return ErrInvitationExpired
 	default:
 		return nil
@@ -109,13 +114,19 @@ type CatererRegistration struct {
 }
 
 // CatererAcceptance is the outcome of an accepted invitation: the account
-// and caterer the school is now supplied by, and the school's delivery
-// address for the supply.
+// and caterer the school is now supplied by.
 type CatererAcceptance struct {
-	AccountID       int64
-	CatererID       int64
-	TenantID        int64
+	AccountID int64
+	CatererID int64
+	TenantID  int64
+}
+
+// CatererSupply is a school's running supply by its caterer: who supplies
+// it, where to and since when. auth.caterer_schools is its only record.
+type CatererSupply struct {
+	Caterer         Caterer
 	DeliveryAddress string
+	StartedAt       time.Time
 }
 
 // CatererInvitationPreview is what the public acceptance page shows. With

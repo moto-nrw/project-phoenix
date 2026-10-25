@@ -192,13 +192,14 @@ func (s *Service) hasOpenInvitationForStudent(ctx context.Context, guardianProfi
 }
 
 // InviteRelatedAccount invites a further guardian to the parent's child by
-// email. Gated by guardians.parent_invite_mode; staff_approval mode queues the
-// request instead of acting immediately.
+// email. The caller needs parent_portal.related_accounts.manage on this child
+// (#4603); the school gates it further with guardians.parent_invite_mode, whose
+// staff_approval mode queues the request instead of acting immediately.
 func (s *Service) InviteRelatedAccount(ctx context.Context, accountID, studentID int64, email, firstName, lastName string, confirmRoleUpgrade bool) (*InviteRelatedAccountResult, error) {
 	if err := validateInviteEmail(email); err != nil {
 		return nil, err
 	}
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRelatedAccountsManage)
 	if err != nil {
 		return nil, err
 	}
@@ -276,10 +277,12 @@ func (s *Service) inviteRequiresStaffApproval(ctx context.Context, tenantID int6
 }
 
 // RemoveRelatedAccount removes another account's access to the parent's child.
-// Gated by guardians.parent_can_remove; the primary guardian can never be
-// removed by a parent (enforced in the invitation service).
+// The caller needs parent_portal.related_accounts.manage on this child
+// (#4603), and the school gates it with guardians.parent_can_remove; the
+// primary guardian can never be removed by a parent (enforced in the
+// invitation service).
 func (s *Service) RemoveRelatedAccount(ctx context.Context, accountID, studentID, guardianProfileID int64) error {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRelatedAccountsManage)
 	if err != nil {
 		return err
 	}

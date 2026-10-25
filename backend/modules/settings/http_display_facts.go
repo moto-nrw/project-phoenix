@@ -2,7 +2,6 @@ package settings
 
 import (
 	"context"
-	"log/slog"
 )
 
 // DisplaySettingsSource is the read capability used by the display projections.
@@ -23,8 +22,8 @@ func (s DisplaySettings) PrefetchStudentDisplaySettings(ctx context.Context) con
 	return PrefetchStudentDisplaySettings(ctx, s.source)
 }
 
-func (s DisplaySettings) StudentPhotosEnabled(ctx context.Context, logger *slog.Logger) bool {
-	return StudentPhotosEnabled(ctx, s.source, logger)
+func (s DisplaySettings) StudentPhotosEnabled(ctx context.Context) (bool, error) {
+	return StudentPhotosEnabled(ctx, s.source)
 }
 
 func (s DisplaySettings) TrackingIndicatorLabels(ctx context.Context) (context.Context, []string, error) {

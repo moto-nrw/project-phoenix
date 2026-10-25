@@ -8,11 +8,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { BellRing, CheckCircle2, Download } from "lucide-react";
+import { BellRing, CheckCircle2 } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { ExportMenu, type ExportMenuOption } from "~/components/ui/export-menu";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { InfoCard } from "~/components/ui/info-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -135,6 +136,13 @@ function fullName(first: string, last: string): string {
  * The history lists every action, also those for older versions, because
  * a school may have to show later what was agreed to and when.
  */
+// Zwei Inhalte, nicht zwei Formate desselben Inhalts: der Bericht mit Stand
+// und Antworten, der Verlauf als Tabelle.
+const DECLARATION_EXPORT_OPTIONS: readonly ExportMenuOption[] = [
+  { key: "pdf", format: "pdf", label: "Bericht als PDF" },
+  { key: "csv", format: "csv", label: "Verlauf als CSV" },
+];
+
 export function DeclarationStatusPanel({
   announcementId,
   canAct,
@@ -327,32 +335,15 @@ export function DeclarationStatusPanel({
             Offene erinnern
           </Button>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={() => void download("pdf")}
-          disabled={busy !== null}
-          isLoading={busy === "pdf"}
-          loadingText="Wird erstellt …"
-          className="gap-1.5"
-        >
-          <Download className="h-4 w-4" aria-hidden />
-          Bericht als PDF
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={() => void download("csv")}
-          disabled={busy !== null}
-          isLoading={busy === "csv"}
-          loadingText="Wird erstellt …"
-          className="gap-1.5"
-        >
-          <Download className="h-4 w-4" aria-hidden />
-          Verlauf als CSV
-        </Button>
+        <ExportMenu
+          options={DECLARATION_EXPORT_OPTIONS}
+          busyKey={busy === "remind" ? null : busy}
+          unavailable={busy === "remind"}
+          onSelect={(option) => {
+            if (option.format === "pdf" || option.format === "csv")
+              void download(option.format);
+          }}
+        />
       </div>
 
       {/* Ein Neuladen nach einer Aktion ist gescheitert: der alte Stand
@@ -543,8 +534,14 @@ function HistorySection({
                   ? ` · ${GUARDIAN_ROLE_LABEL[entry.guardian_role]}`
                   : ""}
                 {entry.password_confirmed ? " · mit Passwort" : ""}
+                {entry.signature
+                  ? entry.signature.method === "typed"
+                    ? " · Unterschrift getippt"
+                    : " · mit Unterschrift"
+                  : ""}
               </p>
-              {!entry.integrity_ok && (
+              {(!entry.integrity_ok ||
+                entry.signature?.integrity_ok === false) && (
                 <p className="text-moto-red-strong mt-1 text-xs font-semibold">
                   Nachträglich verändert
                 </p>

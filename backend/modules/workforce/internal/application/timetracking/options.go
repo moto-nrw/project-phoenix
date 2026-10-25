@@ -25,6 +25,12 @@ func WithWorkSessionHolidays(reader HolidayDatesReader) WorkSessionOption {
 	return func(s *workSessionService) { s.holidayReader = reader }
 }
 
+// WithWorkSessionExternalCaregivers supplies the external-caregiver lookup
+// the auto-stamp skips (#4573).
+func WithWorkSessionExternalCaregivers(externals ExternalCaregiverStaff) WorkSessionOption {
+	return func(s *workSessionService) { s.externalCaregivers = externals }
+}
+
 // WithWorkSessionTargetOverrides re-prices the weekly Soll of Sonderarbeitszeit
 // weeks (#3259) in the history summaries.
 func WithWorkSessionTargetOverrides(overrides WeeklyTargetOverrides) WorkSessionOption {
@@ -93,12 +99,6 @@ func WithAbsenceMonthSnapshots(reader adjustmentFreezeReader) StaffAbsenceOption
 // Without it every delete path fails.
 func WithAbsenceDeletionAudit(audit TimeTrackingDeletionAudit) StaffAbsenceOption {
 	return func(s *staffAbsenceService) { s.deletionRepo = audit }
-}
-
-// WithAbsenceShiftPlanSyncer binds the #1843 sick cascade, which
-// NewStaffAbsenceService requires.
-func WithAbsenceShiftPlanSyncer(syncer ShiftPlanSyncer) StaffAbsenceOption {
-	return func(s *staffAbsenceService) { s.shiftPlanSyncer = syncer }
 }
 
 // WithAbsenceEvents binds the time-account change notification.

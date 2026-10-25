@@ -149,9 +149,14 @@ jobs:
           if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
             refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
           fi
-          # Full ancestry keeps merge-base and the immutable architecture
-          # evidence anchor intact. Unrelated refs and tags are not test inputs.
+          # Full ancestry keeps merge-base intact for the architecture
+          # comparisons. Unrelated refs and tags are not test inputs.
           git fetch --no-tags --unshallow origin "${refs[@]}"
+
+      - name: Setup Node.js for error-code generator fixtures
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
 
       - name: Setup Go
         id: go
@@ -186,6 +191,10 @@ jobs:
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
 
+      - name: Verify snapshot roles match migrations
+        if: matrix.shard == 0
+        run: node --test scripts/db-snapshot-roles.test.mjs
+
       - name: Restore migrated DB snapshot
         if: ${{ matrix.shard != 1 }}
         id: db-snapshot
@@ -205,11 +214,13 @@ jobs:
           PHOENIX_DEMO_PASSWORD: phoenix_demo_test
         run: |
           # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
-          # them exactly as migration 001014001_create_tenant_roles.go does,
+          # them exactly as the role migrations do (001014001_create_tenant_roles.go,
+          # 001015489_tenant_export_reader.go and later),
           # BEFORE restoring the dump — it contains GRANTs and RLS policies
           # referencing these roles. If a future migration adds a role, update
-          # this block too; drift fails loudly (ON_ERROR_STOP on the restore),
-          # never silently, because new migrations also change the cache key.
+          # this block too, including role memberships such as pg_read_all_data.
+          # A role the dump references fails the restore (ON_ERROR_STOP); a role
+          # used only through SET ROLE fails later, in the tests that need it.
           # Everything runs inside the postgres:17 service container: the
           # local socket is trust-auth and the runner's psql is v16, which
           # refuses a v17 server.
@@ -218,6 +229,11 @@ jobs:
           CREATE ROLE phoenix_demo LOGIN NOINHERIT PASSWORD '${PHOENIX_DEMO_PASSWORD}';
           CREATE ROLE phoenix_tenant NOLOGIN;
           CREATE ROLE phoenix_admin NOLOGIN BYPASSRLS;
+          CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
+          CREATE ROLE phoenix_school_erasure NOLOGIN NOINHERIT NOBYPASSRLS;
+          CREATE ROLE phoenix_billing_retention NOLOGIN NOINHERIT NOBYPASSRLS;
+          CREATE ROLE phoenix_tenant_export NOLOGIN BYPASSRLS;
+          GRANT pg_read_all_data TO phoenix_tenant_export;
           GRANT phoenix_tenant TO phoenix_auth;
           GRANT phoenix_admin TO phoenix_auth;
           ALTER ROLE phoenix_auth SET search_path TO public, platform;
@@ -495,8 +511,8 @@ jobs:
       # api/server.go refuses to build the server without it.
       METRICS_BEARER_TOKEN: ci-metrics-token
       # Device auth checks the school's security.ogs_device_pin setting, whose
-      # registry default is 1234, and uses this env var only when the setting
-      # resolves empty. The seeder writes its --pin into that setting. A PIN
+      # registry default is 1234. This is only the seeder input, never a runtime
+      # fallback. The seeder writes its --pin into that setting. A PIN
       # other than the default proves that write; with 1234 a missing write
       # stays green here and every RFID call on the public demo returns 401.
       OGS_DEVICE_PIN: "4711"

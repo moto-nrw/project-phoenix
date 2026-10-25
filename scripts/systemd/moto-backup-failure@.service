@@ -1,0 +1,6 @@
+[Unit]
+Description=moto daily backup failure journal event for Loki alerting
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/logger --tag moto-daily-backup -p daemon.err backup_result=failed step=systemd_failure

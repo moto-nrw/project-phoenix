@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -31,6 +32,7 @@ type completeMFAExchangeStub struct {
 	refresh string
 	err     error
 
+	issueCalls   int
 	gotAccountID int64
 	gotTenantID  int64
 	gotIP        string
@@ -44,6 +46,7 @@ func (s *completeMFAExchangeStub) IssueTokensForAuthenticatedAccount(
 	accountID, tenantID int64,
 	ipAddress, userAgent string,
 ) (string, string, error) {
+	s.issueCalls++
 	s.gotAccountID = accountID
 	s.gotTenantID = tenantID
 	s.gotIP = ipAddress
@@ -70,6 +73,15 @@ type trustedDeviceMFAStub struct {
 
 func (s *trustedDeviceMFAStub) VerifyMFAChallenge(_ context.Context, _, _ string) (identityaccess.VerifiedMFAChallenge, error) {
 	return s.verifyResult, s.verifyErr
+}
+
+func (s *trustedDeviceMFAStub) PrepareTrustedDevice(_ context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {
+	if errors.Is(s.issueErr, identityaccess.ErrMFAStatusUnavailable) {
+		return nil, s.issueErr
+	}
+	return func(ctx context.Context) (string, time.Time, error) {
+		return s.IssueTrustedDevice(ctx, accountID, tenantID, userAgent, ip)
+	}, nil
 }
 
 func (s *trustedDeviceMFAStub) IssueTrustedDevice(_ context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error) {
@@ -318,3 +330,41 @@ func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 
 // Ensure the embedded stub still satisfies identityaccess.AccountMFA.
 var _ identityaccess.AccountMFA = (*trustedDeviceMFAStub)(nil)
+
+func TestMFAVerify_RememberDeviceSettingsFailureDoesNotBreakLogin(t *testing.T) {
+	t.Parallel()
+	auth := &completeMFAExchangeStub{access: "private-access-token", refresh: "private-refresh-token"}
+	mfa := &trustedDeviceMFAStub{verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)}, issueErr: fmt.Errorf("private settings details: %w", identityaccess.ErrMFAStatusUnavailable)}
+	rs := &Resource{ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
+	rr := httptest.NewRecorder()
+	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{ChallengeToken: "challenge.tok", Code: "123456", RememberDevice: true}))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, 1, auth.issueCalls)
+	var tokens TokenResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &tokens))
+	assert.Equal(t, "private-access-token", tokens.AccessToken)
+	assert.Equal(t, "private-refresh-token", tokens.RefreshToken)
+	assert.NotContains(t, rr.Body.String(), "private settings details")
+	assert.Zero(t, mfa.gotIssueAccountID, "unreadable policy must never reach device issuance")
+	assert.Empty(t, rr.Result().Cookies())
+}
+
+func TestMFAVerify_SessionFailureDoesNotExposeTrustedCookie(t *testing.T) {
+	t.Parallel()
+	auth := &completeMFAExchangeStub{err: errors.New("session store unavailable")}
+	mfa := &trustedDeviceMFAStub{
+		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 4242, TenantID: 70010001},
+		issueCookie:  "private-trusted-cookie", issueExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+	rs := &Resource{ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
+	rr := httptest.NewRecorder()
+	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{ChallengeToken: "challenge.tok", Code: "123456", RememberDevice: true}))
+	require.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
+	assert.Empty(t, rr.Result().Cookies())
+	assert.NotContains(t, rr.Body.String(), "private-trusted-cookie")
+	assert.Zero(t, mfa.gotIssueAccountID, "failed sessions must not persist a device or send its notification")
+}
+
+func (s *completeMFAExchangeStub) IssueTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (string, string, error) {
+	return s.IssueTokensForAuthenticatedAccount(ctx, proof.AccountID, proof.TenantID, ipAddress, userAgent)
+}

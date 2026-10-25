@@ -15,19 +15,22 @@ import (
 // `migrate reset` + `seed` + `simulate full-day`, so it skips by default and
 // is driven by the seed-smoke CI job:
 //
-//	SEED_COVERAGE_DSN=postgres://... go test ./seed/api/ -run TestSeedCoverageRatchet
+//	SEED_COVERAGE_DSN=postgres://... go test -tags=testhooks ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet
 //
 // The rules, mirroring the other ratchets in backend/test:
 //
-//   - A table that ends up EMPTY must be listed in seedCoverageAllowlist with a
-//     reason. A new table without seed coverage fails the build.
-//   - An allowlisted table that now HAS rows fails too: remove the entry. The
-//     ratchet only turns one way, the list may never grow silently.
+//   - An intentionally EMPTY table needs a reason in seedCoverageExemptions or
+//     seedCoverageTransient, according to its lifecycle. seedCoverageDebt must
+//     stay empty; seedCoverageAllowlist only merges these three registers.
+//     A new table without seed coverage or a valid classification fails.
+//   - An exempted table that now HAS rows fails too: remove the exemption.
+//     Transient tables may hold rows. The classifications may not grow silently.
 //
 // Intentional exemptions are durable semantics, not coverage debt. They are
 // limited to security/session artifacts, one-time migration backups, legacy
 // compatibility tables, and transient lifecycle state.
 var seedCoverageExemptions = map[string]string{
+	"platform.school_erasures": "real administrative erasure orders only (#3837); a demo seed must never fabricate customer erasure evidence",
 	// active.presence_backfill_checkpoints carries no exemption any more: the
 	// cutover #2762 writes the switch's own verdict into the checkpoint of
 	// every school it finds, and migration 1.14.002 always leaves the default
@@ -44,6 +47,14 @@ var seedCoverageExemptions = map[string]string{
 	// seeded stack finds them filled and they carry no exemption any more.
 	// Current owner commands no longer write the rollback archive. Keep it
 	// empty on fresh seeds; filling it would restore retired Guardian copies.
+	// Morning attendance (#4790) is written only by a Lehrkraft through moto
+	// schule for today; the seeder signs in no Lehrkraft and assigns no class
+	// (education.class_teachers below), so nothing it does can write a mark.
+	"active.morning_attendance": "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
+	// The class handover (#4794) is written the same way: only a Lehrkraft
+	// through moto schule, for today and an assigned class.
+	"active.class_handovers":               "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
+	"active.class_handover_children":       "not in prod yet (migration newer than the deployed image); written only with active.class_handovers",
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",
@@ -63,8 +74,6 @@ var seedCoverageExemptions = map[string]string{
 	"auth.caterer_invitations":                  "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
 	"auth.caterer_schools":                      "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
 	"auth.caterers":                             "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
-	"auth.mfa_credentials":                      "empty in prod too",
-	"auth.mfa_email_challenges":                 "empty in prod too",
 	"auth.mfa_overrides":                        "empty in prod too",
 	"auth.mfa_trusted_devices":                  "empty in prod too",
 	"auth.passkey_credentials":                  "empty in prod too",
@@ -86,6 +95,7 @@ var seedCoverageExemptions = map[string]string{
 	"education.grade_transition_class_teachers":     "empty in prod too",
 
 	"enrollment.care_offering_auto_triggers": "empty in prod too",
+	"enrollment.request_upload_cleanup":      "holds the file removal of a deleted parent upload (#4783); the seed deletes no upload",
 
 	"feedback.entries": "empty in prod too",
 
@@ -104,7 +114,6 @@ var seedCoverageExemptions = map[string]string{
 	"platform.operator_passkey_sessions":    "short-lived WebAuthn challenge state; fake challenges would be invalid",
 
 	"schedule.dateframes":                       "empty in prod too",
-	"schedule.meal_caterer_supplies":            "a caterer exists only through the link its school mails to it, which no API returns (ADR 0077); the seeder cannot accept an invitation it never receives",
 	"schedule.grade_transition_roster_removals": "empty in prod too",
 	"schedule.recurrence_rules":                 "empty in prod too",
 	"schedule.staff_shift_series_exceptions":    "empty in prod too",
@@ -135,8 +144,9 @@ var seedCoverageDebt = map[string]string{}
 // their lifecycle completes. Unlike exemptions, a populated transient table
 // is not stale classification debt.
 var seedCoverageTransient = map[string]string{
-	"auth.invitation_tokens": "short-lived invitation state; successful acceptance consumes the seeded tokens",
-	"platform.push_outbox":   "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
+	"auth.account_avatar_file_cleanup": "transient deletion intents for anonymized accounts; drained hourly, never create orphan files as demo data",
+	"auth.invitation_tokens":           "short-lived invitation state; the seed accepts some and leaves some open",
+	"platform.push_outbox":             "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 }
 
 var seedCoverageAllowlist = mergeCoverageClassifications(seedCoverageExemptions, seedCoverageTransient, seedCoverageDebt)
@@ -241,9 +251,9 @@ func TestSeedCoverageRatchet(t *testing.T) {
 
 	if len(uncovered) > 0 {
 		t.Errorf("%d table(s) hold no seeded data and are not allowlisted:\n  %s\n\n"+
-			"Fix: teach the seeder (backend/seed/api) or the simulator (backend/simulate) to\n"+
+			"Fix: teach the seeder (backend/internal/devtools/seedapi) or the simulator (backend/internal/devtools/simulate) to\n"+
 			"produce this data. Only if that is genuinely impossible, add the table to\n"+
-			"seedCoverageAllowlist with a reason.",
+			"seedCoverageExemptions or seedCoverageTransient with a reason matching its lifecycle; seedCoverageDebt must stay empty.",
 			len(uncovered), strings.Join(uncovered, "\n  "))
 	}
 	if len(stale) > 0 {

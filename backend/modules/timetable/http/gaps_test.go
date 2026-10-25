@@ -43,7 +43,7 @@ func buildGapsSetup(t *testing.T) *gapsSetup {
 	}
 
 	clock := func() time.Time { return calendar.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour) }
-	res := NewResource(Dependencies{
+	res := newResourceForTest(Dependencies{
 		TimetableData: testTimetableData(db, clock).TimetableData(),
 		Now:           clock,
 	})

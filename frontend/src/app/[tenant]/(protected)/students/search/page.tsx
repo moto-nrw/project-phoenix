@@ -1,6 +1,11 @@
 "use client";
 
 import {
+  HANDOVER_ABSENT_WORDING,
+  handoverDetail,
+  handoverLine,
+} from "~/lib/class-handover";
+import {
   Suspense,
   useCallback,
   useEffect,
@@ -9,7 +14,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { CalendarRange, Download, Search } from "lucide-react";
+import { CalendarRange, Download, FileText, Search } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -104,6 +109,13 @@ import { useBulkCheckinActions } from "~/components/students/use-bulk-checkin-ac
 import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
+import { canCheckInChildren, canExportStudents } from "~/lib/student-access";
+import { useParentAnnouncementsAvailable } from "~/lib/hooks/use-parent-announcements-available";
+import {
+  announcementPrefillPath,
+  stashAnnouncementStudents,
+} from "~/lib/announcement-prefill";
+import { KIND_PARAM } from "~/components/announcements/announcement-meta";
 import { SchoolCheckinSelectionBar } from "~/components/students/school-checkin-selection-bar";
 import {
   checkoutConfirmationRoom,
@@ -111,7 +123,10 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
-import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import {
+  useAttendanceWebEnabled,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
 import { useSWRAuth, useImmutableSWR } from "~/lib/swr";
 import { SEARCH_ROOMS_LIST_CACHE_KEY } from "~/lib/swr/room-derived-caches";
 import {
@@ -1387,7 +1402,9 @@ function SearchPageContent() {
   // wrappers (mobile spacing, the grid's bottom padding) out of the tree when
   // the school has web attendance switched off.
   const attendanceWebEnabled = useAttendanceWebEnabled();
-  const checkinModeAvailable = isToday && attendanceWebEnabled;
+  // Ohne users:checkin (etwa als Gast, ADR 0091) scheiterte jeder Tipp.
+  const checkinModeAvailable =
+    isToday && attendanceWebEnabled && canCheckInChildren(session);
   const schoolCheckin = useSchoolCheckinMode();
   // A checkout well before today's pickup time asks for an optional reason
   // (#3324); every other checkout keeps its current behaviour.
@@ -1514,6 +1531,7 @@ function SearchPageContent() {
   const {
     data: studentsData,
     isLoading: isSearching,
+    isValidating: isSearchResultValidating,
     error: studentsError,
     mutate: mutateStudents,
   } = useSWRAuth<{
@@ -2850,6 +2868,25 @@ function SearchPageContent() {
     [filteredStudents, schoolCheckin.selectedIds],
   );
 
+  // „Elternbrief schreiben" (#4779): übernimmt die gefilterte Liste als
+  // einzelne Kinder in den Verfasser. Die Auswahl ist ein Schnappschuss dieses
+  // Moments, kein mitlaufender Filter; ändert sich später ein Merkmal, bleibt
+  // der Brief bei diesen Kindern. Namen reisen über die Ablage, nie in der URL.
+  const parentAnnouncementsAvailable = useParentAnnouncementsAvailable();
+  const tenantSlug = useTenantSlugSafe();
+  const writeParentLetter = () => {
+    const token = tenantSlug
+      ? stashAnnouncementStudents(
+          tenantSlug,
+          filteredStudents.map((student) => ({
+            id: student.id.toString(),
+            name: student.name,
+          })),
+        )
+      : null;
+    router.push(announcementPrefillPath(token, KIND_PARAM.letter));
+  };
+
   const bulkCheckin = useBulkCheckinActions(
     schoolCheckin,
     selectedStudentsForBulk,
@@ -3081,12 +3118,37 @@ function SearchPageContent() {
                     icon: <CalendarRange className="h-4 w-4" aria-hidden />,
                     onClick: () => router.push("/absences"),
                   },
-                  {
-                    label: "Exportieren",
-                    icon: <Download className="h-4 w-4" aria-hidden />,
-                    onClick: () => setIsExportOpen(true),
-                    badge: rowsLoaded ? filteredStudents.length : undefined,
-                  },
+                  // Der Export verlangt users:read; der Gast hat es nicht.
+                  ...(canExportStudents(session)
+                    ? [
+                        {
+                          label: "Exportieren",
+                          icon: <Download className="h-4 w-4" aria-hidden />,
+                          onClick: () => setIsExportOpen(true),
+                          badge: rowsLoaded
+                            ? filteredStudents.length
+                            : undefined,
+                        },
+                      ]
+                    : []),
+                  // Nur mit vollständig geladenen, sichtbaren Kindern: ein
+                  // Brief an eine abgeschnittene Liste würde Empfänger
+                  // auslassen.
+                  ...(parentAnnouncementsAvailable &&
+                  rowsLoaded &&
+                  !isSearchResultValidating &&
+                  !hasLoadError &&
+                  truncatedTotal === null &&
+                  filteredStudents.length > 0
+                    ? [
+                        {
+                          label: "Elternbrief schreiben",
+                          icon: <FileText className="h-4 w-4" aria-hidden />,
+                          onClick: writeParentLetter,
+                          badge: filteredStudents.length,
+                        },
+                      ]
+                    : []),
                   // Die Spaltenwahl der Liste (#3834) steht hier und nicht
                   // als eigener Knopf neben dem Umschalter.
                   ...(showTable && !isPhone
@@ -3243,6 +3305,7 @@ function SearchPageContent() {
               <StudentExportModal
                 isOpen={isExportOpen}
                 filters={exportFilters}
+                appliedFilters={activeFilters.map((filter) => filter.label)}
                 resultCount={filteredStudents.length}
                 onClose={() => setIsExportOpen(false)}
               />
@@ -3549,6 +3612,18 @@ function SearchPageContent() {
                                 note={student.pending_excused_note}
                               />
                             )}
+                          {student.has_full_access !== false &&
+                            student.class_handover &&
+                            (student.class_handover.absent ? (
+                              <StudentAbsenceRow
+                                wording={HANDOVER_ABSENT_WORDING}
+                                label={handoverDetail(student.class_handover)}
+                              />
+                            ) : (
+                              <StudentInfoRow icon={<SchoolClassIcon />}>
+                                {handoverLine(student.class_handover)}
+                              </StudentInfoRow>
+                            ))}
                           {student.has_full_access !== false &&
                             (() => {
                               const absence = getStudentAbsence({

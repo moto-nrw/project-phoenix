@@ -2,6 +2,7 @@
 // Type definitions and helper functions for substitutions
 
 import { toISODate } from "~/lib/date-helpers";
+import type { ExternalAccountStatus } from "~/lib/staff-api";
 
 export interface BackendGroupHandover {
   id: string;
@@ -20,8 +21,24 @@ export interface BackendSubstitutionOverview {
   group_handovers: BackendGroupHandover[];
   targets: Array<{ id: string; full_name: string }>;
   schedule_appointments?: BackendScheduleAppointment[];
-  schedule_targets?: Array<{ id: string; full_name: string }>;
+  // is_external marks an external caregiver (#4573): markable absent, never
+  // offered as substitute.
+  schedule_targets?: Array<{
+    id: string;
+    full_name: string;
+    is_external?: boolean;
+  }>;
   running_supervisions: BackendRunningSupervision[];
+}
+
+/** One person of a running supervision; externals carry their account state. */
+interface BackendSupervisionStaffRef {
+  id: string;
+  full_name: string;
+  is_external?: boolean;
+  /** Organisation der externen Kraft; fehlt, wenn leer (#4573). */
+  external_organization?: string;
+  external_account_status?: ExternalAccountStatus;
 }
 
 interface BackendRunningSupervision {
@@ -29,16 +46,8 @@ interface BackendRunningSupervision {
   type: "additional_supervision";
   name: string;
   room_name?: string;
-  supervisors: Array<{
-    id: string;
-    full_name: string;
-    is_external?: boolean;
-  }>;
-  available_targets: Array<{
-    id: string;
-    full_name: string;
-    is_external?: boolean;
-  }>;
+  supervisors: BackendSupervisionStaffRef[];
+  available_targets: BackendSupervisionStaffRef[];
   is_current_user_supervising: boolean;
   can_assign: boolean;
 }
@@ -49,17 +58,26 @@ export interface BackendAdditionalSupervisionResult {
   target: { id: string; full_name: string };
 }
 
+interface SupervisionStaffRef {
+  id: string;
+  fullName: string;
+  isExternal?: true;
+  /** Organisation der externen Kraft (#4573); fehlt, wenn leer. */
+  externalOrganization?: string;
+  /** Kontostand der externen Kraft (#4573); fehlt bei allen anderen. */
+  externalAccountStatus?: ExternalAccountStatus;
+}
+
 export interface RunningSupervision {
   id: string;
   name: string;
   roomName?: string;
-  supervisors: Array<{
-    id: string;
-    fullName: string;
-    isExternal?: true;
-  }>;
-  /** isExternal: externe Kraft ohne moto-Konto (#3823). */
-  availableTargets: Array<{ id: string; fullName: string; isExternal?: true }>;
+  supervisors: SupervisionStaffRef[];
+  /**
+   * isExternal: externe Kraft (#3823), mit jedem Zugang einteilbar
+   * (ADR 0091). Vertretungen bieten keine Externen an.
+   */
+  availableTargets: SupervisionStaffRef[];
   isCurrentUserSupervising: boolean;
   canAssign: boolean;
 }
@@ -105,7 +123,7 @@ export interface ScheduleSubstitutionOverview {
       canEnd: boolean;
     }>;
   }>;
-  staff: Array<{ id: string; name: string }>;
+  staff: Array<{ id: string; name: string; isExternal: boolean }>;
 }
 
 export interface SubstitutionProxyEnvelope<T> {
@@ -172,6 +190,22 @@ export function mapSubstitutionsResponse(
   return backendSubstitutions.map(mapSubstitutionResponse);
 }
 
+function mapSupervisionStaffRef(
+  staff: BackendSupervisionStaffRef,
+): SupervisionStaffRef {
+  return {
+    id: staff.id.toString(),
+    fullName: staff.full_name,
+    ...(staff.is_external ? { isExternal: true as const } : {}),
+    ...(staff.is_external && staff.external_organization
+      ? { externalOrganization: staff.external_organization }
+      : {}),
+    ...(staff.is_external && staff.external_account_status
+      ? { externalAccountStatus: staff.external_account_status }
+      : {}),
+  };
+}
+
 export function mapRunningSupervision(
   backend: BackendRunningSupervision,
 ): RunningSupervision {
@@ -179,16 +213,8 @@ export function mapRunningSupervision(
     id: backend.id.toString(),
     name: backend.name,
     roomName: backend.room_name,
-    supervisors: backend.supervisors.map((staff) => ({
-      id: staff.id.toString(),
-      fullName: staff.full_name,
-      ...(staff.is_external ? { isExternal: true as const } : {}),
-    })),
-    availableTargets: backend.available_targets.map((staff) => ({
-      id: staff.id.toString(),
-      fullName: staff.full_name,
-      ...(staff.is_external ? { isExternal: true as const } : {}),
-    })),
+    supervisors: backend.supervisors.map(mapSupervisionStaffRef),
+    availableTargets: backend.available_targets.map(mapSupervisionStaffRef),
     isCurrentUserSupervising: backend.is_current_user_supervising,
     canAssign: backend.can_assign,
   };
@@ -243,6 +269,7 @@ export function mapScheduleSubstitutionOverview(
     staff: (backend.schedule_targets ?? []).map((member) => ({
       id: String(member.id),
       name: member.full_name,
+      isExternal: member.is_external === true,
     })),
   };
 }

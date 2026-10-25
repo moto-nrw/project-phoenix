@@ -6,11 +6,22 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
+// OwnAbsenceWrites are the staff member's absence writes that may cascade a
+// sick report into Dienstplan and Betreuungsplan (#1843). The root binds the
+// shift-plan-sync workflow's entry, which runs Workforce's write and the
+// cascade in one tenant transaction (#4825).
+type OwnAbsenceWrites interface {
+	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
+	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
+	DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error
+}
+
 // Resource defines the time-tracking API resource: the staff member's own
 // stamps, history, absences and planning views under /api/time-tracking.
 type Resource struct {
 	WorkSessionService  workforce.OwnWorkSessions
 	StaffAbsenceService workforce.OwnAbsences
+	AbsenceWrites       OwnAbsenceWrites
 	PersonService       workforce.StaffDirectory
 	StaffShiftService   workforce.OwnShiftQuery
 	// StaffAssignmentService backs GET /assignments — the staff member's own
@@ -33,6 +44,7 @@ type Resource struct {
 type Dependencies struct {
 	WorkSessions  workforce.OwnWorkSessions
 	StaffAbsences workforce.OwnAbsences
+	AbsenceWrites OwnAbsenceWrites
 	Staff         workforce.StaffDirectory
 	WorkTimeMonth workforce.WorkTimeMonths
 	StaffShifts   workforce.OwnShiftQuery
@@ -51,12 +63,13 @@ func NewResource(deps Dependencies) *Resource {
 	if deps.StaffShifts != nil && deps.ShiftResponses == nil {
 		panic("time tracking resource: shift responses are required with staff shifts")
 	}
-	if deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.Staff == nil || deps.Identity == nil || deps.WithinTenant == nil {
-		panic("time tracking resource: work sessions, absences, staff directory, identity and tenant runtime are required")
+	if deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.AbsenceWrites == nil || deps.Staff == nil || deps.Identity == nil || deps.WithinTenant == nil {
+		panic("time tracking resource: work sessions, absences, absence writes, staff directory, identity and tenant runtime are required")
 	}
 	return &Resource{
 		WorkSessionService:     deps.WorkSessions,
 		StaffAbsenceService:    deps.StaffAbsences,
+		AbsenceWrites:          deps.AbsenceWrites,
 		PersonService:          deps.Staff,
 		StaffShiftService:      deps.StaffShifts,
 		StaffAssignmentService: deps.Assignments,

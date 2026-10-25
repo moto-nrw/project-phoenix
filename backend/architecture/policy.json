@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 91,
+  "policy_epoch": 94,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -279,6 +279,10 @@
     },
     {
       "id": "care-exit",
+      "kind": "workflow"
+    },
+    {
+      "id": "external-caregiver",
       "kind": "workflow"
     },
     {
@@ -1039,6 +1043,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/organizationtenancy/erasureledger",
+      "owner": "organization-tenancy",
+      "role": "public",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/organizationtenancy/internal/adapters/postgres",
       "owner": "organization-tenancy",
       "role": "postgres",
@@ -1107,6 +1118,13 @@
       "role": "application",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "internal/passthrough",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
     },
     {
       "path": "internal/careplanning",
@@ -3167,6 +3185,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "workflows/externalcaregiver",
+      "owner": "external-caregiver",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/guardianlinkview/internal/adapters/postgres",
       "owner": "guardian-link-view",
       "role": "postgres",
@@ -3669,9 +3694,24 @@
       "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/organizationtenancy/internal/adapters/tenantexport",
+      "owner": "organization-tenancy",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
+    {
+      "name": "platform.live_billing_key_date_counts",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.school_erasures",
+      "write_owner": "organization-tenancy"
+    },
     {
       "name": "platform.demo_school_states",
       "write_owner": "organization-tenancy"
@@ -3709,6 +3749,14 @@
       "write_owner": "student-presence"
     },
     {
+      "name": "active.class_handover_children",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.class_handovers",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.combined_groups",
       "write_owner": "student-presence"
     },
@@ -3730,6 +3778,10 @@
     },
     {
       "name": "active.groups",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.morning_attendance",
       "write_owner": "student-presence"
     },
     {
@@ -3869,6 +3921,10 @@
       "write_owner": "audit-platform"
     },
     {
+      "name": "audit.signatures",
+      "write_owner": "audit-platform"
+    },
+    {
       "name": "audit.guardian_financial_change_ledger",
       "write_owner": "audit-platform"
     },
@@ -3922,6 +3978,10 @@
     },
     {
       "name": "auth.account_tenants",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.account_avatar_file_cleanup",
       "write_owner": "identity-access"
     },
     {
@@ -4201,6 +4261,14 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.request_upload_cleanup",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_uploads",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.requests",
       "write_owner": "enrollment"
     },
@@ -4357,7 +4425,7 @@
       "write_owner": "meal-plan"
     },
     {
-      "name": "schedule.meal_caterer_supplies",
+      "name": "schedule.meal_order_change_counters",
       "write_owner": "meal-plan"
     },
     {
@@ -4465,16 +4533,16 @@
       "write_owner": "school-membership"
     },
     {
+      "name": "users.external_caregivers",
+      "write_owner": "school-membership"
+    },
+    {
       "name": "users.guardian_phone_numbers",
       "write_owner": "people-directory"
     },
     {
       "name": "users.guardian_profiles",
       "write_owner": "people-directory"
-    },
-    {
-      "name": "users.guests",
-      "write_owner": "school-membership"
     },
     {
       "name": "users.notification_preferences",
@@ -4506,6 +4574,22 @@
     },
     {
       "name": "users.parent_announcements",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_message_recipients",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_messages",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_thread_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_threads",
       "write_owner": "communication"
     },
     {
@@ -4918,6 +5002,229 @@
         "users.student_school_memberships"
       ],
       "tenant_safe": true
+    },
+    {
+      "id": "organization-tenancy.tenant-data-lifecycle",
+      "package": "modules/organizationtenancy/internal/adapters/tenantexport",
+      "data_objects": [
+        "active.activity_session_attendance",
+        "active.activity_sessions",
+        "active.attendance",
+        "active.combined_groups",
+        "active.excused_absence_requests",
+        "active.group_mappings",
+        "active.group_supervisors",
+        "active.groups",
+        "active.scheduled_checkouts",
+        "active.staff_absence_audit",
+        "active.staff_absence_type_allowance_changes",
+        "active.staff_absence_type_allowances",
+        "active.staff_absence_types",
+        "active.staff_absences",
+        "active.staff_balance_adjustments",
+        "active.staff_month_balance_snapshots",
+        "active.staff_vacation_openings",
+        "active.staff_vacation_quota",
+        "active.staff_vacation_quota_changes",
+        "active.student_status_days",
+        "active.visits",
+        "active.work_session_breaks",
+        "active.work_sessions",
+        "activities.categories",
+        "activities.group_targets",
+        "activities.groups",
+        "activities.schedules",
+        "activities.student_enrollments",
+        "activities.supervisors",
+        "audit.attendance_corrections",
+        "audit.auth_events",
+        "audit.class_list_entry_changes",
+        "audit.data_access_log",
+        "audit.data_deletions",
+        "audit.data_imports",
+        "audit.deviation_events",
+        "audit.enrollment_deletions",
+        "audit.enrollment_offering_adjustments",
+        "audit.enrollment_restorations",
+        "audit.export_transfers",
+        "audit.guardian_changes",
+        "audit.personnel_number_changes",
+        "audit.staff_master_data_changes",
+        "audit.student_consent_changes",
+        "audit.student_deletions",
+        "audit.student_field_edits",
+        "audit.substitution_changes",
+        "audit.time_tracking_deletions",
+        "audit.unregistered_tag_scans",
+        "audit.work_session_edits",
+        "auth.account_permissions",
+        "auth.account_roles",
+        "auth.account_tenants",
+        "auth.accounts",
+        "auth.guardian_invitations",
+        "auth.guardian_student_access",
+        "auth.invitation_tokens",
+        "auth.mfa_credentials",
+        "auth.mfa_email_challenges",
+        "auth.mfa_overrides",
+        "auth.mfa_trusted_devices",
+        "auth.parent_declaration_permission_grants",
+        "auth.passkey_credentials",
+        "auth.password_reset_rate_limits",
+        "auth.password_reset_tokens",
+        "auth.role_permissions",
+        "auth.roles",
+        "auth.tokens",
+        "calendar.appointment_occurrence_overrides",
+        "calendar.appointment_recipient_students",
+        "calendar.appointment_recipients",
+        "calendar.appointment_reminder_push_deliveries",
+        "calendar.appointment_targets",
+        "calendar.appointments",
+        "calendar.recurrence_rules",
+        "calendar.staff_feed_tombstones",
+        "config.home_block_policies",
+        "config.home_layouts",
+        "config.school_setup_dismissals",
+        "config.school_setups",
+        "config.setting_audit",
+        "config.setting_values",
+        "config.staff_onboardings",
+        "config.staff_target_overrides",
+        "config.staff_work_schedules",
+        "config.work_time_model_entries",
+        "config.work_time_models",
+        "display.displays",
+        "documents.announcement_attachment_cleanup",
+        "documents.announcement_attachments",
+        "documents.file_cleanup",
+        "documents.files",
+        "documents.folder_accounts",
+        "documents.folder_roles",
+        "documents.folders",
+        "education.class_arrival_exceptions",
+        "education.class_arrival_times",
+        "education.class_teachers",
+        "education.grade_transition_class_list_entries",
+        "education.grade_transition_class_teachers",
+        "education.grade_transition_history",
+        "education.grade_transition_mappings",
+        "education.grade_transitions",
+        "education.group_substitution",
+        "education.group_teacher",
+        "education.groups",
+        "enrollment.care_offering_auto_triggers",
+        "enrollment.care_offering_bookings",
+        "enrollment.care_offerings",
+        "enrollment.change_request_messages",
+        "enrollment.change_requests",
+        "enrollment.form_schemas",
+        "enrollment.late_invites",
+        "enrollment.offering_change_requests",
+        "enrollment.phases",
+        "enrollment.request_child_offering_selections",
+        "enrollment.request_child_storage_backfill_checkpoints",
+        "enrollment.request_children",
+        "enrollment.request_guardians",
+        "enrollment.request_reads",
+        "enrollment.requests",
+        "enrollment.submission_rate_limits",
+        "facilities.rooms",
+        "feedback.entries",
+        "iot.devices",
+        "iot.push_subscriptions",
+        "iot.pwa_standalone_usage",
+        "platform.announcement_views",
+        "platform.email_outbox",
+        "platform.organizations",
+        "platform.push_outbox",
+        "platform.schools",
+        "platform.storage_backfill_checkpoints",
+        "schedule.activity_exceptions",
+        "schedule.activity_instances",
+        "schedule.calendar_periods",
+        "schedule.care_schedule_change_requests",
+        "schedule.closing_days",
+        "schedule.dateframes",
+        "schedule.grade_transition_roster_removals",
+        "schedule.instance_staff",
+        "schedule.instance_students",
+        "schedule.meal_participation_overrides",
+        "schedule.meal_participation_schedules",
+        "schedule.meal_plan_entries",
+        "schedule.meal_sickness_status_history",
+        "schedule.pickup_extension_tasks",
+        "schedule.planning_tracks",
+        "schedule.recurrence_rules",
+        "schedule.shift_types",
+        "schedule.staff_shift_series",
+        "schedule.staff_shift_series_exceptions",
+        "schedule.staff_shifts",
+        "schedule.student_arrival_exceptions",
+        "schedule.student_arrival_notes",
+        "schedule.student_arrival_schedules",
+        "schedule.student_departure_exceptions",
+        "schedule.student_pickup_exceptions",
+        "schedule.student_pickup_notes",
+        "schedule.student_pickup_schedules",
+        "schedule.timeframes",
+        "schedule.timetable_conflict_acks",
+        "users.care_withdrawal_completions",
+        "users.class_list_entries",
+        "users.external_caregivers",
+        "users.guardian_financial_data",
+        "users.guardian_phone_numbers",
+        "users.guardian_profiles",
+        "users.notification_preferences",
+        "users.parent_announcement_declaration_submissions",
+        "users.parent_announcement_declaration_versions",
+        "users.parent_announcement_options",
+        "users.parent_announcement_reads",
+        "users.parent_announcement_responses",
+        "users.parent_announcement_targets",
+        "users.parent_announcements",
+        "users.parent_message_count_preferences",
+        "users.parent_message_reads",
+        "users.parent_message_threads",
+        "users.parent_messages",
+        "users.parent_request_events",
+        "users.parent_request_rss_feeds",
+        "users.parent_request_share_events",
+        "users.persons",
+        "users.privacy_consents",
+        "users.profiles",
+        "users.rfid_cards",
+        "users.staff_document_file_cleanup",
+        "users.staff_documents",
+        "users.staff_employment_profiles",
+        "users.staff_financial_data",
+        "users.staff_master_data",
+        "users.staff_message_participants",
+        "users.staff_message_reads",
+        "users.staff_message_threads",
+        "users.staff_messages",
+        "users.staff_notice_acks",
+        "users.staff_notices",
+        "users.staff_offboarding_cleanup",
+        "users.staff_qualifications",
+        "users.staff_school_memberships",
+        "users.student_care_exit_removals",
+        "users.student_care_exit_source_removals",
+        "users.student_care_exits",
+        "users.student_care_profiles",
+        "users.student_companions",
+        "users.student_data_change_requests",
+        "users.student_document_file_cleanup",
+        "users.student_documents",
+        "users.student_family_protection_events",
+        "users.student_guardian_pickup_permissions",
+        "users.student_guardian_relationships",
+        "users.student_notes",
+        "users.student_profiles",
+        "users.student_school_memberships",
+        "users.teachers"
+      ],
+      "tenant_safe": true
     }
   ],
   "legacy_composition": [],
@@ -5202,7 +5509,15 @@
       "class": "standard"
     },
     {
+      "path": "go/build/constraint",
+      "class": "standard"
+    },
+    {
       "path": "go/constant",
+      "class": "standard"
+    },
+    {
+      "path": "go/format",
       "class": "standard"
     },
     {
@@ -8230,17 +8545,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "organization-tenancy.compose.tenant-runtime",
-      "description": "Organization and Tenancy composition binds the shared tenant transaction runtime.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
       "id": "organization-tenancy.internal-test.tenant-runtime",
       "description": "Organization and Tenancy composition tests verify transaction and lock behavior through the shared tenant runtime.",
       "scopes": [
@@ -10566,17 +10870,6 @@
       "target_role": "public"
     },
     {
-      "id": "staff-offboarding.compose.offboarding.workforce.public",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "people-directory.contracttest.staff-offboarding.public",
       "description": "The People Directory contract suite wires the staff lifecycle owner workflow required by #2709 (moved from services/users with #3755).",
       "scopes": [
@@ -12319,6 +12612,39 @@
       "source_owner": "care-exit",
       "source_role": "public",
       "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "external-caregiver.public.people-directory.public",
+      "description": "External Caregiver creates the person of an external caregiver and reads it through the People Directory public contract (#4573).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "external-caregiver",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "external-caregiver.public.school-membership.public",
+      "description": "External Caregiver records the staff member with its caregiver profile and external caregiver record through the School Membership public contract (#4573).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "external-caregiver",
+      "source_role": "public",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "external-caregiver.public.identity-access.public",
+      "description": "External Caregiver resolves the system role of the chosen access level and issues and revokes account invitations through the Identity & Access public contract (#4573, ADR 0091).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "external-caregiver",
+      "source_role": "public",
+      "target_owner": "identity-access",
       "target_role": "public"
     },
     {
@@ -15041,19 +15367,6 @@
       "target_package": "modules/staffannouncementaudience/contract"
     },
     {
-      "id": "communication.compose.staff-audience.native-public",
-      "description": "Native projection values replace the private constructor boundary; bindings are supplied by the root.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "source_package": "modules/communication/composition",
-      "target_owner": "staff-announcement-audience",
-      "target_role": "public",
-      "target_package": "modules/staffannouncementaudience/contract"
-    },
-    {
       "id": "care-plan.contracttest.enrollment-offering-contract",
       "description": "Native availability and offering values replace the retired legacy-model test boundary.",
       "scopes": [
@@ -15214,32 +15527,6 @@
       "source_owner": "presence-legacy-view",
       "source_role": "postgres",
       "source_package": "modules/presenceprojection/internal/adapters/postgres",
-      "target_owner": "presence-legacy-view",
-      "target_role": "public",
-      "target_package": "modules/presenceprojection/presencecontract"
-    },
-    {
-      "id": "timetable-activities.application.native-presence-projection",
-      "description": "Native read values and the consumer-owned port replace the retained composition import.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "application",
-      "source_package": "modules/timetable/internal/application",
-      "target_owner": "presence-legacy-view",
-      "target_role": "public",
-      "target_package": "modules/presenceprojection/presencecontract"
-    },
-    {
-      "id": "timetable-activities.port.native-presence-projection",
-      "description": "Native read values and the consumer-owned port replace the retained composition import.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "port",
-      "source_package": "modules/timetable/ports",
       "target_owner": "presence-legacy-view",
       "target_role": "public",
       "target_package": "modules/presenceprojection/presencecontract"

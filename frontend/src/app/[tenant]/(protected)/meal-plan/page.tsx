@@ -52,6 +52,16 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { MealParticipantList } from "~/components/meal-plan/meal-participant-list";
 import { MealCaterer } from "~/components/meal-plan/meal-caterer";
 import { MealOrderWeek } from "~/components/meal-plan/meal-order-week";
+import {
+  MealAllergenLegend,
+  MealAllergenMarks,
+  MealAllergenSelect,
+} from "~/components/meal-plan/meal-allergens";
+import {
+  normalizeMealAllergens,
+  usedMealAllergens,
+  type MealAllergen,
+} from "~/lib/meal-allergens";
 
 const logger = createLogger({ component: "MealPlanPage" });
 
@@ -67,10 +77,20 @@ interface DishDraft {
   clientId?: string;
   dish: string;
   note: string;
+  allergens: MealAllergen[];
 }
 
-function createDishDraft(dish = "", note = ""): DishDraft {
-  return { clientId: crypto.randomUUID(), dish, note };
+function createDishDraft(
+  dish = "",
+  note = "",
+  allergens: readonly MealAllergen[] = [],
+): DishDraft {
+  return {
+    clientId: crypto.randomUUID(),
+    dish,
+    note,
+    allergens: [...allergens],
+  };
 }
 
 function weekdayLabel(iso: string): string {
@@ -98,7 +118,11 @@ function shortDateWithYear(iso: string): string {
 // Normalised, comparable form of a day: blank dishes dropped, fields trimmed.
 function normalizeDay(rows: DishDraft[]): DishDraft[] {
   return rows
-    .map((r) => ({ dish: r.dish.trim(), note: r.note.trim() }))
+    .map((r) => ({
+      dish: r.dish.trim(),
+      note: r.note.trim(),
+      allergens: normalizeMealAllergens(r.allergens),
+    }))
     .filter((r) => r.dish !== "");
 }
 
@@ -115,7 +139,7 @@ function draftsFromEntries(
   const byDate = new Map<string, DishDraft[]>();
   for (const e of entries) {
     const rows = byDate.get(e.date) ?? [];
-    rows.push(createDishDraft(e.dish, e.note ?? ""));
+    rows.push(createDishDraft(e.dish, e.note ?? "", e.allergens));
     byDate.set(e.date, rows);
   }
   const next: Record<string, DishDraft[]> = {};
@@ -171,6 +195,7 @@ export default function MealPlanPage() {
   // weekOffset: number of weeks from the current week (0 = this week, can go
   // negative for past weeks or beyond +1 for planning ahead).
   const [weekOffset, setWeekOffset] = useState(0);
+  const [orderRefreshVersion, setOrderRefreshVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   // True once the first week has loaded. Subsequent week switches keep the
   // current grid on screen (dimmed) instead of flashing the skeleton.
@@ -219,6 +244,10 @@ export default function MealPlanPage() {
   }, [today, weekOffset]);
 
   const weekDates = useMemo(() => workWeekDates(mondayISO), [mondayISO]);
+  // Legende unter dem Plan: nur die Buchstaben, die diese Woche vorkommen.
+  const weekAllergens = usedMealAllergens(
+    weekDates.flatMap((date) => drafts[date] ?? []),
+  );
 
   // Latest-wins guard: every load() captures a token; a slower earlier load
   // (e.g. a previous week on a slow connection) bails instead of overwriting
@@ -250,7 +279,7 @@ export default function MealPlanPage() {
       setDrafts({});
       setOriginals({});
       void showLoadError(err, {
-        object: "die Woche im Essensplan",
+        object: "die Woche im Speiseplan",
         retry: () => reloadRef.current(),
       });
     } finally {
@@ -299,12 +328,20 @@ export default function MealPlanPage() {
   const updateDish = (
     date: string,
     idx: number,
-    field: keyof DishDraft,
+    field: "dish" | "note",
     value: string,
   ) => {
     setDrafts((prev) => {
       const rows = [...(prev[date] ?? [])];
       rows[idx] = { ...rows[idx]!, [field]: value };
+      return { ...prev, [date]: rows };
+    });
+  };
+
+  const updateAllergens = (date: string, idx: number, codes: string[]) => {
+    setDrafts((prev) => {
+      const rows = [...(prev[date] ?? [])];
+      rows[idx] = { ...rows[idx]!, allergens: normalizeMealAllergens(codes) };
       return { ...prev, [date]: rows };
     });
   };
@@ -327,7 +364,12 @@ export default function MealPlanPage() {
   // straight away (nothing to lose).
   const requestRemove = (date: string, idx: number) => {
     const row = drafts[date]?.[idx];
-    if (row && (row.dish.trim() !== "" || row.note.trim() !== "")) {
+    if (
+      row &&
+      (row.dish.trim() !== "" ||
+        row.note.trim() !== "" ||
+        row.allergens.length > 0)
+    ) {
       setDeleteTarget({ date, idx });
     } else {
       removeRow(date, idx);
@@ -348,7 +390,9 @@ export default function MealPlanPage() {
   const pasteDay = (date: string) => {
     if (!clipboard) return;
     const rows = clipboard.length
-      ? clipboard.map((row) => createDishDraft(row.dish, row.note))
+      ? clipboard.map((row) =>
+          createDishDraft(row.dish, row.note, row.allergens),
+        )
       : [createDishDraft()];
     setDrafts((prev) => ({ ...prev, [date]: rows }));
   };
@@ -392,7 +436,7 @@ export default function MealPlanPage() {
       const byDate = new Map<string, DishDraft[]>();
       for (const e of entries) {
         const rows = byDate.get(e.date) ?? [];
-        rows.push(createDishDraft(e.dish, e.note ?? ""));
+        rows.push(createDishDraft(e.dish, e.note ?? "", e.allergens));
         byDate.set(e.date, rows);
       }
       setDrafts((prev) => {
@@ -401,7 +445,9 @@ export default function MealPlanPage() {
           const target = weekDates[i]!;
           const rows = byDate.get(pd);
           next[target] = rows?.length
-            ? rows.map((row) => createDishDraft(row.dish, row.note))
+            ? rows.map((row) =>
+                createDishDraft(row.dish, row.note, row.allergens),
+              )
             : [createDishDraft()];
         });
         return next;
@@ -414,7 +460,7 @@ export default function MealPlanPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       void showActionError(err, {
-        object: "die Vorwoche im Essensplan",
+        object: "die Vorwoche im Speiseplan",
         retry: () => retryCopyPrevRef.current(),
       });
     } finally {
@@ -441,7 +487,7 @@ export default function MealPlanPage() {
       for (const date of weekDates) {
         const o = originals[date] ?? [];
         next[date] = o.length
-          ? o.map((row) => createDishDraft(row.dish, row.note))
+          ? o.map((row) => createDishDraft(row.dish, row.note, row.allergens))
           : [createDishDraft()];
       }
       return next;
@@ -466,11 +512,12 @@ export default function MealPlanPage() {
           draft.map((d) => ({
             dish: d.dish,
             note: d.note === "" ? null : d.note,
+            allergens: d.allergens,
           })),
         );
         persisted[date] = draft;
       }
-      toast.success("Der Essensplan ist gespeichert.");
+      toast.success("Der Speiseplan ist gespeichert.");
       await load();
     } catch (err) {
       logger.error("meal_plan_save_failed", {
@@ -483,7 +530,7 @@ export default function MealPlanPage() {
       // Der Fehler steht über dem Wochenplan (Bauart 2 Regel 5), nicht als
       // Toast: die noch ungespeicherten Tage bleiben sichtbar markiert.
       void saveErrors.show(err, {
-        object: "die Woche im Essensplan",
+        object: "die Woche im Speiseplan",
         retry: () => retrySaveRef.current(),
       });
     } finally {
@@ -530,7 +577,7 @@ export default function MealPlanPage() {
 
   return (
     <TenantPage
-      title="Essensplan"
+      title="Speiseplan"
       stats={statusLine}
       statsLoading={initialLoading}
       loading={initialLoading}
@@ -603,14 +650,12 @@ export default function MealPlanPage() {
         </>
       }
     >
-      {/* Eine Karte für den Wochenplan: Titel, Wochenwechsel und „Vorwoche
-            übernehmen“ in der Kopfzeile, die fünf Tage als Körper darunter. */}
-      <FormErrorAlert message={saveErrors.error} />
-
+      {/* Erklärtext als description, „Vorwoche übernehmen“ in der Titelzeile:
+            kein frei stehender Absatz und keine Zeile nur aus Buttons. */}
       <SectionCard
         className={canReadPlan ? undefined : "hidden"}
         title="Wochenplan"
-        description="Pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan im Elternportal."
+        description="Pro Tag ein oder mehrere Gerichte mit Allergenen und optionalem Hinweis. Eltern sehen den Plan im Elternportal."
         actions={
           <>
             {/* Wochennavigation steht in der Titelzeile, damit die Karte
@@ -630,7 +675,7 @@ export default function MealPlanPage() {
                 <div className="text-sm font-semibold text-gray-900">
                   KW {weekNumber}
                   {isCurrentWeek ? (
-                    <span className="ml-1.5 font-normal text-gray-500">
+                    <span className="text-moto-green ml-1.5">
                       · Diese Woche
                     </span>
                   ) : null}
@@ -675,153 +720,188 @@ export default function MealPlanPage() {
             ) : null}
           </>
         }
+      />
+
+      <FormErrorAlert message={saveErrors.error} />
+
+      {/* overflow visible: die Allergen-Auswahl eines Gerichts darf über
+          die Unterkante der Karte hinausragen. */}
+      <SectionCard
+        overflow="visible"
+        className={`${canReadPlan ? "" : "hidden"} transition-opacity duration-200 ${
+          loading ? "opacity-50" : "opacity-100"
+        }`}
+        bodyClassName=""
       >
-        <div
-          className={`compact:-mx-4 compact:-mb-4 -mx-5 -mb-5 border-t border-gray-200 transition-opacity duration-200 max-sm:-mx-4 max-sm:-mb-4 ${
-            loading ? "opacity-50" : "opacity-100"
-          }`}
-        >
-          <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-y-0">
-            {weekDates.map((date) => {
-              const rows = drafts[date] ?? [];
-              const isToday = date === today;
-              const hasContent = dayHasContent(rows);
-              return (
+        <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-5 md:divide-y-0">
+          {weekDates.map((date, dayIndex) => {
+            const rows = drafts[date] ?? [];
+            const isToday = date === today;
+            const hasContent = dayHasContent(rows);
+            return (
+              <div
+                key={date}
+                data-meal-day-column
+                className={`flex flex-col border-gray-200 md:border-r md:last:border-r-transparent ${isToday ? "bg-moto-green/[0.04]" : ""}`}
+              >
                 <div
-                  key={date}
-                  data-meal-day-column
-                  className={`flex flex-col border-gray-200 md:border-r md:last:border-r-transparent ${isToday ? "bg-moto-green/[0.04]" : ""}`}
+                  className={`flex items-center justify-between gap-2 border-b px-4 py-3 ${
+                    isToday ? "border-moto-green/30" : "border-gray-200"
+                  }`}
                 >
-                  <div
-                    className={`flex items-center justify-between gap-2 border-b px-4 py-3 ${
-                      isToday ? "border-moto-green/30" : "border-gray-200"
-                    }`}
-                  >
-                    <div>
-                      <div className="text-sm font-semibold text-gray-900">
-                        {weekdayLabel(date)}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {shortDate(date)}
-                      </div>
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900">
+                      {weekdayLabel(date)}
                     </div>
-                    <div className="flex items-center gap-1">
-                      {isToday && (
-                        <span className="bg-moto-green rounded-full px-2 py-0.5 text-xs font-semibold text-gray-950">
-                          Heute
-                        </span>
-                      )}
-                      {canEdit && (
-                        <OverflowMenu
-                          ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
-                          triggerClassName="!size-7"
-                          matchContainerSelector="[data-meal-day-column]"
-                          items={[
-                            {
-                              label: "Tag kopieren",
-                              icon: <Copy className="h-4 w-4" />,
-                              onClick: () => copyDay(date),
-                              disabled: !hasContent || editingLocked,
-                            },
-                            {
-                              label: "Einfügen",
-                              icon: <ClipboardPaste className="h-4 w-4" />,
-                              onClick: () => pasteDay(date),
-                              disabled: clipboard === null || editingLocked,
-                            },
-                            {
-                              label: "Tag leeren",
-                              icon: <Trash2 className="h-4 w-4" />,
-                              onClick: () => clearDay(date),
-                              destructive: true,
-                              disabled: !hasContent || editingLocked,
-                            },
-                          ]}
-                        />
-                      )}
+                    <div className="text-xs text-gray-500">
+                      {shortDate(date)}
                     </div>
                   </div>
-
-                  <div className="flex flex-1 flex-col gap-3 p-3">
-                    {rows.map((row, idx) => (
-                      <div
-                        key={row.clientId}
-                        className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-8 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200"
-                      >
-                        <textarea
-                          rows={1}
-                          className={dishFieldClass}
-                          value={row.dish}
-                          placeholder="Gericht eintragen…"
-                          readOnly={!canEditNow}
-                          onChange={(e) =>
-                            updateDish(date, idx, "dish", e.target.value)
-                          }
-                        />
-                        <textarea
-                          rows={1}
-                          className={noteFieldClass}
-                          value={row.note}
-                          placeholder="Hinweis (optional)"
-                          readOnly={!canEditNow}
-                          onChange={(e) =>
-                            updateDish(date, idx, "note", e.target.value)
-                          }
-                        />
-                        {canEdit &&
-                          (rows.length > 1 ||
-                            row.dish.trim() !== "" ||
-                            row.note.trim() !== "") && (
-                            <button
-                              type="button"
-                              aria-label="Gericht entfernen"
-                              onClick={() => requestRemove(date, idx)}
-                              disabled={editingLocked}
-                              className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          )}
-                      </div>
-                    ))}
-
+                  <div className="flex items-center gap-1">
+                    {isToday && (
+                      <span className="bg-moto-green rounded-full px-2 py-0.5 text-xs font-semibold text-gray-950">
+                        Heute
+                      </span>
+                    )}
                     {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => addRow(date)}
-                        disabled={editingLocked}
-                        className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:text-gray-500"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Gericht
-                      </button>
+                      <OverflowMenu
+                        ariaLabel={`Aktionen für ${weekdayLabel(date)}`}
+                        triggerClassName="!size-7"
+                        matchContainerSelector="[data-meal-day-column]"
+                        items={[
+                          {
+                            label: "Tag kopieren",
+                            icon: <Copy className="h-4 w-4" />,
+                            onClick: () => copyDay(date),
+                            disabled: !hasContent || editingLocked,
+                          },
+                          {
+                            label: "Einfügen",
+                            icon: <ClipboardPaste className="h-4 w-4" />,
+                            onClick: () => pasteDay(date),
+                            disabled: clipboard === null || editingLocked,
+                          },
+                          {
+                            label: "Tag leeren",
+                            icon: <Trash2 className="h-4 w-4" />,
+                            onClick: () => clearDay(date),
+                            destructive: true,
+                            disabled: !hasContent || editingLocked,
+                          },
+                        ]}
+                      />
                     )}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+
+                <div className="flex flex-1 flex-col gap-3 p-3">
+                  {rows.map((row, idx) => (
+                    <div
+                      key={row.clientId}
+                      className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-8 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200"
+                    >
+                      <textarea
+                        rows={1}
+                        className={dishFieldClass}
+                        value={row.dish}
+                        placeholder="Gericht eintragen…"
+                        readOnly={!canEditNow}
+                        onChange={(e) =>
+                          updateDish(date, idx, "dish", e.target.value)
+                        }
+                      />
+                      <textarea
+                        rows={1}
+                        className={noteFieldClass}
+                        value={row.note}
+                        placeholder="Hinweis (optional)"
+                        readOnly={!canEditNow}
+                        onChange={(e) =>
+                          updateDish(date, idx, "note", e.target.value)
+                        }
+                      />
+                      {canEditNow ? (
+                        <MealAllergenSelect
+                          value={row.allergens}
+                          // Donnerstag und Freitag öffnen nach links, damit
+                          // das Menü im Fenster bleibt.
+                          menuAlign={dayIndex >= 3 ? "end" : "start"}
+                          onChange={(codes) =>
+                            updateAllergens(date, idx, codes)
+                          }
+                          className="mt-2"
+                        />
+                      ) : (
+                        <MealAllergenMarks
+                          allergens={row.allergens}
+                          className="mt-2"
+                        />
+                      )}
+                      {canEdit &&
+                        (rows.length > 1 ||
+                          row.dish.trim() !== "" ||
+                          row.note.trim() !== "" ||
+                          row.allergens.length > 0) && (
+                          <button
+                            type="button"
+                            aria-label="Gericht entfernen"
+                            onClick={() => requestRemove(date, idx)}
+                            disabled={editingLocked}
+                            className="absolute top-2 right-2 rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-gray-400"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                    </div>
+                  ))}
+
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => addRow(date)}
+                      disabled={editingLocked}
+                      className="flex items-center justify-center gap-1 rounded-lg border border-dashed border-gray-300 py-2 text-sm font-medium text-gray-500 transition hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:text-gray-500"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Gericht
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
+        {weekAllergens.length > 0 ? (
+          <MealAllergenLegend
+            allergens={weekAllergens}
+            showSource={false}
+            className="border-t border-gray-200 px-4 py-3"
+          />
+        ) : null}
       </SectionCard>
 
       {canReadOrders ? (
         <MealOrderWeek
           mondayISO={mondayISO}
           canExportMonth={canReadParticipants}
+          refreshVersion={orderRefreshVersion}
         />
       ) : null}
 
-      {/* Der Caterer der Schule (ADR 0077): nur wer den Essensplan
-          verwaltet, lädt ihn ein oder beendet die Belieferung. */}
-      {canEdit && mealRegistrationEnabled === true ? <MealCaterer /> : null}
-
-      {/* Die Tagesliste ist die längste Fläche und steht darum zuletzt:
-          sie reicht bis zur Unterkante, Caterer bleibt neben Bestellung. */}
       {canReadParticipants || canRegister ? (
         <MealParticipantList
           canRegister={canRegister}
           canExport={canReadParticipants}
+          onRegistrationChanged={() =>
+            setOrderRefreshVersion((value) => value + 1)
+          }
         />
+      ) : null}
+
+      {/* Der Caterer der Schule (ADR 0077): nur wer den Speiseplan
+          verwaltet, lädt ihn ein oder beendet die Belieferung. */}
+      {canEdit && mealRegistrationEnabled === true ? (
+        <MealCaterer canManageSupply={isAdmin(session)} />
       ) : null}
 
       {/* Sticky save bar — only while there are unsaved changes. */}

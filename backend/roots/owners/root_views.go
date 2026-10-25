@@ -55,17 +55,19 @@ func BuildPresenceReports(
 	users peoplePorts.PersonDirectory, owner TimetableOwner, rooms facilitiesModule.Catalog, calendar schoolcalendar.Days,
 	people PeopleRows, audit AuditOwner, settings settingsCompose.SettingsService,
 ) PresenceReports {
-	_, sessionSupervisors := presenceCompose.SessionRepositories(presence.SessionRecords)
 	return PresenceReports{
-		ActiveCleanup: presenceservice.NewPresenceCleanup(
-			presence.Presence, sessionSupervisors, NewDeletionAudit(audit.Persistence.DataDeletion),
-			settingsCompose.PresenceSettings(settings), env.Today,
-		),
+		ActiveCleanup:   BuildPresenceCleanup(env, presence, audit, settings),
 		AbsenceOverview: presenceservice.NewStatusDayOverviews(carePlanRows.StatusDays, StatusDayOverviewPeople(users)),
 		StudentHistory: presenceservice.NewStudentHistory(presence.Presence, historyRoomNames(rooms),
 			NewDataAccessAudit(audit.Persistence.DataAccessLog), NewHistorySlots(owner.Repositories.InstanceStudent.Reads)),
 		Statistics: newStatisticsReports(db, carePlan, calendar, people.Students, rooms, env.Logger, env.Now)(audit.Persistence.DataAccessLog, settings),
 	}
+}
+
+// BuildPresenceCleanup binds the retention command used by jobs and setting writes.
+func BuildPresenceCleanup(env RootEnvironment, presence PresenceOwner, audit AuditOwner, settings settingsCompose.SettingsService) studentpresence.PresenceCleanup {
+	_, supervisors := presenceCompose.SessionRepositories(presence.SessionRecords)
+	return presenceservice.NewPresenceCleanup(presence.Presence, supervisors, NewDeletionAudit(audit.Persistence.DataDeletion), settingsCompose.PresenceSettings(settings), env.Today)
 }
 
 // BuildCalendarApp binds the staff and parent personal calendars over the
@@ -84,7 +86,7 @@ func BuildCalendarApp(
 		newWorkforceShiftRows(workTime), newWorkforceShiftTypeRows(workTime))
 	cfg = BindCalendarFeedFacts(cfg, organizations, identity, identity, people.Persons)
 	cfg = BindCalendarCaller(cfg, caller)
-	cfg.Appointments = appointments
+	cfg.Appointments, cfg.SchoolDays = appointments, calendar
 	cfg.Runtime, cfg.CalendarRenderer = calendarCompose.NewTenantRuntime(db.Pool()), calendarCompose.NewCalendarRenderer(calendar)
 	cfg.Outbox, cfg.PushOutbox = NewCalendarOutbox(delivery.Outbox), deliveryCompose.NewDurablePushOutbox(delivery.Runtime.Module)
 	cfg.Settings, cfg.CalDAVPolicy = settings, NewCalendarCalDAVPolicy(settings)

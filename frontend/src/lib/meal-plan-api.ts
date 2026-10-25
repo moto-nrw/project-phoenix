@@ -7,6 +7,10 @@ import { downloadBlob, filenameFromDisposition } from "./file-download";
 import { sessionFetch } from "./session-cache";
 import { parseISODate, toISODate } from "./date-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  normalizeMealAllergens,
+  type MealAllergen,
+} from "~/lib/meal-allergens";
 
 const logger = createLogger({ component: "MealPlanAPI" });
 
@@ -16,6 +20,7 @@ export interface BackendMealPlanEntry {
   position: number;
   dish: string;
   note?: string | null;
+  allergens?: string[] | null;
 }
 
 /** One dish on a day of the meal plan as used by the UI. */
@@ -24,12 +29,16 @@ export interface MealPlanEntry {
   position: number;
   dish: string;
   note: string | null;
+  /** Codes of the main allergens, in legend order; empty when unmarked. */
+  allergens: MealAllergen[];
 }
 
 /** One dish in a day submission. */
 export interface DishInput {
   dish: string;
   note: string | null;
+  /** Omitted means no marking. */
+  allergens?: MealAllergen[];
 }
 
 export interface DailyMealParticipant {
@@ -51,12 +60,23 @@ export interface DailyMealList {
   others: DailyMealParticipant[];
 }
 
+export interface WeeklyMealList {
+  weekStart: string;
+  // closed: a closing day or public holiday, nobody eats.
+  days: Array<{
+    date: string;
+    closed: boolean;
+    participants: DailyMealParticipant[];
+  }>;
+}
+
 function mapEntry(entry: BackendMealPlanEntry): MealPlanEntry {
   return {
     date: entry.date,
     position: entry.position,
     dish: entry.dish,
     note: entry.note?.trim() ? entry.note : null,
+    allergens: normalizeMealAllergens(entry.allergens),
   };
 }
 
@@ -233,29 +253,72 @@ export async function replaceChildMealSchedule(
   }
 }
 
-export async function downloadDailyMealParticipants(
-  date: string,
-  format: "pdf" | "xlsx",
-): Promise<void> {
+/** Kitchen list of every school day in the week containing weekStart. */
+export async function getWeeklyMealParticipants(
+  weekStart: string,
+): Promise<WeeklyMealList> {
   const response = await sessionFetch(
-    `/api/meal-plan/participants/export?date=${encodeURIComponent(date)}&format=${format}`,
+    `/api/meal-plan/participants/week?week_start=${encodeURIComponent(weekStart)}`,
     { credentials: "include" },
   );
+  if (!response.ok) {
+    throw await apiErrorFromResponse(
+      response,
+      "weekly meal participants load failed",
+    );
+  }
+  const json = (await response.json()) as {
+    data?: {
+      week_start: string;
+      days: Array<{
+        date: string;
+        closed?: boolean;
+        participants: BackendDailyParticipant[];
+      }>;
+    };
+  };
+  const data = json.data;
+  if (!data)
+    throw new Error("Weekly meal participant response is missing data");
+  return {
+    weekStart: data.week_start,
+    days: data.days.map((day) => ({
+      date: day.date,
+      closed: day.closed === true,
+      participants: day.participants.map(dailyParticipant),
+    })),
+  };
+}
+
+async function downloadMealList(path: string, filename: string): Promise<void> {
+  const response = await sessionFetch(path, { credentials: "include" });
   if (!response.ok) {
     throw await apiErrorFromResponse(
       response,
       "meal participants export failed",
     );
   }
-  const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `mittagessen-${date}.${format}`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(await response.blob(), filename);
+}
+
+export async function downloadDailyMealParticipants(
+  date: string,
+  format: "pdf" | "xlsx",
+): Promise<void> {
+  await downloadMealList(
+    `/api/meal-plan/participants/export?date=${encodeURIComponent(date)}&format=${format}`,
+    `mittagessen-${date}.${format}`,
+  );
+}
+
+export async function downloadWeeklyMealParticipants(
+  weekStart: string,
+  format: "pdf" | "xlsx",
+): Promise<void> {
+  await downloadMealList(
+    `/api/meal-plan/participants/week/export?week_start=${encodeURIComponent(weekStart)}&format=${format}`,
+    `mittagessen-woche-${weekStart}.${format}`,
+  );
 }
 
 /** Monday (ISO) of the week containing the given Date. */

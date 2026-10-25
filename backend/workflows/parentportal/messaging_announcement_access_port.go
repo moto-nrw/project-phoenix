@@ -41,118 +41,70 @@ func NewAnnouncementAccess(c AnnouncementAccessCallbacks) AnnouncementAccess {
 type announcementAccessBinding struct{ callbacks AnnouncementAccessCallbacks }
 
 func (p announcementAccessBinding) AccountMatchesAnnouncement(ctx context.Context, tenantID int64, announcementID int64, accountID int64) (bool, error) {
-	result0, result1 := p.callbacks.AccountMatchesAnnouncement(ctx, tenantID, announcementID, accountID)
-	return result0, result1
+	return p.callbacks.AccountMatchesAnnouncement(ctx, tenantID, announcementID, accountID)
 }
 func (p announcementAccessBinding) AccountMayAnswerForStudent(ctx context.Context, tenantID int64, announcementID int64, accountID int64, studentID int64) (bool, error) {
-	result0, result1 := p.callbacks.AccountMayAnswerForStudent(ctx, tenantID, announcementID, accountID, studentID)
-	return result0, result1
+	return p.callbacks.AccountMayAnswerForStudent(ctx, tenantID, announcementID, accountID, studentID)
 }
 func (p announcementAccessBinding) AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*messaging.AnnouncementPollChild, error) {
-	result0, result1 := p.callbacks.AnswerableChildren(ctx, accountID, announcementIDs)
-	return messagingValueSlice(result0, func(row *AnnouncementPollChild) *messaging.AnnouncementPollChild {
-		return messagingValuePointer(row, messagingToAppAnnouncementPollChild)
-	}), result1
+	return p.callbacks.AnswerableChildren(ctx, accountID, announcementIDs)
 }
 func (p announcementAccessBinding) CountUnreadForAccount(ctx context.Context, accountID int64, scope messaging.AnnouncementFeedScope) (int, error) {
-	nativeScope := messagingFromAppAnnouncementFeedScope(scope)
-	result0, result1 := p.callbacks.CountUnreadForAccount(ctx, accountID, nativeScope)
-	return result0, result1
+	return p.callbacks.CountUnreadForAccount(ctx, accountID, scope)
 }
 func (p announcementAccessBinding) FindByID(ctx context.Context, id int64) (*messaging.ParentAnnouncement, error) {
-	result0, result1 := p.callbacks.FindByID(ctx, id)
-	return messagingValuePointer(result0, messagingToAppParentAnnouncement), result1
+	return p.callbacks.FindByID(ctx, id)
 }
 func (p announcementAccessBinding) ListFeedForAccount(ctx context.Context, accountID int64, scope messaging.AnnouncementFeedScope) ([]*messaging.AnnouncementFeedItem, error) {
-	nativeScope := messagingFromAppAnnouncementFeedScope(scope)
-	result0, result1 := p.callbacks.ListFeedForAccount(ctx, accountID, nativeScope)
-	return messagingValueSlice(result0, func(row *AnnouncementFeedItem) *messaging.AnnouncementFeedItem {
-		return messagingValuePointer(row, messagingToAppAnnouncementFeedItem)
-	}), result1
+	return p.callbacks.ListFeedForAccount(ctx, accountID, scope)
 }
 func (p announcementAccessBinding) ListOptions(ctx context.Context, announcementID int64) ([]*messaging.ParentAnnouncementOption, error) {
-	result0, result1 := p.callbacks.ListOptions(ctx, announcementID)
-	return messagingValueSlice(result0, func(row *ParentAnnouncementOption) *messaging.ParentAnnouncementOption {
-		return messagingValuePointer(row, messagingToAppParentAnnouncementOption)
-	}), result1
+	return p.callbacks.ListOptions(ctx, announcementID)
 }
 func (p announcementAccessBinding) ListOptionsForAnnouncements(ctx context.Context, announcementIDs []int64) ([]*messaging.ParentAnnouncementOption, error) {
-	result0, result1 := p.callbacks.ListOptionsForAnnouncements(ctx, announcementIDs)
-	return messagingValueSlice(result0, func(row *ParentAnnouncementOption) *messaging.ParentAnnouncementOption {
-		return messagingValuePointer(row, messagingToAppParentAnnouncementOption)
-	}), result1
+	return p.callbacks.ListOptionsForAnnouncements(ctx, announcementIDs)
 }
 func (p announcementAccessBinding) MarkAcknowledged(ctx context.Context, tenantID int64, announcementID int64, accountID int64, expectedPublishedAt time.Time) (bool, error) {
-	result0, result1 := p.callbacks.MarkAcknowledged(ctx, tenantID, announcementID, accountID, expectedPublishedAt)
-	return result0, result1
+	return p.callbacks.MarkAcknowledged(ctx, tenantID, announcementID, accountID, expectedPublishedAt)
 }
 func (p announcementAccessBinding) MarkRead(ctx context.Context, tenantID int64, announcementID int64, accountID int64, expectedPublishedAt time.Time) (bool, error) {
-	result0, result1 := p.callbacks.MarkRead(ctx, tenantID, announcementID, accountID, expectedPublishedAt)
-	return result0, result1
+	return p.callbacks.MarkRead(ctx, tenantID, announcementID, accountID, expectedPublishedAt)
 }
 func (p announcementAccessBinding) SetResponse(ctx context.Context, tenantID int64, announcementID int64, studentID int64, accountID int64, optionIDs []int64, expectedPublishedAt time.Time) (bool, error) {
-	result0, result1 := p.callbacks.SetResponse(ctx, tenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
-	return result0, result1
+	return p.callbacks.SetResponse(ctx, tenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
 }
 func (p announcementAccessBinding) DeclarationChildrenForAccount(ctx context.Context, accountID int64, announcementIDs []int64) ([]*messaging.DeclarationChild, error) {
-	result0, result1 := p.callbacks.DeclarationChildrenForAccount(ctx, accountID, announcementIDs)
-	return messagingValueSlice(result0, func(row *DeclarationChild) *messaging.DeclarationChild {
-		return messagingValuePointer(row, messagingToAppDeclarationChild)
-	}), result1
+	return p.callbacks.DeclarationChildrenForAccount(ctx, accountID, announcementIDs)
 }
 func (p announcementAccessBinding) DeclarationSettings(ctx context.Context, announcementIDs []int64) (map[int64]messaging.AnnouncementDeclarationSettings, error) {
-	result0, result1 := p.callbacks.DeclarationSettings(ctx, announcementIDs)
-	return messagingValueMap(result0, func(row AnnouncementDeclarationSettings) messaging.AnnouncementDeclarationSettings {
-		return messagingToAppAnnouncementDeclarationSettings(row)
-	}), result1
+	return p.callbacks.DeclarationSettings(ctx, announcementIDs)
 }
 func (p announcementAccessBinding) DeclarationSignersForStudents(ctx context.Context, studentIDs []int64) ([]*messaging.DeclarationSigner, error) {
-	result0, result1 := p.callbacks.DeclarationSignersForStudents(ctx, studentIDs)
-	return messagingValueSlice(result0, func(row *DeclarationSigner) *messaging.DeclarationSigner {
-		return messagingValuePointer(row, messagingToAppDeclarationSigner)
-	}), result1
+	return p.callbacks.DeclarationSignersForStudents(ctx, studentIDs)
 }
 func (p announcementAccessBinding) LatestDeclarationVersion(ctx context.Context, tenantID int64, announcementID int64) (*messaging.DeclarationVersion, error) {
-	result0, result1 := p.callbacks.LatestDeclarationVersion(ctx, tenantID, announcementID)
-	return messagingValuePointer(result0, messagingToAppDeclarationVersion), result1
+	return p.callbacks.LatestDeclarationVersion(ctx, tenantID, announcementID)
 }
 func (p announcementAccessBinding) LatestDeclarationVersions(ctx context.Context, announcementIDs []int64) (map[int64]*messaging.DeclarationVersion, error) {
-	result0, result1 := p.callbacks.LatestDeclarationVersions(ctx, announcementIDs)
-	return messagingValueMap(result0, func(row *DeclarationVersion) *messaging.DeclarationVersion {
-		return messagingValuePointer(row, messagingToAppDeclarationVersion)
-	}), result1
+	return p.callbacks.LatestDeclarationVersions(ctx, announcementIDs)
 }
 func (p announcementAccessBinding) ListDeclarationSubmissionsForStudents(ctx context.Context, announcementIDs []int64, studentIDs []int64) ([]*messaging.DeclarationSubmission, error) {
-	result0, result1 := p.callbacks.ListDeclarationSubmissionsForStudents(ctx, announcementIDs, studentIDs)
-	return messagingValueSlice(result0, func(row *DeclarationSubmission) *messaging.DeclarationSubmission {
-		return messagingValuePointer(row, messagingToAppDeclarationSubmission)
-	}), result1
+	return p.callbacks.ListDeclarationSubmissionsForStudents(ctx, announcementIDs, studentIDs)
 }
 func (p announcementAccessBinding) ListDeclarationVersions(ctx context.Context, tenantID int64, announcementID int64) ([]*messaging.DeclarationVersion, error) {
-	result0, result1 := p.callbacks.ListDeclarationVersions(ctx, tenantID, announcementID)
-	return messagingValueSlice(result0, func(row *DeclarationVersion) *messaging.DeclarationVersion {
-		return messagingValuePointer(row, messagingToAppDeclarationVersion)
-	}), result1
+	return p.callbacks.ListDeclarationVersions(ctx, tenantID, announcementID)
 }
 func (p announcementAccessBinding) ReadOpenDeclarations(ctx context.Context, accountID int64, tenantIDs []int64) (map[int64]*time.Time, error) {
-	result0, result1 := p.callbacks.ReadOpenDeclarations(ctx, accountID, tenantIDs)
-	return result0, result1
+	return p.callbacks.ReadOpenDeclarations(ctx, accountID, tenantIDs)
 }
 func (p announcementAccessBinding) HoldDeclarationSigner(ctx context.Context, tenantID int64, announcementID int64, accountID int64, studentID int64) (*messaging.DeclarationSignerContext, error) {
-	result0, result1 := p.callbacks.HoldDeclarationSigner(ctx, tenantID, announcementID, accountID, studentID)
-	return messagingValuePointer(result0, messagingToAppDeclarationSignerContext), result1
+	return p.callbacks.HoldDeclarationSigner(ctx, tenantID, announcementID, accountID, studentID)
 }
 func (p announcementAccessBinding) HoldHistoricalDeclarationSigner(ctx context.Context, tenantID int64, announcementID int64, accountID int64, studentID int64) (*messaging.DeclarationSignerContext, error) {
-	result0, result1 := p.callbacks.HoldHistoricalDeclarationSigner(ctx, tenantID, announcementID, accountID, studentID)
-	return messagingValuePointer(result0, messagingToAppDeclarationSignerContext), result1
+	return p.callbacks.HoldHistoricalDeclarationSigner(ctx, tenantID, announcementID, accountID, studentID)
 }
 func (p announcementAccessBinding) InsertDeclarationSubmission(ctx context.Context, submission *messaging.DeclarationSubmission) error {
-	nativeSubmission := messagingValuePointer(submission, messagingFromAppDeclarationSubmission)
-	result0 := p.callbacks.InsertDeclarationSubmission(ctx, nativeSubmission)
-	if submission != nil && nativeSubmission != nil {
-		*submission = messagingToAppDeclarationSubmission(*nativeSubmission)
-	}
-	return result0
+	return p.callbacks.InsertDeclarationSubmission(ctx, submission)
 }
 func (p announcementAccessBinding) LockDeclarationChild(ctx context.Context, announcementID int64, studentID int64) error {
 	result0 := p.callbacks.LockDeclarationChild(ctx, announcementID, studentID)

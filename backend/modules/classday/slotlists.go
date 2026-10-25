@@ -92,6 +92,9 @@ const (
 	ExportColumnSlot           ExportColumnID = "slot"
 	ExportColumnPlannedPickup  ExportColumnID = "planned_pickup"
 	ExportColumnPresenceStatus ExportColumnID = "presence_status"
+	// ExportColumnChecklist is an empty column to tick off by hand on the
+	// printed planned list (#2077).
+	ExportColumnChecklist ExportColumnID = "checklist"
 )
 
 // ExportColumn is one printed column: its id and header label.

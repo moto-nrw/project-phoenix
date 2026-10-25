@@ -40,7 +40,12 @@ const EMPTY_FORM = { email: "", catererName: "", deliveryAddress: "" };
  * und das Ende der Belieferung. Der Link der Einladung geht nur an den
  * Caterer; die Schule sieht ihn nie.
  */
-export function MealCaterer() {
+interface MealCatererProps {
+  /** Einladen, Zurücknehmen und Beenden dürfen nur Admins der Schule. */
+  canManageSupply: boolean;
+}
+
+export function MealCaterer({ canManageSupply }: MealCatererProps) {
   const [state, setState] = useState<MealCatererState | null>(null);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -173,7 +178,7 @@ export function MealCaterer() {
       title="Caterer"
       description="Ihr Caterer sieht die Bestellungen der Schule in seinem eigenen Zugang bei moto. Namen der Kinder sieht er nur, wenn Sie das in den Einstellungen einschalten."
       actions={
-        supply ? (
+        supply && canManageSupply ? (
           <Button
             type="button"
             variant="outline_danger"
@@ -199,6 +204,11 @@ export function MealCaterer() {
             {supply.deliveryAddress || "–"}
           </DataField>
         </DataGrid>
+      ) : !canManageSupply ? (
+        <p className="text-sm text-gray-700">
+          Noch kein Caterer. Einen Caterer einladen können nur Admins Ihrer
+          Schule.
+        </p>
       ) : (
         <div className="space-y-5">
           <form

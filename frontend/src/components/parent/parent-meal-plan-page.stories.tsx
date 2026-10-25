@@ -85,28 +85,33 @@ function mealPlanForWeek(mondayISO: string): MealPlanEntry[] {
       position: 1,
       dish: "Gemüse-Lasagne",
       note: "mit Salat",
+      allergens: ["gluten", "eggs", "milk"],
     },
     {
       date: dateFromMonday(mondayISO, 1),
       position: 1,
       dish: "Kartoffel-Gemüse-Eintopf",
+      allergens: ["celery"],
     },
     {
       date: dateFromMonday(mondayISO, 2),
       position: 1,
       dish: "Hähnchen-Reis-Pfanne",
       note: "vegetarische Alternative verfügbar",
+      allergens: ["soybeans"],
     },
     {
       date: dateFromMonday(mondayISO, 3),
       position: 1,
       dish: "Nudeln mit Tomatensoße",
+      allergens: ["gluten"],
     },
     {
       date: dateFromMonday(mondayISO, 4),
       position: 1,
       dish: "Fischstäbchen mit Kartoffelpüree",
       note: "Obst zum Nachtisch",
+      allergens: ["fish", "gluten", "milk"],
     },
   ];
 }

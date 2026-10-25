@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, type Mock } from "vitest";
 
 import {
   getMealPlanWeek,
+  getWeeklyMealParticipants,
   setDay,
   mondayOf,
   workWeekDates,
@@ -24,6 +25,59 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
 
 beforeEach(() => {
   mockedFetch.mockReset();
+});
+
+describe("getWeeklyMealParticipants", () => {
+  it("requests the week and maps each day's children", async () => {
+    let seenURL = "";
+    mockedFetch.mockImplementation(async (url: string) => {
+      seenURL = url;
+      return jsonResponse({
+        data: {
+          week_start: "2026-09-07",
+          cutoff_time: "09:00",
+          cutoff_lead_days: 1,
+          days: [
+            {
+              date: "2026-09-07",
+              participants: [
+                {
+                  student_id: "42",
+                  first_name: "Mia",
+                  last_name: "Muster",
+                  school_class: "2a",
+                },
+              ],
+            },
+            { date: "2026-09-08", closed: true, participants: [] },
+          ],
+        },
+      });
+    });
+
+    const week = await getWeeklyMealParticipants("2026-09-09");
+    expect(seenURL).toBe(
+      "/api/meal-plan/participants/week?week_start=2026-09-09",
+    );
+    expect(week).toEqual({
+      weekStart: "2026-09-07",
+      days: [
+        {
+          date: "2026-09-07",
+          closed: false,
+          participants: [
+            {
+              studentId: "42",
+              firstName: "Mia",
+              lastName: "Muster",
+              schoolClass: "2a",
+            },
+          ],
+        },
+        { date: "2026-09-08", closed: true, participants: [] },
+      ],
+    });
+  });
 });
 
 describe("getMealPlanWeek", () => {

@@ -72,6 +72,10 @@ func (rs *StaffAdminResource) exportStaffSessions(w http.ResponseWriter, r *http
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	if !rs.canActForStaff(r.Context(), staffID) {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("insufficient permission to export time tracking")))
+		return
+	}
 	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
@@ -94,9 +98,10 @@ func (rs *StaffAdminResource) exportStaffSessions(w http.ResponseWriter, r *http
 		return
 	}
 
-	format := r.URL.Query().Get("format")
-	if format != "csv" && format != "xlsx" && format != "pdf" {
-		format = "csv"
+	format, err := parseSessionExportFormat(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
 	}
 
 	file, err := rs.WorkSessionService.ExportSessions(r.Context(), staffID, from.String(), to.String(), format)
@@ -666,7 +671,7 @@ func (rs *StaffAdminResource) adminCreateStaffAbsence(w http.ResponseWriter, r *
 		return
 	}
 	actorAccountID := claims.AccountID
-	resp, err := rs.StaffAbsenceService.CreateAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, req)
+	resp, err := rs.AbsenceWrites.CreateAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, req)
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, renderAdminAbsenceError(err))
@@ -704,7 +709,7 @@ func (rs *StaffAdminResource) adminDeleteStaffAbsence(w http.ResponseWriter, r *
 		return
 	}
 	actorAccountID := claims.AccountID
-	if err := rs.StaffAbsenceService.DeleteAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, absenceID); err != nil {
+	if err := rs.AbsenceWrites.DeleteAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, absenceID); err != nil {
 		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, renderAdminAbsenceError(err))
 		return

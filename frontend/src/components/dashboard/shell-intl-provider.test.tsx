@@ -42,6 +42,23 @@ describe("ShellIntlProvider", () => {
     });
   });
 
+  it("stellt die Texte für die Allergene im Speiseplan bereit (#4777)", () => {
+    render(
+      <ShellIntlProvider>
+        <div>Inhalt</div>
+      </ShellIntlProvider>,
+    );
+
+    expect(intlProvider.messages).toMatchObject({
+      mealAllergens: {
+        legendTitle: "Allergene",
+        choose: "Allergene wählen",
+        marksShort: "Allergene: {letters}",
+        names: { gluten: "Glutenhaltiges Getreide", molluscs: "Weichtiere" },
+      },
+    });
+  });
+
   it("stellt die Texte für die Einwilligungen in den Schüler-Stammdaten bereit", () => {
     render(
       <ShellIntlProvider>

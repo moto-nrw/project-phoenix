@@ -234,6 +234,35 @@ describe("BulkSubstitutionModal", () => {
     mockSwrState.error = undefined;
   });
 
+  it("bietet externe Kräfte als abwesend an, aber nie als Ersatzperson (#4573)", () => {
+    render(
+      <BulkSubstitutionModal
+        isOpen
+        onClose={vi.fn()}
+        staffOptions={[
+          ...STAFF_OPTIONS,
+          { id: "14", name: "Erik Extern", isExternal: true },
+        ]}
+        staffLoadError={false}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Abwesende Person" }));
+    expect(
+      screen.getByRole("option", { name: "Erik Extern" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("option", { name: "Anna Alt" }));
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Ersatzperson" }));
+    expect(
+      screen.getByRole("option", { name: "Bernd Neu" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Erik Extern" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("zeigt ohne gewählte Person keine Terminvorschau und blockt den Save", () => {
     renderModal();
     expect(screen.queryByText(/Betroffene Termine/)).not.toBeInTheDocument();

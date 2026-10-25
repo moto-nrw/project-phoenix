@@ -32,6 +32,7 @@ vi.mock("~/lib/auth-utils", () => {
   return {
     isAdmin: isAdminFn,
     isCaregiver: isCaregiverFn,
+    canReadSupervisionData: vi.fn(() => isCaregiverFn()),
     hasEffectiveAdminScope: hasEffectiveAdminScopeFn,
     hasRole: vi.fn((_session: unknown, role: string) => {
       if (role === "admin") return isAdminFn();
@@ -125,6 +126,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import {
+  canReadSupervisionData,
   hasEffectiveAdminScope,
   hasPermission,
   isAdmin,
@@ -151,8 +153,16 @@ const mockUseSession = vi.mocked(useSession);
 const mockUseSupervision = vi.mocked(useOptionalSupervision);
 const mockIsAdmin = vi.mocked(isAdmin);
 const mockIsCaregiver = vi.mocked(isCaregiver);
+const mockCanReadSupervisionData = vi.mocked(canReadSupervisionData);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
+const CAREGIVER_NAV_PERMISSIONS = new Set([
+  "users:read",
+  "time_tracking:own",
+  "rooms:read",
+  "activities:read",
+  "substitutions:read",
+]);
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
 const mockUseAttendanceLogEnabled = vi.mocked(useAttendanceLogEnabled);
@@ -238,10 +248,25 @@ describe("MobileBottomNav", () => {
     });
     mockIsAdmin.mockReturnValue(false);
     mockIsCaregiver.mockImplementation((session) => !mockIsAdmin(session));
+    // Wie die echte Funktion: Adminzuschnitt, groups:read oder (ohne
+    // Rechteliste) die Betreuungsrolle. canOpenActiveSupervision baut darauf.
+    mockCanReadSupervisionData.mockImplementation(
+      (session) =>
+        mockHasEffectiveAdminScope(session) ||
+        mockHasPermission(session, "groups:read") ||
+        mockIsCaregiver(session),
+    );
     mockHasEffectiveAdminScope.mockImplementation((session) =>
       mockIsAdmin(session),
     );
-    mockHasPermission.mockReturnValue(false);
+    // Eine Betreuungskraft hält die Rechte der Systemrolle „user“, die die
+    // Navigation prüft. Seit #4573 hängen Suchen/Alle Kinder, Mitarbeiter,
+    // Zeiterfassung, Elternnachrichten, Räume, Aktivitäten, Vertretungen
+    // und Notfall am Recht ihrer Route.
+    mockHasPermission.mockImplementation(
+      (session, permission) =>
+        !mockIsAdmin(session) && CAREGIVER_NAV_PERMISSIONS.has(permission),
+    );
     mockUseNFCEnabled.mockReturnValue(true);
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseOpenCareGroupMode.mockReturnValue(false);
@@ -376,6 +401,22 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByRole("link", { name: "Gruppen" })).toBeNull();
     });
 
+    it("shows group and supervision navigation for custom staff with groups:read", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockCanReadSupervisionData.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+
+      expect(screen.getByRole("link", { name: "Gruppen" })).toHaveAttribute(
+        "href",
+        "/ogs-groups/overview",
+      );
+      expect(screen.getByRole("link", { name: "Aufsicht" })).toHaveAttribute(
+        "href",
+        "/active-supervisions",
+      );
+    });
+
     it("shows groups to effective admins", () => {
       mockIsCaregiver.mockReturnValue(false);
       mockHasEffectiveAdminScope.mockReturnValue(true);
@@ -507,6 +548,40 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Start")).toBeInTheDocument();
     });
 
+    it("marks Räume for a shared room addressed by a legacy session link", () => {
+      mockUsePathname.mockReturnValue("/active-supervisions");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key) =>
+          key === "session" ? "active-schulhof" : null,
+        ),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          {
+            id: "7",
+            name: "Schulhof",
+            groupId: "",
+            isOpenRoom: true,
+            sessionIds: ["active-schulhof"],
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByRole("link", { name: "Räume" })).toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
     it("detects active route from search params 'from' parameter", () => {
       mockUsePathname.mockReturnValue("/students/123");
       const mockGet = vi.fn().mockReturnValue("/ogs-groups/5");
@@ -614,7 +689,7 @@ describe("MobileBottomNav", () => {
         "Betreuungsplan",
         "Dienstplan",
         "Vertretungsplan",
-        "Schuljahr und Ferien",
+        "Schuljahr und Kalender",
         "Anmeldungen",
         "Elternzugänge",
         "Einstellungen",
@@ -681,7 +756,7 @@ describe("MobileBottomNav", () => {
       // als Link (#2826).
       expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Planung").closest("a")).toBeNull();
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
 
@@ -803,7 +878,7 @@ describe("MobileBottomNav", () => {
       );
     });
 
-    it("highlights Schuljahr und Ferien as its own overflow entry", () => {
+    it("highlights Schuljahr und Kalender as its own overflow entry", () => {
       // Schuljahr und Ferien und Tageslisten waren mobil ausgeblendet und liehen
       // sich die Hervorhebung vom Betreuungsplan. Erreichbar waren sie dadurch
       // nicht: es gibt keinen Verweis vom Betreuungsplan dorthin. Beide sind
@@ -819,9 +894,9 @@ describe("MobileBottomNav", () => {
       expect(moreButton).toBeDefined();
       fireEvent.click(moreButton!);
 
-      expect(screen.getByText("Schuljahr und Ferien").closest("a")).toHaveClass(
-        "bg-gray-100",
-      );
+      expect(
+        screen.getByText("Schuljahr und Kalender").closest("a"),
+      ).toHaveClass("bg-gray-100");
       expect(screen.getByText("Tageslisten").closest("a")).toBeInTheDocument();
       expect(screen.getByText("Betreuungsplan").closest("a")).not.toHaveClass(
         "bg-gray-100",
@@ -1230,6 +1305,121 @@ describe("MobileBottomNav", () => {
     });
   });
 
+  // ADR 0091: die AG-Leitung hält nur schedules:read und heißt nicht
+  // `user`. Reiter und Menüeinträge, deren Route sie nicht öffnen darf,
+  // fehlen; eine Betreuungskraft sieht sie. Die Aufsicht öffnet sie mit
+  // schedules:read (nur die eigene laufende Aufsicht), also behält sie den
+  // Reiter.
+  describe("AG-Leitung und Gast", () => {
+    const GATED_MENU_LABELS = [
+      "Zeiterfassung",
+      "Mitarbeiter",
+      "Nachrichten",
+      "Räume",
+      "Aktivitäten",
+      "Übergaben",
+      "Notfall",
+    ];
+    const getMoreButton = () => {
+      const navButtons = screen.getAllByRole("button");
+      return navButtons.find((btn) => !btn.hasAttribute("data-testid"))!;
+    };
+
+    function mainHrefs(): (string | null)[] {
+      return screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+    }
+
+    it("zeigt keine Sackgassen in Leiste und Mehr-Menü", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "schedules:read",
+      );
+
+      render(<MobileBottomNav />);
+
+      // Anker: die Leiste ist geladen und führt zur Startseite.
+      const hrefs = mainHrefs();
+      expect(hrefs).toContain("/home");
+      expect(hrefs).not.toContain("/students/search");
+      expect(hrefs).toContain("/active-supervisions");
+
+      fireEvent.click(getMoreButton());
+      // Anker: das Mehr-Menü ist offen.
+      expect(screen.getByText("Dateien")).toBeInTheDocument();
+      for (const label of [...GATED_MENU_LABELS, "Alle Kinder"]) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
+    });
+
+    // Review #4573: eine Betreuungsrolle, die die Schule selbst benannt hat,
+    // heißt nicht `user`. Die Aufsicht hängt am Recht, nicht am Namen.
+    it("zeigt einer selbst benannten Betreuungsrolle die Aufsicht", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          CAREGIVER_NAV_PERMISSIONS.has(permission) ||
+          permission === "groups:read",
+      );
+
+      render(<MobileBottomNav />);
+
+      expect(mainHrefs()).toContain("/active-supervisions");
+    });
+
+    it("zeigt die Aufsicht ohne groups:read und schedules:read nicht", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation((_session, permission) =>
+        CAREGIVER_NAV_PERMISSIONS.has(permission),
+      );
+
+      render(<MobileBottomNav />);
+
+      const hrefs = mainHrefs();
+      // Anker: die Leiste ist geladen.
+      expect(hrefs).toContain("/home");
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    // Der Gast hält students:read statt users:read: „Suchen“ führt auf
+    // Alle Kinder, Elternnachrichten und Notfall fehlen.
+    it("zeigt dem Gast die Suche nach Kindern, aber keine Elterndaten", () => {
+      mockIsCaregiver.mockReturnValue(false);
+      mockHasPermission.mockImplementation((_session, permission) =>
+        [
+          "students:read",
+          "groups:read",
+          "rooms:read",
+          "activities:read",
+        ].includes(permission),
+      );
+
+      render(<MobileBottomNav />);
+
+      expect(mainHrefs()).toContain("/students/search");
+      fireEvent.click(getMoreButton());
+      // Anker: das Mehr-Menü ist offen.
+      expect(screen.getByText("Dateien")).toBeInTheDocument();
+      for (const label of ["Nachrichten", "Notfall", "Mitarbeiter"]) {
+        expect(screen.queryByText(label)).not.toBeInTheDocument();
+      }
+    });
+
+    it("zeigt dieselben Einträge einer Betreuungskraft", () => {
+      render(<MobileBottomNav />);
+
+      const hrefs = mainHrefs();
+      expect(hrefs).toContain("/students/search");
+      expect(hrefs).toContain("/active-supervisions");
+
+      fireEvent.click(getMoreButton());
+      for (const label of GATED_MENU_LABELS) {
+        expect(screen.getByText(label)).toBeInTheDocument();
+      }
+    });
+  });
+
   describe("supervision-based visibility", () => {
     it("shows supervision-related links when user has groups", () => {
       mockUseSupervision.mockReturnValue({
@@ -1632,25 +1822,25 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
     }
 
-    it("keeps Vertretungen for open-care tenants", () => {
+    it("keeps Übergaben for open-care tenants", () => {
       mockUseOpenCareGroupMode.mockReturnValue(true);
 
       render(<MobileBottomNav />);
       openDrawer();
 
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
       // Planung-Einträge bleiben sichtbar (timetable.enabled ungesetzt).
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
     });
 
-    it("shows Vertretungen to staff", () => {
+    it("shows Übergaben to staff", () => {
       mockIsAdmin.mockReturnValue(false);
       mockUseSession.mockReturnValue(createMockSession(false));
 
       render(<MobileBottomNav />);
       openDrawer();
 
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
     });
 
     it("hides the Gruppe main item for open-care staff (#1544)", () => {
@@ -1704,9 +1894,9 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
-      expect(screen.getByText("Schuljahr und Ferien")).toBeInTheDocument();
+      expect(screen.getByText("Schuljahr und Kalender")).toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
     });
 
     it("reads timetable.enabled from the tenant-scoped SWR key", () => {

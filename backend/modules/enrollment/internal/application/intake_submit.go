@@ -217,7 +217,11 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 		return fmt.Errorf("submit: generate status token: %w", err)
 	}
 	plan.statusToken = token
-	plan.statusExpiresAt = time.Now().Add(s.resolveStatusTokenExpiry(ctx))
+	lifetime, err := s.resolveStatusTokenExpiry(ctx)
+	if err != nil {
+		return err
+	}
+	plan.statusExpiresAt = time.Now().Add(lifetime)
 	plan.statusURL = enrollmentNative.StatusURL(s.deps.ParentsURL, token)
 	return nil
 }
@@ -312,6 +316,10 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 	if err != nil {
 		return nil, fmt.Errorf("submit: create request: %w", err)
 	}
+	claims, err := s.resolveFileAnswers(ctx, plan.phase.ID, plan.schema, 0, req.CustomData)
+	if err != nil {
+		return nil, err
+	}
 	statusExpiresAt := plan.statusExpiresAt
 	request := &Request{
 		SchemaID: schemaID, PhaseID: plan.phase.ID, GuardianAccountID: req.GuardianAccountID,
@@ -324,6 +332,9 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 	}
 	if err := createDecodedRequest(ctx, s.deps.Requests, request); err != nil {
 		return nil, fmt.Errorf("submit: create request: %w", err)
+	}
+	if err := s.claimFileUploads(ctx, claims, request.ID); err != nil {
+		return nil, fmt.Errorf("submit: %w", err)
 	}
 	if lateInvite != nil {
 		if err := s.deps.LateInvites.MarkLateInviteUsed(ctx, lateInvite.ID, request.ID, time.Now()); err != nil {

@@ -33,6 +33,10 @@ type queryBudget struct {
 // The counts are what the fixture-sized scenario in the referenced test
 // issues; small fixtures are enough because N+1 shows up at N=3 already.
 var queryBudgets = map[string]queryBudget{
+	// modules/mealplan — GET /api/meal-plan/participants/week (#3164): the
+	// tenant settings, then per school day one candidate read and the
+	// participation reads of the Tagesliste. Flat in the number of children.
+	"modules.mealplan.weekly_participants": {max: 24},
 	// Operator-reviewed staff person repairs read all school people and
 	// employments in two bulk queries, independent of the number of cases.
 	"api.operator.staff_person_merge.preview": {max: 2, exact: true},
@@ -213,8 +217,14 @@ var queryBudgets = map[string]queryBudget{
 	"services.platform.pending_operator_invitations.reads": {max: 1, exact: true},
 	// ADR 0077: the school's caterer invitations and the caterer's schools,
 	// including one bulk school-directory read to exclude deleted schools.
-	"modules.identityaccess.caterer_invitations.reads":   {max: 1, exact: true},
-	"modules.identityaccess.caterer_schools.reads":       {max: 3, exact: true},
+	"modules.identityaccess.caterer_invitations.reads": {max: 1, exact: true},
+	"modules.identityaccess.caterer_schools.reads":     {max: 3, exact: true},
+	// ADR 0077: the caterer's delivery list of a week over three schools
+	// through the production router. Each school runs in its own
+	// transaction with the supply check and the order read of
+	// modules.mealplan.orders.read_week, so it grows by a fixed number per
+	// school and never with the children; the window is at most a week.
+	"workflows.catererportal.delivery_export":            {max: 112, exact: true},
 	"services.education.suggest_mappings.reads":          {max: 4},
 	"services.reminders.present_students_in_rooms.reads": {max: 6},
 	"services.users.list_guardians.reads":                {max: 2},
@@ -254,8 +264,10 @@ var queryBudgets = map[string]queryBudget{
 	// Every read is a bulk load by ID set; the count must not move with the
 	// roster.
 	"modules.classday.slot_list.build": {max: 16},
-	// modules/mealplan — a week of orders reads each weekday in bulk (#3873).
-	"modules.mealplan.orders.read_week": {max: 28},
+	// modules/mealplan — a week of orders reads each weekday in bulk (#3873),
+	// without a lock or a write; a due order not stored yet shares its day's
+	// reads with the current registration (ADR 0077).
+	"modules.mealplan.orders.read_week": {max: 27},
 	// modules/timetable — group and target lookups stay one bulk query as IDs grow.
 	"modules.timetable.groups.list":              {max: 1, exact: true},
 	"modules.timetable.group_targets.list":       {max: 1, exact: true},
@@ -283,6 +295,11 @@ var queryBudgets = map[string]queryBudget{
 	// The children with a reachable guardian (#4362): the portal links of the
 	// whole school, then one batched membership check for their accounts.
 	"modules.communication.parent_messages.list_reachable_students": {max: 2, exact: true},
+	// The group threads (#4784): the OGS list and a guardian's list read the
+	// threads with their newest message, counts and read state in one
+	// statement each, however many threads exist.
+	"modules.communication.parent_group_threads.list":              {max: 1, exact: true},
+	"modules.communication.parent_group_threads.list_for_guardian": {max: 1, exact: true},
 	// database/repositories/users — due announcement reminders read their rows
 	// and targets in two batches, regardless of the number due in one tick.
 	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},

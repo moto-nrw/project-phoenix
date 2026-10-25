@@ -9,125 +9,69 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 )
 
-var (
-	// ErrSupplyActive refuses a second caterer while one supplies the school.
-	ErrSupplyActive = errors.New("another caterer supplies the school")
-	// ErrNotSupplied refuses a caterer the school is not supplied by.
-	ErrNotSupplied = errors.New("the caterer does not supply the school")
-	// ErrOrderNotFound: the school has no such order.
-	ErrOrderNotFound = errors.New("meal order not found")
-)
-
-// startSupply starts the school's supply by a caterer (ADR 0077). Starting
-// the running supply again changes nothing; another caterer's is refused.
-func (s *Service) startSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64) error {
-	return mapPublicError(s.run(ctx, "start_supply", func(txCtx context.Context) (domain.OperationStats, error) {
-		supply, active, stats, err := s.store.FindActiveSupply(txCtx, true)
-		if err != nil {
-			return stats, err
-		}
-		if active {
-			if supply.CatererID == catererID {
-				return stats, nil
-			}
-			return stats, ErrSupplyActive
-		}
-		insertStats, err := s.store.InsertSupply(txCtx, catererID, deliveryAddress, accountID, s.now())
-		return addStats(stats, insertStats), err
-	}))
-}
-
-// EndSupply ends the school's supply and reports whether one ran.
-func (s *Service) EndSupply(ctx context.Context, accountID int64) (ended bool, err error) {
-	err = s.run(ctx, "end_supply", func(txCtx context.Context) (domain.OperationStats, error) {
-		var stats domain.OperationStats
-		ended, stats, err = s.store.EndSupply(txCtx, accountID, s.now())
-		return stats, err
-	})
-	return ended, mapPublicError(err)
-}
-
-// CurrentSupply reads the school's running supply.
-func (s *Service) CurrentSupply(ctx context.Context) (mealplan.Supply, bool, error) {
-	var supply domain.Supply
-	var active bool
-	err := s.run(ctx, "read_supply", func(txCtx context.Context) (stats domain.OperationStats, err error) {
-		supply, active, stats, err = s.store.FindActiveSupply(txCtx, false)
-		return stats, err
-	})
-	return mealplan.Supply(supply), active, mapPublicError(err)
-}
+// ErrOrderNotFound: the school has no such order.
+var ErrOrderNotFound = errors.New("meal order not found")
 
 // catererOrders is the school's orders of [from, to] as its caterer reads
-// them: only while the caterer supplies the school, settled like every other
-// read, and cut down to what the caterer may see.
-func (s *Service) catererOrders(ctx context.Context, catererID int64, from, to string) (mealplan.OrderWeek, error) {
+// them: laid out like every other read, without a write or a lock, the
+// delivery days from the start of its supply on, and cut down to what the
+// caterer may see. Who supplies the school is no Meal Plan data (ADR 0077);
+// the caterer portal checks it in the same school transaction and hands in
+// when the supply started.
+func (s *Service) catererOrders(ctx context.Context, since time.Time, from, to string) (mealplan.OrderWeek, error) {
 	var view domain.OrderView
-	var supply domain.Supply
 	err := s.run(ctx, "read_caterer_orders", func(txCtx context.Context) (domain.OperationStats, error) {
-		var stats domain.OperationStats
-		var supplyErr error
-		supply, stats, supplyErr = s.requireSupplier(txCtx, catererID, false)
-		if supplyErr != nil {
-			return stats, supplyErr
-		}
 		rules, rulesErr := s.requireRegistration(txCtx)
 		if rulesErr != nil {
-			return stats, rulesErr
+			return domain.OperationStats{}, rulesErr
 		}
-		var settleStats domain.OperationStats
+		var stats domain.OperationStats
 		var err error
-		view, settleStats, err = s.settleOrders(txCtx, rules, domain.Date(from), domain.Date(to))
-		return addStats(stats, settleStats), err
+		view, stats, err = s.provisionalOrders(txCtx, rules, domain.Date(from), domain.Date(to))
+		return stats, err
 	})
 	if err != nil {
 		return mealplan.OrderWeek{}, mapPublicError(err)
 	}
-	view.Days = daysSince(view.Days, supply.StartedAt)
+	view.Days = daysSince(view.Days, since)
 	return catererWeek(publicOrderWeek(view), view.Rules), nil
 }
 
-// daysSince keeps the days from the start of the supply on: a caterer never
-// reads what the school ordered from its predecessor.
+// daysSince keeps the delivery days from the start of the supply on (ADR
+// 0077): a caterer never reads a day its predecessor delivered, but reads
+// every day it delivers, even one whose order was fixed before it started.
+// A confirmation from before the start is its predecessor's and does not
+// count for it.
 func daysSince(days []domain.OrderDay, start time.Time) []domain.OrderDay {
+	first := domain.DateFromInstant(start)
 	kept := days[:0:0]
 	for _, day := range days {
-		if !day.Date.Before(domain.DateFromInstant(start)) && (day.Order == nil || !day.Order.FrozenAt.Before(start)) {
-			kept = append(kept, day)
+		if day.Date.Before(first) {
+			continue
 		}
+		if day.Order != nil && day.Order.ConfirmedAt != nil && day.Order.ConfirmedAt.Before(start) {
+			order := *day.Order
+			order.ConfirmedAt = nil
+			day.Order = &order
+		}
+		kept = append(kept, day)
 	}
 	return kept
 }
 
-// confirmOrder records that the caterer received a fixed order. It is the
-// caterer's only write (ADR 0077); confirming twice keeps the first.
-func (s *Service) confirmOrder(ctx context.Context, catererID, orderID, accountID int64) error {
+// confirmOrder records that the caterer received a fixed order with a day of
+// its supply. It is the caterer's only write (ADR 0077); confirming twice
+// keeps the first, a predecessor's confirmation gives way to the caterer's
+// own. A due order the worker has not stored yet has no ID, so it cannot be
+// confirmed before it is stored: confirming never fixes an order.
+func (s *Service) confirmOrder(ctx context.Context, orderID int64, since time.Time, accountID int64) error {
 	return mapPublicError(s.run(ctx, "confirm_order", func(txCtx context.Context) (domain.OperationStats, error) {
-		// Locked: a supply ending at the same time waits, or wins.
-		supply, stats, err := s.requireSupplier(txCtx, catererID, true)
-		if err != nil {
-			return stats, err
-		}
-		found, confirmStats, err := s.store.ConfirmOrder(txCtx, orderID, accountID, supply.StartedAt, s.now())
-		stats = addStats(stats, confirmStats)
+		found, stats, err := s.store.ConfirmOrder(txCtx, orderID, accountID, domain.DateFromInstant(since), since, s.now())
 		if err == nil && !found {
 			err = ErrOrderNotFound
 		}
 		return stats, err
 	}))
-}
-
-// requireSupplier is the running supply when the caterer runs it; forUpdate
-// keeps it running until the unit of work ends.
-func (s *Service) requireSupplier(ctx context.Context, catererID int64, forUpdate bool) (domain.Supply, domain.OperationStats, error) {
-	supply, active, stats, err := s.store.FindActiveSupply(ctx, forUpdate)
-	if err != nil {
-		return domain.Supply{}, stats, err
-	}
-	if !active || supply.CatererID != catererID {
-		return domain.Supply{}, stats, ErrNotSupplied
-	}
-	return supply, stats, nil
 }
 
 // catererWeek cuts the school's view down to what its caterer may read

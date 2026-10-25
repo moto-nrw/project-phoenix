@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "../api-error";
 import { installRateLimitFetchGuard } from "../rate-limit-backoff";
 import { immutableConfig, swrConfig } from "./config";
 
@@ -15,25 +16,52 @@ describe("swrConfig.onError", () => {
     vi.restoreAllMocks();
   });
 
-  it("logs the cache key and the message of an Error instance", () => {
+  // #2512: the entry carries identifiers only. The cache key can hold the
+  // Kindersuche search term and the message the backend detail, so neither
+  // reaches Loki; the request ID joins the entry to the server's request line.
+  it("logs code, class, status and request ID of an API error", () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
 
     swrConfig.onError?.(
-      new Error("network down"),
-      "tenant-slug:database-devices-list",
+      new ApiError("student Anna Schmidt not visible", 403, {
+        code: "general.permission",
+        instance: "req-7",
+      }),
+      "tenant-slug:search-students-gall-Anna Schmidt",
       stubConfig,
     );
 
     expect(consoleError).toHaveBeenCalledTimes(1);
     expect(consoleError).toHaveBeenCalledWith("swr_fetch_failed", {
-      key: "tenant-slug:database-devices-list",
-      error: "network down",
+      error_class: "permission",
+      error_code: "general.permission",
+      status: 403,
+      request_id: "req-7",
+      error_name: "ApiError",
+    });
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain("Anna");
+  });
+
+  it("classes a dropped connection as unavailable without its text", () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+
+    swrConfig.onError?.(
+      new TypeError("Failed to fetch"),
+      "tenant-slug:database-devices-list",
+      stubConfig,
+    );
+
+    expect(consoleError).toHaveBeenCalledWith("swr_fetch_failed", {
+      error_class: "unavailable",
+      error_name: "TypeError",
     });
   });
 
-  it("falls back to String(err) when a non-Error is thrown", () => {
+  it("logs a thrown non-Error as a crash", () => {
     const consoleError = vi
       .spyOn(console, "error")
       .mockImplementation(() => {});
@@ -41,8 +69,7 @@ describe("swrConfig.onError", () => {
     swrConfig.onError?.("connection refused", "key-x", stubConfig);
 
     expect(consoleError).toHaveBeenCalledWith("swr_fetch_failed", {
-      key: "key-x",
-      error: "connection refused",
+      error_class: "crash",
     });
   });
 
@@ -56,8 +83,7 @@ describe("swrConfig.onError", () => {
     ).not.toThrow();
 
     expect(consoleError).toHaveBeenCalledWith("swr_fetch_failed", {
-      key: "key-y",
-      error: "[object Object]",
+      error_class: "crash",
     });
   });
 
@@ -74,8 +100,9 @@ describe("swrConfig.onError", () => {
     );
 
     expect(consoleWarn).toHaveBeenCalledWith("swr_fetch_rate_limited", {
-      key: "tenant-slug:ogs-students-3",
-      error: "Error fetching students: API error: 429",
+      error_class: "unavailable",
+      status: 429,
+      error_name: "Error",
       rate_limited: true,
     });
     expect(consoleError).not.toHaveBeenCalled();

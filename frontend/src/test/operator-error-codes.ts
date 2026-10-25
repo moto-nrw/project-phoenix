@@ -86,6 +86,8 @@ export const OPERATOR_PORTAL_ERROR_CODES = [
   "settings.booking_authority_blocked",
   "settings.attendance_visible_exceeds_retention",
   "settings.attendance_retention_below_visible",
+  "settings.module_requires",
+  "settings.module_required_by",
   // Announcements, unregistered RFID scans, billing.
   "communication.announcement_not_found",
   "devices.tag_scan_not_found",

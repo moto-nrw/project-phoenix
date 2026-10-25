@@ -37,6 +37,8 @@ var (
 	// ErrMFAPermissionDenied refuses an admin action the actor may not take,
 	// and a device or account it may not reach.
 	ErrMFAPermissionDenied = errors.New("permission denied")
+	// ErrOperatorAuditUnavailable refuses an unaudited privileged operation.
+	ErrOperatorAuditUnavailable = errors.New("operator audit unavailable")
 	// ErrMFAInvalidOverride refuses an override value outside the allow
 	// list.
 	ErrMFAInvalidOverride = errors.New("invalid mfa override value")
@@ -85,36 +87,6 @@ const (
 	AdminRoleName = "admin"
 )
 
-// MFASettingsWithoutService answers the gate's parameters for a root
-// composed without a settings service: the second factor is off, trusted
-// devices are allowed, and the remember-device lifetime and the lockout
-// answer zero, so the flows apply the module fallbacks.
-type MFASettingsWithoutService struct{}
-
-func (MFASettingsWithoutService) MFAMode(context.Context, int64) (string, error) {
-	return MFAModeOff, nil
-}
-
-func (MFASettingsWithoutService) MFAModeInTx(context.Context, int64) (string, error) {
-	return MFAModeOff, nil
-}
-
-func (MFASettingsWithoutService) TrustedDeviceEnabled(context.Context, int64) (bool, error) {
-	return true, nil
-}
-
-func (MFASettingsWithoutService) TrustedDeviceDays(context.Context, int64) (int, error) {
-	return 0, nil
-}
-
-func (MFASettingsWithoutService) LockoutThreshold(context.Context, int64) (int, error) {
-	return 0, nil
-}
-
-func (MFASettingsWithoutService) LockoutDuration(context.Context, int64) (time.Duration, error) {
-	return 0, nil
-}
-
 // The admin-override values. There is no "none" row: its absence is the
 // none outcome.
 const (
@@ -144,16 +116,17 @@ type MFAAdminState struct {
 // VerifiedMFAChallenge is what a redeemed challenge hands the caller, so the
 // session mint needs no second look at the challenge JWT.
 type VerifiedMFAChallenge struct {
-	AccountID int64
-	Scope     string
-	TenantID  int64
+	MFAResetGeneration int64
+	AccountID          int64
+	Scope              string
+	TenantID           int64
 }
 
 // AccountMFAGate is the read side every login path consults.
 type AccountMFAGate interface {
-	// IsRequired applies the resolved policy to the account's roles.
-	IsRequired(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error)
-	// ResolveMFAPolicy performs the reads and leaves the role predicate
+	// IsRequired applies the resolved policy to the account's effective permissions.
+	IsRequired(ctx context.Context, accountID int64, permissions []string, tenantID int64) (bool, error)
+	// ResolveMFAPolicy performs the reads and leaves the permission predicate
 	// unapplied.
 	ResolveMFAPolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	// ResolveMFAPolicyInTx re-reads the policy on the caller's transaction,
@@ -186,7 +159,7 @@ type AccountMFAChallenges interface {
 	// authenticated the user out of band. The scope and school are required:
 	// without a challenge id they are what keeps the lookup inside its own
 	// portal.
-	VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
+	VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, expectedScope string) (VerifiedMFAChallenge, error)
 	// ResendMFAChallengeForScope re-issues a code for a challenge of this
 	// portal and returns the renewed JWT.
 	ResendMFAChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
@@ -203,8 +176,17 @@ type AccountMFAEnrollment interface {
 	DisableMFA(ctx context.Context, accountID int64) error
 }
 
+// TrustedDeviceIssue persists a device using the policy resolved at preparation.
+// Call it only after session issuance succeeds.
+type TrustedDeviceIssue = func(context.Context) (cookieValue string, expiresAt time.Time, err error)
+
 // AccountTrustedDevices is the remember-device cookie.
 type AccountTrustedDevices interface {
+	// PrepareTrustedDevice resolves policy without writes. A nil operation
+	// means the feature is disabled. Either policy read can return an error;
+	// login callers then skip remembering the device, not the verified login.
+	// The operation does not re-read settings.
+	PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (TrustedDeviceIssue, error)
 	// IssueTrustedDevice answers an empty cookie value without persisting a
 	// row when the school turned the feature off; the caller then writes no
 	// Set-Cookie header.

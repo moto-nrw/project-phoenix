@@ -34,6 +34,14 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
   };
 });
 
+// The occupancy section loads on its own; phase-offering-occupancy.test.tsx
+// covers it.
+vi.mock("~/components/enrollment/phase-offering-occupancy", () => ({
+  PhaseOfferingOccupancy: ({ phaseId }: { phaseId: string }) => (
+    <div data-testid="phase-offering-occupancy">{phaseId}</div>
+  ),
+}));
+
 vi.mock("~/lib/enrollment-phase-api", () => ({
   listPhases: mocks.listPhases,
 }));
@@ -399,9 +407,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Auswertung exportieren" }),
     );
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
 
     await waitFor(() => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
@@ -441,9 +447,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Auswertung exportieren" }),
     );
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
 
     await waitFor(() => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
@@ -461,7 +465,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
     fireEvent.click(
       screen.getByRole("menuitem", {
-        name: "Als Word-Dokument exportieren (ausführlich)",
+        name: "Word, ausführlich",
       }),
     );
 
@@ -481,12 +485,12 @@ describe("AdminEnrollmentPhaseDetail", () => {
     );
     expect(
       screen.getByRole("menuitem", {
-        name: "Als Word-Dokument exportieren (kompakte Tabelle)",
+        name: "Word, kompakte Tabelle",
       }),
     ).toBeVisible();
     fireEvent.click(
       screen.getByRole("menuitem", {
-        name: "Als PDF exportieren (kompakte Tabelle)",
+        name: "PDF, kompakte Tabelle",
       }),
     );
 
@@ -514,7 +518,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     });
     fireEvent.click(
       within(rosterMenu).getByRole("menuitem", {
-        name: "Als PDF exportieren",
+        name: "PDF",
       }),
     );
 
@@ -590,9 +594,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Auswertung exportieren" }),
     );
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
 
     await waitFor(() => {
       expect(mocks.exportCareUsageReport).toHaveBeenCalledWith(
@@ -673,9 +675,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Auswertung exportieren" }),
     );
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: "Als Excel-Datei exportieren" }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Excel" }));
 
     await waitFor(() => {
       expect(mocks.showActionError).toHaveBeenCalledWith(failed, {
@@ -784,5 +784,17 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(
       screen.queryByRole("button", { name: "Trotzdem bestätigen" }),
     ).not.toBeInTheDocument();
+    // Without care offerings there are no places to count (#4782).
+    expect(
+      screen.queryByTestId("phase-offering-occupancy"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the free places of the phase's offerings (#4782)", async () => {
+    await renderPhase();
+
+    expect(screen.getByTestId("phase-offering-occupancy")).toHaveTextContent(
+      phase.id,
+    );
   });
 });

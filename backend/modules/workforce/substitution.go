@@ -172,9 +172,15 @@ type GroupRef struct {
 type StaffRef struct {
 	ID       int64  `json:"id,string"`
 	FullName string `json:"full_name"`
-	// IsExternal marks an external caregiver without a moto account (#3823);
-	// only the additional supervision targets carry it.
-	IsExternal bool `json:"is_external,omitempty"`
+	// IsExternal marks an external caregiver, with or without a moto account
+	// (#3823, #4573), and ExternalAccountStatus is then "account" |
+	// "invitation_pending" | "none", ExternalOrganization the organization
+	// of the external caregiver record (empty when none is recorded). The running
+	// supervisions' targets and supervisors carry all three; the schedule
+	// targets carry IsExternal only.
+	IsExternal            bool   `json:"is_external,omitempty"`
+	ExternalAccountStatus string `json:"external_account_status,omitempty"`
+	ExternalOrganization  string `json:"external_organization,omitempty"`
 }
 
 type Period struct {
@@ -365,14 +371,4 @@ type SubstitutionAssignmentResult struct {
 type SubstitutionEndRequest struct {
 	Type SubstitutionTargetType
 	ID   int64
-}
-
-// Substitutions is the operations capability behind /api/substitutions: the
-// overview of running handovers and supervisions, assigning a substitute, and
-// ending an assignment. Every operation runs for the given caller and
-// enforces that caller's access itself.
-type Substitutions interface {
-	Overview(context.Context, SubstitutionCaller, SubstitutionOverviewQuery) (*SubstitutionOverviewResult, error)
-	Assign(context.Context, SubstitutionCaller, SubstitutionAssignment) (*SubstitutionAssignmentResult, error)
-	End(context.Context, SubstitutionCaller, SubstitutionEndRequest) error
 }

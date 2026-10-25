@@ -1,0 +1,194 @@
+# MFA-Pflicht für privilegierte Konten (Slice 3841-f)
+
+## Stand und Grenze
+
+**Im Code umgesetzt:** Die effektiven Rechte einer Schule entscheiden, nicht
+Rollennamen. Nutzerverwaltung, Rollen-/Rechteverwaltung, Auth-Verwaltung,
+Sicherheits-/Systemeinstellungen, Personalverwaltung, Gesundheitsrechte und
+`staff:financial` verlangen einen zweiten Nachweis. Seit der Nutzerentscheidung
+vom 24.10.2026 gehören auch `staff:stammdaten`, `staff:documents`,
+`time_tracking:manage` und `vacation:approve` dazu. Die genaue Untergrenze steht
+in `backend/modules/identityaccess/internal/domain/mfa_privilege.go`.
+Sie umfasst 23 Rechte, einschließlich `enrollment_uploads:read`: Die
+Einkommensnachweise der Eltern sind Finanzdaten und erhalten denselben
+MFA-Schutz wie die bereits erfassten Finanzrechte.
+`users:create/update/delete` verwalten Personen-/Kinderdaten, nicht Konten oder
+Rollen (siehe `mountAdminRoutes`); allein diese Rechte erzwingen keine MFA.
+Auch `users:read` bleibt ausdrücklich außerhalb dieser Untergrenze.
+Gesundheitshinweise der Kinder (`health_info`) bleiben damit sichtbar, ohne
+eigene Zugriffsstufe. Gesundheitsdokumente behalten dagegen ihre eigenen Rechte.
+Wildcards zählen entsprechend ihrem tatsächlichen Zugriff. Neue Registry-Rechte
+müssen im Klassifikationstest ausdrücklich bewertet werden.
+
+`off` und `required_admins` ändern diese Untergrenze nicht. `required_all`
+erweitert die Schulpflicht auf alle Mitarbeitenden. Die Optionswerte bleiben
+kompatibel. Elternzugänge bleiben unverändert und geben keine Personalrechte aus.
+Operator-MFA bleibt unverändert, einschließlich der vorhandenen Demo-Ausnahme.
+
+**Produktiv nachzuweisen, hier offen:** Migration und Rollout, funktionierender
+Mailversand, Zugriff der Betroffenen auf ihr Postfach, Bestandszahlen, Anmeldung
+und Wiederherstellung pro betroffener Schule. Ein grüner Test ist kein Nachweis
+am produktiven System. Dieser Slice bestätigt weder AK1/2 (Geräte), AK5
+(Anmeldeangriffe) noch AK6 (gesonderte Elternbewertung) vollständig.
+
+## Anmeldung und Bestand
+
+1. Öffnen Sie die moto-Adresse Ihrer Schule und melden Sie sich an.
+2. Beim ersten Mal wählen Sie `Code an meine E-Mail senden`.
+3. Öffnen Sie die E-Mail und geben Sie den sechsstelligen Code ein.
+4. Erst nach erfolgreicher Prüfung öffnet moto die Schule.
+
+Ein vorhandener Passkey mit bestätigter Benutzerprüfung ist ebenfalls ein
+zweiter Nachweis. Seine Einrichtung für Schulpersonal existiert bereits:
+Passkey-Registrierung verlangt einen bestätigten E-Mail-Code, Passkey-Anmeldung
+verlangt WebAuthn `VerificationRequired`. Diese Funktion wird nicht auf Eltern
+ausgeweitet. moto schule nutzt seine bestehende E-Mail-Code-Einrichtung.
+
+Gemerkte Geräte bleiben schulgebunden und nur bei erlaubter Schulrichtlinie
+gültig. Sie stammen aus einer bestätigten MFA-Anmeldung. Vor dem Mint wird
+ihre Freigabe unter der Kontosperre erneut geprüft; ein zwischenzeitlicher
+Widerruf oder Reset darf keinen neuen Sitzungsnachweis erzeugen. Die Einstellungen für
+gemerkte Geräte bleiben deshalb auch bei `off` sichtbar. Ein noch nicht
+angemeldetes Konto kann die Einrichtung nicht mit einem alten Cookie überspringen.
+
+Migration `1.15.484` setzt für alle vorhandenen Refresh-Sitzungen den neuen
+Nachweis `mfa_verified` auf `false`. Beim nächsten Refresh muss ein inzwischen
+MFA-pflichtiges Konto sich neu anmelden. Es erhält dann die Einrichtungsabfrage
+oder eine Code-Abfrage. Neue bestätigte Sitzungen behalten ihren Nachweis über
+Rotation und zulässige Wiederherstellung verlorener Refresh-Antworten.
+Access-Token bleiben bis zu ihrer vorhandenen Ablaufzeit gültig; es gibt keine
+nachträgliche Sofortsperre aller Access-Token.
+
+Ein Schulwechsel erhält die Bestätigung der laufenden Anmeldung im OGS-Portal
+oder im Schulportal. Die Bestätigung bleibt im jeweiligen Portalbereich und
+gilt nur für dasselbe Konto.
+
+Ein Schulwechsel erhält die Bestätigung der laufenden Anmeldung. Das gilt im
+OGS- und Schulportal, jeweils nur aus einer lebenden Sitzungsfamilie desselben
+Portals.
+Nach Zurücksetzen der zweiten Prüfung gilt diese Bestätigung nicht mehr.
+Sie gilt auch nicht nach Abmeldung oder Ablauf der Sitzung.
+Fehlt die Bestätigung, melden Sie sich direkt bei der Zielschule an. Im
+OGS-Portal meldet `Zur Schulanmeldung` Sie zuerst ab. Danach öffnet sich die
+Anmeldeseite der Zielschule. Scheitert die Abmeldung, folgen Sie dem sichtbaren
+Hinweis und versuchen Sie es erneut.
+Eine Passwort-Zurücksetzung stellt keine Sitzung und keinen MFA-Nachweis aus.
+
+## Verlorener zweiter Faktor
+
+1. Identität über das vereinbarte Supportverfahren prüfen. Keine Codes oder
+   Geheimnisse im Ticket, Chat, Screenshot oder Nachweis ablegen.
+2. Falls vorhanden, mit einem eigenen gültigen Passkey anmelden. Andernfalls
+   den Zugang zum persönlichen E-Mail-Postfach wiederherstellen lassen.
+3. Bei falscher oder leerer E-Mail-Adresse muss der berechtigte Support zuerst
+   die Adresse über die bestehende Kontoverwaltung berichtigen. Ohne erreichbares
+   Postfach und ohne gültigen Passkey ist keine Anmeldung möglich. Die
+   Einrichtungsseite verweist an die Schulverwaltung; eine nicht zustellbare Mail
+   darf keinen Erfolg und keine Sitzung erzeugen.
+4. Falls nötig, die vorhandene Funktion zum Zurücksetzen der Zwei-Faktor-Anmeldung
+   mit Begründung verwenden. Sie entzieht auch bisherigen Sitzungen ihren
+   MFA-Nachweis und widerruft gemerkte Geräte. Danach erneut anmelden und den
+   Code bestätigen. Die Person bleibt bis dahin ohne privilegierte Sitzung.
+
+**Keine Ausnahme für privilegierte Ziele:** Weder Schule noch Operator können
+`force_off` dafür neu setzen. Altwerte bleiben als historische Auditdaten
+bestehen, sind aber bei der Rechteprüfung unwirksam. Ablehnungen nutzen das
+bestehende Auditprotokoll. Eine zusätzliche Ausnahmeoberfläche entfällt bewusst.
+Wiederherstellung stellt den Faktor wieder her, nicht eine Passwort-Ausnahme.
+
+## Bestandsabfrage für befugten Betrieb
+
+Datei: [mfa-pflicht-3841-counts.sql](sql/mfa-pflicht-3841-counts.sql).
+Nur über einen freigegebenen administrativen Datenbankzugang ausführen.
+Die Abfrage muss vor dem Release auch auf dem alten Schema lauffähig sein.
+Sie liest den erst mit `1.15.464` ergänzten Account-Löschmarker über
+`to_jsonb(account)`; fehlt die Spalte, gilt sie als nicht gesetzt. Auf dem neuen
+Schema bleiben gelöschte Konten ausgeschlossen. Die übrigen verwendeten
+Tabellen und Spalten existieren bereits vor `1.15.459`: Schulen und
+Schulzuordnungen seit `1.13.1/2`, schulbezogene Rollenzuordnung seit `1.14.2`,
+`schools.deleted_at` seit `1.15.21`, E-Mail-MFA seit `1.15.80` und Passkeys
+mit `revoked_at` seit `1.15.133`. Neuere Berechtigungsnamen sind reine
+Vergleichswerte, keine zusätzlichen Schema-Abhängigkeiten.
+Die Abfrage liefert ausschließlich Schul-IDs und Anzahlen, keine Konten,
+Adressen, Codes oder Schlüssel. `without_any_second_factor` zählt Konten ohne
+E-Mail-MFA und ohne gültigen Passkey. `without_email_address` zeigt Fälle ohne
+E-Mail-Weg, nicht die tatsächliche Zustellbarkeit.
+Die Zählmenge enthält alle 23 Rechte, einschließlich der vier ergänzten
+Personalrechte und `enrollment_uploads:read`, nicht `users:read`.
+
+```sh
+PGOPTIONS='-c default_transaction_read_only=on' \
+  psql "$DB_DSN" -v ON_ERROR_STOP=1 \
+  -f docs/operations/sql/mfa-pflicht-3841-counts.sql
+```
+
+Hier wurde nur die lokale Testdatenbank benutzt. Produktive Zahlen bleiben
+Mensch-Schritt. Anzahlen, Release-Version und Ergebnis des Anmelde-/Supporttests
+im geschützten Betriebsnachweis festhalten. Keine personenbezogenen Listen im PR.
+
+## Lokale Entwicklung
+
+Die Produktionsregel hat keinen Dev-Schalter. Der dev-only Seed-Adapter schließt
+MFA über die echten Enrollment-/Verify-Endpunkte und das lokale Mailpit ab,
+wie bisher beim Operator. Ein Seed-Admin erhält dadurch eine bestätigte Sitzung;
+spätere manuelle Anmeldungen nutzen den Code aus Mailpit oder einen eigenen
+Passkey. Mailpit-Automatik gehört nur in `cmd/devtools`, nicht in die API.
+
+### Demo-Betrieb
+
+Auch der Demo-Schuladmin durchläuft Einrichtung und Code-Prüfung. Statt Mailpit
+nimmt der Demo-Sidecar Codes im eigenen Arbeitsspeicher entgegen. Der Demo-Mailer
+sendet sie ausschließlich an `127.0.0.1:10026` in der mit dem Server geteilten
+Netzwerknamespace. Dieser TCP-Port ist nicht veröffentlicht und bietet keinen
+Lese-Endpunkt. MFA-Codes gehen nicht an externe Postfächer. Der Empfänger hält
+sie nur im Arbeitsspeicher und legt keine Dateien an. Der bestehende
+serverseitige MFA-/Outbox-Ablauf bleibt unverändert. Die Einrichtung des
+Demo-Admins folgt der normalen MFA-Regel. Davon zu unterscheiden ist die
+öffentliche Demo-Einlösung im nächsten Abschnitt.
+
+Der Sidecar startet den Empfänger vor Provisionierung und Simulation. Ohne
+Empfänger scheitert die Zustellung geschlossen; bei einem Portkonflikt startet
+der Sidecar nicht. Bei Demo-Anmeldefehlern zuerst Sidecar-Start und gemeinsame
+Netzwerknamespace prüfen. Keine Codes in Logs oder Betriebsnachweise aufnehmen.
+Der Demo-Adapter nutzt keinen Dateicache, da der Sidecar schreibgeschützt läuft.
+Der Ablauf ist lokal mit Test-DB geprüft, der ausgerollte Demo-Betrieb bleibt
+gesondert nachzuweisen.
+
+## Bewusste Demo-Ausnahme
+
+Nur unter `APP_ENV=demo` ist die öffentliche Demo-Einlösung erreichbar
+(`api/demo_access.go` und `MountDemoRoutes`). `DemoAccess.Redeem` stellt dort
+über `IssueTokensForAuthenticatedAccount` auch für Demo-Admins und die Rolle
+`all` Sitzungen mit `mfa_verified=true` ohne zweiten Faktor aus. Diese bewusste
+Ausnahme ist auf die Demo mit synthetischen Daten begrenzt. Sie gilt weder für
+Produktivschulen noch als Nachweis einer bestandenen MFA-Prüfung. Betreiber
+müssen die Trennung und ausschließlich synthetische Demo-Daten sicherstellen.
+
+Außerhalb der Demo sind die produktiven Aufrufer dieser Capability:
+`completeMFAExchange` nach `VerifyChallenge` bzw. nach dem Verbrauch einer
+abgeschlossenen Enrollment-Challenge und `AccountPasskeyFlows.FinishLogin`
+nach `finishPasskeyLogin` (WebAuthn-Prüfung mit Nutzerverifikation). Die
+Capability selbst vertraut dem aufrufenden Adapter; sie prüft den Faktor nicht
+noch einmal. Passwort-Login und Refresh rufen sie nicht auf. Die lokale
+Seed-Automatik durchläuft ebenfalls den echten E-Mail-Code über Mailpit.
+Tests: Demo-Routen außerhalb Demo sind 404 (`demo_access_test.go`), MFA- und
+Passkey-Austausch prüfen die jeweiligen Nachweise. Dies ist ein Code-Nachweis,
+kein produktiver Betriebsnachweis.
+
+## Vorschlag AVV/TOM
+
+Anhang 1, Ziff. 2 „Zugang“, als konkreten Text prüfen:
+
+> Privilegierte Kundenkonten einschließlich Verwaltungsrechten sowie Zugriffe
+> auf Gesundheitsdokumente, Personalstammdaten, allgemeine Personaldokumente und
+> Personalfinanzdaten verlangen einen zusätzlichen Anmeldenachweis unabhängig
+> von der Schuleinstellung. Das gilt ebenso für Einkommensnachweise der Eltern. Das gilt auch für das Verwalten fremder Arbeitszeiten
+> und das Genehmigen von Urlaub. Das alleinige Leserecht `users:read`, auch für
+> Gesundheitshinweise der Kinder, löst diese Pflicht nicht aus. Sitzungen ohne diesen
+> Nachweis werden bei der nächsten Erneuerung zur erneuten Anmeldung gezwungen.
+> Wiederherstellung stellt einen geeigneten Anmeldeweg wieder her und hebt die
+> Pflicht nicht auf. Gemerkte Geräte sind schulgebunden und widerrufbar.
+
+Bis zum produktiven Nachweis als Zielstand kennzeichnen. Das Legal-Repo wird
+nicht geändert. Umfang und Verwendung von E-Mail-Codes, Passkeys und gemerkten
+Geräten mit den tatsächlich betriebenen Abläufen abgleichen.

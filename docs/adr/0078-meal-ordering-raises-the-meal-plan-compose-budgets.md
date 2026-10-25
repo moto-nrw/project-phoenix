@@ -17,7 +17,9 @@ parents cancel a whole week, and lets the school calendar close days and
 suspend the weekly pattern in the holidays. The school's list of a day also
 names the children who do not eat, so staff can register them late. The
 orders of a day or a week are fixed at the deadline and later changes are
-numbered; school, caterer and exports read them through one engine method. The parent portal reaches the Meal Plan only
+numbered, by the worker and the registration writes only; school, caterer
+and exports read them, without writing, through one engine method. The
+parent portal reaches the Meal Plan only
 through its public module, and the public module reaches the application
 layer only through the engine in `modules/mealplan/compose`. Every new
 operation therefore needs one engine method that parses the dates, calls the
@@ -42,42 +44,37 @@ Before raising anything, the change was cut down:
   engine already binds, not by a third adapter method.
 - The error mapping of the engine is a table instead of one branch per error.
 
-What remains in this change, after development moved the engine of the
-Meal Plan from `modules/mealplan/compose` into its application layer and
-measured the registers again:
+What remains in this change:
 
 - `modules/mealplan/compose`: the school calendar and the names of past
   orders as dependencies, and the ordering settings as one value: 5 lines.
 - `workflows/parentportal/compose`: the week binding method and the new fields
-  of the participation plan and its days: 25 lines, 29 after development
-  moved the binding onto the shared meal plan adapter of the care flows.
+  of the participation plan and its days, on the shared meal plan adapter of
+  the care flows: 29 lines.
 - `workflows/parentportal`: that adapter forwards the week change in one
   method of its own, one pass-through.
 
 ## Decision
 
-1. `moduleComposeBudgets["modules/mealplan/compose"]` rises from 84 to 89.
-2. `moduleComposeBudgets["workflows/parentportal/compose"]` rises from 450 to
-   475.
-3. `moduleComposeBudgetTotal` rises by the same 30 lines, from 20,119 to
-   20,149.
-
-   After development contracted the compositions (base 16,742 lines, the
-   parent binding at 279), the same changes measure 5 lines for
-   `modules/mealplan/compose` and 29 for `workflows/parentportal/compose`
-   (279 to 308); with ADR 0077 the total is 16,856. After the next
-   contraction (2026-10-20, base 12,419 lines) they measure the same 5 and
-   29 lines: `modules/mealplan/compose` from 69 to 74, and with ADR 0077 the
-   total is 12,534. On the base after the Identity & Access collapse
-   (12,407 lines) the total with ADR 0077 is 12,522; on the base of
-   2026-10-21 (12,355 lines) it is 12,470, on the base of 2026-10-22
-   (12,408 lines) 12,523.
-   `modulePassthroughOwnerBudgets["workflows/parentportal"]` rises from 17
+1. `moduleComposeBudgets["modules/mealplan/compose"]` rises from 66 to 74.
+   Development's 66 measures its own cutoff wiring (#4866), which the
+   ordering settings replace; against that wiring the composition grows by
+   the 5 lines above plus the 3 it had saved.
+2. `moduleComposeBudgets["workflows/parentportal/compose"]` rises from 278 to
+   307.
+3. `moduleComposeBudgetTotal` rises by the same 37 lines; with
+   [ADR 0077](0077-the-caterer-is-an-identity-across-schools.md) it is
+   12,504 (12,385 on development).
+4. `modulePassthroughOwnerBudgets["workflows/parentportal"]` rises from 17
    to 18 for the adapter's week method.
-4. `modulePassthroughOwnerBudgets["modules/mealplan"]` stays at 15 and the
-   total with it: the rule methods replaced two delegations, and the engine
-   methods of the orders and of their settling add one each.
-5. The raise covers exactly the methods named above. Every other number keeps
+5. `moduleFuncLenAllowlist["roots/owners/root_worker.go:ComposeWorker"]`
+   rises from 345 to 347. Development no longer composes the Meal Plan in
+   the worker; the worker settles the orders at their deadline, so it builds
+   the Meal Plan again, in one step and one variable (`workerMealPlan`).
+6. `modulePassthroughOwnerBudgets["modules/mealplan"]` does not rise: the
+   rule methods replaced two delegations, and the engine methods of the
+   orders and of their settling add one each.
+7. The raise covers exactly the methods named above. Every other number keeps
    falling under ADR 0057 point 5.
 
 ## Consequences

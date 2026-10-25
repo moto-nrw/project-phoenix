@@ -69,10 +69,18 @@ func (s PresenceSettings) TimeTrackingRetentionDays(ctx context.Context) (int, e
 	return s.source.ResolveInt(ctx, configModels.KeyGDPRTimeTrackingRetentionDays)
 }
 
-// VisitRetentionDays is how long completed visits of a child without an
-// accepted consent are kept.
-func (s PresenceSettings) VisitRetentionDays(ctx context.Context) (int, error) {
-	return s.source.ResolveInt(ctx, configModels.KeyPrivacyConsentRetentionDays)
+// VisitHistoryRetention resolves the switch before its applicable retention window.
+// Disabled schools retain only the current day, independently of consent days.
+func (s PresenceSettings) VisitHistoryRetention(ctx context.Context) (bool, int, error) {
+	enabled, err := s.source.ResolveBool(ctx, configModels.KeyAttendanceLogEnabled)
+	if err != nil {
+		return false, 0, err
+	}
+	if !enabled {
+		return false, 0, nil
+	}
+	days, err := s.source.ResolveInt(ctx, configModels.KeyPrivacyConsentRetentionDays)
+	return true, days, err
 }
 
 // PresenceMode is the tenant's attendance granularity.
@@ -114,10 +122,4 @@ func (s PresenceSettings) WebParticipantLimitEnforced(ctx context.Context) (bool
 		return false, err
 	}
 	return !allowed, nil
-}
-
-// TimeTrackingRetentionOverridden probes whether the tenant set its own
-// retention window. The cleanup logs a failing probe and falls back.
-func (s PresenceSettings) TimeTrackingRetentionOverridden(ctx context.Context) (bool, error) {
-	return s.source.HasTenantOverride(ctx, configModels.KeyGDPRTimeTrackingRetentionDays)
 }

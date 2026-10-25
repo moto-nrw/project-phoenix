@@ -14,6 +14,19 @@ const everything = {
   webAttendance: true,
   canSeeCalendar: true,
   roomsTracked: true,
+  canSearchChildren: true,
+  canSupervise: true,
+  canTrackWorkTime: true,
+};
+
+const noSchoolPreconditions = {
+  hasOwnGroup: false,
+  webAttendance: false,
+  canSeeCalendar: false,
+  roomsTracked: false,
+  canSearchChildren: true,
+  canSupervise: true,
+  canTrackWorkTime: true,
 };
 
 describe("staffOnboardingSteps", () => {
@@ -36,18 +49,30 @@ describe("staffOnboardingSteps", () => {
     expect(firstOpenStaffStep(steps)).toBe("attendance");
   });
 
-  it("always keeps finding a child and recording working time", () => {
+  it("keeps finding a child and recording working time without school preconditions", () => {
     const steps = staffOnboardingSteps(
       { dismissed: false, schoolReady: true, doneSteps: [], skippedSteps: [] },
-      {
-        hasOwnGroup: false,
-        webAttendance: false,
-        canSeeCalendar: false,
-        roomsTracked: false,
-      },
+      noSchoolPreconditions,
     );
 
     expect(steps.map((step) => step.key)).toEqual(["students", "work_time"]);
+  });
+
+  // #4573: die AG-Leitung hält nur schedules:read. Kein Schritt darf auf
+  // eine Seite führen, die sie nicht öffnen darf.
+  it("offers only the steps whose page the person may open", () => {
+    const steps = staffOnboardingSteps(
+      { dismissed: false, schoolReady: true, doneSteps: [], skippedSteps: [] },
+      {
+        ...everything,
+        hasOwnGroup: false,
+        canSeeCalendar: false,
+        canSearchChildren: false,
+        canTrackWorkTime: false,
+      },
+    );
+
+    expect(steps.map((step) => step.key)).toEqual(["supervision"]);
   });
 
   it("has nothing open once every step is done or skipped", () => {
@@ -58,12 +83,7 @@ describe("staffOnboardingSteps", () => {
         doneSteps: ["students"],
         skippedSteps: ["work_time"],
       },
-      {
-        hasOwnGroup: false,
-        webAttendance: false,
-        canSeeCalendar: false,
-        roomsTracked: false,
-      },
+      noSchoolPreconditions,
     );
 
     expect(firstOpenStaffStep(steps)).toBeNull();

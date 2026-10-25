@@ -79,10 +79,14 @@ func (s *operations) plannedNowAccess(ctx context.Context, accountID int64, isAd
 	if err != nil {
 		return plannedNowAccess{}, err
 	}
+	overview, err := s.operationalOverview(ctx, isAdmin, hasStaff)
+	if err != nil {
+		return plannedNowAccess{}, err
+	}
 	access := plannedNowAccess{
 		staffID:        staffID,
 		hasStaff:       hasStaff,
-		allOperational: s.operationalOverview(ctx, isAdmin, hasStaff),
+		allOperational: overview,
 		adminActions:   s.hasAdministrativeActionAccess(ctx, isAdmin),
 	}
 	if !hasStaff && !access.allOperational {

@@ -88,7 +88,7 @@ func (s stubActivationSettings) ResolveBool(_ context.Context, key string) (bool
 }
 
 func setupDecisionTest(t *testing.T) *decisionTestEnv {
-	// nil Settings exercises the safe default (scheduled).
+	// The harness supplies explicit scheduled-mode fixture settings.
 	return setupDecisionTestWithSettings(t, nil)
 }
 
@@ -2657,7 +2657,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *te
 	}})
 
 	reqID, childID := submitOneChildWithCustomData(t, env, "health-audit@example.com", "Anna", "Audit", map[string]any{
-		"health_info": "Asthma",
+		"health_info": "synthetic-value-a",
 	})
 	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
 		RequestID:  reqID,
@@ -2671,7 +2671,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *te
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	child.CustomData = map[string]any{"health_info": "Diabetes"}
+	child.CustomData = map[string]any{"health_info": "synthetic-value-b"}
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
@@ -2690,8 +2690,8 @@ func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *te
 	assert.Equal(t, env.creatorID, history[0].EditedBy)
 	require.NotNil(t, history[0].OldValue)
 	require.NotNil(t, history[0].NewValue)
-	assert.Equal(t, "Asthma", *history[0].OldValue)
-	assert.Equal(t, "Diabetes", *history[0].NewValue)
+	assert.Equal(t, "Angabe vorhanden", *history[0].OldValue)
+	assert.Equal(t, "Angabe geändert", *history[0].NewValue)
 }
 
 func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTargetError(t *testing.T) {
@@ -2721,7 +2721,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTarge
 	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
 
 	reqID, childID := submitOneChildWithCustomData(t, env, "partial-health-audit@example.com", "Anna", "Audit", map[string]any{
-		"health_info":  "Asthma",
+		"health_info":  "synthetic-value-a",
 		"pickup_times": map[string]any{"mon": "14:45"},
 	})
 	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
@@ -2737,7 +2737,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTarge
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
 	child.CustomData = map[string]any{
-		"health_info":  "Diabetes",
+		"health_info":  "synthetic-value-b",
 		"pickup_times": map[string]any{"mon": "14:45"},
 	}
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
@@ -2754,7 +2754,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTarge
 	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(studentID))
 	require.NoError(t, err)
 	require.NotNil(t, student.HealthInfo)
-	assert.Equal(t, "Diabetes", *student.HealthInfo)
+	assert.Equal(t, "synthetic-value-b", *student.HealthInfo)
 
 	history, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.reposAudit.StudentFieldEdit.GetByStudentID, studentID)
 	require.NoError(t, err)
@@ -2763,8 +2763,8 @@ func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTarge
 	assert.Equal(t, actor.ID, history[0].EditedBy)
 	require.NotNil(t, history[0].OldValue)
 	require.NotNil(t, history[0].NewValue)
-	assert.Equal(t, "Asthma", *history[0].OldValue)
-	assert.Equal(t, "Diabetes", *history[0].NewValue)
+	assert.Equal(t, "Angabe vorhanden", *history[0].OldValue)
+	assert.Equal(t, "Angabe geändert", *history[0].NewValue)
 }
 
 func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T) {
@@ -4631,4 +4631,20 @@ func newTestCareLifecycle(db *bun.DB, config api.CareLifecycleTestConfig) carepl
 		panic(err)
 	}
 	return lifecycle
+}
+
+// defaultDecisionSettings explicitly supplies the former fixture defaults.
+// Missing production dependencies must never stand in for these values.
+type defaultDecisionSettings struct{}
+
+func (defaultDecisionSettings) ResolveBool(context.Context, string) (bool, error) { return true, nil }
+func (defaultDecisionSettings) ResolveString(_ context.Context, key string) (string, error) {
+	switch key {
+	case settingKeyDefaultActivationMode:
+		return "scheduled", nil
+	case settingKeyNotifyPerDecision:
+		return "digest", nil
+	default:
+		return "", nil
+	}
 }

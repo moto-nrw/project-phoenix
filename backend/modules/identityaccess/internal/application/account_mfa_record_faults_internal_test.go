@@ -135,6 +135,14 @@ type failingMFARecords struct {
 	consumeChallenge     func(ctx context.Context, id int64, consumedAt time.Time) error
 	findCredential       func(ctx context.Context, accountID int64) (domain.AccountMFACredential, bool, error)
 	findGlobalOverride   func(ctx context.Context, accountID int64) (domain.AccountMFAOverride, bool, error)
+	resetMFAAttempts     func(ctx context.Context, accountID int64) error
+}
+
+func (r failingMFARecords) ResetMFAAttempts(ctx context.Context, accountID int64) error {
+	if r.resetMFAAttempts != nil {
+		return r.resetMFAAttempts(ctx, accountID)
+	}
+	return r.AccountMFARecords.ResetMFAAttempts(ctx, accountID)
 }
 
 func (r failingMFARecords) CountChallengesSince(ctx context.Context, accountID int64, since time.Time) (int, error) {
@@ -307,10 +315,41 @@ func TestAccountMFA_VerifyCodeForAccount_RaceLoserRejected(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = svc.VerifyMFACodeForAccount(ctx, 1, 0, plaintext, identityaccess.MFAChallengeScopeTenant)
+	_, err = svc.VerifyMFACodeForAccount(ctx, 1, 0, plaintext, identityaccess.MFAChallengeScopeTenant)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid,
 		"VerifyCodeForAccount must refuse the race-loser with the generic invalid-code error")
 	assert.Equal(t, 1, stub.markCalls)
+}
+
+// #4601: a failed attempt-counter reset after a correct code is reported, not
+// discarded. Inside the caller's transaction (passkey registration) the failed
+// statement aborts that transaction, so continuing would only surface later
+// as an unrelated error.
+func TestAccountMFA_VerifyCodeForAccount_ResetFailureIsReported(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	native := newMemoryMFARecords(domain.AccountIdentity{ID: 1, Email: "mfa-reset-failure@example.com", Active: true})
+	resetCalls := 0
+	svc := newAccountMFAFixture(t, failingMFARecords{AccountMFARecords: native, resetMFAAttempts: func(context.Context, int64) error {
+		resetCalls++
+		return errors.New("reset mfa attempts: connection reset")
+	}}).capability
+
+	plaintext := "246813"
+	hash, err := fakeShortCodes{}.HashShortCode(plaintext)
+	require.NoError(t, err)
+	_, err = native.CreateChallenge(ctx, domain.AccountMFAChallenge{
+		AccountID: 1,
+		Scope:     domain.MFAChallengeScopeTenant,
+		CodeHash:  hash,
+		ExpiresAt: time.Now().Add(domain.MFAChallengeTTL),
+	})
+	require.NoError(t, err)
+
+	_, err = svc.VerifyMFACodeForAccount(ctx, 1, 0, plaintext, identityaccess.MFAChallengeScopeTenant)
+	assert.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
+	assert.Equal(t, 1, resetCalls)
 }
 
 // newGatedLogin is the account login whose gate is the composed second
@@ -368,3 +407,5 @@ func TestLoginWithMFAGate_EnrollmentInfraError_ReturnsMFAStatusUnavailable(t *te
 	assert.True(t, errors.Is(authErr.Err, identityaccess.ErrMFAStatusUnavailable),
 		"an unreadable enrollment must surface as ErrMFAStatusUnavailable")
 }
+
+func (r *memoryMFARecords) LockAccountForOverrideWrite(context.Context, int64) error { return nil }

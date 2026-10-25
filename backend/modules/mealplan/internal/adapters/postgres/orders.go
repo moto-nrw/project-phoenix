@@ -32,12 +32,13 @@ type orderDayRow struct {
 	Date          calendar.Date `bun:"date,type:date"`
 }
 
+// orderLineRow and orderChangeRow read a deleted child (NULL) as StudentID 0.
 type orderLineRow struct {
 	bun.BaseModel `bun:"table:meal_order_lines,alias:meal_order_line"`
 	TenantID      int64         `bun:"tenant_id"`
 	OrderID       int64         `bun:"order_id"`
 	Date          calendar.Date `bun:"date,type:date"`
-	StudentID     int64         `bun:"student_id"`
+	StudentID     int64         `bun:"student_id,nullzero"`
 	SchoolClass   string        `bun:"school_class"`
 }
 
@@ -47,7 +48,7 @@ type orderChangeRow struct {
 	OrderID       int64         `bun:"order_id"`
 	Sequence      int           `bun:"sequence"`
 	Date          calendar.Date `bun:"date,type:date"`
-	StudentID     int64         `bun:"student_id"`
+	StudentID     int64         `bun:"student_id,nullzero"`
 	SchoolClass   string        `bun:"school_class"`
 	Delta         int           `bun:"delta"`
 	DetectedAt    time.Time     `bun:"detected_at"`
@@ -188,8 +189,10 @@ func (s *Store) InsertOrder(ctx context.Context, order domain.NewOrder, frozenAt
 	return row.ID, stats, nil
 }
 
-// InsertOrderChanges numbers the changes after the school's last one and
-// stores them. The caller holds the order lock.
+// InsertOrderChanges numbers the changes after the school's last number and
+// stores them. The number comes from the school's counter, which never goes
+// back, so a number once shown is never given to another change. The caller
+// holds the order lock.
 func (s *Store) InsertOrderChanges(ctx context.Context, changes []domain.OrderChange, detectedAt time.Time) ([]domain.OrderChange, domain.OperationStats, error) {
 	if len(changes) == 0 {
 		return nil, domain.OperationStats{}, nil
@@ -201,7 +204,11 @@ func (s *Store) InsertOrderChanges(ctx context.Context, changes []domain.OrderCh
 	stats := domain.OperationStats{}
 	var last int
 	if err := timedQuery(&stats, func() error {
-		return db.NewRaw(`SELECT COALESCE(MAX(sequence), 0) FROM schedule.meal_order_changes WHERE tenant_id = ?`, tenantID).Scan(ctx, &last)
+		return db.NewRaw(`
+			INSERT INTO schedule.meal_order_change_counters AS counter (tenant_id, last_sequence) VALUES (?, ?)
+			ON CONFLICT (tenant_id) DO UPDATE SET last_sequence = counter.last_sequence + EXCLUDED.last_sequence
+			RETURNING last_sequence - ?
+		`, tenantID, len(changes), len(changes)).Scan(ctx, &last)
 	}); err != nil {
 		return nil, stats, fmt.Errorf("meal plan postgres: number order changes: %w", err)
 	}

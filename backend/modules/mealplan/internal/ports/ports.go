@@ -17,23 +17,22 @@ type Store interface {
 	UpsertParticipationOverride(context.Context, int64, int64, domain.Date, bool) (domain.OperationStats, error)
 	UpsertParticipationOverrides(context.Context, int64, int64, []domain.Date, bool) (domain.OperationStats, error)
 	DeleteParticipationOverride(context.Context, int64, domain.Date) (domain.OperationStats, error)
+	// FindDailyParticipation reads the children's registration of a day with
+	// every absence change up to the instant given, so the caller can resolve
+	// the day at that instant or any earlier one.
 	FindDailyParticipation(context.Context, []int64, domain.Date, time.Time) (map[int64]domain.DailyParticipation, domain.OperationStats, error)
 	// InsertRegistrationChanges appends to the registration log.
 	InsertRegistrationChanges(context.Context, []domain.RegistrationChange) (domain.OperationStats, error)
 	OrderStore
-	SupplyStore
+	ConfirmationStore
 }
 
-// SupplyStore holds the school's supply by its caterer (ADR 0077).
-type SupplyStore interface {
-	// FindActiveSupply reads the running supply; forUpdate locks it for the
-	// unit of work.
-	FindActiveSupply(ctx context.Context, forUpdate bool) (domain.Supply, bool, domain.OperationStats, error)
-	InsertSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64, startedAt time.Time) (domain.OperationStats, error)
-	EndSupply(ctx context.Context, accountID int64, endedAt time.Time) (bool, domain.OperationStats, error)
-	// ConfirmOrder confirms an order frozen since the supply started once;
-	// false: no such order.
-	ConfirmOrder(ctx context.Context, orderID, accountID int64, since time.Time, confirmedAt time.Time) (bool, domain.OperationStats, error)
+// ConfirmationStore records the caterer's confirmation of an order (ADR
+// 0077).
+type ConfirmationStore interface {
+	// ConfirmOrder confirms an order with a day from firstDay on once; a
+	// confirmation from before since gives way. false: no such order.
+	ConfirmOrder(ctx context.Context, orderID, accountID int64, firstDay domain.Date, since, confirmedAt time.Time) (bool, domain.OperationStats, error)
 }
 
 // OrderStore holds the school's orders (#3873). LockOrders serializes every

@@ -39,9 +39,9 @@ func TestCleanupVisitsCLI_BackfillsChildWithoutConsent(t *testing.T) {
 
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value, updated_by)
-		VALUES (?, 'gdpr.privacy_consent_retention_days', '7', NULL)
+		VALUES (?, 'gdpr.privacy_consent_retention_days', '7', NULL), (?, 'gdpr.attendance_log_enabled', 'true', NULL)
 		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
-	`, tenantID).Exec(ctx)
+	`, tenantID, tenantID).Exec(ctx)
 	require.NoError(t, err)
 
 	student := testpkg.CreateTestStudent(t, db, "Altbestand", "Ohne", "2a")

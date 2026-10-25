@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -19,8 +20,8 @@ type recordedOrderChange struct {
 	ChangedBy *int64 `bun:"changed_by_account_id"`
 }
 
-// orderChangesOf reads the recorded changes of a school directly, without the
-// order view, which records changes itself.
+// orderChangesOf reads the recorded changes of a school directly: the order
+// view also shows the changes nobody recorded yet.
 func orderChangesOf(t *testing.T, db *bun.DB, tenantID int64) []recordedOrderChange {
 	t.Helper()
 	var changes []recordedOrderChange
@@ -115,7 +116,9 @@ func TestOrdersNeverOrderAPastDay(t *testing.T) {
 	assert.Equal(t, mealplan.OrderUnordered, monday.Status)
 	assert.Zero(t, monday.Total)
 	assert.Equal(t, mealplan.OrderOrdered, orderDay(t, week, "2026-09-09").Status, "today after its deadline is ordered")
-	assert.Equal(t, 1, orderCountOf(t, db, student.TenantID))
+	assert.Zero(t, orderCountOf(t, db, student.TenantID), "the read stores nothing")
+	require.NoError(t, buildModuleAt(t, db, true, nil, time.Date(2026, 9, 9, 10, 0, 0, 0, testBerlin)).SettleOrders(ctx))
+	assert.Equal(t, 1, orderCountOf(t, db, student.TenantID), "the worker stores only today")
 	billed := week.MealsPerChild()
 	require.Len(t, billed, 1)
 	assert.Equal(t, student.ID, billed[0].Child.StudentID)
@@ -261,4 +264,128 @@ func TestAWriteDoesNotClaimAnEarlierAbsence(t *testing.T) {
 	require.Len(t, changes, 1)
 	assert.Equal(t, -1, changes[0].Delta)
 	assert.Nil(t, changes[0].ChangedBy, "the sick note is nobody's change of the order")
+}
+
+// A read writes nothing and takes no lock (#3873, ADR 0077): a due order the
+// worker has not stored yet and a sick note after its deadline show as the
+// worker will record them, and the worker then stores exactly that. The
+// order is laid out as of its deadline even though the day is read up to
+// its later absence cutoff.
+func TestReadsShowWhatTheWorkerWillStoreWithoutWriting(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	settings := singleDeadlineSettings("09:00")
+	settings.SickAfterDeadline = "cancelled"
+	student := testpkg.CreateTestStudent(t, db, "Tom", "Vorläufig", "3a")
+	parent := testpkg.CreateTestAccount(t, db, "meal-provisional-parent")
+	ctx := testpkg.Ctx(t)
+	require.NoError(t, buildModuleWithRules(t, db, settings, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin)).
+		SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student.ID, GuardianAccountID: parent.ID, Date: "2026-09-08", Participating: true}))
+	createSickStatusDay(t, db, student.TenantID, student.ID, "2026-09-08", time.Date(2026, 9, 8, 10, 30, 0, 0, testBerlin))
+
+	// Another unit of work holds the school's order lock the whole time.
+	holder, err := db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = holder.Rollback() })
+	_, err = holder.ExecContext(context.Background(), `SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, fmt.Sprintf("meal-orders:%d", student.TenantID))
+	require.NoError(t, err)
+
+	module := buildModuleWithRules(t, db, settings, time.Date(2026, 9, 8, 10, 35, 0, 0, testBerlin))
+	readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	week, err := module.Orders(readCtx, "2026-09-08", "2026-09-08")
+	require.NoError(t, err, "the read does not wait for the order lock")
+	since := time.Date(2026, 9, 1, 0, 0, 0, 0, testBerlin)
+	caterer, err := module.CatererOrders(readCtx, since, "2026-09-08", "2026-09-08")
+	require.NoError(t, err, "neither does the caterer's")
+	assert.Zero(t, orderCountOf(t, db, student.TenantID), "no order stored")
+	assert.Empty(t, orderChangesOf(t, db, student.TenantID), "no change recorded")
+
+	tuesday := orderDay(t, week, "2026-09-08")
+	assert.Equal(t, mealplan.OrderOrdered, tuesday.Status)
+	assert.Zero(t, tuesday.OrderID)
+	assert.Equal(t, 1, tuesday.Total, "ordered as of the deadline, before the sick note")
+	assert.Empty(t, tuesday.Children)
+	require.Len(t, tuesday.Changes, 1)
+	assert.Equal(t, -1, tuesday.Changes[0].Delta)
+	assert.Zero(t, tuesday.Changes[0].Sequence, "not numbered before it is recorded")
+	require.Len(t, caterer.Days, 1)
+	assert.Equal(t, tuesday.Total, caterer.Days[0].Total, "school and caterer see the same numbers")
+	assert.Len(t, caterer.Days[0].Changes, 1)
+
+	require.NoError(t, holder.Rollback())
+	require.NoError(t, module.SettleOrders(ctx))
+	assert.Equal(t, 1, orderCountOf(t, db, student.TenantID))
+	changes := orderChangesOf(t, db, student.TenantID)
+	require.Len(t, changes, 1)
+	assert.Equal(t, -1, changes[0].Delta)
+	stored, err := module.Orders(ctx, "2026-09-08", "2026-09-08")
+	require.NoError(t, err)
+	settled := orderDay(t, stored, "2026-09-08")
+	assert.NotZero(t, settled.OrderID)
+	assert.Equal(t, tuesday.Total, settled.Total)
+	assert.Equal(t, tuesday.Classes, settled.Classes)
+	assert.Empty(t, settled.Children)
+	require.Len(t, settled.Changes, 1)
+	assert.Equal(t, 1, settled.Changes[0].Sequence)
+}
+
+// #3873: deleting a child never rewrites an order the caterer saw. Its
+// lines and changes stay with their class and lose only the child, and the
+// next change gets the next number, never one already shown.
+func TestDeletingAChildKeepsTheFrozenOrderAndItsNumbers(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	stays := testpkg.CreateTestStudent(t, db, "Ada", "Bleibt", "2a")
+	leaves := testpkg.CreateTestStudent(t, db, "Ben", "Geht", "2a")
+	parent := testpkg.CreateTestAccount(t, db, "meal-deleted-child-parent")
+	staff := testpkg.CreateTestAccount(t, db, "meal-deleted-child-staff")
+	ctx := testpkg.Ctx(t)
+	early := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 8, 0, 0, 0, testBerlin))
+	for _, student := range []int64{stays.ID, leaves.ID} {
+		require.NoError(t, early.SetParticipationForDay(ctx, mealplan.SetParticipationDay{StudentID: student, GuardianAccountID: parent.ID, Date: "2026-09-07", Participating: true}))
+	}
+	late := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 10, 0, 0, 0, testBerlin))
+	require.NoError(t, late.SettleOrders(ctx))
+	require.NoError(t, late.SetParticipationBySchool(ctx, mealplan.SchoolChange{StudentID: leaves.ID, StaffAccountID: staff.ID, Date: "2026-09-07", Participating: false}))
+	before, err := late.Orders(ctx, "2026-09-07", "2026-09-07")
+	require.NoError(t, err)
+
+	_, err = db.NewRaw(`DELETE FROM users.student_profiles WHERE id = ?`, leaves.ID).Exec(context.Background())
+	require.NoError(t, err)
+
+	var kept struct{ Lines, DeletedLines, Changes, DeletedChanges int }
+	require.NoError(t, db.NewRaw(`SELECT
+		(SELECT count(*) FROM schedule.meal_order_lines WHERE tenant_id = ?) AS lines,
+		(SELECT count(*) FROM schedule.meal_order_lines WHERE tenant_id = ? AND student_id IS NULL) AS deleted_lines,
+		(SELECT count(*) FROM schedule.meal_order_changes WHERE tenant_id = ?) AS changes,
+		(SELECT count(*) FROM schedule.meal_order_changes WHERE tenant_id = ? AND student_id IS NULL) AS deleted_changes`,
+		stays.TenantID, stays.TenantID, stays.TenantID, stays.TenantID).Scan(context.Background(), &kept))
+	assert.Equal(t, struct{ Lines, DeletedLines, Changes, DeletedChanges int }{2, 1, 1, 1}, kept, "the order keeps the deleted child's line and change, without the child")
+
+	later := buildModuleAt(t, db, true, nil, time.Date(2026, 9, 7, 10, 30, 0, 0, testBerlin))
+	require.NoError(t, later.SettleOrders(ctx))
+	assert.Len(t, orderChangesOf(t, db, stays.TenantID), 1, "the deleted child's meal is no new change")
+	after, err := later.Orders(ctx, "2026-09-07", "2026-09-07")
+	require.NoError(t, err)
+	monday, frozen := orderDay(t, after, "2026-09-07"), orderDay(t, before, "2026-09-07")
+	assert.Equal(t, frozen.Total, monday.Total, "the frozen order keeps its count")
+	assert.Equal(t, frozen.Classes, monday.Classes)
+	require.Len(t, monday.Changes, 1)
+	assert.Equal(t, frozen.Changes[0].Sequence, monday.Changes[0].Sequence)
+	assert.Equal(t, "2a", monday.Changes[0].Child.SchoolClass)
+	assert.Equal(t, []int64{stays.ID}, childIDs(monday.Children), "the cancelled deleted child eats no more")
+
+	require.NoError(t, later.SetParticipationBySchool(ctx, mealplan.SchoolChange{StudentID: stays.ID, StaffAccountID: staff.ID, Date: "2026-09-07", Participating: false}))
+	var sequences []int
+	require.NoError(t, db.NewRaw(`SELECT sequence FROM schedule.meal_order_changes WHERE tenant_id = ? ORDER BY sequence`, stays.TenantID).Scan(context.Background(), &sequences))
+	assert.Equal(t, []int{1, 2}, sequences)
+
+	// Even a change that is gone never gives its number again.
+	_, err = db.NewRaw(`DELETE FROM schedule.meal_order_changes WHERE tenant_id = ?`, stays.TenantID).Exec(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, later.SetParticipationBySchool(ctx, mealplan.SchoolChange{StudentID: stays.ID, StaffAccountID: staff.ID, Date: "2026-09-07", Participating: true}))
+	require.NoError(t, db.NewRaw(`SELECT sequence FROM schedule.meal_order_changes WHERE tenant_id = ? ORDER BY sequence`, stays.TenantID).Scan(context.Background(), &sequences))
+	require.NotEmpty(t, sequences)
+	assert.Equal(t, 3, sequences[0], "numbering goes on after the last number given")
 }

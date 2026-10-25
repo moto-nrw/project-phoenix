@@ -21,9 +21,11 @@ type intakeSettingsFake struct {
 
 var _ IntakeSettings = intakeSettingsFake{}
 
-func (f intakeSettingsFake) EnrollmentEnabled(context.Context) bool   { return f.enrollmentEnabled }
-func (f intakeSettingsFake) AllowSubmissionEdit(context.Context) bool { return f.allowSubmissionEdit }
-func (f intakeSettingsFake) StatusTokenTTLDays(context.Context) int   { return 365 }
+func (f intakeSettingsFake) EnrollmentEnabled(context.Context) bool { return f.enrollmentEnabled }
+func (f intakeSettingsFake) AllowSubmissionEdit(context.Context) (bool, error) {
+	return f.allowSubmissionEdit, nil
+}
+func (f intakeSettingsFake) StatusTokenTTLDays(context.Context) (int, error) { return 365, nil }
 func (f intakeSettingsFake) AdminNotificationEmails(context.Context) string {
 	return ""
 }

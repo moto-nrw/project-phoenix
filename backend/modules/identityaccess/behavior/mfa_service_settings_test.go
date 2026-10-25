@@ -98,11 +98,11 @@ func TestMFAService_IsRequired_ModeRequiredAdmins_RequiresAdminsOnly(t *testing.
 	fix := newWiredMFAFixture(t)
 	fix.setOverride(t, settingKeyMFAMode, mfaModeRequiredAdmins)
 
-	required, err := fix.svc.IsRequired(context.Background(), 4242, []string{"admin"}, fix.tenantID)
+	required, err := fix.svc.IsRequired(context.Background(), 4242, []string{"users:manage"}, fix.tenantID)
 	require.NoError(t, err)
-	assert.True(t, required, "admins must require MFA when mode=required_admins")
+	assert.True(t, required, "administrative permissions must require MFA")
 
-	required, err = fix.svc.IsRequired(context.Background(), 4243, []string{"teacher"}, fix.tenantID)
+	required, err = fix.svc.IsRequired(context.Background(), 4243, []string{"class_day:read"}, fix.tenantID)
 	require.NoError(t, err)
 	assert.False(t, required, "non-admins must skip MFA when mode=required_admins")
 }
@@ -161,14 +161,14 @@ func TestMFAService_TrustedDeviceDays_TenantOverrideRespected(t *testing.T) {
 	assert.Equal(t, 14, days, "tenant override must override the registry default")
 }
 
-func TestMFAService_TrustedDeviceDays_NegativeOverrideFallsBackToDefault(t *testing.T) {
+func TestMFAService_TrustedDeviceDays_NegativeOverrideDisablesHint(t *testing.T) {
 	t.Parallel()
 
 	fix := newWiredMFAFixture(t)
-	// A bad value (≤0) must fall through to the package constant default.
+	// An invalid lifetime must not be advertised as a usable default.
 	fix.setOverride(t, settingKeyMFATrustedDeviceDays, -5)
 	days := fix.svc.TrustedDeviceDays(context.Background(), fix.tenantID)
-	assert.Positive(t, days, "negative override must not break the resolver — it must fall back to the default")
+	assert.Zero(t, days, "invalid lifetime must disable the remember-device hint")
 }
 
 // --- IssueTrustedDevice: trusted-device-disabled short-circuit ---

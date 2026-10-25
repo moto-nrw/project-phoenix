@@ -961,6 +961,27 @@ func TestCorrectApprovalKeepsDecideGuards(t *testing.T) {
 	}
 }
 
+func TestExcusedEditHidesUnownedRequestsBeforeReadingTheirChild(t *testing.T) {
+	t.Parallel()
+	for _, mismatch := range []string{"child", "submitter"} {
+		t.Run(mismatch, func(t *testing.T) {
+			row := pendingRow(5, fakeTomorrow)
+			input := careplan.ExcusedRequestEditInput{RequestID: row.ID, StudentID: row.StudentID, GuardianAccountID: row.SubmittedBy}
+			if mismatch == "child" {
+				input.StudentID = otherStudentID
+			} else {
+				input.GuardianAccountID = fakeReviewer
+			}
+			plan := &fakeCarePlan{findRequest: func(context.Context, int64, bool) (careplan.ExcusedAbsenceRequest, error) { return row, nil }}
+			h := newHarness(t, plan, &fakeStudents{lock: func(context.Context, int64) (careplan.ReviewStudent, error) {
+				return careplan.ReviewStudent{}, errBoom
+			}})
+			_, err := h.workflow.EditRequest(context.Background(), input)
+			require.ErrorIs(t, err, careplan.ErrExcusedRequestNotFound)
+		})
+	}
+}
+
 // --- coordinator ports
 
 func TestCoordinatorPortsTranslateTheWorkflowOutcomes(t *testing.T) {

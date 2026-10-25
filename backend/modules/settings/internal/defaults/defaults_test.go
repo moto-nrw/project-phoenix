@@ -92,7 +92,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// Presence-mode work package: tenant presence tracking model + who can check-in via web.
 		"operations.presence_mode",
 		"attendance.web_enabled",
-		"attendance.nfc_enabled",
+		"module.nfc_anwesenheit",
 		"attendance.web_spontaneous_activities_enabled",
 		"operations.group_mode",
 		"operations.require_pickup_offering_review",
@@ -649,13 +649,17 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, "anwesenheit-erfassen", webDef.Category)
 	assert.Equal(t, "config:manage", webDef.WritePermission)
 
-	nfcDef := config.GetDefinition(config.KeyAttendanceNFCEnabled)
-	require.NotNil(t, nfcDef, "attendance.nfc_enabled should be registered")
+	// The module switch NFC-Anwesenheit replaced attendance.nfc_enabled
+	// (#4892). Like every module switch it defaults to booked; migration
+	// 1.15.501 wrote each existing school's old NFC state explicitly.
+	assert.Nil(t, config.GetDefinition("attendance.nfc_enabled"), "attendance.nfc_enabled is replaced by the module switch")
+	nfcDef := config.GetDefinition(config.KeyModuleNFCAnwesenheit)
+	require.NotNil(t, nfcDef, "module.nfc_anwesenheit should be registered")
 	assert.Equal(t, config.FieldBoolean, nfcDef.Type)
-	assert.Equal(t, false, nfcDef.Default, "nfc attendance should default off")
-	assert.Equal(t, config.AccessOperatorOnly, nfcDef.AccessPolicy, "nfc attendance is provisioned by operators after NFC setup")
-	assert.Equal(t, "operations", nfcDef.Tab)
-	assert.Equal(t, "anwesenheit-erfassen", nfcDef.Category)
+	assert.Equal(t, true, nfcDef.Default, "module switches default to booked")
+	assert.Equal(t, config.AccessOperatorManaged, nfcDef.AccessPolicy, "the moto team books NFC; the school sees the booking")
+	assert.Equal(t, "modules", nfcDef.Tab)
+	assert.Equal(t, "gebuchte-module", nfcDef.Category)
 	assert.Equal(t, "config:manage", nfcDef.WritePermission)
 	assert.Nil(t, webDef.DependsOn, "web must remain independent from NFC")
 	assert.Nil(t, nfcDef.DependsOn, "NFC must remain independent from web")
@@ -740,23 +744,25 @@ func TestClassArrivalExceptionEditorsSetting(t *testing.T) {
 }
 
 // TestSchoolPortalWriteScopeSetting pins what a Lehrkraft may write through
-// moto schule (#2970): nothing unless the school opens the class arrival
-// exception, right under the OGS-side editors setting.
+// moto schule (#2970): nothing unless the school ticks a write, right under
+// the OGS-side editors setting. Since #4794 it is a multi-select of the class
+// arrival exception and the class handover.
 func TestSchoolPortalWriteScopeSetting(t *testing.T) {
 	t.Parallel()
 
 	def := config.GetDefinition(config.KeySchoolPortalWriteScope)
 	require.NotNil(t, def, "operations.school_portal_write_scope should be registered")
-	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, config.SchoolPortalWriteScopeNone, def.Default, "new schools keep moto schule read-only")
+	assert.Equal(t, config.FieldMultiSelect, def.Type)
+	assert.Equal(t, []string{}, def.Default, "new schools keep moto schule read-only")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "aufsicht", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)
 	require.NotNil(t, def.Options)
 	require.Equal(t, []config.SelectOption{
-		{Label: "Nichts. Die Schule sieht nur.", Value: config.SchoolPortalWriteScopeNone},
 		{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
+		{Label: "Klasse nach dem Unterricht an die OGS übergeben", Value: config.SchoolPortalWriteScopeClassHandover},
+		{Label: "Ausflug oder Klassenfahrt der Klasse melden", Value: config.SchoolPortalWriteScopeClassTrips},
 	}, def.Options.Static)
 
 	editors := config.GetDefinition(config.KeyClassArrivalExceptionEditors)
@@ -1691,7 +1697,7 @@ func TestSecuritySettings(t *testing.T) {
 	require.NotNil(t, def.Validation)
 	assert.False(t, def.Validation.AllowEmpty)
 	require.NotNil(t, def.DependsOn)
-	assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+	assert.Equal(t, config.KeyModuleNFCAnwesenheit, def.DependsOn.Key)
 	assert.Equal(t, "eq", def.DependsOn.Condition)
 	assert.Equal(t, true, def.DependsOn.Value)
 }
@@ -1745,13 +1751,10 @@ func TestMFASettings_TypesAndDefaults(t *testing.T) {
 func TestMFASettings_DependsOnGraph(t *testing.T) {
 	t.Parallel()
 
-	t.Run("trusted_device_enabled hidden when mfa_mode is off", func(t *testing.T) {
+	t.Run("trusted_device_enabled remains visible for privileged MFA when mode is off", func(t *testing.T) {
 		def := config.GetDefinition(config.KeyMFATrustedDeviceEnabled)
 		require.NotNil(t, def)
-		require.NotNil(t, def.DependsOn)
-		assert.Equal(t, config.KeyMFAMode, def.DependsOn.Key)
-		assert.Equal(t, "neq", def.DependsOn.Condition)
-		assert.Equal(t, config.MFAModeOff, def.DependsOn.Value)
+		assert.Nil(t, def.DependsOn, "privileged accounts require MFA even when the school mode is off")
 	})
 
 	t.Run("trusted_device_days hidden when trusted_device_enabled is false", func(t *testing.T) {
@@ -1825,14 +1828,14 @@ func TestDependsOn_PerStudentCheckoutGroup(t *testing.T) {
 	dailyCheckoutDef := config.GetDefinition("operations.student_daily_checkout_time")
 	require.NotNil(t, dailyCheckoutDef)
 	require.NotNil(t, dailyCheckoutDef.DependsOn)
-	assert.Equal(t, config.KeyAttendanceNFCEnabled, dailyCheckoutDef.DependsOn.Key)
+	assert.Equal(t, config.KeyModuleNFCAnwesenheit, dailyCheckoutDef.DependsOn.Key)
 	assert.Equal(t, "eq", dailyCheckoutDef.DependsOn.Condition)
 	assert.Equal(t, true, dailyCheckoutDef.DependsOn.Value)
 
 	toggleDef := config.GetDefinition("operations.per_student_checkout_enabled")
 	require.NotNil(t, toggleDef)
 	require.NotNil(t, toggleDef.DependsOn)
-	assert.Equal(t, config.KeyAttendanceNFCEnabled, toggleDef.DependsOn.Key)
+	assert.Equal(t, config.KeyModuleNFCAnwesenheit, toggleDef.DependsOn.Key)
 	assert.Equal(t, "eq", toggleDef.DependsOn.Condition)
 	assert.Equal(t, true, toggleDef.DependsOn.Value)
 
@@ -1925,7 +1928,7 @@ func TestDevicesSettings(t *testing.T) {
 		assert.Equal(t, category, def.Category, "setting %q should be in %s category", key, category)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
 		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
-		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+		assert.Equal(t, config.KeyModuleNFCAnwesenheit, def.DependsOn.Key)
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
@@ -1959,7 +1962,7 @@ func TestCheckinCapacityDetailSettings(t *testing.T) {
 		assert.Equal(t, "kapazität", def.Category, "setting %q should be in kapazität category", key)
 		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
 		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
-		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+		assert.Equal(t, config.KeyModuleNFCAnwesenheit, def.DependsOn.Key)
 		assert.Equal(t, "eq", def.DependsOn.Condition)
 		assert.Equal(t, true, def.DependsOn.Value)
 	}
@@ -2425,4 +2428,18 @@ func TestEarlyCheckoutNoteSettings(t *testing.T) {
 	assert.Equal(t, config.KeyEarlyCheckoutNoteEnabled, tolerance.DependsOn.Key)
 	assert.Equal(t, "eq", tolerance.DependsOn.Condition)
 	assert.Equal(t, true, tolerance.DependsOn.Value)
+}
+
+func TestAnalyticsCollectionSwitch(t *testing.T) {
+	t.Parallel()
+	enabled := config.GetDefinition(config.KeyAnalyticsEnabled)
+	require.NotNil(t, enabled)
+	assert.Equal(t, config.FieldBoolean, enabled.Type)
+	assert.Equal(t, true, enabled.Default)
+	assert.Equal(t, config.AccessShared, enabled.AccessPolicy)
+	assert.Equal(t, "config:manage", enabled.WritePermission)
+	freigabe := config.GetDefinition(config.KeyAnalyticsFreigabe)
+	require.NotNil(t, freigabe.DependsOn)
+	assert.Equal(t, config.KeyAnalyticsEnabled, freigabe.DependsOn.Key)
+	assert.Equal(t, true, freigabe.DependsOn.Value)
 }

@@ -111,9 +111,9 @@ not bind it as a date or use it as a sentinel. An optional date is
 ## Detection
 
 ```bash
-rg --type go 'time\.Time' backend/models/ | rg -i '`bun:"[^"]*"' | rg -i 'date|day|birthday|valid_'  # suspect fields
+rg --type go 'time\.Time' backend/modules/ backend/workflows/ | rg -i '`bun:"[^"]*"' | rg -i 'date|day|birthday|valid_'  # suspect fields
 rg --type go 'Truncate\(24 \* time\.Hour\)' backend/
-cd backend && go test ./test/ -run 'Test(DateColumnTypes|ActivityInstanceWallClockRatchet)' # backend date/time gates
+cd backend && ../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ -run 'Test(DateColumnTypes|ActivityInstanceWallClockRatchet)' # backend date/time gates
 rg -n '\.toISOString\(\)\s*\.\s*(split|slice)' frontend/src/                  # frontend UTC extraction
 ```
 

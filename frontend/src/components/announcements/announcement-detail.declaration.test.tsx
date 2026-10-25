@@ -81,3 +81,29 @@ describe("AnnouncementDetail for an Einverständnis (#3430)", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("AnnouncementDetail shows the signature setting (#4785)", () => {
+  it("says whether parents sign their consent", () => {
+    const { rerender } = render(
+      <AnnouncementDetail
+        announcement={consent}
+        groups={[]}
+        activities={[]}
+        onReminded={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Keine Unterschrift")).toBeInTheDocument();
+
+    rerender(
+      <AnnouncementDetail
+        announcement={{ ...consent, declaration_requires_signature: true }}
+        groups={[]}
+        activities={[]}
+        onReminded={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText("Eltern unterschreiben die Zustimmung"),
+    ).toBeInTheDocument();
+  });
+});

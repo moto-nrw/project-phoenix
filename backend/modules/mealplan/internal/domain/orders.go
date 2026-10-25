@@ -9,7 +9,9 @@ import (
 // (#3873). It rises when the meaning of a field changes.
 const OrderFormatVersion = 1
 
-// Order is a school's order of a day or a week, fixed at its deadline.
+// Order is a school's order of a day or a week, fixed at its deadline. A
+// due order a read lays out before the worker or a write stored it has no
+// ID yet.
 type Order struct {
 	ID          int64
 	PeriodStart Date
@@ -20,6 +22,10 @@ type Order struct {
 	Days        []Date
 }
 
+// DeletedChild is the StudentID of a line or change whose child was deleted:
+// the order keeps the meal and its class, no longer the child (#3873).
+const DeletedChild int64 = 0
+
 // OrderLine is one child who eats on one day of an order.
 type OrderLine struct {
 	Date        Date
@@ -28,7 +34,9 @@ type OrderLine struct {
 }
 
 // OrderChange is a change after the deadline: one child more (+1) or less
-// (-1) on a day. Sequence numbers the changes of a school.
+// (-1) on a day. Sequence numbers the changes of a school; a change a read
+// detected but nobody recorded yet has none (0) and follows every numbered
+// one.
 type OrderChange struct {
 	OrderID     int64
 	Sequence    int
@@ -58,30 +66,83 @@ type OrderState struct {
 	Changes []OrderChange
 }
 
-// OrderedChildren is the net state of a day: the fixed lines with every
-// change applied, by student.
-func (s OrderState) OrderedChildren(date Date) map[int64]string {
+// FrozenChildren is the original order of a day, before late changes. A
+// deleted child's meal stays under a key below zero of its own: it counts
+// with its class, names no child and never changes again.
+func (s OrderState) FrozenChildren(date Date) map[int64]string {
 	children := make(map[int64]string)
 	for _, line := range s.Lines {
-		if line.Date == date {
+		if line.Date != date {
+			continue
+		}
+		if line.StudentID == DeletedChild {
+			addDeletedChild(children, line.SchoolClass)
+		} else {
 			children[line.StudentID] = line.SchoolClass
 		}
 	}
+	return children
+}
+
+// OrderedChildren is the net state of a day: the fixed lines with every
+// change applied, by student. A deleted child's change applies to a deleted
+// child's meal of the same class.
+func (s OrderState) OrderedChildren(date Date) map[int64]string {
+	children := s.FrozenChildren(date)
 	changes := make([]OrderChange, 0)
 	for _, change := range s.Changes {
 		if change.Date == date {
 			changes = append(changes, change)
 		}
 	}
-	sort.Slice(changes, func(i, j int) bool { return changes[i].Sequence < changes[j].Sequence })
+	sort.SliceStable(changes, func(i, j int) bool { return changes[i].before(changes[j]) })
 	for _, change := range changes {
-		if change.Delta > 0 {
+		switch {
+		case change.StudentID == DeletedChild && change.Delta > 0:
+			addDeletedChild(children, change.SchoolClass)
+		case change.StudentID == DeletedChild:
+			removeDeletedChild(children, change.SchoolClass)
+		case change.Delta > 0:
 			children[change.StudentID] = change.SchoolClass
-		} else {
+		default:
 			delete(children, change.StudentID)
 		}
 	}
 	return children
+}
+
+// IsDeletedChild reports whether a key of the children of a day stands for
+// a deleted child's meal.
+func IsDeletedChild(studentID int64) bool { return studentID <= DeletedChild }
+
+func addDeletedChild(children map[int64]string, schoolClass string) {
+	key := DeletedChild - 1
+	for studentID := range children {
+		if studentID <= key {
+			key = studentID - 1
+		}
+	}
+	children[key] = schoolClass
+}
+
+func removeDeletedChild(children map[int64]string, schoolClass string) {
+	for studentID, class := range children {
+		if IsDeletedChild(studentID) && class == schoolClass {
+			delete(children, studentID)
+			return
+		}
+	}
+}
+
+// before orders changes by sequence; an unnumbered change comes last.
+func (c OrderChange) before(other OrderChange) bool {
+	switch {
+	case c.Sequence == 0:
+		return false
+	case other.Sequence == 0:
+		return true
+	}
+	return c.Sequence < other.Sequence
 }
 
 // OrderFor returns the order a day belongs to.
@@ -99,8 +160,8 @@ func (s OrderState) OrderFor(date Date) (Order, bool) {
 // DiffOrder lists the changes that bring the ordered children of a day to
 // the current ones: who eats now but is not ordered (+1), who is ordered but
 // no longer eats (-1). Classes come from the current day, the ordered class
-// for a child that left. The result is ordered by student for stable
-// numbering.
+// for a child that left. A deleted child's meal stays as ordered. The result
+// is ordered by student for stable numbering.
 func DiffOrder(date Date, ordered map[int64]string, current map[int64]string) []OrderChange {
 	changes := make([]OrderChange, 0)
 	for studentID, schoolClass := range current {
@@ -109,7 +170,7 @@ func DiffOrder(date Date, ordered map[int64]string, current map[int64]string) []
 		}
 	}
 	for studentID, schoolClass := range ordered {
-		if _, ok := current[studentID]; !ok {
+		if _, ok := current[studentID]; !ok && !IsDeletedChild(studentID) {
 			changes = append(changes, OrderChange{Date: date, StudentID: studentID, SchoolClass: schoolClass, Delta: -1})
 		}
 	}
@@ -143,17 +204,24 @@ type OrderDay struct {
 	Deadline  time.Time
 	Order     *Order
 	Children  map[int64]string
-	Changes   []OrderChange
+	// FrozenChildren holds the fixed lines for counts, without late changes.
+	FrozenChildren map[int64]string
+	Changes        []OrderChange
 	// Eating are the children of the day by name, sorted like the kitchen
 	// list.
 	Eating []DailyParticipant
 }
 
 // Name sorts the day's children into Eating with their names. A child the
-// directory no longer knows keeps its class and ID.
+// directory no longer knows keeps its class and ID; a deleted child keeps
+// its class as DeletedChild.
 func (d *OrderDay) Name(names map[int64]DailyCandidate) {
 	d.Eating = make([]DailyParticipant, 0, len(d.Children))
 	for studentID, schoolClass := range d.Children {
+		if IsDeletedChild(studentID) {
+			d.Eating = append(d.Eating, DailyParticipant{StudentID: DeletedChild, SchoolClass: schoolClass})
+			continue
+		}
 		name := names[studentID]
 		d.Eating = append(d.Eating, DailyParticipant{StudentID: studentID, FirstName: name.FirstName, LastName: name.LastName, SchoolClass: schoolClass})
 	}

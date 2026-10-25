@@ -109,6 +109,9 @@ var renamedDateColumns = map[string]string{
 	// the Contract (#2754) removed users.staff, and the Staff DTO no longer
 	// declares it as its table.
 	"users.staff.rotation_anchor_date": "users.staff_employment_profiles.rotation_anchor_date",
+	// 001015477_external_caregivers_table.go renames users.guests (ADR 0091).
+	"users.guests.start_date": "users.external_caregivers.start_date",
+	"users.guests.end_date":   "users.external_caregivers.end_date",
 	// 001015034_template_extensions.go renames enrollment_date to valid_from.
 	"activities.student_enrollments.enrollment_date": "activities.student_enrollments.valid_from",
 }

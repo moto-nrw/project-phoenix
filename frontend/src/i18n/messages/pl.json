@@ -264,7 +264,13 @@
     "cancelWeekConfirm": "Wypisz",
     "cancelWeekDone": "Tydzień został wypisany.",
     "cancelWeekLocked": "Te dni były już zamówione i pozostają zapisane: {days}.",
-    "errorObjectWeekCancel": "wypisania z tygodnia"
+    "registerWeek": "Zapisz na cały tydzień",
+    "registerWeekDone": "Zapisano na cały tydzień.",
+    "registerWeekLocked": "Termin zapisu na te dni minął, pozostają niezapisane: {days}.",
+    "errorObjectWeekCancel": "wypisania z tygodnia",
+    "errorObjectWeekRegister": "zapisu na tydzień",
+    "participationCutoffLead": "Zapis można zmienić do godziny {time} {days, plural, one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}}.",
+    "participationSicknessLead": "Potwierdzone zgłoszenie choroby do godziny {time} {days, plural, one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}} wypisuje Państwa dziecko z obiadu. Po tym terminie zapis pozostaje bez zmian."
   },
   "mealOrders": {
     "title": "Zamówienie",
@@ -296,6 +302,30 @@
     "deliveryExcel": "Lista dostaw jako Excel",
     "deliveryCsv": "Lista dostaw jako CSV",
     "errorObjectDelivery": "lista dostaw"
+  },
+  "mealAllergens": {
+    "legendTitle": "Alergeny",
+    "choose": "Wybierz alergeny",
+    "marksShort": "Alergeny: {letters}",
+    "marksLabel": "Zawiera: {names}",
+    "noneThisWeek": "Na ten tydzień nie podano alergenów.",
+    "source": "Te informacje pochodzą od szkoły lub firmy cateringowej. Danie bez litery nie musi być wolne od alergenów. W razie pytań prosimy zwrócić się do OGS.",
+    "names": {
+      "gluten": "Zboża zawierające gluten",
+      "crustaceans": "Skorupiaki",
+      "eggs": "Jaja",
+      "fish": "Ryby",
+      "peanuts": "Orzeszki ziemne",
+      "soybeans": "Soja i produkty sojowe",
+      "milk": "Mleko (także laktoza)",
+      "nuts": "Orzechy",
+      "celery": "Seler",
+      "mustard": "Gorczyca",
+      "sesame": "Sezam",
+      "sulphites": "Dwutlenek siarki i siarczyny",
+      "lupin": "Łubin",
+      "molluscs": "Mięczaki"
+    }
   },
   "mealParticipantList": {
     "title": "Lista dzienna dla kuchni",
@@ -338,7 +368,27 @@
     "errorObjectChange": "zapisu",
     "asRegular": "Jak w stałe dni",
     "scheduleLoading": "Ładowanie stałych dni…",
-    "errorObjectSchedule": "stałe dni"
+    "errorObjectSchedule": "stałe dni",
+    "cutoffLead": "Zmiany na ten dzień są możliwe do godziny {time} {days, plural, one {w dniu roboczym przed} few {# dni robocze wcześniej} many {# dni roboczych wcześniej} other {# dnia roboczego wcześniej}}.",
+    "viewAria": "Widok listy dla kuchni",
+    "viewDay": "Dzień",
+    "viewWeek": "Tydzień",
+    "weekTitle": "Lista tygodniowa dla kuchni",
+    "weekDescription": "Lista pokazuje wszystkie dzieci zapisane na obiad w tym tygodniu.",
+    "weekCutoff": "Zmiany są możliwe do godziny {time} {days, plural, =0 {w dniu posiłku} one {w dniu roboczym przed} few {# dni robocze wcześniej} many {# dni roboczych wcześniej} other {# dnia roboczego wcześniej}}.",
+    "weekDateAria": "Tydzień od {from}",
+    "weekDownloadGroup": "Pobierz listę tygodniową",
+    "weekDownloadPdf": "Pobierz listę tygodniową jako PDF",
+    "weekDownloadExcel": "Pobierz listę tygodniową jako plik Excel",
+    "weekErrorObject": "lista tygodniowa",
+    "weekCaption": "Obiad od {from} do {to}",
+    "weekEmptyTitle": "Brak zapisów w tym tygodniu",
+    "weekEmptyDescription": "Na liście dla kuchni nie ma żadnego dziecka w tym tygodniu.",
+    "weekRegistered": "zapisane",
+    "weekNotRegistered": "niezapisane",
+    "weekCountsLabel": "Liczba posiłków na dzień",
+    "weekCount": "{count, plural, one {# dziecko} few {# dzieci} many {# dzieci} other {# dziecka}}",
+    "weekClosed": "brak posiłku"
   },
   "parentDashboard": {
     "eyebrow": "Portal dla rodziców",
@@ -416,6 +466,7 @@
     "deadline": "Termin do {date}",
     "closed": "Termin minął",
     "passwordNote": "Zanim odpowiesz, moto poprosi o Twoje hasło.",
+    "signatureNote": "Aby wyrazić zgodę, podpisz się palcem lub myszą.",
     "state": {
       "open": "Otwarte",
       "partial": "Częściowo odpowiedziano",
@@ -467,6 +518,22 @@
     "confirmVersion": "Tekst",
     "confirmRecorded": "moto zapisuje Twoją odpowiedź z datą i godziną. Szkoła ją widzi.",
     "passwordLabel": "Hasło do Twojego konta rodzica",
+    "signature": {
+      "label": "Twój podpis",
+      "hint": "Podpisz się w polu palcem, rysikiem lub myszą.",
+      "canvas": "Pole na podpis",
+      "clear": "Wyczyść pole",
+      "typeInstead": "Wpisz imię i nazwisko",
+      "drawInstead": "Narysuj zamiast tego",
+      "typedName": "Twoje imię i nazwisko",
+      "confirm": "Potwierdź podpis",
+      "confirmed": "Twój podpis jest gotowy.",
+      "confirmedTyped": "Wpisane imię i nazwisko jest gotowe.",
+      "change": "Podpisz ponownie",
+      "preview": "Twój podpis",
+      "emptyDrawing": "Podpisz się w polu.",
+      "nameTooShort": "Wpisz swoje imię i nazwisko."
+    },
     "revokeTitle": "Wycofaj zgodę",
     "revokeBody": "Wycofujesz swoją zgodę w imieniu {name}.",
     "revokeConfirm": "Wycofaj",
@@ -475,7 +542,8 @@
     "saved": "Twoja odpowiedź dla {name} została zapisana.",
     "errors": {
       "passwordRequired": "Wpisz swoje hasło.",
-      "uncertainReload": "Aktualny stan jest ładowany ponownie. Sprawdź go, zanim odpowiesz jeszcze raz."
+      "uncertainReload": "Aktualny stan jest ładowany ponownie. Sprawdź go, zanim odpowiesz jeszcze raz.",
+      "signatureRequired": "Podpisz się i dotknij „Potwierdź podpis”."
     },
     "errorObjectAnswer": "odpowiedź"
   },
@@ -498,10 +566,14 @@
     "entryVersion": "Wersja {version}",
     "passwordYes": "Potwierdzone hasłem",
     "passwordNo": "Bez hasła",
+    "signatureAlt": "Podpis: {name}",
+    "signatureDrawn": "Narysowano palcem lub myszą",
+    "signatureTyped": "Wpisano: {name}",
     "versionsTitle": "Tekst szkoły",
     "versionHeading": "Wersja {version}, opublikowana {date}",
     "attachments": "Pliki",
     "note": "To potwierdzenie dokumentuje proste oświadczenie elektroniczne. Nie zastępuje podpisu na papierze, jeśli wymaga go prawo.",
+    "noteSigned": "Podpisane odpowiedzi złożono jako zwykły podpis elektroniczny z narysowanym podpisem.",
     "errorObjectProof": "dokument potwierdzenia",
     "errorObjectPdf": "plik PDF"
   },
@@ -1176,7 +1248,8 @@
       "pickupConfirm": "Proszę potwierdzić zasady odbioru (wybrać dni lub zostawić puste).",
       "weekdayRequired": "Proszę wybrać co najmniej jeden dzień tygodnia.",
       "weekdayModeConfirm": "Proszę potwierdzić zasady powrotu do domu i odbioru.",
-      "weekdayMultiModeRequired": "Proszę wybrać dla każdego dnia opieki co najmniej jeden sposób powrotu do domu."
+      "weekdayMultiModeRequired": "Proszę wybrać dla każdego dnia opieki co najmniej jeden sposób powrotu do domu.",
+      "file": "Prześlij co najmniej jeden plik."
     },
     "actions": {
       "addChild": "Kolejne dziecko",
@@ -1326,6 +1399,23 @@
       "noCare": "Nie zarezerwowano żadnych ofert.",
       "hint": "Zmiany dla dziecka {name} wprowadzają Państwo teraz w aplikacji dla rodziców.",
       "noAccess": "Nie mogą Państwo korzystać z aplikacji dla rodziców? Proszę skontaktować się z OGS."
+    },
+    "upload": {
+      "errorObject": "plik",
+      "choose": "Wybierz plik",
+      "chooseMore": "Wybierz kolejny plik",
+      "allowed": "Dozwolone: {types}, najwyżej {max} MB na plik.",
+      "upTo": "Do {count} plików.",
+      "camera": "Na telefonie możesz też zrobić zdjęcie.",
+      "uploading": "Przesyłanie …",
+      "remove": "Usuń {name}",
+      "wrongType": "Ten plik ma niewłaściwy rodzaj. Dozwolone: {types}.",
+      "tooLarge": "Ten plik jest za duży. Dozwolone jest najwyżej {max} MB.",
+      "empty": "Ten plik jest pusty. Wybierz inny plik.",
+      "onlyOne": "Tutaj możesz przesłać tylko jeden plik.",
+      "tooMany": "Tutaj możesz przesłać najwyżej {count} plików.",
+      "pendingSubmit": "Poczekaj, aż wszystkie pliki zostaną przesłane.",
+      "previewDisabled": "W podglądzie nie można przesyłać plików."
     }
   },
   "enrollmentStatus": {
@@ -2069,6 +2159,25 @@
     "errorObjectMessage": "wiadomość",
     "errorObjectList": "lista rozmów"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "Wiadomości grupowe od OGS",
+    "sectionDescription": "Tutaj OGS pisze do grupy, klasy lub koła zainteresowań Twojego dziecka.",
+    "closed": "Zamknięte",
+    "forChildren": "Dla {names}",
+    "privacyNote": "Twoja odpowiedź trafia tylko do OGS. Inni rodzice jej nie widzą.",
+    "replyTitle": "Odpowiedź do OGS",
+    "replyChildLabel": "Odpowiedź dla",
+    "replyPlaceholder": "Napisz odpowiedź do OGS",
+    "replyFieldLabel": "Odpowiedź",
+    "sentConfirmation": "OGS otrzymała Twoją odpowiedź.",
+    "toChat": "Do czatu z OGS",
+    "closedNote": "Ta wiadomość grupowa jest zamknięta. Nadal możesz pisać do OGS w czacie o swoim dziecku.",
+    "writingDisabled": "Nie możesz odpowiedzieć na tę wiadomość. Nadal możesz ją czytać.",
+    "answerTo": "Odpowiedź na: {title}",
+    "errorObjectThread": "wiadomość grupowa",
+    "errorObjectAnswer": "odpowiedź",
+    "errorObjectList": "wiadomości grupowe"
+  },
   "parentCalendar": {
     "kicker": "Terminy w jednym miejscu",
     "title": "Kalendarz",
@@ -2201,6 +2310,8 @@
         "declaration_not_permitted": "Nie możesz odpowiedzieć za to dziecko. W razie pytań skontaktuj się z OGS.",
         "declaration_password_incorrect": "Hasło jest nieprawidłowe. Spróbuj ponownie.",
         "declaration_password_required": "Wpisz swoje hasło.",
+        "declaration_signature_invalid": "Nie udało się zapisać podpisu. Podpisz się ponownie.",
+        "declaration_signature_required": "Podpisz się, zanim wyrazisz zgodę.",
         "declaration_version_changed": "Szkoła zmieniła tekst. Przeczytaj go ponownie, a potem odpowiedz jeszcze raz.",
         "excused_request_not_pending": "Już nie jest otwarte: {object}. Odśwież stronę.",
         "excused_request_overlap": "Godziny się nakładają: {object}. Sprawdź dane.",
@@ -2251,6 +2362,21 @@
         "arrival_exception_editor_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "arrival_exception_past_date": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "arrival_exception_weekend": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "class_handover_no_school_day": "Dziś nie ma lekcji. Klasę można przekazać tylko w dni szkolne.",
+        "class_handover_not_found": "Klasa nie została dziś jeszcze przekazana. Odśwież stronę.",
+        "class_handover_not_today": "Klasę można przekazać tylko dzisiaj. Otwórz dzisiejszy dzień.",
+        "class_handover_unknown_child": "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
+        "class_trip_arrival_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "class_trip_invalid_range": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "class_trip_no_students": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "class_trip_past_date": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "class_trip_return_time_multi_day": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "class_trip_return_time_weekend": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "class_trip_status_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "class_trip_student_not_in_class": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "morning_attendance_no_school_day": "Dziś nie ma lekcji. Obecność można wpisać tylko w dni szkolne.",
+        "morning_attendance_not_today": "Obecność można wpisać tylko na dziś. Otwórz dzisiejszy dzień.",
+        "morning_attendance_unknown_child": "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
         "school_write_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "communication": {
@@ -2265,7 +2391,9 @@
         "staff_messaging_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "staff_notice_outdated": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "system_announcement_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "announcement_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "announcement_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "group_thread_closed": "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
+        "group_thread_no_recipients": "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana."
       },
       "enrollment": {
         "form_attachment_invalid": "Sprawdź nazwę i plik PDF.",
@@ -2350,6 +2478,11 @@
         "legal_block_key_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "legal_block_required_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "legal_document_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "form_field_file_options_invalid": "Sprawdź pytanie o plik. Wybierz co najmniej jeden rodzaj pliku i rozmiar od 1 do 10 MB.",
+        "upload_invalid": "Ten plik nie pasuje. Wybierz dozwolony rodzaj pliku o rozmiarze najwyżej {max_mb} MB.",
+        "upload_expired": "Przesłany plik wygasł. Prześlij go ponownie.",
+        "upload_rate_limited": "Przesłano zbyt wiele plików. Spróbuj ponownie później.",
+        "upload_not_found": "Tego pliku już nie ma. Prześlij go ponownie.",
         "message_required": "Napisz wiadomość.",
         "offering_adjustment_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "phase_care_offering_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2436,6 +2569,7 @@
         "preview_token_invalid": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "read_only_preview": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "role_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "role_platform_permission": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "session_account_inactive": "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
         "tenant_access_denied": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "use_parent_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
@@ -2448,6 +2582,8 @@
         "email_change_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "email_change_same_email": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "email_change_link_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "mfa_status_unavailable": "Weryfikacja logowania jest teraz niedostępna. Spróbuj ponownie.",
+        "mfa_session_required": "Logowanie do {object} wymaga dodatkowego potwierdzenia. Przycisk wyloguje Cię i otworzy stronę logowania tej szkoły. Zaloguj się tam ponownie i potwierdź logowanie.",
         "mfa_not_enrolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "mfa_already_enrolled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "passkey_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2511,6 +2647,7 @@
         "child_not_enrolled": "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
         "day_closed": "Nie można: {object}. Tego dnia szkoła jest zamknięta.",
         "day_past": "Już nie można: {object}. Ten dzień już minął.",
+        "invalid_allergens": "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
         "invalid_dishes": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_meal_date": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "invalid_participation": "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
@@ -2519,6 +2656,7 @@
         "plan_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
         "plan_week_out_of_range": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "registration_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+        "delivery_range_too_long": "Lista dostaw obejmuje maksymalnie siedem dni. Proszę wybrać krótszy okres.",
         "not_supplied": "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
         "order_not_found": "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
         "supply_active": "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie."
@@ -2573,6 +2711,7 @@
         "care_exit_preview_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "care_exit_too_many_students": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_offerings_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+        "care_resume_alumnus": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "care_resume_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "care_resume_not_checked": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "care_resume_not_ended": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2887,7 +3026,9 @@
         "presence_mode_switch_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "booking_authority_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "attendance_visible_exceeds_retention": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-        "attendance_retention_below_visible": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+        "attendance_retention_below_visible": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "module_requires": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "module_required_by": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "devices": {
         "tag_scan_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2901,6 +3042,17 @@
       },
       "feedback": {
         "disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
+      },
+      "staff": {
+        "external_access_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "external_email_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "external_email_invited": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "external_email_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "external_has_account": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "not_external": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+      },
+      "operator": {
+        "audit_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie."
       }
     },
     "actions": {

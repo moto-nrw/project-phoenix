@@ -74,6 +74,8 @@ type Ports struct {
 	OverviewStaff   OverviewStaffQuery
 	ExportStaff     TimeExportStaffQuery
 	StaffNames      StaffDisplayNameQuery
+	// ExternalCaregivers keeps the auto-stamp off external caregivers.
+	ExternalCaregivers ExternalCaregiverStaff
 
 	Schedules       WorkSessionSchedules
 	TimeModels      WorkSessionTimeModels
@@ -160,11 +162,12 @@ func (c *Clock) Sessions() WorkSessionService {
 }
 
 // WithAbsences builds the absence lifecycle over the clock's month service
-// and the required sick cascade, and returns every service.
-func (c *Clock) WithAbsences(syncer ShiftPlanSyncer) *Services {
+// and returns every service. Its sick-report writes return their plan for the
+// shift-plan-sync workflow to apply (#4825).
+func (c *Clock) WithAbsences() *Services {
 	deps, services := c.deps, c.services
 	services.Absences = NewStaffAbsenceService(deps.Absences, deps.Sessions, deps.VacationQuotas, deps.AbsenceAudits, deps.Settings, services.Months,
-		append(deps.absenceOptions(deps.AbsenceTypes, deps.MonthSnapshots, loggerOrDefault(deps.Logger), syncer), WithAbsenceUnitOfWork(runTimeTrackingUnit))...)
+		append(deps.absenceOptions(deps.AbsenceTypes, deps.MonthSnapshots, loggerOrDefault(deps.Logger)), WithAbsenceUnitOfWork(runTimeTrackingUnit))...)
 	return &services
 }
 
@@ -179,6 +182,7 @@ func (deps Dependencies) sessionsAndMonths(absenceTypes AbsenceTypeReader, snaps
 		WithWorkSessionShifts(deps.Shifts),
 		WithWorkSessionEvents(deps.Events),
 		WithWorkSessionHolidays(deps.Holidays),
+		WithWorkSessionExternalCaregivers(deps.ExternalCaregivers),
 		WithWorkSessionAbsenceTypes(absenceTypes),
 		WithWorkSessionTargetOverrides(staffTargetOverrideWeeks{overrides: deps.TargetOverrides, months: func() WorkTimeMonthService { return months }}),
 	)
@@ -233,7 +237,7 @@ func (deps Dependencies) overview(snapshots MonthSnapshots, logger *slog.Logger)
 	)
 }
 
-func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots MonthSnapshots, logger *slog.Logger, syncer ShiftPlanSyncer) []StaffAbsenceOption {
+func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots MonthSnapshots, logger *slog.Logger) []StaffAbsenceOption {
 	options := []StaffAbsenceOption{
 		WithAbsenceTypes(types),
 		WithAbsenceEvents(deps.Events),
@@ -256,8 +260,6 @@ func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots Month
 		// Absence email notifications (#1419 4d).
 		options = append(options, WithAbsenceEmail(*deps.AbsenceEmail))
 	}
-	// The #1843 sick cascade.
-	options = append(options, WithAbsenceShiftPlanSyncer(syncer))
 	return options
 }
 
@@ -273,7 +275,7 @@ func (deps Dependencies) validate() error {
 	case deps.Supervisions == nil || deps.SessionRecords == nil:
 		return errors.New("time tracking: the supervision and session records are required")
 	case deps.Staff == nil || deps.StaffSchedules == nil || deps.MonthCloseStaff == nil ||
-		deps.OverviewStaff == nil || deps.ExportStaff == nil || deps.StaffNames == nil:
+		deps.OverviewStaff == nil || deps.ExportStaff == nil || deps.StaffNames == nil || deps.ExternalCaregivers == nil:
 		return errors.New("time tracking: the staff readers are required")
 	case deps.Schedules == nil || deps.TimeModels == nil || deps.ScheduleTargets == nil || deps.TargetModels == nil ||
 		deps.Shifts == nil || deps.Holidays == nil:

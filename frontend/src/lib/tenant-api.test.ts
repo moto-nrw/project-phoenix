@@ -137,6 +137,8 @@ describe("tenant-api", () => {
         // — matches backend's own safe fallback.
         presenceMode: "detailed",
         studentPhotosEnabled: false,
+        // Missing booked_modules books nothing (#4892).
+        bookedModules: [],
         nfcEnabled: false,
         messagingEnabled: false,
         // Der Team-Chat (#2598) fehlt in dieser Antwort, also bleibt er aus —
@@ -174,6 +176,7 @@ describe("tenant-api", () => {
         gradeLevelMax: 13,
         // Older backends omit the Analyse-Freigabe (#3603): off, and nothing
         // is recorded.
+        analyticsEnabled: false,
         analyticsFreigabe: false,
         analyticsRecordingSamplePercent: 0,
         // Older backends omit the early-checkout question (#3324): no note
@@ -276,6 +279,7 @@ describe("tenant-api", () => {
       vi.mocked(global.fetch)
         .mockResolvedValueOnce(
           respond({
+            analytics_enabled: true,
             analytics_freigabe: true,
             analytics_recording_sample_percent: 25,
           }),
@@ -339,7 +343,37 @@ describe("tenant-api", () => {
       expect(result?.presenceMode).toBe("binary");
     });
 
-    it("passes through nfcEnabled=true when the backend advertises it", async () => {
+    it("maps the Träger name only when the backend names one (#4656)", async () => {
+      const respond = (extra: Record<string, unknown>) =>
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: {
+              tenant_id: 3,
+              slug: "traeger-school",
+              name: "Träger School",
+              subdomain: "traeger",
+              organization_id: 12,
+              organization_name: "Org T",
+              settings: {},
+              ...extra,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce(respond({ traeger_name: "Org T" }))
+        .mockResolvedValueOnce(respond({}));
+
+      const severalSchools = await resolveTenant("traeger-school");
+      const singleSchool = await resolveTenant("traeger-school");
+
+      expect(severalSchools?.traegerName).toBe("Org T");
+      expect(singleSchool?.organizationName).toBe("Org T");
+      expect(singleSchool?.traegerName).toBeUndefined();
+    });
+
+    it("derives nfcEnabled from the booked NFC module", async () => {
       const backendData = {
         status: "success",
         data: {
@@ -350,7 +384,7 @@ describe("tenant-api", () => {
           organization_id: 11,
           organization_name: "Org B",
           settings: {},
-          nfc_enabled: true,
+          booked_modules: ["nfc_anwesenheit", "zeiterfassung", "spaeter"],
         },
       };
       vi.mocked(global.fetch).mockResolvedValueOnce(
@@ -361,6 +395,34 @@ describe("tenant-api", () => {
       );
       const result = await resolveTenant("nfc-school");
       expect(result?.nfcEnabled).toBe(true);
+      expect(result?.bookedModules).toEqual([
+        "nfc_anwesenheit",
+        "zeiterfassung",
+      ]);
+    });
+
+    it("books no module when booked_modules is missing", async () => {
+      const backendData = {
+        status: "success",
+        data: {
+          tenant_id: 2,
+          slug: "basis-school",
+          name: "Basis School",
+          subdomain: "basis",
+          organization_id: 11,
+          organization_name: "Org B",
+          settings: {},
+        },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(backendData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const result = await resolveTenant("basis-school");
+      expect(result?.bookedModules).toEqual([]);
+      expect(result?.nfcEnabled).toBe(false);
     });
 
     it.each([
@@ -731,10 +793,19 @@ describe("tenant-api", () => {
 
       const result = await switchTenant("school-b");
 
-      expect(mockSessionFetch).toHaveBeenCalledWith("/api/auth/switch-tenant", {
-        method: "POST",
-        body: JSON.stringify({ tenant_slug: "school-b" }),
-      });
+      expect(mockSessionFetch).toHaveBeenCalledWith(
+        "/api/auth/switch-tenant",
+        {
+          method: "POST",
+          body: JSON.stringify({ tenant_slug: "school-b" }),
+        },
+        {
+          authRefusals: [
+            "identity.tenant_access_denied",
+            "identity.mfa_session_required",
+          ],
+        },
+      );
       expect(result).toEqual(tokens);
     });
 
@@ -894,10 +965,19 @@ describe("tenant-api", () => {
       expect(result).toEqual(tokens);
 
       // Step 1: switch-tenant called
-      expect(mockSessionFetch).toHaveBeenCalledWith("/api/auth/switch-tenant", {
-        method: "POST",
-        body: JSON.stringify({ tenant_slug: "school-b" }),
-      });
+      expect(mockSessionFetch).toHaveBeenCalledWith(
+        "/api/auth/switch-tenant",
+        {
+          method: "POST",
+          body: JSON.stringify({ tenant_slug: "school-b" }),
+        },
+        {
+          authRefusals: [
+            "identity.tenant_access_denied",
+            "identity.mfa_session_required",
+          ],
+        },
+      );
 
       // Step 2: signIn called with new tokens
       expect(mockSignIn).toHaveBeenCalledWith("credentials", {

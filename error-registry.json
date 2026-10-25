@@ -163,6 +163,18 @@
       "legacy": "declaration_password_required"
     },
     {
+      "code": "care.declaration_signature_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.declaration_signature_invalid"
+    },
+    {
+      "code": "care.declaration_signature_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care.declaration_signature_required"
+    },
+    {
       "code": "care.declaration_version_changed",
       "class": "business_rejection",
       "parameters": [],
@@ -449,6 +461,96 @@
       "class": "input",
       "parameters": [],
       "legacy": "class_arrival_exception_weekend"
+    },
+    {
+      "code": "classday.class_handover_no_school_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_handover_no_school_day"
+    },
+    {
+      "code": "classday.class_handover_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_handover_not_found"
+    },
+    {
+      "code": "classday.class_handover_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_handover_not_today"
+    },
+    {
+      "code": "classday.class_handover_unknown_child",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_handover_unknown_child"
+    },
+    {
+      "code": "classday.class_trip_arrival_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_trip_arrival_conflict"
+    },
+    {
+      "code": "classday.class_trip_invalid_range",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_invalid_range"
+    },
+    {
+      "code": "classday.class_trip_no_students",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_no_students"
+    },
+    {
+      "code": "classday.class_trip_past_date",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_past_date"
+    },
+    {
+      "code": "classday.class_trip_return_time_multi_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_return_time_multi_day"
+    },
+    {
+      "code": "classday.class_trip_return_time_weekend",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_return_time_weekend"
+    },
+    {
+      "code": "classday.class_trip_status_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_trip_status_conflict"
+    },
+    {
+      "code": "classday.class_trip_student_not_in_class",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_trip_student_not_in_class"
+    },
+    {
+      "code": "classday.morning_attendance_no_school_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_no_school_day"
+    },
+    {
+      "code": "classday.morning_attendance_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_not_today"
+    },
+    {
+      "code": "classday.morning_attendance_unknown_child",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_unknown_child"
     },
     {
       "code": "classday.school_write_disabled",
@@ -1007,6 +1109,14 @@
       "legacy": "identity.role_name_taken"
     },
     {
+      "code": "identity.role_platform_permission",
+      "class": "input",
+      "parameters": [
+        "permission"
+      ],
+      "legacy": "identity.role_platform_permission"
+    },
+    {
       "code": "identity.invitation_account_login_required",
       "class": "permission",
       "parameters": [],
@@ -1437,6 +1547,12 @@
       "legacy": "meals.day_past"
     },
     {
+      "code": "meals.invalid_allergens",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.invalid_allergens"
+    },
+    {
       "code": "meals.invalid_dishes",
       "class": "input",
       "parameters": [],
@@ -1725,6 +1841,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "care_offerings_disabled"
+    },
+    {
+      "code": "students.care_resume_alumnus",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "students.care_resume_alumnus"
     },
     {
       "code": "students.care_resume_missing",
@@ -3649,6 +3771,38 @@
       "legacy": "enrollment.legal_document_invalid"
     },
     {
+      "code": "enrollment.form_field_file_options_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.form_field_file_options_invalid"
+    },
+    {
+      "code": "enrollment.upload_invalid",
+      "class": "input",
+      "parameters": [
+        "max_mb"
+      ],
+      "legacy": "enrollment.upload_invalid"
+    },
+    {
+      "code": "enrollment.upload_expired",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.upload_expired"
+    },
+    {
+      "code": "enrollment.upload_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "enrollment.upload_rate_limited"
+    },
+    {
+      "code": "enrollment.upload_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.upload_not_found"
+    },
+    {
       "code": "enrollment.request_not_found",
       "class": "business_rejection",
       "parameters": [],
@@ -3919,6 +4073,18 @@
       "legacy": "identity.email_change_link_invalid"
     },
     {
+      "code": "identity.mfa_status_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.mfa_status_unavailable"
+    },
+    {
+      "code": "identity.mfa_session_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.mfa_session_required"
+    },
+    {
       "code": "identity.mfa_not_enrolled",
       "class": "business_rejection",
       "parameters": [],
@@ -4171,6 +4337,24 @@
       "legacy": "settings.attendance_retention_below_visible"
     },
     {
+      "code": "settings.module_requires",
+      "class": "input",
+      "parameters": [
+        "module",
+        "required"
+      ],
+      "legacy": "settings.module_requires"
+    },
+    {
+      "code": "settings.module_required_by",
+      "class": "input",
+      "parameters": [
+        "module",
+        "dependents"
+      ],
+      "legacy": "settings.module_required_by"
+    },
+    {
       "code": "communication.announcement_not_found",
       "class": "business_rejection",
       "parameters": [],
@@ -4207,6 +4391,12 @@
       "legacy": "identity.caterer_without_school"
     },
     {
+      "code": "meals.delivery_range_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.delivery_range_too_long"
+    },
+    {
       "code": "meals.not_supplied",
       "class": "permission",
       "parameters": [],
@@ -4223,6 +4413,60 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "meals.supply_active"
+    },
+    {
+      "code": "staff.external_email_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_email_required"
+    },
+    {
+      "code": "staff.external_email_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_email_invalid"
+    },
+    {
+      "code": "staff.not_external",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.not_external"
+    },
+    {
+      "code": "staff.external_has_account",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.external_has_account"
+    },
+    {
+      "code": "staff.external_email_invited",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.external_email_invited"
+    },
+    {
+      "code": "staff.external_access_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_access_invalid"
+    },
+    {
+      "code": "communication.group_thread_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.group_thread_closed"
+    },
+    {
+      "code": "communication.group_thread_no_recipients",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.group_thread_no_recipients"
+    },
+    {
+      "code": "operator.audit_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "operator.audit_unavailable"
     }
   ]
 }

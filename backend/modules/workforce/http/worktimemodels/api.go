@@ -30,6 +30,7 @@ type FailureKind string
 const (
 	FailureInvalid  FailureKind = "invalid"
 	FailureNotFound FailureKind = "not_found"
+	FailureConflict FailureKind = "conflict"
 	FailureInternal FailureKind = "internal"
 )
 
@@ -137,7 +138,7 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 	}
 	model, err := rs.models.FindWorkTimeModel(r.Context(), id)
 	if err != nil {
-		rs.runtime.Failure(w, r, FailureNotFound, errors.New("model not found"))
+		rs.renderCapabilityError(w, r, err)
 		return
 	}
 	response, err := toResponse(model)
@@ -161,7 +162,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := rs.models.CreateWorkTimeModel(r.Context(), workforce.CreateWorkTimeModel{WorkTimeModelFields: fields})
 	if err != nil {
-		rs.renderSaveError(w, r, err)
+		rs.renderCapabilityError(w, r, err)
 		return
 	}
 	response, err := toResponse(saved)
@@ -194,7 +195,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := rs.models.UpdateWorkTimeModel(r.Context(), workforce.UpdateWorkTimeModel{ID: id, WorkTimeModelFields: fields})
 	if err != nil {
-		rs.renderSaveError(w, r, err)
+		rs.renderCapabilityError(w, r, err)
 		return
 	}
 	response, err := toResponse(saved)
@@ -213,25 +214,26 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := rs.models.DeleteWorkTimeModel(r.Context(), id); err != nil {
-		rs.runtime.Failure(w, r, FailureNotFound, errors.New("model not found or in use"))
+		rs.renderCapabilityError(w, r, err)
 		return
 	}
 	rs.runtime.Success(w, r, http.StatusOK, map[string]any{"id": id}, "Work time model deleted")
 }
 
-// renderSaveError maps a create/update capability error to its HTTP response:
-// caller-input validation failures become 400, an unknown model 404,
-// everything else 500.
-func (rs *Resource) renderSaveError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, workforce.ErrInvalidWorkTime) {
+// renderCapabilityError maps a capability error to its HTTP response:
+// caller-input validation failures become 400, an unknown model 404, a model
+// still assigned to staff 409, everything else (a failed read or write) 500.
+func (rs *Resource) renderCapabilityError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, workforce.ErrInvalidWorkTime):
 		rs.runtime.Failure(w, r, FailureInvalid, err)
-		return
-	}
-	if errors.Is(err, workforce.ErrWorkTimeModelNotFound) {
+	case errors.Is(err, workforce.ErrWorkTimeModelNotFound):
 		rs.runtime.Failure(w, r, FailureNotFound, err)
-		return
+	case errors.Is(err, workforce.ErrWorkTimeModelAssigned):
+		rs.runtime.Failure(w, r, FailureConflict, err)
+	default:
+		rs.runtime.Failure(w, r, FailureInternal, err)
 	}
-	rs.runtime.Failure(w, r, FailureInternal, err)
 }
 
 // buildFields binds the wire request into capability input. It only parses the

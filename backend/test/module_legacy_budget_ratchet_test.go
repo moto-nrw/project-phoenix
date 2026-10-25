@@ -51,6 +51,12 @@ import (
 // program (walk modules/ and workflows/ for directories named "legacy", sum
 // the lines of all non-test .go files per topmost tree), run as
 // `cd backend && ../scripts/run-go-toolchain.sh go run ./tmp/moduleLegacyBudget`.
+// The temporary seed helper was not retained. Re-measure the current tree
+// with the ratchet itself (a mismatch prints the measured values):
+//
+//	cd backend && ../scripts/run-go-toolchain.sh go test -tags=testhooks ./test/ \
+//	  -run '^TestModuleLegacyBudgetRatchet$' -count=1 -v
+//
 // The first seed was taken at 19feca2822 and re-measured here after the merge
 // of origin/development (a47f77b2c3): PR #3408 (issue #3350) moved the
 // care-exit, companion and care-document code out of services/users into the
@@ -120,7 +126,8 @@ const moduleLegacyBudgetTotal = 0
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 0
+// ADR 0082: retained Workforce translation renamed into the legacy register.
+const moduleLegacyFileBudgetTotal = 246
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -133,7 +140,10 @@ const moduleLegacyFileBudgetTotal = 0
 // name out of modules/timetable/internal/application/legacy_repository_options.go
 // into modules/timetable/ports/legacy_repository_options.go. Both halves keep
 // counting, and their sum stays below the old entry.
-var moduleLegacyFileBudgets = map[string]int{}
+// ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
+var moduleLegacyFileBudgets = map[string]int{
+	"roots/owners/legacy_workforce_schedule_adapter.go": 246,
+}
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063 and by ADR 0073 (the parent
@@ -141,7 +151,10 @@ var moduleLegacyFileBudgets = map[string]int{}
 // Raised by ADR 0076: the restricted staff person repair compositions (+53).
 // Raised by ADR 0078 (the meal ordering rules) and ADR 0077 (the caterer
 // flows and the caterer portal).
-const moduleComposeBudgetTotal = 12523
+// ADR 0097: the isolated tenant return constructor adds exactly 18 LOC.
+// ADR 0102: the class-trip status-day seam of modules/classday/compose (+2).
+// ADR 0103: the signature ledger constructor adds exactly 6 LOC.
+const moduleComposeBudgetTotal = 12511
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -151,13 +164,15 @@ const moduleComposeBudgetTotal = 12523
 // keeps its LOC counted. ADR 0078 raised modules/mealplan/compose and
 // workflows/parentportal/compose for the meal ordering rules.
 var moduleComposeBudgets = map[string]int{
-	"modules/appointments/compose":         45,
-	"modules/auditlog/compose":             183,
+	"modules/appointments/compose": 45,
+	// ADR 0103: the signature ledger constructor, construction only.
+	"modules/auditlog/compose":             189,
 	"modules/careplan/compose":             1644,
 	"modules/careplan/requestfeed/compose": 53,
-	"modules/classday/compose":             213,
+	// Raised by ADR 0102: the class-trip status-day seam (#4799).
+	"modules/classday/compose": 214,
 	// Raised by ADR 0073: the parent announcement retention.
-	"modules/communication/composition":             367,
+	"modules/communication/composition":             351,
 	"modules/dataimport/compose":                    85,
 	"modules/dataimport/compose/imports":            29,
 	"modules/delivery/compose":                      361,
@@ -170,15 +185,16 @@ var moduleComposeBudgets = map[string]int{
 	"modules/facilities/compose":                    184,
 	"modules/facilities/compose/repositoryadapter":  11,
 	"modules/feedback/compose":                      61,
-	"modules/filestorage/compose":                   217,
+	"modules/filestorage/compose":                   211,
 	"modules/grouplive/compose":                     14,
 	"modules/guardianlinkview/compose":              8,
-	"modules/identityaccess/compose":                1349, // raised by ADR 0077
+	"modules/identityaccess/compose":                1348, // raised by ADR 0077
 	"modules/mealplan/compose":                      74,   // raised by ADR 0078
-	"modules/organizationtenancy/compose":           253,
-	"modules/parentrequestfeedprojection/compose":   11,
+	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
+	"modules/organizationtenancy/compose":         270,
+	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
-	"modules/peopledirectory/compose":       974,
+	"modules/peopledirectory/compose":       973,
 	"modules/presenceprojection/compose":    7,
 	"modules/requestreview/compose":         12,
 	"modules/schedulerruntime/compose":      45,
@@ -187,7 +203,7 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/schoolmembership/compose":                196,
 	"modules/schoolsetup/compose":                     56,
-	"modules/schoolstructure/compose":                 594,
+	"modules/schoolstructure/compose":                 593,
 	"modules/settings/compose":                        308,
 	"modules/studentdirectoryview/compose":            9,
 	"modules/studentpresence/compose":                 243,
@@ -198,16 +214,16 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,
 	"modules/transactionruntime/compose":              133,
-	"modules/workforce/compose":                       895,
-	"workflows/catererportal/compose":                 36, // added by ADR 0077
+	"modules/workforce/compose":                       887,
+	"workflows/catererportal/compose":                 37, // added by ADR 0077
 	"workflows/gradetransition/compose":               49,
 	"workflows/openroommove/compose":                  46,
-	"workflows/parentportal/compose":                  308, // raised by ADR 0078
+	"workflows/parentportal/compose":                  307, // raised by ADR 0078
 	"workflows/reminderdelivery/compose":              30,
 	"workflows/sessionend/compose":                    59,
 	"workflows/shiftplansync/compose":                 124,
 	"workflows/staffclock/compose":                    36,
-	"workflows/staffoffboarding/compose":              79,
+	"workflows/staffoffboarding/compose":              76,
 	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
 	"workflows/studentdeletion/compose":  74,

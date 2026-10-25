@@ -32,7 +32,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	accessCtx := rs.determineStudentAccess(r)
 	settingsCtx, err := rs.prefetchListSettings(r.Context())
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 	r = r.WithContext(settingsCtx)
@@ -44,18 +44,18 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 
 	page, err := rs.buildStudentListPage(r.Context(), students, plan, accessCtx)
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 	responses, totalCount, err := rs.finishStudentListPage(r.Context(), page, plan, totalCount)
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to load students", err))
 		return
 	}
 
@@ -134,7 +134,10 @@ func (rs *Resource) buildStudentListPage(ctx context.Context, students []*people
 		return studentListPage{}, err
 	}
 	// Resolve once per request. populatePhotoFields runs per student.
-	photosEnabled := resolveBoolSetting(ctx, rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
+	photosEnabled, err := rs.SettingsService.ResolveBool(ctx, settingStudentPhotosEnabled)
+	if err != nil {
+		return studentListPage{}, err
+	}
 
 	responses := rs.buildStudentResponses(ctx, students, plan.params, accessCtx, dataSnapshot, groups, photosEnabled)
 
@@ -188,6 +191,11 @@ func (rs *Resource) finishStudentListPage(ctx context.Context, page studentListP
 	// which of its children carry a recorded exit (#2487).
 	if err := rs.enrichWithCareExitFlag(ctx, responses); err != nil {
 		return nil, 0, err
+	}
+	if plan.isToday {
+		if err := rs.enrichWithClassHandovers(ctx, responses, plan.planningDate); err != nil {
+			return nil, 0, err
+		}
 	}
 
 	// Companion ids ("läuft mit") for the day being SHOWN, not for today: the

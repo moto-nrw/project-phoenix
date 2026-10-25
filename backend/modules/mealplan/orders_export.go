@@ -19,17 +19,19 @@ type ChildMeals struct {
 // MealsPerChild counts the ordered meals of each child over the ordered days
 // of the window, every change applied (#3873). Open and unordered days do not
 // count: nothing is ordered for them. Sorted like the kitchen list.
+// The meals of deleted children (StudentID 0) count per class.
 func (w OrderWeek) MealsPerChild() []ChildMeals {
-	counts := make(map[int64]*ChildMeals)
+	counts := make(map[childMealsKey]*ChildMeals)
 	for _, day := range w.Days {
 		if !day.Status.Billed() {
 			continue
 		}
 		for _, child := range day.Children {
-			entry, ok := counts[child.StudentID]
+			key := mealsKeyOf(child)
+			entry, ok := counts[key]
 			if !ok {
 				entry = &ChildMeals{Child: child}
-				counts[child.StudentID] = entry
+				counts[key] = entry
 			}
 			entry.Child.SchoolClass = child.SchoolClass
 			entry.Meals++
@@ -53,6 +55,19 @@ func (w OrderWeek) MealsPerChild() []ChildMeals {
 		return a.StudentID < b.StudentID
 	})
 	return result
+}
+
+// childMealsKey counts a child's meals; deleted children count per class.
+type childMealsKey struct {
+	studentID   int64
+	deletedFrom string
+}
+
+func mealsKeyOf(child OrderChild) childMealsKey {
+	if child.StudentID == 0 {
+		return childMealsKey{deletedFrom: child.SchoolClass}
+	}
+	return childMealsKey{studentID: child.StudentID}
 }
 
 var germanMonths = []string{"Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"}
@@ -84,9 +99,12 @@ func (w OrderWeek) MonthExport(month Date) (ListExport, error) {
 }
 
 // childName is the child as lists show it; a child the school no longer
-// knows shows its number.
+// knows shows its number, the meals of deleted children show as such.
 func childName(child OrderChild) string {
 	name := strings.TrimSpace(child.LastName + ", " + child.FirstName)
+	if name == "," && child.StudentID == 0 {
+		return "Gelöschte Kinder"
+	}
 	if name == "," {
 		return "Kind " + strconv.FormatInt(child.StudentID, 10)
 	}

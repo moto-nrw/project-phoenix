@@ -62,16 +62,40 @@ const TENANT_DOMAIN: string = (() => {
 
 // PostHog runs behind the same-origin /ingest rewrite (next.config.js), so
 // the policy names no analytics host.
+// Keep Next.js inline bootstrap/hydration scripts working without a nonce
+// migration. This is not a strict XSS policy; see docs/operations/browser-csp-3842.md.
 const CSP_HEADER = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "connect-src 'self'",
+  "object-src 'none'",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
 ].join("; ");
+
+// Only the public tenant phase form mounts Turnstile. Parent-authenticated,
+// preview, status and staff pages keep the same-origin policy.
+const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
+const TURNSTILE_CSP_HEADER =
+  CSP_HEADER.replace(
+    "script-src 'self'",
+    `script-src 'self' ${TURNSTILE_ORIGIN}`,
+  ) + `; frame-src ${TURNSTILE_ORIGIN}`;
+
+function isPublicEnrollmentForm(pathname: string): boolean {
+  const [, tenant, surface, phase, extra] = pathname.split("/");
+  return (
+    !!tenant &&
+    !RESERVED_SLUGS.has(tenant) &&
+    surface === "anmeldung" &&
+    !!phase &&
+    !["preview", "submitted", "status"].includes(phase) &&
+    extra === undefined
+  );
+}
 
 // --- PostHog reverse proxy (#3601) ---
 
@@ -248,7 +272,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
   // Block tenant auth endpoints on the operator host. Tenant session cookies
   // are domain-scoped and sent to subdomains, so allowing /api/auth/* here
   // would expose tenant session data on operator.moto-app.de.
-  if (pathname.startsWith("/api/auth/")) {
+  if (pathname.startsWith("/api/auth/") || isCatererApiPath(pathname)) {
     return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
 
@@ -363,7 +387,7 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
   if (
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/api/operator/auth/") ||
-    pathname.startsWith("/api/caterer/")
+    isCatererApiPath(pathname)
   ) {
     return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
@@ -425,6 +449,8 @@ const SCHOOL_PROTECTED_PATHS = [
   "/nachrichten",
   // Tagesinformationen der OGS-Leitung für Lehrkräfte (#2208).
   "/tagesinformationen",
+  // Kalender der Lehrkraft mit Schulterminen (#4798).
+  "/kalender",
   "/einstellungen",
 ];
 const SCHOOL_INVITATION_API_PATHS = [
@@ -507,6 +533,13 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
 /** Paths the caterer host serves (without /caterer prefix); the overview
  * itself lives at the root ("/" → /caterer). */
 const CATERER_PATHS = ["/login", "/reset-password", "/einladung"];
+
+/** The caterer portal's BFF routes. Only the caterer host serves them; every
+ * other host answers 404, so a caterer route never runs beside another
+ * portal's cookies (ADR 0077). */
+function isCatererApiPath(pathname: string): boolean {
+  return pathname === "/api/caterer" || pathname.startsWith("/api/caterer/");
+}
 
 function isCatererHost(hostname: string): boolean {
   return hostname === CATERER_HOSTNAME;
@@ -772,6 +805,12 @@ export function proxy(request: NextRequest): NextResponse {
       new NextResponse(null, { status: 308, headers: { Location: target } }),
     );
   }
+  const pagePath = new URL(
+    response.headers.get("x-middleware-rewrite") ?? request.url,
+  ).pathname;
+  if (servedAsIs && isPublicEnrollmentForm(pagePath)) {
+    response.headers.set("Content-Security-Policy", TURNSTILE_CSP_HEADER);
+  }
   return response;
 }
 
@@ -827,7 +866,11 @@ function routeRequest(request: NextRequest): NextResponse {
   const legacySelection = redirectLegacySelection(request);
   if (legacySelection) return legacySelection;
 
-  // 2. /api/* and /monitoring (Sentry tunnel): pass through with security headers.
+  // 2. /api/* and /monitoring (Sentry tunnel): pass through with security
+  // headers. The caterer API runs on the caterer host only (ADR 0077).
+  if (isCatererApiPath(pathname)) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+  }
   if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
     return secureNext(request);
   }

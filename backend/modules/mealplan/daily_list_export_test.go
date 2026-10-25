@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDailyListExportLaysOutTheTagesliste(t *testing.T) {
+func TestListExportLaysOutTheTagesliste(t *testing.T) {
 	t.Parallel()
 	// #3873: the deadline of the day, which lies days before it under a lead
 	// time, replaces the bare clock time.
@@ -36,6 +36,47 @@ func TestDailyListExportLaysOutTheTagesliste(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestWeeklyListExportLaysOutTheWochenliste(t *testing.T) {
+	t.Parallel()
+	mia := mealplan.DailyParticipant{StudentID: 11, FirstName: "Mia", LastName: "Meier", SchoolClass: "2a"}
+	ben := mealplan.DailyParticipant{StudentID: 12, FirstName: "Ben", LastName: "Bauer", SchoolClass: "3b"}
+	day := func(date mealplan.Date, participants ...mealplan.DailyParticipant) mealplan.DailyList {
+		return mealplan.DailyList{Date: date, CutoffTime: "09:30", Participants: participants}
+	}
+	week := mealplan.WeeklyList{WeekStart: "2026-10-19", Days: []mealplan.DailyList{
+		day("2026-10-19", ben, mia), day("2026-10-20"), day("2026-10-21", ben), day("2026-10-22", mia), day("2026-10-23", ben, mia),
+	}}
+
+	export, err := week.Export()
+	require.NoError(t, err)
+	assert.Equal(t, mealplan.ListExport{
+		Title:    "Mittagessen – Wochenliste",
+		Subtitle: "Wochenliste vom 19.10.2026 bis 23.10.2026",
+		Filters:  []string{"2 Kinder"},
+		Columns: []mealplan.ListExportColumn{
+			{ID: "student_name", Label: "Kind"}, {ID: "student_class", Label: "Klasse"},
+			{ID: "day_1", Label: "Mo 19.10."}, {ID: "day_2", Label: "Di 20.10."}, {ID: "day_3", Label: "Mi 21.10."}, {ID: "day_4", Label: "Do 22.10."}, {ID: "day_5", Label: "Fr 23.10."},
+		},
+		Lines: [][]string{
+			{"Meier, Mia", "2a", "✓", "", "", "✓", "✓"},
+			{"Bauer, Ben", "3b", "✓", "", "✓", "", "✓"},
+			{"Summe", "", "2", "0", "1", "1", "2"},
+		},
+		Footer:   "Vertraulich behandeln und nach dem Küchendienst sicher entsorgen.",
+		Filename: "mittagessen-woche-2026-10-19",
+	}, export)
+
+	_, err = mealplan.WeeklyList{WeekStart: "2026-10-19"}.Export()
+	require.Error(t, err)
+}
+
+func TestListExportNamesOneLeadDay(t *testing.T) {
+	t.Parallel()
+	export, err := mealplan.DailyList{Date: "2026-10-19", CutoffTime: "14:00", Deadline: time.Date(2026, 10, 18, 14, 0, 0, 0, calendar.Berlin)}.Export()
+	require.NoError(t, err)
+	assert.Equal(t, "Frist: 18.10.2026, 14:00 Uhr", export.Filters[0])
+}
+
 func TestFaultsCarryTheirClientTexts(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "feature_disabled", mealplan.ErrDisabled.Detail)
@@ -44,4 +85,21 @@ func TestFaultsCarryTheirClientTexts(t *testing.T) {
 	assert.Equal(t, "meal_participation_cutoff_passed", mealplan.ErrParticipationCutoff.Detail)
 	assert.Empty(t, mealplan.ErrInvalidDishes.Detail, "the code is the client text")
 	assert.Equal(t, "invalid_meal_date", mealplan.ErrInvalidMealDate.Error())
+}
+
+func TestSortDailyParticipantsOrdersByClassNameAndID(t *testing.T) {
+	t.Parallel()
+	participants := []mealplan.DailyParticipant{
+		{StudentID: 14, FirstName: "Ana", LastName: "Zorn", SchoolClass: "2a"},
+		{StudentID: 13, FirstName: "Ben", LastName: "Adam", SchoolClass: "3b"},
+		{StudentID: 12, FirstName: "Mia", LastName: "Adam", SchoolClass: "2a"},
+		{StudentID: 11, FirstName: "Mia", LastName: "Adam", SchoolClass: "2a"},
+		{StudentID: 15, FirstName: "Lea", LastName: "Adam", SchoolClass: "2a"},
+	}
+	mealplan.SortDailyParticipants(participants)
+	ids := make([]int64, 0, len(participants))
+	for _, participant := range participants {
+		ids = append(ids, participant.StudentID)
+	}
+	assert.Equal(t, []int64{15, 11, 12, 14, 13}, ids)
 }

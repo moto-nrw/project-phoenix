@@ -22,6 +22,7 @@ func TestProvisioningErrorRendererAnswersWithCodes(t *testing.T) {
 		status int
 		code   string
 	}{
+		{"audit unavailable", &organizationtenancy.OperatorAuditUnavailableError{Err: errors.New("private diagnostic")}, http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable},
 		{"email exists", &organizationtenancy.ProvisioningIdentityError{Err: organizationtenancy.ErrAccountEmailExists}, http.StatusConflict, common.CodeIdentityEmailAlreadyExists},
 		{"username exists", &organizationtenancy.ProvisioningIdentityError{Err: organizationtenancy.ErrAccountUsernameExists}, http.StatusConflict, common.CodeIdentityUsernameTaken},
 		{"password mismatch", &organizationtenancy.ProvisioningIdentityError{Err: organizationtenancy.ErrPasswordMismatch}, http.StatusBadRequest, common.CodeIdentityPasswordMismatch},

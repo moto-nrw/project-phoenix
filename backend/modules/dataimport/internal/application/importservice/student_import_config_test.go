@@ -1291,7 +1291,7 @@ func TestStudentImportConfig_Validate_PickupTimeBoundaryValues(t *testing.T) {
 }
 
 // ============================================================================
-// importModels.MapRelationshipType Tests
+// ports.MapRelationshipType Tests
 // ============================================================================
 
 func TestMapRelationshipType(t *testing.T) {
@@ -1327,7 +1327,7 @@ func TestMapRelationshipType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := importModels.MapRelationshipType(tt.input)
+			result := ports.MapRelationshipType(tt.input)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

@@ -45,6 +45,19 @@ describe("loadAccountRoleAssignment", () => {
     expect(assignment.currentIsLehrkraft).toBe(false);
   });
 
+  it("keeps a Lehrkraft copy read-only and out of the choices (#4574)", async () => {
+    const copy = { ...role("5", "klassenleitung", false), schoolPortal: true };
+    mockGetAccountRoles.mockResolvedValue([copy]);
+    mockGetRoles.mockResolvedValue([copy, role("2", "user", true)]);
+
+    const assignment = await loadAccountRoleAssignment("7");
+
+    expect(assignment.options).toEqual([
+      { id: "2", name: "Betreuung", systemName: "user" },
+    ]);
+    expect(assignment.currentIsLehrkraft).toBe(true);
+  });
+
   it("keeps the system role lehrkraft read-only", async () => {
     mockGetAccountRoles.mockResolvedValue([role("3", "lehrkraft", true)]);
     mockGetRoles.mockResolvedValue([role("3", "lehrkraft", true)]);

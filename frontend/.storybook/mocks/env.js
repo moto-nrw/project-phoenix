@@ -11,6 +11,8 @@ const storybookProcessEnv = Object.freeze({
   NEXT_PUBLIC_POSTHOG_KEY: "",
   NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:6006",
   NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:6006",
+  NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:6006",
+  NEXT_PUBLIC_CATERER_HOSTNAME: "caterer.localhost:6006",
   NEXT_PUBLIC_SENTRY_DSN: "",
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: "",
 });

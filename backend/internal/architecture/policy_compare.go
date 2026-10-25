@@ -15,7 +15,7 @@ import (
 // loosening. The CLI passes the candidate graph it already loaded; a nil graph
 // is loaded here.
 func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, graph *Graph) error {
-	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
+	createdDataObjects, renamedDataObjects, err := candidateMigrationDataObjects(project, baseRef)
 	if err != nil {
 		return err
 	}
@@ -40,13 +40,16 @@ func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	if err != nil {
 		return err
 	}
-	return comparePolicyStrictness(base, candidate, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols, moves)
+	return comparePolicyStrictnessWithRenames(base, candidate, createdDataObjects, renamedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols, moves)
 }
 
-func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}, verifiedRelocations map[string]string) error {
+// comparePolicyStrictnessWithRenames compares the policies, given the data
+// objects and packages a candidate creates and the tables a candidate
+// migration renames (new name -> old name).
+func comparePolicyStrictnessWithRenames(base, candidate *Policy, createdDataObjects map[string]struct{}, renamedDataObjects map[string]string, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}, verifiedRelocations map[string]string) error {
 	problems := modulePathLoosenings(base, candidate)
 	problems = append(problems, epochLoosenings(base, candidate)...)
-	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, createdPackages)...)
+	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, renamedDataObjects, createdPackages)...)
 	problems = append(problems, classificationLoosenings(base, candidate, createdPackages, candidateOnlyExternal)...)
 	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages, verifiedRelocations)...)
 	problems = append(problems, compositionLoosenings(base, candidate, deletedLegacySymbols)...)
@@ -75,7 +78,7 @@ func epochLoosenings(base, candidate *Policy) []string {
 	return []string{fmt.Sprintf("policy_epoch decreased from %d to %d", base.PolicyEpoch, candidate.PolicyEpoch)}
 }
 
-func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPackages map[string]struct{}) []string {
+func ownershipLoosenings(base, candidate *Policy, createdDataObjects map[string]struct{}, renamedDataObjects map[string]string, createdPackages map[string]struct{}) []string {
 	var problems []string
 	candidateObjects := dataObjectsByName(candidate)
 	for name := range createdDataObjects {
@@ -111,7 +114,12 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPac
 		baseObject, exists := baseObjects[name]
 		_, createdByCandidateMigration := createdDataObjects[name]
 		if !exists {
-			if !createdByCandidateMigration {
+			previous, renamedByCandidateMigration := renamedDataObjects[name]
+			switch {
+			case createdByCandidateMigration:
+			case renamedByCandidateMigration:
+				problems = append(problems, renamedDataObjectLoosenings(baseObjects, candidateObjects, name, previous)...)
+			default:
 				problems = append(problems, fmt.Sprintf("data object %s was newly assigned to owner %s", name, current.WriteOwner))
 			}
 			continue
@@ -202,12 +210,24 @@ func readProjectionLoosenings(base, candidate *Policy, createdPackages map[strin
 			_, packageCreated := createdPackages[packagePath]
 			owner, ownerExists := candidateOwners[pkg.Owner]
 			_, ownerExisted := baseOwners[pkg.Owner]
+			if classified && packageCreated && candidate.hasTenantLifecycleRead(packagePath, pkg) {
+				continue
+			}
 			if !classified || !packageCreated || !ownerExists || ownerExisted || owner.Kind != "projection" {
 				problems = append(problems, "new tenant-safe read projection grant "+grant)
 			}
 		}
 	}
 	return problems
+}
+
+func (p *Policy) hasTenantLifecycleRead(packagePath string, pkg Package) bool {
+	for _, projection := range p.ReadProjections {
+		if p.absolutePackage(projection.Package) == packagePath && p.isTenantLifecycleRead(projection, pkg) {
+			return true
+		}
+	}
+	return false
 }
 
 // ADR 0020 renames a grant only after the package's owner, all roles and

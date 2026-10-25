@@ -81,6 +81,7 @@ func newCoreActionRouter(tracker Tracker, requestActor *Actor) http.Handler {
 
 	root := chi.NewRouter()
 	root.Use(CoreActionMiddleware(CoreActionConfig{
+		Policy:  CollectionPolicy{Demo: true},
 		Tracker: tracker,
 		RequestActor: func(*http.Request) (Actor, bool) {
 			if requestActor == nil {

@@ -12,12 +12,11 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/staffdirectoryview"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 )
 
 // staffIdentityQuery is the consumer-owned account-facts port for staff projections.
@@ -27,15 +26,31 @@ type staffIdentityQuery interface {
 	CountRoleNameMatchesByAccountIDs(ctx context.Context, accountIDs []int64, roleNames []string) (map[int64]int, error)
 	ListAccountIDsWithSystemRoleNames(ctx context.Context, accountIDs []int64, roleNames []string, tenantID int64) ([]int64, error)
 	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	ClassifySchoolRoles(ctx context.Context, tenantID int64, accountIDs []int64) ([]identityaccess.SchoolRoleClass, error)
+}
+
+// staffViewAccounts gives the staff directory view the Identity & Access
+// account facts, with the school-portal classification in the view's terms.
+type staffViewAccounts struct{ staffIdentityQuery }
+
+func (a staffViewAccounts) SchoolPortalAccountIDs(ctx context.Context, tenantID int64, accountIDs []int64) (map[int64]bool, error) {
+	rows, err := a.ClassifySchoolRoles(ctx, tenantID, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		if row.IsLehrkraft {
+			result[row.AccountID] = true
+		}
+	}
+	return result, nil
 }
 
 // staffMembershipDeps binds staff projections to their owners without legacy auth repositories.
 type staffMembershipDeps struct {
 	persons  staffPersonRows
 	identity staffIdentityQuery
-	// employment is Workforce's owner of the employment-only staff writes
-	// (#2753): notes and the birthday opt-out.
-	employment staffEmploymentWrites
 	// groupTeachers are the teaching assignments the teacher projections
 	// resolve their groups through.
 	groupTeachers groupTeacherRows
@@ -46,21 +61,14 @@ type groupTeacherRows interface {
 	FindByGroup(ctx context.Context, groupID int64) ([]*schoolmembership.GroupAssignment, error)
 }
 
-// staffEmploymentWrites are Workforce's employment-only staff writes the
-// live staff employment runs inside the membership lock.
-type staffEmploymentWrites interface {
-	AppendStaffNotes(ctx context.Context, membershipID int64, notes string) (workforce.StaffEmployment, error)
-	SetStaffBirthdayDisplayOptOut(ctx context.Context, membershipID int64, optOut bool) error
-}
-
 // staffPersonRows are the person reads the staff projections attach.
 type staffPersonRows interface {
 	FindByID(ctx context.Context, id interface{}) (*peopleValues.DirectoryPersonSnapshot, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 }
 
-func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, employment workforce.StaffEmploymentCommand, groupTeachers groupTeacherRows) *staffMembershipDeps {
-	return &staffMembershipDeps{persons: persons, identity: identity, employment: employment, groupTeachers: groupTeachers}
+func NewStaffMembershipDeps(persons staffPersonRows, identity staffIdentityQuery, groupTeachers groupTeacherRows) *staffMembershipDeps {
+	return &staffMembershipDeps{persons: persons, identity: identity, groupTeachers: groupTeachers}
 }
 
 // StaffMembershipRepository serves users.StaffRepository.
@@ -85,7 +93,7 @@ func membershipError(op string, err error) error {
 	switch {
 	case errors.Is(err, schoolmembership.ErrStaffNotFound),
 		errors.Is(err, schoolmembership.ErrTeacherNotFound),
-		errors.Is(err, schoolmembership.ErrGuestNotFound):
+		errors.Is(err, schoolmembership.ErrExternalCaregiverRecordNotFound):
 		return membershipNotFound(op)
 	case errors.Is(err, schoolmembership.ErrPersonnelNumberConflict):
 		// Classified in the legacy vocabulary, so the service layer keeps
@@ -134,7 +142,9 @@ func applyStaffToLegacy(target *peopleValues.Staff, value schoolmembership.Staff
 	target.RotationAnchorDate = parseCalendarDate(value.RotationAnchorDate)
 	target.BirthdayDisplayOptOut = value.BirthdayDisplayOptOut
 	target.DeletedAt = value.DeletedAt
-	target.IsGuest = value.IsGuest
+	target.HasExternalCaregiverRecord = value.HasExternalCaregiverRecord
+	// Only the person-hydrated reads apply the rule (hydrateStaffPersons).
+	target.IsExternalCaregiver = false
 }
 
 func toLegacyStaff(value schoolmembership.Staff) *peopleValues.Staff {
@@ -265,9 +275,10 @@ func (r StaffMembershipRepository) hydrateStaffPersons(ctx context.Context, memb
 		if person, found := persons[member.PersonID]; found {
 			member.Person = person
 		}
-		// The People Directory owns the account link, so School Membership
-		// resolves the marker only after its projection is attached.
-		member.IsGuest = schoolmembership.ExternalCaregiver(member.IsGuest, member.Person != nil, member.Person != nil && member.Person.AccountID != nil)
+		// The People Directory owns the person, so School Membership's
+		// rule applies only after its projection is attached. An account
+		// does not change it (#4573).
+		member.IsExternalCaregiver = schoolmembership.ExternalCaregiver(member.HasExternalCaregiverRecord, member.Person != nil)
 	}
 	return nil
 }
@@ -347,7 +358,7 @@ func (r StaffMembershipRepository) FindWithPersonByIDs(ctx context.Context, ids 
 // staffDirectory binds the staff directory view to the membership in use.
 func (r StaffMembershipRepository) staffDirectory() (*staffdirectoryview.Directory, error) {
 	return staffdirectoryview.New(staffdirectoryview.Dependencies{
-		Members: r.Membership, Persons: staffViewPersons{rows: r.Deps.persons}, Accounts: r.Deps.identity,
+		Members: r.Membership, Persons: staffViewPersons{rows: r.Deps.persons}, Accounts: staffViewAccounts{r.Deps.identity},
 		CallerTenant: tenant.FromContext, HasPermission: securityruntime.HasPermission,
 	})
 }
@@ -486,6 +497,40 @@ func (r StaffMembershipRepository) FindReachableCalendarStaffIDs(ctx context.Con
 	return result, nil
 }
 
+// FindReachableSchoolCalendarStaffIDs requires the current calendar:school
+// permission, independently of school-portal role membership.
+func (r StaffMembershipRepository) FindReachableSchoolCalendarStaffIDs(ctx context.Context, ids []int64) (map[int64]bool, error) {
+	const op = "find reachable school calendar staff"
+	directory, err := r.staffDirectory()
+	if err != nil {
+		return nil, staffDirectoryError(op, err)
+	}
+	result, err := directory.ReachableStaffIDs(ctx, ids, permissions.CalendarSchool)
+	if err != nil {
+		return nil, staffDirectoryError(op, err)
+	}
+	return result, nil
+}
+
+// FindSchoolPortalStaffIDs keeps the staff members whose account holds a
+// school-portal role: the Lehrkräfte the calendar target all_teachers
+// reaches (#4798).
+func (r StaffMembershipRepository) FindSchoolPortalStaffIDs(ctx context.Context) (map[int64]bool, error) {
+	const op = "find school portal staff"
+	directory, err := staffdirectoryview.New(staffdirectoryview.Dependencies{
+		Members: r.Membership, Persons: staffViewPersons{rows: r.Deps.persons}, Accounts: staffViewAccounts{r.Deps.identity},
+		CallerTenant: tenant.FromContext, HasPermission: securityruntime.HasPermission,
+	})
+	if err != nil {
+		return nil, staffDirectoryError(op, err)
+	}
+	result, err := directory.SchoolPortalStaffIDs(ctx)
+	if err != nil {
+		return nil, staffDirectoryError(op, err)
+	}
+	return result, nil
+}
+
 func (r StaffMembershipRepository) GetStaffContactInfo(ctx context.Context, staffID int64) (*peopleValues.StaffWithRoleInfo, error) {
 	const op = "get staff contact info"
 	directory, err := r.staffDirectory()
@@ -540,21 +585,4 @@ func (r StaffMembershipRepository) ListBirthdaysForExport(ctx context.Context) (
 		return nil, staffDirectoryError(op, err)
 	}
 	return staffBirthdayEntries(birthdays), nil
-}
-
-func (r StaffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
-	const op = "set staff birthday display opt-out"
-	employment, err := staffoffboarding.NewLiveStaffEmployment(r.Membership, r.Deps.employment)
-	if err != nil {
-		return membershipError(op, err)
-	}
-	return membershipError(op, MembershipEmploymentError(employment.SetBirthdayDisplayOptOut(ctx, staffID, optOut)))
-}
-
-func (r StaffMembershipRepository) AddNotes(ctx context.Context, id int64, notes string) error {
-	employment, err := staffoffboarding.NewLiveStaffEmployment(r.Membership, r.Deps.employment)
-	if err != nil {
-		return membershipError("add notes", err)
-	}
-	return membershipError("add notes", MembershipEmploymentError(employment.AppendNotes(ctx, id, notes)))
 }

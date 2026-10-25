@@ -27,15 +27,17 @@ func (d Date) German() (string, error) {
 }
 
 type Dish struct {
-	Dish string
-	Note *string
+	Dish      string
+	Note      *string
+	Allergens []Allergen
 }
 
 type Entry struct {
-	Date     Date
-	Position int
-	Dish     string
-	Note     *string
+	Date      Date
+	Position  int
+	Dish      string
+	Note      *string
+	Allergens []Allergen
 }
 
 type Weekday int
@@ -186,6 +188,7 @@ var (
 	ErrDisabled             = &Fault{Code: "meal_plan_disabled", Detail: "feature_disabled"}
 	ErrInvalidMealDate      = &Fault{Code: "invalid_meal_date", Detail: "meal plan covers weekdays only (Monday-Friday)"}
 	ErrInvalidDishes        = &Fault{Code: "invalid_dishes"}
+	ErrInvalidAllergens     = &Fault{Code: "invalid_allergens", Detail: "allergens must be codes of the 14 main allergens"}
 	ErrRegistrationDisabled = &Fault{Code: "meal_registration_disabled", Detail: "meal_registration_disabled"}
 	ErrInvalidParticipation = &Fault{Code: "invalid_meal_participation"}
 	ErrParticipationCutoff  = &Fault{Code: "meal_participation_cutoff_passed", Detail: "meal_participation_cutoff_passed"}
@@ -220,6 +223,7 @@ type Menu interface {
 type Registration interface {
 	RegistrationAvailable(context.Context) (bool, error)
 	Participation(context.Context, int64, Date, Date) (ParticipationPlan, error)
+	ParticipationBySchool(context.Context, int64, Date, Date) (ParticipationPlan, error)
 	ReplaceParticipationSchedule(context.Context, ReplaceParticipationSchedule) (Date, error)
 	ReplaceScheduleBySchool(context.Context, SchoolSchedule) (Date, error)
 	SetParticipationForDay(context.Context, SetParticipationDay) error
@@ -228,34 +232,33 @@ type Registration interface {
 	SetParticipationBySchool(context.Context, SchoolChange) error
 	ClearParticipationBySchool(context.Context, SchoolChange) error
 	DailyList(context.Context, Date) (DailyList, error)
+	WeeklyList(context.Context, Date) (WeeklyList, error)
 }
 
-// Ordering is the school's meal orders and its supply by a caterer
-// (ADR 0077, #3873).
+// Ordering is the school's meal orders and what its caterer reads of them
+// (ADR 0077, #3873). Who supplies the school is no Meal Plan data: the
+// caterer portal hands in the start of the running supply.
 type Ordering interface {
 	// SettleOrders fixes the due orders of the school in ctx and records
 	// every change of an ordered day since. The worker runs it every few
 	// minutes; without meal registration it does nothing.
 	SettleOrders(context.Context) error
-	// Orders returns the school's orders of [from, to]. Reading fixes every
-	// due order and numbers every change since, so all readers see the same
-	// state.
+	// Orders returns the school's orders of [from, to]. Reading writes
+	// nothing and takes no lock: a due order the worker has not stored yet
+	// shows as ordered without an ID, a change not recorded yet without a
+	// sequence, so all readers see the same numbers.
 	Orders(ctx context.Context, from, to Date) (OrderWeek, error)
-	// StartSupply starts the school's supply by a caterer in the caller's
-	// unit of work. Starting the running supply again changes nothing.
-	StartSupply(ctx context.Context, catererID int64, deliveryAddress string, accountID int64) error
-	// EndSupply ends the school's supply and reports whether one ran.
-	EndSupply(ctx context.Context, accountID int64) (bool, error)
-	// CurrentSupply reads the school's running supply.
-	CurrentSupply(context.Context) (Supply, bool, error)
-	// CatererOrders returns the school's orders of [from, to] as its caterer
-	// reads them: numbers by class only when the school orders by class, and
-	// the children's names only while the school shows them to the caterer.
-	// A caterer that does not supply the school gets ErrNotSupplied.
-	CatererOrders(ctx context.Context, catererID int64, from, to Date) (OrderWeek, error)
-	// ConfirmOrder records that the caterer received a fixed order;
-	// confirming twice keeps the first.
-	ConfirmOrder(ctx context.Context, catererID, orderID, accountID int64) error
+	// CatererOrders returns the school's orders of [from, to] as the caterer
+	// whose supply started at since reads them: only delivery days from the
+	// day of since on, a predecessor's confirmation not as confirmed,
+	// numbers by class only when the school orders by class, and the
+	// children's names only while the school shows them to the caterer.
+	CatererOrders(ctx context.Context, since time.Time, from, to Date) (OrderWeek, error)
+	// ConfirmOrder records that the caterer whose supply started at since
+	// received a stored order with a delivery day of that supply; confirming
+	// twice keeps the first, a predecessor's confirmation gives way. An order
+	// not stored yet has no ID and cannot be confirmed.
+	ConfirmOrder(ctx context.Context, orderID int64, since time.Time, accountID int64) error
 }
 
 // OrderStatus is where a day's order stands (#3873).
@@ -290,7 +293,8 @@ type OrderChild struct {
 }
 
 // OrderChange is a change after the deadline, numbered per school: one child
-// more (+1) or less (-1) on a day. It never says why.
+// more (+1) or less (-1) on a day. It never says why. Sequence is 0 while
+// the change is not recorded yet.
 type OrderChange struct {
 	Sequence   int
 	Date       Date
@@ -306,7 +310,9 @@ type ClassCount struct {
 }
 
 // OrderDay is one weekday of the orders. Children are the children who eat
-// with every change applied; an open day shows the registration as it stands.
+// with every change applied; Total and Classes describe the frozen order.
+// An open day shows the registration as it stands in all three fields.
+// OrderID is 0 for a due order the worker has not stored yet.
 type OrderDay struct {
 	Date        Date
 	Closed      bool
@@ -325,4 +331,10 @@ type OrderWeek struct {
 	Rhythm string
 	Detail string
 	Days   []OrderDay
+}
+
+// WeeklyList is the kitchen list for Monday to Friday.
+type WeeklyList struct {
+	WeekStart Date
+	Days      []DailyList
 }

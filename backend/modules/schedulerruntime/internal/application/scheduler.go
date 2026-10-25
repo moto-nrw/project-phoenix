@@ -16,7 +16,9 @@ import (
 // CleanupJob represents a single cleanup task that can be executed.
 type CleanupJob struct {
 	Description string
-	Run         func(context.Context) (int, error)
+	// OwnTransactions is for commands that must commit partial progress before returning an error.
+	OwnTransactions bool
+	Run             func(context.Context) (int, error)
 }
 
 var errWorkerTraceStart = errors.New("start worker trace")
@@ -75,6 +77,9 @@ type Scheduler struct {
 	jobsStarted atomic.Bool
 	// done signals goroutines to stop when closed (replaces stored context)
 	wg sync.WaitGroup
+
+	cleanupMinuteSnapshotLoad   *schedulerMinuteSnapshotLoad
+	cleanupMinuteSnapshotLoader func(context.Context) (*schedulerMinuteSnapshot, error)
 
 	// Per-tenant tracking for minute-polling (keyed by tenant ID)
 	lastSessionEnd              sync.Map // tenant_id → time.Time

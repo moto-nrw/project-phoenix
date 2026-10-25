@@ -264,7 +264,13 @@
     "cancelWeekConfirm": "İptal et",
     "cancelWeekDone": "Hafta iptal edildi.",
     "cancelWeekLocked": "Bu günler zaten sipariş edilmişti ve kayıtlı kalıyor: {days}.",
-    "errorObjectWeekCancel": "haftalık iptal"
+    "registerWeek": "Tüm hafta için kaydet",
+    "registerWeekDone": "Hafta kaydedildi.",
+    "registerWeekLocked": "Bu günler için kayıt süresi doldu, kayıtsız kalıyor: {days}.",
+    "errorObjectWeekCancel": "haftalık iptal",
+    "errorObjectWeekRegister": "haftalık kayıt",
+    "participationCutoffLead": "Kaydı {days, plural, one {yemekten bir iş günü önce} other {yemekten # iş günü önce}} saat {time} olana kadar değiştirebilirsiniz.",
+    "participationSicknessLead": "{days, plural, one {Yemekten bir iş günü önce} other {Yemekten # iş günü önce}} saat {time} olana kadar onaylanan bir hastalık bildirimi, çocuğunuzun öğle yemeği kaydını iptal eder. Sonrasında kayıt geçerli kalır."
   },
   "mealOrders": {
     "title": "Sipariş",
@@ -296,6 +302,30 @@
     "deliveryExcel": "Excel olarak teslimat listesi",
     "deliveryCsv": "CSV olarak teslimat listesi",
     "errorObjectDelivery": "teslimat listesi"
+  },
+  "mealAllergens": {
+    "legendTitle": "Alerjenler",
+    "choose": "Alerjenleri seçin",
+    "marksShort": "Alerjenler: {letters}",
+    "marksLabel": "İçerir: {names}",
+    "noneThisWeek": "Bu hafta için alerjen bilgisi girilmedi.",
+    "source": "Bu bilgiler okuldan veya yemek firmasından gelir. Harfi olmayan bir yemek kesin olarak alerjensiz değildir. Sorularınız için OGS'ye başvurun.",
+    "names": {
+      "gluten": "Gluten içeren tahıllar",
+      "crustaceans": "Kabuklu deniz ürünleri",
+      "eggs": "Yumurta",
+      "fish": "Balık",
+      "peanuts": "Yer fıstığı",
+      "soybeans": "Soya",
+      "milk": "Süt (laktoz dahil)",
+      "nuts": "Sert kabuklu yemişler",
+      "celery": "Kereviz",
+      "mustard": "Hardal",
+      "sesame": "Susam",
+      "sulphites": "Kükürt dioksit ve sülfitler",
+      "lupin": "Acı bakla (lupin)",
+      "molluscs": "Yumuşakçalar"
+    }
   },
   "mealParticipantList": {
     "title": "Mutfak için günlük liste",
@@ -338,7 +368,27 @@
     "errorObjectChange": "kayıt",
     "asRegular": "Sabit günlerdeki gibi",
     "scheduleLoading": "Sabit günler yükleniyor…",
-    "errorObjectSchedule": "sabit günler"
+    "errorObjectSchedule": "sabit günler",
+    "cutoffLead": "Bu gün için değişiklikler {days, plural, one {bir iş günü önce} other {# iş günü önce}} saat {time} olana kadar yapılabilir.",
+    "viewAria": "Mutfak listesi görünümü",
+    "viewDay": "Gün",
+    "viewWeek": "Hafta",
+    "weekTitle": "Mutfak için haftalık liste",
+    "weekDescription": "Liste, bu hafta öğle yemeğine kayıtlı tüm çocukları gösterir.",
+    "weekCutoff": "Değişiklikler {days, plural, =0 {yemek günü} one {bir iş günü önce} other {# iş günü önce}} saat {time} olana kadar yapılabilir.",
+    "weekDateAria": "{from} tarihinden itibaren hafta",
+    "weekDownloadGroup": "Haftalık listeyi indir",
+    "weekDownloadPdf": "Haftalık listeyi PDF olarak indir",
+    "weekDownloadExcel": "Haftalık listeyi Excel dosyası olarak indir",
+    "weekErrorObject": "haftalık liste",
+    "weekCaption": "{from} - {to} öğle yemeği",
+    "weekEmptyTitle": "Bu hafta kayıt yok",
+    "weekEmptyDescription": "Bu hafta için mutfak listesinde çocuk yok.",
+    "weekRegistered": "kayıtlı",
+    "weekNotRegistered": "kayıtlı değil",
+    "weekCountsLabel": "Günlük yemek sayısı",
+    "weekCount": "{count, plural, one {# çocuk} other {# çocuk}}",
+    "weekClosed": "yemek yok"
   },
   "parentDashboard": {
     "eyebrow": "Veli portalı",
@@ -416,6 +466,7 @@
     "deadline": "Son tarih {date}",
     "closed": "Süre doldu",
     "passwordNote": "Yanıtlamadan önce moto şifrenizi sorar.",
+    "signatureNote": "Onay vermek için parmağınızla veya fareyle imzalarsınız.",
     "state": {
       "open": "Açık",
       "partial": "Kısmen yanıtlandı",
@@ -467,6 +518,22 @@
     "confirmVersion": "Metin",
     "confirmRecorded": "moto yanıtınızı tarih ve saatle kaydeder. Okul bunu görür.",
     "passwordLabel": "Veli hesabınızın şifresi",
+    "signature": {
+      "label": "İmzanız",
+      "hint": "Alana parmağınızla, kalemle veya fareyle imza atın.",
+      "canvas": "İmza alanı",
+      "clear": "Alanı temizle",
+      "typeInstead": "Adınızı yazın",
+      "drawInstead": "Bunun yerine çiz",
+      "typedName": "Adınız ve soyadınız",
+      "confirm": "İmzayı onayla",
+      "confirmed": "İmzanız hazır.",
+      "confirmedTyped": "Yazdığınız ad hazır.",
+      "change": "Yeniden imzala",
+      "preview": "İmzanız",
+      "emptyDrawing": "Lütfen alana imza atın.",
+      "nameTooShort": "Lütfen adınızı yazın."
+    },
     "revokeTitle": "Onayı geri al",
     "revokeBody": "{name} için onayınızı geri alıyorsunuz.",
     "revokeConfirm": "Geri al",
@@ -475,7 +542,8 @@
     "saved": "{name} için yanıtınız kaydedildi.",
     "errors": {
       "passwordRequired": "Lütfen şifrenizi girin.",
-      "uncertainReload": "Güncel durum yeniden yükleniyor. Lütfen tekrar yanıt vermeden önce kontrol edin."
+      "uncertainReload": "Güncel durum yeniden yükleniyor. Lütfen tekrar yanıt vermeden önce kontrol edin.",
+      "signatureRequired": "Lütfen imza atın ve “İmzayı onayla”ya dokunun."
     },
     "errorObjectAnswer": "yanıt"
   },
@@ -498,10 +566,14 @@
     "entryVersion": "Sürüm {version}",
     "passwordYes": "Şifre ile onaylandı",
     "passwordNo": "Şifresiz",
+    "signatureAlt": "{name} imzası",
+    "signatureDrawn": "Parmakla veya fareyle çizildi",
+    "signatureTyped": "Yazıldı: {name}",
     "versionsTitle": "Okulun metni",
     "versionHeading": "Sürüm {version}, yayınlanma: {date}",
     "attachments": "Dosyalar",
     "note": "Bu belge basit bir elektronik beyanı kanıtlar. Yasanın gerektirdiği kağıt üzerindeki imzanın yerini tutmaz.",
+    "noteSigned": "İmzalı yanıtlar, çizilmiş imzalı basit elektronik imza olarak verildi.",
     "errorObjectProof": "kanıt belgesi",
     "errorObjectPdf": "PDF dosyası"
   },
@@ -1176,7 +1248,8 @@
       "pickupConfirm": "Lütfen teslim alma düzenini onaylayın (günleri seçin veya boş bırakın).",
       "weekdayRequired": "Lütfen haftanın en az bir gününü seçin.",
       "weekdayModeConfirm": "Lütfen eve gidiş ve teslim alma düzenini onaylayın.",
-      "weekdayMultiModeRequired": "Lütfen her bakım günü için en az bir eve dönüş yolu seçin."
+      "weekdayMultiModeRequired": "Lütfen her bakım günü için en az bir eve dönüş yolu seçin.",
+      "file": "Lütfen en az bir dosya yükleyin."
     },
     "actions": {
       "addChild": "Başka çocuk ekle",
@@ -1326,6 +1399,23 @@
       "noCare": "Seçilen teklif yok.",
       "hint": "{name} için değişiklikler artık veli uygulaması üzerinden yapılır.",
       "noAccess": "Veli uygulamasına giremiyor musunuz? Lütfen OGS ile iletişime geçin."
+    },
+    "upload": {
+      "errorObject": "dosya",
+      "choose": "Dosya seç",
+      "chooseMore": "Başka dosya seç",
+      "allowed": "İzin verilenler: {types}, dosya başına en fazla {max} MB.",
+      "upTo": "En fazla {count} dosya.",
+      "camera": "Telefonda fotoğraf da çekebilirsiniz.",
+      "uploading": "Yükleniyor …",
+      "remove": "{name} kaldır",
+      "wrongType": "Bu dosyanın türü yanlış. İzin verilenler: {types}.",
+      "tooLarge": "Bu dosya çok büyük. En fazla {max} MB izin verilir.",
+      "empty": "Bu dosya boş. Lütfen başka bir dosya seçin.",
+      "onlyOne": "Buraya yalnızca bir dosya yükleyebilirsiniz.",
+      "tooMany": "Buraya en fazla {count} dosya yükleyebilirsiniz.",
+      "pendingSubmit": "Lütfen tüm dosyalar yüklenene kadar bekleyin.",
+      "previewDisabled": "Önizlemede dosya yükleyemezsiniz."
     }
   },
   "enrollmentStatus": {
@@ -2069,6 +2159,25 @@
     "errorObjectMessage": "mesaj",
     "errorObjectList": "yazışma listesi"
   },
+  "parentGroupThreads": {
+    "sectionTitle": "OGS'den grup mesajları",
+    "sectionDescription": "OGS burada çocuğunuzun grubuna, sınıfına veya kulübüne yazar.",
+    "closed": "Kapatıldı",
+    "forChildren": "{names} için",
+    "privacyNote": "Yanıtınız yalnızca OGS'ye gider. Diğer veliler göremez.",
+    "replyTitle": "OGS'ye yanıt",
+    "replyChildLabel": "Yanıt kimin için",
+    "replyPlaceholder": "OGS'ye bir yanıt yazın",
+    "replyFieldLabel": "Yanıt",
+    "sentConfirmation": "Yanıtınız OGS'ye ulaştı.",
+    "toChat": "OGS ile sohbete git",
+    "closedNote": "Bu grup mesajı kapatıldı. Çocuğunuzla ilgili sohbette OGS'ye yazmaya devam edebilirsiniz.",
+    "writingDisabled": "Bu mesaja yanıt veremezsiniz. Okumaya devam edebilirsiniz.",
+    "answerTo": "Yanıtlanan: {title}",
+    "errorObjectThread": "grup mesajı",
+    "errorObjectAnswer": "yanıt",
+    "errorObjectList": "grup mesajları"
+  },
   "parentCalendar": {
     "kicker": "Randevulara genel bakış",
     "title": "Takvim",
@@ -2201,6 +2310,8 @@
         "declaration_not_permitted": "Bu çocuk için yanıt veremezsiniz. Sorularınız için OGS ile iletişime geçin.",
         "declaration_password_incorrect": "Şifre doğru değil. Lütfen tekrar deneyin.",
         "declaration_password_required": "Lütfen şifrenizi girin.",
+        "declaration_signature_invalid": "İmza kaydedilemedi. Lütfen yeniden imza atın.",
+        "declaration_signature_required": "Lütfen onay vermeden önce imza atın.",
         "declaration_version_changed": "Okul metni değiştirdi. Lütfen tekrar okuyun ve ardından yeniden yanıtlayın.",
         "excused_request_not_pending": "{object} artık açık değil. Lütfen sayfayı yenileyin.",
         "excused_request_overlap": "{object} için saatler çakışıyor. Lütfen bilgileri kontrol edin.",
@@ -2251,6 +2362,21 @@
         "arrival_exception_editor_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "arrival_exception_past_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "arrival_exception_weekend": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_handover_no_school_day": "Bugün okul günü değil. Sınıf yalnızca okul günlerinde teslim edilebilir.",
+        "class_handover_not_found": "Sınıf bugün henüz teslim edilmedi. Lütfen sayfayı yenileyin.",
+        "class_handover_not_today": "Sınıf yalnızca bugün teslim edilebilir. Lütfen bugünü açın.",
+        "class_handover_unknown_child": "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
+        "class_trip_arrival_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "class_trip_invalid_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_no_students": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_past_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_return_time_multi_day": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_return_time_weekend": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "class_trip_status_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "class_trip_student_not_in_class": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "morning_attendance_no_school_day": "Bugün okul günü değil. Devam durumu yalnızca okul günlerinde girilebilir.",
+        "morning_attendance_not_today": "Devam durumu yalnızca bugün için girilebilir. Lütfen bugünü açın.",
+        "morning_attendance_unknown_child": "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
         "school_write_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       },
       "communication": {
@@ -2265,7 +2391,9 @@
         "staff_messaging_disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "staff_notice_outdated": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "system_announcement_immutable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "announcement_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "announcement_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "group_thread_closed": "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
+        "group_thread_no_recipients": "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi."
       },
       "enrollment": {
         "form_attachment_invalid": "Lütfen adı ve PDF dosyasını kontrol edin.",
@@ -2350,6 +2478,11 @@
         "legal_block_key_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "legal_block_required_not_allowed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "legal_document_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "form_field_file_options_invalid": "Lütfen dosya sorusunu kontrol edin. En az bir dosya türü ve 1 ile 10 MB arasında bir boyut seçin.",
+        "upload_invalid": "Bu dosya uygun değil. Lütfen en fazla {max_mb} MB olan izin verilen bir dosya türü seçin.",
+        "upload_expired": "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
+        "upload_rate_limited": "Çok fazla dosya yüklendi. Lütfen daha sonra tekrar deneyin.",
+        "upload_not_found": "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
         "message_required": "Lütfen bir mesaj yazın.",
         "offering_adjustment_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "phase_care_offering_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2436,6 +2569,7 @@
         "preview_token_invalid": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "read_only_preview": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "role_name_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "role_platform_permission": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "session_account_inactive": "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
         "tenant_access_denied": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "use_parent_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
@@ -2448,6 +2582,8 @@
         "email_change_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "email_change_same_email": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "email_change_link_invalid": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "mfa_status_unavailable": "Giriş doğrulaması şu anda kullanılamıyor. Lütfen tekrar deneyin.",
+        "mfa_session_required": "{object} okuluna giriş için ikinci bir doğrulama gerekiyor. Düğme oturumunuzu kapatır ve o okulun giriş sayfasını açar. Orada yeniden giriş yapın ve doğrulamayı tamamlayın.",
         "mfa_not_enrolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "mfa_already_enrolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "passkey_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2511,6 +2647,7 @@
         "child_not_enrolled": "{object} mümkün değil. Çocuk bu gün bakımda değil.",
         "day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
         "day_past": "{object} artık mümkün değil. Bu gün geçti.",
+        "invalid_allergens": "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
         "invalid_dishes": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_meal_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "invalid_participation": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
@@ -2519,6 +2656,7 @@
         "plan_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
         "plan_week_out_of_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "registration_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "delivery_range_too_long": "Teslimat listesi en fazla yedi günü kapsar. Lütfen daha kısa bir dönem seçin.",
         "not_supplied": "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
         "order_not_found": "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
         "supply_active": "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın."
@@ -2573,6 +2711,7 @@
         "care_exit_preview_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_exit_too_many_students": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "care_offerings_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+        "care_resume_alumnus": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_resume_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "care_resume_not_checked": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "care_resume_not_ended": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2887,7 +3026,9 @@
         "presence_mode_switch_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "booking_authority_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "attendance_visible_exceeds_retention": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "attendance_retention_below_visible": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+        "attendance_retention_below_visible": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "module_requires": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "module_required_by": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
       },
       "devices": {
         "tag_scan_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2901,6 +3042,17 @@
       },
       "feedback": {
         "disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
+      },
+      "staff": {
+        "external_access_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "external_email_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "external_email_invited": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "external_email_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "external_has_account": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "not_external": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+      },
+      "operator": {
+        "audit_unavailable": "{object} şu anda kullanılamıyor. Yeniden deneyin."
       }
     },
     "actions": {

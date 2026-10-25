@@ -35,9 +35,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
 )
 
-// Dependencies are the seams composition binds. Announcements and
-// GuardianAudience may stay nil in setups that do not serve attachments;
-// every path that needs them refuses loudly rather than deciding on its own.
+// Dependencies are the seams composition binds. Announcements may stay nil in
+// setups that do not serve attachments; every path that needs it refuses
+// loudly rather than deciding on its own.
 type Dependencies struct {
 	Folders            ports.FolderStore
 	Files              ports.DocumentStore
@@ -51,7 +51,6 @@ type Dependencies struct {
 	Settings           ports.Settings
 	Events             ports.Events
 	Announcements      ports.Announcements
-	GuardianAudience   ports.GuardianAudience
 	Tx                 ports.Transaction
 	StoredNames        ports.StoredNames
 	Observe            ports.Observer

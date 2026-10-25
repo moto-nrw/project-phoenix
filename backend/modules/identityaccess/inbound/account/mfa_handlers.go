@@ -93,7 +93,7 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rs.completeMFAExchange(w, r, verified.AccountID, verified.TenantID, req.RememberDevice)
+	rs.completeMFAExchange(w, r, verified, req.RememberDevice)
 }
 
 // ----- /mfa/resend -----
@@ -203,7 +203,8 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// id to verify against, so without the scope the account's newest active
 	// code answers — and since #2207 that can be a school-portal login
 	// challenge, which would mint a tenant session off a school code.
-	if err := rs.MFAService.VerifyMFACodeForAccount(ctx, accountID, claims.TenantID, req.Code, identityaccess.MFAChallengeScopeTenant); err != nil {
+	verified, err := rs.MFAService.VerifyMFACodeForAccount(ctx, accountID, claims.TenantID, req.Code, identityaccess.MFAChallengeScopeTenant)
+	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
@@ -220,7 +221,7 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// Mint the real session now that the second factor is set up. Mirrors
 	// the verify-flow's completeMFAExchange so the frontend handles the
 	// response shape identically.
-	rs.completeMFAExchange(w, r, accountID, claims.TenantID, req.RememberDevice)
+	rs.completeMFAExchange(w, r, verified, req.RememberDevice)
 }
 
 // ----- /mfa/trusted-devices -----
@@ -297,7 +298,8 @@ func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 // access/refresh token pair, optionally issues a trusted-device cookie, and
 // writes the response. Both the email-code and recovery-code paths funnel
 // through here so cookie-handling stays in one place.
-func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, accountID, tenantID int64, rememberDevice bool) {
+func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, proof identityaccess.VerifiedMFAChallenge, rememberDevice bool) {
+	accountID, tenantID := proof.AccountID, proof.TenantID
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
@@ -305,32 +307,31 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session issuance unavailable")))
 		return
 	}
-	accessToken, refreshToken, err := rs.Sessions.IssueTokensForAuthenticatedAccount(
-		r.Context(), accountID, tenantID, ipAddress, userAgent,
+	// Resolve policy before session creation can evict an existing session.
+	// Device persistence and notification still wait for successful issuance.
+	issueTrustedDevice, err := rs.prepareTrustedDevice(r, accountID, tenantID, rememberDevice)
+	if err != nil {
+		// Remembering a device is optional. Match the school portal: fail
+		// closed for the device without discarding the verified login.
+		slog.Default().Warn("trusted-device policy unavailable; skipping cookie",
+			slog.Int64("account_id", accountID),
+			slog.String("error", err.Error()),
+		)
+		issueTrustedDevice = nil
+	}
+
+	accessToken, refreshToken, err := rs.Sessions.IssueTokensForVerifiedMFA(
+		r.Context(), proof, ipAddress, userAgent,
 	)
 	if err != nil {
-		var authErr *identityaccess.AuthenticationError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(err, identityaccess.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
-			case errors.Is(err, identityaccess.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
-			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
-				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))
-			default:
-				common.RenderError(w, r, common.ErrorInternalServer(err))
-			}
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		renderMFAExchangeError(w, r, err)
 		return
 	}
 
-	if rememberDevice {
-		if err := rs.issueTrustedDeviceCookie(w, r, accountID, tenantID); err != nil {
-			// Don't fail the whole login — log and proceed.
+	if issueTrustedDevice != nil {
+		if err := rs.issueTrustedDeviceCookie(w, r, issueTrustedDevice); err != nil {
+			// Policy was resolved before session issuance. Storage failures
+			// issue no cookie but must not break the verified login.
 			slog.Default().Warn("failed to issue trusted-device cookie",
 				slog.Int64("account_id", accountID),
 				slog.String("error", err.Error()),
@@ -344,15 +345,17 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
-// issueTrustedDeviceCookie hooks into MFAService.IssueTrustedDevice and
-// writes the resulting Set-Cookie header. When the tenant has disabled
-// trusted devices, the service returns an empty cookie value — we skip
-// the Set-Cookie write entirely so the browser doesn't store a useless
-// cookie.
-func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, accountID, tenantID int64) error {
-	cookieValue, expiresAt, err := rs.MFAService.IssueTrustedDevice(
-		r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), parseClientIP(r),
-	)
+func (rs *Resource) prepareTrustedDevice(r *http.Request, accountID, tenantID int64, rememberDevice bool) (identityaccess.TrustedDeviceIssue, error) {
+	if !rememberDevice {
+		return nil, nil
+	}
+	return rs.MFAService.PrepareTrustedDevice(r.Context(), accountID, tenantID, r.Header.Get(headerUserAgent), parseClientIP(r))
+}
+
+// issueTrustedDeviceCookie persists the prepared device and sets its cookie.
+// A disabled feature has no prepared operation and never reaches this helper.
+func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, issue identityaccess.TrustedDeviceIssue) error {
+	cookieValue, expiresAt, err := issue(r.Context())
 	if err != nil {
 		return err
 	}
@@ -380,4 +383,27 @@ func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Requ
 // nil when the header value is empty or unparseable.
 func parseClientIP(r *http.Request) net.IP {
 	return common.ParseClientIP(r)
+}
+
+func renderMFAExchangeError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, identityaccess.ErrInvalidToken) {
+		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrMFACodeInvalid, common.CodeIdentityMfaCodeInvalid))
+		return
+	}
+	var authErr *identityaccess.AuthenticationError
+	if errors.As(err, &authErr) {
+		switch {
+		case errors.Is(err, identityaccess.ErrAccountNotFound):
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials))
+		case errors.Is(err, identityaccess.ErrAccountInactive):
+			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive))
+		case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(
+				identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServer(err))
+		}
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServer(err))
 }

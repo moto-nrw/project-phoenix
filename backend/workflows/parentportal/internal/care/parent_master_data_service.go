@@ -293,10 +293,27 @@ func (s *Service) applyStudentEdit(ctx context.Context, studentID, accountID int
 				return nil, nil, nil, false, err
 			}
 		}
+		oldRaw, newRaw = maskedHealthDataRequestValues(before.HealthInfo, next)
 		return oldRaw, newRaw, nil, true, nil
 	default:
 		return nil, nil, nil, false, ErrMasterDataFieldNotEditable
 	}
+}
+
+// maskedHealthDataRequestValues is called only after comparing and applying
+// the originals. The separate history needs presence markers, never free text.
+func maskedHealthDataRequestValues(before, after *string) (json.RawMessage, json.RawMessage) {
+	oldMarker, newMarker := "", ""
+	if before != nil && *before != "" {
+		oldMarker = "Angabe vorhanden"
+	}
+	if after != nil && *after != "" {
+		newMarker = "Angabe hinzugefügt"
+		if oldMarker != "" {
+			newMarker = "Angabe geändert"
+		}
+	}
+	return jsonString(oldMarker), jsonString(newMarker)
 }
 
 func (s *Service) applyGuardianProfileEdit(ctx context.Context, guardianProfileID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {

@@ -25,71 +25,118 @@ tenant transaction.
 
 ## Decision
 
-1. **Identity & Access owns the caterer.** The Caterer-Betrieb
-   (`auth.caterers`), its accounts (`auth.caterer_accounts`, one row per login
-   account in `auth.accounts`), the schools it supplies
-   (`auth.caterer_schools`) and the school's invitation
-   (`auth.caterer_invitations`) are identity data with `write_owner:
-   identity-access`. A caterer account is an ordinary `auth.accounts` row: the
-   password, lockout and reset flows stay the existing ones. One caterer
-   supplies any number of schools of any Träger; a second school's invitation
-   to the same address adds the school to the existing account, confirmed
-   with its password. An address that holds another kind of account cannot
-   accept.
-2. **The supply is Meal Plan data.** The link of a school to a caterer, the
-   Belieferung (`schedule.meal_caterer_supplies`), is tenant data of the
-   school, under RLS, owned by `mealplan`. The school starts it with an
-   invitation and ends it at any time; ending it removes the caterer's access
-   to that school at once. In V1 a school has at most one active supply.
+1. **Identity & Access owns the caterer and its supplies.** The
+   Caterer-Betrieb (`auth.caterers`), its accounts (`auth.caterer_accounts`,
+   one row per login account in `auth.accounts`), the school's invitation
+   (`auth.caterer_invitations`) and the supply (`auth.caterer_schools`) are
+   identity data with `write_owner: identity-access`. A caterer account is an
+   ordinary `auth.accounts` row: the password, lockout and reset flows stay
+   the existing ones. One caterer supplies any number of schools of any
+   Träger; a second school's invitation to the same address adds the school
+   to the existing account, confirmed with its password. An address that
+   holds another kind of account cannot accept.
+2. **The supply has one record.** The Belieferung, which caterer supplies a
+   school, where it delivers, since and until when and who started and ended
+   it, is `auth.caterer_schools`: tenant data of the school under its RLS,
+   like `auth.account_tenants` is for school accounts. The acceptance starts
+   it from the invitation's delivery address; the school ends it at any time,
+   and ending it removes the caterer's access to that school at once. In V1 a
+   school has at most one active supply (`uq_caterer_school_active`). The
+   Meal Plan keeps no copy: it owns the orders and the caterer's
+   confirmation, and the caterer portal hands it the start of the running
+   supply, read in the same school transaction.
 3. **A portal scope of its own.** Caterer sessions carry the JWT scope
    `caterer` and no tenant, like parent sessions. `CatererMiddleware` accepts
    only that scope; the tenant, school and parent middlewares reject it, and
    the caterer middleware rejects all of theirs. The portal has its own host
    (`NEXT_PUBLIC_CATERER_HOSTNAME`), NextAuth instance, host-only cookie and
    base path, as the other portals do.
-4. **No new administrative transaction (#4088).** The data of each school is
-   separated by RLS, and #4088 allows no new administrative transaction.
-   The caterer therefore never searches across schools:
-   - The invitation goes to the caterer by mail only; the school never sees
+4. **One read across schools, in the shape of ADR 0084.**
+   [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
+   lets the Träger-Portal read across schools in exactly one place, in an
+   administrative transaction, with a filter a ratchet checks. The caterer
+   follows the same pattern:
+   - The only read across schools is the caterer's list of schools: the
+     caterer of the session's account (`auth.caterer_accounts`) and its
+     running supplies (`auth.caterer_schools`). It runs in the existing
+     global identity read (`globalIdentityRead`), the administrative
+     transaction the login already uses to resolve an account, and adds no
+     transaction site: `backend/test/transaction_boundaries.json` stays
+     shrink-only. Every statement of Identity & Access on
+     `auth.caterer_schools` filters on the school in scope or, for this list,
+     on the caterer; `caterer_schools_filter_internal_test.go` is the
+     ratchet. The school-directory port then filters the IDs to live, active
+     schools in one bulk read. The school-list query budget is three
+     statements, independent of school count.
+   - It needs no projection owner: the read joins no table of a second owner
+     ([ADR 0066](0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md)
+     point 6), and its filter is the caterer, not a Träger's schools.
+   - Everything else runs in one school's own tenant transaction under RLS.
+     The invitation goes to the caterer by mail only; the school never sees
      the link, so only the owner of the address can accept. Identity stores
      the link's hash; the queued mail holds the link until the outbox's
-     delivery retention removes it, as with the guardian invitation.
-   - The invitation link names its school. Preview and acceptance open that
-     school's transaction; the account, the caterer, its link to the school,
-     the spent invitation and the Meal Plan's supply commit there together.
-   - `auth.caterer_schools` names the schools a caterer supplies. The login
-     and the portal read it, with the caterer of the account, through the
-     existing global identity read (`globalIdentityRead`) the login already
-     uses for accounts. The existing school-directory port filters these
-     IDs to live, active schools in one bulk read before a tenant is opened.
-     The school-list query budget is therefore three statements: the
-     caterer, its links and the school directory, independent of school count.
+     delivery retention removes it, as with the guardian invitation. The
+     link names its school; preview and acceptance open that school's
+     transaction, where the account, the caterer, the spent invitation and
+     the supply commit together.
    - The caterer portal is a workflow (`workflows/catererportal`, owner
      `caterer-portal`) in the shape of ADR 0022. It opens each school's own
-     tenant transaction and reads the order through the Meal Plan's public
-     capability.
-   - Ending a supply ends the school's link in the same transaction; the
-     caterer loses the school at once.
-5. **Numbers by default.** The caterer reads orders, changes to them and
+     tenant transaction, checks the supply there again and reads the orders
+     through the Meal Plan's public capability.
+5. **The workflow owns the order and the lock.** Reading or confirming an
+   order depends on the supply of another owner, so the protocol is the
+   workflow's ([ADR 0067](0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md)
+   addendum, condition 3). In the school's transaction the caterer portal
+   takes the advisory lock `caterer-school:<school>` before Identity & Access
+   creates an invitation, accepts one or ends the supply, and before it reads
+   the supply and the Meal Plan confirms an order against it. Identity &
+   Access and the Meal Plan run only their own commands and take no lock of
+   their own; neither calls back into the workflow
+   ([ADR 0071](0071-principle-owner-dependencies-point-one-way.md)). Reads
+   take no lock.
+6. **Numbers by default.** The caterer reads orders, changes to them and
    counts per day and class. Children's names reach it only while the school's
    `gdpr.meal_caterer_names_enabled` is on. The reason a child does not eat
-   never reaches it. It reads and confirms only days from the start of its
-   supply on, so a new caterer never sees its predecessor's orders. Its only
-   write in V1 is confirming an order.
-6. **Password first.** Caterer accounts sign in with e-mail and password,
+   never reaches it. It reads and confirms the delivery days from the day
+   its supply starts (Berlin) on, also those whose order was fixed before it
+   accepted, and never a day before, so a new caterer never sees what its
+   predecessor delivered. A predecessor's confirmation does not count as its
+   own; its own confirmation replaces it. Its only
+   write in V1 is confirming an order. No read writes: the Meal Plan's
+   worker and the school's registration writes fix due orders and record
+   their changes; a read shows a due order the worker has not stored yet as
+   it will be stored, without an ID, so it can be confirmed only once
+   stored. A delivery list covers at most seven days
+   (`meals.delivery_range_too_long`) and costs a fixed number of statements
+   per school (`workflows.catererportal.delivery_export`).
+7. **Password first.** Caterer accounts sign in with e-mail and password,
    like parent accounts. A second factor is a follow-up: the existing MFA is
    bound to a school's policy, and a caterer has no school.
+
+8. **Only admins decide who supplies the school.** Inviting a caterer,
+   revoking an invitation and ending the supply require `admin:*`
+   (`common.RequiresPermission(permissions.AdminWildcard)`), like parent
+   announcements: the invitation lets an external business read the school's
+   orders. `meals:manage` still shows the caterer card and keeps the meal
+   plan.
 
 ## Consequences
 
 - The `chk_tokens_portal_scope` check of `auth.tokens.portal_scope` and every scope switch gain the value `caterer`;
   the wrong-portal tests cover it.
 - The policy registers the owner `caterer-portal` (workflow) and assigns the
-  four identity tables to `identity-access` and the supply table to
-  `mealplan` in the same change.
-- A school's role may create a caterer and its account link in the
-  acceptance, but never change or delete one. It reads caterers' business
-  names, which are no personal data.
+  four identity tables to `identity-access` in the same change. The Meal Plan
+  gains no table.
+- `auth.caterers` and `auth.caterer_accounts` are global. A school's role
+  reads them, but holds no write on them: the acceptance creates a caterer
+  and its account link only through `auth.create_invited_caterer`, a
+  `SECURITY DEFINER` function that requires an open invitation of the
+  transaction's school and the account of the invited address. Caterers'
+  business names are no personal data. The hourly account cleanup deletes a
+  caterer with its account links once no supply names it, running or ended,
+  none of its accounts is left unerased and no invitation to their addresses
+  is open; an ended supply stays the school's record until the school is
+  erased.
 - Deployments need `CATERER_URL` and `NEXT_PUBLIC_CATERER_HOSTNAME`, DNS and
   TLS for the new host before the release that contains the portal.
 - A caterer account cannot sign in to any other portal, and no other account
@@ -100,70 +147,31 @@ tenant transaction.
 The caterer reaches Identity & Access through its public module and engine,
 like every other flow there. [ADR 0057](0057-only-the-target-is-a-rule.md)
 point 5 lets the registers only fall; this decision raises them by exactly
-what the caterer adds:
+what the caterer adds. Together with
+[ADR 0078](0078-meal-ordering-raises-the-meal-plan-compose-budgets.md):
 
-1. `modulePassthroughOwnerBudgets["modules/identityaccess"]` rises from 556
-   to 560, and `modulePassthroughOwnerBudgetTotal` from 2,974 to 2,978: the
-   engine method that deletes expired caterer invitations, next to the one
-   of the guardian invitations, the entries of the caterer flows that
-   attach the unit of work and translate the errors, and the read that
-   names a school's caterer from its link to the school (the accepted
-   invitation that started the supply is deleted after 30 days). The flows
-   speak the public types themselves, so no engine forwards them.
-2. `moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,729
-   to 1,773, and `moduleComposeBudgetTotal` by the same 44 lines: composing
-   the caterer flows beside the engine, as the demo access is, with the
-   delivery of their invitation mail, and handing the authentication the
-   caterer store for the refresh.
-3. `modulePassthroughOwnerBudgets["modules/mealplan"]` rises from 15 to 17,
-   and `modulePassthroughOwnerBudgetTotal` from 2,978 to 2,980: the supply's
-   end and read each run one statement in the Meal Plan's unit of work. The
-   supply methods already speak the public types, so no engine method
-   forwards them; the caterer portal hands the invitation, its revocation
-   and the sign-in through without a method of its own.
-4. `moduleComposeBudgets` gains `workflows/catererportal/compose` with 36
-   lines, and `moduleComposeBudgetTotal` rises by the same 36: binding the
-   caterer portal to each school's tenant transaction.
+1. `modulePassthroughOwnerBudgets["modules/identityaccess"]` rises from 213
+   to 215: the revocation of an invitation and the read of the school's
+   supply attach the unit of work and translate the errors around one store
+   call each.
+2. `moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,303
+   to 1,348: composing the caterer flows beside the engine, as the demo
+   access is, with the delivery of their invitation mail, and handing the
+   authentication the caterer store for the refresh.
+3. `moduleComposeBudgets` gains `workflows/catererportal/compose` with 37
+   lines: binding the caterer portal to each school's tenant transaction and
+   to the supply lock.
+4. `modulePassthroughOwnerBudgets["modules/mealplan"]` falls from 3 to 1: the
+   supply left the Meal Plan.
+5. With ADR 0078, `modulePassthroughOwnerBudgetTotal` is 1,402 (1,401 on
+   development) and `moduleComposeBudgetTotal` 12,504 (12,385).
 
-Measured again after development contracted the registers and collapsed
-the Meal Plan facade on 2026-10-20 (#4451), the same code raises
-`modulePassthroughOwnerBudgets["modules/identityaccess"]` from 497 to 501
-and, with ADR 0078, `modulePassthroughOwnerBudgetTotal` from 2,119 to
-2,124 (from 2,024 to 2,029 after the Student Presence facade collapsed,
-#4481). `modules/mealplan` needs no raise any more: its service serves the
-public contract itself, so nothing forwards the supply.
-`moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,312 to
-1,357 (one more line imports the session dependencies, which development
-moved to the public ports), and with ADR 0078 and the 36 lines of
-`workflows/catererportal/compose` the total rises from 12,419 to 12,534.
 The Meal Plan's public contract splits into `Menu`, `Registration` and
 `Ordering`, each at most twelve methods wide; `Capability` embeds all three.
 
-Measured once more after development collapsed the Identity & Access facade
-(#4452) the same day: the owner value serves the caterer flows beside the
-demo access, so `modulePassthroughOwnerBudgets["modules/identityaccess"]`
-rises from 254 to 257 and, with ADR 0078, the total from 1,637 to 1,641.
-`moduleComposeBudgets["modules/identityaccess/compose"]` rises from 1,304 to
-1,349, and with ADR 0078 and `workflows/catererportal/compose` the total
-from 12,407 to 12,522.
-
-Measured again on 2026-10-21, after development drained the pass-throughs
-(#4519, #4403) and contracted the compositions further: the same caterer
-code adds 3 to `modulePassthroughOwnerBudgets["modules/identityaccess"]`
-(218 to 221) and, with ADR 0078, the total rises from 1,418 to 1,422.
-`moduleComposeBudgets["modules/identityaccess/compose"]` stays at 1,349
-over development's 1,304, and with ADR 0078 and
-`workflows/catererportal/compose` the total rises from 12,355 to 12,470.
-On 2026-10-22, after development drained more pass-throughs and raised
-the compositions for ADR 0076 (staff person repair), the raise stays the
-same: `modules/identityaccess` from 215 to 218, the pass-through total from
-1,409 to 1,413, and the compose total from 12,408 to 12,523. The meal
-ordering budgets moved from ADR 0076 to ADR 0078 when development took the
-number.
-
 ## Policy
 
-Policy epoch 90 → 91 registers the data-less workflow owner `caterer-portal`
+Policy epoch 93 → 94 registers the data-less workflow owner `caterer-portal`
 with its five new packages (ADR 0013 path, #3130) and the rules its code
 uses: its public contract and ports speak the public Identity & Access and
 Meal Plan contracts, its composition binds the tenant runtime, and its HTTP

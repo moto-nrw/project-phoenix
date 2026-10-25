@@ -55,14 +55,31 @@ type CalendarDays struct {
 	Holiday map[Date]bool
 }
 
-// NewCalendarDays builds the calendar days from YYYY-MM-DD sets.
-func NewCalendarDays(closed, holiday map[string]bool) CalendarDays {
-	days := CalendarDays{Closed: make(map[Date]bool, len(closed)), Holiday: make(map[Date]bool, len(holiday))}
+// HolidayPeriod is one school holiday period, both ends inclusive.
+type HolidayPeriod struct {
+	Start Date
+	End   Date
+}
+
+// NewCalendarDays builds the calendar days of the inclusive window
+// [from, to] from the closed YYYY-MM-DD days and the holiday periods; a
+// period counts only with its days inside the window.
+func NewCalendarDays(closed map[string]bool, holidays []HolidayPeriod, from, to Date) CalendarDays {
+	days := CalendarDays{Closed: make(map[Date]bool, len(closed)), Holiday: make(map[Date]bool)}
 	for date := range closed {
 		days.Closed[Date(date)] = true
 	}
-	for date := range holiday {
-		days.Holiday[Date(date)] = true
+	for _, period := range holidays {
+		start, end := period.Start, period.End
+		if start.Before(from) {
+			start = from
+		}
+		if end.After(to) {
+			end = to
+		}
+		for day := start; !day.After(end); day = day.AddDays(1) {
+			days.Holiday[day] = true
+		}
 	}
 	return days
 }

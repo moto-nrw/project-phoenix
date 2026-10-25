@@ -63,6 +63,7 @@ function status(overrides: Partial<DeclarationStatus> = {}): DeclarationStatus {
     signers: "all",
     revocable: true,
     requires_password: false,
+    requires_signature: false,
     deadline: null,
     current_version: version,
     versions: [version, { ...version, id: "11", version_no: 1 }],
@@ -134,6 +135,7 @@ function status(overrides: Partial<DeclarationStatus> = {}): DeclarationStatus {
         record_hash: "b".repeat(64),
         submitted_at: "2026-09-02T06:15:00Z",
         integrity_ok: false,
+        signature: null,
       },
     ],
     integrity_ok: false,
@@ -293,9 +295,11 @@ describe("DeclarationStatusPanel (#3430)", () => {
     expect(
       screen.queryByRole("link", { name: /Bericht drucken/ }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Bericht als PDF/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Bericht als PDF/ }));
     await waitFor(() => expect(downloadMock).toHaveBeenCalledWith("42", "pdf"));
-    fireEvent.click(screen.getByRole("button", { name: /Verlauf als CSV/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Verlauf als CSV/ }));
     await waitFor(() => expect(downloadMock).toHaveBeenCalledWith("42", "csv"));
   });
 
@@ -309,7 +313,8 @@ describe("DeclarationStatusPanel (#3430)", () => {
     expect(
       screen.queryByRole("button", { name: /Offene erinnern/ }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Verlauf als CSV/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Verlauf als CSV/ }));
     expect(
       await screen.findByText(
         catalogText("general.server", "das Erstellen der Datei"),
@@ -397,5 +402,58 @@ describe("child order (#3430)", () => {
     );
     expect(order.every((index) => index >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+});
+
+describe("DeclarationStatusPanel with signatures (#4785)", () => {
+  function signedSubmission(
+    id: string,
+    signature: NonNullable<
+      DeclarationStatus["submissions"][number]["signature"]
+    >,
+  ): DeclarationStatus["submissions"][number] {
+    const first = status().submissions[0]!;
+    return {
+      ...first,
+      id,
+      password_confirmed: false,
+      integrity_ok: true,
+      method: "simple_electronic_signature",
+      signature,
+    };
+  }
+
+  it("marks drawn and typed signatures and a changed signature", async () => {
+    statusMock.mockResolvedValue(
+      status({
+        requires_signature: true,
+        integrity_ok: false,
+        submissions: [
+          signedSubmission("80", {
+            method: "drawn",
+            typed_name: null,
+            signed_at: "2026-09-02T06:15:00Z",
+            integrity_ok: true,
+          }),
+          signedSubmission("81", {
+            method: "typed",
+            typed_name: "Klaus Schneider",
+            signed_at: "2026-09-02T06:16:00Z",
+            integrity_ok: false,
+          }),
+        ],
+      }),
+    );
+    render(<DeclarationStatusPanel announcementId="42" canAct />);
+    await screen.findByText("Kinder mit Antwort");
+
+    expect(
+      screen.getByText(/Fassung 2 · Hauptberechtigt · mit Unterschrift/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Fassung 2 · Hauptberechtigt · Unterschrift getippt/),
+    ).toBeInTheDocument();
+    // Only the entry whose signature no longer matches is marked.
+    expect(screen.getAllByText("Nachträglich verändert")).toHaveLength(1);
   });
 });

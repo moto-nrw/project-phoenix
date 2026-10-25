@@ -14,9 +14,9 @@ type OverviewStaff struct {
 	PersonnelNumber    *string
 	WorkTimeModelID    *int64
 	RotationAnchorDate *calendar.Date
-	// Guest marks an external caregiver (#3823), who records no working
-	// time; the overview leaves them out.
-	Guest bool
+	// ExternalCaregiver marks an external caregiver (#3823), who records no
+	// working time; the overview leaves them out.
+	ExternalCaregiver bool
 }
 
 // OverviewStaffQuery selects the tenant's non-offboarded staff for reports.

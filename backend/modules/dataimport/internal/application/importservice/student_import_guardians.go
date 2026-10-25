@@ -34,7 +34,7 @@ func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, st
 	link := ports.LinkGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianID,
-		RelationshipType:   importModels.MapRelationshipType(guardianData.RelationshipType),
+		RelationshipType:   ports.MapRelationshipType(guardianData.RelationshipType),
 		IsPrimary:          guardianData.IsPrimary,
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,
@@ -320,7 +320,7 @@ func guardianLinkUpdate(link ports.GuardianLink, data importModels.GuardianImpor
 	update := ports.GuardianLinkUpdate{}
 	changed := false
 	if strings.TrimSpace(data.RelationshipType) != "" {
-		if mapped := importModels.MapRelationshipType(data.RelationshipType); mapped != link.RelationshipType {
+		if mapped := ports.MapRelationshipType(data.RelationshipType); mapped != link.RelationshipType {
 			update.RelationshipType = &mapped
 			changed = true
 		}

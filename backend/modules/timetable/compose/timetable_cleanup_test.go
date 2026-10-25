@@ -80,6 +80,9 @@ func newCleanupFixture(t *testing.T) cleanupFixture {
 func (f cleanupFixture) cleanup(t *testing.T, deps ports.TimetableCleanupDependencies) timetable.TimetableCleanup {
 	t.Helper()
 	deps.Timetable = f.owner
+	if deps.Settings == nil {
+		deps.Settings = fixedRetentionSettings{days: 365}
+	}
 	if deps.Clock == nil {
 		deps.Clock = cleanupClock
 	}
@@ -333,21 +336,26 @@ func TestTimetableCleanupTenantIsolation(t *testing.T) {
 func TestTimetableCleanupRetentionWindow(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name     string
-		settings ports.RetentionSettings
-		want     int
+		name      string
+		settings  ports.RetentionSettings
+		want      int
+		wantError bool
 	}{
 		{name: "tenant override narrows the window", settings: fixedRetentionSettings{days: 30}, want: 30},
 		{name: "registry default", settings: fixedRetentionSettings{days: 180}, want: 180},
-		{name: "non-positive value falls back", settings: fixedRetentionSettings{days: 0}, want: 365},
-		{name: "resolution failure falls back", settings: fixedRetentionSettings{days: 42, err: errors.New("settings down")}, want: 365},
-		{name: "no settings wired", settings: nil, want: 365},
+		{name: "non-positive value fails", settings: fixedRetentionSettings{days: 0}, wantError: true},
+		{name: "resolution failure fails", settings: fixedRetentionSettings{days: 42, err: errors.New("settings down")}, wantError: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newCleanupFixture(t)
 			cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{Settings: tc.settings})
 			preview, err := cleanup.PreviewExpiredTimetableData(f.ctx)
+			if tc.wantError {
+				require.Error(t, err)
+				assert.Nil(t, preview)
+				return
+			}
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, preview.RetentionDays)
 			assert.Equal(t, cleanupToday.AddDays(-tc.want), preview.CutoffDate)
@@ -446,7 +454,7 @@ func TestTimetableCleanupWithoutAuditFailsBeforeDeleting(t *testing.T) {
 	f := newCleanupFixture(t)
 	instanceID := f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 	f.attachStudent(t, instanceID, f.student(t, "NoAudit"), nil)
-	cleanup, err := NewTimetableCleanup(ports.TimetableCleanupDependencies{Timetable: f.owner, Clock: cleanupClock})
+	cleanup, err := NewTimetableCleanup(ports.TimetableCleanupDependencies{Timetable: f.owner, Clock: cleanupClock, Settings: fixedRetentionSettings{days: 365}})
 	require.NoError(t, err)
 
 	_, err = cleanup.CleanupExpiredTimetableData(f.ctx)
@@ -512,8 +520,29 @@ func TestNewTimetableCleanupRequiresTheOwner(t *testing.T) {
 	_, err := NewTimetableCleanup(ports.TimetableCleanupDependencies{})
 	require.EqualError(t, err, "timetable cleanup: the timetable owner is required")
 
-	cleanup, err := NewTimetableCleanup(ports.TimetableCleanupDependencies{Timetable: buildModule(t, testpkg.SetupTestDB(t)), Audit: &recordingDeletionAudit{}})
+	cleanup, err := NewTimetableCleanup(ports.TimetableCleanupDependencies{Timetable: buildModule(t, testpkg.SetupTestDB(t)), Audit: &recordingDeletionAudit{}, Settings: fixedRetentionSettings{days: 365}})
 	require.NoError(t, err, "a nil logger falls back to the default logger")
 	_, err = cleanup.CleanupExpiredTimetableData(testpkg.Ctx(t))
 	require.NoError(t, err)
+}
+
+func TestTimetableCleanupRejectsUnreadableRetention(t *testing.T) {
+	t.Parallel()
+	f := newCleanupFixture(t)
+	instanceID := f.instance(t, 400, "completed", nil)
+	failure := errors.New("timetable retention unavailable")
+	audit := &recordingDeletionAudit{}
+	service := f.cleanup(t, ports.TimetableCleanupDependencies{Settings: fixedRetentionSettings{err: failure}, Audit: audit})
+	result, err := testpkg.TenantQuery0(t, f.ctx, f.Db, service.CleanupExpiredTimetableData)
+	require.ErrorIs(t, err, failure)
+	assert.Nil(t, result)
+	assert.Empty(t, audit.records)
+	f.assertRow(t, "schedule.activity_instances", instanceID, true, "unreadable retention must not delete a block")
+}
+
+func TestTimetableCleanupRejectsMissingSettings(t *testing.T) {
+	t.Parallel()
+	f := newCleanupFixture(t)
+	_, err := NewTimetableCleanup(ports.TimetableCleanupDependencies{Timetable: f.owner})
+	require.ErrorContains(t, err, "settings are required")
 }

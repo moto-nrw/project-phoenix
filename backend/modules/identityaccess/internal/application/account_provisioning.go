@@ -324,7 +324,7 @@ func (s *AccountProvisioning) linkTenantAccount(txCtx context.Context, request d
 	// under a JWT that only carries class_day permissions (#1772). The
 	// same rule the tenant RBAC endpoint and both operator paths apply,
 	// so this endpoint cannot be the way around them.
-	if role != nil && s.policy.IsLehrkraftSystemRole(role.Facts()) {
+	if role != nil && s.policy.IsLehrkraftRole(role.Facts()) {
 		hasProfile, profileErr := s.profiles.HasLiveCaregiverProfile(txCtx, accountID)
 		if profileErr != nil {
 			return identity, profileErr
@@ -376,6 +376,8 @@ var provisioningSentinels = []struct {
 	public   error
 }{
 	{identityaccess.ErrEmailAlreadyExists, identityaccess.ErrEmailAlreadyExists},
+	// A caterer account answers like an address that is taken (ADR 0077).
+	{domain.ErrCatererAccountJoinsNoSchool, identityaccess.ErrEmailAlreadyExists},
 	{identityaccess.ErrUsernameAlreadyExists, identityaccess.ErrUsernameAlreadyExists},
 	{domain.ErrTenantRequiredForRoleAssignment, identityaccess.ErrTenantRequiredForRoleAssignment},
 }

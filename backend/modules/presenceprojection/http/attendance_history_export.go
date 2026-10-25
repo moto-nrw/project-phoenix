@@ -45,7 +45,11 @@ func (rs *Resource) exportStudentAttendanceHistory(w http.ResponseWriter, r *htt
 		return
 	}
 
-	visibleDays := resolveIntSetting(r.Context(), rs.SettingsService, settingAttendanceVisibleDays, 30, logger)
+	visibleDays, err := rs.SettingsService.ResolveInt(r.Context(), settingAttendanceVisibleDays)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to resolve attendance settings", err))
+		return
+	}
 	options, err := parseAttendanceExportOptions(r, visibleDays, rs.todayDate())
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(err))
@@ -74,8 +78,12 @@ func (rs *Resource) exportStudentAttendanceHistory(w http.ResponseWriter, r *htt
 }
 
 func (rs *Resource) checkAttendanceExportAccess(w http.ResponseWriter, r *http.Request, student *peopleModule.StudentState) bool {
-	logger := rs.attendanceHistoryLogger()
-	if !resolveBoolSetting(r.Context(), rs.SettingsService, settingAttendanceLogEnabled, false, logger) {
+	enabled, err := rs.SettingsService.ResolveBool(r.Context(), settingAttendanceLogEnabled)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to resolve attendance settings", err))
+		return false
+	}
+	if !enabled {
 		renderError(w, r, common.ErrorForbiddenWithCode(errors.New("feature_disabled"), common.CodeAttendanceLogDisabled))
 		return false
 	}

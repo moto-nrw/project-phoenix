@@ -3,10 +3,12 @@ package account_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
 
@@ -364,6 +366,21 @@ func (e *accountIsolationEnv) createSchoolInOwnOrganization(t *testing.T) (int64
 	return organizationID, schoolID
 }
 
+func TestAccountManagementOrganizationUpdateStaysWithinOrganization(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	organizationID, schoolID := e.createSchoolInOwnOrganization(t)
+	sameOrgID, _ := e.accountForTenant(t, "account-scope-org-update", schoolID)
+	foreignID, _ := e.foreignAccount(t, "account-scope-org-update-foreign")
+	claims := e.claims
+	claims.Scope = tenant.ScopeOrg
+	claims.OrgID = organizationID
+	assertAccountActionStatus(t, e, claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", sameOrgID),
+		map[string]string{"email": fmt.Sprintf("updated-%d@example.invalid", sameOrgID)}, http.StatusNoContent)
+	assertAccountActionStatus(t, e, claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", foreignID),
+		map[string]string{"email": fmt.Sprintf("denied-%d@example.invalid", foreignID)}, http.StatusNotFound)
+}
+
 func TestAccountManagementPlatformScopeRemainsGlobal(t *testing.T) {
 	t.Parallel()
 	e := newAccountIsolationEnv(t)
@@ -380,4 +397,86 @@ func TestAccountManagementPlatformScopeRemainsGlobal(t *testing.T) {
 	claims.Scope = tenant.ScopePlatform
 	claims.TenantID = 0
 	assert.Contains(t, accountIDs(e.listAccounts(t, claims)), foreignID)
+}
+
+// Organization scope must not detach a command from an existing school unit.
+func TestAccountManagementOrganizationWritesRollBackWithCaller(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	organizationID, _ := e.createSchoolInOwnOrganization(t)
+	account := testpkg.CreateTestAccount(t, e.tc.db, "org-write-rollback")
+	ctx := testpkg.WithTestTenantRuntime(t, tenant.WithScope(tenant.WithOrgID(testpkg.Ctx(t), organizationID), tenant.ScopeOrg))
+	rollback := errors.New("later workflow command failed")
+	err := testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		if err := e.tc.resource.Sessions.UpdateManageableAccount(txCtx, identityaccess.AccountIdentityUpdate{
+			AccountID: account.ID, Email: fmt.Sprintf("rollback-%d@example.invalid", account.ID),
+		}); err != nil {
+			return err
+		}
+		if err := e.tc.resource.Sessions.DeactivateAccount(txCtx, account.ID); err != nil {
+			return err
+		}
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+	got, err := e.tc.resource.Sessions.FindOwnAccount(ctx, account.ID)
+	require.NoError(t, err)
+	assert.Equal(t, account.Email, got.Email)
+	assert.True(t, got.Active)
+}
+
+func TestOrganizationStaffOffboardingPreservesLockedCallerTransaction(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	organizationID, _ := e.createSchoolInOwnOrganization(t)
+	_, account := testpkg.CreateTestCalendarStaff(t, e.tc.db, "Organization", "Offboarding")
+	testpkg.CreateTestToken(t, e.tc.db, account.ID, "refresh")
+	access := setupAuthModuleOn(t, e.tc.db).Auth
+	ctx := testpkg.WithTestTenantRuntime(t, tenant.WithScope(tenant.WithOrgID(testpkg.Ctx(t), organizationID), tenant.ScopeOrg))
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	preview, err := access.PreviewStaffOffboarding(ctx, account.ID)
+	require.NoError(t, err)
+	require.True(t, preview.DeactivateAccount)
+	rollback := errors.New("later workflow command failed")
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		result, executeErr := access.ExecuteStaffOffboarding(txCtx, account.ID, preview.Revision)
+		if executeErr != nil {
+			return executeErr
+		}
+		require.True(t, result.AccountDeactivated)
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+	// Use a fresh context so a lock-wait timeout cannot mask the persisted state.
+	got, err := e.tc.resource.Sessions.FindOwnAccount(testpkg.Ctx(t), account.ID)
+	require.NoError(t, err)
+	require.True(t, got.Active)
+	membership, err := e.tc.resource.Sessions.VerifyAccountTenantMembership(testpkg.Ctx(t), account.ID, e.tenantID)
+	require.NoError(t, err)
+	require.True(t, membership)
+	result, err := access.ExecuteStaffOffboarding(ctx, account.ID, preview.Revision)
+	require.NoError(t, err, "the rolled-back preview must still be executable")
+	require.True(t, result.AccountDeactivated)
+	require.EqualValues(t, 1, result.TokensRevoked)
+	got, err = e.tc.resource.Sessions.FindOwnAccount(testpkg.Ctx(t), account.ID)
+	require.NoError(t, err)
+	require.False(t, got.Active)
+}
+
+func TestAccountManagementOrganizationWriteRetainsCallerSchoolBoundary(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	organizationID, schoolID := e.createSchoolInOwnOrganization(t)
+	accountID, email := e.accountForTenant(t, "org-school-boundary", schoolID)
+	ctx := testpkg.WithTestTenantRuntime(t, tenant.WithScope(tenant.WithOrgID(testpkg.Ctx(t), organizationID), tenant.ScopeOrg))
+	err := testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return e.tc.resource.Sessions.UpdateManageableAccount(txCtx, identityaccess.AccountIdentityUpdate{
+			AccountID: accountID, Email: fmt.Sprintf("denied-%d@example.invalid", accountID),
+		})
+	})
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
+	got, err := e.tc.resource.Sessions.FindOwnAccount(ctx, accountID)
+	require.NoError(t, err)
+	require.Equal(t, email, got.Email)
 }

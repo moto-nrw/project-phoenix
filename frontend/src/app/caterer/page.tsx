@@ -124,18 +124,27 @@ export default function CatererOverviewPage() {
   const [exporting, setExporting] = useState<string | null>(null);
   const { error, show, clear } = useApiLoadError();
   const { show: showActionError } = useApiErrorDisplay();
-  const reloadRef = useRef<() => void>(() => undefined);
+  const reloadRef = useRef<() => Promise<void>>(async () => undefined);
 
+  const generationRef = useRef(0);
   const requestRef = useRef(0);
   const loadOrders = useCallback(
-    async (list: readonly CatererSchool[]) => {
+    async (
+      list: readonly CatererSchool[],
+      generation = generationRef.current,
+    ) => {
+      if (generation !== generationRef.current) return;
       // Only the newest request lands: a slow answer for the previous
       // period never overwrites the one now chosen.
       const request = ++requestRef.current;
       const results = await Promise.allSettled(
         list.map((school) => fetchCatererOrders(school.id, from, to)),
       );
-      if (request !== requestRef.current) return;
+      if (
+        generation !== generationRef.current ||
+        request !== requestRef.current
+      )
+        return;
       const next: Record<string, CatererOrders | null> = {};
       results.forEach((result, index) => {
         const school = list[index]!;
@@ -158,13 +167,18 @@ export default function CatererOverviewPage() {
   );
 
   const load = useCallback(async () => {
+    // Cover the school lookup and its order requests with one generation.
+    const generation = ++generationRef.current;
     setLoading(true);
     clear();
     try {
       const loaded = await fetchCatererSchools();
+      if (generation !== generationRef.current) return;
       setSchools(loaded);
-      await loadOrders(loaded.schools);
+      await loadOrders(loaded.schools, generation);
     } catch (cause) {
+      // Superseded loads must not show errors for the current period.
+      if (generation !== generationRef.current) return;
       logger.error("caterer_schools_load_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
       });
@@ -173,11 +187,11 @@ export default function CatererOverviewPage() {
         retry: () => reloadRef.current(),
       });
     } finally {
-      setLoading(false);
+      if (generation === generationRef.current) setLoading(false);
     }
   }, [clear, loadOrders, show]);
   useEffect(() => {
-    reloadRef.current = () => void load();
+    reloadRef.current = load;
   });
   useEffect(() => {
     void load();
@@ -414,7 +428,7 @@ export default function CatererOverviewPage() {
                   <CatererSchoolOrders
                     school={school}
                     orders={schoolOrders}
-                    onConfirmed={() => loadOrders(list)}
+                    onConfirmed={() => reloadRef.current()}
                   />
                 ) : (
                   <p className="text-sm text-gray-600">

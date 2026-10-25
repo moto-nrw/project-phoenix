@@ -23,7 +23,8 @@ import (
 //     injects where api/common is out of reach.
 //  3. Multi-line nil-check getLogger bodies — use cmp.Or(logger, slog.Default()).
 //
-// Allowlists are shrink-only: never add an entry, never raise a count.
+// Allowlists are shrink-only: additions or raises require a new-numbered ADR
+// cited by the entry (ADR 0070).
 var (
 	// Non-comment "23505" references outside modules/transactionruntime/internal/adapters/postgres and migrations.
 	uniqueViolationLiteralAllowlist = map[string]int{}

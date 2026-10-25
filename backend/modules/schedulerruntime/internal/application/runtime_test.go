@@ -236,6 +236,7 @@ func unitScheduler(input *unitSchedulerDependencies) *Scheduler {
 		materializationNow:            input.materializationNow,
 		materializer:                  input.materializer,
 		minuteSnapshotLoader:          snapshotLoader,
+		cleanupMinuteSnapshotLoader:   snapshotLoader,
 		minuteSnapshotNow:             input.minuteSnapshotNow,
 		now:                           input.now,
 		outboxWorker:                  input.outboxWorker,

@@ -4,22 +4,22 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
 )
 
 // TestModuleFileSizeRatchet caps the size of production files under modules/
-// and workflows/ at 800 lines. No gate in this package measured file size
-// there when migration #2580 moved 228k production lines into modules/: on
+// and workflows/, roots (ADR 0082), and every backend tree (ADR 0087)
+// at 800 lines. No gate measured file
+// size there when migration #2580 moved 228k production lines into modules/: on
 // 2026-09-18, 55 files were over the cap and the largest,
 // instance_service.go, held 3194 lines. A file that big has no discoverable
 // seam — nobody can review it, split it safely, or find the one function that
 // matters in it.
 //
-// The register froze those files at their size; it is empty now, so every
-// file stays at or below the cap.
+// The original register drained to zero. ADR 0082 adds the measured root
+// baseline, still without headroom.
 //
 // Allowlist semantics (per file, like handler_complexity_ratchet_test.go, but
 // counting lines rather than gocognit scores):
@@ -30,17 +30,14 @@ import (
 //     the test fails until the entry is lowered/removed — the ratchet only
 //     turns one way. Never raise a number.
 //
-// Scope: every non-test .go file under modules/ and workflows/, including the
-// legacy/ subtrees — at seed time they held 19 of the biggest files in the
-// backend, and moving code there must not silence the gate. Keys are repo-relative
-// slash paths starting at "modules/" or "workflows/".
+// Scope: walkModuleRatchetSources covers all backend trees recursively,
+// including legacy, migrations, tools, generated code, hooks and test support.
+// Only _test.go and hidden directories are excluded. ADR 0087 records the
+// category audit and exact additions measured at 8aca1925f7. Keys are slash
+// paths relative to backend/.
 //
 // A line is a newline, exactly as `wc -l` counts one.
 const moduleFileSizeThreshold = 800
-
-// moduleFileSizeTrees are the two subtrees this ratchet watches, relative to
-// the backend module root.
-var moduleFileSizeTrees = []string{"modules", "workflows"}
 
 // moduleFileSizeAllowlist is the frozen 2026-09-18 baseline at merge commit
 // ecf0003369: the 55 non-test files over the threshold, out of 1655 scanned
@@ -51,8 +48,34 @@ var moduleFileSizeTrees = []string{"modules", "workflows"}
 // Shrink-only. Reproduce the measurement with:
 //
 //	cd backend && find modules workflows -name '*.go' ! -name '*_test.go' \
-//	  -exec wc -l {} + | awk '$1 > 800 {print $2, $1}' | sort
-var moduleFileSizeAllowlist = map[string]int{}
+//	  -exec wc -l {} + | awk '$1 > 800 && $2 != "total" {print $2, $1}' | sort
+//
+// ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
+var moduleFileSizeAllowlist = map[string]int{
+	"cmd/cleanup.go": 1139,
+	// ADR 0087.
+	"database/migrations/request_child_storage_backfill.go": 1186,
+	// ADR 0087.
+	"database/migrations/staff_owner_backfill.go": 868,
+	// ADR 0087.
+	"database/migrations/student_owner_backfill.go": 850,
+	// ADR 0087.
+	"internal/architecture/semantic.go": 1480,
+	// ADR 0087.
+	"internal/devtools/seedapi/parent_enrollment.go": 1440,
+	// ADR 0087.
+	"internal/devtools/seedapi/seed_time_tracking.go": 849,
+	// ADR 0087.
+	"internal/devtools/seedapi/stammdaten.go": 1477,
+	// ADR 0087.
+	"internal/devtools/simulate/demo_day.go": 818,
+	// ADR 0087.
+	"internal/devtools/simulate/fullday.go": 921,
+	// ADR 0087.
+	"observability/prometheus.go": 1722,
+	// ADR 0087.
+	"test/fixtures.go": 3201,
+}
 
 func TestModuleFileSizeRatchet(t *testing.T) {
 	t.Parallel()
@@ -112,44 +135,23 @@ func moduleFileSizeViolations(sizes, allowlist map[string]int) []string {
 }
 
 // moduleFileSizeScan returns the line count of every non-test .go file under
-// modules/ and workflows/ that exceeds the threshold, keyed by repo-relative
-// slash path. Files at or below the threshold are omitted, so a file dropping
+// the shared backend source scope that exceeds the threshold, keyed by
+// backend-relative slash path. Files at or below the threshold are omitted, so a file dropping
 // under it reads as a stale allowlist entry.
 func moduleFileSizeScan(backendRoot string) (map[string]int, error) {
 	sizes := make(map[string]int)
-	for _, tree := range moduleFileSizeTrees {
-		root := filepath.Join(backendRoot, tree)
-		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if d.IsDir() {
-				if strings.HasPrefix(d.Name(), ".") && path != root {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			rel, relErr := filepath.Rel(backendRoot, path)
-			if relErr != nil {
-				return relErr
-			}
-			rel = filepath.ToSlash(rel)
-
-			lines, countErr := moduleFileSizeCountLines(path)
-			if countErr != nil {
-				return fmt.Errorf("count %s: %w", rel, countErr)
-			}
-			if lines > moduleFileSizeThreshold {
-				sizes[rel] = lines
-			}
-			return nil
-		})
-		if err != nil {
-			return nil, err
+	err := walkModuleRatchetSources(backendRoot, func(path, rel string) error {
+		lines, countErr := moduleFileSizeCountLines(path)
+		if countErr != nil {
+			return fmt.Errorf("count %s: %w", rel, countErr)
 		}
+		if lines > moduleFileSizeThreshold {
+			sizes[rel] = lines
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return sizes, nil
 }

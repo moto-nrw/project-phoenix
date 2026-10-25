@@ -298,6 +298,7 @@ func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService
 	return &Resource{
 		WorkSessionService:  wsSvc,
 		StaffAbsenceService: absSvc,
+		AbsenceWrites:       absSvc,
 		PersonService:       pSvc,
 		identity:            func(context.Context) Identity { return Identity{AccountID: testAccountID} },
 		withinTenant:        testWithinTenant(db),
@@ -338,7 +339,10 @@ func parseAPIResponse(t *testing.T, w *httptest.ResponseRecorder) apiResponse {
 
 var (
 	_ workforce.WorkSessions   = (*mockWorkSessionService)(nil)
-	_ workforce.StaffAbsences  = (*mockStaffAbsenceService)(nil)
+	_ workforce.OwnAbsences    = (*mockStaffAbsenceService)(nil)
+	_ workforce.AdminAbsences  = (*mockStaffAbsenceService)(nil)
+	_ OwnAbsenceWrites         = (*mockStaffAbsenceService)(nil)
+	_ AdminAbsenceWrites       = (*mockStaffAbsenceService)(nil)
 	_ workforce.StaffDirectory = (*stubStaffDirectory)(nil)
 )
 
@@ -374,6 +378,7 @@ func TestNewResource(t *testing.T) {
 	rs := NewResource(Dependencies{
 		WorkSessions:     &mockWorkSessionService{},
 		StaffAbsences:    &mockStaffAbsenceService{},
+		AbsenceWrites:    &mockStaffAbsenceService{},
 		Staff:            defaultPersonSvc(),
 		AccountStartDate: func(context.Context) (string, error) { return "", nil },
 		Identity:         func(context.Context) Identity { return Identity{AccountID: testAccountID} },
@@ -1231,6 +1236,25 @@ func TestExportSessions_DefaultCSV(t *testing.T) {
 
 	rs.exportSessions(w, r)
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+func TestExportSessions_UnknownFormatRejected(t *testing.T) {
+	t.Parallel()
+
+	wsSvc := &mockWorkSessionService{
+		exportSessionsFn: func(_ context.Context, _ int64, _, _, _ string) (*workforce.ExportFile, error) {
+			t.Fatal("an unknown format must not reach the export service")
+			return nil, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
+
+	r := httptest.NewRequest(http.MethodGet, "/export?from=2026-01-01&to=2026-01-31&format=docx", nil)
+	r = withCaller(r, testpkg.Tenant(t))
+	w := httptest.NewRecorder()
+
+	rs.exportSessions(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestExportSessions_MissingDates(t *testing.T) {

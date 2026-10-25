@@ -16,16 +16,17 @@ import (
 // the rows a mint authorizes on until that transaction commits.
 
 type loginAccountRow struct {
-	ID           int64     `bun:"id"`
-	Email        string    `bun:"email"`
-	Username     *string   `bun:"username"`
-	PasswordHash *string   `bun:"password_hash"`
-	Active       bool      `bun:"active"`
-	UpdatedAt    time.Time `bun:"updated_at"`
+	MFAResetGeneration int64     `bun:"mfa_reset_generation"`
+	ID                 int64     `bun:"id"`
+	Email              string    `bun:"email"`
+	Username           *string   `bun:"username"`
+	PasswordHash       *string   `bun:"password_hash"`
+	Active             bool      `bun:"active"`
+	UpdatedAt          time.Time `bun:"updated_at"`
 }
 
 func (r loginAccountRow) toDomain() domain.LoginAccount {
-	account := domain.LoginAccount{ID: r.ID, Email: r.Email, Active: r.Active, UpdatedAt: r.UpdatedAt}
+	account := domain.LoginAccount{ID: r.ID, Email: r.Email, Active: r.Active, UpdatedAt: r.UpdatedAt, MFAResetGeneration: r.MFAResetGeneration}
 	if r.Username != nil {
 		account.Username = *r.Username
 	}
@@ -35,7 +36,7 @@ func (r loginAccountRow) toDomain() domain.LoginAccount {
 	return account
 }
 
-const loginAccountColumns = `"account".id, "account".email, "account".username, "account".password_hash, "account".active, "account".updated_at`
+const loginAccountColumns = `"account".id, "account".email, "account".username, "account".password_hash, "account".active, "account".updated_at, "account".mfa_reset_generation`
 
 // FindLoginAccountByEmail matches case-insensitively, as the retained
 // repository did.
@@ -134,13 +135,10 @@ func (s *Store) ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int
 	}
 	var ids []int64
 	started := time.Now()
-	query := db.NewSelect().
-		TableExpr(`auth.account_tenants AS "account_tenant"`).
-		ColumnExpr(`"account_tenant".tenant_id`).
-		Where(`"account_tenant".account_id = ?`, accountID).
-		Where(`"account_tenant".status = ?`, "active").
-		OrderExpr(`"account_tenant".created_at ASC`)
-	err = query.Scan(ctx, &ids)
+	// The narrow database capability keeps the caller's transaction snapshot:
+	// offboarding needs other active schools of a locally active account, but
+	// must not gain direct access to foreign membership rows or feed tokens.
+	err = db.NewRaw(`SELECT tenant_id FROM auth.active_school_ids_for_account(?)`, accountID).Scan(ctx, &ids)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(ids))}
 	if err != nil {
 		return nil, stats, fmt.Errorf("identity access postgres: list active tenant mappings: %w", err)
@@ -175,10 +173,11 @@ func (s *Store) LockActiveTenantMappingShared(ctx context.Context, accountID, te
 }
 
 type roleAssignmentRow struct {
-	RoleID   int64  `bun:"role_id"`
-	Name     string `bun:"name"`
-	IsSystem bool   `bun:"is_system"`
-	TenantID *int64 `bun:"tenant_id"`
+	RoleID       int64  `bun:"role_id"`
+	Name         string `bun:"name"`
+	IsSystem     bool   `bun:"is_system"`
+	TenantID     *int64 `bun:"tenant_id"`
+	SchoolPortal bool   `bun:"school_portal"`
 }
 
 // ListAccountRolesAtTenant returns the roles the account holds at the school.
@@ -196,7 +195,7 @@ func (s *Store) ListAccountRolesAtTenant(ctx context.Context, accountID, tenantI
 	var rows []roleAssignmentRow
 	query := db.NewSelect().
 		TableExpr(`auth.account_roles AS "account_role"`).
-		ColumnExpr(`"role".id AS role_id, "role".name, "role".is_system, "role".tenant_id`).
+		ColumnExpr(`"role".id AS role_id, "role".name, "role".is_system, "role".tenant_id, "role".school_portal`).
 		Join(`JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		Where(`"account_role".account_id = ?`, accountID)
 	query = query.Where(`"account_role".tenant_id = ?`, tenantID)
@@ -212,7 +211,7 @@ func (s *Store) ListAccountRolesAtTenant(ctx context.Context, accountID, tenantI
 	}
 	roles := make([]domain.RoleAssignment, 0, len(rows))
 	for _, row := range rows {
-		roles = append(roles, domain.RoleAssignment{RoleID: row.RoleID, Name: row.Name, IsSystem: row.IsSystem, TenantID: row.TenantID})
+		roles = append(roles, domain.RoleAssignment{RoleID: row.RoleID, Name: row.Name, IsSystem: row.IsSystem, TenantID: row.TenantID, SchoolPortal: row.SchoolPortal})
 	}
 	return roles, stats, nil
 }

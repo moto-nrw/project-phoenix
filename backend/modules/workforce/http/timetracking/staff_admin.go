@@ -17,6 +17,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 )
 
+// AdminAbsenceWrites are the manager's absence writes on a staff member's
+// behalf that may cascade a sick report into the plans (#1843). The root
+// binds the shift-plan-sync workflow's entry (#4825).
+type AdminAbsenceWrites interface {
+	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
+	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
+}
+
 // StaffAdminResource serves the workforce half of /api/staff.
 type StaffAdminResource struct {
 	uploads              common.UploadStorage
@@ -26,6 +34,7 @@ type StaffAdminResource struct {
 	documentFiles        workforce.StaffDocumentFileRecovery
 	WorkSessionService   workforce.AdminWorkSessions
 	StaffAbsenceService  workforce.AdminAbsences
+	AbsenceWrites        AdminAbsenceWrites
 	WorkTimeMonthService workforce.WorkTimeMonths
 	BalanceAdjustService workforce.BalanceAdjustments
 	MonthCloseService    workforce.MonthClosing
@@ -57,6 +66,7 @@ type StaffAdminDependencies struct {
 	DocumentFiles      workforce.StaffDocumentFileRecovery
 	WorkSessions       workforce.AdminWorkSessions
 	StaffAbsences      workforce.AdminAbsences
+	AbsenceWrites      AdminAbsenceWrites
 	WorkTimeMonth      workforce.WorkTimeMonths
 	BalanceAdjustments workforce.BalanceAdjustments
 	MonthClosing       workforce.MonthClosing
@@ -76,8 +86,8 @@ type StaffAdminDependencies struct {
 
 // NewStaffAdminResource wires the workforce resource.
 func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
-	if deps.Staff == nil || deps.Documents == nil || deps.OffboardingCleanup == nil || deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.Identity == nil {
-		panic("staff admin resource: staff directory, documents, work sessions, absences and identity are required")
+	if deps.Staff == nil || deps.Documents == nil || deps.OffboardingCleanup == nil || deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.AbsenceWrites == nil || deps.Identity == nil {
+		panic("staff admin resource: staff directory, documents, work sessions, absences, absence writes and identity are required")
 	}
 	if deps.Uploads == nil {
 		panic("staff admin resource: upload storage is required")
@@ -103,6 +113,7 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		documentFiles:        deps.DocumentFiles,
 		WorkSessionService:   deps.WorkSessions,
 		StaffAbsenceService:  deps.StaffAbsences,
+		AbsenceWrites:        deps.AbsenceWrites,
 		WorkTimeMonthService: deps.WorkTimeMonth,
 		BalanceAdjustService: deps.BalanceAdjustments,
 		MonthCloseService:    deps.MonthClosing,
@@ -192,7 +203,9 @@ func (rs *StaffAdminResource) registerTimeTrackingRoutes(r chi.Router, withTx co
 	r.With(timeTracking, withTx).Get("/{id}/time-tracking/history", rs.getStaffHistory)
 	r.With(timeTracking, withTx).Get("/{id}/time-tracking/month-summary", rs.getStaffMonthSummary)
 	r.With(timeTracking, withTx).Get("/{id}/time-tracking/schedule-targets", rs.getStaffScheduleTargets)
-	r.With(timeTracking, withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
+	// Die eigene Zeiterfassung exportiert über dieselbe Route (#4748); der
+	// Handler prüft, dass time_tracking:own nur die eigene Person trifft.
+	r.With(common.RequiresAnyPermission(permissions.TimeTrackingManage, permissions.TimeTrackingOwn), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
 }
 
 // registerBalanceRoutes serves the Stundenkonto lifecycle (#1420): payout /

@@ -52,6 +52,7 @@ var classDayExportColumns = map[classday.ExportColumnID]lists.ColumnID{
 	classday.ExportColumnSlot:           lists.ColumnSlot,
 	classday.ExportColumnPlannedPickup:  lists.ColumnPlannedPickup,
 	classday.ExportColumnPresenceStatus: lists.ColumnPresenceStatus,
+	classday.ExportColumnChecklist:      lists.ColumnChecklist,
 }
 
 var classDayExportFormats = map[classday.Format]lists.Format{

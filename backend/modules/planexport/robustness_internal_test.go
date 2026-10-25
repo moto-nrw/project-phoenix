@@ -616,7 +616,7 @@ func TestDienstplanByAreaLabelsCoverCancellationAndUntitledBlocks(t *testing.T) 
 
 	// Every window starts at 07:30, so the rows fall back to title order.
 	labels := rowLabels(renderer.doc)
-	want := []string{areaWithoutShiftType, "Frühbetreuung", "Randstunde"}
+	want := []string{"Frühbetreuung", areaWithoutShiftType, "Randstunde"}
 	for i, label := range want {
 		if i >= len(labels) || labels[i] != label {
 			t.Fatalf("row order = %v, want %v", labels, want)

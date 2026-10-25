@@ -16,6 +16,7 @@ import { useSession } from "next-auth/react";
 import { getDayData as getArrivalDayData } from "~/lib/arrival-schedule-helpers";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { setTestClock } from "~/test/clock";
+import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 
 const { mockSWRMutate, MockStudentStatusDayConflictError } = vi.hoisted(() => ({
   mockSWRMutate: vi.fn(),
@@ -42,8 +43,15 @@ vi.mock("swr", async (importOriginal) => {
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
+  // Staff reads parent data with users:read; the role „Gast“ holds only
+  // students:read (ADR 0091, see „students:read only“ below).
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token", permissions: ["config:manage"] } },
+    data: {
+      user: {
+        token: "test-token",
+        permissions: ["config:manage", "users:read"],
+      },
+    },
     status: "authenticated",
   })),
 }));
@@ -419,6 +427,28 @@ vi.mock("~/components/students/student-enrollments-tab", () => ({
   StudentEnrollmentsTab: () => <div data-testid="student-enrollments-tab" />,
 }));
 
+// These child panels are real here; isolate their read APIs as well. Otherwise
+// mounts and SWR retries outlive the page test and hit localhost:3000.
+vi.mock("~/lib/change-request-list-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/change-request-list-api")>();
+  return {
+    ...actual,
+    getFamilyProtection: vi.fn(async (studentId: string) => ({
+      student_id: studentId,
+      enabled: false,
+    })),
+  };
+});
+
+vi.mock("~/lib/student-notes-api", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/lib/student-notes-api")>();
+  vi.spyOn(actual.studentNotesService, "list").mockResolvedValue([]);
+  vi.spyOn(actual.studentNotesService, "listActivities").mockResolvedValue([]);
+  return actual;
+});
+
 // Mock pickup schedule API
 vi.mock("~/lib/pickup-schedule-api", () => ({
   fetchStudentPickupData: vi.fn().mockResolvedValue({
@@ -598,7 +628,14 @@ describe("StudentDetailPage", () => {
       data: {
         user: {
           token: "test-token",
-          permissions: ["config:manage", "users:checkin"],
+          // Staff with absence rights; the route of every absence write
+          // checks users:update or users:absence (ADR 0091 gate).
+          permissions: [
+            "config:manage",
+            "users:checkin",
+            "users:read",
+            "users:absence",
+          ],
         },
       },
       status: "authenticated",
@@ -1784,7 +1821,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "users:update"],
+            permissions: ["config:manage", "users:update", "users:read"],
           },
         },
         status: "authenticated",
@@ -2295,12 +2332,84 @@ describe("StudentDetailPage", () => {
       expect(getTab("Historie")).toBeInTheDocument();
     });
 
+    // ADR 0091: the role „Gast“ opens the child with students:read only.
+    // Parent data, notes and messages stay on users:read, so those tabs and
+    // the guardian manager are absent instead of answering 403.
+    it.each([
+      ["full", true],
+      ["limited", false],
+    ])(
+      "hides parent data, notes and messages with students:read only (%s view)",
+      (_view, hasFullAccess) => {
+        vi.mocked(useSession).mockReturnValue({
+          data: {
+            user: { token: "test-token", permissions: ["students:read"] },
+          },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        mockUseStudentData.mockReturnValue({
+          ...limitedAccess,
+          hasFullAccess,
+        });
+
+        render(<StudentDetailPage />);
+
+        expect(getTab("Stammdaten")).toBeInTheDocument();
+        expect(getTab("Historie")).toBeInTheDocument();
+        for (const name of [
+          "Erziehungsberechtigte",
+          "Notizen",
+          "Nachrichten",
+        ]) {
+          expect(queryTab(name)).not.toBeInTheDocument();
+        }
+        expect(
+          screen.queryByTestId("guardian-manager"),
+        ).not.toBeInTheDocument();
+      },
+    );
+
+    // ADR 0091: the backend may report full access and absence write for
+    // the Gast, but the routes behind Betreuungszeiten, pickup, arrival and
+    // status days need users:read, absence writes users:update or
+    // users:absence. Without them the page asks for nothing and offers no
+    // action: no tab, no request, no „Klassenfahrt planen“, no empty row.
+    it("loads and offers nothing a students:read session cannot use", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { token: "test-token", permissions: ["students:read"] },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+      vi.mocked(fetchStudentPickupData).mockClear();
+      mockUseStudentData.mockReturnValue({
+        ...limitedAccess,
+        hasFullAccess: true,
+        hasAbsenceWriteAccess: true,
+        hasSickExcusedWriteAccess: false,
+      });
+
+      render(<StudentDetailPage />);
+
+      // Anker: die Akte ist geladen.
+      expect(getTab("Stammdaten")).toBeInTheDocument();
+      expect(queryTab("Betreuungszeiten")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("care-schedule-manager"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Klassenfahrt planen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByLabelText("Schnellaktionen"),
+      ).not.toBeInTheDocument();
+      expect(fetchStudentPickupData).not.toHaveBeenCalled();
+    });
+
     it("shows the Änderungsprotokoll tab with users:update", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "users:update"],
+            permissions: ["config:manage", "users:update", "users:read"],
           },
         },
         status: "authenticated",
@@ -2312,8 +2421,17 @@ describe("StudentDetailPage", () => {
     });
 
     it("hides the Änderungsprotokoll tab without users:update or users:absence", () => {
-      // Die Vorgabe-Sitzung hat nur config:manage — der Aggregations-Endpunkt
-      // würde 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
+      // Ohne users:update und users:absence würde der Aggregations-Endpunkt
+      // 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "users:read"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
       render(<StudentDetailPage />);
 
       // Anker: die geladene volle Ansicht. Nur sie rendert die
@@ -2325,7 +2443,12 @@ describe("StudentDetailPage", () => {
 
     it("hides the enrollment tab without config:manage", () => {
       vi.mocked(useSession).mockReturnValue({
-        data: { user: { token: "test-token", permissions: ["config:read"] } },
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:read", "users:read"],
+          },
+        },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
 
@@ -2352,7 +2475,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "schedules:read"],
+            permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
         status: "authenticated",
@@ -2377,7 +2500,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["config:manage", "schedules:read"],
+            permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
         status: "authenticated",
@@ -2411,7 +2534,7 @@ describe("StudentDetailPage", () => {
         data: {
           user: {
             token: "test-token",
-            permissions: ["schedules:read"],
+            permissions: ["schedules:read", "users:read"],
           },
         },
         status: "authenticated",

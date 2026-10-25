@@ -39,6 +39,7 @@ type AtSchoolCounter interface {
 
 // Dependencies are the consumer-owned ports the projection reads through.
 // ExcusedRequests is optional: without it no pending note is attached.
+// Handovers is optional: without it no child carries a handover absence.
 // Collate is optional: without it the groups keep the directory order.
 // Logger defaults to slog.Default; every other field is required.
 type Dependencies struct {
@@ -51,6 +52,7 @@ type Dependencies struct {
 	Settings        Settings
 	Calendar        Calendar
 	ExcusedRequests PendingExcusedReader
+	Handovers       HandoverReader
 	// Collate orders two group names in German dictionary order (DIN 5007-1),
 	// the order the group selection and the response rely on.
 	Collate func(a, b string) int
@@ -99,13 +101,16 @@ type Student struct {
 	DayPlanningReason  string     `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel   string     `json:"day_planning_label,omitempty"`
 	PendingExcusedNote *string    `json:"pending_excused_note,omitempty"`
-	ArrivalTime        *string    `json:"arrival_time,omitempty"`
-	ArrivalIsException bool       `json:"arrival_is_exception,omitempty"`
-	ArrivalNotes       string     `json:"arrival_notes,omitempty"`
-	ActualArrivalTime  *string    `json:"actual_arrival_time,omitempty"`
-	ActualPickupTime   *string    `json:"actual_pickup_time,omitempty"`
-	PhotoURL           string     `json:"photo_url,omitempty"`
-	fullAccess         bool
+	// ClassHandover is set when the Lehrkraft handed the child over to the
+	// OGS today (#4794), with whether she marked it "nicht da".
+	ClassHandover      *ClassHandover `json:"class_handover,omitempty"`
+	ArrivalTime        *string        `json:"arrival_time,omitempty"`
+	ArrivalIsException bool           `json:"arrival_is_exception,omitempty"`
+	ArrivalNotes       string         `json:"arrival_notes,omitempty"`
+	ActualArrivalTime  *string        `json:"actual_arrival_time,omitempty"`
+	ActualPickupTime   *string        `json:"actual_pickup_time,omitempty"`
+	PhotoURL           string         `json:"photo_url,omitempty"`
+	fullAccess         bool           // Planning access: staff/admin eligibility plus users:read.
 }
 
 type RoomStatus struct {
@@ -338,20 +343,22 @@ func (s *service) projectRoster(ctx context.Context, state *buildState) error {
 	if err != nil {
 		return fmt.Errorf("resolve student access: %w", err)
 	}
-	state.projected = projectStudents(state.students, state.presence, fullAccess, photosEnabled)
+	state.projected = projectStudents(state.students, state.presence, fullAccess, photosEnabled, state.caller.CanReadStudentPlans)
 	return s.applyStatusDays(ctx, state)
 }
 
-func projectStudents(students []RosterStudent, presence PresenceSnapshot, fullAccess, photosEnabled bool) []Student {
+func projectStudents(students []RosterStudent, presence PresenceSnapshot, fullAccess, photosEnabled, canReadPlans bool) []Student {
 	result := make([]Student, 0, len(students))
 	for _, model := range students {
 		location := presence.Location(model.ID, fullAccess)
 		student := Student{
 			ID: model.ID, FirstName: model.FirstName, LastName: model.LastName,
 			SchoolClass: model.SchoolClass, Location: location.Name,
-			LocationSince: location.Since, RoomColor: location.RoomColor, fullAccess: fullAccess,
-			Sick: model.Sick, SickSince: model.SickSince,
-			Excused: model.Excused, ExcusedSince: model.ExcusedSince,
+			LocationSince: location.Since, RoomColor: location.RoomColor, fullAccess: fullAccess && canReadPlans,
+		}
+		if canReadPlans {
+			student.Sick, student.SickSince = model.Sick, model.SickSince
+			student.Excused, student.ExcusedSince = model.Excused, model.ExcusedSince
 		}
 		if photosEnabled && fullAccess && model.PhotoPath != nil {
 			student.PhotoURL = buildPhotoURL(model.ID, *model.PhotoPath)
@@ -369,7 +376,7 @@ func buildPhotoURL(studentID int64, storedURL string) string {
 }
 
 func (s *service) applyStatusDays(ctx context.Context, state *buildState) error {
-	if len(state.projected) == 0 {
+	if !state.caller.CanReadStudentPlans || len(state.projected) == 0 {
 		return nil
 	}
 	statuses, err := s.deps.Presence.EffectiveStatuses(ctx, state.studentIDs, state.today)
@@ -378,6 +385,24 @@ func (s *service) applyStatusDays(ctx context.Context, state *buildState) error 
 	}
 	for i := range state.projected {
 		applyEffectiveStatus(&state.projected[i], statuses[state.projected[i].ID])
+	}
+	return s.applyClassHandovers(ctx, state)
+}
+
+// applyClassHandovers marks the children the Lehrkraft handed over today
+// (#4794); like the status days only for callers who read plans.
+func (s *service) applyClassHandovers(ctx context.Context, state *buildState) error {
+	if s.deps.Handovers == nil {
+		return nil
+	}
+	handovers, err := s.deps.Handovers.ClassHandovers(ctx, state.studentIDs, state.today)
+	if err != nil {
+		return fmt.Errorf("apply class handovers: %w", err)
+	}
+	for i := range state.projected {
+		if handover, ok := handovers[state.projected[i].ID]; ok {
+			state.projected[i].ClassHandover = &handover
+		}
 	}
 	return nil
 }
@@ -624,16 +649,22 @@ func (s *service) finishProjection(ctx context.Context, state *buildState) (*Pro
 	if err != nil {
 		return nil, fmt.Errorf("load tracking indicators: %w", err)
 	}
+	projection.RoomStatus = roomStatuses(state.projected, state.presence, state.selected.RoomID)
+	projection.TrackingIndicators = tracking
+
+	// Transfers name the substituting staff. A guest reads groups without
+	// users:read and sees no staff (ADR 0091); the substitution owner would
+	// refuse the guest role and fail the whole roster.
+	if !state.caller.CanReadStudentPlans {
+		return projection, nil
+	}
 	transfers, err := s.deps.Transfers.GroupHandovers(ctx, state.selected.ID, state.today)
 	if err != nil {
 		return nil, fmt.Errorf("load group transfers: %w", err)
 	}
-	if transfers == nil {
-		transfers = []Transfer{}
+	if transfers != nil {
+		projection.Transfers = transfers
 	}
-	projection.RoomStatus = roomStatuses(state.projected, state.presence, state.selected.RoomID)
-	projection.TrackingIndicators = tracking
-	projection.Transfers = transfers
 	return projection, nil
 }
 

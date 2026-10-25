@@ -120,10 +120,14 @@ type Capability interface {
 }
 
 // Owner is the Student Presence capability its composition hands out,
-// together with the attendance retention and the demo snapshot.
+// together with the attendance retention, the morning attendance (#4790) and
+// its retention, the class handovers (#4794), and the demo snapshot.
 type Owner interface {
 	Capability
 	AttendanceRetention
+	MorningAttendance
+	MorningAttendanceRetention
+	ClassHandovers
 	DemoVisits
 }
 

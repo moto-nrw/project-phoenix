@@ -76,7 +76,7 @@ func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
@@ -121,7 +121,7 @@ func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 		require.NoError(t, tenantSettings.ResetValue(ctx, settings.KeyMealRegistrationEnabled, nil, nil))
 	})
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
@@ -156,7 +156,7 @@ func TestResolveTenant_GradeLevelMax_Override(t *testing.T) {
 		require.NoError(t, tenantSettings.ResetValue(ctx, settings.KeyEnrollmentGradeLevelMax, nil, nil))
 	})
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
@@ -171,30 +171,12 @@ func TestResolveTenant_GradeLevelMax_Override(t *testing.T) {
 	assert.Equal(t, 13, resp.Data.GradeLevelMax)
 }
 
-// Grade-level metadata is a validation constraint used by both enrollment
-// forms and timetable targets. Without the settings service, tenant resolve
-// must fail rather than inventing grade 4 while server validation may enforce
-// a different cap. The unrelated optional feature flags retain their own
-// fail-open/fail-closed behavior whenever settings resolution is available.
-func TestResolveTenant_NilSettingsServiceFailsGradeMetadata(t *testing.T) {
+// Missing settings are a construction error, before any shell request can run.
+func TestAccountResourceRejectsMissingSettings(t *testing.T) {
 	t.Parallel()
-
-	db, authRoute := setupAuthDependenciesRoute(t)
-	_, slug := newTenantResolveScope(t, db)
-
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
-	// Deliberately do NOT set SettingsService — exercises the nil branch.
-
-	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
-
-	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
-	rr := httptest.NewRecorder()
-	router.ServeHTTP(rr, req)
-
-	require.Equal(t, http.StatusInternalServerError, rr.Code, "Body: %s", rr.Body.String())
-	assert.Contains(t, rr.Body.String(), http.StatusText(http.StatusInternalServerError))
-	assert.NotContains(t, rr.Body.String(), "settings service not configured")
+	require.PanicsWithValue(t, "account resource: settings service is required", func() {
+		authAPI.NewResource(nil, nil, nil, nil, nil, transactionFailures.IsConstraintViolation, nil)
+	})
 }
 
 func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
@@ -203,7 +185,7 @@ func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = &settingsDouble{
 		ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
 			return 0, errors.New("private database failure detail")
@@ -227,7 +209,7 @@ func TestResolveTenant_StaffMessagingSettingsFailureIsGeneric500(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
 			if key == settings.KeyStaffMessagingEnabled {
@@ -259,7 +241,7 @@ func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
 			db, authRoute := setupAuthDependenciesRoute(t)
 			_, slug := newTenantResolveScope(t, db)
 
-			resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+			resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 			resource.SettingsService = &settingsDouble{
 				ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
 					return value, nil
@@ -287,7 +269,7 @@ func TestResolveTenant_MissingSlug_400(t *testing.T) {
 
 	_, authRoute := setupAuthDependenciesRoute(t)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))

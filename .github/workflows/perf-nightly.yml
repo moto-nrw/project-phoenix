@@ -112,6 +112,7 @@ jobs:
       # Same token for backend and the Next proxy: measure.perf.ts scrapes
       # /api/internal/metrics on the frontend with it.
       METRICS_BEARER_TOKEN: ci-metrics-token
+      # Seeder input for security.ogs_device_pin only; no runtime fallback.
       OGS_DEVICE_PIN: "1234"
       EMAIL_SMTP_HOST: localhost
       EMAIL_SMTP_PORT: 1025

@@ -428,6 +428,12 @@ func (f *OperatorMFAFlows) enqueueChallenge(ctx context.Context, input domain.Op
 	var challenge domain.OperatorMFAChallenge
 	var send func(context.Context) error
 	err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+		if _, err := f.operators.findOperatorForUpdate(txCtx, input.OperatorID); err != nil {
+			return err
+		}
+		if err := f.requireChallengeRateLimit(txCtx, input.OperatorID); err != nil {
+			return err
+		}
 		var err error
 		challenge, err = f.records.CreateChallenge(txCtx, input)
 		if err != nil {

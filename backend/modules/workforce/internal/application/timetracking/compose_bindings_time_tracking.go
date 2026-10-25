@@ -59,19 +59,20 @@ type StaffDayStatus interface {
 }
 
 // WorkSessionSide is the time tracking before the absence lifecycle; the root
-// builds the sick cascade (#1843) after it and passes it to WithSickCascade.
+// completes it with TimeTracking and binds the sick-report writes into the
+// shift-plan-sync workflow (#1843, #4825).
 type WorkSessionSide struct {
 	AutoCheckIn AutoCheckInBinding
 	Clock       *Clock
 	Staff       StaffScheduleBindingLookup
 }
 
-// WithSickCascade adds the absences over the required sick cascade.
-func (s *WorkSessionSide) WithSickCascade(cascade ShiftPlanSyncer) (*TimeTracking, error) {
-	if cascade == nil {
-		return nil, errors.New("time tracking: the sick cascade is required")
+// TimeTracking adds the absences and returns the complete time tracking.
+func (s *WorkSessionSide) TimeTracking() (*TimeTracking, error) {
+	if s.Clock == nil {
+		return nil, errors.New("time tracking: the clock is required")
 	}
-	services := s.Clock.WithAbsences(cascade)
+	services := s.Clock.WithAbsences()
 	return &TimeTracking{
 		WorkSessions:       WorkSessionCapability(services.Sessions, s.Staff),
 		TimeClock:          TimeClockCapability(services.Sessions),

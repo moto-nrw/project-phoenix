@@ -24,29 +24,31 @@ import (
 // an administrative transaction where rotation or revocation and its audit
 // evidence must commit together and otherwise run on the root connection.
 type OperatorAuthentication struct {
-	operators   *Service
-	passwords   ports.PasswordVerifier
-	hasher      ports.PasswordHasher
-	codec       ports.TokenCodec
-	mfa         ports.OperatorMFAGate
-	audit       ports.OperatorAudit
-	credentials ports.OperatorCredentialCleanup
-	runtime     ports.Runtime
-	attach      func(context.Context) context.Context
-	rotation    ports.Rotation
-	logger      *slog.Logger
+	operators      *Service
+	passwordPolicy func() (int, time.Duration, error)
+	passwords      ports.PasswordVerifier
+	hasher         ports.PasswordHasher
+	codec          ports.TokenCodec
+	mfa            ports.OperatorMFAGate
+	audit          ports.OperatorAudit
+	credentials    ports.OperatorCredentialCleanup
+	runtime        ports.Runtime
+	attach         func(context.Context) context.Context
+	rotation       ports.Rotation
+	logger         *slog.Logger
 }
 
 // OperatorAuthenticationDependencies are the ports the operator flows
 // consume.
 type OperatorAuthenticationDependencies struct {
-	Passwords   ports.PasswordVerifier
-	Hasher      ports.PasswordHasher
-	Codec       ports.TokenCodec
-	MFA         ports.OperatorMFAGate
-	Audit       ports.OperatorAudit
-	Credentials ports.OperatorCredentialCleanup
-	Runtime     ports.Runtime
+	PasswordPolicy func() (int, time.Duration, error)
+	Passwords      ports.PasswordVerifier
+	Hasher         ports.PasswordHasher
+	Codec          ports.TokenCodec
+	MFA            ports.OperatorMFAGate
+	Audit          ports.OperatorAudit
+	Credentials    ports.OperatorCredentialCleanup
+	Runtime        ports.Runtime
 	// Attach binds the composed unit of work ahead of every public flow.
 	Attach   func(context.Context) context.Context
 	Rotation ports.Rotation
@@ -57,7 +59,7 @@ type OperatorAuthenticationDependencies struct {
 // that owns platform.operators and platform.operator_refresh_tokens.
 func NewOperatorAuthentication(operators *Service, deps OperatorAuthenticationDependencies) (*OperatorAuthentication, error) {
 	switch {
-	case operators == nil, deps.Passwords == nil, deps.Hasher == nil, deps.Codec == nil, deps.MFA == nil,
+	case operators == nil, deps.PasswordPolicy == nil, deps.Passwords == nil, deps.Hasher == nil, deps.Codec == nil, deps.MFA == nil,
 		deps.Audit == nil, deps.Credentials == nil, deps.Runtime == nil, deps.Rotation == nil:
 		return nil, errors.New("identity access operator authentication: all dependencies are required")
 	}
@@ -66,7 +68,7 @@ func NewOperatorAuthentication(operators *Service, deps OperatorAuthenticationDe
 		logger = slog.Default()
 	}
 	return &OperatorAuthentication{
-		operators: operators, passwords: deps.Passwords, hasher: deps.Hasher, codec: deps.Codec, mfa: deps.MFA,
+		operators: operators, passwords: deps.Passwords, passwordPolicy: deps.PasswordPolicy, hasher: deps.Hasher, codec: deps.Codec, mfa: deps.MFA,
 		audit: deps.Audit, credentials: deps.Credentials, runtime: deps.Runtime, attach: deps.Attach, rotation: deps.Rotation,
 		logger: logger.With("component", "operator-authentication"),
 	}, nil
@@ -129,21 +131,37 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 
 func (s *OperatorAuthentication) validateCredentials(ctx context.Context, email, password string) (domain.Operator, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
-	operator, err := s.operators.FindOperatorByEmail(ctx, email)
-	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
-		return domain.Operator{}, identityaccess.ErrOperatorInvalidCredentials
-	}
+	var operator domain.Operator
+	var accepted bool
+	err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		var found bool
+		var err error
+		operator, found, _, err = s.operators.operators.FindOperatorByEmail(txCtx, email)
+		if err != nil {
+			return err
+		}
+		if found {
+			operator, found, _, err = s.operators.operators.FindOperator(txCtx, operator.ID, true)
+			if err != nil {
+				return err
+			}
+		}
+		if !found {
+			operator = domain.Operator{}
+		}
+		accepted, err = checkPasswordLogin(txCtx, s.operators.operators, s.passwords, s.passwordPolicy, operator.ID, operator.PasswordHash, password, true)
+		return err
+	})
 	if err != nil {
 		return domain.Operator{}, err
+	}
+	if !accepted {
+		return domain.Operator{}, identityaccess.ErrOperatorInvalidCredentials
 	}
 	if !operator.Active {
 		return domain.Operator{}, identityaccess.ErrOperatorInactive
 	}
-	match, err := s.passwords.VerifyPassword(password, operator.PasswordHash)
-	if err != nil || !match {
-		return domain.Operator{}, identityaccess.ErrOperatorInvalidCredentials
-	}
-	return domain.Operator(operator), nil
+	return operator, nil
 }
 
 func (s *OperatorAuthentication) authenticatedResult(ctx context.Context, operator domain.Operator, ipAddress string) (*domain.OperatorLoginResult, error) {
@@ -489,6 +507,7 @@ func (p SchoolIdentityProvisioner) EnsureSchoolIdentity(ctx context.Context, req
 			AccountID: request.AccountID, TenantID: request.TenantID,
 			Role: &domain.RoleFacts{
 				ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+				SchoolPortal: role.SchoolPortal,
 			},
 			FirstName: request.FirstName, LastName: request.LastName, Position: request.Position, CreatePerson: request.CreatePerson,
 		})
@@ -529,8 +548,8 @@ func (SchoolRolePolicy) ValidateAssignableSchoolRole(role domain.RoleFact, tenan
 	return identityaccess.ValidateAssignableSchoolRole(operatorRoleFacts(role), tenantID)
 }
 
-func (SchoolRolePolicy) IsLehrkraftSystemRole(role domain.RoleFact) bool {
-	return identityaccess.IsLehrkraftSystemRole(operatorRoleFacts(role))
+func (SchoolRolePolicy) IsLehrkraftRole(role domain.RoleFact) bool {
+	return identityaccess.IsLehrkraftRole(operatorRoleFacts(role))
 }
 
 // RoleNeedsStaffRecord classifies the fact as given, ID zero included, as the
@@ -539,6 +558,7 @@ func (SchoolRolePolicy) IsLehrkraftSystemRole(role domain.RoleFact) bool {
 func (SchoolRolePolicy) RoleNeedsStaffRecord(role domain.RoleFact) bool {
 	return identityaccess.RoleNeedsStaffRecord(&identityaccess.RoleFacts{
 		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+		SchoolPortal: role.SchoolPortal,
 	})
 }
 
@@ -577,11 +597,11 @@ func operatorRoleFacts(role domain.RoleFact) *identityaccess.RoleFacts {
 	if role.ID <= 0 {
 		return nil
 	}
-	return &identityaccess.RoleFacts{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
+	return &identityaccess.RoleFacts{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal}
 }
 
 func schoolRoleFact(role domain.RoleFact) identityaccess.SchoolRole {
-	return identityaccess.SchoolRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
+	return identityaccess.SchoolRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole, SchoolPortal: role.SchoolPortal}
 }
 
 func (s *OperatorAuthentication) mintRotatedOperatorSession(txCtx context.Context, operator domain.Operator, session domain.OperatorSession, recovered bool, now time.Time) (accessToken, refreshToken string, err error) {

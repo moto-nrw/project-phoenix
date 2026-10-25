@@ -55,9 +55,9 @@ func TestNewOnlineWindowResolver(t *testing.T) {
 			want:     2 * time.Minute,
 		},
 		{
-			name:     "no override leaves the window unresolved",
-			resolver: stubResolver{hasOverride: false},
-			want:     0,
+			name:     "registry default applies without override",
+			resolver: stubResolver{hasOverride: false, minutes: 5},
+			want:     5 * time.Minute,
 		},
 		{
 			name:     "override-check error leaves the window unresolved",

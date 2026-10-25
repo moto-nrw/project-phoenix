@@ -294,7 +294,14 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.studentSearch,
       group: "kinder",
     });
-    expect(caregiverTopics[8]?.instructionGroups).toHaveLength(4);
+    expect(caregiverTopics[8]?.instructionGroups).toHaveLength(5);
+    expect(caregiverTopics[8]?.instructionGroups?.[3]).toMatchObject({
+      title: "Ein Anwesenheitsprotokoll herunterladen",
+      steps: expect.arrayContaining([
+        "Möglich sind nur die sichtbaren Tage bis heute.",
+        "Wählen Sie das Format und danach `Herunterladen`.",
+      ]),
+    });
     expect(caregiverTopics[8]?.troubleshooting).toBe(
       HELP_TOPICS.missingChildOrGroup,
     );
@@ -323,7 +330,7 @@ describe("getParentHelpTopicForPath", () => {
       id: HELP_TOPICS.transferGroup,
     });
     // 42 seit #3821 („Eigenen Dienstplan ansehen“).
-    expect(caregiverTopics).toHaveLength(42);
+    expect(caregiverTopics).toHaveLength(43);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -502,7 +509,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            42 -
+            43 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 5 : 4) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -540,8 +547,10 @@ describe("getParentHelpTopicForPath", () => {
     // des Tagesbetriebs, der Umgang mit dem NFC-Tablet und die Notizen zu
     // einem Kind.
     // 83 seit #3821: der eigene Dienstplan ist ein geteilter Artikel.
-    // 84 seit #3873: die Fristen für das Mittagessen.
-    expect(leadTopics).toHaveLength(85);
+    // 84 seit #3727: die wichtigsten Einstellungen im Überblick.
+    // 85 mit den Gruppennachrichten.
+    // 87 mit den neuen Einstellungs- und Mittagessen-Artikeln.
+    expect(leadTopics).toHaveLength(87);
     expect(
       leadTopics.every(
         (topic) =>
@@ -566,7 +575,7 @@ describe("getParentHelpTopicForPath", () => {
     );
     const visible = new Set(parentTopics.map((topic) => topic.id));
 
-    expect(parentTopics).toHaveLength(22);
+    expect(parentTopics).toHaveLength(23);
     expect(
       parentTopics.every(
         (topic) =>
@@ -600,7 +609,8 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    expect(teacherTopics).toHaveLength(16);
+    expect(teacherTopics).toHaveLength(20);
+    expect(visible.has(HELP_TOPICS.teacherCalendar)).toBe(true);
     expect(
       teacherTopics.every(
         (topic) =>
@@ -788,6 +798,8 @@ describe("getSchoolHelpTopicForPath", () => {
     ["/school/nachrichten/42", HELP_TOPICS.teacherMessages],
     ["/tagesinformationen", HELP_TOPICS.teacherNotices],
     ["/school/tagesinformationen", HELP_TOPICS.teacherNotices],
+    ["/kalender", HELP_TOPICS.teacherCalendar],
+    ["/school/kalender", HELP_TOPICS.teacherCalendar],
     ["/einstellungen", HELP_TOPICS.teacherSettings],
     ["/school/einstellungen", HELP_TOPICS.teacherSettings],
   ])("maps %s to %s", (pathname, expectedTopic) => {

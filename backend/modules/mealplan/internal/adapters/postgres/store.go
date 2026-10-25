@@ -23,6 +23,8 @@ type row struct {
 	Position      int           `bun:"position"`
 	Dish          string        `bun:"dish"`
 	Note          *string       `bun:"note"`
+	// nullzero: an unset list inserts the column default, the empty list.
+	Allergens []string `bun:"allergens,array,nullzero"`
 }
 
 type participationScheduleRow struct {
@@ -84,7 +86,7 @@ func (s *Store) FindWeek(ctx context.Context, start, end domain.Date) ([]domain.
 	}
 	entries := make([]domain.Entry, 0, len(rows))
 	for _, value := range rows {
-		entries = append(entries, domain.Entry{Date: value.Date, Position: value.Position, Dish: value.Dish, Note: value.Note})
+		entries = append(entries, domain.Entry{Date: value.Date, Position: value.Position, Dish: value.Dish, Note: value.Note, Allergens: value.Allergens})
 	}
 	return entries, stats, nil
 }
@@ -100,7 +102,11 @@ func (s *Store) ReplaceDay(ctx context.Context, date domain.Date, dishes []mealp
 	}
 	rows := make([]row, 0, len(dishes))
 	for position, dish := range dishes {
-		rows = append(rows, row{TenantID: tenantID, Date: date, Position: position, Dish: dish.Dish, Note: dish.Note})
+		allergens := make([]string, 0, len(dish.Allergens))
+		for _, allergen := range dish.Allergens {
+			allergens = append(allergens, string(allergen))
+		}
+		rows = append(rows, row{TenantID: tenantID, Date: date, Position: position, Dish: dish.Dish, Note: dish.Note, Allergens: allergens})
 	}
 	query := db.NewInsert().Model(&rows).ModelTableExpr(`schedule.meal_plan_entries`)
 	started := time.Now()
@@ -440,18 +446,18 @@ func participationValues(schedules []participationScheduleRow, overrides []parti
 	return data
 }
 
+// loadDailySickness adds every absence change of the day up to cutoff; the
+// application resolves which of them hold at the instant it asks for.
 func loadDailySickness(ctx context.Context, db bun.IDB, tenantID int64, studentIDs []int64, date domain.Date, cutoff time.Time, states map[int64]domain.DailyParticipation, stats *domain.OperationStats) error {
 	var sickDays []sickDayRow
 	if err := timedQuery(stats, func() error {
 		return absenceHistory(db, &sickDays, tenantID).
-			DistinctOn(`"sickness_history".student_id, "sickness_history".status`).
 			Where(`"sickness_history".student_id IN (?)`, bun.List(studentIDs)).
 			Where(`"sickness_history".date = ?`, date).
 			Where(`"sickness_history".changed_at <= ?`, cutoff).
 			OrderExpr(`"sickness_history".student_id ASC`).
-			OrderExpr(`"sickness_history".status ASC`).
-			OrderExpr(`"sickness_history".changed_at DESC`).
-			OrderExpr(`"sickness_history".id DESC`).
+			OrderExpr(`"sickness_history".changed_at ASC`).
+			OrderExpr(`"sickness_history".id ASC`).
 			Scan(ctx)
 	}); err != nil {
 		return fmt.Errorf("meal plan postgres: find daily sickness history: %w", err)

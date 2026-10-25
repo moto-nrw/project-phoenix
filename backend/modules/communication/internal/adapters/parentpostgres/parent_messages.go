@@ -49,6 +49,7 @@ type parentMessageRow struct {
 	AppliedAt        *time.Time     `bun:"applied_at"`
 	AppliedBy        *int64         `bun:"applied_by"`
 	DecisionReason   string         `bun:"decision_reason,nullzero"`
+	GroupThreadID    *int64         `bun:"group_thread_id"`
 }
 
 func (r *parentMessageRow) value() *domain.ParentMessage {
@@ -62,7 +63,7 @@ func (r *parentMessageRow) value() *domain.ParentMessage {
 		EventType: r.EventType, EventActorKind: r.EventActorKind,
 		RequestType: r.RequestType, RequestStatus: r.RequestStatus, Payload: r.Payload,
 		RefTable: r.RefTable, RefID: r.RefID, AppliedAt: r.AppliedAt, AppliedBy: r.AppliedBy,
-		DecisionReason: r.DecisionReason, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		DecisionReason: r.DecisionReason, GroupThreadID: r.GroupThreadID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
@@ -75,7 +76,7 @@ func messageRow(value *domain.ParentMessage) *parentMessageRow {
 		EventType: value.EventType, EventActorKind: value.EventActorKind,
 		RequestType: value.RequestType, RequestStatus: value.RequestStatus, Payload: value.Payload,
 		RefTable: value.RefTable, RefID: value.RefID, AppliedAt: value.AppliedAt, AppliedBy: value.AppliedBy,
-		DecisionReason: value.DecisionReason,
+		DecisionReason: value.DecisionReason, GroupThreadID: value.GroupThreadID,
 	}
 }
 

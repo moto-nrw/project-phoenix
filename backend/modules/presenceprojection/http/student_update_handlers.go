@@ -14,13 +14,17 @@ import (
 func (rs *Resource) RespondUpdatedStudent(w http.ResponseWriter, r *http.Request, studentID int64, person *peopleModule.Person, hasFullAccess, companionsChanged bool, now time.Time) {
 	updatedStudent, err := rs.findStudent(r.Context(), studentID)
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to build student response", err))
 		return
 	}
 
 	group := rs.getStudentGroup(r.Context(), updatedStudent)
 
-	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)
+	photosEnabled, err := rs.SettingsService.ResolveBool(r.Context(), settingStudentPhotosEnabled)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to build student response", err))
+		return
+	}
 	response, err := newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
 		Student:       updatedStudent,
 		Person:        person,
@@ -31,7 +35,7 @@ func (rs *Resource) RespondUpdatedStudent(w http.ResponseWriter, r *http.Request
 		ActiveService: rs.ActiveService,
 	})
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to build student response", err))
 		return
 	}
 	// Same overlay as the detail read: the caller judges the write by this
@@ -39,7 +43,7 @@ func (rs *Resource) RespondUpdatedStudent(w http.ResponseWriter, r *http.Request
 	// #1735) still counts. A lift that left such a row active must not read as
 	// done (#3854).
 	if err := rs.applyStatusDaysForDateToResponse(r.Context(), &response, now); err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServerWrap("failed to build student response", err))
 		return
 	}
 	response.CompanionsChanged = &companionsChanged

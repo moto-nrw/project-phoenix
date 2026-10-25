@@ -5,6 +5,8 @@ import (
 	"errors"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
@@ -35,7 +37,7 @@ func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters
 	}
 	portal, err := catererPortalCompose.New(catererPortalCompose.Dependencies{
 		Caterers:    caterers,
-		Supplies:    mealPlan,
+		Orders:      mealPlan,
 		SchoolNames: schoolNames(schools),
 	})
 	if err != nil {
@@ -50,12 +52,12 @@ func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters
 		},
 		Resets: catererPasswordResets(identity),
 	})
-	tenantRouter.Mount("/meal-caterer", resource.SchoolRouter(ProtectedTenantRoutes, requireMealPlanAccess(mealplanAPI.AccessWrite), requireMealPlanAccess(mealplanAPI.AccessRead)))
+	tenantRouter.Mount("/meal-caterer", resource.SchoolRouter(ProtectedTenantRoutes, requireMealPlanAccess(mealplanAPI.AccessWrite), common.RequiresPermission(permissions.AdminWildcard), requireMealPlanAccess(mealplanAPI.AccessParticipants)))
 	root.Mount("/caterer", resource.CatererRouter(limiters.authMiddleware(), CatererSessionChain))
 	return nil
 }
 
-// schoolNames names schools by ID in one read of Organisation & Tenancy.
+// schoolNames names non-deleted schools by ID in one read of Organisation & Tenancy.
 func schoolNames(schools organizationtenancy.Capability) func(context.Context, []int64) (map[int64]string, error) {
 	return func(ctx context.Context, ids []int64) (map[int64]string, error) {
 		names := make(map[int64]string, len(ids))
@@ -67,6 +69,9 @@ func schoolNames(schools organizationtenancy.Capability) func(context.Context, [
 			return nil, err
 		}
 		for _, school := range found {
+			if school.IsDeleted() {
+				continue
+			}
 			names[school.ID] = school.Name
 		}
 		return names, nil

@@ -193,6 +193,9 @@ func (s *Intake) enforceRateLimit(ctx context.Context, req SubmitRequest) error 
 }
 
 func (s *Intake) enforceRateLimitBuckets(ctx context.Context, req SubmitRequest) error {
+	if req.uploadAttempt {
+		return s.countUploadAttempt(ctx, req)
+	}
 	ip := strings.TrimSpace(req.RemoteIP)
 	email := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 	if ip != "" {
