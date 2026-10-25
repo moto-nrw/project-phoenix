@@ -61,9 +61,9 @@ type arrivalExceptionFixture struct {
 // setupArrivalExceptionRoute wires the class-day resource with its write
 // seam (#2970) the way the service factory composes it. It also returns a
 // reader of the day report the capability builds.
-func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, func(t *testing.T, class string, accountID int64) []byte, chi.Router) {
+func setupArrivalExceptionRoute(t *testing.T, clocks ...func() time.Time) (*testpkg.DB, func(t *testing.T, class string, accountID int64) []byte, chi.Router) {
 	t.Helper()
-	db, factory := setupClassDayModule(t)
+	db, factory := setupClassDayModule(t, clocks...)
 	retainedMondayReport := func(t *testing.T, class string, accountID int64) []byte {
 		t.Helper()
 		report, err := testpkg.TenantQuery3(t, testpkg.Ctx(t), db, factory.ClassDay.DayReport, class, classday.Date(arrivalExceptionMonday), classday.Actor{AccountID: accountID, Roles: "lehrkraft"})
@@ -78,9 +78,9 @@ func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, func(t *testing.T, c
 // setupArrivalExceptionFixture builds one Lehrkraft with an assigned class
 // that has an active child, on a tenant of its own so the setting toggles
 // of parallel tests cannot interfere.
-func setupArrivalExceptionFixture(t *testing.T) *arrivalExceptionFixture {
+func setupArrivalExceptionFixture(t *testing.T, clocks ...func() time.Time) *arrivalExceptionFixture {
 	t.Helper()
-	db, retainedMondayReport, router := setupArrivalExceptionRoute(t)
+	db, retainedMondayReport, router := setupArrivalExceptionRoute(t, clocks...)
 	tenantID := testpkg.Tenant(t)
 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Lehr", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))

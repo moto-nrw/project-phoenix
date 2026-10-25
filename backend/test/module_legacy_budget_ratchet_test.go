@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // (+13) and the Träger transaction binding of
 // modules/transactionruntime/compose (+4).
 // ADR 0106: the Träger-Büro account management adds exactly 24 LOC.
-const moduleComposeBudgetTotal = 12450
+const moduleComposeBudgetTotal = 12448
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -172,7 +172,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/careplan/compose":             1644,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
-	"modules/classday/compose": 212,
+	"modules/classday/compose": 210,
 	// Raised by ADR 0073: the parent announcement retention.
 	"modules/communication/composition":             351,
 	"modules/dataimport/compose":                    85,

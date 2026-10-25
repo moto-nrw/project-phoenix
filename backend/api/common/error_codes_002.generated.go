@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetablePresenceWouldOverstaff              = "timetable.presence_would_overstaff"
+	CodeTimetableReopenAttendanceChanged             = "timetable.reopen_attendance_changed"
+	CodeTimetableReopenStaffBusy                     = "timetable.reopen_staff_busy"
+	CodeTimetableReopenStudentActive                 = "timetable.reopen_student_active"
 	CodeTimetableReopenSupervisionChanged            = "timetable.reopen_supervision_changed"
 	CodeTimetableRoomOccupied                        = "timetable.room_occupied"
 	CodeTimetableSeriesEndBeforeStart                = "timetable.series_end_before_start"
@@ -133,6 +137,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.presence_would_overstaff":                "business_rejection",
+	"timetable.reopen_attendance_changed":               "business_rejection",
+	"timetable.reopen_staff_busy":                       "business_rejection",
+	"timetable.reopen_student_active":                   "business_rejection",
 	"timetable.reopen_supervision_changed":              "business_rejection",
 	"timetable.room_occupied":                           "business_rejection",
 	"timetable.series_end_before_start":                 "input",

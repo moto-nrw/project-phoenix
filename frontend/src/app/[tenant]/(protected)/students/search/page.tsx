@@ -14,7 +14,13 @@ import {
   useRef,
   useState,
 } from "react";
-import { CalendarRange, Download, FileText, Search } from "lucide-react";
+import {
+  CalendarRange,
+  Download,
+  FileText,
+  Search,
+  StickyNote,
+} from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
@@ -61,7 +67,11 @@ import {
   isSchoolyardLocation,
   isTransitLocation,
 } from "~/lib/location-helper";
-import { SCHOOL_YEAR_FILTER_OPTIONS } from "~/lib/student-helpers";
+import {
+  SCHOOL_YEAR_FILTER_OPTIONS,
+  teacherHintKey,
+  teacherHintText,
+} from "~/lib/student-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { useLatest } from "~/lib/hooks/use-latest";
 import {
@@ -3612,6 +3622,20 @@ function SearchPageContent() {
                                 note={student.pending_excused_note}
                               />
                             )}
+                          {(student.teacher_hints ?? []).map((hint) => (
+                            <StudentInfoRow
+                              key={teacherHintKey(hint)}
+                              icon={
+                                <StickyNote
+                                  className="h-3.5 w-3.5 text-gray-400"
+                                  aria-hidden="true"
+                                />
+                              }
+                              wrap
+                            >
+                              {teacherHintText(hint)}
+                            </StudentInfoRow>
+                          ))}
                           {student.has_full_access !== false &&
                             student.class_handover &&
                             (student.class_handover.absent ? (

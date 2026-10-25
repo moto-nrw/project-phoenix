@@ -153,6 +153,14 @@ export const ERROR_CATALOG = {
         "Für ein Kind steht an einem dieser Tage schon etwas, zum Beispiel krank. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
       "classday.class_trip_student_not_in_class":
         "Ein Kind ist nicht mehr in dieser Klasse. Bitte laden Sie die Seite neu.",
+      "classday.day_hint_class_empty":
+        "In dieser Klasse ist kein Kind in der OGS. Ein Hinweis für die ganze Klasse ist deshalb nicht möglich.",
+      "classday.day_hint_invalid":
+        "Der Hinweis braucht einen Text. Er darf höchstens 500 Zeichen lang sein.",
+      "classday.day_hint_not_today":
+        "Einen Hinweis für die OGS können Sie nur für heute schreiben.",
+      "classday.day_hint_student_not_in_class":
+        "Dieses Kind ist heute nicht in Ihrer Klasse. Bitte laden Sie die Seite neu.",
       "classday.homework_not_found":
         "Diese Hausaufgabe gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "classday.morning_attendance_no_school_day":
@@ -1406,6 +1414,14 @@ export const ERROR_CATALOG = {
         "A class can only be handed over today. Please open today.",
       "classday.class_handover_unknown_child":
         "A child no longer belongs to this class. Please reload the page.",
+      "classday.day_hint_class_empty":
+        "No child in this class attends the OGS. A note for the whole class is therefore not possible.",
+      "classday.day_hint_invalid":
+        "The note needs a text. It may be at most 500 characters long.",
+      "classday.day_hint_not_today":
+        "You can only write a note for the OGS for today.",
+      "classday.day_hint_student_not_in_class":
+        "This child is not in your class today. Please reload the page.",
       "classday.homework_not_found":
         "This homework no longer exists. Please reload the page.",
       "classday.morning_attendance_no_school_day":
@@ -1759,6 +1775,10 @@ export const ERROR_CATALOG = {
         "Передать класс можно только сегодня. Откройте сегодняшний день.",
       "classday.class_handover_unknown_child":
         "Один ребёнок больше не относится к этому классу. Обновите страницу.",
+      "classday.day_hint_class_empty":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
+      "classday.day_hint_student_not_in_class":
+        "Не удалось сохранить: {object}. Проверьте введённые данные.",
       "classday.homework_not_found":
         "Этого домашнего задания больше нет. Обновите страницу.",
       "classday.morning_attendance_no_school_day":
@@ -2082,6 +2102,10 @@ export const ERROR_CATALOG = {
         "Klasa dorëzohet vetëm sot. Hapni ditën e sotme.",
       "classday.class_handover_unknown_child":
         "Një fëmijë nuk i përket më kësaj klase. Ringarkoni faqen.",
+      "classday.day_hint_class_empty":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+      "classday.day_hint_student_not_in_class":
+        "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
       "classday.homework_not_found":
         "Kjo detyrë shtëpie nuk ekziston më. Ringarkoni faqen.",
       "classday.morning_attendance_no_school_day":
@@ -2416,6 +2440,10 @@ export const ERROR_CATALOG = {
         "Klasę można przekazać tylko dzisiaj. Otwórz dzisiejszy dzień.",
       "classday.class_handover_unknown_child":
         "Jedno dziecko nie należy już do tej klasy. Odśwież stronę.",
+      "classday.day_hint_class_empty":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+      "classday.day_hint_student_not_in_class":
+        "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
       "classday.homework_not_found":
         "Tego zadania domowego już nie ma. Odśwież stronę.",
       "classday.morning_attendance_no_school_day":
@@ -2739,6 +2767,10 @@ export const ERROR_CATALOG = {
         "Sınıf yalnızca bugün teslim edilebilir. Lütfen bugünü açın.",
       "classday.class_handover_unknown_child":
         "Bir çocuk artık bu sınıfa ait değil. Lütfen sayfayı yenileyin.",
+      "classday.day_hint_class_empty":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+      "classday.day_hint_student_not_in_class":
+        "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
       "classday.homework_not_found":
         "Bu ev ödevi artık yok. Lütfen sayfayı yenileyin.",
       "classday.morning_attendance_no_school_day":
@@ -3065,6 +3097,10 @@ export const ERROR_CATALOG = {
         "Передати клас можна лише сьогодні. Відкрийте сьогоднішній день.",
       "classday.class_handover_unknown_child":
         "Одна дитина більше не належить до цього класу. Оновіть сторінку.",
+      "classday.day_hint_class_empty":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
+      "classday.day_hint_student_not_in_class":
+        "Не вдалося зберегти: {object}. Перевірте введені дані.",
       "classday.homework_not_found":
         "Цього домашнього завдання більше немає. Оновіть сторінку.",
       "classday.morning_attendance_no_school_day":

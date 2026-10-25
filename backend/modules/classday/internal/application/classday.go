@@ -37,6 +37,10 @@ type ClassDayDependencies struct {
 	TripScope       ClassTripWriteScope
 	TripStatusDays  ClassTripStatusDays
 	StudentArrivals studentArrivals
+	// HintScope opens the day-hint seam (#4795).
+	HintScope DayHintWriteScope
+	// DayHintDependencies are the day-hint seam (#4795).
+	DayHintDependencies
 	// MorningAttendanceDependencies are the morning attendance seam (#4790).
 	MorningAttendanceDependencies
 	// HomeworkDependencies are the homework seam (#4796).
@@ -55,6 +59,7 @@ type classDayService struct {
 	*dayReports
 	arrivalExceptions
 	classTrips
+	dayHints
 	morningAttendance
 	homework
 	classHandover
@@ -66,10 +71,13 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 	if deps.Caller == nil || deps.Rosters == nil {
 		panic("classday application.NewClassDay: Caller and Rosters dependencies are required")
 	}
+	hints := dayHints{store: deps.DayHints, scope: deps.HintScope, rosters: deps.Rosters, today: deps.Today, announcer: deps.Announcer}
+	reports := newDayReports(deps)
+	reports.hints = hints
 	return &classDayService{
 		Caller:     deps.Caller,
 		caller:     deps.Caller,
-		dayReports: newDayReports(deps),
+		dayReports: reports,
 		arrivalExceptions: arrivalExceptions{
 			schedule: deps.ClassArrivalExceptions, writeScope: deps.WriteScope,
 			blockStarts: deps.BlockStarts, announcer: deps.Announcer,
@@ -78,6 +86,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 			rosters: deps.Rosters, writeScope: deps.TripScope, statusDays: deps.TripStatusDays,
 			arrivals: deps.StudentArrivals, announcer: deps.Announcer,
 		},
+		dayHints:          hints,
 		morningAttendance: newMorningAttendance(deps),
 		homework:          newHomework(deps),
 		classHandover:     newClassHandover(deps),
