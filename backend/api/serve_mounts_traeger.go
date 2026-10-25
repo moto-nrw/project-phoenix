@@ -6,6 +6,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/traegerportal"
@@ -26,8 +29,8 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 	return nil
 }
 
-// NewTraegerPortalHTTP binds the Träger sign-in and the Träger projection to
-// the portal's route ports.
+// NewTraegerPortalHTTP binds the Träger sign-in, the Träger projection and
+// the holiday periods of Enrollment to the portal's route ports.
 func NewTraegerPortalHTTP(identity identityaccess.TraegerAccountLogin, organizations organizationtenancy.TraegerMembershipQuery) (*traegerportal.Resource, error) {
 	if identity == nil || organizations == nil {
 		return nil, errors.New("traeger portal: identity and organizations are required")
@@ -36,7 +39,9 @@ func NewTraegerPortalHTTP(identity identityaccess.TraegerAccountLogin, organizat
 	if err != nil {
 		return nil, err
 	}
-	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview)), nil
+	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(),
+		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage))
+	return traegerportal.NewResource(TraegerPortalAuth(identity), traegerViewHTTP.NewResource(overview), holidayPeriods), nil
 }
 
 // TraegerPortalAuth binds the Träger-Portal's session port to Identity &

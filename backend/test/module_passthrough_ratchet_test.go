@@ -228,7 +228,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // for modules/communication and modules/schoolcalendar).
 // Raised by ADR 0079: the reachable-children read of modules/communication (+1).
 // Raised by ADR 0104: FindManageableAccount of modules/identityaccess (+1).
-const modulePassthroughOwnerBudgetTotal = 1401
+// Raised by ADR 0105: the holiday period reads of modules/enrollment (+2).
+const modulePassthroughOwnerBudgetTotal = 1403
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -254,7 +255,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/delivery":            5,
 	"modules/devicefleet":         33,
 	"modules/devicescan":          35,
-	"modules/enrollment":          24,
+	"modules/enrollment":          26, // Raised by ADR 0105: the holiday period reads of the Träger-Portal.
 	"modules/exporttransfer":      1,
 	"modules/facilities":          13,
 	"modules/feedback":            2,

@@ -30,10 +30,12 @@ func NewResource(overview traegerview.Overview) *Resource {
 
 // TraegerRouter returns the routes mounted at /traeger/schools inside the
 // Träger route group the portal supplies.
-func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router))) chi.Router {
+// The projection reads in its own administrative unit, so it does not use
+// the Träger transaction the group offers.
+func (rs *Resource) TraegerRouter(protectedTraegerRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
-	protectedTraegerRoutes(r, func(r chi.Router) {
+	protectedTraegerRoutes(r, func(r chi.Router, _ common.Middleware) {
 		r.With(common.RequiresPermission(identityaccess.TraegerRightOverviewRead)).Get("/", rs.listSchools)
 	})
 	return r
