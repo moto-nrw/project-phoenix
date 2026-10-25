@@ -156,6 +156,7 @@ export const HELP_TOPICS = {
   leadWorkTimeReview: "arbeitszeiten-des-teams-pruefen",
   leadAbsenceReport: "abwesenheiten-auswerten",
   leadStatistics: "statistik-oeffnen",
+  leadHolidayWeeks: "ferienwochen-teilnehmer-ansehen",
   leadExports: "liste-exportieren",
   leadPayroll: "abrechnung-vorbereiten",
   leadParentVisibility: "festlegen-was-eltern-sehen",
@@ -276,6 +277,7 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/parent-announcements": HELP_TOPICS.leadParentAnnouncement,
   "/payroll": HELP_TOPICS.leadPayroll,
   "/statistics": HELP_TOPICS.leadStatistics,
+  "/ferienwochen": HELP_TOPICS.leadHolidayWeeks,
   "/vertretung": HELP_TOPICS.leadSubstitutionPlan,
 
   // Unterseiten der Datenverwaltung. Ohne diese Einträge fiele jede von

@@ -559,7 +559,8 @@ describe("getParentHelpTopicForPath", () => {
     // 89 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
     // 90 seit #4894: Welche Module hat meine Schule?
     // 92 seit #4781: Umfrage mit Fragebogen und das geteilte Teilnehmen.
-    expect(leadTopics).toHaveLength(92);
+    // 93 seit #4665: Die Kinder einer Ferienwoche ansehen.
+    expect(leadTopics).toHaveLength(93);
     expect(
       leadTopics.every(
         (topic) =>
