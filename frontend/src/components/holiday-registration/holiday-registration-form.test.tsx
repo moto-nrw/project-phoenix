@@ -154,6 +154,22 @@ describe("HolidayRegistrationForm", () => {
     expect(
       screen.getByText("Bitte wählen Sie die Schule Ihres Kindes."),
     ).toBeInTheDocument();
+    // The date of birth carries its hint like every other field (quorum
+    // round 2): the day select is named, all three are described by it.
+    for (const part of ["Tag", "Monat", "Jahr"]) {
+      expect(screen.getByRole("combobox", { name: part })).toHaveAttribute(
+        "aria-describedby",
+        "children.0-birth-date-error",
+      );
+    }
+    expect(
+      document.getElementById("children.0-birth-date-error"),
+    ).toHaveTextContent("Bitte füllen Sie dieses Feld aus.");
+    expect(
+      document.querySelector(
+        'input[type="hidden"][name="children.0.birth_date"]',
+      ),
+    ).not.toBeNull();
     expect(
       screen.queryByText("Bitte prüfen Sie Ihre Angaben"),
     ).not.toBeInTheDocument();

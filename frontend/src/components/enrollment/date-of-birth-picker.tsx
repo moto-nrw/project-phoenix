@@ -24,12 +24,19 @@ export function DateOfBirthPicker({
   onChange,
   error,
   tr,
+  name,
+  errorId,
 }: {
   readonly value: string;
   readonly onChange: (v: string) => void;
   readonly error?: string;
   readonly tr: DateOfBirthTranslator;
+  /** Form field name on the day select, so a refused field can be focused. */
+  readonly name?: string;
+  /** Id of the error hint the three selects are described by. */
+  readonly errorId?: string;
 }) {
+  const describedBy = error && errorId ? errorId : undefined;
   // Internal state so partial selections (only day picked, only month
   // picked, etc.) survive between renders. We sync from `value` when
   // it changes externally (e.g. "Übernehmen" prefill), then push the
@@ -103,7 +110,9 @@ export function DateOfBirthPicker({
         <CustomSelect
           value={day}
           onChange={handleDay}
+          name={name}
           ariaLabel={tr("structured.day")}
+          ariaDescribedBy={describedBy}
           invalid={Boolean(error)}
           options={[
             { value: "", label: tr("structured.day") },
@@ -117,6 +126,7 @@ export function DateOfBirthPicker({
           value={month}
           onChange={handleMonth}
           ariaLabel={tr("structured.month")}
+          ariaDescribedBy={describedBy}
           invalid={Boolean(error)}
           options={[
             { value: "", label: tr("structured.month") },
@@ -130,6 +140,7 @@ export function DateOfBirthPicker({
           value={year}
           onChange={handleYear}
           ariaLabel={tr("structured.year")}
+          ariaDescribedBy={describedBy}
           invalid={Boolean(error)}
           options={[
             { value: "", label: tr("structured.year") },
@@ -140,7 +151,11 @@ export function DateOfBirthPicker({
           ]}
         />
       </div>
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
+      {error && (
+        <p id={errorId} className="text-moto-red mt-1 text-xs">
+          {error}
+        </p>
+      )}
     </>
   );
 }

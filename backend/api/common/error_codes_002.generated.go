@@ -2,6 +2,10 @@
 package common
 
 const (
+	CodeTimetablePlanningTrackArchived               = "timetable.planning_track_archived"
+	CodeTimetablePlanningTrackInvalid                = "timetable.planning_track_invalid"
+	CodeTimetablePlanningTrackNameTaken              = "timetable.planning_track_name_taken"
+	CodeTimetablePlanningTrackNotFound               = "timetable.planning_track_not_found"
 	CodeTimetablePresenceWouldOverstaff              = "timetable.presence_would_overstaff"
 	CodeTimetableReopenAttendanceChanged             = "timetable.reopen_attendance_changed"
 	CodeTimetableReopenStaffBusy                     = "timetable.reopen_staff_busy"
@@ -137,6 +141,10 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.planning_track_archived":                 "business_rejection",
+	"timetable.planning_track_invalid":                  "input",
+	"timetable.planning_track_name_taken":               "business_rejection",
+	"timetable.planning_track_not_found":                "business_rejection",
 	"timetable.presence_would_overstaff":                "business_rejection",
 	"timetable.reopen_attendance_changed":               "business_rejection",
 	"timetable.reopen_staff_busy":                       "business_rejection",

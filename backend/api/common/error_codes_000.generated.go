@@ -302,10 +302,6 @@ const (
 	CodeIdentityOperatorSelfDeactivation                 = "identity.operator_self_deactivation"
 	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
 	CodeIdentityPasskeyNotFound                          = "identity.passkey_not_found"
-	CodeIdentityPasswordMismatch                         = "identity.password_mismatch"
-	CodeIdentityPasswordResetLinkInvalid                 = "identity.password_reset_link_invalid"
-	CodeIdentityPasswordResetRateLimited                 = "identity.password_reset_rate_limited"
-	CodeIdentityPasswordTooWeak                          = "identity.password_too_weak"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -609,10 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.operator_self_deactivation":                  "business_rejection",
 	"identity.passkey_login_failed":                        "business_rejection",
 	"identity.passkey_not_found":                           "business_rejection",
-	"identity.password_mismatch":                           "input",
-	"identity.password_reset_link_invalid":                 "business_rejection",
-	"identity.password_reset_rate_limited":                 "unavailable",
-	"identity.password_too_weak":                           "input",
 }
 
 func init() {

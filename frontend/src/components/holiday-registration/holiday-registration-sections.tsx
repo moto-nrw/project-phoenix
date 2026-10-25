@@ -129,6 +129,8 @@ export function ChildCard({
             onChange={(birthDate) => set({ birthDate })}
             error={birthDateError}
             tr={dateOfBirth}
+            name={`${prefix}.birth_date`}
+            errorId={`${prefix}-birth-date-error`}
           />
         </div>
         <div className="space-y-2">
