@@ -178,4 +178,41 @@ describe("MFAAdminOverrideModal", () => {
       screen.queryByText(catalogText("general.server", "die 2FA-Einstellung")),
     ).not.toBeInTheDocument();
   });
+
+  it("resets a Träger-Büro member by the Träger membership and offers no override (#4651)", async () => {
+    global.fetch = noContent();
+    render(
+      <MFAAdminOverrideModal
+        {...props}
+        scope="traeger"
+        organizationId="7"
+        accountLabel="buero@traeger.example"
+      />,
+    );
+
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Grund/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Grund/), {
+      target: { value: "Gesperrt nach Fehlversuchen" },
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: /2FA endgültig zurücksetzen/ }),
+      );
+    });
+
+    const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(1);
+    const [url, init] = calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "/api/operator/provisioning/organizations/7/traeger-members/42/mfa",
+    );
+    expect(init.method).toBe("DELETE");
+    expect(JSON.parse(init.body as string)).toEqual({
+      reason: "Gesperrt nach Fehlversuchen",
+    });
+    expect(
+      await screen.findByText(/Beim nächsten Login im Träger-Portal/),
+    ).toBeInTheDocument();
+  });
 });

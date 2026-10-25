@@ -48,8 +48,8 @@ import {
 import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
+import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
-import { ResetTraegerMfaModal } from "~/app/operator/provisioning/reset-traeger-mfa-modal";
 import { traegerMemberColumns } from "./traeger-member-columns";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
@@ -97,7 +97,8 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
 
 function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   const { slug } = use(params);
-  const { status } = useSession();
+  const { status, data: session } = useSession();
+  const operatorBearerToken = session?.user?.token ?? "";
   const isAuthenticated = status === "authenticated";
   const router = useRouter();
   const pathname = usePathname();
@@ -723,12 +724,17 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         onAssigned={() => mutateTraegerMembers()}
       />
 
-      <ResetTraegerMfaModal
-        member={mfaResetMember}
-        onClose={() => setMfaResetMember(null)}
-        organizationId={organization.id}
-        onReset={() => mutateTraegerMembers()}
-      />
+      {mfaResetMember ? (
+        <MFAAdminOverrideModal
+          isOpen={true}
+          onClose={() => setMfaResetMember(null)}
+          scope="traeger"
+          organizationId={organization.id}
+          bearerToken={operatorBearerToken}
+          accountId={mfaResetMember.accountId}
+          accountLabel={mfaResetMember.email}
+        />
+      ) : null}
 
       {caregiverAccount && caregiverSchoolContext ? (
         <CaregiverCapabilityModal

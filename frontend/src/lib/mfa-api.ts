@@ -431,6 +431,24 @@ export async function operatorAdminResetMFA(
   );
 }
 
+/**
+ * Resets the second factor of a Träger-Büro member (#4651). The membership,
+ * not a school, scopes the operator's reset; the person sets the factor up
+ * again at the next sign-in.
+ */
+export async function operatorAdminResetTraegerMFA(
+  bearerToken: string,
+  organizationId: string,
+  accountId: string,
+  reason: string,
+): Promise<void> {
+  await postJson<unknown>(
+    `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/traeger-members/${encodeURIComponent(accountId)}/mfa`,
+    { reason },
+    { bearerToken, method: "DELETE", allowEmptyBody: true },
+  );
+}
+
 export async function operatorAdminSetMFAOverride(
   bearerToken: string,
   schoolId: string,
