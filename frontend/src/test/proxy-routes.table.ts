@@ -335,6 +335,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/parent/enrollments/[tenantSlug]/submit": [
     "POST parent /parent/enrollments/tenantSlug%2F1/submit",
   ],
+  "api/parent/holiday-registrations/[token]/family": [
+    "GET parent /parent/holiday-registrations/token%2F1/family",
+  ],
   "api/parent/me/children": ["GET parent /parent/me/children"],
   "api/parent/me/children/[studentId]/care-offerings": [
     "GET parent /parent/me/children/studentId%2F1/care-offerings",

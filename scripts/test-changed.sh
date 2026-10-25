@@ -7,8 +7,7 @@
 # Usage: scripts/test-changed.sh [--fast] [base-ref]   (Default: origin/development)
 #   --fast: nur direkt geänderte Packages plus ihre direkten Importer
 #           (Depth 1 statt transitiver Closure, ohne das Ratchet-Package
-#           ./test). Für die schnelle Fix-Iteration; vor dem Push einmal
-#           ohne --fast laufen lassen.
+#           ./test). Reicht vor dem Push; CI läuft die volle Closure.
 set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
@@ -26,7 +25,7 @@ MB=$(git merge-base HEAD "$BASE")
 
 affected=()
 if [ "$FAST" = true ]; then
-  echo "==> Schnellmodus: nur direkt geänderte Packages und ihre direkten Importer. Vor dem Push ohne --fast laufen lassen."
+  echo "==> Schnellmodus: nur direkt geänderte Packages und ihre direkten Importer. CI läuft die volle Closure."
   affected_output=$(scripts/backend-affected-packages.sh --direct "$BASE")
 else
   affected_output=$(scripts/backend-affected-packages.sh "$BASE")

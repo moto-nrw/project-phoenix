@@ -88,8 +88,8 @@ function fixture(t) {
   }
   write('scripts/run-go-toolchain.sh', `#!/bin/bash
 printf '%s\\n' "$*"
-if [[ "$*" == *check-quality.sh* && "\${FAIL_QUALITY:-}" == 1 ]]; then exit 9; fi
-if [[ "$*" == *check-quality.sh* && "\${MUTATE_SOURCE:-}" == 1 ]]; then echo changed >> backend/example.go; fi
+if [[ "$*" == *quality.sh* && "\${FAIL_QUALITY:-}" == 1 ]]; then exit 9; fi
+if [[ "$*" == *quality.sh* && "\${MUTATE_SOURCE:-}" == 1 ]]; then echo changed >> backend/example.go; fi
 `);
   write('.devbox/nix/profile/default/bin/gitleaks', '#!/bin/bash\nexit "${FAIL_SECRETS:-0}"\n');
   symlinkSync(process.execPath, join(root, '.devbox/nix/profile/default/bin/node'));
@@ -115,7 +115,7 @@ test('docs-only follow-up still runs backend gate and propagates its failure', t
   const result = f.check({ FAIL_QUALITY: '1' });
   assert.equal(result.status, 9, result.stdout + result.stderr);
   assert.match(result.stdout, /backend=true frontend=false/);
-  assert.match(result.stdout, /check-quality.sh backend/);
+  assert.match(result.stdout, /check-backend-quality.sh lint/);
   assert.doesNotMatch(result.stdout, /quality checks passed/);
 });
 
@@ -176,7 +176,7 @@ test('deleted backend files still trigger quality but not integration tests', t 
   f.commit('README.md', 'deleted backend file\n');
   const result = f.check();
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /check-quality.sh backend/);
+  assert.match(result.stdout, /check-backend-quality.sh lint/);
   assert.doesNotMatch(result.stdout, /test-changed.sh/);
 });
 
@@ -384,15 +384,15 @@ test('shared backend quality fails when an analyzer executable is missing', t =>
   assert.match(result.stderr, /go: command not found/);
 });
 
-test('successful backend checks survive a docs-only follow-up but vulnerabilities still run', t => {
+test('successful backend checks survive a docs-only follow-up and CI-only analysis stays out of pre-push', t => {
   const f = fixture(t);
   f.commit('backend/example.go', 'package example\n');
   assert.equal(f.check().status, 0);
   f.commit('README.md', 'docs-only follow-up\n');
   const result = f.check();
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  for (const stage of ['backend-quality', 'backend-lint', 'architecture']) assert.match(result.stdout, new RegExp(`\\[${stage}\\] cache hit`));
-  assert.match(result.stdout, /vulnerabilities/);
+  assert.match(result.stdout, /\[backend-lint\] cache hit/);
+  assert.doesNotMatch(result.stdout, /check-quality.sh backend|backend-architecture|vulnerabilities|react-doctor/);
 });
 
 test('failures never create successful cache records', t => {
@@ -401,7 +401,7 @@ test('failures never create successful cache records', t => {
   for (let attempt = 0; attempt < 2; attempt++) {
     const result = f.check({ FAIL_QUALITY: '1' });
     assert.equal(result.status, 9);
-    assert.match(result.stdout, /\[backend-quality\] cache miss/);
+    assert.match(result.stdout, /\[backend-lint\] cache miss/);
   }
   assert.equal(f.check().status, 0);
 });
@@ -413,7 +413,7 @@ test('source edits invalidate a successful static result', t => {
   f.commit('backend/example.go', 'package changed\n');
   const result = f.check({ FAIL_QUALITY: '1' });
   assert.equal(result.status, 9);
-  assert.match(result.stdout, /\[backend-quality\] cache miss/);
+  assert.match(result.stdout, /\[backend-lint\] cache miss/);
 });
 
 test('changing a checker invalidates its success', t => {
@@ -425,24 +425,25 @@ test('changing a checker invalidates its success', t => {
   assert.equal(result.status, 9);
 });
 
-test('advancing the base invalidates cached comparisons even if the merge-base is unchanged', t => {
+test('advancing the base keeps cached results while the merge-base is unchanged', t => {
   const f = fixture(t);
   f.commit('backend/example.go', 'package example\n');
   assert.equal(f.check().status, 0);
   const next = f.git('commit-tree', f.git('rev-parse', 'base^{tree}'), '-p', f.git('rev-parse', 'base'), '-m', 'advance base');
   f.git('branch', '-f', 'base', next);
   const result = f.check({ FAIL_QUALITY: '1' });
-  assert.equal(result.status, 9);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /\[backend-lint\] cache hit/);
 });
 
 test('changed installed tools invalidate results; missing tools also fail on a warm cache', t => {
   const f = fixture(t);
   f.commit('backend/example.go', 'package example\n');
   assert.equal(f.check().status, 0);
-  f.write('.devbox/nix/profile/default/bin/gofmt', '#!/bin/bash\n# updated tool\nexit 0\n');
+  f.write('.devbox/nix/profile/default/bin/golangci-lint', '#!/bin/bash\n# updated tool\nexit 0\n');
   assert.equal(f.check({ FAIL_QUALITY: '1' }).status, 9);
-  rmSync(join(f.root, '.devbox/nix/profile/default/bin/gofmt'));
-  assert.match(f.check().stderr, /Pinned gofmt is missing/);
+  rmSync(join(f.root, '.devbox/nix/profile/default/bin/golangci-lint'));
+  assert.match(f.check().stderr, /Pinned golangci-lint is missing/);
 });
 
 test('a warm cache cannot hide dirty source or source changes during validation', t => {
@@ -452,7 +453,7 @@ test('a warm cache cannot hide dirty source or source changes during validation'
   assert.notEqual(mutated.status, 0);
   assert.match(mutated.stderr, /Source changed during pre-push/);
   f.git('restore', 'backend/example.go');
-  assert.match(f.check().stdout, /\[backend-quality\] cache miss/);
+  assert.match(f.check().stdout, /\[backend-lint\] cache miss/);
   f.write('backend/example.go', 'package dirty\n');
   assert.match(f.check().stderr, /requires a clean working tree/);
 });
@@ -463,7 +464,7 @@ test('frontend-only quality changes do not run backend analysis', t => {
   const result = f.check();
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /backend=false frontend=true/);
-  assert.doesNotMatch(result.stdout, /\[backend-quality\]/);
+  assert.doesNotMatch(result.stdout, /\[backend-lint\]/);
 });
 
 test('frontend cached results survive docs but invalidate on source and generated-type changes', t => {
@@ -479,24 +480,35 @@ test('frontend cached results survive docs but invalidate on source and generate
   assert.match(f.check().stdout, /\[frontend-quality\] cache miss/);
 });
 
-test('architecture decision changes invalidate architecture evidence without rerunning unrelated checks', t => {
+test('PHX_PREPUSH=skip bypasses every check', t => {
   const f = fixture(t);
   f.commit('backend/example.go', 'package example\n');
-  f.commit('docs/adr/0083-effects.md', '# Accepted effects decision\n');
-  assert.equal(f.check().status, 0);
-  f.commit('docs/adr/0083-effects.md', '# Changed effects decision\n');
-  const result = f.check();
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /\[architecture\] cache miss/);
-  for (const stage of ['backend-quality', 'backend-lint']) assert.match(result.stdout, new RegExp(`\\[${stage}\\] cache hit`));
+  const result = f.check({ PHX_PREPUSH: 'skip', FAIL_QUALITY: '1' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /Pre-push skipped/);
 });
 
-test('pass-through register changes invalidate architecture evidence', t => {
+test('conflict-free base merge onto the pushed branch skips checks, own changes do not', t => {
   const f = fixture(t);
-  f.commit('backend/architecture/passthrough.json', '{"sites":[]}\n');
-  assert.equal(f.check().status, 0);
-  f.commit('backend/architecture/passthrough.json', '{"sites":[{"id":"changed"}]}\n');
-  const result = f.check();
+  f.git('switch', '-qc', 'topic');
+  f.commit('backend/example.go', 'package example\n');
+  const pushed = f.git('rev-parse', 'HEAD');
+  f.git('switch', '-q', 'base');
+  f.commit('backend/other.go', 'package other\n');
+  f.git('switch', '-q', 'topic');
+  f.git('merge', '-q', '--no-edit', 'base');
+  const push = () => f.run('bash', ['scripts/pre-push.sh', '--hook', 'base'], {
+    env: { ...f.env, FAIL_QUALITY: '1' },
+    input: `HEAD ${f.git('rev-parse', 'HEAD')} refs/heads/topic ${pushed}\n`,
+  });
+  let result = push();
   assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /\[architecture\] cache miss/);
+  assert.match(result.stdout, /conflict-free merge/);
+  f.git('reset', '-q', '--hard', 'HEAD^1');
+  f.git('merge', '-q', '--no-edit', '--no-commit', 'base');
+  f.write('backend/example.go', 'package edited\n');
+  f.git('add', '.');
+  f.git('commit', '-qm', 'merge with edit');
+  result = push();
+  assert.equal(result.status, 9, result.stdout + result.stderr);
 });
