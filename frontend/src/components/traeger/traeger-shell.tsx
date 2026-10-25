@@ -1,11 +1,12 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { useState } from "react";
 import { MotoBrand } from "~/components/auth/moto-brand";
 import { Button } from "~/components/ui/button";
 import { NavLink } from "~/components/ui/nav-link";
+import { NavigationTabs } from "~/components/ui/page-header/NavigationTabs";
 import { PortalShell } from "~/components/ui/portal-shell";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
@@ -15,35 +16,32 @@ import { TRAEGER_HELP_HREF } from "./traeger-help";
 
 const logger = createLogger({ component: "TraegerShell" });
 
-const NAV_LINK_CLASS =
-  "rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none aria-[current=page]:bg-gray-100 aria-[current=page]:text-gray-900";
+const NAV_ITEMS = [
+  { id: "schulen", label: "Schulen", path: "/traeger" },
+  { id: "ferien", label: "Ferien", path: "/traeger/ferien" },
+] as const;
 
-/** The pages of the portal; the holiday periods need "Anmeldung verwalten". */
+/**
+ * The pages of the portal as header tabs. The holiday periods need the right
+ * "Anmeldung verwalten"; a person without it has one page and no tabs.
+ */
 function TraegerNav({
   canManageEnrollment,
 }: Readonly<{ canManageEnrollment: boolean }>) {
+  const router = useRouter();
   const pathname = usePathname() ?? "";
+  if (!canManageEnrollment) return null;
   const onHolidays =
     pathname.startsWith("/ferien") || pathname.startsWith("/traeger/ferien");
   return (
-    <nav aria-label="Bereiche" className="flex items-center gap-1">
-      <NavLink
-        href={traegerPath("/traeger")}
-        aria-current={onHolidays ? undefined : "page"}
-        className={NAV_LINK_CLASS}
-      >
-        Schulen
-      </NavLink>
-      {canManageEnrollment ? (
-        <NavLink
-          href={traegerPath("/traeger/ferien")}
-          aria-current={onHolidays ? "page" : undefined}
-          className={NAV_LINK_CLASS}
-        >
-          Ferien
-        </NavLink>
-      ) : null}
-    </nav>
+    <NavigationTabs
+      items={NAV_ITEMS.map(({ id, label }) => ({ id, label }))}
+      activeTab={onHolidays ? "ferien" : "schulen"}
+      onTabChange={(id) => {
+        const item = NAV_ITEMS.find((candidate) => candidate.id === id);
+        if (item) router.push(traegerPath(item.path));
+      }}
+    />
   );
 }
 

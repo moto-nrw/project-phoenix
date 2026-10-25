@@ -334,7 +334,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_host_school_outside_traeger":
         "Diese Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie eine Schule aus der Liste.",
       "enrollment.holiday_period_incomplete":
-        "Der Ferienzeitraum ist noch nicht vollständig. Jede Woche braucht mindestens ein Zeitmodell.",
+        "Der Ferienzeitraum braucht mindestens eine Woche. Jede Woche braucht mindestens ein Zeitmodell.",
       "enrollment.holiday_period_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "enrollment.holiday_period_not_found":
@@ -1473,7 +1473,7 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_host_school_outside_traeger":
         "This school does not belong to your Träger. Please choose a school from the list.",
       "enrollment.holiday_period_incomplete":
-        "The holiday period is not complete yet. Every week needs at least one time model.",
+        "The holiday period needs at least one week. Every week needs at least one time model.",
       "enrollment.holiday_period_invalid": "Please check the marked fields.",
       "enrollment.holiday_period_not_found":
         "This holiday period does not exist. Please open it from the holiday list.",

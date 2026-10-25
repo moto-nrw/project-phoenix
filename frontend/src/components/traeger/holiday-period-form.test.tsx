@@ -150,6 +150,27 @@ describe("HolidayPeriodForm", () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
+  it("reports a date text that is no valid date as an unsaved change", () => {
+    const onDirtyChange = vi.fn();
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={stored}
+          schools={schools}
+          onSaved={vi.fn()}
+          onCancel={vi.fn()}
+          onDirtyChange={onDirtyChange}
+        />
+      </ToastProvider>,
+    );
+
+    const opens = screen.getByLabelText("Anmeldebeginn");
+    fireEvent.change(opens, { target: { value: "31.02.2027" } });
+    fireEvent.blur(opens);
+
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+  });
+
   it("moves the focus to a missing time and locks the form while saving", async () => {
     let finish: (value: HolidayPeriod) => void = () => undefined;
     mockUpdate.mockReturnValue(

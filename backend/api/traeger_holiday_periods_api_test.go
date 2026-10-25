@@ -176,6 +176,21 @@ func TestTraegerHolidayPeriodIsPlannedChangedAndPublished(t *testing.T) {
 	assert.Equal(t, "published", published.Status)
 	assert.NotNil(t, published.PublishedAt)
 
+	// A published period stays complete: a change without weeks, or with a
+	// week without time models, is refused and changes nothing.
+	emptied := published
+	emptied.Weeks = nil
+	rec = traegerJSON(t, router, office.token, http.MethodPut, holidayPeriodPath(created.ID), emptied)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	noModels := published
+	noModels.Weeks = []holidayWeekBody{published.Weeks[0], published.Weeks[1]}
+	noModels.Weeks[1].TimeModels = nil
+	rec = traegerJSON(t, router, office.token, http.MethodPut, holidayPeriodPath(created.ID), noModels)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	var refusal holidayErrorBody
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &refusal))
+	assert.Equal(t, "enrollment.holiday_period_incomplete", refusal.Code)
+
 	rec = traegerJSON(t, router, office.token, http.MethodGet, "/traeger/holiday-periods/", nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	listed := decodeSchoolPortalData[[]holidayPeriodBody](t, rec.Body.Bytes())

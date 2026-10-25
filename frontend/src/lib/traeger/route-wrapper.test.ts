@@ -129,4 +129,34 @@ describe("Träger proxy", () => {
       }),
     );
   });
+
+  it("keeps a business refusal of the retried request instead of ending the session", async () => {
+    const conflict =
+      '{"type":"about:blank","title":"Conflict","status":409,"detail":"incomplete","code":"enrollment.holiday_period_incomplete"}';
+    mockFetch
+      .mockResolvedValueOnce(
+        new Response(
+          '{"status":401,"detail":"expired","code":"general.permission"}',
+          {
+            status: 401,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(conflict, {
+          status: 409,
+          headers: { "Content-Type": "application/problem+json" },
+        }),
+      );
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+
+    const response = await proxyGet("/traeger/holiday-periods/5")(
+      request(),
+      context,
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toBe(conflict);
+  });
 });

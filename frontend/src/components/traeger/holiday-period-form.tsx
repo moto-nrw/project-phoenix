@@ -4,7 +4,7 @@
 // die buchbaren Wochen mit ausrichtender OGS und Zeitmodellen.
 
 import { Plus } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ISODateInput } from "~/components/ui/date-picker";
@@ -105,6 +105,12 @@ export function HolidayPeriodForm({
     (valid: boolean) => markDate("registration_closes_on", valid),
     [markDate],
   );
+  // A date field whose text is no valid date holds an unsaved change: the
+  // stored period no longer matches what the person sees.
+  const hasInvalidDate = invalidDates.size > 0;
+  useEffect(() => {
+    if (hasInvalidDate) onDirtyChange?.(true);
+  }, [hasInvalidDate, onDirtyChange]);
   const weekDateValidity = useCallback(
     (weekKey: string, field: "starts_on" | "ends_on", valid: boolean) =>
       markDate(`${weekKey}:${field}`, valid),

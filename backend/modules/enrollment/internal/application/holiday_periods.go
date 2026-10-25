@@ -111,6 +111,9 @@ func (h *HolidayPeriods) UpdateHolidayPeriod(ctx context.Context, organizationID
 	if err := validateHolidayPeriod(input, current); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
+	if current.Status == enrollment.HolidayPeriodPublished && !holidayInputComplete(input) {
+		return enrollment.HolidayPeriod{}, enrollment.ErrHolidayPeriodIncomplete
+	}
 	if err := h.store.UpdateHolidayPeriod(ctx, organizationID, periodID, input); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
@@ -165,6 +168,20 @@ func holidayPeriodComplete(period enrollment.HolidayPeriod) bool {
 		return false
 	}
 	for _, week := range period.Weeks {
+		if len(week.TimeModels) == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// holidayInputComplete applies holidayPeriodComplete to a written period: a
+// published period stays complete through every change.
+func holidayInputComplete(input enrollment.HolidayPeriodInput) bool {
+	if len(input.Weeks) == 0 {
+		return false
+	}
+	for _, week := range input.Weeks {
 		if len(week.TimeModels) == 0 {
 			return false
 		}

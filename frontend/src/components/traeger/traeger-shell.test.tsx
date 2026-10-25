@@ -2,12 +2,19 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 
-const { mockSignOut, sessionUser } = vi.hoisted(() => ({
+const { mockSignOut, mockPush, sessionUser } = vi.hoisted(() => ({
   mockSignOut: vi.fn(),
+  mockPush: vi.fn(),
   sessionUser: {
     email: "buero@traeger.example",
     permissions: [] as string[],
   },
+}));
+
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  usePathname: () => "/",
+  useRouter: () => ({ push: mockPush }),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -66,8 +73,8 @@ describe("TraegerShell", () => {
         <p>Inhalt</p>
       </TraegerShell>,
     );
-    expect(screen.getByRole("link", { name: "Schulen" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Ferien" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ferien" })).toBeNull();
     unmount();
 
     sessionUser.permissions = ["traeger_enrollment:manage"];
@@ -76,9 +83,7 @@ describe("TraegerShell", () => {
         <p>Inhalt</p>
       </TraegerShell>,
     );
-    expect(screen.getByRole("link", { name: "Ferien" })).toHaveAttribute(
-      "href",
-      "/ferien",
-    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Ferien" })[0]!);
+    expect(mockPush).toHaveBeenCalledWith("/ferien");
   });
 });

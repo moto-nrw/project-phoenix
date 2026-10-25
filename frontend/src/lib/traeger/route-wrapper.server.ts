@@ -98,13 +98,17 @@ async function executeWithRetry<T>(
     return NextResponse.json(wrapInApiResponse(await execute(token)));
   } catch (error) {
     if (!isApiResponseError(error, 401)) throw error;
+    let retried: T | null;
     try {
-      const retried = await retryWithRefreshedToken(token, execute);
-      if (retried !== null) {
-        return NextResponse.json(wrapInApiResponse(retried));
-      }
-    } catch {
-      // The retry failed as well: the session counts as expired.
+      retried = await retryWithRefreshedToken(token, execute);
+    } catch (retryError) {
+      // Only a second 401 means the session is gone; any other refusal of
+      // the retried request (a 400 or 409 of the holiday period) is the answer.
+      if (!isApiResponseError(retryError, 401)) throw retryError;
+      retried = null;
+    }
+    if (retried !== null) {
+      return NextResponse.json(wrapInApiResponse(retried));
     }
     return createTokenExpiredResponse(request);
   }
