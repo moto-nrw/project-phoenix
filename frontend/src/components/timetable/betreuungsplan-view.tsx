@@ -785,12 +785,11 @@ function TimetablesContent() {
       const name = groupFilterOptions?.find(
         (group) => group.id === planFilter.groupId,
       )?.name;
-      parts.push(name ? `die Gruppe ${name}` : "die gewählte Gruppe");
+      parts.push(name ? `„${name}“` : "die gewählte Gruppe");
     }
     if (planFilter.staffId) {
-      parts.push(
-        blockStaffNames.get(planFilter.staffId) ?? "die gewählte Person",
-      );
+      const name = blockStaffNames.get(planFilter.staffId);
+      parts.push(name ? `„${name}“` : "die gewählte Person");
     }
     return parts.join(" und ");
   }, [blockStaffNames, groupFilterOptions, planFilter]);

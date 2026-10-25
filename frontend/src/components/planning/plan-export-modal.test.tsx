@@ -196,12 +196,12 @@ describe("PlanExportModal", () => {
     renderModal({
       plan: "betreuungsplan",
       filter: { groupId: "5", staffId: null },
-      filterLabel: "die Gruppe Sonnen",
+      filterLabel: "„Sonnen“",
     });
 
     expect(
       screen.getByText(
-        "Gedruckt werden nur die Termine für die Gruppe Sonnen, wie im Plan.",
+        "Gedruckt werden nur die Termine für „Sonnen“, wie im Plan.",
       ),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
