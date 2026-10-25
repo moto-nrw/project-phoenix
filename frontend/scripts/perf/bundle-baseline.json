@@ -119,7 +119,7 @@
     "/operator/login": 902086,
     "/operator/operators": 894372,
     "/operator/organizations": 918586,
-    "/operator/organizations/[slug]": 938262,
+    "/operator/organizations/[slug]": 973655,
     "/operator/organizations/[slug]/schools/[schoolSlug]": 949736,
     "/operator/persons": 922502,
     "/operator/provisioning": 883238,

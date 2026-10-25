@@ -4,7 +4,6 @@ import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 import {
   operatorProvisioningService,
@@ -50,6 +49,7 @@ import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
 import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
+import { TraegerErasureOrderSection } from "./traeger-erasure-order-section";
 import { TRAEGER_MEMBER_COLUMNS } from "./traeger-member-columns";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
 import { SetApiKeyModal } from "~/app/operator/provisioning/set-api-key-modal";
@@ -61,15 +61,6 @@ import {
   OrgSoftDeleteModal,
   SchoolRestoreModal,
 } from "~/app/operator/provisioning/operator-entity-modals";
-
-// The erasure order tab carries the date picker; it loads with its tab.
-const TraegerErasureOrderSection = dynamic(
-  () =>
-    import("./traeger-erasure-order-section").then(
-      (module) => module.TraegerErasureOrderSection,
-    ),
-  { ssr: false },
-);
 
 const logger = createLogger({ component: "OperatorOrganizationDetailPage" });
 
