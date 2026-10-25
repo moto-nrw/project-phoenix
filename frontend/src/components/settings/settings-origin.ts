@@ -64,10 +64,30 @@ export function showsStandardBadge(
   audience: SettingsAudience,
 ): boolean {
   if (audience === "traeger") return setting.is_default;
+  // The school's own value of a Träger setting is no standard, even when it
+  // equals one: it no longer follows the Träger.
+  if (followsTraegerAfterReset(setting, audience)) return false;
   return (
     setting.is_default &&
     setting.source !== "traeger" &&
     !hasTraegerValueBeneath(setting)
+  );
+}
+
+/**
+ * Whether the school's own value of a setting the Träger may set can be
+ * removed. Reset is offered for every field type, booleans included, also
+ * while the Träger has no value yet: toggling back would keep a value of the
+ * school's own, so a later Träger value would never reach the school.
+ */
+export function followsTraegerAfterReset(
+  setting: ResolvedSetting,
+  audience: SettingsAudience,
+): boolean {
+  return (
+    audience !== "traeger" &&
+    setting.levels === "beide" &&
+    setting.source === "school"
   );
 }
 

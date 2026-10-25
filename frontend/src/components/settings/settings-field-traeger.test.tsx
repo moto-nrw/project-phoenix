@@ -101,6 +101,25 @@ describe("SettingsField at the school, with a Träger value", () => {
     ).toBeInTheDocument();
   });
 
+  it("offers a reset of the school's own toggle while the Träger has no value", async () => {
+    const onReset = renderField(
+      makeSetting({
+        value: false,
+        is_default: true,
+        source: "school",
+        traeger_changed_at: undefined,
+      }),
+    );
+
+    // Back to Standard, so a later Träger value reaches the school again.
+    const reset = screen.getByTitle("Auf Standard zurücksetzen");
+    expect(screen.queryByText("Standard")).not.toBeInTheDocument();
+    fireEvent.click(reset);
+    await waitFor(() =>
+      expect(onReset).toHaveBeenCalledWith("parent.news_enabled"),
+    );
+  });
+
   it("names the school for the moto team", () => {
     renderField(
       makeSetting({ value: false, is_default: false, source: "school" }),

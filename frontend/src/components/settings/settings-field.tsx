@@ -31,6 +31,7 @@ import {
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { Textarea } from "~/components/ui/textarea";
 import { MODULE_SETTING_KEYS } from "~/lib/modules";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
@@ -47,6 +48,7 @@ import {
 } from "./retention-shortening";
 import {
   type SettingsAudience,
+  followsTraegerAfterReset,
   resetRestoresTraegerValue,
   settingOriginNote,
   showsStandardBadge,
@@ -1368,7 +1370,7 @@ function offersReset(
   deletesRoomHistory: boolean,
 ): boolean {
   if (!setting.writable) return false;
-  if (resetRestoresTraegerValue(setting, audience)) return true;
+  if (followsTraegerAfterReset(setting, audience)) return true;
   if (setting.is_default) return false;
   if (audience === "traeger") return true;
   return (
@@ -1504,15 +1506,14 @@ function renderAGBSourceEditor({
     writable && documentManagementDisabledReason == null;
   if (textOnly) {
     return (
-      <label className="block">
-        <span className="text-sm font-medium text-gray-800">AGB-Text</span>
-        <textarea
-          value={textValue}
-          onChange={(event) => onTextChange(event.target.value)}
-          rows={10}
-          className="mt-1 block w-full resize-y rounded-lg border-0 bg-white px-3 py-2.5 font-mono text-sm leading-6 text-gray-900 shadow-sm ring-1 ring-gray-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
-        />
-      </label>
+      <Textarea
+        id="traeger-agb-text"
+        label="AGB-Text"
+        value={textValue}
+        onChange={(event) => onTextChange(event.target.value)}
+        rows={10}
+        className="resize-y font-mono leading-6"
+      />
     );
   }
   return (

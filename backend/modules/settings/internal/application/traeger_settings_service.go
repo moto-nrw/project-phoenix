@@ -12,9 +12,11 @@ import (
 	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
-// TraegerSettingsRuntime opens the Träger transaction (ADR 0086 section 5).
+// TraegerSettingsRuntime opens the Träger transaction (ADR 0086 section 5)
+// and takes transaction-scoped advisory locks in it.
 type TraegerSettingsRuntime interface {
 	WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error
+	AcquireLock(ctx context.Context, key string, shared bool) error
 }
 
 // TraegerSettingsDependencies are the collaborators of the Träger level,
@@ -179,6 +181,12 @@ func (t *TraegerSettings) ResetValue(ctx context.Context, organizationID, accoun
 func (t *TraegerSettings) change(ctx context.Context, organizationID, accountID int64, key, action string, value json.RawMessage) error {
 	changedBy := &accountID
 	err := t.deps.Runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
+		// The row lock below cannot hold a value that does not exist yet: two
+		// first writes, or a first write and a reset, would both log no old
+		// value. The advisory lock orders every change of this Träger and key.
+		if err := t.deps.Runtime.AcquireLock(txCtx, traegerSettingLockKey(organizationID, key), false); err != nil {
+			return err
+		}
 		existing, err := t.deps.Values.LockByOrganizationAndKey(txCtx, organizationID, key)
 		if err != nil {
 			return err
@@ -218,6 +226,11 @@ func (t *TraegerSettings) change(ctx context.Context, organizationID, accountID 
 	// The command owns its Träger transaction, so it has committed here.
 	t.notifySchools(ctx, organizationID, key)
 	return nil
+}
+
+// traegerSettingLockKey names the advisory lock of one Träger value.
+func traegerSettingLockKey(organizationID int64, key string) string {
+	return fmt.Sprintf("traeger-setting:%d:%s", organizationID, key)
 }
 
 // ClassifyError names the HTTP class of a Träger settings error.

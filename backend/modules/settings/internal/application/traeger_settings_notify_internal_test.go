@@ -12,7 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type traegerRuntimeFake struct{ err error }
+type traegerRuntimeFake struct {
+	err   error
+	calls *[]string
+}
+
+func (r traegerRuntimeFake) AcquireLock(_ context.Context, key string, _ bool) error {
+	if r.calls != nil {
+		*r.calls = append(*r.calls, "lock "+key)
+	}
+	return nil
+}
 
 func (r traegerRuntimeFake) WithinTraeger(ctx context.Context, _ int64, fn func(context.Context) error) error {
 	if err := fn(ctx); err != nil {
@@ -24,9 +34,13 @@ func (r traegerRuntimeFake) WithinTraeger(ctx context.Context, _ int64, fn func(
 type traegerValuesFake struct {
 	config.TraegerSettingRepository
 	recordErr error
+	calls     *[]string
 }
 
-func (traegerValuesFake) LockByOrganizationAndKey(context.Context, int64, string) (*config.TraegerSettingValue, error) {
+func (f traegerValuesFake) LockByOrganizationAndKey(context.Context, int64, string) (*config.TraegerSettingValue, error) {
+	if f.calls != nil {
+		*f.calls = append(*f.calls, "read")
+	}
 	return nil, nil
 }
 func (traegerValuesFake) Upsert(context.Context, *config.TraegerSettingValue) error { return nil }
@@ -73,4 +87,23 @@ func TestTraegerChangeNotifiesEverySchoolAfterTheCommitOnly(t *testing.T) {
 			assert.Equal(t, test.notified, notified)
 		})
 	}
+}
+
+// TestTraegerChangeLocksTheKeyBeforeItReadsTheOldValue: the first write of a
+// key has no row to lock, so the advisory lock of Träger and key comes first.
+func TestTraegerChangeLocksTheKeyBeforeItReadsTheOldValue(t *testing.T) {
+	t.Parallel()
+	var calls []string
+	registry := config.NewRegistry()
+	registry.Register(config.Definition{Key: "beide.key", Type: config.FieldBoolean, Default: true, Tab: "operations", Category: "test", Levels: config.LevelBoth})
+	service, err := NewTraegerSettings(TraegerSettingsDependencies{
+		AuditRetentionYears: 3, Values: traegerValuesFake{calls: &calls}, Runtime: traegerRuntimeFake{calls: &calls},
+		Schools: func(context.Context, int64) ([]int64, error) { return nil, nil },
+		Notify:  func(context.Context, int64, string) {},
+		Rights:  map[config.TraegerRight]string{config.TraegerRightSettings: "settings", config.TraegerRightStaff: "staff", config.TraegerRightBilling: "billing"},
+		Logger:  slog.Default(), Now: time.Now, Registry: registry,
+	})
+	require.NoError(t, err)
+	require.NoError(t, service.ResetValue(context.Background(), 5, 6, []string{"settings"}, "beide.key"))
+	assert.Equal(t, []string{"lock traeger-setting:5:beide.key", "read"}, calls)
 }
