@@ -298,7 +298,7 @@ func enrollmentWorkflowSteps(seeder *Seeder) []Step {
 		seedEnrollmentIncomeProofStep{},
 		seedEnrollmentSignatureStep{},
 		seedOfferingRosterStep{seeder: seeder},
-		seedFamilyAppAccountsStep{},
+		seedFamilyAppAccountsStep{seeder: seeder},
 	)
 }
 
