@@ -188,7 +188,7 @@ func (registryDefaultDecisionSettings) ResolveString(context.Context, string) (s
 }
 
 func (registryDefaultDecisionSettings) ResolveBool(_ context.Context, key string) (bool, error) {
-	return key == settingKeyCareOfferingsEnabled, nil
+	return key == settingKeyCareOfferingsEnabled || key == settingKeyModuleOnlineAnmeldung, nil
 }
 
 // testBookings composes the booking materialization over the env's catalog

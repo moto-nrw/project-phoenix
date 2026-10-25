@@ -27,6 +27,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 import { UploadSection } from "~/components/import/upload-section";
 import {
   useApiErrorDisplay,
@@ -243,7 +244,7 @@ function StatTile({
   );
 }
 
-export default function OpeningBalanceImportPage() {
+function OpeningBalanceImportPageContent() {
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -803,5 +804,13 @@ export default function OpeningBalanceImportPage() {
         </div>
       )}
     </TenantPage>
+  );
+}
+
+export default function OpeningBalanceImportPage() {
+  return (
+    <ModuleRouteGuard module="zeiterfassung" title="Eröffnungssalden">
+      <OpeningBalanceImportPageContent />
+    </ModuleRouteGuard>
   );
 }

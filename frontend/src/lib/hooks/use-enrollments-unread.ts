@@ -8,7 +8,7 @@ import {
 } from "~/lib/enrollment-unread-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useModuleBooked, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useUnreadCount } from "./use-unread-count";
 
 /**
@@ -25,10 +25,13 @@ export function useEnrollmentsUnread() {
   const { mode } = useShellAuth();
   const tenantSlug = useTenantSlugSafe();
   const accountId = session?.user?.id ?? "";
+  const onlineAnmeldungBooked = useModuleBooked("online_anmeldung");
   return useUnreadCount({
+    // Anmeldungen gibt es nur mit dem Modul Online-Anmeldung (#4894).
     enabled:
       status === "authenticated" &&
       mode === "teacher" &&
+      onlineAnmeldungBooked &&
       hasPermission(session, "config:manage"),
     fetcher: fetchUnreadEnrollmentCount,
     cacheKey: `enrollments_unread_count:${tenantSlug ?? ""}:${accountId}`,

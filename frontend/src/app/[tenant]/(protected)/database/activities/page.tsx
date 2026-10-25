@@ -37,17 +37,17 @@ import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
+import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 
 const logger = createLogger({ component: "DatabaseActivitiesPage" });
 
 export default function ActivitiesPage() {
   return (
-    <NfcModeGuard title="Aktivitäten">
+    <ModuleRouteGuard module="nfc_anwesenheit" title="Aktivitäten">
       <Suspense fallback={null}>
         <ActivitiesPageContent />
       </Suspense>
-    </NfcModeGuard>
+    </ModuleRouteGuard>
   );
 }
 
