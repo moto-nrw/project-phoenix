@@ -3119,6 +3119,7 @@
         "audit_unavailable": "{object} şu anda kullanılamıyor. Yeniden deneyin."
       },
       "traeger": {
+        "access_log_export_too_large": "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
         "already_member": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "last_administrator": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "member_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
