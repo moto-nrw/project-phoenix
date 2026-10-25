@@ -3026,6 +3026,9 @@
         "module_requires": "{object} could not be saved. Please check your entries.",
         "module_required_by": "{object} could not be saved. Please check your entries."
       },
+      "module": {
+        "not_booked": "Your school has not booked the module {module_label}. To book it, please contact the moto team."
+      },
       "devices": {
         "tag_scan_not_found": "{object} could not be changed. Please check its current status.",
         "tag_scan_already_resolved": "{object} could not be changed. Please check its current status."

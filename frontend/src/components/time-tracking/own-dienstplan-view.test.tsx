@@ -20,7 +20,9 @@ const state = vi.hoisted(() => ({
   projection: undefined as ReadonlyMap<string, DayProjection> | undefined,
   projectionError: undefined as Error | undefined,
   permissionReady: true,
-  timetableEnabled: true,
+  // Gebucht ist die Zeiterfassung, aus der das Soll kommt (#4894).
+  zeiterfassungBooked: true,
+  closingDaysCalls: [] as [string, string][],
   day: null as string | null,
   keys: [] as (string | null)[],
   updateParams: vi.fn(),
@@ -71,15 +73,19 @@ vi.mock("~/lib/hooks/use-url-params", () => ({
   }),
 }));
 vi.mock("~/lib/hooks/use-closing-days", () => ({
-  useClosingDaysState: () => ({
-    closingDays: new Map([["2026-09-11", "Brückentag"]]),
-    closingDayRanges: [],
-    isLoading: false,
-  }),
+  useClosingDaysState: (from: string, to: string) => {
+    state.closingDaysCalls.push([from, to]);
+    return {
+      closingDays: new Map([["2026-09-11", "Brückentag"]]),
+      closingDayRanges: [],
+      isLoading: false,
+    };
+  },
 }));
 vi.mock("~/lib/tenant-context", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/tenant-context")>()),
-  useTimetableEnabled: () => state.timetableEnabled,
+  useModuleBooked: (module: string) =>
+    module === "zeiterfassung" ? state.zeiterfassungBooked : true,
 }));
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
@@ -139,7 +145,8 @@ describe("OwnDienstplanView", () => {
     state.projection = undefined;
     state.projectionError = undefined;
     state.permissionReady = true;
-    state.timetableEnabled = true;
+    state.zeiterfassungBooked = true;
+    state.closingDaysCalls = [];
     state.day = null;
     state.keys = [];
     state.updateParams.mockClear();
@@ -354,16 +361,24 @@ describe("OwnDienstplanView", () => {
     expect(state.updateParams).toHaveBeenCalledWith({ d: null });
   });
 
-  it("says so when the school does not plan shifts in moto", () => {
-    state.timetableEnabled = false;
+  // Seit #4894 hängt die Seite am Modul Dienstplan, nicht am Betreuungsplan;
+  // ohne das Modul erklärt sich die Seite über TenantPage. Das Soll
+  // kommt aus der Zeiterfassung und wird ohne dieses Modul nicht geladen.
+  it("shows the week without the Soll when the school did not book Zeiterfassung", () => {
+    state.zeiterfassungBooked = false;
+    state.shifts = [shift()];
 
     render(<OwnDienstplanView />);
 
+    expect(screen.getByText("geplant")).toBeInTheDocument();
+    expect(screen.queryByText("Soll")).not.toBeInTheDocument();
     expect(
-      screen.getByText(/Der Dienstplan ist nicht verfügbar/),
-    ).toBeInTheDocument();
-    expect(
-      state.keys.filter((key) => key?.startsWith("time-tracking-own-shifts")),
+      state.keys.filter((key) =>
+        key?.startsWith("time-tracking-schedule-targets"),
+      ),
     ).toEqual([]);
+    expect(
+      state.keys.some((key) => key?.startsWith("time-tracking-own-shifts")),
+    ).toBe(true);
   });
 });

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // UnregisteredTagScanRetentionDays is the fixed retention of unregistered
@@ -68,11 +69,11 @@ func (s *unregisteredTagScanService) DeleteOlderThan(ctx context.Context, days i
 	if days <= 0 {
 		days = UnregisteredTagScanRetentionDays
 	}
-	return s.repo.DeleteOlderThan(ctx, time.Now().AddDate(0, 0, -days))
+	return s.repo.DeleteOlderThan(ctx, time.Now().In(calendar.Berlin).AddDate(0, 0, -days))
 }
 
 func (s *unregisteredTagScanService) DeleteExpired(ctx context.Context) (int, int, error) {
-	cutoff := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-auditModels.RetentionClockMargin)
+	cutoff := time.Now().In(calendar.Berlin).AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-auditModels.RetentionClockMargin)
 	deleted, err := s.repo.DeleteOlderThan(ctx, cutoff)
 	return deleted, UnregisteredTagScanRetentionDays, err
 }

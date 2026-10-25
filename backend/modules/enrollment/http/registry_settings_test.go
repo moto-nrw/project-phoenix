@@ -13,7 +13,10 @@ import (
 // TestRegistrySettingsMatchThePlatform pins the keys the platform names in
 // its public contract.
 const (
-	settingKeyEnrollmentEnabled                      = "enrollment.enabled"
+	settingKeyEnrollmentEnabled = "enrollment.enabled"
+	// The module switch is booked by registry default; a double that does
+	// not store it answers true (#4893).
+	settingKeyModuleOnlineAnmeldung                  = "module.online_anmeldung"
 	settingKeyAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
 	settingKeyBookingsAuthoritative                  = "enrollment.bookings_authoritative"
 	settingKeyCareOfferingsEnabled                   = "enrollment.care_offerings_enabled"
@@ -58,4 +61,7 @@ func TestRegistrySettingsMatchThePlatform(t *testing.T) {
 	assert.Equal(t, settings.KeyEnrollmentNotifyPerDecision, settingKeyNotifyPerDecision)
 	assert.Equal(t, settings.KeyEnrollmentRejectedRetentionDays, settingKeyRejectedRetentionDays)
 	assert.Equal(t, settings.KeyEnrollmentWaitlistEnabled, settingKeyWaitlistEnabled)
+	module, ok := settings.LookupModule(settings.ModuleOnlineAnmeldung)
+	assert.True(t, ok)
+	assert.Equal(t, module.SettingKey, settingKeyModuleOnlineAnmeldung)
 }

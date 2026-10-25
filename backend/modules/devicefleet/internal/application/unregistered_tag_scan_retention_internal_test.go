@@ -27,22 +27,24 @@ func (retentionTransaction) RunWrite(ctx context.Context, callback func(context.
 	return callback(ctx)
 }
 
-func TestUnregisteredTagScanRetentionUsesBerlinCalendarDays(t *testing.T) {
+func TestDeleteUnregisteredTagScansAfterRetentionUsesBerlinCalendarWindow(t *testing.T) {
 	t.Parallel()
 
-	// The PostgreSQL retention capability runs with Europe/Berlin. Just after
-	// the DST fallback, subtracting days in UTC would produce a cutoff one hour
-	// later than the database allows.
+	// The October DST rollback makes a UTC calendar subtraction one hour
+	// younger than PostgreSQL's Europe/Berlin interval. The retention function
+	// rejects that younger cutoff, so the owner must derive it in Berlin too.
 	now := time.Date(2026, time.October, 25, 1, 30, 0, 0, time.UTC)
 	store := &retentionScanStore{}
 	service := &Service{deps: Dependencies{
-		Scans:   store,
-		Tx:      retentionTransaction{},
-		Now:     func() time.Time { return now },
-		Observe: func(ports.Observation) {},
+		Scans: store,
+		Tx:    retentionTransaction{},
+		Now:   func() time.Time { return now },
+		Observe: func(ports.Observation) {
+		},
 	}}
 
 	_, days, err := service.DeleteUnregisteredTagScansAfterRetention(context.Background())
+
 	if err != nil {
 		t.Fatalf("DeleteUnregisteredTagScansAfterRetention() error = %v", err)
 	}
@@ -51,6 +53,6 @@ func TestUnregisteredTagScanRetentionUsesBerlinCalendarDays(t *testing.T) {
 	}
 	want := now.In(calendar.Berlin).AddDate(0, 0, -devicefleet.UnregisteredTagScanRetentionDays).Add(-retentionClockMargin)
 	if !store.cutoff.Equal(want) {
-		t.Errorf("retention cutoff = %s, want %s", store.cutoff, want)
+		t.Fatalf("cutoff = %s, want %s", store.cutoff, want)
 	}
 }

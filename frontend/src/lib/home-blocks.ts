@@ -29,6 +29,8 @@
  * statt für alle zu verschwinden, die den Dialog je geöffnet haben.
  */
 
+import { HOME_BLOCK_MODULES, isScopeBooked } from "~/lib/module-register";
+import type { ModuleKey } from "~/lib/modules";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 
 /** Was die Einrichtung für einen Baustein vorgibt. */
@@ -95,7 +97,12 @@ interface HomeBlockModeContext {
   readonly detailed: boolean;
   /** Offene Betreuung ohne feste Gruppen (#1544). */
   readonly openCareGroupMode: boolean;
-  readonly nfcEnabled: boolean;
+  /**
+   * Die gebuchten Zusatzmodule (#4894). Zu welchem Modul ein Baustein
+   * gehört, sagt das Modul-Register; ein Baustein eines nicht gebuchten
+   * Moduls gibt es für die Schule nicht.
+   */
+  readonly bookedModules: readonly ModuleKey[];
   /** Geburtstage sind pro Schule abschaltbar und kommen vom Server. */
   readonly birthdaysEnabled: boolean;
   /** Der Betreuungsplan ist pro Schule abschaltbar (#2383). */
@@ -170,8 +177,8 @@ export type HomeBlockKey =
 
 const always = () => true;
 const roomSurfaces = (ctx: HomeBlockModeContext) => ctx.detailed;
-const activitySurfaces = (ctx: HomeBlockModeContext) =>
-  ctx.detailed && ctx.nfcEnabled;
+// Aktivitäten gehören zu NFC-Anwesenheit; das Register prüft das Modul.
+const activitySurfaces = (ctx: HomeBlockModeContext) => ctx.detailed;
 
 // Die Rechte, an denen die Endpunkte der Bausteine hängen. Namen wie im
 // Backend (auth/authorize/permissions), damit ein Vergleich möglich bleibt.
@@ -470,6 +477,20 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     available: (ctx) => ctx.birthdaysEnabled,
   },
 ];
+
+/**
+ * Gibt es den Baustein in dieser Schule? Betriebsmodus des Bausteins und
+ * sein Modul aus dem Modul-Register (#4894).
+ */
+export function isHomeBlockAvailable(
+  block: HomeBlockDefinition,
+  ctx: HomeBlockModeContext,
+): boolean {
+  return (
+    isScopeBooked(HOME_BLOCK_MODULES[block.key], ctx.bookedModules) &&
+    block.available(ctx)
+  );
+}
 
 const BLOCK_BY_KEY = new Map<HomeBlockKey, HomeBlockDefinition>(
   HOME_BLOCKS.map((block) => [block.key, block]),
@@ -1061,7 +1082,7 @@ export function resolveHomeLayout(
   policies: HomeBlockPolicies | null | undefined,
 ): ResolvedHomeLayout {
   const available = HOME_BLOCKS.filter(
-    (block) => block.permitted(ctx.access) && block.available(ctx),
+    (block) => block.permitted(ctx.access) && isHomeBlockAvailable(block, ctx),
   );
   const availableKeys = new Set(available.map((block) => block.key));
   const policyOf = (key: HomeBlockKey) => policies?.[key] ?? "optional";

@@ -1,10 +1,22 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { FormErrorAlert } from "./form-error-alert";
+import { FormErrorAlert, LoadErrorAlert } from "./form-error-alert";
+
+const session = vi.hoisted(() => ({ permissions: [] as string[] }));
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "1", roles: [], permissions: session.permissions },
+      expires: "",
+    },
+    status: "authenticated",
+  }),
+}));
 
 describe("FormErrorAlert", () => {
   afterEach(() => {
+    session.permissions = [];
     vi.restoreAllMocks();
   });
 
@@ -56,5 +68,39 @@ describe("FormErrorAlert", () => {
     );
     expect(scrollIntoView).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("alert")).toHaveTextContent("Gleicher Fehler");
+  });
+
+  it("explains a form refusal to staff through their Leitung", () => {
+    render(
+      <FormErrorAlert
+        message={{
+          message: "Katalogtext",
+          notBookedModule: "zeiterfassung",
+          attempt: 1,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Diese Seite gehört zum Modul Zeiterfassung. Ihre Schule nutzt es nicht. Wenn Sie es brauchen, sprechen Sie mit Ihrer Leitung.",
+    );
+  });
+
+  it("explains a load refusal to the Leitung", () => {
+    session.permissions = ["config:manage"];
+
+    render(
+      <LoadErrorAlert
+        error={{
+          message: "Katalogtext",
+          notBookedModule: "zeiterfassung",
+          attempt: 1,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Diese Seite gehört zum Modul Zeiterfassung. Ihre Schule hat es nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
+    );
   });
 });

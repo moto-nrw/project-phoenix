@@ -2181,6 +2181,15 @@
       "legacy": "meal_registration_disabled"
     },
     {
+      "code": "module.not_booked",
+      "class": "permission",
+      "parameters": [
+        "module",
+        "module_label"
+      ],
+      "legacy": "module.not_booked"
+    },
+    {
       "code": "operator.audit_unavailable",
       "class": "unavailable",
       "parameters": [],
