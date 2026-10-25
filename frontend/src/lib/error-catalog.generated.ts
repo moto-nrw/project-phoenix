@@ -650,6 +650,12 @@ export const ERROR_CATALOG = {
         "Diesen Slug hat schon eine andere Schule dieses Trägers. Bitte wählen Sie einen anderen.",
       "provisioning.school_subdomain_taken":
         "Diese Subdomain hat schon eine andere Schule. Bitte wählen Sie eine andere.",
+      "provisioning.traeger_active":
+        "Der Träger ist noch aktiv. Bitte deaktivieren Sie ihn zuerst.",
+      "provisioning.traeger_erasure_order_not_found":
+        "Für diesen Träger gibt es keinen offenen Löschauftrag. Bitte laden Sie die Seite neu.",
+      "provisioning.traeger_erasure_order_open":
+        "Für diesen Träger ist schon ein Löschauftrag erfasst. Bitte nehmen Sie den Löschauftrag zuerst zurück.",
       "rollover.deadline_required":
         "Bitte geben Sie eine Frist für die Rückmeldung ein.",
       "rollover.duplicate_name":

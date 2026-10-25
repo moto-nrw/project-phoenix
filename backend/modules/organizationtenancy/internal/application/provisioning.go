@@ -40,6 +40,7 @@ type ProvisioningDependencies struct {
 // organisation reads, ListOrganizations among them, are promoted unchanged.
 type Provisioning struct {
 	organizationtenancy.OrganizationQuery
+	organizationtenancy.TraegerErasureOrderQuery
 	pwaUsageWindowDays int
 	organizations      organizationtenancy.Capability
 	tx                 ports.Transaction
@@ -69,7 +70,7 @@ func NewProvisioning(deps ProvisioningDependencies) (*Provisioning, error) {
 		logger = slog.Default()
 	}
 	return &Provisioning{
-		OrganizationQuery:  deps.Organizations,
+		OrganizationQuery: deps.Organizations, TraegerErasureOrderQuery: deps.Organizations,
 		pwaUsageWindowDays: deps.PWAUsageWindowDays,
 		organizations:      deps.Organizations, tx: deps.Transaction, dashboard: deps.Dashboard,
 		identity: deps.Identity, devices: deps.Devices, people: deps.People, presence: deps.Presence,
@@ -122,6 +123,9 @@ func (p *Provisioning) CreateOrganization(ctx context.Context, input *organizati
 }
 
 // UpdateOrganization changes an organisation and records the changed fields.
+// Deactivating a Träger ends every Träger session in the same unit (#4657);
+// a Träger with an open erasure order stays deactivated until the order is
+// withdrawn.
 func (p *Provisioning) UpdateOrganization(ctx context.Context, id int64, changes organizationtenancy.OrganizationChanges, operatorID int64, clientIP net.IP) (*organizationtenancy.Organization, error) {
 	return adminValue(ctx, p, func(adminCtx context.Context) (*organizationtenancy.Organization, error) {
 		existing, err := p.organizations.FindOrganizationForMutation(adminCtx, id)
@@ -131,24 +135,57 @@ func (p *Provisioning) UpdateOrganization(ctx context.Context, id int64, changes
 		if existing.IsDeleted() {
 			return nil, &organizationtenancy.OrganizationAlreadyDeletedError{OrganizationID: id}
 		}
+		if err := p.guardReactivation(adminCtx, existing, changes.Active); err != nil {
+			return nil, err
+		}
 		updated, err := p.organizations.UpdateOrganization(adminCtx, organizationtenancy.UpdateOrganization{
 			ID: id, Name: changes.Name, Slug: changes.Slug, Active: changes.Active,
 		})
 		if err != nil {
 			return nil, mapOrganizationError(err, id)
 		}
-		diff := map[string]any{}
-		if updated.Slug != existing.Slug {
-			diff["slug"] = map[string]string{"old": existing.Slug, "new": updated.Slug}
-		}
-		if updated.Name != existing.Name {
-			diff["name"] = map[string]string{"old": existing.Name, "new": updated.Name}
-		}
-		if updated.Active != existing.Active {
-			diff["active"] = map[string]bool{"old": existing.Active, "new": updated.Active}
+		diff := organizationDiff(existing, updated)
+		if existing.Active && !updated.Active {
+			ended, err := p.identity.EndTraegerSessions(adminCtx, id)
+			if err != nil {
+				return nil, err
+			}
+			diff["traeger_sessions_ended"] = ended
 		}
 		return &updated, p.recordAction(adminCtx, operatorID, domain.AuditActionUpdate, domain.AuditResourceOrganization, &id, clientIP, diff)
 	})
+}
+
+// guardReactivation refuses to reactivate a Träger whose erasure order is
+// open: the order is withdrawn first, so the grace period cannot end on an
+// active Träger.
+func (p *Provisioning) guardReactivation(adminCtx context.Context, existing organizationtenancy.Organization, active bool) error {
+	if existing.Active || !active {
+		return nil
+	}
+	_, open, err := p.organizations.FindOpenTraegerErasureOrder(adminCtx, existing.ID)
+	if err != nil {
+		return mapOrganizationError(err, existing.ID)
+	}
+	if open {
+		return organizationtenancy.ErrTraegerErasureOrderOpen
+	}
+	return nil
+}
+
+// organizationDiff lists the changed fields with old and new value.
+func organizationDiff(existing, updated organizationtenancy.Organization) map[string]any {
+	diff := map[string]any{}
+	if updated.Slug != existing.Slug {
+		diff["slug"] = map[string]string{"old": existing.Slug, "new": updated.Slug}
+	}
+	if updated.Name != existing.Name {
+		diff["name"] = map[string]string{"old": existing.Name, "new": updated.Name}
+	}
+	if updated.Active != existing.Active {
+		diff["active"] = map[string]bool{"old": existing.Active, "new": updated.Active}
+	}
+	return diff
 }
 
 // SoftDeleteOrganization deletes an organisation without schools.

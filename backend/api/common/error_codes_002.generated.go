@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeTimetableSlotListsDisabled                   = "timetable.slot_lists_disabled"
+	CodeTimetableSpontaneousActivitiesDisabled       = "timetable.spontaneous_activities_disabled"
+	CodeTimetableSpontaneousCategoryArchived         = "timetable.spontaneous_category_archived"
 	CodeTimetableStaffAbsentOnDate                   = "timetable.staff_absent_on_date"
 	CodeTimetableStaffAbsentOnSource                 = "timetable.staff_absent_on_source"
 	CodeTimetableStaffAbsentOnTarget                 = "timetable.staff_absent_on_target"
@@ -117,6 +120,9 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.slot_lists_disabled":                     "permission",
+	"timetable.spontaneous_activities_disabled":         "permission",
+	"timetable.spontaneous_category_archived":           "business_rejection",
 	"timetable.staff_absent_on_date":                    "business_rejection",
 	"timetable.staff_absent_on_source":                  "input",
 	"timetable.staff_absent_on_target":                  "business_rejection",

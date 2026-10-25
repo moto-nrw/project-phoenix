@@ -16,6 +16,10 @@ import (
 // ErrTraegerRequired reports a call without the Träger of the session.
 var ErrTraegerRequired = errors.New("traeger view: the Träger of the session is required")
 
+// ErrTraegerUnavailable reports a Träger that is deactivated, deleted or
+// unknown: its session reaches no school any more (#4657).
+var ErrTraegerUnavailable = errors.New("traeger view: the Träger is deactivated or deleted")
+
 // School is one school of the Träger in the school list (#4649). It carries
 // no personal data.
 type School struct {
@@ -27,8 +31,9 @@ type School struct {
 }
 
 // SchoolIDs resolves the schools of a Träger at Organisation & Tenancy: the
-// undeleted schools of an active Träger, none for any other. It joins the
-// projection's administrative transaction.
+// undeleted schools of an active Träger. Any other Träger is
+// ErrTraegerUnavailable. It joins the projection's administrative
+// transaction.
 type SchoolIDs interface {
 	ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
 }

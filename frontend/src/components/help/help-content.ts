@@ -8234,6 +8234,7 @@ function traegerLoginTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "moto sagt, Ihr Konto habe keinen Zugang zum Träger-Portal? Wenden Sie sich an das moto-Team.",
+      "moto meldet Sie ab und lässt Sie nicht wieder hinein? Dann ist der Zugang Ihres Trägers ausgeschaltet. Wenden Sie sich an das moto-Team.",
       "Eine Schule fehlt in der Liste? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
     ],

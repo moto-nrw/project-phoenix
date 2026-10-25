@@ -2395,6 +2395,24 @@
       "legacy": "provisioning.school_subdomain_taken"
     },
     {
+      "code": "provisioning.traeger_active",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "provisioning.traeger_active"
+    },
+    {
+      "code": "provisioning.traeger_erasure_order_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "provisioning.traeger_erasure_order_not_found"
+    },
+    {
+      "code": "provisioning.traeger_erasure_order_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "provisioning.traeger_erasure_order_open"
+    },
+    {
       "code": "rollover.deadline_required",
       "class": "input",
       "parameters": [],

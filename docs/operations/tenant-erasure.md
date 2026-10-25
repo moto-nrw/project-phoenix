@@ -18,11 +18,16 @@ Nebensysteme noch Backups oder eine rechtliche Gesamtfreigabe.
 Stillstand aller Schreiber, erfolgreiche Durchführung, Nebensysteme und
 Fristausführung. Lokale Tests sind kein produktiver Nachweis.
 
-**Offen:** endgültige Löschung der Trägerwurzel. Der DB-Vertrag erlaubt nur
-Schullöschungen. `--organization` bearbeitet deren Schulaufträge, lässt die
-Wurzel bestehen und endet ausdrücklich mit Fehlerstatus für den offenen
-Trägerauftrag. Keine Träger-Gesamtlöschung bestätigen. Restore-Verfahren:
-siehe [Restore-Prüfung](daily-backup.md).
+**Trägerwurzel (#4657, Migration `1.15.533`):** `--organization` löscht einen
+Träger nur mit dem Löschauftrag, den das moto-Team im Operator-Portal erfasst
+hat (Träger → Reiter „Löschauftrag“): Vorgangsnummer, Datum der schriftlichen
+Bestätigung und „Löschen frühestens am“. Der Träger muss deaktiviert sein, die
+Schonfrist muss abgelaufen sein. Sonst endet der Lauf vor der ersten Schule mit
+Fehlerstatus. Danach löscht er jede Schule wie unten und zuletzt die Wurzel mit
+Mitgliedschaften, Träger-Rollen und Träger-Sitzungen
+(`platform.erase_organization`). Die Löschungsliste enthält weiterhin nur
+Schulen; nach einem Restore den Trägerauftrag mit derselben Referenz erneut
+ausführen. Restore-Verfahren: siehe [Restore-Prüfung](daily-backup.md).
 Nebensystemfristen und deren produktive Nachweise: 3837-f.
 
 ## Unabhängige Löschungsliste einrichten (3837-d, Mensch)
@@ -206,11 +211,17 @@ verwaiste Dateien und Cleanup-Reste in Schul-Namespaces werden entfernt.
 Unbekannte Dateiarten oder unsichere Pfade/Symlinks stoppen das Verfahren.
 
 Für einen Träger `--school` durch `--organization "$ORGANIZATION_ID"` ersetzen
-und `--confirm "organization:$ORGANIZATION_ID"` verwenden. Vorher jede
+und `--confirm "organization:$ORGANIZATION_ID"` verwenden. `--order` ist die
+Vorgangsnummer des im Operator-Portal erfassten Löschauftrags. Vorher jede
 Schule des Trägers prüfen; es gibt keine automatische Berechtigung durch
-bloße Trägerzuordnung. Derselbe Vorgang umfasst bei Wiederaufnahme auch
-bereits entfernte Schulen mit derselben Referenz/Operator-ID. Die
-Trägerwurzel bleibt offen und der Aufruf endet deshalb ungleich 0.
+bloße Trägerzuordnung. Der Probelauf zeigt am Ende den Stand des Auftrags
+(`missing`, `reference_mismatch`, `active`, `grace_period`, `due`,
+`completed`); nur `due` erlaubt die Ausführung. Derselbe Vorgang umfasst bei
+Wiederaufnahme auch bereits entfernte Schulen mit derselben
+Referenz/Operator-ID. Erst wenn keine Schule mehr übrig ist, löscht der Lauf
+die Trägerwurzel, schreibt den Eintrag `erase` ins Operator-Audit und
+schließt den Auftrag ab. Ein erneuter Aufruf liefert dann nur den Nachweis.
+Ein offener Auftrag lässt sich bis dahin im Operator-Portal zurücknehmen.
 
 ## 3. Abbruch und Wiederaufnahme
 

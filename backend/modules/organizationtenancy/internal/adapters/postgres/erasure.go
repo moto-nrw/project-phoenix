@@ -77,6 +77,10 @@ func (s *ErasureStore) Call(ctx context.Context, lockTimeout, statementTimeout t
 			return conn.NewRaw(`SELECT platform.erase_school(?,?)::text`, args...).Scan(ctx, &result)
 		case "phase":
 			return conn.NewRaw(`SELECT platform.school_erasure_file_phase(?,?,?::jsonb)::text`, args...).Scan(ctx, &result)
+		case "organization_check":
+			return conn.NewRaw(`SELECT platform.organization_erasure_check(?,?,?)::text`, args...).Scan(ctx, &result)
+		case "organization_erase":
+			return conn.NewRaw(`SELECT platform.erase_organization(?,?,?)::text`, args...).Scan(ctx, &result)
 		default:
 			return errors.New("unknown erasure operation")
 		}

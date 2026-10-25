@@ -211,3 +211,34 @@ Löschweg und die Sperre sind im Code umgesetzt; regelmäßiger Aufruf,
 Produktiv-Rollenprüfung und Wirksamkeitsnachweis bleiben offen.
 Details: [DB-Vertrag](../reference/mandantenloeschung-datenbank.md) und
 [Fristenliste](../reference/loeschfristen.md).
+
+## Ergänzung: Trägerwurzel und Löschauftrag (#4657)
+
+Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611) User
+Story 11 verlangt das Löschen eines Trägers nach Vertragsende, nur nach
+erfasster schriftlicher Bestätigung und mit Schonfrist. Die Ausnahme aus
+Punkt 2 deckt dafür auch die Trägerwurzel; es entsteht kein neuer Owner und
+keine neue Policy-Regel.
+
+- **Löschauftrag:** `platform.organization_erasure_orders` (Schreib-Owner
+  Organisation & Tenancy) hält Vorgangsnummer, Datum der schriftlichen
+  Bestätigung und das Ende der Schonfrist, ohne FKs und ohne Namen. Das
+  moto-Team erfasst und nimmt den Auftrag im Operator-Portal zurück, jeweils
+  mit Operator-Audit. Erfassen setzt einen deaktivierten Träger voraus;
+  Reaktivieren setzt die Rücknahme voraus.
+- **Schonfrist:** Die Löschung darf frühestens am Tag nach der Erfassung
+  laufen, der genaue Tag kommt aus der schriftlichen Bestätigung. Es gibt
+  damit keine pauschale Wartefrist und keine vorgeschaltete Soft-Delete-
+  Bedienhandlung; die Schonfrist ist das Zeitfenster für Rücknahme und
+  Rückgabe.
+- **Ausführung:** Einstieg bleibt `tenant erase --organization`. Der CLI fragt
+  `platform.organization_erasure_check` vor der ersten Schule, löscht dann
+  jede Schule über den bestehenden Schulvertrag und zuletzt die Wurzel über
+  `platform.erase_organization` (`SECURITY DEFINER`, fester Suchpfad, nur
+  `phoenix_school_erasure`). Die kaskadierenden FKs von Mitgliedschaft,
+  Träger-Rollen und Träger-Sitzungen gehen mit; der Operator-Audit-Eintrag und
+  der Abschluss des Auftrags entstehen im selben Schritt.
+- **Grenzen:** Die unabhängige Löschungsliste bleibt bei Schul-IDs. Nach einem
+  Restore wird der Trägerauftrag mit derselben Referenz erneut ausgeführt.
+  Globale Konten bleiben wie bei Schulen dem Job `auth.erase_unused_accounts`
+  überlassen; `platform.billing_key_date_counts` bleibt gesperrt erhalten.
