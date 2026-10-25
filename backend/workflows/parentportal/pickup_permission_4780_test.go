@@ -525,6 +525,27 @@ func TestPickupPermissionRequestsListQueryBudget(t *testing.T) {
 	testpkg.AssertQueryBudget(t, "workflows.parentportal.pickup_permission_requests.list", counter.Queries())
 }
 
+func TestPickupPermissionRequestsAreVisibleToEveryChildGuardian(t *testing.T) {
+	t.Parallel()
+
+	f := buildPickupPermissionService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, f.db)
+	contactID := linkContactOnlyGuardian(t, f.db, chain.StudentID, "oma-4780-co-guardian")
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	created, err := f.svc.SubmitPickupPermissionRequest(ctx, chain.AccountID, chain.StudentID, contactID, parentService.PickupPermissionInput{
+		Signature: signedContactPermission(t, f, chain, nil),
+	})
+	require.NoError(t, err)
+
+	coGuardian := linkAccountGuardian(t, f.db, chain.StudentID, "co-4780-visibility", map[string]interface{}{
+		"parent_portal.access": true,
+	})
+	rows, err := f.svc.ListPickupPermissionRequests(ctx, accountIDForProfile(t, f.db, coGuardian), chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, created.ID, rows[0].ID)
+}
+
 func TestPickupPermissionRequest_RefusesWithoutSignatureOrPermission(t *testing.T) {
 	t.Parallel()
 

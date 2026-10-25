@@ -85,8 +85,8 @@ var queryBudgets = map[string]queryBudget{
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},
 	// workflows/parentportal — the pickup permission request list resolves the
-	// caller's child, then reads all requests and their sharing visibility once.
-	// The test uses three requests to prevent a per-row visibility lookup.
+	// caller's child, then reads all requests once. The test uses three requests
+	// to prevent a per-row request lookup.
 	"workflows.parentportal.pickup_permission_requests.list": {max: 12},
 	// modules/enrollment/http — GET /phases/{id}/responses: phase plus four batched
 	// response sources inside the tenant transaction. The matching test proves

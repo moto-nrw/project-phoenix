@@ -228,9 +228,11 @@ func previousPickupPermissionLabel(link *GuardianRelationship) string {
 	return carerequests.WeekdayListLabel(normalizedWeekdays(link.PickupWeekdays))
 }
 
-// ListPickupPermissionRequests lists the child's pickup permission requests
-// the caller may see: pending requests always remain visible; decided history
-// is retained for two months.
+// ListPickupPermissionRequests lists the child's pickup permission requests.
+// Every guardian with portal access sees the operational status of a pickup
+// permission for their child; the signed declaration itself remains private to
+// the submitting guardian. Pending requests always remain visible; decided
+// history is retained for two months.
 func (s *Service) ListPickupPermissionRequests(ctx context.Context, accountID, studentID int64) ([]carerequests.Request, error) {
 	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
@@ -243,21 +245,7 @@ func (s *Service) ListPickupPermissionRequests(ctx context.Context, accountID, s
 	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var listErr error
 		rows, listErr = s.CareRequests.ListPickupPermissionRequests(txCtx, studentID, s.now().AddDate(0, -2, 0))
-		if listErr != nil {
-			return listErr
-		}
-		visibility, visibilityErr := s.RequestSharing.LoadRequestShareVisibility(txCtx, studentID)
-		if visibilityErr != nil {
-			return visibilityErr
-		}
-		visible := rows[:0]
-		for _, row := range rows {
-			if visibility.Allows(RequestSharePickupChange, row.ID, accountID, row.SubmittedBy) {
-				visible = append(visible, row)
-			}
-		}
-		rows = visible
-		return nil
+		return listErr
 	})
 	if err != nil {
 		return nil, fmt.Errorf("parent: list pickup permission requests: %w", err)
