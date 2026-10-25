@@ -639,6 +639,9 @@ GET /traeger/access-log/people
 GET /traeger/accounts/
 GET /traeger/holiday-periods/
 GET /traeger/holiday-periods/{id}
+GET /traeger/holiday-periods/{id}/registrations
+GET /traeger/holiday-periods/{id}/registrations/export
+GET /traeger/holiday-periods/{id}/registrations/{registrationId}
 GET /traeger/holiday-registrations/{token}
 GET /traeger/invitations/{token}
 GET /traeger/master-data/
@@ -1057,6 +1060,10 @@ POST /traeger/auth/mfa/resend
 POST /traeger/auth/mfa/verify
 POST /traeger/holiday-periods/
 POST /traeger/holiday-periods/{id}/publish
+POST /traeger/holiday-periods/{id}/registrations/{registrationId}/cancel
+POST /traeger/holiday-periods/{id}/registrations/{registrationId}/confirm
+POST /traeger/holiday-periods/{id}/registrations/{registrationId}/freeze
+POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen
 POST /traeger/holiday-registrations/{token}
 POST /traeger/invitations/{token}/accept
 POST /traeger/master-data/bank-accounts
@@ -1198,6 +1205,7 @@ PUT /school/notifications/preferences/{type}
 PUT /school/supervisions/{id}/students/{student_id}/homework-feedback
 PUT /traeger/accounts/{accountId}/roles
 PUT /traeger/holiday-periods/{id}
+PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings
 PUT /traeger/master-data/bank-accounts/{id}
 PUT /traeger/master-data/contact
 PUT /traeger/master-data/logo

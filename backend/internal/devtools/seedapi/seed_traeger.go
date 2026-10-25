@@ -59,7 +59,8 @@ func seedTraegerInvitation(rt *Runtime) error {
 // each with a morning and a full-day time model. Registration is open from a
 // week ago for a month; the weeks follow six weeks from now. A family then
 // registers two siblings through the period's public link (#4661): one child
-// of the Träger's first school and a holiday guest.
+// of the Träger's first school and a holiday guest; the Träger-Büro reviews
+// the registrations (#4663).
 type seedTraegerHolidayPeriodStep struct{}
 
 func (seedTraegerHolidayPeriodStep) Name() string { return "Seeding a Träger holiday period" }
@@ -89,15 +90,60 @@ func (seedTraegerHolidayPeriodStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("publish the holiday period: %w", err)
 	}
 	fmt.Println("  Träger-Büro: holiday period with two weeks published")
-	token, registration, err := seedHolidayRegistration(published, schools[0])
+	return seedHolidayRegistrations(rt, auth, periodID, published, schools[0])
+}
+
+// seedHolidayRegistrations registers two siblings through the public link
+// (#4661), then a second parent registers the first sibling once more for
+// the second week, a possible duplicate. The Träger-Büro reviews the list
+// and confirms the siblings' registration (#4663); the duplicate stays
+// received.
+func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) error {
+	token, registration, err := seedHolidayRegistration(published, homeSchool)
 	if err != nil {
 		return err
 	}
-	if _, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, registration); err != nil {
+	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, registration)
+	if err != nil {
 		return fmt.Errorf("register for the holiday period: %w", err)
 	}
+	siblings, err := decodeSeedEntityID(raw)
+	if err != nil {
+		return fmt.Errorf("read the holiday registration: %w", err)
+	}
 	fmt.Println("  Ferienanmeldung: two siblings registered, one of them a holiday guest")
+	if _, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, seedHolidayDuplicate(registration)); err != nil {
+		return fmt.Errorf("register the possible duplicate: %w", err)
+	}
+	registrations := fmt.Sprintf("/traeger/holiday-periods/%d/registrations", periodID)
+	if _, err := rt.Client.GetWithAuth(auth, registrations); err != nil {
+		return fmt.Errorf("list the holiday registrations: %w", err)
+	}
+	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("%s/%d/confirm", registrations, siblings), map[string]any{}); err != nil {
+		return fmt.Errorf("confirm the holiday registration: %w", err)
+	}
+	fmt.Println("  Träger-Büro: siblings confirmed, a possible duplicate waits for review")
 	return nil
+}
+
+// seedHolidayDuplicate is a second parent's registration of the first
+// sibling of registration for the last booked week of the guest sibling.
+func seedHolidayDuplicate(registration map[string]any) map[string]any {
+	children := registration["children"].([]map[string]any)
+	child := map[string]any{}
+	for key, value := range children[0] {
+		child[key] = value
+	}
+	guestBookings := children[1]["bookings"].([]map[string]any)
+	child["allergies"] = ""
+	child["bookings"] = guestBookings[len(guestBookings)-1:]
+	duplicate := map[string]any{}
+	for key, value := range registration {
+		duplicate[key] = value
+	}
+	duplicate["guardian"] = map[string]any{"first_name": "Markus", "last_name": "Ferienkind", "email": "markus.ferienkind@example.org", "phone": "0151 0000003"}
+	duplicate["children"] = []map[string]any{child}
+	return duplicate
 }
 
 // seedTurnstileTestToken is the token Cloudflare's Turnstile test keys of

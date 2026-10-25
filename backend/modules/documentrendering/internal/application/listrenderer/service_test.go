@@ -435,7 +435,7 @@ func TestRenderPDFMultiPage(t *testing.T) {
 func TestRenderUnsupportedFormat(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewService().Render(sampleDocument(), listrecords.Format("csv"), "liste")
+	_, err := NewService().Render(sampleDocument(), listrecords.Format("odt"), "liste")
 	if err == nil {
 		t.Fatal("Render() error = nil, want unsupported format error")
 	}
