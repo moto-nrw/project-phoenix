@@ -77,7 +77,7 @@ func (s seedFamilyAppAccountsStep) Run(ctx context.Context, rt *Runtime) error {
 
 // familyAppGuardians returns the primary guardian of each demo child whose
 // family has no app account yet, in DemoStudents order, leaving out
-// familiesWithoutApp.
+// familiesWithoutApp. A guardian of siblings is listed once.
 func familyAppGuardians(guardianIDs map[string]int64, parents []ParentCredentials) ([]int64, error) {
 	withAccount := make(map[int64]bool, len(parents))
 	for _, parent := range parents {
@@ -94,12 +94,14 @@ func familyAppGuardians(guardianIDs map[string]int64, parents []ParentCredential
 		if !guardian.IsPrimary || covered[guardian.StudentIndex] || familiesWithoutApp[guardian.StudentIndex] {
 			continue
 		}
-		key := guardian.FirstName + " " + guardian.LastName
+		key := demoGuardianKey(guardian)
 		guardianID, ok := guardianIDs[key]
 		if !ok || guardianID == 0 {
 			return nil, fmt.Errorf("guardian %s was not created", key)
 		}
-		result = append(result, guardianID)
+		if !slices.Contains(result, guardianID) {
+			result = append(result, guardianID)
+		}
 		covered[guardian.StudentIndex] = true
 	}
 	return result, nil
