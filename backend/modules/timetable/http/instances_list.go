@@ -226,6 +226,12 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 // returns ok=false after rendering the 400 for a missing, malformed,
 // reversed or too wide window.
 func parseInstanceListWindow(w http.ResponseWriter, r *http.Request) (from, to calendar.Date, ok bool) {
+	return parseDateWindow(w, r, maxInstanceListRangeDays)
+}
+
+// parseDateWindow reads a required inclusive from/to query window of at most
+// maxDays days. It returns ok=false after rendering the 400.
+func parseDateWindow(w http.ResponseWriter, r *http.Request, maxDays int) (from, to calendar.Date, ok bool) {
 	q := r.URL.Query()
 	fromStr := q.Get("from")
 	toStr := q.Get("to")
@@ -253,9 +259,9 @@ func parseInstanceListWindow(w http.ResponseWriter, r *http.Request) (from, to c
 			errors.New("'to' must be on or after 'from'")))
 		return from, to, false
 	}
-	if inclusiveDayCount(from, to) > maxInstanceListRangeDays {
+	if inclusiveDayCount(from, to) > maxDays {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
-			fmt.Errorf("date range exceeds maximum of %d days", maxInstanceListRangeDays)))
+			fmt.Errorf("date range exceeds maximum of %d days", maxDays)))
 		return from, to, false
 	}
 	return from, to, true

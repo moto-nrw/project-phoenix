@@ -1227,6 +1227,7 @@ function myScheduleTopic(): HelpTopic {
           "Blau zeigt Ihre Einsätze im Betreuungsplan.",
           "Orange zeigt Ihre Schichten aus dem Dienstplan.",
           "Lila zeigt Schultermine. Eine Lehrkraft hat sie in moto schule eingetragen, zum Beispiel einen Ausflug. Die Art steht im geöffneten Termin.",
+          "Türkis zeigt gesetzliche Feiertage. Sie gelten für die ganze Schule und lassen sich nicht ändern.",
         ],
       },
       {
@@ -5446,6 +5447,17 @@ function calendarPeriodsTopic(): HelpTopic {
         ],
       },
       {
+        title: "Die gesetzlichen Feiertage prüfen",
+        description:
+          "moto richtet die Feiertage nach dem Bundesland Ihrer Schule. Sie müssen sie nicht eintragen.",
+        steps: [
+          "Öffnen Sie `Schuljahr und Kalender`.",
+          "Gehen Sie zum Abschnitt `Gesetzliche Feiertage`.",
+          "Prüfen Sie das Bundesland im Text über der Liste.",
+          "Stimmt das Bundesland nicht? Wenden Sie sich an das moto-Team. Nur das moto-Team kann es ändern.",
+        ],
+      },
+      {
         title: "Termine an Schließtagen absagen",
         description: "Für Termine, die schon vor dem Schließtag geplant waren.",
         steps: [
@@ -5950,6 +5962,7 @@ function settingsTopic(): HelpTopic {
       "Damit enden auch Sitzungsaufzeichnungen. Die Fehlerdiagnose bleibt davon getrennt.",
       "Unter `Datenschutz` sehen Sie die Löschfristen. Sie zeigen, wie lange moto Daten aufbewahrt.",
       "moto legt die Löschfristen mit Ihrer Schule fest. Sie können sie nur lesen.",
+      "Unter `Betrieb` steht das `Bundesland` Ihrer Schule. Danach richten sich die gesetzlichen Feiertage. Ändern kann es nur das moto-Team.",
       "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",
       "`Das ganze Team` geht dort nur, wenn das Team alle Gruppen und Blöcke sieht.",
       "Manche Werte legt Ihr Träger für alle Schulen fest. Dort steht `Vom Träger festgelegt`.",

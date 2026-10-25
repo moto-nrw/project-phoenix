@@ -185,6 +185,92 @@ describe("StaffCalendarPage", () => {
     ).toBeInTheDocument();
   });
 
+  // #4775: gesetzliche Feiertage stehen als eigene ganztägige Einträge im
+  // Raster, mit eigener Legende, und zählen nicht als Termin.
+  it("shows public holidays next to the appointments without counting them", () => {
+    mockUseSWRAuth.mockImplementation((key: unknown) => {
+      const cacheKey = typeof key === "string" ? key : "";
+      if (cacheKey.startsWith("school-holidays-")) {
+        return {
+          data: {
+            federalState: "DE-BY",
+            federalStateName: "Bayern",
+            holidays: [{ date: "2026-01-06", name: "Heilige Drei Könige" }],
+          },
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      if (cacheKey.startsWith("staff-calendar")) {
+        return {
+          data: calendarResponse,
+          error: null,
+          isLoading: false,
+          mutate: mockMutate,
+        };
+      }
+      return {
+        data: undefined,
+        error: null,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(mockUseSWRAuth).toHaveBeenCalledWith(
+      "school-holidays-2026-01-05-2026-01-11",
+      expect.any(Function),
+    );
+    expect(screen.getAllByText("Heilige Drei Könige").length).toBeGreaterThan(
+      0,
+    );
+    expect(screen.getAllByText("Feiertag").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
+    expect(screen.getByText("1 Termin")).toBeInTheDocument();
+  });
+
+  it("names a failed holiday load and keeps the appointments", async () => {
+    mockUseSWRAuth.mockImplementation((key: unknown) => {
+      const cacheKey = typeof key === "string" ? key : "";
+      if (cacheKey.startsWith("school-holidays-")) {
+        return {
+          data: undefined,
+          error: new ApiError("holidays failed", 503, {
+            code: "general.unavailable",
+          }),
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      if (cacheKey.startsWith("staff-calendar")) {
+        return {
+          data: calendarResponse,
+          error: null,
+          isLoading: false,
+          mutate: mockMutate,
+        };
+      }
+      return {
+        data: undefined,
+        error: null,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Feiertage"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Teamplanung").length).toBeGreaterThan(0);
+  });
+
   it("keeps the calendar subscription available when the calendar fails", async () => {
     mockUseSWRAuth.mockImplementation((key: unknown) => {
       const cacheKey = typeof key === "string" ? key : "";

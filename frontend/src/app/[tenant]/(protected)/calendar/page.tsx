@@ -84,6 +84,11 @@ import {
   type CalendarTarget,
   type CalendarTargetType,
 } from "~/lib/personal-calendar-api";
+import {
+  getSchoolHolidays,
+  holidaysAsCalendarEvents,
+  type SchoolHolidays,
+} from "~/lib/school-holidays-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useCalDAVEnabled } from "~/lib/tenant-context";
 
@@ -495,6 +500,21 @@ function StaffCalendarPageInner() {
     getStaffCalendar(range.from, range.to),
   );
 
+  // Gesetzliche Feiertage des Bundeslands (#4775) als eigene Einträge neben
+  // den Terminen. Sie sind keine Termine und zählen nicht in der Statuszeile.
+  const fromISO = toISODate(range.from);
+  const toISO = toISODate(range.to);
+  const {
+    data: holidayData,
+    error: holidayError,
+    mutate: mutateHolidays,
+  } = useSWRAuth<SchoolHolidays>(`school-holidays-${fromISO}-${toISO}`, () =>
+    getSchoolHolidays(fromISO, toISO),
+  );
+  const holidayLoadError = useSwrLoadError(holidayError, "die Feiertage", () =>
+    mutateHolidays(),
+  );
+
   const { data: recipientOptions = emptyRecipientOptions } =
     useSWRAuth<CalendarRecipientOptions>(
       formOpen && canManageCalendar
@@ -849,7 +869,24 @@ function StaffCalendarPageInner() {
       void handleRespond(recipientId, status);
   });
 
-  const calendarEvents = calendarError ? [] : (data?.events ?? []);
+  const appointmentEvents = useMemo(
+    () => (calendarError ? [] : (data?.events ?? [])),
+    [calendarError, data],
+  );
+  const holidayEvents = useMemo(
+    () =>
+      holidayError || !holidayData
+        ? []
+        : holidaysAsCalendarEvents(
+            holidayData.holidays,
+            holidayData.federalStateName,
+          ),
+    [holidayData, holidayError],
+  );
+  const calendarEvents = useMemo(
+    () => (calendarError ? [] : [...appointmentEvents, ...holidayEvents]),
+    [calendarError, appointmentEvents, holidayEvents],
+  );
 
   const personalCalendar = (
     <PersonalCalendar
@@ -876,7 +913,13 @@ function StaffCalendarPageInner() {
   // selbst führt die Bedienzeile der Zeitnavigation als `dateLabel`, er steht
   // deshalb nicht ein zweites Mal in der Kopfkarte.
   const eventCount = visibleCalendarEvents(
-    calendarEvents,
+    appointmentEvents,
+    showWeekend,
+    viewMode,
+  ).length;
+  // Ein Feiertag allein hält das Raster offen, damit er sichtbar bleibt.
+  const holidayCount = visibleCalendarEvents(
+    holidayEvents,
     showWeekend,
     viewMode,
   ).length;
@@ -903,7 +946,11 @@ function StaffCalendarPageInner() {
       ? calendarLoadError
       : null;
   const calendarEmpty =
-    onCalendarTab && !isLoading && !calendarError && eventCount === 0
+    onCalendarTab &&
+    !isLoading &&
+    !calendarError &&
+    eventCount === 0 &&
+    holidayCount === 0
       ? {
           title: calendarEmptyLabel(viewMode),
           description: canManageCalendar
@@ -928,6 +975,7 @@ function StaffCalendarPageInner() {
     // Der Abo-Bereich (#2621) bleibt auch in einer leeren Woche erreichbar,
     // deshalb ersetzt der Leerzustand hier nur das Raster, nicht den Inhalt.
     <>
+      <LoadErrorAlert error={holidayLoadError} />
       {calendarError ? null : calendarEmpty ? (
         <SectionCard>
           <EmptyState

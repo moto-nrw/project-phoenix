@@ -74,6 +74,22 @@ func TestTenantHolidaysResolveTheRegionFromTheTenant(t *testing.T) {
 	assert.Equal(t, "Buß- und Bettag", list[0].Name)
 }
 
+// The school checks its holidays against the state they are computed for
+// (#4775); an unreadable or unsupported state is the same error the
+// holiday reads report.
+func TestTenantHolidayRegionNamesTheFederalState(t *testing.T) {
+	t.Parallel()
+
+	region, err := newTestModule(&calendarDaysEngine{region: "DE-SN"}).TenantHolidayRegion(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, schoolcalendar.HolidayRegion{Code: "DE-SN", Name: "Sachsen"}, region)
+
+	_, err = newTestModule(&calendarDaysEngine{regionErr: errors.New("boom")}).TenantHolidayRegion(context.Background())
+	require.ErrorIs(t, err, schoolcalendar.ErrFederalStateUnavailable)
+	_, err = newTestModule(&calendarDaysEngine{region: "XX"}).TenantHolidayRegion(context.Background())
+	require.ErrorIs(t, err, schoolcalendar.ErrFederalStateUnavailable)
+}
+
 func TestTenantHolidayDates(t *testing.T) {
 	t.Parallel()
 

@@ -614,6 +614,14 @@ func (s *Service) TenantHolidays(ctx context.Context, from, to string) ([]school
 	return s.ListHolidays(ctx, region, from, to)
 }
 
+func (s *Service) TenantHolidayRegion(ctx context.Context) (schoolcalendar.HolidayRegion, error) {
+	region, err := s.tenantRegion(ctx)
+	if err != nil {
+		return schoolcalendar.HolidayRegion{}, err
+	}
+	return schoolcalendar.HolidayRegion{Code: region, Name: HolidayRegionName(region)}, nil
+}
+
 func (s *Service) TenantHolidayDates(ctx context.Context, from, to string) (map[string]bool, error) {
 	if err := validateHolidayWindow(from, to); err != nil {
 		return nil, err

@@ -10,23 +10,30 @@ import (
 	"github.com/wlbr/feiertage"
 )
 
-var holidayRegions = map[string]func(int, ...bool) feiertage.Region{
-	"DE-BW": feiertage.BadenWürttemberg,
-	"DE-BY": feiertage.Bayern,
-	"DE-BE": feiertage.Berlin,
-	"DE-BB": feiertage.Brandenburg,
-	"DE-HB": feiertage.Bremen,
-	"DE-HH": feiertage.Hamburg,
-	"DE-HE": feiertage.Hessen,
-	"DE-MV": feiertage.MecklenburgVorpommern,
-	"DE-NI": feiertage.Niedersachsen,
-	"DE-NW": feiertage.NordrheinWestfalen,
-	"DE-RP": feiertage.RheinlandPfalz,
-	"DE-SL": feiertage.Saarland,
-	"DE-SN": feiertage.Sachsen,
-	"DE-ST": feiertage.SachsenAnhalt,
-	"DE-SH": feiertage.SchleswigHolstein,
-	"DE-TH": feiertage.Thüringen,
+// holidayRegion is one supported federal state: its holiday calendar and
+// the German name the school sees (#4775).
+type holidayRegion struct {
+	name     string
+	holidays func(int, ...bool) feiertage.Region
+}
+
+var holidayRegions = map[string]holidayRegion{
+	"DE-BW": {"Baden-Württemberg", feiertage.BadenWürttemberg},
+	"DE-BY": {"Bayern", feiertage.Bayern},
+	"DE-BE": {"Berlin", feiertage.Berlin},
+	"DE-BB": {"Brandenburg", feiertage.Brandenburg},
+	"DE-HB": {"Bremen", feiertage.Bremen},
+	"DE-HH": {"Hamburg", feiertage.Hamburg},
+	"DE-HE": {"Hessen", feiertage.Hessen},
+	"DE-MV": {"Mecklenburg-Vorpommern", feiertage.MecklenburgVorpommern},
+	"DE-NI": {"Niedersachsen", feiertage.Niedersachsen},
+	"DE-NW": {"Nordrhein-Westfalen", feiertage.NordrheinWestfalen},
+	"DE-RP": {"Rheinland-Pfalz", feiertage.RheinlandPfalz},
+	"DE-SL": {"Saarland", feiertage.Saarland},
+	"DE-SN": {"Sachsen", feiertage.Sachsen},
+	"DE-ST": {"Sachsen-Anhalt", feiertage.SachsenAnhalt},
+	"DE-SH": {"Schleswig-Holstein", feiertage.SchleswigHolstein},
+	"DE-TH": {"Thüringen", feiertage.Thüringen},
 }
 
 var holidayDisplayNames = map[string]string{
@@ -43,8 +50,13 @@ func ValidHolidayRegion(region string) bool {
 	return ok
 }
 
+// HolidayRegionName is the German name of a supported region, "" otherwise.
+func HolidayRegionName(region string) string {
+	return holidayRegions[region].name
+}
+
 func HolidaysInRange(region, from, to string) ([]schoolcalendar.Holiday, error) {
-	fn, ok := holidayRegions[region]
+	entry, ok := holidayRegions[region]
 	if !ok {
 		return nil, fmt.Errorf("unknown federal state region %q", region)
 	}
@@ -59,7 +71,7 @@ func HolidaysInRange(region, from, to string) ([]schoolcalendar.Holiday, error) 
 
 	var result []schoolcalendar.Holiday
 	for year := fromDate.Year(); year <= toDate.Year(); year++ {
-		for _, holiday := range fn(year).Feiertage {
+		for _, holiday := range entry.holidays(year).Feiertage {
 			y, m, d := holiday.Date()
 			date := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 			if date.Before(fromDate) || date.After(toDate) {

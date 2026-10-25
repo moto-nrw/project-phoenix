@@ -143,6 +143,7 @@ func newTimetableResource(
 	return timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods:         calendar,
 		ClosingDays:             calendar,
+		Holidays:                calendar,
 		CalendarPeriodUsage:     calendarPeriodUsage{usage: newCalendarPeriodUsage(timetableOwner)},
 		MaterializationService:  materialization,
 		InstanceService:         lifecycle.Instances,

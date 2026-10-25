@@ -502,7 +502,7 @@ var operations_init_standort_10Definitions = []config.Definition{
 	{
 		Key:             config.KeyFederalState,
 		Label:           "Bundesland",
-		Description:     "Bundesland des Standorts. Bestimmt die gesetzlichen Feiertage in der Zeiterfassung (Soll = 0 an Feiertagen).",
+		Description:     "Bundesland der Schule. Danach richten sich die gesetzlichen Feiertage. An Feiertagen gibt es in der Zeiterfassung kein Soll. Der Dienstplan legt keine Schichten an. Regeltermine finden nicht statt. Ändern kann es nur das moto-Team.",
 		Type:            config.FieldSelect,
 		Default:         "DE-NW",
 		ReadPermission:  "config:read",
@@ -510,7 +510,9 @@ var operations_init_standort_10Definitions = []config.Definition{
 		Tab:             "operations",
 		Category:        "standort",
 		SortOrder:       45,
-		AccessPolicy:    config.AccessOperatorOnly,
+		// Schools see their state read-only (#4775); changing it shifts the
+		// whole Arbeitszeitkonto, so only operators write it.
+		AccessPolicy: config.AccessOperatorManaged,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
 				{Label: "Baden-Württemberg", Value: "DE-BW"},

@@ -438,7 +438,7 @@ func TestFederalStateSetting(t *testing.T) {
 	require.NotNil(t, def, "operations.federal_state should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
 	assert.Equal(t, "DE-NW", def.Default, "default must stay DE-NW - existing schools are NRW")
-	assert.Equal(t, config.AccessOperatorOnly, def.AccessPolicy, "federal_state is operator-only - changing it shifts the whole Arbeitszeitkonto")
+	assert.Equal(t, config.AccessOperatorManaged, def.AccessPolicy, "schools see federal_state read-only (#4775); only operators change it - it shifts the whole Arbeitszeitkonto")
 	assert.Equal(t, "operations", def.Tab)
 
 	// The select options and the holiday computation must know the same

@@ -109,6 +109,13 @@ const sourceTone = {
     bar: MOTO_COLOR_PALETTE.gold.base,
     bg: MOTO_COLOR_PALETTE.gold.soft,
   },
+  // Gesetzliche Feiertage des Bundeslands (#4775), eigene Farbe neben
+  // Schließtagen und Ferien.
+  public_holiday: {
+    label: "Feiertag",
+    bar: MOTO_COLOR_PALETTE.teal.base,
+    bg: MOTO_COLOR_PALETTE.teal.soft,
+  },
 } satisfies Record<
   CalendarEvent["source"],
   { label: string; bar: string; bg: string }
@@ -185,6 +192,11 @@ const calendarLegendEntries: readonly PlanLegendEntry[] = [
     key: "source-holiday",
     label: sourceTone.holiday.label,
     color: sourceTone.holiday.bar,
+  },
+  {
+    key: "source-public-holiday",
+    label: sourceTone.public_holiday.label,
+    color: sourceTone.public_holiday.bar,
   },
 ];
 
