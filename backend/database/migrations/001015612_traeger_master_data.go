@@ -14,8 +14,8 @@ func init() {
 		Version:     traegerMasterDataVersion,
 		Description: "Träger-Portal: Stammdaten des Trägers mit Logo, Ansprechpartner und Bankverbindungen in der Träger-Transaktion (#4653)",
 		DependsOn: []string{
-			mealCombinedRolePermissionsVersion, // the last migration before this one
-			traegerPortalVersion,               // the Träger-Portal this table family serves
+			surveyErasureAfterMealsVersion, // the last migration before this one
+			traegerPortalVersion,           // the Träger-Portal this table family serves
 		},
 	})
 	Migrations.MustRegister(traegerMasterDataUp, traegerMasterDataDown)
