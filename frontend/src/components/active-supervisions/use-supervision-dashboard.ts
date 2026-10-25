@@ -24,7 +24,7 @@ import {
   mapVisitsToSupervisionStudents,
   resolveSupervisionSelection,
 } from "~/components/active-supervisions/view-model";
-import type { DepartureMode } from "~/lib/student-helpers";
+import type { DepartureMode, TeacherHint } from "~/lib/student-helpers";
 import type {
   ActiveSupervisionRoom,
   ActiveSupervisionStudent,
@@ -121,6 +121,8 @@ interface BFFDashboardResponse {
     notes: string;
     dayNotes: Array<{ id: string; content: string }>;
   }>;
+  // Hinweise der Lehrkraft für heute (#4795), je Kind.
+  teacherHints?: Array<{ studentId: string } & TeacherHint>;
   arrivalTimes?: Array<{
     studentId: string;
     date: string;
@@ -571,6 +573,15 @@ export function useSupervisionDashboard(
     [openRooms, selectedOpenRoomId],
   );
 
+  // Hinweise der Lehrkraft (#4795) je Kind, für die Karten der Aufsicht.
+  const teacherHintsByStudent = useMemo(() => {
+    const byStudent = new Map<string, TeacherHint[]>();
+    for (const { studentId, ...hint } of snapshot?.teacherHints ?? []) {
+      byStudent.set(studentId, [...(byStudent.get(studentId) ?? []), hint]);
+    }
+    return byStudent;
+  }, [snapshot?.teacherHints]);
+
   const students = useMemo<ActiveSupervisionStudent[]>(() => {
     if (currentOpenRoom) {
       // Everyone the room currently holds, from every session running in it,
@@ -578,6 +589,7 @@ export function useSupervisionDashboard(
       return mapVisitsToSupervisionStudents(currentOpenRoom.students, {
         roomName: currentOpenRoom.name,
         groupNameToId: groupNameToIdMap,
+        teacherHints: teacherHintsByStudent,
       });
     }
     if (!snapshot) return [];
@@ -589,9 +601,11 @@ export function useSupervisionDashboard(
       roomName: resolvedRoom.room_name,
       roomColor: resolvedRoom.room_color,
       groupNameToId: groupNameToIdMap,
+      teacherHints: teacherHintsByStudent,
     });
   }, [
     snapshot,
+    teacherHintsByStudent,
     currentOpenRoom,
     selectedOpenRoomId,
     groupNameToIdMap,

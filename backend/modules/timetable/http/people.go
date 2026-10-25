@@ -3,6 +3,8 @@ package timetablehttp
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -38,6 +40,12 @@ type People interface {
 	// day. A missing child may instead return the directory's not-found
 	// error.
 	StudentAttends(ctx context.Context, studentID int64, day calendar.Date) (bool, error)
+}
+
+// TeacherHints reads the Lehrkraft's hints for the OGS (#4795) of many
+// children on one day, keyed by child, oldest first.
+type TeacherHints interface {
+	TeacherHints(ctx context.Context, studentIDs []int64, day calendar.Date) (map[int64][]timetable.OperationTeacherHint, error)
 }
 
 // readableStudent is the child the read gate is asked about. The directory

@@ -993,6 +993,8 @@ online_anmeldung
 unterricht_vormittag
 	DELETE /school/calendar/appointments/{appointmentId}
 	DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
+	DELETE /school/class-day/day-hints/{schoolClass}/{date}
+	DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 	DELETE /school/class-day/handover/{schoolClass}/{date}
 	DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 	DELETE /school/notifications/preferences/
@@ -1039,6 +1041,8 @@ unterricht_vormittag
 	POST /school/supervisions/{id}/students/{student_id}/check-out
 	PUT /school/calendar/appointments/{appointmentId}
 	PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
+	PUT /school/class-day/day-hints/{schoolClass}/{date}
+	PUT /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 	PUT /school/class-day/handover/{schoolClass}/{date}
 	PUT /school/class-day/homework/{schoolClass}/{homeworkId}
 	PUT /school/class-day/morning-attendance/{schoolClass}/{date}

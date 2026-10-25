@@ -35,9 +35,9 @@ import (
 // remaining ports are bound here over the reports, the status days, the
 // student, person and contact rows, the access log, the write-scope and
 // morning attendance settings and the broadcaster. deps also carries
-// Student Presence's morning attendance (#4790) and class handovers with the
-// staff names (#4794). Without a broadcaster no arrival schedule change and
-// no class handover is announced.
+// Student Presence's morning attendance (#4790), class handovers with the
+// staff names (#4794) and People Directory's day hints (#4795). Without a
+// broadcaster no arrival schedule change and no class handover is announced.
 func NewClassDay(
 	deps classdayCompose.ClassDayDependencies, reports enrollmentOwner.Reports, statusDays classDayStatusDayReader,
 	students classDayStudentRows, persons classDayPersonRows, studentGuardians classDayContactRows,

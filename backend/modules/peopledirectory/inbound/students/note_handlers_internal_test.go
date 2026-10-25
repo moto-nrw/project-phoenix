@@ -166,6 +166,29 @@ func TestBuildNoteResponseDoesNotOfferEditingForOrphanedLeadershipNote(t *testin
 		"the response must not offer deletion of a retained leadership note to a current group leader")
 }
 
+// A day hint from moto schule (#4795) is withdrawn only there, so the child's
+// record offers neither editing nor deletion, not even to an administrator.
+func TestBuildNoteResponseKeepsSchoolDayHintReadOnly(t *testing.T) {
+	t.Parallel()
+
+	author := int64(17)
+	date := calendar.NewDate(2099, 3, 2)
+	note := peopleModule.StudentNote{
+		ID: 1, StudentID: 2, AuthorAccountID: &author, Origin: peopleModule.StudentNoteOriginSchool,
+		Kind: peopleModule.StudentNoteKindJournal, Visibility: peopleModule.StudentNoteVisibilityAllStaff,
+		Body: "Heute ist Sportfest.", Subject: peopleModule.StudentNoteSubject{Date: &date},
+	}
+	groupID := int64(19)
+	for _, audience := range []securitycontract.StudentNoteAudience{
+		{Admin: true},
+		{LedEducationGroupIDs: []int64{groupID}},
+	} {
+		response := buildNoteResponse(note, audience, &peopleModule.StudentState{GroupID: &groupID}, author)
+		assert.False(t, response.CanEdit)
+		assert.False(t, response.CanDelete)
+	}
+}
+
 func int64Pointer(value int64) *int64 { return &value }
 
 func TestBuildNoteSubjectsResponse(t *testing.T) {
