@@ -29,6 +29,7 @@ type dayReports struct {
 	students          SheetStudents
 	emergencyContacts EmergencyContacts
 	accessLog         AccessLog
+	hints             dayHints
 	morning           morningAttendance
 	homework          homework
 	handover          classHandover
@@ -143,7 +144,7 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date cale
 			return nil, err
 		}
 	}
-	if err := s.applyClassDayEntries(ctx, report, date); err != nil {
+	if err := s.applyClassDayEntries(ctx, report, date, actor.AccountID); err != nil {
 		return nil, err
 	}
 	if !report.EnrollmentKnown {
@@ -294,8 +295,13 @@ func newAccessRecord(errPrefix string, actorAccountID int64, actorRole string, r
 }
 
 // applyClassDayEntries folds the teacher's entries and the OGS feedback into
-// the report, preserving the first failed read.
-func (s *dayReports) applyClassDayEntries(ctx context.Context, report *classday.DayReport, date calendar.Date) error {
+// the report, preserving the first failed read: the day hints (#4795), the
+// morning attendance (#4790), the homework (#4796) and the class handover
+// (#4794).
+func (s *dayReports) applyClassDayEntries(ctx context.Context, report *classday.DayReport, date calendar.Date, actorAccountID int64) error {
+	if err := s.hints.attachDayHints(ctx, report, date, actorAccountID); err != nil {
+		return err
+	}
 	if err := s.morning.applyMorningAttendance(ctx, report, date); err != nil {
 		return err
 	}

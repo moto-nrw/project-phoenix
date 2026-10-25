@@ -88,3 +88,48 @@ func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {
 		})
 	}
 }
+
+// checkClassDayWriteSeamWiring pins on the production router that the class
+// day reaches the seams the test compositions wire on their own: the
+// "Unterricht fällt aus" preset reads the timetable's block starts, and the
+// day report of today offers the day hint (#4795). An unwired seam answers
+// 500 or hides the button while every test-composed class day still passes,
+// as after the merge that dropped BlockStarts from buildClassDayViews.
+func checkClassDayWriteSeamWiring(t *testing.T, graph *goldenRuntime) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Seam", fmt.Sprintf("Wiring-%d", time.Now().UnixNano()))
+	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
+	className := fmt.Sprintf("sw%d", time.Now().UnixNano()%100000)
+	testpkg.CreateTestClassTeacherForTenant(t, db, tenantID, staff.ID, className)
+	testpkg.SetTestTenantSetting(t, db, tenantID, "operations.school_portal_write_scope", `["class_arrival_exceptions", "day_hints"]`)
+	claims := sessiontoken.AppClaims{
+		ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
+	}
+	granted := []string{"class_day:read", "class_day:arrival_exception_write", "class_day:day_hint_write"}
+
+	t.Run("block starts", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/school/class-day/arrival-exceptions/block-start?class="+className+"&date=2099-03-02", nil)
+		rec := testutil.ExecuteWithAuthPermissions(t, graph.router, req, claims, granted)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		assert.Contains(t, rec.Body.String(), `"start":""`)
+	})
+	t.Run("day hints", func(t *testing.T) {
+		// The server reads its own clock: a request that straddles Berlin
+		// midnight asks for yesterday and is asked again.
+		today := calendar.CalendarDateClock(time.Now)
+		for {
+			day := today()
+			req := httptest.NewRequest(http.MethodGet, "/school/class-day/?class="+className+"&date="+day.String(), nil)
+			rec := testutil.ExecuteWithAuthPermissions(t, graph.router, req, claims, granted)
+			if today() != day {
+				continue
+			}
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			assert.Contains(t, rec.Body.String(), `"can_write_day_hints":true`)
+			return
+		}
+	})
+}

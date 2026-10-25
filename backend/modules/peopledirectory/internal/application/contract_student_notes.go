@@ -34,7 +34,20 @@ func toPublicNote(note domain.StudentNote) peopledirectory.StudentNote {
 			Date:             note.Subject.Date,
 			ActivityGroupID:  note.Subject.ActivityGroupID,
 			EducationGroupID: note.Subject.EducationGroupID,
+			SchoolClass:      note.Subject.SchoolClass,
 		},
 		CreatedAt: note.CreatedAt, UpdatedAt: note.UpdatedAt,
 	}
+}
+
+func toPublicSchoolDayHint(note domain.StudentNote) peopledirectory.SchoolDayHint {
+	hint := peopledirectory.SchoolDayHint{
+		ID: note.ID, StudentID: note.StudentID, SchoolClass: note.Subject.SchoolClass,
+		Body: note.Body, AuthorAccountID: note.AuthorAccountID, AuthorName: note.AuthorName,
+		CreatedAt: note.CreatedAt, UpdatedAt: note.UpdatedAt,
+	}
+	if note.Subject.Date != nil {
+		hint.Date = *note.Subject.Date
+	}
+	return hint
 }

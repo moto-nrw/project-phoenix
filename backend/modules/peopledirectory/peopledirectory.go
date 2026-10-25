@@ -108,6 +108,7 @@ type Query interface {
 	StudentPhotoQuery
 	StudentConsentQuery
 	StudentNoteQuery
+	SchoolDayHintQuery
 	GuardianQuery
 	GuardianPortalReachQuery
 	GuardianPortalContacts
@@ -142,6 +143,7 @@ type Command interface {
 	StudentAuditCommand
 	StudentPhotoCommand
 	StudentNoteCommand
+	SchoolDayHintCommand
 	GuardianCommand
 	GuardianPortalCommand
 	StudentPortalCommand
