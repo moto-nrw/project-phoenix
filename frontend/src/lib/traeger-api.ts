@@ -170,6 +170,35 @@ export async function fetchTraegerSchools(): Promise<TraegerSchool[]> {
   }));
 }
 
+/**
+ * Starts the Absprung into a school of the Träger (#4654) and returns the
+ * short-lived hand-off token the school's host redeems into its own session.
+ */
+export async function startTraegerSchoolSession(
+  schoolId: string,
+): Promise<string> {
+  const response = await transportFetch("/api/traeger/school-sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ school_id: Number(schoolId) }),
+  });
+  const data = await readJson(response);
+  if (!response.ok) {
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      data,
+    );
+  }
+  const token = (data as { data?: { handoff_token?: string } } | null)?.data
+    ?.handoff_token;
+  if (!token) {
+    throw apiErrorFromBody("School session without hand-off", 502, data);
+  }
+  return token;
+}
+
 // --- Ferienzeiträume (#4659) ---
 
 /** A bookable care time of a holiday week; the price is in whole cent. */

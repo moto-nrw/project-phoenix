@@ -120,8 +120,12 @@ type SessionClaims struct {
 	ReadOnly      bool
 	ActingAdminID int64
 	PreviewID     string
-	ExpiresAt     int64
-	IssuedAt      int64
+	// ViaTraeger marks a school session the Träger-Büro opened through the
+	// Absprung (ADR 0084 section 5, #4654): the person holds no mapping at
+	// the school and acts with the school's admin role through the Träger.
+	ViaTraeger bool
+	ExpiresAt  int64
+	IssuedAt   int64
 }
 
 // RefreshClaims is the content of a refresh token. A Träger session (scope
@@ -240,6 +244,8 @@ type AuthEvent struct {
 	CompletedWipe   *CompletedWipeEvidence
 	// MFA is set on the mfa_* events (#3331).
 	MFA *MFAEvidence
+	// OrganizationID is the Träger of a traeger_school_switch event (#4654).
+	OrganizationID int64
 }
 
 // AuthEventMetadataEntry is one metadata key of an auth audit event and the
@@ -284,6 +290,9 @@ func (e AuthEvent) Metadata() []AuthEventMetadataEntry {
 	}
 	if evidence := e.CompletedWipe; evidence != nil {
 		add("pending_event_id", evidence.PendingEventID)
+	}
+	if e.OrganizationID > 0 {
+		add("organization_id", e.OrganizationID)
 	}
 	return entries
 }
@@ -343,6 +352,7 @@ type AccountLogin interface {
 	ParentAccountLogin
 	SchoolAccountLogin
 	TraegerAccountLogin
+	TraegerSchoolSessions
 }
 
 // TenantAccountLogin authenticates accounts at the tenant portal.

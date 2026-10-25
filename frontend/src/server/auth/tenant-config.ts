@@ -17,6 +17,7 @@ import {
   buildDisplayName,
   buildAuthUser,
   performLogin,
+  redeemTraegerHandoff,
   refreshTokenExpiry,
   sharedRedirectCallback,
   sharedJwtCallback,
@@ -36,6 +37,7 @@ export const tenantAuthConfig = {
         internalRefresh: { label: "Internal Refresh", type: "text" },
         token: { label: "Token", type: "text" },
         refreshToken: { label: "Refresh Token", type: "text" },
+        traegerHandoff: { label: "Träger Handoff", type: "text" },
       },
       async authorize(credentials, _request) {
         const creds = credentials as Record<string, string> | undefined;
@@ -60,6 +62,27 @@ export const tenantAuthConfig = {
 
           const email = payload.email ?? payload.sub ?? "";
           return buildAuthUser(payload, creds.token, creds.refreshToken, email);
+        }
+
+        // Absprung from the Träger portal (#4654): the hand-off token opens
+        // an OGS session of this school without a sign-in. Only a session
+        // the Träger opened may arrive this way.
+        if (creds?.traegerHandoff) {
+          const pair = await redeemTraegerHandoff(creds.traegerHandoff);
+          if (!pair) return null;
+          const payload = await validateSessionToken(
+            pair.access_token,
+            "tenant",
+            pair.refresh_token,
+          );
+          if (!payload?.via_traeger) return null;
+          const email = payload.email ?? payload.sub ?? "";
+          return buildAuthUser(
+            payload,
+            pair.access_token,
+            pair.refresh_token,
+            email,
+          );
         }
 
         // Regular login flow

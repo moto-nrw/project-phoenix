@@ -10,6 +10,7 @@ import { ApiError } from "~/lib/api-error";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { useTenant } from "~/lib/tenant-context";
 import { isDemoEntryPath } from "~/lib/demo-access";
+import { isTraegerHandoffPath } from "~/lib/traeger-handoff";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { Button } from "~/components/ui/button";
@@ -59,12 +60,18 @@ function browserRedirect(url: string): void {
  *
  * The entry page of the public demo (#3462) is exempt: it replaces whatever
  * session the visitor brought, so switching or signing out first would end
- * the entry before the demo token is redeemed.
+ * the entry before the demo token is redeemed. The entry page of the
+ * Absprung from the Träger portal (#4654) is exempt for the same reason.
  */
 export function TenantGuard(props: TenantGuardProps) {
   const pathname = usePathname();
   const { tenant } = useTenant();
-  if (isDemoEntryPath(pathname, tenant?.slug)) return <>{props.children}</>;
+  if (
+    isDemoEntryPath(pathname, tenant?.slug) ||
+    isTraegerHandoffPath(pathname, tenant?.slug)
+  ) {
+    return <>{props.children}</>;
+  }
   return <GuardedTenant {...props} />;
 }
 

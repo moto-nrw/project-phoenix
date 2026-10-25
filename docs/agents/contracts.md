@@ -254,6 +254,26 @@ Backend paths in this section are relative to `backend/`:
   `mfa_verified`. No trusted device. The operator reset
   (`DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa`)
   revokes the proof, so the Träger session ends at its next refresh.
+- Absprung into a school (ADR 0084 section 5, #4654): `POST
+  /traeger/school-sessions` `{school_id}` needs the Träger right
+  `traeger_school:switch` and answers `{handoff_token}`: the refresh token of a
+  new tenant session (portal scope `tenant`, `tenant_id` the school,
+  `organization_id` the Träger) that lives `TraegerSchoolHandoffTTL` (two
+  minutes). The Träger portal opens `{subdomain}.TENANT_DOMAIN/traeger-uebergabe`
+  with the token in the fragment; the entry page signs in with the
+  `traegerHandoff` credential, which redeems it through `/auth/refresh` (the
+  rotation makes it single-use and gives the full lifetime). The access token
+  carries the school's `admin` role and `via_traeger: true`; no
+  `auth.account_tenants` row is written. Mint, refresh, validation and
+  `POST /auth/switch-tenant` (a second tab of the same Träger) re-check the
+  active membership, the right, an active school of that Träger and the
+  second-factor proof inherited from the Träger session; failures answer 404
+  `traeger.school_not_found`, 403, or 401 `identity.mfa_session_required`. A
+  switch to a school where the account holds its own mapping keeps its own
+  role. Every Absprung writes `traeger_school_switch` (metadata
+  `organization_id`) to the school's `audit.auth_events` in the mint
+  transaction. Ending the Träger's or the member's Träger sessions also deletes
+  these sessions.
 - `TenantMiddleware` rejects parent, school, caterer, and org scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect

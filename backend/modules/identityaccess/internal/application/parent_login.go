@@ -146,6 +146,14 @@ func (s *AccountAuthentication) switchTenant(ctx context.Context, accountID int6
 	if !account.Active {
 		return "", "", failed("switch tenant", identityaccess.ErrAccountInactive)
 	}
+	// A Träger school session moves within its Träger without a mapping
+	// (#4654); a school outside it takes the account's own mapping.
+	if school, ok, err := s.traegerSwitchTarget(ctx, accountID, tenantSlug, presentedFamilyID); err != nil || ok {
+		if err != nil {
+			return "", "", err
+		}
+		return s.switchTraegerSchool(ctx, account, school, presentedFamilyID)
+	}
 	metadata, err := s.loadAccountMetadata(ctx, account, tenantSlug)
 	if err != nil {
 		return "", "", err
