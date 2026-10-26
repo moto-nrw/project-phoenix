@@ -47,8 +47,17 @@ export default function RemindersPage() {
   );
 
   // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste.
+  // Eine AG, die länger dauert, ist weder anstehend noch überfällig; sie
+  // bekommt einen eigenen Zähler, sonst stünde sie als "anstehend" da.
   const overdue = reminders.filter(isReminderOverdue).length;
-  const upcoming = count - overdue;
+  const runningOver = reminders.filter(
+    (r) => r.type === "activity_running_over",
+  ).length;
+  const upcoming = count - overdue - runningOver;
+  const runningOverStat =
+    runningOver === 0
+      ? ""
+      : ` · ${runningOver} ${runningOver === 1 ? "AG dauert" : "AGs dauern"} länger`;
   // Bis der Text eines Ladefehlers da ist, bleibt der Ladezustand stehen:
   // keine leere Seite ohne Daten.
   const loading =
@@ -61,7 +70,7 @@ export default function RemindersPage() {
       stats={
         data === undefined
           ? null
-          : `${upcoming} anstehend · ${overdue} überfällig`
+          : `${upcoming} anstehend · ${overdue} überfällig${runningOverStat}`
       }
       statsLoading={loading}
       loading={loading}
