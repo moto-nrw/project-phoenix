@@ -371,6 +371,8 @@ export const ERROR_CATALOG = {
         "Die Anmeldung für diese Ferien ist nicht offen. Bitte achten Sie auf Anmeldebeginn und Anmeldeschluss.",
       "enrollment.holiday_registration_entry_not_found":
         "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Liste neu.",
+      "enrollment.hosted_holiday_week_not_found":
+        "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
       "enrollment.holiday_registration_frozen":
         "Die Anmeldung ist eingefroren. Wählen Sie zuerst „Wieder öffnen“.",
       "enrollment.holiday_registration_invalid":
@@ -1654,6 +1656,8 @@ export const ERROR_CATALOG = {
         "Registration for these holidays is not open. Please check the start and end of registration.",
       "enrollment.holiday_registration_entry_not_found":
         "This registration no longer exists. Please reload the list.",
+      "enrollment.hosted_holiday_week_not_found":
+        "There is no participant list for this week any more. It is only available until the last day of the week.",
       "enrollment.holiday_registration_frozen":
         "The registration is frozen. Choose “Reopen” first.",
       "enrollment.holiday_registration_invalid":

@@ -171,12 +171,14 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose adds exactly 7 LOC.
 // ADR 0115: the new owner composition modules/parentbilling/compose of the
 // Elternabrechnung adds exactly 20 LOC.
+// ADR 0116: the participant list constructor of modules/enrollment/compose
+// adds exactly 7 LOC.
 // ADR 0119: the billing run constructor of modules/parentbilling/compose adds
 // exactly 7 LOC.
 // ADR 0121: the confirmation letter constructor of
 // modules/parentbilling/compose adds exactly 8 LOC.
 // ADR 0124: the scan heartbeat savepoint binding adds exactly 9 LOC.
-const moduleComposeBudgetTotal = 12656
+const moduleComposeBudgetTotal = 12663
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -205,8 +207,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/emergencysnapshot/compose": 13,
 	// Raised by ADR 0105: the holiday period constructor (+13); by ADR 0110:
 	// the public holiday registration constructors (+18); by ADR 0114: the
-	// holiday registration review constructor (+7).
-	"modules/enrollment/compose":                   578,
+	// holiday registration review constructor (+7); by ADR 0116: the
+	// participant list constructor (+7).
+	"modules/enrollment/compose":                   585,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,

@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableDateInPast                            = "timetable.date_in_past"
 	CodeTimetableDatesInPast                           = "timetable.dates_in_past"
 	CodeTimetableDatesRequired                         = "timetable.dates_required"
 	CodeTimetableDeviationNoteTooLong                  = "timetable.deviation_note_too_long"
@@ -197,6 +198,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.date_in_past":                               "input",
 	"timetable.dates_in_past":                              "input",
 	"timetable.dates_required":                             "input",
 	"timetable.deviation_note_too_long":                    "input",

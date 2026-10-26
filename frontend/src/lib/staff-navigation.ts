@@ -158,6 +158,7 @@ export const STAFF_NAV_GROUPS: readonly StaffNavGroup[] = [
       section("database"),
       page(STAFF_FLAT_PAGES.dayLog.href),
       page(STAFF_FLAT_PAGES.statistics.href),
+      page(STAFF_FLAT_PAGES.holidayWeeks.href),
       page(STAFF_FLAT_PAGES.dateien.href),
       page(STAFF_FLAT_PAGES.infoDisplays.href),
     ],

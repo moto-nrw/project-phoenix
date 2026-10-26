@@ -7,6 +7,7 @@ import {
   act,
 } from "@testing-library/react";
 import { TrustedDevicesSection } from "./trusted-devices-section";
+import { clearSessionCache } from "~/lib/session-cache";
 import { catalogText } from "~/test/error-catalog-text";
 
 const toastSuccess = vi.fn();
@@ -22,12 +23,23 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   }),
 }));
 
+const { providerSession, mockGetSession } = vi.hoisted(() => ({
+  providerSession: {
+    current: { user: { token: "test-token" }, expires: "2099-01-01" } as {
+      user: { token?: string };
+      expires: string;
+    },
+  },
+  mockGetSession: vi.fn(),
+}));
+
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: { user: { token: "test-token" }, expires: "2099-01-01" },
+    data: providerSession.current,
     status: "authenticated",
     update: vi.fn(),
   }),
+  getSession: mockGetSession,
 }));
 
 const originalFetch = global.fetch;
@@ -58,6 +70,11 @@ const sampleDevice = {
 describe("TrustedDevicesSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    providerSession.current = {
+      user: { token: "test-token" },
+      expires: "2099-01-01",
+    };
+    clearSessionCache();
   });
 
   afterEach(() => {
@@ -107,6 +124,46 @@ describe("TrustedDevicesSection", () => {
         expect.objectContaining({ method: "GET" }),
       );
     });
+  });
+
+  // The operator layout hydrates SessionProvider from a snapshot without the
+  // access token (#4991); the routes still need it as a bearer.
+  it("reads the bearer from the session route for a token-free snapshot", async () => {
+    providerSession.current = { user: {}, expires: "2099-01-01" };
+    mockGetSession.mockResolvedValue({
+      user: { token: "route-token" },
+      expires: "2099-01-01",
+    });
+    global.fetch = jsonResponse({ status: "success", data: [] });
+    render(<TrustedDevicesSection scope="operator" />);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/operator/auth/mfa/trusted-devices",
+        expect.objectContaining({
+          method: "GET",
+          headers: expect.objectContaining({
+            Authorization: "Bearer route-token",
+          }),
+        }),
+      );
+    });
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText(/Sie haben aktuell keine vertrauten Geräte/),
+    ).toBeInTheDocument();
+  });
+
+  it("sends no request for a session whose token was stripped", async () => {
+    providerSession.current = { user: { token: "" }, expires: "2099-01-01" };
+    global.fetch = jsonResponse([]);
+    render(<TrustedDevicesSection />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Meine vertrauten Geräte" }),
+    ).toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(mockGetSession).not.toHaveBeenCalled();
   });
 
   it("calls DELETE on revoke + reloads the list", async () => {

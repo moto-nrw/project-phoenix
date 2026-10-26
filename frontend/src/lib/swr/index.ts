@@ -26,4 +26,4 @@ export {
 } from "./hooks";
 
 // Re-export SWR utilities that consumers might need
-export { mutate } from "swr";
+export { mutate, SWRConfig, type Cache } from "swr";

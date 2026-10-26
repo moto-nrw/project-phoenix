@@ -1245,6 +1245,12 @@
       "legacy": "enrollment.holiday_registration_entry_not_found"
     },
     {
+      "code": "enrollment.hosted_holiday_week_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.hosted_holiday_week_not_found"
+    },
+    {
       "code": "enrollment.holiday_registration_frozen",
       "class": "business_rejection",
       "parameters": [],

@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
 	applicationNative "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // NewHolidayPeriods builds the holiday periods of a Träger (#4659). They run
@@ -35,4 +36,10 @@ func NewHolidayRegistrationRetention() enrollment.HolidayRegistrationRetention {
 // Träger-Portal route opens (ADR 0114).
 func NewHolidayRegistrationReview() enrollment.HolidayRegistrationReview {
 	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), nil)
+}
+
+// NewHolidayHostParticipants builds the hosting school's participant lists
+// (#4665, ADR 0116); a nil today uses the Berlin calendar day.
+func NewHolidayHostParticipants(log enrollment.HolidayParticipantAccessLog, today func() calendar.Date) enrollment.HolidayHostParticipants {
+	return applicationNative.NewHolidayHostParticipants(postgres.NewHolidayHostStore(), log, today)
 }

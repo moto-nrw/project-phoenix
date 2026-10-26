@@ -21,6 +21,7 @@ import {
 } from "~/components/auth/auth-shell";
 import { Loading } from "~/components/ui/loading";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
+import { hasSessionAccess } from "~/lib/session-access";
 import { operatorPath } from "~/lib/operator-url";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
@@ -114,10 +115,12 @@ export default function OperatorLoginPage() {
     void check();
   }, [status, session]);
 
+  // The layout's server snapshot carries no token (#4991) and redirects too;
+  // a stripped session (empty token) stays on the form.
   if (
     status === "authenticated" &&
     session?.user?.scope === "platform" &&
-    session.user.token &&
+    hasSessionAccess(session) &&
     session.error === undefined
   ) {
     redirect(operatorPath("/operator/organizations"));

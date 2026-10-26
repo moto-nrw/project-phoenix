@@ -1,5 +1,6 @@
 "use client";
 
+import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 
@@ -11,13 +12,19 @@ import { SentrySessionContext } from "~/components/auth/sentry-session-context";
  * so it's invisible to tenant subdomains.
  *
  * No ProfileProvider or SupervisionProvider — those are tenant-only.
+ *
+ * `session` is the layout's read-only cookie snapshot (#4991). Without one
+ * the provider receives undefined and fetches the session as before; null
+ * would mean "signed out" and skip that fetch.
  */
 export function OperatorProviders({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+  session,
+}: Readonly<{ children: React.ReactNode; session?: Session | null }>) {
   return (
     <SessionProvider
       basePath="/api/operator/auth"
+      session={session ?? undefined}
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >

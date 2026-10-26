@@ -13,8 +13,8 @@ run-name: PostHog dashboards ${{ github.event_name == 'pull_request' && 'preview
 # Two keys: a pull request runs code from its own branch, so it only gets
 # the read-only POSTHOG_READ_API_KEY. The writing POSTHOG_PERSONAL_API_KEY
 # lives in the `posthog` environment, which deploys from development only.
-# The inputs are the script and the two files it reads (route templates and
-# browser events). Only the EU API is called.
+# The inputs are the script and the three files it reads (route templates,
+# browser events, and page names). Only the EU API is called.
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
@@ -22,6 +22,7 @@ on:
       - 'scripts/posthog-dashboards.mjs'
       - 'frontend/src/lib/analytics-routes.ts'
       - 'frontend/src/lib/analytics-policy.ts'
+      - 'frontend/src/lib/section-navigation.ts'
       - '.github/workflows/posthog-dashboards.yml'
   push:
     branches:
@@ -30,6 +31,7 @@ on:
       - 'scripts/posthog-dashboards.mjs'
       - 'frontend/src/lib/analytics-routes.ts'
       - 'frontend/src/lib/analytics-policy.ts'
+      - 'frontend/src/lib/section-navigation.ts'
       - '.github/workflows/posthog-dashboards.yml'
   # Resync after a failed run or a change made by hand in PostHog. The
   # environment rejects every branch except development.

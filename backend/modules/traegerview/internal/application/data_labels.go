@@ -27,6 +27,8 @@ var dataLabels = map[string]string{
 	"traeger_access_log":          "Zugriffsprotokoll im Träger-Portal",
 	"traeger_access_log_export":   "Zugriffsprotokoll im Träger-Portal (Export)",
 	"holiday_prefill":             "Angaben eines Kindes für die Ferienanmeldung",
+	"holiday_participants":        "Teilnehmerliste einer Ferienwoche",
+	"holiday_participants_export": "Teilnehmerliste einer Ferienwoche (Export)",
 	"student_record":              "Angaben zu einem Kind",
 	"guardian_record":             "Angaben zu Eltern",
 	"guardian_bank_details":       "Bankverbindung von Eltern",

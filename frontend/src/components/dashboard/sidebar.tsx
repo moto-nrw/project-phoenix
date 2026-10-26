@@ -302,6 +302,15 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-moto-blue",
   },
   {
+    // Ferienwochen (#4665): Teilnehmerliste der ausrichtenden OGS. Das
+    // Backend verlangt config:read wie die Anmeldelisten.
+    ...STAFF_FLAT_PAGES.holidayWeeks,
+    icon: navigationIcons.calendar,
+    requiresPermission: "config:read",
+    concept: "holidayWeeks",
+    activeColor: "text-moto-orange",
+  },
+  {
     ...STAFF_FLAT_PAGES.emergency,
     icon: navigationIcons.emergency,
     concept: "emergency",
