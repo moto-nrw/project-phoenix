@@ -175,7 +175,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // exactly 7 LOC.
 // ADR 0121: the confirmation letter constructor of
 // modules/parentbilling/compose adds exactly 8 LOC.
-const moduleComposeBudgetTotal = 12655
+const moduleComposeBudgetTotal = 12649
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -240,7 +240,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 243,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       1148,
+	"modules/timetable/compose":                       1142,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,

@@ -53,6 +53,26 @@ func (r SessionRecords) ListSessionInstances(ctx context.Context, date calendar.
 	return result, nil
 }
 
+// ListActiveSessionInstances returns every still-running session in the tenant,
+// including a block started before midnight.
+func (r SessionRecords) ListActiveSessionInstances(ctx context.Context) ([]timetable.ScheduledInstance, error) {
+	return listActiveSessionInstances(ctx, r.Instances.Reads)
+}
+
+func listActiveSessionInstances(ctx context.Context, reads ports.LegacyInstanceReads) ([]timetable.ScheduledInstance, error) {
+	rows, err := reads.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{Status: timetable.InstanceStatusActive, OrderByDateAndTime: true})
+	if err != nil {
+		return nil, WrapDatabaseError("list active", err)
+	}
+	result := make([]timetable.ScheduledInstance, 0, len(rows))
+	for _, row := range rows {
+		if row != nil {
+			result = append(result, ScheduledInstanceOf(row))
+		}
+	}
+	return result, nil
+}
+
 // CreateMirroredSessionInstance records a running kiosk session as a
 // spontaneous, active instance whatever the input says about either.
 func (r SessionRecords) CreateMirroredSessionInstance(ctx context.Context, input timetable.ScheduledInstance) (int64, error) {

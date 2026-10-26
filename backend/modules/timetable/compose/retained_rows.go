@@ -6,18 +6,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The retained repository adapters, the Care Plan and Workforce rows, the
 // cleanup and the legacy repository vocabulary live in internal/application,
 // the types the roots name in the ports package (#4084). The roots and the
 // suites build them through the constructors below.
-
-// ParseActivityInstanceDate parses a retained instance date.
-func ParseActivityInstanceDate(value string) (calendar.Date, error) {
-	return application.ParseActivityInstanceDate(value)
-}
 
 // WrapDatabaseError wraps err as the retained repositories' database error.
 func WrapDatabaseError(operation string, err error) error {

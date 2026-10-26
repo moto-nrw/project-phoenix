@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
@@ -78,7 +79,17 @@ func (s *service) loadBatchActivities(ctx context.Context, cfg batchConfig, reci
 		return err
 	}
 	in.instances = instances
+	if cfg.runningOver {
+		active, activeErr := s.Instance.FindActiveByTenant(ctx)
+		if activeErr != nil {
+			return activeErr
+		}
+		in.runningInstances = active
+	}
 	if err := s.loadBatchActivityRooms(ctx, cfg, in); err != nil {
+		return err
+	}
+	if err := s.loadBatchRunningOver(ctx, cfg, recipients, in); err != nil {
 		return err
 	}
 	return s.loadBatchAssignments(ctx, recipients, in)
@@ -145,4 +156,34 @@ func plannedBatchInstanceIDs(instances []*ports.ActivityInstance) []int64 {
 		}
 	}
 	return instanceIDs
+}
+
+// loadBatchRunningOver reads facts only for rooms at least one recipient can
+// see. An admin sees every room; otherwise the room union preserves one set of
+// shared reads without allowing an unrelated room to fail the whole batch.
+func (s *service) loadBatchRunningOver(ctx context.Context, cfg batchConfig, recipients []reminder.BatchScope, in *batchInputs) error {
+	if !cfg.runningOver {
+		return nil
+	}
+	roomFilter := batchRunningOverRoomFilter(recipients, in.roomsByStaff)
+	due, _ := dueRunningOver(in.runningInstances, activityScopeFilter(roomFilter, nil), runningOverWindow{nowMin: in.nowMin, grace: cfg.runningOverGrace, today: calendar.Date(in.today)})
+	facts, err := s.loadRunningOverFacts(ctx, in.today, due)
+	if err != nil {
+		return err
+	}
+	in.runningOver = facts
+	return nil
+}
+
+func batchRunningOverRoomFilter(recipients []reminder.BatchScope, roomsByStaff map[int64][]int64) map[int64]struct{} {
+	if hasAdmin(recipients) {
+		return nil
+	}
+	rooms := make(map[int64]struct{})
+	for _, sc := range recipients {
+		for _, roomID := range roomsByStaff[sc.StaffID] {
+			rooms[roomID] = struct{}{}
+		}
+	}
+	return rooms
 }
