@@ -15,6 +15,7 @@ const {
   toastSuccessMock,
   toastErrorMock,
   supervisionState,
+  weekendOpenState,
 } = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   pushMock: vi.fn(),
@@ -26,6 +27,7 @@ const {
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
   supervisionState: { overviewEnabled: false },
+  weekendOpenState: { value: false },
 }));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
@@ -53,6 +55,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   usePresenceMode: () => presenceModeState.mode,
+  useWeekendFollowsFriday: () => weekendOpenState.value,
   useTenantSafe: () => null,
   useTenantSlugSafe: () => null,
   useTenantRoutingModeSafe: () => "subdomain",
@@ -163,15 +166,18 @@ vi.mock("~/components/planning/plan-export-modal", () => ({
     filter,
     filterLabel,
     isWeekOnScreen,
+    weekDay,
   }: {
     filter: { roomId: string | null };
     filterLabel: string;
     isWeekOnScreen: boolean;
+    weekDay: string;
   }) => (
     <div
       data-testid="plan-export"
       data-room={filter.roomId}
       data-week={String(isWeekOnScreen)}
+      data-week-day={weekDay}
     >
       {filterLabel}
     </div>
@@ -231,6 +237,7 @@ describe("RoomDetailPage", () => {
     searchParams.delete("view");
     presenceModeState.mode = "detailed";
     supervisionState.overviewEnabled = false;
+    weekendOpenState.value = false;
     useRoomDetailMock.mockReturnValue({
       room,
       history: [],
@@ -582,6 +589,20 @@ describe("RoomDetailPage", () => {
     expect(exportDialog).toHaveAttribute("data-room", "7");
     expect(exportDialog).toHaveAttribute("data-week", "true");
     expect(exportDialog).toHaveTextContent("Raum „Gruppenraum Sonne“");
+  });
+
+  it("prints the displayed Monday for a weekend deep link", async () => {
+    mockSession(["rooms:read", "schedules:read", "users:read"]);
+    searchParams.set("tab", "plan");
+    searchParams.set("d", "2026-09-12");
+    render(<RoomDetailPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Raumplan drucken" }));
+    expect(await screen.findByTestId("plan-export")).toHaveAttribute(
+      "data-week-day",
+      "2026-09-14",
+    );
   });
 
   it("shows the plan beside the room information in binary presence mode", async () => {

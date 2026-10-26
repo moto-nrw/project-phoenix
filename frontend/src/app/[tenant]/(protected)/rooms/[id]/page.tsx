@@ -57,7 +57,8 @@ import {
   ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
   ROOM_LIST_CACHE_KEYS,
 } from "~/lib/swr/room-derived-caches";
-import { usePresenceMode } from "~/lib/tenant-context";
+import { careDayISO } from "~/lib/timetable-helpers";
+import { usePresenceMode, useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { resolveDetailReferrer, useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoomDetailLoadingPage } from "./page-skeleton";
@@ -123,6 +124,7 @@ function RoomDetailPageContent() {
   const backLabel = backLabelFor(referrer);
   const { data: session } = useSession();
   const presenceMode = usePresenceMode();
+  const weekendOpen = useWeekendFollowsFriday();
   const { success: toastSuccess } = useToast();
   // Stammdaten speichern: Fehler im Formular, Feldfehler am Feld (#2517).
   const saveErrors = useApiFormError();
@@ -204,6 +206,9 @@ function RoomDetailPageContent() {
     rawPlanDay !== null && isValidISODate(rawPlanDay)
       ? rawPlanDay
       : berlinTodayISO();
+  // Der Reiter zeigt Wochenend-Deeplinks ohne Wochenendbetreuung ab Montag.
+  // Der Druck muss dieselbe angezeigte Woche verwenden.
+  const planExportDayISO = careDayISO(planAnchorISO, weekendOpen);
   const planView = parseRoomPlanView(searchParams.get("view"));
   const planHref = useRoomPlanHref(
     roomId,
@@ -424,7 +429,7 @@ function RoomDetailPageContent() {
             <PlanExportModal
               isOpen
               plan="betreuungsplan"
-              weekDay={planAnchorISO}
+              weekDay={planExportDayISO}
               isWeekOnScreen={planView === "woche"}
               canExportInternal={canManageSchedules}
               filter={{ ...NO_PLAN_FILTER, roomId: room.id }}
