@@ -15,6 +15,7 @@ import {
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import {
   type ArrivalDayData,
@@ -811,17 +812,19 @@ function NoteList({
         />
       ))}
       <div className="flex gap-2">
-        <input
-          aria-label={`${label} Hinweis hinzufügen`}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          maxLength={500}
-          className="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
-        />
+        <div className="min-w-0 flex-1">
+          <Input
+            aria-label={`${label} Hinweis hinzufügen`}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            maxLength={500}
+            controlSize="compact"
+          />
+        </div>
         <Button
           type="button"
           variant="outline"
-          size="sm"
+          size="md"
           disabled={!draft.trim() || isMutationPending}
           onClick={() => void runMutation(onCreate, () => setDraft(""))}
         >
@@ -861,17 +864,19 @@ function NoteEditor({
 
   return (
     <div className="flex gap-2">
-      <input
-        aria-label={`${label} Hinweis`}
-        value={content}
-        onChange={(event) => onContentChange(event.target.value)}
-        maxLength={500}
-        className="min-w-0 flex-1 rounded border px-2 py-1 text-sm"
-      />
+      <div className="min-w-0 flex-1">
+        <Input
+          aria-label={`${label} Hinweis`}
+          value={content}
+          onChange={(event) => onContentChange(event.target.value)}
+          maxLength={500}
+          controlSize="compact"
+        />
+      </div>
       <Button
         type="button"
         variant="outline"
-        size="sm"
+        size="md"
         disabled={!trimmedContent || !hasChanges || isMutationPending}
         onClick={() =>
           void runMutation(
@@ -885,7 +890,7 @@ function NoteEditor({
       <Button
         type="button"
         variant="ghost"
-        size="sm"
+        size="md"
         disabled={isMutationPending}
         onClick={() =>
           onRequestDelete({
