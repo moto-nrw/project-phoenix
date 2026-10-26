@@ -341,12 +341,16 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				selectedDaysByID[id] = days
 			}
 		}
+		// An approved request invites its guardian, and the family app
+		// accounts accept that invitation: like every account of the school,
+		// the address carries its scope, or demo schools seeded side by side
+		// create the same account.
 		return enrollmentSubmission{
 			source: source,
 			key:    seedSource,
 			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
 			body: s.enrollmentSubmissionWithDays(phaseID, offerings, childFirstName, childLastName, dob, grade,
-				guardianFirstName, guardianLastName, guardianEmail, seedSource, offeringIDs, selectedDaysByID,
+				guardianFirstName, guardianLastName, scopedEmail(guardianEmail, rt.FixedSeeder.accountScope), seedSource, offeringIDs, selectedDaysByID,
 			),
 			status: status,
 			reason: reason,
