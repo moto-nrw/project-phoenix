@@ -152,8 +152,12 @@ func (f holidayHostFixture) participants(t *testing.T, token string, week int64)
 
 func (f holidayHostFixture) confirm(t *testing.T, registration int64, action string) {
 	t.Helper()
-	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost,
-		fmt.Sprintf("%s/registrations/%d/%s", holidayPeriodPath(f.periodID(t)), registration, action), nil)
+	path := fmt.Sprintf("%s/registrations/%d/%s", holidayPeriodPath(f.periodID(t)), registration, action)
+	if action == "confirm" {
+		// The Elternabrechnung confirms and freezes the contribution (#4664, ADR 0115).
+		path = holidayConfirmPath(f.periodID(t), registration)
+	}
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, path, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 
