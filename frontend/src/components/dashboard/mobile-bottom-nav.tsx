@@ -1410,7 +1410,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       >
         {/* Pill container with margins */}
         <div className="px-4 pb-4">
-          <div className="rounded-full border border-gray-200/50 bg-white/95 px-3 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
+          <div className="rounded-full border border-gray-200/50 bg-white/95 px-2 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
             <div className="relative flex items-center justify-around gap-1">
               {/* Sliding background indicator */}
               {indicatorVisible && (
@@ -1464,10 +1464,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     aria-label={item.label}
                     // Ziel der geführten Touren auf dem Handy (#3748).
                     data-setup-tour={`mobile-nav-${item.href}`}
+                    // Nur der aktive Reiter mit Namen darf schrumpfen: Ein
+                    // langer Name schob sonst `Mehr` aus dem Bild (#4975).
                     className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                       isActive
-                        ? "bg-gray-100 text-gray-900"
-                        : "text-gray-400 hover:text-gray-600"
+                        ? "min-w-0 bg-gray-100 text-gray-900"
+                        : "shrink-0 text-gray-400 hover:text-gray-600"
                     } `}
                   >
                     {/* Icon */}
@@ -1478,7 +1480,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     />
 
                     {isActive && (
-                      <span className="text-sm font-semibold whitespace-nowrap">
+                      <span className="truncate text-sm font-semibold">
                         {item.label}
                       </span>
                     )}
@@ -1496,8 +1498,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   data-setup-tour="nav-more"
                   className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                     isOverflowMenuOpen || isAnyAdditionalNavActive
-                      ? "bg-gray-100 text-gray-900"
-                      : "text-gray-400 hover:text-gray-600"
+                      ? "min-w-0 bg-gray-100 text-gray-900"
+                      : "shrink-0 text-gray-400 hover:text-gray-600"
                   } `}
                 >
                   {/* Icon */}
@@ -1507,7 +1509,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   />
 
                   {(isOverflowMenuOpen || isAnyAdditionalNavActive) && (
-                    <span className="text-sm font-semibold whitespace-nowrap">
+                    <span className="truncate text-sm font-semibold">
                       {moreLabel}
                     </span>
                   )}

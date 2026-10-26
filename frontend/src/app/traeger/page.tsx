@@ -132,7 +132,7 @@ export default function TraegerSchoolsPage() {
                 : column,
             ),
             {
-              key: "open",
+              key: "actions",
               header: "",
               align: "right",
               stacked: "meta",

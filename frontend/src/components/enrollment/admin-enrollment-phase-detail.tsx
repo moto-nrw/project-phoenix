@@ -1270,7 +1270,9 @@ function ReportExportCard({
   ) => void;
 }>) {
   return (
-    <div className="moto-content-surface flex flex-col gap-1 rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md">
+    // Unter xl eine eigene Zeile: Der Knopf ist breiter als eine Kachel und
+    // ragte sonst über die Seite hinaus, die dann seitlich scrollte (#4975).
+    <div className="moto-content-surface col-span-full flex flex-col gap-1 rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md xl:col-span-1">
       <p className="truncate text-xs font-medium text-gray-500">Auswertung</p>
       <ExportMenu
         label="Auswertung exportieren"
