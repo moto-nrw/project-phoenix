@@ -8,6 +8,7 @@ export const nodeLogicTestFiles = [
   "scripts/oxlint-plugin-bauart-autosave.test.ts",
   "scripts/oxlint-plugin-error-path.test.ts",
   "scripts/oxlint-plugin-logging-safety.test.ts",
+  "scripts/oxlint-plugin-swr.test.ts",
   "scripts/oxlint-plugin-ui-kit.test.ts",
   "scripts/product-screenshots/network-activity.test.ts",
   "scripts/product-screenshots/publish.test.ts",
