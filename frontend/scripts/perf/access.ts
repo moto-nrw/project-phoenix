@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { loginToLocalTenant } from "../../e2e/local-tenant-login";
 import { loadSeedAccess, type SeedAccess } from "../seed-state";
 
 /**
@@ -57,19 +58,11 @@ export async function gotoTolerant(page: Page, url: string): Promise<void> {
 }
 
 /**
- * Login über die Tenant-Wurzel. `domcontentloaded`, nie `load`/`networkidle`:
+ * Login über die Tenant-Wurzel, inklusive des MFA-Schritts mit dem Code aus
+ * Mailpit (`MAILPIT_URL`). Ohne ihn bleibt jeder Schul-Login vor dem
+ * Code-Feld stehen. `loginToLocalTenant` wartet nie auf `load`/`networkidle`:
  * SSE hält Verbindungen dauerhaft offen.
  */
 export async function login(page: Page, access: SeedAccess): Promise<void> {
-  await page.goto(`${tenantBaseUrl(access)}/`, {
-    waitUntil: "domcontentloaded",
-  });
-  await page.waitForSelector('input[type="email"]', { timeout: 30_000 });
-  await page.fill('input[type="email"]', access.email);
-  await page.fill('input[type="password"]', access.password);
-  await page.click('button:has-text("Anmelden")');
-  await page.waitForSelector('input[type="email"]', {
-    state: "detached",
-    timeout: 30_000,
-  });
+  await loginToLocalTenant(page, tenantBaseUrl(access), access);
 }

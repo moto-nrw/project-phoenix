@@ -7,7 +7,11 @@
 let isCatererHost: boolean | undefined;
 
 function onCatererHost(): boolean {
-  if (typeof window === "undefined") return false;
+  // Server rendering of this portal only happens on its own host: the
+  // proxy redirects /caterer/* on every other host. Answering "own host"
+  // keeps server HTML and hydration on the same paths, now that the
+  // layout renders the signed-in portal on the server (#4991).
+  if (typeof window === "undefined") return true;
   if (isCatererHost !== undefined) return isCatererHost;
   const hostname = process.env.NEXT_PUBLIC_CATERER_HOSTNAME;
   if (!hostname) {
