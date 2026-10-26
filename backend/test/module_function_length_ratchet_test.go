@@ -546,7 +546,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 62,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 320,
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 261,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 61,
 	// ADR 0087.

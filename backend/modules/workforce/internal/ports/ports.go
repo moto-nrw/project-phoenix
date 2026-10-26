@@ -222,6 +222,9 @@ type ShiftStore interface {
 // reports found=false; a duplicate reports domain.ConflictError.
 type AbsenceStore interface {
 	StaffAbsenceTypeEntitlements(ctx context.Context, staffID, absenceTypeID int64) (map[int]float64, domain.OperationStats, error)
+	// StaffEntitlementsByAbsenceType returns every yearly claim of one person,
+	// keyed by type and year.
+	StaffEntitlementsByAbsenceType(ctx context.Context, staffID int64) (map[int64]map[int]float64, domain.OperationStats, error)
 	UpsertStaffAbsenceTypeAllowance(context.Context, domain.SetAbsenceTypeAllowance) (domain.OperationStats, error)
 	RecordStaffAbsenceTypeAllowanceChange(context.Context, domain.SetAbsenceTypeAllowance, *float64) (domain.OperationStats, error)
 	FindStaffAbsence(context.Context, int64) (domain.StaffAbsence, bool, domain.OperationStats, error)

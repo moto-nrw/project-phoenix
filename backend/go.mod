@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/agnivade/levenshtein v1.2.1
+	github.com/agnivade/levenshtein v1.2.2
 	github.com/getsentry/sentry-go v0.50.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
@@ -15,7 +15,7 @@ require (
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/k3a/html2text v1.5.1
-	github.com/lestrrat-go/jwx/v3 v3.3.0
+	github.com/lestrrat-go/jwx/v3 v3.4.0
 	github.com/pkg/sftp v1.13.11
 	github.com/prometheus/client_golang v1.25.0
 	github.com/samber/slog-chi v1.19.1
@@ -60,7 +60,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/go-webauthn/x v0.3.1 // indirect
-	github.com/goccy/go-json v0.10.6 // indirect
+	github.com/goccy/go-json v0.11.2 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/go-licenses/v2 v2.0.1 // indirect

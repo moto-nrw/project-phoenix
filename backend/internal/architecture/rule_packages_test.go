@@ -179,7 +179,6 @@ func TestPackageSelectorsPreserveTargetSafety(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, target, role string }{
 		{"foreign private", "beta/application", "application"},
-		{"foreign rows", "models/beta", "legacy-model"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

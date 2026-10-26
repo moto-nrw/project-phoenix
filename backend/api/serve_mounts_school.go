@@ -76,7 +76,7 @@ func mountStaffRoutes(
 	tenant.Mount("/shift-types", newShiftTypesResource(shifts.ShiftTypes).Router())
 	tenant.Mount("/absence-types", absenceTypes)
 	tenant.Mount("/substitutions", newSubstitutionsResource(SubstitutionCapability(substitution)).Router())
-	tenant.Mount("/time-tracking", newTimeTrackingResource(users, staffAdmin, workforce.TimeTracking, workforce.SickReports, workforce.StaffShifts, shifts.Assignments, calendar, settings).Router(ProtectedTenantRoutes))
+	tenant.Mount("/time-tracking", newTimeTrackingResource(users, staffAdmin, workforce.TimeTracking, workforce.SickReports, workforce.StaffShifts, shifts.Assignments, workTime, calendar, settings).Router(ProtectedTenantRoutes))
 	return nil
 }
 

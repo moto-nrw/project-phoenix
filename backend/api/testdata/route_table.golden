@@ -451,6 +451,7 @@ GET /api/surveys/{surveyId}/form
 GET /api/surveys/{surveyId}/respondents
 GET /api/surveys/{surveyId}/results
 GET /api/surveys/{surveyId}/results/export
+GET /api/time-tracking/absence-allowances
 GET /api/time-tracking/absences
 GET /api/time-tracking/assignments
 GET /api/time-tracking/breaks/{sessionId}

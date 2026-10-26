@@ -4,6 +4,11 @@ import type { ErrorCode } from "~/lib/error-codes.generated";
 import { getCachedSession } from "./session-cache";
 import { unavailableApiError } from "./api-error";
 import { buildApiError } from "./auth-api";
+import {
+  mapAllowance,
+  type AbsenceTypeAllowanceSummary,
+  type BackendAbsenceTypeAllowanceSummary,
+} from "./absence-type-api";
 import type {
   BackendClosingDayRange,
   BackendDailyProjection,
@@ -451,6 +456,33 @@ class TimeTrackingService {
     );
     return result.data;
   }
+
+  /**
+   * The staff member's own Kontingente of the school's absence types (#4971),
+   * read-only. The backend takes the person from the session and the current
+   * Berlin year when none is given.
+   */
+  async getOwnAbsenceAllowances(): Promise<OwnAbsenceAllowance[]> {
+    const result = await this.request<BackendOwnAbsenceAllowance[] | null>(
+      "/absence-allowances",
+      "GET",
+      "Kontingente konnten nicht geladen werden",
+    );
+    return (result.data ?? []).map((entry) => ({
+      name: entry.name,
+      summary: mapAllowance(entry),
+    }));
+  }
+}
+
+interface BackendOwnAbsenceAllowance extends BackendAbsenceTypeAllowanceSummary {
+  name: string;
+}
+
+/** One school-defined absence type with an allowance and its yearly account. */
+export interface OwnAbsenceAllowance {
+  readonly name: string;
+  readonly summary: AbsenceTypeAllowanceSummary;
 }
 
 interface VacationRequestPayload {

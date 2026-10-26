@@ -145,3 +145,24 @@ func TestToolsHaveNoWritableDataOrDomainGraphNode(t *testing.T) {
 		t.Fatalf("tool became a writable-data owner: %v", err)
 	}
 }
+
+func TestImmutableBaseKeepsARoleTheCandidateRetired(t *testing.T) {
+	t.Parallel()
+	document := mutatePolicy(t, readFile(t, "../../architecture/policy.json"), func(doc map[string]any) {
+		doc["roles"] = append(doc["roles"].([]any), "retired-role")
+		doc["packages"] = append(doc["packages"].([]any), map[string]any{
+			"path": "retired", "owner": "legacy-composition", "role": "retired-role",
+			"internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test",
+		})
+	})
+	if _, err := DecodePolicy(strings.NewReader(document)); err == nil || !strings.Contains(err.Error(), `invalid role "retired-role"`) {
+		t.Fatalf("candidate kept a role the checker does not know: %v", err)
+	}
+	base, err := decodePolicy(strings.NewReader(document), true)
+	if err != nil {
+		t.Fatalf("base declaring a retired role no longer loads: %v", err)
+	}
+	if err := comparePolicyStrictness(base, repositoryPolicy(t), nil, nil, nil, nil, nil); err != nil {
+		t.Fatalf("retiring a role and its package counted as a loosening: %v", err)
+	}
+}

@@ -43,11 +43,13 @@ func (r *asInstanceRepo) FindByIDs(context.Context, []int64) ([]*timetable.Sched
 }
 
 type asRoomRepo struct {
-	rooms map[int64]string
-	err   error
+	rooms  map[int64]string
+	err    error
+	gotIDs []int64
 }
 
-func (r *asRoomRepo) RoomNamesByID(context.Context, []int64) (map[int64]string, error) {
+func (r *asRoomRepo) RoomNamesByID(_ context.Context, ids []int64) (map[int64]string, error) {
+	r.gotIDs = append(r.gotIDs, ids...)
 	return r.rooms, r.err
 }
 
@@ -155,6 +157,34 @@ func TestAssignmentService_PropagatesRoomError(t *testing.T) {
 	_, err := svc.ListAssignmentsForStaff(context.Background(), 7, date, date)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "room read failed")
+}
+
+// An instance without a room is stored as room_id NULL and read as 0. The room
+// directory rejects non-positive IDs, so they must never reach it (Sentry
+// 156236161: the assignments list answered 500).
+func TestAssignmentService_SkipsInstancesWithoutRoom(t *testing.T) {
+	t.Parallel()
+
+	noRoom := &timetable.ScheduledInstance{Title: "Ausflug", StartTime: wall(9, 0), EndTime: wall(10, 0)}
+	noRoom.ID = 1
+	overridden := &timetable.ScheduledInstance{Title: "Lernzeit", RoomID: 100, StartTime: wall(10, 0), EndTime: wall(11, 0)}
+	overridden.ID = 2
+	override := int64(200)
+	rowB := instanceStaffRow(2, 7)
+	rowB.RoomID = &override
+	rooms := &asRoomRepo{rooms: map[int64]string{200: "Turnhalle"}}
+	svc := assignmentServiceFixture(
+		&asInstanceStaffRepo{rows: []*timetable.InstanceStaff{instanceStaffRow(1, 7), rowB}},
+		&asInstanceRepo{instances: []*timetable.ScheduledInstance{noRoom, overridden}},
+		rooms,
+		&asGroupRepo{},
+	)
+	date := calendar.NewDate(2026, time.March, 10)
+
+	got, err := svc.ListAssignmentsForStaff(context.Background(), 7, date, date)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.ElementsMatch(t, []int64{200}, rooms.gotIDs)
 }
 
 func TestAssignmentService_PropagatesGroupError(t *testing.T) {

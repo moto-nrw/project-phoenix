@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -66,7 +67,10 @@ func (seedTraegerMasterDataStep) Run(_ context.Context, rt *Runtime) error {
 }
 
 // seedTraegerBankAccountsOnce adds the bank accounts the Träger does not
-// have yet; their labels are unique per Träger.
+// have yet; their labels are unique per Träger. Every demo school of one
+// database hangs under the same Demo-Träger, and the demo process seeds
+// several at once: when another school added an account after the read, the
+// backend refuses the label and the Träger keeps that school's account.
 func seedTraegerBankAccountsOnce(client *Client, auth AuthRef) error {
 	raw, err := client.GetWithAuth(auth, "/traeger/master-data/")
 	if err != nil {
@@ -90,12 +94,21 @@ func seedTraegerBankAccountsOnce(client *Client, auth AuthRef) error {
 		if existing[account["label"].(string)] {
 			continue
 		}
-		if _, err := client.PostWithAuth(auth, "/traeger/master-data/bank-accounts", account); err != nil {
+		_, err := client.PostWithAuth(auth, "/traeger/master-data/bank-accounts", account)
+		var refused *APIError
+		if errors.As(err, &refused) && refused.Code == seedTraegerBankAccountLabelTaken {
+			continue
+		}
+		if err != nil {
 			return fmt.Errorf("add the Träger bank account %s: %w", account["label"], err)
 		}
 	}
 	return nil
 }
+
+// seedTraegerBankAccountLabelTaken is the registered code of a bank account
+// label the Träger already has.
+const seedTraegerBankAccountLabelTaken = "traeger.bank_account_label_taken"
 
 // seedTraegerLogo draws a simple wordmark-sized PNG: a petrol field with a
 // green bar, so the preview shows where the logo sits.

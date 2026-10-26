@@ -28,9 +28,6 @@ package architecture
 // when they build the owner's services (#4084, option A); it reaches what the
 // implementation reaches. Two more shapes serve it:
 //
-//   - one rule per owner from a domain's `port` role into the same owner's
-//     `legacy-model` role. It is temporary: it goes when #4086 dissolves
-//     models/schedule and models/activities into their owner;
 //   - a rule into another owner's `port` role from a source selector that
 //     the base already grants that owner's `compose` role. A composition may
 //     import its own ports, so the rule narrows a reach that exists;
@@ -57,7 +54,7 @@ const internalReachTestRole = "module-internal-test"
 // reviewedInternalReachRule reports whether a rule lies inside the reviewed
 // reach of a domain owner's implementation.
 func reviewedInternalReachRule(rule Rule, base *Policy, owners map[string]Owner) bool {
-	if reviewedPortLegacyModelRule(rule, owners) || reviewedPortNarrowingRule(rule, base) || reviewedPostgresPortRule(rule, owners) {
+	if reviewedPortNarrowingRule(rule, base) || reviewedPostgresPortRule(rule, owners) {
 		return true
 	}
 	if rule.TargetRole != "public" || rule.TargetClass != "" || rule.TargetOwnerKind != "" || len(rule.Scopes) != 1 {
@@ -84,15 +81,6 @@ func reviewedInternalReachRule(rule Rule, base *Policy, owners map[string]Owner)
 		return internalReachPlatformTargets[rule.TargetOwner]
 	}
 	return target.Kind == "domain" && baseGrantsOwnerEdge(base, rule.SourceOwner, rule.TargetOwner)
-}
-
-// reviewedPortLegacyModelRule reports the temporary per-owner rule from a
-// domain's port role into its own legacy-model role (#4086).
-func reviewedPortLegacyModelRule(rule Rule, owners map[string]Owner) bool {
-	source, known := owners[rule.SourceOwner]
-	return known && source.Kind == "domain" && rule.SourceOwnerKind == "" && rule.SourceRole == "port" &&
-		rule.TargetOwner == rule.SourceOwner && rule.TargetOwnerKind == "" && rule.TargetRole == "legacy-model" &&
-		rule.TargetClass == "" && !rule.SameOwner && len(rule.Scopes) == 1 && rule.Scopes[0] == string(ScopeProduction)
 }
 
 // reviewedPostgresPortRule reports the per-owner rule from a domain's
