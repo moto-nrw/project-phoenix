@@ -179,7 +179,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 8 LOC.
 // ADR 0120: the holiday guest constructor of modules/enrollment/compose adds
 // exactly 6 LOC.
-const moduleComposeBudgetTotal = 12660
+// ADR 0124: the scan heartbeat savepoint binding adds exactly 9 LOC.
+const moduleComposeBudgetTotal = 12669
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -203,8 +204,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/delivery/compose":                      361,
 	"modules/devicefleet/compose":                   219,
 	"modules/devicefleet/compose/repositoryadapter": 10,
-	"modules/devicescan/compose":                    531,
-	"modules/emergencysnapshot/compose":             13,
+	// ADR 0124: bind the optional heartbeat to the tenant runtime savepoint (+9).
+	"modules/devicescan/compose":        540,
+	"modules/emergencysnapshot/compose": 13,
 	// Raised by ADR 0105: the holiday period constructor (+13); by ADR 0110:
 	// the public holiday registration constructors (+18); by ADR 0114: the
 	// holiday registration review constructor (+7); by ADR 0116: the

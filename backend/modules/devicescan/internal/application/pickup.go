@@ -51,13 +51,8 @@ func (s *Service) PickupInfo(ctx context.Context, rfidTag string) (*devicescan.P
 		}
 	}
 
-	if session, err := s.sessions.Current(ctx, device.ID); err == nil && session != nil {
-		if err := s.sessions.UpdateSessionActivity(ctx, session.ID); err != nil {
-			s.logger.WarnContext(ctx, "failed to update session activity during pickup query",
-				slog.Int64("session_id", session.ID),
-				slog.String("error", err.Error()),
-			)
-		}
+	if err := s.touchDeviceSession(ctx, device.ID); err != nil {
+		return nil, err
 	}
 	return info, nil
 }
