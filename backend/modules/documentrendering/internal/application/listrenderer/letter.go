@@ -52,6 +52,7 @@ const (
 	letterValueShare  = 0.4  // widest share of a value in a table of the body
 	letterColumnGap   = 16.0 // space between label and value in a table
 	letterMinBody     = 20.0 // body lines a page keeps at least beside its footer
+	letterMinHeadBody = 8.0  // body lines the first page keeps below the head
 )
 
 type letterLayout struct {
@@ -170,7 +171,7 @@ func (l *letterLayout) run() error {
 		return err
 	}
 	if l.pageRoom() < letterMinBody*letterBodyLine {
-		return listrecords.ErrLetterFooterTooLong
+		return listrecords.ErrLetterheadTooLong
 	}
 	if err := l.newPage(); err != nil {
 		return err
@@ -179,6 +180,12 @@ func (l *letterLayout) run() error {
 		return err
 	}
 	l.y = max(letterBodyTop, l.headBottom+letterHeadGap)
+	// The head is drawn on the first page only and never breaks: a head
+	// that leaves too little room for the body is refused, not printed
+	// beyond the page.
+	if l.y+letterMinHeadBody*letterBodyLine > l.bodyBottom() {
+		return listrecords.ErrLetterheadTooLong
+	}
 	if err := l.writeLine(l.letter.Subject, styleBold, letterSubjectSize, l.accent); err != nil {
 		return err
 	}

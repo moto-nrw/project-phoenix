@@ -76,7 +76,9 @@ Design von moto drucken, aber keinen Brief.
    Farbe des Trägers, Logo oben links, Absender oben rechts, Rücksendezeile
    und Anschriftfeld auf der Höhe von DIN 5008, Infoblock daneben, Fußzeile
    mit der Standard-Bankverbindung auf jeder Seite, Folgeseiten bei langem
-   Text. Es druckt nur, was der Owner schreibt; jeder Text liegt bei der
+   Text. Nichts wird gekürzt: lange Werte brechen um, und lassen Absender
+   oder Fußzeile zu wenig Platz für den Brief, lehnt der Renderer ab
+   (409 `parent_billing.letterhead_too_long`), bevor etwas gespeichert ist. Es druckt nur, was der Owner schreibt; jeder Text liegt bei der
    Elternabrechnung. Vorlagen je Träger mit eigenen Platzhaltern (Story 91)
    kommen mit Etappe 2; bis dahin ist der Freitext je Lauf der Platzhalter
    (Story 92).

@@ -1410,8 +1410,8 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.billing_run_not_released":
         "Schreiben gibt es erst nach der Freigabe. Bitte geben Sie den Lauf zuerst frei.",
-      "parent_billing.letter_footer_too_long":
-        "Die Fußzeile im Briefkopf ist zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
+      "parent_billing.letterhead_too_long":
+        "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
     },
   },
   en: {

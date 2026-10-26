@@ -305,8 +305,8 @@ func TestLetterRefusesAFooterWithoutRoomForTheBody(t *testing.T) {
 
 	letter := sampleLetter()
 	letter.Footer = []string{strings.Repeat("Vorstand\n", 60)}
-	if _, err := NewService().RenderLetter(letter, "x"); !errors.Is(err, listrecords.ErrLetterFooterTooLong) {
-		t.Fatalf("err = %v, want ErrLetterFooterTooLong", err)
+	if _, err := NewService().RenderLetter(letter, "x"); !errors.Is(err, listrecords.ErrLetterheadTooLong) {
+		t.Fatalf("err = %v, want ErrLetterheadTooLong", err)
 	}
 }
 
@@ -343,5 +343,19 @@ func TestLetterSplitsATableRowLongerThanAPage(t *testing.T) {
 	}
 	if layout.y > layout.bodyBottom() {
 		t.Fatalf("the last line ends at %.1f, below the body bottom %.1f", layout.y, layout.bodyBottom())
+	}
+}
+
+// A letterhead too tall for the first page is refused rather than printed
+// beyond it.
+func TestLetterRefusesALetterheadTallerThanThePage(t *testing.T) {
+	t.Parallel()
+
+	letter := sampleLetter()
+	for i := range 70 {
+		letter.Sender = append(letter.Sender, fmt.Sprintf("Zeile %d", i))
+	}
+	if _, err := NewService().RenderLetter(letter, "x"); !errors.Is(err, listrecords.ErrLetterheadTooLong) {
+		t.Fatalf("err = %v, want ErrLetterheadTooLong", err)
 	}
 }

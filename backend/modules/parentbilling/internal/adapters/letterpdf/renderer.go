@@ -35,8 +35,8 @@ func (r *Renderer) RenderLetter(letter application.Letter, filenameBase string) 
 		Recipient: letter.Recipient, Facts: facts(letter.Facts), Subject: letter.Subject, Salutation: letter.Salutation,
 		Blocks: blocks, Closing: letter.Closing, Footer: letter.Footer,
 	}, filenameBase)
-	if errors.Is(err, lists.ErrLetterFooterTooLong) {
-		return parentbilling.BillingLetterFile{}, fmt.Errorf("%w: %w", parentbilling.ErrLetterFooterTooLong, err)
+	if errors.Is(err, lists.ErrLetterheadTooLong) {
+		return parentbilling.BillingLetterFile{}, fmt.Errorf("%w: %w", parentbilling.ErrLetterheadTooLong, err)
 	}
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err

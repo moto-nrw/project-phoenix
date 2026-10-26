@@ -42,9 +42,9 @@ var (
 	// ErrBankAccountMissing reports letters of a Träger without a bank
 	// account to pay to.
 	ErrBankAccountMissing = errors.New("the Träger has no bank account for the letters")
-	// ErrLetterFooterTooLong reports a footer of the Träger that leaves too
-	// little room on a page for the letter.
-	ErrLetterFooterTooLong = errors.New("the footer of the Träger is too long for a letter")
+	// ErrLetterheadTooLong reports a letterhead or footer of the Träger
+	// that leaves too little room on a page for the letter.
+	ErrLetterheadTooLong = errors.New("the letterhead or footer of the Träger is too long for a letter")
 )
 
 // BillingEmergencyContact is the emergency number of a hosting OGS.

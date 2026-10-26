@@ -4924,10 +4924,10 @@
       "legacy": "parent_billing.billing_run_not_released"
     },
     {
-      "code": "parent_billing.letter_footer_too_long",
+      "code": "parent_billing.letterhead_too_long",
       "class": "business_rejection",
       "parameters": [],
-      "legacy": "parent_billing.letter_footer_too_long"
+      "legacy": "parent_billing.letterhead_too_long"
     }
   ]
 }
