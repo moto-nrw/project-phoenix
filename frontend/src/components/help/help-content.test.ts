@@ -77,3 +77,18 @@ describe("data management help", () => {
     );
   });
 });
+
+describe("room plan help", () => {
+  it("explains the additional permission for the PDF export", () => {
+    const topic = getHelpTopics("detailed").find(
+      ({ id }) => id === HELP_TOPICS.rooms,
+    );
+    const roomPlan = topic?.instructionGroups?.find(
+      ({ title }) => title === "Sehen, wann ein Raum laut Plan frei ist",
+    );
+
+    expect(roomPlan?.steps).toContain(
+      "Für den PDF-Aushang brauchen Sie auch das Recht, die Kinderliste zu sehen.",
+    );
+  });
+});

@@ -30,8 +30,8 @@ const (
 )
 
 var (
-	// ErrBillingRunNotReleased reports letters of a run that has no issued
-	// invoice yet.
+	// ErrBillingRunNotReleased reports letters or the overview (#4672) of a
+	// run that has no issued invoice yet.
 	ErrBillingRunNotReleased = errors.New("the billing run is not released yet")
 	// ErrBillingLettersExist reports a second creation of the letters of a
 	// run.

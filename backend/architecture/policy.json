@@ -3507,7 +3507,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/parentbilling/internal/adapters/letterpdf",
+      "path": "modules/parentbilling/internal/adapters/rendering",
       "owner": "parent-billing",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
@@ -8083,7 +8083,7 @@
     },
     {
       "id": "parent-billing.adapter.document-rendering-lists",
-      "description": "The letter adapter of the Elternabrechnung lays out its confirmation letters through the letter of the Document Rendering contract; the owner writes every text and stores the PDF (#4669, ADR 0121).",
+      "description": "The rendering adapter of the Elternabrechnung lays out its confirmation letters through the letter of the Document Rendering contract and the overview of a run through its list renderer; the owner writes every text and decides who reads the file (#4669, ADR 0121, #4672, ADR 0122).",
       "scopes": [
         "production"
       ],
@@ -8095,7 +8095,7 @@
     },
     {
       "id": "parent-billing.adapter.application",
-      "description": "The letter adapter implements the letter renderer port of the Elternabrechnung's application over its native letter values (#4669, ADR 0121).",
+      "description": "The rendering adapter implements the letter and table renderer ports of the Elternabrechnung's application over its native values (#4669, ADR 0121, #4672, ADR 0122).",
       "scopes": [
         "production"
       ],
@@ -8106,7 +8106,7 @@
     },
     {
       "id": "parent-billing.adapter.public",
-      "description": "The letter adapter answers the PDF in the Elternabrechnung's public letter file (#4669, ADR 0121).",
+      "description": "The rendering adapter answers in the Elternabrechnung's public letter and export files (#4669, ADR 0121, #4672, ADR 0122).",
       "scopes": [
         "production"
       ],

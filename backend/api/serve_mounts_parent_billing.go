@@ -29,7 +29,8 @@ import (
 // form at /traeger/holiday-quotes, and the billing runs and number ranges
 // at /traeger/billing-runs and /traeger/number-ranges behind the right
 // "Abrechnung" (#4668, ADR 0119), with the confirmation letters of a
-// released run in the layout of the Träger (#4669, ADR 0121).
+// released run in the layout of the Träger (#4669, ADR 0121) and its
+// overview for the Kämmerei (#4672, ADR 0122).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, delivery, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))

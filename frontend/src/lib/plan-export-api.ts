@@ -4,7 +4,7 @@
 // rendering path.
 
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
-import type { PlanFilter } from "~/lib/plan-filter";
+import { planFilterQuery, type PlanFilter } from "~/lib/plan-filter";
 import {
   downloadBlob,
   filenameFromDisposition,
@@ -25,19 +25,16 @@ export interface PlanExportRequest {
   template: PlanExportTemplate;
   variant: PlanExportVariant;
   /**
-   * Gruppen- und Personenfilter des Betreuungsplans (#4766); der Druck zeigt
-   * dann dieselben Blöcke wie der Bildschirm. Der Dienstplan sendet keinen.
+   * Gruppen-, Personen- (#4766) und Raumfilter (#4768) des Betreuungsplans;
+   * der Druck zeigt dann dieselben Blöcke wie der Bildschirm. Der Dienstplan
+   * sendet keinen.
    */
   filter?: PlanFilter;
 }
 
 /** Der Filter im Body der Export-Anfrage; IDs reisen verlustfrei als Strings. */
 function filterBody(filter: PlanFilter | undefined): Record<string, string> {
-  if (!filter) return {};
-  return {
-    ...(filter.groupId ? { group_id: filter.groupId } : {}),
-    ...(filter.staffId ? { staff_id: filter.staffId } : {}),
-  };
+  return filter ? planFilterQuery(filter) : {};
 }
 
 const ROUTES: Record<PlanExportPlan, string> = {

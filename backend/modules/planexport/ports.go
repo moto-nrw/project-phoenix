@@ -209,13 +209,13 @@ type HolidayReader interface {
 	HolidaysInRange(ctx context.Context, from, to Date) ([]Holiday, error)
 }
 
-// InstanceFilter applies the Betreuungsplan's block filter (#4766) with the
+// InstanceFilter applies the Betreuungsplan's block filter (#4766, #4768) with the
 // planner's own rule, so the sheet keeps exactly the blocks the screen
 // shows under the same filter.
 type InstanceFilter interface {
 	// MatchingInstances reports which of the blocks pass the filter and names
 	// the filtered group; staff are the rows already loaded for the blocks.
-	MatchingInstances(ctx context.Context, filter BlockFilter, instanceIDs []int64, staff []*InstanceStaff) (FilteredInstances, error)
+	MatchingInstances(ctx context.Context, filter BlockFilter, instances []*Instance, staff []*InstanceStaff) (FilteredInstances, error)
 }
 
 // FilteredInstances is the answer of InstanceFilter.
