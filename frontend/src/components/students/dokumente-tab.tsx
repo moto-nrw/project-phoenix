@@ -13,10 +13,6 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
-import {
-  SegmentedControl,
-  type SegmentedControlItem,
-} from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   useApiErrorDisplay,
@@ -107,8 +103,8 @@ export function StudentDokumenteTab({
   const effectiveUploadCategory =
     uploadCategory ?? visibleCategories[0]?.value ?? null;
 
-  const filterItems: readonly SegmentedControlItem<string>[] = [
-    { value: "alle", label: "Alle" },
+  const filterItems: readonly { value: string; label: string }[] = [
+    { value: "alle", label: "Alle Kategorien" },
     ...visibleCategories.map((category) => ({
       value: category.value,
       label: category.label,
@@ -356,13 +352,22 @@ export function StudentDokumenteTab({
 
         {/* Category filter */}
         {documents.length > 0 && filterItems.length > 2 && (
-          <div className="mb-4">
-            <SegmentedControl
-              variant="pills"
-              items={filterItems}
+          // Eine Auswahlliste statt Pillen: alle Kategorien nebeneinander
+          // passten auf Handy und Tablet nicht in die Karte, die Pillen
+          // überlagerten sich und die letzten waren nicht erreichbar (#4975).
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <label
+              htmlFor="kind-dokument-filter"
+              className="text-xs font-medium text-gray-600"
+            >
+              Anzeigen
+            </label>
+            <CustomSelect
+              id="kind-dokument-filter"
               value={filter}
+              options={filterItems}
               onChange={setFilter}
-              ariaLabel="Nach Kategorie filtern"
+              triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
             />
           </div>
         )}

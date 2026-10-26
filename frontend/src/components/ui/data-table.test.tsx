@@ -645,3 +645,24 @@ describe("DataTable row-action column (#4975)", () => {
     expect(screen.getByText("Alpha").closest("td")).not.toHaveClass("sticky");
   });
 });
+
+describe("DataTable load-more button (#4975)", () => {
+  it("sits below the scrolling table, not in a table row", () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      id: String(i),
+      name: `Zeile ${i}`,
+    }));
+    render(
+      <DataTable
+        columns={columns}
+        rows={many}
+        getRowKey={(r) => r.id}
+        pageSize={5}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: /Mehr laden/ });
+    expect(button.closest("table")).toBeNull();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+  });
+});

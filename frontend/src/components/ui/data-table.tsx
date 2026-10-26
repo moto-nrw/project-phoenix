@@ -852,23 +852,24 @@ export function DataTable<T>({
                   );
                 })
               )}
-              {!isLoading && hasMore && (
-                <tr className="border-t border-gray-100">
-                  <td colSpan={cellCount} className="px-5 py-3 text-center">
-                    <Button
-                      type="button"
-                      variant="surface"
-                      size="md"
-                      onClick={loadMore}
-                    >
-                      {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
-                    </Button>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
+        {/* Unter dem Scrollbereich, nicht in der Tabelle: in einer Zeile
+            stünde der Knopf in der Mitte der ganzen Tabellenbreite und auf
+            dem Handy halb außerhalb der Karte (#4975). */}
+        {!isLoading && hasMore && (
+          <div className="border-t border-gray-100 px-5 py-3 text-center">
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              onClick={loadMore}
+            >
+              {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );
