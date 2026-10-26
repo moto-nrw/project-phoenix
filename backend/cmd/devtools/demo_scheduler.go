@@ -42,9 +42,10 @@ type demoScheduler struct {
 	seeds           chan struct{}
 
 	failedRequeues *demoDeferredRequeues
-	// All demo schools share one Demo-Träger. Its master-data and holiday
-	// workflow therefore has to finish before the next school starts seeding.
-	provisioning sync.Mutex
+	// All demo schools share one Demo-Träger. Only the first provisioner builds
+	// its shared data; later schools can seed their own data concurrently.
+	sharedTraegerSetup sync.Mutex
+	traegerSetupDone   bool
 }
 
 func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbeat string, once bool) error {
@@ -63,10 +64,18 @@ func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbea
 	if err := schools.RequeueDeferredDemoSchoolOrders(ctx); err != nil {
 		return err
 	}
+	standing, err := schools.LoadDemoSchool(ctx, standingDemoSlug)
+	if err != nil {
+		return err
+	}
+	ready, err := schools.ReadyDemoSchools(ctx)
+	if err != nil {
+		return err
+	}
 	scheduler := &demoScheduler{
 		schools: schools, baseURL: baseURL, heartbeat: heartbeat, adapter: newSharedOperatorSession(adapter),
 		tickers: newDemoTickers(), expiry: newDemoExpiry(schools, time.Now), seeds: make(chan struct{}, demoSeedWorkers),
-		failedRequeues: newDemoDeferredRequeues(),
+		failedRequeues: newDemoDeferredRequeues(), traegerSetupDone: standing != nil || len(ready) > 0,
 	}
 	defer scheduler.work.Wait()
 	if once {
@@ -281,9 +290,18 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order DemoSchoolOrder) 
 			ReplaceAbandoned: order.Attempts > 1,
 			DeferHistory:     true,
 		}
-		s.provisioning.Lock()
-		deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options)
-		s.provisioning.Unlock()
+		s.sharedTraegerSetup.Lock()
+		options.SkipTraegerSetup = s.traegerSetupDone
+		if options.SkipTraegerSetup {
+			s.sharedTraegerSetup.Unlock()
+			deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options)
+		} else {
+			deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options)
+			if err == nil {
+				s.traegerSetupDone = true
+			}
+			s.sharedTraegerSetup.Unlock()
+		}
 		if err != nil {
 			return nil, err
 		}
