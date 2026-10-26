@@ -14,11 +14,21 @@ type runtimeKey struct{}
 type runtimeObserverKey struct{}
 type transactionKey struct{}
 
+// transactionMaskedKey marks a context whose ambient transaction a caller
+// masked with ContextWithoutTransaction; a transaction started from it is
+// independently committed, not nested (#4605).
+type transactionMaskedKey struct{}
+
 func withTransaction(ctx context.Context, transaction any) context.Context {
 	if uow, ok := ctx.Value(runtimeKey{}).(UnitOfWork); ok && uow.withTransaction != nil {
 		ctx = uow.withTransaction(ctx, transaction)
 	}
 	return context.WithValue(ctx, transactionKey{}, transaction)
+}
+
+func transactionMasked(ctx context.Context) bool {
+	masked, _ := ctx.Value(transactionMaskedKey{}).(bool)
+	return masked
 }
 
 type UnitOfWorkEventKind string
@@ -238,7 +248,7 @@ func TransactionFromContext(ctx context.Context) (any, bool) {
 // ContextWithoutTransaction masks an ambient adapter transaction while
 // preserving cancellation, deadlines, tenant identity, and other values.
 func ContextWithoutTransaction(ctx context.Context) context.Context {
-	ctx = withTransaction(ctx, nil)
+	ctx = context.WithValue(withTransaction(ctx, nil), transactionMaskedKey{}, true)
 	if uow, ok := ctx.Value(runtimeKey{}).(UnitOfWork); ok && uow.withoutTx != nil {
 		return uow.withoutTx(ctx)
 	}
@@ -275,7 +285,14 @@ const maxTransactionRetries = 3
 
 func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.Context) error) (err error) {
 	if HasAfterCommitHooks(ctx) {
-		return run(ctx)
+		_, active := TransactionFromContext(ctx)
+		if active || !transactionMasked(ctx) {
+			return run(ctx)
+		}
+		// The caller masked only the ambient transaction, so run starts an
+		// independently committed one (#4605). It owns its retry, and its
+		// hooks belong to its own commit, not to the caller's.
+		ctx = ContextWithoutAfterCommitHooks(ctx)
 	}
 
 	started := time.Now()
