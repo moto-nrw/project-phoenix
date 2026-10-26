@@ -37,11 +37,17 @@ interface Window {
   instance: PlannedTimetableInstance;
 }
 
+const MINUTES_PER_DAY = 24 * 60;
+
 function formatMinutes(total: number): string {
-  const clamped = Math.min(total, 24 * 60);
+  const clamped = Math.min(total, MINUTES_PER_DAY);
   const h = Math.floor(clamped / 60);
   const m = clamped % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function endTimeToMinutes(endTime: string): number {
+  return endTime === "24:00" ? MINUTES_PER_DAY : parseTimeToMinutes(endTime);
 }
 
 // Ende, mit dem ein Block in die Überlappung eingeht. Ein Block ohne Dauer
@@ -56,14 +62,17 @@ function effectiveEnd(
     instance.endTime > instance.startTime
       ? instance.endTime
       : instance.startTime;
-  const endMinute = parseTimeToMinutes(end);
+  const endMinute = endTimeToMinutes(end);
   if (nowHHMM == null || !hasOpenEnd(instance)) {
     return { endTime: end, endMinute };
   }
 
   // `24:00` is a valid end-of-day boundary, but not a valid HH:MM input.
   // Keep its minute value so lane assignment never parses that display value.
-  const runningUntil = Math.min(parseTimeToMinutes(nowHHMM) + 1, 24 * 60);
+  const runningUntil = Math.min(
+    parseTimeToMinutes(nowHHMM) + 1,
+    MINUTES_PER_DAY,
+  );
   const effectiveEndMinute = Math.max(endMinute, runningUntil);
   return {
     endTime: formatMinutes(effectiveEndMinute),

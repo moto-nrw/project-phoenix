@@ -31,6 +31,38 @@ function makeInstance(
 }
 
 describe("groupParallelBlocks", () => {
+  it("keeps a regular block ending at midnight in its last group", () => {
+    const groups = groupParallelBlocks(
+      [
+        makeInstance({
+          id: "regular",
+          startTime: "23:00",
+          endTime: "24:00",
+        }),
+      ],
+      null,
+    );
+
+    expect(groups[0]?.endTime).toBe("24:00");
+  });
+
+  it("keeps an open block with a midnight placeholder in its last group", () => {
+    const groups = groupParallelBlocks(
+      [
+        makeInstance({
+          id: "running",
+          startTime: "23:00",
+          endTime: "24:00",
+          status: "active",
+          isSpontaneous: true,
+        }),
+      ],
+      "23:30",
+    );
+
+    expect(groups[0]?.endTime).toBe("24:00");
+  });
+
   it("keeps an active spontaneous block at 23:59 in the last overlap group", () => {
     const groups = groupParallelBlocks(
       [
