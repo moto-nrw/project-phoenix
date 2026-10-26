@@ -42,6 +42,9 @@ type demoScheduler struct {
 	seeds           chan struct{}
 
 	failedRequeues *demoDeferredRequeues
+	// All demo schools share one Demo-Träger. Its master-data and holiday
+	// workflow therefore has to finish before the next school starts seeding.
+	provisioning sync.Mutex
 }
 
 func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbeat string, once bool) error {
@@ -268,6 +271,7 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order DemoSchoolOrder) 
 		return nil, fmt.Errorf("demo school order used its attempts")
 	}
 	var deferred func(context.Context) error
+	var err error
 	if !order.Seeded {
 		options := seedapi.SeedOptions{
 			TenantSlug: order.Slug, SchoolName: order.SchoolName,
@@ -277,8 +281,10 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order DemoSchoolOrder) 
 			ReplaceAbandoned: order.Attempts > 1,
 			DeferHistory:     true,
 		}
-		var err error
-		if deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options); err != nil {
+		s.provisioning.Lock()
+		deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options)
+		s.provisioning.Unlock()
+		if err != nil {
 			return nil, err
 		}
 	}
