@@ -13,6 +13,7 @@ import {
   posthogClient,
   publicHolidays,
   readBrowserEvents,
+  readPageNames,
   readRouteTemplates,
   sync,
 } from './posthog-dashboards.mjs';
@@ -20,17 +21,14 @@ import {
 const definitions = dashboards({ projectId: '1' });
 const insights = definitions.flatMap((dashboard) => dashboard.insights);
 
-test('defines the dashboards of #3604, the feature areas, and the demo behaviour', () => {
+test('defines one dashboard per product surface plus the two across schools', () => {
   assert.deepEqual(definitions.map((dashboard) => dashboard.name), [
-    'Nutzungsanalyse: Demo-Funnel',
-    'Nutzungsanalyse: Nutzung pro Rolle und Oberfläche',
-    'Nutzungsanalyse: Seiten',
-    'Nutzungsanalyse: Reibung',
-    'Nutzungsanalyse: Aktive Schulen',
-    'Nutzungsanalyse: Funktionen in Schulen',
     'Nutzungsanalyse: Nutzung je Standort',
+    'Nutzungsanalyse: OGS-App',
+    'Nutzungsanalyse: Eltern-App',
+    'Nutzungsanalyse: Schul-App',
     'Nutzungsanalyse: Schule im Verlauf',
-    'Nutzungsanalyse: Demo-Verhalten',
+    'Nutzungsanalyse: Demo',
   ]);
   const names = insights.map((insight) => insight.name);
   assert.equal(new Set(names).size, names.length, 'insight names are the sync key and must be unique');
@@ -46,6 +44,9 @@ test('every insight filters on production or the demo, never staging', () => {
       const filters = source.query.match(new RegExp(`properties\\.deployment = '${deployment}'`, 'g')) ?? [];
       assert.ok(tables.length > 0, insight.name);
       assert.equal(filters.length, tables.length, `${insight.name}: every events scan filters the deployment`);
+      const heatmaps = source.query.match(/\bfrom heatmaps\b/g) ?? [];
+      const hosts = source.query.match(new RegExp(`startsWith\\(current_url, 'https://${deployment}/'\\)`, 'g')) ?? [];
+      assert.equal(hosts.length, heatmaps.length, `${insight.name}: every heatmaps scan filters the deployment host`);
     } else {
       assert.deepEqual(source.properties.values[0].values,
         [{ key: 'deployment', type: 'event', operator: 'exact', value: [deployment] }], insight.name);
@@ -60,7 +61,7 @@ test('school insights count Monday to Friday without the public holidays of NRW,
     const filters = source.kind === 'HogQLQuery'
       ? source.query.split(ON_WORKDAY).length - 1
       : source.properties.values.filter((group) => group.values.some((value) => value.key === ON_WORKDAY)).length;
-    const scans = source.kind === 'HogQLQuery' ? source.query.match(/\bfrom events\b/g).length : 1;
+    const scans = source.kind === 'HogQLQuery' ? source.query.match(/\bfrom (events|heatmaps)\b/g).length : 1;
     assert.equal(filters, insight.deployment === 'production' ? scans : 0, insight.name);
   }
   const holidays = publicHolidays([2026, 2027]);
@@ -74,12 +75,12 @@ test('school insights count Monday to Friday without the public holidays of NRW,
 test('the demo dashboards stay in the demo and the school dashboards in production', () => {
   const isDemo = (dashboard) => dashboard.name.startsWith('Nutzungsanalyse: Demo');
   const demos = definitions.filter(isDemo);
-  assert.deepEqual(demos.map((d) => d.name), ['Nutzungsanalyse: Demo-Funnel', 'Nutzungsanalyse: Demo-Verhalten']);
+  assert.deepEqual(demos.map((d) => d.name), ['Nutzungsanalyse: Demo']);
   for (const demo of demos) {
     assert.ok(demo.insights.every((insight) => insight.deployment === 'demo'), demo.name);
   }
   const schools = definitions.filter((d) => !isDemo(d));
-  for (const dashboard of schools.filter((d) => d.name !== 'Nutzungsanalyse: Reibung')) {
+  for (const dashboard of schools) {
     assert.ok(dashboard.insights.every((insight) => insight.deployment === 'production'), dashboard.name);
   }
 });
@@ -88,6 +89,7 @@ test('no insight looks at a single person', () => {
   for (const insight of insights) {
     const query = JSON.stringify(insight.query);
     assert.doesNotMatch(query, /distinct_id|\bpersons?\b|person_id|\$user_id|\bpdi\b|email|\bdau\b|weekly_active|monthly_active|unique_users/i, insight.name);
+    assert.notEqual(insight.query.source.kind, 'PathsQuery', `${insight.name}: Paths count people`);
     const breakdown = insight.query.source.breakdownFilter?.breakdown;
     if (breakdown) assert.ok(['surface', 'role', SCHOOL_BREAKDOWN].includes(breakdown), insight.name);
   }
@@ -112,7 +114,7 @@ test('reads the browser events from analytics-policy.ts', () => {
   assert.ok(events.includes('demo_start_clicked'));
   assert.ok(!events.includes('login_success'), 'a core action comes from the backend');
   assert.throws(() => readBrowserEvents('const OTHER = 1;'), /CUSTOM_EVENTS/);
-  const usage = insights.find((insight) => insight.name.startsWith('Nutzung: Kernaktionen'));
+  const usage = insights.find((insight) => insight.name.startsWith('OGS-App: Was tun'));
   assert.match(usage.query.source.query, /event not in \('login_failed', /);
 });
 
@@ -141,16 +143,64 @@ test('feature areas have unique names, each event belongs to one area, and the k
   assert.match(expression, /startsWith\(event, 'demo_'\)/, 'the demo funnel events are no feature use');
 });
 
-test('the page list names every route template', () => {
-  const pages = insights.find((insight) => insight.name.startsWith('Seiten: kaum'));
-  assert.match(pages.query.source.query, /\('parents', '\/children\/:id'\)/);
+test('the rarely used page lists name every route template of their portal', () => {
+  const ogs = insights.find((insight) => insight.name.startsWith('OGS-App: Welche Seiten öffnet'));
+  const parents = insights.find((insight) => insight.name.startsWith('Eltern-App: Welche Seiten öffnet'));
+  assert.match(ogs.query.source.query, /'\/students\/:id'/);
+  assert.doesNotMatch(ogs.query.source.query, /'\/children\/:id'/);
+  assert.match(parents.query.source.query, /'\/children\/:id'/);
 });
 
-test('heatmap links point at the EU app and the route template', () => {
-  const friction = dashboards({ projectId: '4711' }).find((d) => d.name === 'Nutzungsanalyse: Reibung');
-  const table = friction.insights[0].query.source.query;
+test('page tables show the navigation name of a page', () => {
+  const names = readPageNames();
+  assert.equal(names.get('/students/search'), 'Alle Kinder');
+  assert.equal(names.get('/home'), 'Startseite');
+  assert.throws(() => readPageNames('const OTHER = 1;'), /href\/label/);
+  const pages = insights.find((insight) => insight.name === 'OGS-App: Welche Seiten werden am meisten genutzt?');
+  assert.match(pages.query.source.query, /'Alle Kinder'/);
+  assert.match(pages.query.source.query, /\$prev_pageview_duration/);
+});
+
+test('a school counts as active through use, not through a failed login or a dead click', () => {
+  const weekly = insights.find((insight) => insight.name === 'Aktive Schulen pro Woche');
+  assert.match(JSON.stringify(weekly.query), /event != 'login_failed'/);
+  const lastWeek = insights.find((insight) => insight.name === 'Standorte: mit Nutzung in den letzten 7 Tagen');
+  assert.match(lastWeek.query.source.query, /uniqIf\(Schule, Nutzung\)/);
+  assert.match(lastWeek.query.source.query, /event != 'login_failed'\) as Nutzung|event != 'login_failed' as Nutzung/);
+  const oldCondition = "(event = '$pageview' or not startsWith(event, '$'))";
+  for (const insight of insights.filter((i) => i.deployment === 'production')) {
+    const query = JSON.stringify(insight.query);
+    if (!query.includes(oldCondition)) continue;
+    assert.match(query, /event != 'login_failed'/, `${insight.name}: use ACTIVE_USE`);
+  }
+});
+
+test('every portal of a school has its own page, action, and friction tables', () => {
+  for (const [dashboard, surface] of [['OGS-App', 'ogs'], ['Eltern-App', 'parents'], ['Schul-App', 'school']]) {
+    const tiles = definitions.find((d) => d.name === `Nutzungsanalyse: ${dashboard}`).insights;
+    for (const question of ['Welche Seiten werden am meisten genutzt?', 'Welche Seiten öffnet kaum jemand?']) {
+      const tile = tiles.find((insight) => insight.name === `${dashboard}: ${question}`);
+      assert.match(tile.query.source.query, new RegExp(`properties\\.surface = '${surface}'`), tile.name);
+    }
+    assert.ok(tiles.some((insight) => insight.name.startsWith(`${dashboard}: Wo klicken`)), dashboard);
+  }
+});
+
+test('next pages count page changes from the start page, not people', () => {
+  const ogs = insights.find((insight) => insight.name.startsWith('OGS-App: Wohin'));
+  assert.match(ogs.query.source.query, /properties\.\$prev_pageview_pathname = '\/home'/);
+  assert.match(ogs.query.source.query, /properties\.surface = 'ogs'/);
+  assert.doesNotMatch(ogs.query.source.query, /session_id/);
+});
+
+test('friction tables link the heatmap and read rage clicks from the heatmap data', () => {
+  const ogs = dashboards({ projectId: '4711' }).find((d) => d.name === 'Nutzungsanalyse: OGS-App');
+  const table = ogs.insights.find((insight) => insight.name.startsWith('OGS-App: Wo klicken')).query.source.query;
   assert.match(table, /'https:\/\/eu\.posthog\.com\/project\/4711\/heatmaps\/new\?pageURL='/);
   assert.match(table, /'https:\/\/moto-app\.de'/);
+  assert.match(table, /from heatmaps/);
+  assert.match(table, /type = 'rageclick'/);
+  assert.match(table, /properties\.surface in \('ogs'\)/);
 });
 
 test('the client only calls the EU API and needs a key', async () => {
