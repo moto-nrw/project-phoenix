@@ -60,6 +60,7 @@ func TestRetireDirectPermissionsDownRestoresTenantIsolationAndFences(t *testing.
 	other, _ := testpkg.CreateTestTenant(t, db)
 	account := testpkg.CreateTestAccount(t, db, "rollback-direct")
 	permission := testpkg.CreateTestPermission(t, db, "rollback-direct", "rollback-direct", "read")
+	foreignPermission := testpkg.CreateTestPermission(t, db, "rollback-foreign", "rollback-foreign", "read")
 	_, err := db.ExecContext(ctx, `INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id) VALUES (?, ?, ?), (?, ?, ?)`, account.ID, permission.ID, home, account.ID, permission.ID, other)
 	require.NoError(t, err, "the same grant can exist independently at different schools")
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, home, func(ctx context.Context, tx bun.Tx) error {
@@ -71,10 +72,10 @@ func TestRetireDirectPermissionsDownRestoresTenantIsolationAndFences(t *testing.
 		return nil
 	}))
 	err = testpkg.WithTenantTx(t, ctx, db, home, func(ctx context.Context, tx bun.Tx) error {
-		_, err := tx.ExecContext(ctx, `INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id, granted) VALUES (?, ?, ?, FALSE)`, account.ID, permission.ID, other)
+		_, err := tx.ExecContext(ctx, `INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id, granted) VALUES (?, ?, ?, FALSE)`, account.ID, foreignPermission.ID, other)
 		return err
 	})
-	require.Error(t, err, "a tenant cannot write another school's grant")
+	require.ErrorContains(t, err, "row-level security", "a tenant cannot write another school's grant")
 	_, err = db.ExecContext(ctx, `INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id) VALUES (?, ?, ?)`, account.ID, permission.ID, home)
 	require.ErrorContains(t, err, "idx_account_permissions_tenant")
 	_, err = db.ExecContext(ctx, `UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID)
