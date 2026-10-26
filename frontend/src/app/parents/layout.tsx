@@ -5,6 +5,7 @@ import { ParentAuthGuard } from "./auth-guard";
 import { getLocale } from "next-intl/server";
 import { getParentAppMetadata } from "~/i18n/parent-app-metadata";
 import type { AppLocale } from "~/i18n/locales";
+import { readParentSessionSnapshot } from "~/lib/parent-session-snapshot.server";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -49,6 +50,11 @@ export async function generateMetadata(): Promise<Metadata> {
  * Wraps children in ParentProviders (SessionProvider with parent basePath),
  * then ParentAuthGuard handles client-side auth checks.
  *
+ * A valid parent cookie hydrates SessionProvider through a read-only snapshot
+ * (#4990), so the guard renders the page without first fetching the session.
+ * Never call parentAuth() here: its refresh callback could rotate the token
+ * in a Server Component that cannot persist the new cookie (#1938).
+ *
  * The whole parents subtree is localized, so it carries the full
  * NextIntlClientProvider. Rendered in a Server Component, it auto-inherits the
  * resolved locale + message catalog from request.ts (the proxy flags the
@@ -56,14 +62,15 @@ export async function generateMetadata(): Promise<Metadata> {
  * public enrollment layout — that ships the parent message catalog to the
  * client; the German-only staff/operator portals never mount it.
  */
-export default function ParentLayout({
+export default async function ParentLayout({
   children,
 }: {
   readonly children: React.ReactNode;
 }) {
+  const session = await readParentSessionSnapshot();
   return (
     <NextIntlClientProvider>
-      <ParentProviders>
+      <ParentProviders session={session}>
         <ParentAuthGuard>{children}</ParentAuthGuard>
       </ParentProviders>
     </NextIntlClientProvider>

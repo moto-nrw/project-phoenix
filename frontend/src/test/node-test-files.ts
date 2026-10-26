@@ -180,6 +180,7 @@ export const nodeLogicTestFiles = [
   "src/lib/parent-locale-navigation.test.ts",
   "src/lib/parent-messages-api.test.ts",
   "src/lib/parent-request-reason.test.ts",
+  "src/lib/parent-session-snapshot.server.test.ts",
   "src/lib/payroll-api.test.ts",
   "src/lib/permission-labels.test.ts",
   "src/lib/personal-calendar-api.test.ts",
