@@ -1641,6 +1641,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // #4372: offene Räume ohne eigene Aufsicht stehen unter `Räume`.
       "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht der Raum unter `Aktuelle Aufsicht`. Alle anderen offenen Räume finden Sie unter `Räume`.",
       "Haben Sie mehrere Aufsichten? Auf dem Handy stehen sie oben auf der Seite `Aufsicht` als Reiter.",
+      // #5035: mit dem Überblick über alle Aufsichten stehen auch fremde da.
+      "Sehen Sie auch Aufsichten von anderen? Ihre eigene steht zuerst und öffnet sich zuerst. Bei einer fremden steht oben `Nicht Ihre Aufsicht`.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
       "`Abgeben` ist gesperrt? Dann sind Sie die einzige Aufsicht. Übergeben Sie die Aufsicht an eine Person oder beenden Sie die Aktivität.",
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`, mit jedem Zugang. In Zeiterfassung und Dienstplan erscheint sie nicht.",

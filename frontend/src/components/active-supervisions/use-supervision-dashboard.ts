@@ -527,7 +527,7 @@ export function useSupervisionDashboard(
 
   // The session whose visits the aggregate carries. A payload without
   // selectedGroupId (older backend) keeps the former semantics: its visits
-  // belong to the first room.
+  // belong to the first room, which is the first own session (#5035).
   const resolvedRoom = useMemo(() => {
     if (!snapshot) return null;
     const firstRoom = allRoomsBase[0] ?? null;
@@ -538,9 +538,10 @@ export function useSupervisionDashboard(
 
   // A URL that names a different session/room than the aggregate resolved:
   // its visits must not flash under the wrong heading while the selection
-  // effect below is still switching (#2096).
+  // effect below is still switching (#2096). Compared with the resolved
+  // session, not the first in the list: otherwise every session after the
+  // first showed no children (#5035).
   const isUrlTargetingDifferentRoom = useMemo(() => {
-    const firstRoom = allRoomsBase[0];
     const releasedRoomId = releasedRoomTargetedByUrl({
       sessionParam,
       roomParam,
@@ -551,15 +552,22 @@ export function useSupervisionDashboard(
     if (sessionParam) {
       return (
         allRoomsBase.some((room) => room.id === sessionParam) &&
-        firstRoom?.id !== sessionParam
+        resolvedRoom?.id !== sessionParam
       );
     }
     if (!roomParam) return false;
     return (
       allRoomsBase.some((room) => room.room_id === roomParam) &&
-      firstRoom?.room_id !== roomParam
+      resolvedRoom?.room_id !== roomParam
     );
-  }, [allRoomsBase, sessionParam, roomParam, openRoomIds, selectedOpenRoomId]);
+  }, [
+    allRoomsBase,
+    resolvedRoom,
+    sessionParam,
+    roomParam,
+    openRoomIds,
+    selectedOpenRoomId,
+  ]);
 
   // The visits of the selected session, derived instead of copied: shown
   // only when the aggregate's resolved session IS the one the user is
@@ -712,6 +720,7 @@ export function useSupervisionDashboard(
   useEffect(() => {
     if (!selectedOpenRoomId || openRoomIds.has(selectedOpenRoomId)) return;
     setSelectedOpenRoomId(null);
+    // allRoomsBase lists own sessions first (#5035).
     setSelectedRoomId(allRoomsBase[0]?.id ?? null);
     setSelectedTimetableInstanceId(null);
   }, [allRoomsBase, selectedOpenRoomId, openRoomIds]);
@@ -873,7 +882,9 @@ export function useSupervisionDashboard(
     }
     if (target.kind === "persist-first") {
       // Nothing saved (e.g. fresh login) — persist the default so the next
-      // sidebar click and reload land on the same session.
+      // sidebar click and reload land on the same session. allRoomsBase
+      // lists own sessions first, so a foreign one is never saved while an
+      // own one runs (#5035).
       const firstRoom = allRoomsBase[0];
       if (firstRoom) {
         localStorage.setItem("supervision-last-session", firstRoom.id);

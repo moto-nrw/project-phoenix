@@ -424,6 +424,35 @@ describe("active-supervisions view model", () => {
     expect(result[0]?.isCurrentUserSupervising).toBe(true);
   });
 
+  it("lists own sessions before foreign ones of the overview (#5035)", () => {
+    const result = mapSupervisedGroupsToRooms([
+      {
+        id: "foreign",
+        name: "Gruppe A",
+        room: { id: "room-a", name: "Atelier" },
+        isCurrentUserSupervising: false,
+      },
+      {
+        id: "own-z",
+        name: "Gruppe Z",
+        room: { id: "room-z", name: "Zeichenraum" },
+        isCurrentUserSupervising: true,
+      },
+      {
+        id: "own-w",
+        name: "Gruppe W",
+        room: { id: "room-w", name: "Werkraum" },
+        isCurrentUserSupervising: true,
+      },
+    ]);
+
+    expect(result.map((room) => room.id)).toEqual([
+      "own-w",
+      "own-z",
+      "foreign",
+    ]);
+  });
+
   it("carries the activity's participant limit onto the session (#3634)", () => {
     const [limited, unlimited] = mapSupervisedGroupsToRooms([
       {
