@@ -1161,7 +1161,7 @@ function CareOfferingToolbar({
             ariaLabel="Anmeldephase"
             value={selectedPhaseId}
             onChange={onPhaseChange}
-            className="h-9 min-w-0 sm:w-72"
+            className="h-9 min-w-0 sm:w-auto sm:max-w-md"
             options={phases.map((phase) => ({
               value: phase.id,
               label: `${phase.name} (${KIND_LABELS[phase.kind]})${
