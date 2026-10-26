@@ -84,9 +84,9 @@ describe("useTimetableDayHours", () => {
       data: schema("18:00", "12:00"),
     });
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
-      dayStartHour: 18,
+      dayStartHour: 9,
       dayEndHour: 17,
-      dayStartTime: "18:00",
+      dayStartTime: "09:00",
       dayEndTime: "17:00",
     });
   });

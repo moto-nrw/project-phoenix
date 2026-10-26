@@ -39,7 +39,7 @@ export function useTimetableDayHours(): {
     revalidateOnReconnect: false,
   });
 
-  const dayStartTime = parseTime(
+  const dayStartTimeRaw = parseTime(
     getSettingValue(data, "timetable.day_start_time"),
     DEFAULT_START_TIME,
   );
@@ -47,11 +47,12 @@ export function useTimetableDayHours(): {
     getSettingValue(data, "timetable.day_end_time"),
     DEFAULT_END_TIME,
   );
-  const dayStartHour = toHour(dayStartTime);
-  const dayStartMinutes = toMinutes(dayStartTime);
+  const dayStartMinutes = toMinutes(dayStartTimeRaw);
   const dayEndMinutes = toMinutes(dayEndTimeRaw);
   const hasValidDayRange = dayEndMinutes > dayStartMinutes;
+  const dayStartTime = hasValidDayRange ? dayStartTimeRaw : DEFAULT_START_TIME;
   const dayEndTime = hasValidDayRange ? dayEndTimeRaw : DEFAULT_END_TIME;
+  const dayStartHour = toHour(dayStartTime);
   const dayEndHour = hasValidDayRange
     ? Math.ceil(dayEndMinutes / 60)
     : DEFAULT_END_HOUR;
