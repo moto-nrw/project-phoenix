@@ -8,6 +8,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -137,6 +138,14 @@ func (unitOfWork) RequireTransaction(ctx context.Context) error {
 }
 
 func (unitOfWork) MarkRollback(ctx context.Context) { tenant.MarkRollback(ctx) }
+
+func (unitOfWork) BestEffort(ctx context.Context, fn func(context.Context) error) error {
+	err := tenant.WithSavepoint(ctx, fn)
+	if errors.Is(err, tenant.ErrSavepointControl) {
+		return err
+	}
+	return nil
+}
 
 type Bindings struct {
 	Visits     ports.Visits

@@ -254,7 +254,9 @@ func (s *Service) scanBinary(ctx context.Context, device *devicescan.PrincipalDe
 		slog.Int64("student_id", student.ID),
 		slog.Int64("device_id", device.ID),
 	)
-	s.touchDeviceSession(ctx, device.ID)
+	if err := s.touchDeviceSession(ctx, device.ID); err != nil {
+		return nil, err
+	}
 	return &devicescan.ScanResult{
 		Outcome:     devicescan.ScanOutcomeAttendance,
 		PersonID:    student.ID,
@@ -318,7 +320,10 @@ func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDev
 	}
 
 	s.applyCheckoutFlags(ctx, result, student, checkout.Visit)
-	result.ActiveStudents = s.resolveActiveStudentCount(ctx, checkin, command.RoomID, device.ID)
+	result.ActiveStudents, err = s.resolveActiveStudentCount(ctx, checkin, command.RoomID, device.ID)
+	if err != nil {
+		return nil, err
+	}
 	s.applyPickupTime(ctx, result, student.ID, now)
 
 	result.PersonID = student.ID

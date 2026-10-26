@@ -46,7 +46,18 @@ type fakeClock struct{ now time.Time }
 func (c fakeClock) Now() time.Time                      { return c.now }
 func (c fakeClock) Day(instant time.Time) calendar.Date { return calendar.DateFromTime(instant) }
 
-type fakeUnit struct{ rollbacks int }
+type fakeUnit struct {
+	rollbacks     int
+	bestEffortErr error
+}
+
+func (u *fakeUnit) BestEffort(ctx context.Context, fn func(context.Context) error) error {
+	if u.bestEffortErr != nil {
+		return u.bestEffortErr
+	}
+	_ = fn(ctx)
+	return nil
+}
 
 func (u *fakeUnit) MarkRollback(context.Context) { u.rollbacks++ }
 

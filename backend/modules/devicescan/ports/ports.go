@@ -194,6 +194,10 @@ type Settings interface {
 
 // UnitOfWork controls the request transaction.
 type UnitOfWork interface {
+	// BestEffort runs fn in a savepoint, recovering operation errors before
+	// continuing. The callback owns logging; only savepoint-control failures
+	// are returned, and callers must fail the surrounding request for those.
+	BestEffort(ctx context.Context, fn func(context.Context) error) error
 	// RequireTransaction rejects writes without one surrounding transaction.
 	RequireTransaction(ctx context.Context) error
 	// MarkRollback requests rollback of the surrounding transaction even

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -82,4 +83,58 @@ func TestScanHeartbeat_PickupQuery(t *testing.T) {
 
 	testutil.AssertSuccessResponse(t, rr, 200)
 	assert.True(t, testpkg.ActiveGroupLastActivity(t, k.db, sessionID).After(stale), "the pickup query refreshes the device session")
+}
+
+// PostgreSQL statement errors must not poison the attendance transaction.
+func TestScanHeartbeat_LookupSQLFailurePreservesAttendance(t *testing.T) {
+	t.Parallel()
+	assertHeartbeatSQLFailurePreservesAttendance(t, "lookup")
+}
+
+func TestScanHeartbeat_UpdateSQLFailurePreservesAttendance(t *testing.T) {
+	t.Parallel()
+	assertHeartbeatSQLFailurePreservesAttendance(t, "update")
+}
+
+func TestScanHeartbeat_DetailedUpdateSQLFailurePreservesVisit(t *testing.T) {
+	t.Parallel()
+	assertHeartbeatSQLFailurePreservesAttendance(t, "detailed update")
+}
+
+func assertHeartbeatSQLFailurePreservesAttendance(t *testing.T, failure string) {
+	t.Helper()
+	testpkg.SetupIsolatedTestDB(t)
+	k := setupCheckinRoute(t)
+	ctx := testpkg.Ctx(t)
+	mode := `"binary"`
+	if failure == "detailed update" {
+		mode = `"detailed"`
+	}
+	testpkg.SetTestTenantSetting(t, k.db, testpkg.Tenant(t), "operations.presence_mode", mode)
+	device, deviceID := k.deviceRow(t, "failed-heartbeat")
+	tag, studentID, _ := k.studentCard(t, "Failed", "Heartbeat", "1a")
+	roomID, sessionID, stale := k.kioskSession(t, "Failed Heartbeat Room", deviceID)
+	if failure == "lookup" {
+		_, err := k.db.ExecContext(ctx, "REVOKE SELECT ON active.groups FROM phoenix_tenant")
+		require.NoError(t, err)
+	} else {
+		_, err := k.db.ExecContext(ctx, "ALTER TABLE active.groups ADD CONSTRAINT reject_heartbeat CHECK (last_activity <= ?)", stale)
+		require.NoError(t, err)
+	}
+
+	staff, _, _ := k.staff(t, "Heartbeat", "Staff")
+	rr := k.callIsolated(t, "POST", "/checkin", checkinBody(tag, roomID), device, staff)
+
+	testutil.AssertSuccessResponse(t, rr, 200)
+	assert.Equal(t, "checked_in", responseData(t, rr.Body.Bytes())["action"])
+	if failure == "detailed update" {
+		var visits int
+		require.NoError(t, k.db.NewRaw("SELECT count(*) FROM active.visits WHERE student_id = ? AND exit_time IS NULL", studentID).Scan(ctx, &visits))
+		assert.Equal(t, 1, visits, "the visit commits despite a heartbeat SQL error")
+	} else {
+		var present bool
+		require.NoError(t, k.db.NewRaw("SELECT EXISTS (SELECT 1 FROM active.attendance WHERE student_id = ? AND check_in_time IS NOT NULL AND check_out_time IS NULL)", studentID).Scan(ctx, &present))
+		assert.True(t, present, "attendance commits despite a heartbeat SQL error")
+	}
+	assert.Equal(t, stale, testpkg.ActiveGroupLastActivity(t, k.db, sessionID))
 }

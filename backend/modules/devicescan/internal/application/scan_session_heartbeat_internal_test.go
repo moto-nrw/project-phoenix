@@ -166,3 +166,18 @@ func TestScan_HeartbeatExemptions(t *testing.T) {
 		assert.Empty(t, h.sessions.touched)
 	})
 }
+
+func TestScan_SavepointControlFailureRejectsScan(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{presenceModeBinary, presenceModeDetailed} {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.settings.mode = mode
+			h.unit.bestEffortErr = errBoom
+			result, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
+			requireFailure(t, err, devicescan.FailureInternal, "failed to isolate session heartbeat")
+			assert.Nil(t, result)
+		})
+	}
+}

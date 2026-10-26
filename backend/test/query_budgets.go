@@ -228,9 +228,10 @@ var queryBudgets = map[string]queryBudget{
 	// shows as Server-Timing "auth". The route-sized test router has no
 	// request settings cache, so each settings read counts. Flat from three
 	// to eight children present.
-	"api.iot.checkin.check_in":    {max: 36},
-	"api.iot.checkin.check_out":   {max: 24},
-	"api.iot.checkin.room_change": {max: 42},
+	// ADR 0122: +2 statements for SAVEPOINT and RELEASE around the heartbeat.
+	"api.iot.checkin.check_in":    {max: 38},
+	"api.iot.checkin.check_out":   {max: 26},
+	"api.iot.checkin.room_change": {max: 44},
 	// modules/timetable/http — 14-day /week: FindByID + 7 preloads + class-exception
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},

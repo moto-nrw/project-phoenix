@@ -51,7 +51,9 @@ func (s *Service) PickupInfo(ctx context.Context, rfidTag string) (*devicescan.P
 		}
 	}
 
-	s.touchDeviceSession(ctx, device.ID)
+	if err := s.touchDeviceSession(ctx, device.ID); err != nil {
+		return nil, err
+	}
 	return info, nil
 }
 
