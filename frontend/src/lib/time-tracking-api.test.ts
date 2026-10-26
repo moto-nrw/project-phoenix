@@ -855,6 +855,78 @@ describe("TimeTrackingService", () => {
     });
   });
 
+  describe("getOwnAbsenceAllowances", () => {
+    it("maps each own Kontingent with its name and string IDs", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: [
+          {
+            name: "Regenerationstag",
+            staff_id: "10",
+            absence_type_id: "4",
+            year: 2026,
+            entitled_days: 3,
+            taken_days: 1,
+            reserved_days: 0.5,
+            remaining_days: 1.5,
+            expires_on: "2027-03-31",
+            expired_days: 0,
+            booking_days: 0,
+            carried_in: {
+              year: 2025,
+              remaining_days: 1,
+              expired_days: 0,
+              expires_on: "2026-03-31",
+            },
+          },
+        ],
+      });
+
+      const result = await timeTrackingService.getOwnAbsenceAllowances();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/time-tracking/absence-allowances",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(result).toEqual([
+        {
+          name: "Regenerationstag",
+          summary: {
+            staffId: "10",
+            absenceTypeId: "4",
+            year: 2026,
+            entitledDays: 3,
+            takenDays: 1,
+            reservedDays: 0.5,
+            remainingDays: 1.5,
+            expiresOn: "2027-03-31",
+            expiredDays: 0,
+            bookingDays: 0,
+            carriedIn: {
+              year: 2025,
+              remainingDays: 1,
+              expiredDays: 0,
+              expiresOn: "2026-03-31",
+            },
+          },
+        },
+      ]);
+    });
+
+    it("reads a missing list as no Kontingente", async () => {
+      global.fetch = mockFetchResponse({
+        success: true,
+        message: "",
+        data: null,
+      });
+
+      await expect(
+        timeTrackingService.getOwnAbsenceAllowances(),
+      ).resolves.toEqual([]);
+    });
+  });
+
   describe("authentication", () => {
     it("sends request without auth header when no session", async () => {
       mockGetSession.mockResolvedValue(null);

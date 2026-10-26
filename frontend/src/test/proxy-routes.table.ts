@@ -902,6 +902,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET tenant /api/time-tracking/closing-days",
   ],
   "api/time-tracking/config": ["GET tenant /api/time-tracking/config"],
+  "api/time-tracking/absence-allowances": [
+    "GET tenant /api/time-tracking/absence-allowances",
+  ],
   "api/time-tracking/current": ["GET tenant /api/time-tracking/current"],
   "api/time-tracking/history": ["GET tenant /api/time-tracking/history"],
   "api/time-tracking/holidays": ["GET tenant /api/time-tracking/holidays"],
