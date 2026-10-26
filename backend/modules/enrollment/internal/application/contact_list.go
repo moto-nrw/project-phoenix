@@ -87,7 +87,7 @@ func (d *Decisions) dispatchContact(
 	if c.EmergencyPriority > 0 {
 		rel.EmergencyPriority = c.EmergencyPriority
 	}
-	if err := d.upsertContactStudentGuardianLink(ctx, rel); err != nil {
+	if err := d.upsertContactStudentGuardianLink(ctx, rel, overwriteRelationshipType); err != nil {
 		return nil, fmt.Errorf("link contact to student: %w", err)
 	}
 	return profile, nil
