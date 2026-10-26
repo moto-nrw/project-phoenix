@@ -27,6 +27,15 @@ func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations) par
 	return application.NewBillingRuns(postgres.NewStore(), registrations, calendar.TodayDate)
 }
 
+// NewBillingLetterMail builds the mail and print of the letters (#4670,
+// ADR 0123) over the post the root binds.
+func NewBillingLetterMail(post parentbilling.BillingLetterPost) parentbilling.BillingLetterMailService {
+	return application.NewBillingLetterMail(postgres.NewStore(), post, letterpdf.NewRenderer())
+}
+
+// NewLetterMailRenderer renders the mail of a letter for the Delivery worker.
+func NewLetterMailRenderer() parentbilling.LetterMailRenderer { return application.RenderLetterMail }
+
 // NewBillingLetters builds the confirmation letters of the released runs
 // (#4669, ADR 0121) over the letterhead of the Träger, which the root
 // binds, and the letter layout of Document Rendering.

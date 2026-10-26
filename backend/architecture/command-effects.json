@@ -44900,6 +44900,28 @@
     },
     {
       "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters",
+      "target_owner": "document-rendering",
+      "binding_digest": "a29b1e89dd9abcee482a975f6ce8f3c2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters: imports the pages of the stored confirmation letters into one PDF to print; it stores nothing and decides no access (#4670, ADR 0123)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "target_owner": "document-rendering",
+      "binding_digest": "65a91405d22a61f7b7c55929268bff6f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.LetterRenderer.CombineLetters: the letter contract of Document Rendering returns the PDF bytes of the combined letters; it stores nothing and decides no access (#4670, ADR 0123)."
+    },
+    {
+      "source_owner": "parent-billing",
       "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter",
       "target": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter",
@@ -44919,6 +44941,40 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.LetterRenderer.RenderLetter: the letter contract of Document Rendering returns the PDF bytes of one letter; it stores nothing and decides no access (#4669, ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.EnqueueLetterMail",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueLetterMail",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform",
+      "binding_digest": "68673b2f23941412ea4c0dc5aede93c1",
+      "effect": "durable",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (durable): parent-billing reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through api.parentBillingLetterPost.EnqueueLetterMail. The mail of a confirmation letter is a mail of the Träger with the stored PDF in its payload, enqueued in the caller's Träger transaction with the record of the send in parent_billing.document_mailings (ADR 0110, ADR 0123); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.LetterMailStates",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.LetterMailStates",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform",
+      "binding_digest": "5d61563b3171437f14d664ab82e3a5e6",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/delivery/runtime.Capability.TraegerEmailStatuses: the state of the mails of a billing run of the session's Träger, read in its Träger transaction under the Träger policy of platform.email_outbox (ADR 0110, ADR 0123)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.SenderText",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.SenderText",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform",
+      "binding_digest": "a1256f7e2ab16c49bd565fb0d3d8047d",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the letterhead text of the session's Träger (its value or the registry default), read in its Träger transaction; its first line is the sender name of the mail of a confirmation letter (ADR 0112, ADR 0123)."
     },
     {
       "source_owner": "parent-billing",

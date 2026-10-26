@@ -446,6 +446,107 @@ export async function downloadBillingLetter(
   );
 }
 
+/** All stored letters of the run in one PDF to print (#4670). */
+export async function printBillingLetters(
+  runId: string,
+): Promise<BillingLetterFile> {
+  return letterFile(
+    `${runPath(runId)}/letters/print`,
+    {},
+    "bestaetigungsschreiben.pdf",
+  );
+}
+
+/** The state of the last mail of a family's letter (#4670). */
+export type LetterMailStatus =
+  "not_sent" | "queued" | "sent" | "failed" | "unknown";
+
+/** The mail of the letter of one family. */
+export interface LetterMailing {
+  readonly documentId: string;
+  readonly number: string;
+  readonly recipientFirstName: string;
+  readonly recipientLastName: string;
+  readonly recipientEmail: string;
+  readonly status: LetterMailStatus;
+  readonly sends: number;
+  readonly requestedAt: string | null;
+  readonly sentAt: string | null;
+}
+
+/** What a send to every family of the run did. */
+export interface LetterSeries {
+  readonly queued: number;
+  readonly already: number;
+  readonly withoutEmail: number;
+}
+
+interface BackendLetterMailing {
+  document_id: number;
+  number: string;
+  recipient_first_name: string;
+  recipient_last_name: string;
+  recipient_email: string;
+  status: LetterMailStatus;
+  sends: number;
+  requested_at: string | null;
+  sent_at: string | null;
+}
+
+function mailingFromBackend(mailing: BackendLetterMailing): LetterMailing {
+  return {
+    documentId: String(mailing.document_id),
+    number: mailing.number,
+    recipientFirstName: mailing.recipient_first_name,
+    recipientLastName: mailing.recipient_last_name,
+    recipientEmail: mailing.recipient_email,
+    status: mailing.status,
+    sends: mailing.sends,
+    requestedAt: mailing.requested_at,
+    sentAt: mailing.sent_at,
+  };
+}
+
+/** The mail state of every family of a released run with letters. */
+export async function fetchLetterMailings(
+  runId: string,
+): Promise<LetterMailing[]> {
+  const body = await traegerRequest<{
+    documents: BackendLetterMailing[] | null;
+  }>(`${runPath(runId)}/mailings`);
+  return (body.documents ?? []).map(mailingFromBackend);
+}
+
+/**
+ * Mails the letter of every family with an address and no mail yet; a
+ * second call sends nothing twice.
+ */
+export async function mailBillingLetters(runId: string): Promise<LetterSeries> {
+  const series = await traegerRequest<{
+    queued: number;
+    already: number;
+    without_email: number;
+  }>(`${runPath(runId)}/mailings`, { method: "POST" });
+  return {
+    queued: series.queued,
+    already: series.already,
+    withoutEmail: series.without_email,
+  };
+}
+
+/** Mails the letter of one family, first or again. */
+export async function mailBillingLetter(
+  runId: string,
+  documentId: string,
+): Promise<LetterMailing> {
+  return mailingFromBackend(
+    await traegerRequest<BackendLetterMailing>(
+      `${runPath(runId)}/documents/${encodeURIComponent(documentId)}/mailings`,
+      { method: "POST" },
+    ),
+  );
+}
+
 const NUMBER_RANGES_PATH = "/api/traeger/number-ranges";
 
 /** The number range of the holiday invoices; the pattern may be empty. */

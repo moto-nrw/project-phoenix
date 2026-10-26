@@ -9302,6 +9302,17 @@ function traegerBillingRunTopic(): HelpTopic {
           "Das Schreiben einer Familie laden Sie über das Menü mit den drei Punkten bei ihrer Rechnung herunter: `Schreiben herunterladen`.",
         ],
       },
+      {
+        title: "Schreiben per Mail senden und drucken",
+        description:
+          "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Für Familien ohne Internet drucken Sie es.",
+        steps: [
+          "Wählen Sie im freigegebenen Lauf bei `Versand per Mail` den Knopf `An alle Familien senden`. moto schickt nur Mails, die noch nicht gesendet sind.",
+          "Neben jeder Familie steht, ob die Mail gesendet ist. `Nicht angekommen` heißt: Die Mail kam nicht an.",
+          "Wählen Sie bei dieser Familie `Erneut senden`. Mit `Senden` schicken Sie das Schreiben an eine einzelne Familie.",
+          "Wählen Sie `Alle Schreiben drucken`. Sie bekommen alle Schreiben des Laufs in einer Datei.",
+        ],
+      },
     ],
     result:
       "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern.",
@@ -9319,6 +9330,7 @@ function traegerBillingRunTopic(): HelpTopic {
       "Die Freigabe meldet, dass sich der Lauf geändert hat? Inzwischen wurde eine Anmeldung bestätigt. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
       "Eine bestätigte Anmeldung fehlt in der Vorschau? Sie hat schon eine Rechnung, oder beim Bestätigen wurde kein Beitrag festgehalten.",
       "Die Schreiben lassen sich nicht erstellen, weil eine Bankverbindung fehlt? Die Verwaltung trägt sie unter `Briefkopf` ein. Danach erstellen Sie die Schreiben.",
+      "Eine Mail kommt auch nach `Erneut senden` nicht an? Vielleicht stimmt die Adresse nicht. Drucken Sie das Schreiben und geben Sie es der Familie.",
     ],
     related: [
       HELP_TOPICS.traegerHolidayContribution,

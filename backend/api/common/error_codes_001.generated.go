@@ -104,6 +104,7 @@ const (
 	CodeParentBillingBillingLetterNotFound            = "parent_billing.billing_letter_not_found"
 	CodeParentBillingBillingLettersExist              = "parent_billing.billing_letters_exist"
 	CodeParentBillingBillingLettersInvalid            = "parent_billing.billing_letters_invalid"
+	CodeParentBillingBillingLettersMissing            = "parent_billing.billing_letters_missing"
 	CodeParentBillingBillingRunChanged                = "parent_billing.billing_run_changed"
 	CodeParentBillingBillingRunEmpty                  = "parent_billing.billing_run_empty"
 	CodeParentBillingBillingRunNotFound               = "parent_billing.billing_run_not_found"
@@ -115,9 +116,11 @@ const (
 	CodeParentBillingContributionRuleOverlap          = "parent_billing.contribution_rule_overlap"
 	CodeParentBillingHolidayQuoteInvalid              = "parent_billing.holiday_quote_invalid"
 	CodeParentBillingInvoiceNumberTaken               = "parent_billing.invoice_number_taken"
+	CodeParentBillingLetterMailPending                = "parent_billing.letter_mail_pending"
 	CodeParentBillingLetterheadTooLong                = "parent_billing.letterhead_too_long"
 	CodeParentBillingNumberRangeInvalid               = "parent_billing.number_range_invalid"
 	CodeParentBillingNumberRangeMissing               = "parent_billing.number_range_missing"
+	CodeParentBillingRecipientEmailMissing            = "parent_billing.recipient_email_missing"
 	CodePickupBulkExceptionConfirmationRequired       = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                       = "pickup.future_manual_reset"
 	CodePickupInvalid                                 = "pickup.invalid"
@@ -299,9 +302,6 @@ const (
 	CodeTimetableCompletionConfirmationStale          = "timetable.completion_confirmation_stale"
 	CodeTimetableCorrectionCancelled                  = "timetable.correction_cancelled"
 	CodeTimetableCorrectionNotCompleted               = "timetable.correction_not_completed"
-	CodeTimetableCorrectionReasonMissing              = "timetable.correction_reason_missing"
-	CodeTimetableCorrectionReasonTooLong              = "timetable.correction_reason_too_long"
-	CodeTimetableDateInPast                           = "timetable.date_in_past"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -407,6 +407,7 @@ var errorCodeClasses1 = map[string]string{
 	"parent_billing.billing_letter_not_found":             "business_rejection",
 	"parent_billing.billing_letters_exist":                "business_rejection",
 	"parent_billing.billing_letters_invalid":              "input",
+	"parent_billing.billing_letters_missing":              "business_rejection",
 	"parent_billing.billing_run_changed":                  "business_rejection",
 	"parent_billing.billing_run_empty":                    "business_rejection",
 	"parent_billing.billing_run_not_found":                "business_rejection",
@@ -418,9 +419,11 @@ var errorCodeClasses1 = map[string]string{
 	"parent_billing.contribution_rule_overlap":            "business_rejection",
 	"parent_billing.holiday_quote_invalid":                "input",
 	"parent_billing.invoice_number_taken":                 "business_rejection",
+	"parent_billing.letter_mail_pending":                  "business_rejection",
 	"parent_billing.letterhead_too_long":                  "business_rejection",
 	"parent_billing.number_range_invalid":                 "input",
 	"parent_billing.number_range_missing":                 "business_rejection",
+	"parent_billing.recipient_email_missing":              "business_rejection",
 	"pickup.bulk_exception_confirmation_required":         "input",
 	"pickup.future_manual_reset":                          "business_rejection",
 	"pickup.invalid":                                      "input",
@@ -602,9 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.completion_confirmation_stale":             "business_rejection",
 	"timetable.correction_cancelled":                      "business_rejection",
 	"timetable.correction_not_completed":                  "business_rejection",
-	"timetable.correction_reason_missing":                 "input",
-	"timetable.correction_reason_too_long":                "input",
-	"timetable.date_in_past":                              "input",
 }
 
 func init() {

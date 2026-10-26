@@ -13,6 +13,10 @@ const { api } = vi.hoisted(() => ({
     createBillingLetters: vi.fn(),
     previewBillingLetter: vi.fn(),
     downloadBillingLetter: vi.fn(),
+    fetchLetterMailings: vi.fn(),
+    mailBillingLetters: vi.fn(),
+    mailBillingLetter: vi.fn(),
+    printBillingLetters: vi.fn(),
   },
 }));
 const { downloadBlob } = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
@@ -159,6 +163,7 @@ describe("TraegerBillingRunPage", () => {
   beforeEach(() => {
     for (const fn of Object.values(api)) fn.mockReset();
     api.fetchBillingRun.mockResolvedValue(PREVIEW);
+    api.fetchLetterMailings.mockResolvedValue([]);
   });
 
   it("shows the preview of every family with its positions", async () => {
@@ -448,6 +453,8 @@ describe("TraegerBillingRunPage", () => {
     expect(
       await screen.findByText(/Die Schreiben sind erstellt/),
     ).toBeInTheDocument();
+    // With the letters, the run offers to mail them (#4670).
+    expect(screen.getByText("Versand per Mail")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", {
         name: "Aktionen für die Rechnung an Eva Muster",

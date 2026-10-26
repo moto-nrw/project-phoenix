@@ -251,6 +251,7 @@ var tableRetentions = map[string]tableRetention{
 	"meta.parent_student_consent_permission_grants":         parent("users.student_guardian_relationships"),
 	"parent_billing.contribution_rules":                     notPersonal("contribution rule of a Träger (#4664): kind, parameters, validity and the note of an exemption, no person"),
 	"parent_billing.document_letters":                       parent("parent_billing.documents"),
+	"parent_billing.document_mailings":                      parent("parent_billing.document_letters"),
 	"parent_billing.document_positions":                     parent("parent_billing.documents"),
 	"parent_billing.documents":                              own("an issued invoice never changes and stays when its registration goes (§ 147 AO, ADR 0088 section 9, ADR 0119); it goes with platform.organizations when the Träger is erased after its export (#4657); the period of a single invoice follows with #4720"),
 	"parent_billing.holiday_contribution_lines":             parent("parent_billing.holiday_contributions"),

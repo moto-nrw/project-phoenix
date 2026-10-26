@@ -620,6 +620,9 @@ var coreActions = map[RouteKey]CoreAction{
 	// to the Träger as well.
 	{http.MethodPost, "/traeger/billing-runs/{id}/letters"}:         notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/letters/preview"}: notCaptured,
+	// The mail of the letters (#4670, ADR 0123) belongs to the Träger too.
+	{http.MethodPost, "/traeger/billing-runs/{id}/mailings"}:                        notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/mailings"}: notCaptured,
 
 	// School portal (Lehrkräfte).
 	{http.MethodPost, "/school/auth/login"}:                                                      session("login_success"),

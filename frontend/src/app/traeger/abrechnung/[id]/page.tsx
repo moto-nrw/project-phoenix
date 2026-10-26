@@ -13,6 +13,7 @@ import {
 } from "~/components/traeger/billing-correction-modal";
 import { BillingDocumentCard } from "~/components/traeger/billing-document-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
+import { BillingMailCard } from "~/components/traeger/billing-mail-card";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
@@ -202,6 +203,9 @@ export default function TraegerBillingRunPage() {
               letters={run.letters}
               onCreated={(letters) => setRun({ ...run, letters })}
             />
+          ) : null}
+          {run.status === "released" && run.letters ? (
+            <BillingMailCard runId={run.id} />
           ) : null}
           {run.documents.length === 0 ? (
             <SectionCard>

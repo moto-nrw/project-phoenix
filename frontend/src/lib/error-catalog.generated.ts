@@ -1412,6 +1412,12 @@ export const ERROR_CATALOG = {
         "Schreiben gibt es erst nach der Freigabe. Bitte geben Sie den Lauf zuerst frei.",
       "parent_billing.letterhead_too_long":
         "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
+      "parent_billing.billing_letters_missing":
+        "Es gibt noch keine Bestätigungsschreiben. Bitte erstellen Sie zuerst die Schreiben.",
+      "parent_billing.letter_mail_pending":
+        "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
+      "parent_billing.recipient_email_missing":
+        "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
     },
   },
   en: {
