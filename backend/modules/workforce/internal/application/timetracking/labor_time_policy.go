@@ -37,7 +37,10 @@ type LaborTimeEvaluation struct {
 	NetMinutes           int
 	BreakMinutes         int
 	RequiredBreakMinutes int
-	IsBreakCompliant     bool
+	// CountedBreakMinutes is the break time that counts toward §4 ArbZG:
+	// break intervals and gaps between blocks of at least 15 minutes each.
+	CountedBreakMinutes int
+	IsBreakCompliant    bool
 }
 
 // EvaluateLaborTime applies the same work/break calculations used by session
@@ -45,12 +48,14 @@ type LaborTimeEvaluation struct {
 func EvaluateLaborTime(ws *WorkSession, breaks []*WorkSessionBreak, now time.Time) LaborTimeEvaluation {
 	net := netMinutesWithBreaks(ws, breaks, now)
 	taken := totalBreakMinutes(ws, breaks, now)
+	counted := qualifyingBreakMinutes(breaks, ws.CheckInTime, BalanceSessionEnd(ws, now), taken)
 	required := requiredBreakMinutes(net)
 	return LaborTimeEvaluation{
 		NetMinutes:           net,
 		BreakMinutes:         taken,
 		RequiredBreakMinutes: required,
-		IsBreakCompliant:     taken >= required,
+		CountedBreakMinutes:  counted,
+		IsBreakCompliant:     counted >= required,
 	}
 }
 
@@ -84,11 +89,13 @@ func EvaluateWorkSessionsLaborTime(sessions []*WorkSession, breaksBySession map[
 		}
 	}
 	required := requiredBreakMinutes(net)
+	counted := qualifyingBreaks + qualifyingGaps
 	return LaborTimeEvaluation{
 		NetMinutes:           net,
 		BreakMinutes:         taken,
 		RequiredBreakMinutes: required,
-		IsBreakCompliant:     qualifyingBreaks+qualifyingGaps >= required,
+		CountedBreakMinutes:  counted,
+		IsBreakCompliant:     counted >= required,
 	}
 }
 

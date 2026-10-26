@@ -19,6 +19,7 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
@@ -32,33 +33,40 @@ type batchConfig struct {
 	pickupOverdue    bool
 	activityStart    bool
 	activityOverdue  bool
+	runningOver      bool
 	assignedStart    bool
 	pickupLead       int
 	activityLead     int
 	overdueThreshold int
+	runningOverGrace int
 	binaryPresence   bool
 }
 
 func (c batchConfig) anyPickup() bool { return c.pickupUpcoming || c.pickupOverdue }
 func (c batchConfig) anyActivity() bool {
-	return c.activityStart || c.activityOverdue || c.assignedStart
+	return c.activityStart || c.activityOverdue || c.runningOver || c.assignedStart
 }
 func (c batchConfig) anyEnabled() bool { return c.anyPickup() || c.anyActivity() }
 
 // batchInputs is everything read once for the whole tenant.
 type batchInputs struct {
-	today           string
-	nowMin          int
-	attendanceIDs   []int64
-	visitsByRoom    map[int64][]int64
-	roomsByStaff    map[int64][]int64
-	instances       []*ports.ActivityInstance
-	students        map[int64]*ports.Student
-	pickupTimes     map[int64]*ports.EffectivePickupTime
-	presenceByStaff map[int64][]int64
+	today            string
+	nowMin           int
+	attendanceIDs    []int64
+	visitsByRoom     map[int64][]int64
+	roomsByStaff     map[int64][]int64
+	instances        []*ports.ActivityInstance
+	runningInstances []*ports.ActivityInstance
+	students         map[int64]*ports.Student
+	pickupTimes      map[int64]*ports.EffectivePickupTime
+	presenceByStaff  map[int64][]int64
 	// assignedInstances holds, per staff member, the activity instances they
 	// are planned on and not absent from.
 	assignedInstances map[int64]map[int64]struct{}
+	// runningOver holds the rooms, room presence and pickup times of every
+	// block that runs over anywhere in the school, read once; each recipient
+	// then sees only the blocks in their own scope.
+	runningOver runningOverFacts
 }
 
 func (s *service) ComputeBatch(ctx context.Context, scopes []reminder.BatchScope) (map[int64]*reminder.Result, error) {
@@ -193,12 +201,11 @@ func (s *service) loadBatchConfig(ctx context.Context, recipients []reminder.Bat
 	if cfg.pickupOverdue, err = s.Settings.PickupOverdueEnabled(ctx); err != nil {
 		return cfg, err
 	}
-	if cfg.activityStart, err = s.Settings.ActivityStartEnabled(ctx); err != nil {
+	gates, err := s.activityGates(ctx)
+	if err != nil {
 		return cfg, err
 	}
-	if cfg.activityOverdue, err = s.Settings.ActivityOverdueEnabled(ctx); err != nil {
-		return cfg, err
-	}
+	cfg.activityStart, cfg.activityOverdue, cfg.runningOver = gates.start, gates.overdue, gates.runningOver
 	if !cfg.anyEnabled() {
 		return cfg, nil
 	}
@@ -213,10 +220,8 @@ func (s *service) loadBatchConfig(ctx context.Context, recipients []reminder.Bat
 			return cfg, err
 		}
 	}
-	if cfg.activityOverdue {
-		if cfg.overdueThreshold, err = s.overdueThresholdMinutes(ctx); err != nil {
-			return cfg, err
-		}
+	if err := s.loadBatchActivityThresholds(ctx, &cfg); err != nil {
+		return cfg, err
 	}
 
 	return cfg, nil
@@ -412,11 +417,34 @@ func batchActivityResult(sc reminder.BatchScope, cfg batchConfig, in *batchInput
 			part = append(part, assignedPart...)
 			next = minFuture(next, assignedNext)
 		}
+		if cfg.runningOver {
+			due, runningNext := dueRunningOver(in.runningInstances, activityScopeFilter(roomFilter, nil),
+				runningOverWindow{nowMin: in.nowMin, grace: cfg.runningOverGrace, today: calendar.Date(in.today)})
+			part = append(part, buildRunningOverReminders(due, calendar.Date(in.today), in.nowMin, in.runningOver)...)
+			next = minFuture(next, runningNext)
+		}
 		activityPart = part
 		nextChange = minFuture(nextChange, next)
 	}
 
 	return activityPart, nextChange
+}
+
+// loadBatchActivityThresholds resolves the minute settings of the switched-on
+// activity types that are evaluated after their start.
+func (s *service) loadBatchActivityThresholds(ctx context.Context, cfg *batchConfig) error {
+	var err error
+	if cfg.activityOverdue {
+		if cfg.overdueThreshold, err = s.overdueThresholdMinutes(ctx); err != nil {
+			return err
+		}
+	}
+	if cfg.runningOver {
+		if cfg.runningOverGrace, err = s.runningOverMinutes(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *service) loadBatchPickupConfig(ctx context.Context, cfg *batchConfig, caregivers bool) error {
@@ -446,7 +474,7 @@ func (s *service) renderBatchResults(recipients []reminder.BatchScope, pickupsBy
 		nextChange := sp.nextChange
 
 		activityPart, nextChange := batchActivityResult(sc, cfg, in, nextChange)
-		result := assembleResult(pickupPart, activityPart, nextChange)
+		result := assembleResult(pickupPart, activityPart, in.today, nextChange)
 		result.AssignedActivityInstanceIDs = assignedIDStrings(in.assignedInstances[sc.StaffID])
 		results[resultKey(sc)] = result
 	}

@@ -171,7 +171,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose adds exactly 7 LOC.
 // ADR 0115: the new owner composition modules/parentbilling/compose of the
 // Elternabrechnung adds exactly 20 LOC.
-const moduleComposeBudgetTotal = 12640
+// ADR 0119: the billing run constructor of modules/parentbilling/compose adds
+// exactly 7 LOC.
+const moduleComposeBudgetTotal = 12639
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -215,7 +217,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	"modules/organizationtenancy/compose": 283,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
-	"modules/parentbilling/compose":               20,
+	// Raised by ADR 0119: the billing run constructor (+7).
+	"modules/parentbilling/compose":               27,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":       973,
@@ -234,7 +237,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 243,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       1148,
+	"modules/timetable/compose":                       1142,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableenrollmentprovenance/compose":   10,
 	"modules/timetableprojection/compose":             7,
@@ -250,7 +253,7 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,
 	"workflows/staffclock/compose":       36,
-	"workflows/staffoffboarding/compose": 76,
+	"workflows/staffoffboarding/compose": 74,
 	// Added by ADR 0104: construction of the Träger projection, no retained logic.
 	"modules/traegerview/compose": 20,
 	// Added by ADR 0076: construction and the ambient transaction guard.

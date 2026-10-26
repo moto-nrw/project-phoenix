@@ -2831,10 +2831,20 @@
       },
       "parent_billing": {
         "benefits_exemption_unavailable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_correction_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "billing_family_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_run_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_run_empty": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_run_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_run_open": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_run_released": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "contribution_rule_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "contribution_rule_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "contribution_rule_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "holiday_quote_invalid": "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin."
+        "holiday_quote_invalid": "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
+        "invoice_number_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "number_range_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "number_range_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

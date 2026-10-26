@@ -23,8 +23,7 @@ func TestListStaffWithPermission_RoleGrantOnly(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Staff WITH an active tenant mapping (calendar helper adds mapping + base
-	// user role); vacation:approve arrives first as a retired direct grant,
-	// then through a role.
+	// user role); vacation:approve arrives through a role.
 	approver, approverAccount := testpkg.CreateTestCalendarStaff(t, db, "Lena", "Approver")
 	// Staff without the permission — must not appear.
 	bystander, _ := testpkg.CreateTestCalendarStaff(t, db, "Bodo", "Bystander")
@@ -39,17 +38,6 @@ func TestListStaffWithPermission_RoleGrantOnly(t *testing.T) {
 		Scan(sqlCtx, &permissionID)
 	require.NoError(t, err, "vacation:approve permission must exist (migration 1.15.105)")
 
-	_, err = db.NewInsert().
-		Model(&map[string]any{
-			"account_id":    approverAccount.ID,
-			"permission_id": permissionID,
-			"granted":       true,
-			"tenant_id":     testpkg.Tenant(t),
-		}).
-		TableExpr(`auth.account_permissions`).
-		Exec(sqlCtx)
-	require.NoError(t, err)
-
 	listed := func() map[int64]string {
 		t.Helper()
 		result, err := testpkg.TenantQuery1(t, ctx, db, repo.ListStaffWithPermission, "vacation:approve")
@@ -60,7 +48,7 @@ func TestListStaffWithPermission_RoleGrantOnly(t *testing.T) {
 		}
 		return ids
 	}
-	require.NotContains(t, listed(), approver.ID, "a retired direct grant no longer qualifies (#4485)")
+	require.NotContains(t, listed(), approver.ID, "an account without the role permission is excluded")
 
 	testpkg.GrantTestPermission(t, db, testpkg.Tenant(t), approverAccount.ID, "vacation:approve")
 	ids := listed()

@@ -66,6 +66,15 @@ var queryBudgets = map[string]queryBudget{
 	// 0115): the Träger binding of the Träger transaction, then the rules of
 	// the Träger. Flat in the number of rules.
 	"api.traeger.contribution_rules": {max: 2, exact: true},
+	// modules/parentbilling — GET /traeger/billing-runs (#4668, ADR 0119):
+	// the Träger binding of the Träger transaction, then the runs of the
+	// Träger. Flat in the number of runs.
+	"api.traeger.billing_runs": {max: 2, exact: true},
+	// modules/parentbilling — GET /traeger/billing-runs/periods (#4668, ADR
+	// 0119): the Träger binding of the Träger transaction, then Enrollment's
+	// list of the periods with their weeks and time models. Flat in the number
+	// of periods.
+	"api.traeger.billing_run_periods": {max: 4, exact: true},
 	// modules/organizationtenancy — GET /traeger/master-data (#4653): the
 	// Träger binding of the Träger transaction, then the profile row and the
 	// bank accounts of the Träger; the read log writes but selects nothing.
@@ -371,6 +380,12 @@ var queryBudgets = map[string]queryBudget{
 	// ONE read of the staff member's
 	// Sonderarbeitszeiten. Flat in the number of ranges.
 	"workforce.staff_target_overrides.list": {max: 7, exact: true},
+	// modules/workforce/http/timetracking — GET
+	// /api/time-tracking/absence-allowances (#4971): the tenant-transaction
+	// statements, the three staff lookups behind the session, and ONE read each
+	// of the school's absence types, the caller's claims and the caller's
+	// absences. Flat in the number of types with an allowance.
+	"workforce.own_absence_allowances.list": {max: 10, exact: true},
 	"modules.careplan.request_feed.list":    {max: 1, exact: true},
 	// modules/identityaccess caller context (behavior/caller_request_cache_test.go) —
 	// the #2099 request cache dedups the identity chain.

@@ -54,9 +54,6 @@ func (r *RoleAdministration) GetPermissionByName(ctx context.Context, name strin
 }
 
 func (r *RoleAdministration) deletePermission(ctx context.Context, id int64) error {
-	if err := r.store.DeletePermissionGrants(ctx, id); err != nil {
-		return failed("delete account permissions", err)
-	}
 	if err := r.store.DeletePermissionAssignments(ctx, id); err != nil {
 		return failed("delete role permissions", err)
 	}

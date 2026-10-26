@@ -89,3 +89,38 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	require.Len(t, bens, 1)
 	assert.Equal(t, "Lernzeit", bens[0].Title)
 }
+
+// A block without a room (room_id NULL) must not fail the whole list: the
+// room directory rejects non-positive IDs (Sentry 156236161).
+func TestStaffAssignmentServiceListForStaffWithoutRoom(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	staff := testpkg.CreateTestStaff(t, db, "Clara", "Ohneraum")
+	date := calendar.NewDate(2026, 3, 11)
+	ausflug := testpkg.CreateTestActivityInstance(t, db, date, 0, testpkg.ActivityInstanceOpts{
+		StartHHMM: "09:00",
+		EndHHMM:   "12:00",
+		Title:     "Ausflug",
+	})
+	testpkg.CreateTestInstanceStaff(t, db, ausflug.ID, staff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+
+	rooms := owners.MustNewUnobservedRooms(testpkg.NewDatabase(t, db))
+	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
+	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
+		InstanceStaffRepo:    timetableRepos.InstanceStaffReads(),
+		ActivityInstanceRepo: timetableRepos.InstanceReads(),
+		RoomRepo:             owners.NewTimetableRoomNames(rooms),
+		ActivityGroupRepo:    timetableRepos.GroupReads(),
+	}, nil)
+
+	got, err := service.ListAssignmentsForStaff(testpkg.TenantContext(tenantID), staff.ID, date, date)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "Ausflug", got[0].Title)
+	assert.Empty(t, got[0].RoomName)
+}

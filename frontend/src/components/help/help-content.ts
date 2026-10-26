@@ -1,5 +1,12 @@
 import type { HelpIconName } from "~/components/help/help-icons";
 import {
+  hiddenHelpTopicIds,
+  helpAudienceIncludes,
+  type HelpAudience,
+  type HelpGroupMode,
+  type HelpPresenceMode,
+} from "~/lib/help-topic-availability";
+import {
   HELP_TOPICS,
   type HelpRole,
   type HelpTopicId,
@@ -10,8 +17,7 @@ import {
 // ohne die Artikeltexte zu laden. Hier nur weitergereicht, damit die
 // bestehenden Importe aus dieser Datei weiter stimmen.
 export type { HelpRole };
-export type HelpPresenceMode = "detailed" | "binary" | "unknown";
-export type HelpGroupMode = "fixed_groups" | "open_care" | "unknown";
+export type { HelpGroupMode, HelpPresenceMode };
 export type HelpTopicGroup =
   // Betreuungskraefte
   | "einstieg"
@@ -60,7 +66,7 @@ export interface HelpTopic {
    * eine Betreuungskraft. Zwei fast gleiche Artikel waeren sonst die Folge,
    * und einer davon liefe irgendwann hinterher. `"all"` heisst jede Rolle.
    */
-  readonly audience: "all" | HelpRole | readonly HelpRole[];
+  readonly audience: HelpAudience;
   readonly icon: HelpIconName;
   readonly requirements?: readonly string[];
   readonly steps: readonly string[];
@@ -91,10 +97,7 @@ export function helpTopicMatchesRole(
   topic: HelpTopic,
   role: HelpRole,
 ): boolean {
-  const { audience } = topic;
-  if (audience === "all") return true;
-  if (Array.isArray(audience)) return audience.includes(role);
-  return audience === role;
+  return helpAudienceIncludes(topic.audience, role);
 }
 
 function loginResult(
@@ -2161,6 +2164,59 @@ function correctWorkTimeTopic(): HelpTopic {
   };
 }
 
+// Hinweise zu Pausen und Höchstarbeitszeit (#4804). Nur Hinweise, sie sperren
+// nichts. Werte und Grenzen bewertet der Server.
+function workTimeHintsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.workTimeHints,
+    title: "Hinweise zu Pausen und Höchstarbeitszeit",
+    question: "Was bedeuten die Hinweise zu Pausen und Arbeitszeit?",
+    summary:
+      "moto zeigt, wenn eine Pause zu kurz war oder zu lange gearbeitet wurde.",
+    group: "arbeitszeit",
+    audience: ["caregiver", "lead"],
+    icon: "Hourglass",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Hinweise finden",
+        steps: [
+          "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Zeiterfassung`.",
+          "Lesen Sie in der Tabelle `Zeiterfassung` die Spalte `Hinweis`.",
+          "Lesen Sie unter jeder Woche die Zeile `Summe KW`.",
+        ],
+      },
+      {
+        title: "Diese Hinweise gibt es",
+        ordered: false,
+        steps: [
+          "`Pause zu kurz`: Nach 6 Stunden Arbeit sind 30 Minuten Pause nötig, nach 9 Stunden 45 Minuten. Der Hinweis nennt, wie viel nötig war und wie viel Sie gemacht haben.",
+          "`Mehr als 10 Std. gearbeitet`: An einem Tag sind höchstens 10 Stunden Arbeit erlaubt.",
+          "`Mehr als 48 Std. in der Woche`: Das steht in der Zeile `Summe KW` der Woche.",
+        ],
+      },
+    ],
+    result:
+      "Sie sehen, an welchen Tagen und in welchen Wochen die Arbeitszeit nicht zum Arbeitszeitgesetz passt.",
+    notes: [
+      "Die Hinweise sperren nichts. Sie können weiter ein- und ausstempeln.",
+      "Es zählen nur Pausen ab 15 Minuten. Zwei Pausen von 10 Minuten zählen nicht.",
+      "Eine Lücke von mindestens 15 Minuten zwischen zwei Arbeitsblöcken zählt als Pause.",
+      "Während Sie arbeiten, zeigt die `Stempeluhr` den Hinweis, sobald er gilt. Während einer laufenden Pause erscheint kein Pausen-Hinweis.",
+      "Ein Arbeitsblock über Mitternacht zählt zu dem Tag, an dem er begann.",
+    ],
+    differences: [
+      "Im Monat reicht die erste oder letzte Woche über den Monatsrand. `Summe KW` zählt dann die ganze Woche.",
+      "Korrigieren Sie einen Tag, prüft moto ihn nach dem Speichern neu. Der Hinweis im Dialog zeigt den bisher gespeicherten Stand.",
+    ],
+    related: [
+      HELP_TOPICS.trackWorkTime,
+      HELP_TOPICS.correctWorkTime,
+      HELP_TOPICS.leadWorkTimeReview,
+    ],
+  };
+}
+
 // Eigener Dienstplan (#3821): eigene Seite unter `Team`, nur lesend.
 function ownShiftPlanTopic(): HelpTopic {
   return {
@@ -2256,6 +2312,7 @@ function ownAbsenceTopic(): HelpTopic {
     ],
     notes: [
       "Ihre Abwesenheit steht danach in der Tabelle `Zeiterfassung` unter `Status`. Über das Stift-Symbol am Ende der Zeile öffnen Sie den Tag.",
+      "Hat eine Art Ihrer OGS feste Tage, sehen Sie den Stand in der Karte `Kontingente`. Den Anspruch trägt Ihre Leitung ein.",
     ],
     related: [HELP_TOPICS.vacation, HELP_TOPICS.trackWorkTime],
   };
@@ -2973,6 +3030,7 @@ function caregiverTopics(
     sharedFilesTopic(),
     trackWorkTimeTopic(),
     correctWorkTimeTopic(),
+    workTimeHintsTopic(),
     ownShiftPlanTopic(),
     vacationTopic(),
     ownAbsenceTopic(),
@@ -5102,7 +5160,7 @@ function staffRecordTopic(): HelpTopic {
         steps: [
           "`Übersicht`: Stundenkonto, Urlaubstage und Krankheitstage des Jahres.",
           "`Zeiterfassung`: die einzelnen Buchungen dieser Person.",
-          "`Abwesenheiten`: Resturlaub, `Krank melden` und `Freizeitausgleich eintragen`.",
+          "`Abwesenheiten`: unter `Kontingente` der Resturlaub und die Tage eigener Abwesenheitsarten, dazu `Krank melden` und `Freizeitausgleich eintragen`.",
           "`Stammdaten`: Person, Kontakt, Arbeitsvertrag, Qualifikationen und Personalnummer.",
           "`Dokumente`: Dateien zur Akte, je mit Kategorie und Frist.",
           "`Klassen`: nur bei Lehrkräften.",
@@ -5737,6 +5795,7 @@ function workTimeReviewTopic(): HelpTopic {
           "Wählen Sie oben den Reiter `Zeitkonten`.",
           "Lesen Sie in der `Einrichtungs-Übersicht` die Zahlen für `Woche` oder `Monat`.",
           "Filtern Sie die Liste bei Bedarf nach `Minusstunden`, `Plusstunden` oder `über +20 Std.`.",
+          "Die Spalte `Hinweise` zählt die Tage mit zu kurzer Pause oder mehr als 10 Std. Arbeit. Mit `Mit Hinweisen` sehen Sie nur diese Personen.",
         ],
       },
       {
@@ -6041,11 +6100,13 @@ function settingsGuideTopic(): HelpTopic {
       },
       {
         title: "Erinnerungen",
-        description: "Hinweise rund um Abholung und Termine.",
+        description: "Hinweise rund um Abholung, Aktivitäten und Termine.",
         ordered: false,
         steps: [
           "`Anstehende Abholung`: Erinnert, wenn die Abholzeit eines Kindes näher rückt.",
           "`Überfällige Abholung`: Erinnert, wenn ein Kind nach seiner Abholzeit noch da ist.",
+          "`AG dauert länger`: Erinnert, wenn eine gestartete Aktivität nach ihrem Ende noch läuft. Sie sehen den Raum und bei wie vielen Kindern die Abholzeit erreicht ist. Bei `Nachlauf in Minuten` legen Sie fest, wie lange moto wartet. Beendet moto Termine automatisch, wählen Sie dort weniger Minuten als den Puffer.",
+          "Die Erinnerung verschwindet, sobald jemand die Aktivität beendet.",
           "`Terminerinnerung für Eltern`: Eltern bekommen vor einem Termin eine E-Mail. Das gilt nur, wenn Sie beim Anlegen `Eltern per E-Mail benachrichtigen` wählen.",
         ],
       },
@@ -9167,6 +9228,80 @@ function traegerHolidayContributionTopic(): HelpTopic {
     related: [
       HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.traegerHolidayRegistrationReview,
+      HELP_TOPICS.traegerBillingRun,
+    ],
+  };
+}
+
+function traegerBillingRunTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerBillingRun,
+    title: "Ferien abrechnen",
+    question: "Wie stelle ich die Rechnungen für die Ferien aus?",
+    summary:
+      "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge und geben den Lauf frei.",
+    group: "anmeldeverwaltung",
+    audience: "traeger",
+    icon: "FileText",
+    requirements: [
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht oben `Abrechnung`.",
+      "Der Ferienzeitraum ist veröffentlicht, und die Anmeldungen sind bestätigt.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Rechnungsnummern festlegen",
+        description: "Das machen Sie einmal vor der ersten Freigabe.",
+        steps: [
+          "Wählen Sie oben `Abrechnung`.",
+          "Wählen Sie bei `Rechnungsnummern` den Knopf `Muster festlegen`.",
+          "Tragen Sie das Muster ein, zum Beispiel FE-{JJJJ}-{NNNN}. {NNNN} ist die laufende Nummer, {JJJJ} das Jahr.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Lauf starten und prüfen",
+        steps: [
+          "Wählen Sie bei `Abrechnungsläufe` den Knopf `Lauf starten`.",
+          "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
+          "Prüfen Sie die Vorschau. Je Familie steht eine Rechnung mit allen Positionen da.",
+        ],
+      },
+      {
+        title: "Einen Betrag korrigieren",
+        steps: [
+          "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
+          "Wählen Sie `Betrag für … korrigieren`.",
+          "Tragen Sie den neuen Betrag und eine Begründung ein.",
+          "Wählen Sie `Korrigieren`.",
+        ],
+      },
+      {
+        title: "Lauf freigeben",
+        steps: [
+          "Wählen Sie `Lauf freigeben`.",
+          "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
+        ],
+      },
+    ],
+    result:
+      "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen lassen sich nicht mehr ändern.",
+    notes: [
+      "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
+      "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
+      "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
+    ],
+    troubleshootingDetails: [
+      "Die Freigabe meldet, dass sich der Lauf geändert hat? Inzwischen wurde eine Anmeldung bestätigt. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
+      "Eine bestätigte Anmeldung fehlt in der Vorschau? Sie hat schon eine Rechnung, oder beim Bestätigen wurde kein Beitrag festgehalten.",
+    ],
+    related: [
+      HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerHolidayRegistrationReview,
     ],
   };
 }
@@ -9371,6 +9506,7 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   traegerHolidayRegistrationTopic(),
   traegerHolidayRegistrationReviewTopic(),
   traegerHolidayContributionTopic(),
+  traegerBillingRunTopic(),
   traegerAccessLogTopic(),
   traegerBriefkopfTopic(),
   traegerSettingsTopic(),
@@ -9408,57 +9544,6 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherNoClassesTopic(),
   teacherFeatureMissingTopic(),
 ] as const;
-
-// Themen, die es ohne NFC in der OGS schlicht nicht gibt: das Tablet, die
-// Armbaender und der Bereich `Aktivitaeten`, den moto nur mit NFC anzeigt.
-// Sagt eine OGS ausdruecklich "kein NFC", verschwinden sie aus Seitenleiste
-// und Suche, statt eine Nichtverfuegbarkeit zu erklaeren.
-//
-// Nur bei einem ausdruecklichen `false`. Ist die Arbeitsweise unbekannt
-// (`null`), bleiben die Themen stehen und erklaeren, wovon sie abhaengen --
-// sonst verschwiegen wir jemandem ein Thema, den wir nie gefragt haben.
-const NFC_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
-  HELP_TOPICS.tabletLogin,
-  HELP_TOPICS.tagAssignment,
-  HELP_TOPICS.nfcWorkTime,
-  HELP_TOPICS.nfcSupervision,
-  HELP_TOPICS.nfcCheckIn,
-  HELP_TOPICS.nfcProblem,
-  HELP_TOPICS.manageActivity,
-  // Ohne NFC hat die OGS keine Geraete, die sie verwalten koennte -- und der
-  // Aktivitaetenkatalog fehlt ihr ebenfalls: beide Seiten stehen in
-  // `NFC_ONLY_HREFS` (dashboard/sidebar.tsx).
-  HELP_TOPICS.leadDevices,
-  HELP_TOPICS.leadActivities,
-  HELP_TOPICS.leadTabletSetup,
-  HELP_TOPICS.leadNfcSettings,
-]);
-
-// Dasselbe fuer die einfache Anwesenheit: haelt eine OGS nur fest, ob ein
-// Kind da ist, gibt es weder Raeume noch Aufsichten noch Aktivitaeten -- und
-// damit auch keinen Aufenthaltsort, den man aendern koennte. Das An- und
-// Abmelden steht als eigenes Thema in der Liste.
-//
-// Wieder nur bei einem ausdruecklichen "binary". Bei unbekannter
-// Arbeitsweise bleiben die Themen stehen und erklaeren, wovon sie abhaengen.
-const DETAILED_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
-  HELP_TOPICS.rooms,
-  HELP_TOPICS.activeSupervision,
-  // Die Lernzeit führt man nur in `Aktuelle Aufsicht`.
-  HELP_TOPICS.homeworkFeedback,
-  HELP_TOPICS.manageActivity,
-  HELP_TOPICS.changeLocation,
-  // Der Tagesplan liegt hinter dem BinaryModeGuard
-  // (`app/[tenant]/(protected)/tagesplan/page.tsx`).
-  HELP_TOPICS.dayPlan,
-]);
-
-// Und dasselbe fuer die offene Betreuung: ohne feste eigene Gruppen gibt es
-// weder `Gruppen` noch eine Gruppe, die man uebergeben koennte.
-const FIXED_GROUPS_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
-  HELP_TOPICS.ownGroups,
-  HELP_TOPICS.transferGroup,
-]);
 
 /** So viele Themen zeigt die Startseite einer Rolle als Kacheln. */
 export const HOME_TOPIC_COUNT = 6;
@@ -9543,16 +9628,7 @@ export function getHelpTopics(
     analyticsConsentTopic(),
   ];
 
-  const hidden = new Set<HelpTopicId>();
-  if (nfcEnabled === false) {
-    for (const id of NFC_ONLY_TOPIC_IDS) hidden.add(id);
-  }
-  if (presenceMode === "binary") {
-    for (const id of DETAILED_ONLY_TOPIC_IDS) hidden.add(id);
-  }
-  if (groupMode === "open_care") {
-    for (const id of FIXED_GROUPS_ONLY_TOPIC_IDS) hidden.add(id);
-  }
+  const hidden = hiddenHelpTopicIds(presenceMode, groupMode, nfcEnabled);
   if (hidden.size === 0) return topics;
 
   return topics.filter((topic) => !hidden.has(topic.id));

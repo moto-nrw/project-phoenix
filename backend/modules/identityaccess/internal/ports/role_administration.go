@@ -9,8 +9,8 @@ import (
 
 // RoleStore is the persistence port over the identity-owned role and
 // permission rows the role administration (#3314) reads and writes:
-// auth.roles, auth.permissions, auth.role_permissions, auth.account_roles,
-// auth.account_permissions and the account and school mapping locks the
+// auth.roles, auth.permissions, auth.role_permissions, auth.account_roles
+// and the account and school mapping locks the
 // mutations serialize on. Every statement runs on the connection the
 // caller's context carries and applies that context's tenant filter.
 //
@@ -113,7 +113,6 @@ type PermissionStore interface {
 	AssignRolePermissions(ctx context.Context, roleID int64, permissionIDs []int64) error
 	RemoveRolePermission(ctx context.Context, roleID, permissionID int64) error
 	DeletePermissionAssignments(ctx context.Context, permissionID int64) error
-	DeletePermissionGrants(ctx context.Context, permissionID int64) error
 }
 
 // ManageableAccounts applies the account administration's visibility rules.

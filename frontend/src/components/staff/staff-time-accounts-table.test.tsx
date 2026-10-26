@@ -153,3 +153,67 @@ describe("StaffTimeAccountsTable", () => {
     }
   });
 });
+
+// #4804: je Person die Zahl der Tage mit zu kurzer Pause oder mehr als
+// 10 Std. Arbeit, und ein Filter auf genau diese Personen.
+describe("StaffTimeAccountsTable Hinweise", () => {
+  const account = {
+    employmentType: "",
+    sollMinutes: 0,
+    istMinutes: 0,
+    balanceMinutes: 0,
+    remainingVacationDays: 0,
+  };
+  const rows = [
+    {
+      ...account,
+      staffId: "1",
+      firstName: "Anna",
+      lastName: "Albers",
+      name: "Anna Albers",
+      laborHintDays: 3,
+    },
+    {
+      ...account,
+      staffId: "2",
+      firstName: "Ben",
+      lastName: "Brandt",
+      name: "Ben Brandt",
+      laborHintDays: 0,
+    },
+  ];
+
+  function renderAccounts() {
+    render(
+      <StaffTimeAccountsTable
+        {...baseProps}
+        rows={rows}
+        onSaldoPresetChange={vi.fn()}
+        onCustomSaldoHoursChange={vi.fn()}
+        showCustomSaldo={false}
+        onShowCustomSaldoChange={vi.fn()}
+      />,
+    );
+  }
+
+  it("zeigt je Person die Zahl der markierten Tage", () => {
+    renderAccounts();
+
+    expect(screen.getByText("3 Tage")).toBeInTheDocument();
+    expect(screen.getByText("Brandt, Ben")).toBeInTheDocument();
+  });
+
+  it("filtert auf Personen mit Hinweisen", () => {
+    renderAccounts();
+
+    const filter = screen.getByRole("button", { name: "Mit Hinweisen" });
+    fireEvent.click(filter);
+
+    expect(filter).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Albers, Anna")).toBeInTheDocument();
+    expect(screen.queryByText("Brandt, Ben")).not.toBeInTheDocument();
+
+    fireEvent.click(filter);
+    expect(screen.getByText("Brandt, Ben")).toBeInTheDocument();
+  });
+});
