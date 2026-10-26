@@ -56,7 +56,11 @@ func (r SessionRecords) ListSessionInstances(ctx context.Context, date calendar.
 // ListActiveSessionInstances returns every still-running session in the tenant,
 // including a block started before midnight.
 func (r SessionRecords) ListActiveSessionInstances(ctx context.Context) ([]timetable.ScheduledInstance, error) {
-	rows, err := r.Instances.Reads.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{Status: timetable.InstanceStatusActive, OrderByDateAndTime: true})
+	return listActiveSessionInstances(ctx, r.Instances.Reads)
+}
+
+func listActiveSessionInstances(ctx context.Context, reads ports.LegacyInstanceReads) ([]timetable.ScheduledInstance, error) {
+	rows, err := reads.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{Status: timetable.InstanceStatusActive, OrderByDateAndTime: true})
 	if err != nil {
 		return nil, WrapDatabaseError("list active", err)
 	}
