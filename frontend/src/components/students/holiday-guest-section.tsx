@@ -89,7 +89,9 @@ export function HolidayGuestSection({
       </SectionCard>
     );
   }
-  const data = sheet.data;
+  // A failed reload means the access ended (cancellation, expiry) or cannot
+  // be checked: the cached contacts must not stay on the screen.
+  const data = sheet.error ? undefined : sheet.data;
   return (
     <SectionCard title="Feriengast" description={description}>
       {loadError && <LoadErrorAlert error={loadError} />}

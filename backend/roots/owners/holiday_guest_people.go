@@ -173,9 +173,12 @@ type holidayGuestCareDays struct {
 const holidayGuestCareReason = "Ferienbetreuung"
 
 func (c holidayGuestCareDays) PlanHolidayGuestDays(ctx context.Context, studentID, actorAccountID int64, days []calendar.Date, arrival, pickup string) error {
+	if actorAccountID <= 0 {
+		return enrollmentOwner.ErrHolidayGuestPlanAuthorMissing
+	}
 	staffID, err := c.staff.ResolveStaffIDByAccountID(ctx, actorAccountID)
 	if err != nil {
-		return fmt.Errorf("holiday guest care days: resolve the author: %w", err)
+		return fmt.Errorf("%w: %w", enrollmentOwner.ErrHolidayGuestPlanAuthorMissing, err)
 	}
 	arrivalAt, err := holidayGuestClock(arrival)
 	if err != nil {

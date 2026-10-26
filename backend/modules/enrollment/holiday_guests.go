@@ -26,6 +26,11 @@ import (
 // school, or one whose access has ended.
 var ErrHolidayGuestNotFound = errors.New("holiday guest not found")
 
+// ErrHolidayGuestPlanAuthorMissing reports that the account the days of a
+// guest are planned for has no staff record, which Care Plan requires as the
+// author of a day plan.
+var ErrHolidayGuestPlanAuthorMissing = errors.New("holiday guest plan author has no staff record")
+
 // ErrHolidayGuestGroupInvalid reports a group that is not one of the
 // hosting school's.
 var ErrHolidayGuestGroupInvalid = errors.New("holiday guest group is not a group of the school")

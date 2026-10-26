@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { HolidayGuestSheet } from "~/lib/holiday-host-api";
 import { SWRConfig } from "~/lib/swr";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
@@ -108,5 +109,32 @@ describe("HolidayGuestSection", () => {
       ),
     ).toBeInTheDocument();
     expect(sheetMock).not.toHaveBeenCalled();
+  });
+
+  it("hides the cached contacts once a reload refuses the sheet", async () => {
+    const cache = new Map();
+    const renderCached = () =>
+      render(
+        <ToastProvider>
+          <SWRConfig value={{ provider: () => cache, dedupingInterval: 0 }}>
+            <HolidayGuestSection studentId="91" canRead />
+          </SWRConfig>
+        </ToastProvider>,
+      );
+    sheetMock.mockResolvedValueOnce(sheet);
+    const first = renderCached();
+    expect(await screen.findByText("Eva Muster (Eltern)")).toBeInTheDocument();
+    first.unmount();
+
+    sheetMock.mockRejectedValue(
+      new ApiError("holiday guest not found", 404, {
+        code: "enrollment.holiday_guest_not_found",
+      }),
+    );
+    renderCached();
+
+    // Anker: der Ladefehler steht da.
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("Eva Muster (Eltern)")).not.toBeInTheDocument();
   });
 });

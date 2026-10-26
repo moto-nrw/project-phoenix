@@ -35,7 +35,9 @@ func init() {
 //     time model (Betreuung), the child the copy created and the day its
 //     access ended early (cancellation or rebooking);
 //   - holiday_guest_contacts: the emergency contacts and the persons allowed
-//     to collect the guest (Notfall und Abholung).
+//     to collect the guest (Notfall und Abholung); a name holds up to 201
+//     characters, the registering parent's first and last name (100 each)
+//     with the space between them.
 //
 // The contacts of a confirmed booking leave the Träger only through
 // enrollment.holiday_host_guest_contacts, which answers for the weeks the
@@ -106,7 +108,7 @@ CREATE TABLE enrollment.holiday_guest_contacts (
 	CONSTRAINT uq_holiday_guest_contacts_position UNIQUE (holiday_guest_id, kind, position),
 	CONSTRAINT chk_holiday_guest_contacts_kind CHECK (kind IN ('emergency', 'pickup')),
 	CONSTRAINT chk_holiday_guest_contacts_texts CHECK (
-		BTRIM(name) <> '' AND char_length(name) <= 120 AND char_length(phone) <= 40 AND char_length(relationship) <= 60)
+		BTRIM(name) <> '' AND char_length(name) <= 201 AND char_length(phone) <= 40 AND char_length(relationship) <= 60)
 );
 COMMENT ON TABLE enrollment.holiday_guest_contacts IS
 	'Emergency contact or person allowed to collect a holiday guest, copied from its confirmed registration (#4666, ADR 0120).';

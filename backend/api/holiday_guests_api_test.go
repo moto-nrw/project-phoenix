@@ -378,3 +378,45 @@ func TestHolidayGuestsLeaveGroupAndCheckInAfterTheWeek(t *testing.T) {
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM enrollment.holiday_guest_contacts WHERE tenant_id = ?`, f.nord).Scan(t.Context(), &contacts))
 	assert.Zero(t, contacts, "the contacts are deleted after the read-only days")
 }
+
+func TestHolidayGuestReconciliationSurvivesAMissingAuthorAndReplansOnTheNextGroupChoice(t *testing.T) {
+	t.Parallel()
+	f := newHolidayGuestFixture(t, "Träger Feriengäste Abgleich")
+	week := f.offer.Weeks[0].ID
+	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
+	weekDay := calendar.NewDate(2099, 7, 8)
+	require.Equal(t, http.StatusOK, f.assign(t, lead, week, f.group).Code)
+
+	// The account that picked the group loses its staff record: the hourly
+	// run still copies the confirmed guest, only its days stay unplanned.
+	stranger := testpkg.CreateTestAccount(t, f.db, "feriengast-ohne-personal")
+	_, err := f.db.ExecContext(t.Context(), `UPDATE enrollment.holiday_host_groups SET assigned_by_account_id = ? WHERE tenant_id = ?`,
+		stranger.ID, f.nord)
+	require.NoError(t, err)
+	f.confirm(t, f.siblings, "confirm")
+	f.reconcile(t)
+	ben := f.roster(t, weekDay)["Ben Muster"]
+	require.NotZero(t, ben, "the guest joins the group although its days cannot be planned")
+	assert.Empty(t, f.careDays(t, ben))
+
+	// The group is deleted and Ben rebooked to "bis 16 Uhr" meanwhile: the
+	// next group choice plans every day with the new times.
+	_, err = f.db.ExecContext(t.Context(), `DELETE FROM education.groups WHERE id = ?`, f.group)
+	require.NoError(t, err)
+	var benChild int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM enrollment.holiday_registration_children WHERE holiday_registration_id = ? AND first_name = 'Ben'`,
+		f.siblings).Scan(t.Context(), &benChild))
+	path := fmt.Sprintf("%s/registrations/%d/children/%d/bookings", holidayPeriodPath(f.periodID(t)), f.siblings, benChild)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, path, map[string]any{"bookings": []map[string]any{
+		{"week_id": week, "time_model_id": f.offer.Weeks[0].TimeModels[1].ID},
+	}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	f.reconcile(t)
+	assert.Empty(t, f.careDays(t, ben), "without a group nobody is there to plan the days")
+
+	again := testpkg.CreateTestEducationGroupForTenant(t, f.db, f.nord, "Feriengruppe neu").ID
+	require.Equal(t, http.StatusOK, f.assign(t, lead, week, again).Code)
+	assert.Equal(t, []string{
+		"2099-07-06 08:00-16:00", "2099-07-07 08:00-16:00", "2099-07-08 08:00-16:00", "2099-07-09 08:00-16:00", "2099-07-10 08:00-16:00",
+	}, f.careDays(t, ben), "the group choice plans the days with the times booked meanwhile")
+}

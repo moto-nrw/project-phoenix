@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -127,4 +128,26 @@ func rollBackHolidayGuests(t *testing.T, db *bun.DB) {
 	t.Helper()
 	require.NoError(t, holidayGuestErasureDown(t.Context(), db))
 	require.NoError(t, holidayGuestsDown(t.Context(), db))
+}
+
+// TestHolidayGuestContactHoldsTheFullNameOfTheParent pins the length of a
+// copied contact: the registering parent becomes the first emergency contact
+// with first and last name (100 characters each) and the space between them.
+func TestHolidayGuestContactHoldsTheFullNameOfTheParent(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	school := testpkg.Tenant(t)
+	student := testpkg.CreateTestStudentForTenant(t, db, school, "Ben", "Muster", "Feriengast")
+	var guest int64
+	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.holiday_guests (tenant_id, organization_id, holiday_period_week_id,
+			holiday_registration_child_id, student_id, starts_on, ends_on, time_model_name, time_model_starts_at, time_model_ends_at)
+		VALUES (?, 1, 1, 1, ?, '2099-07-06', '2099-07-10', 'bis 13 Uhr', '08:00', '13:00') RETURNING id`, school, student.ID).Scan(ctx, &guest))
+	name := strings.Repeat("E", 100) + " " + strings.Repeat("M", 100)
+	_, err := db.ExecContext(ctx, `INSERT INTO enrollment.holiday_guest_contacts (tenant_id, holiday_guest_id, kind, position, name)
+		VALUES (?, ?, 'emergency', 1, ?)`, school, guest, name)
+	require.NoError(t, err, "a parent with the longest names the registration accepts is copied in full")
+	_, err = db.ExecContext(ctx, `INSERT INTO enrollment.holiday_guest_contacts (tenant_id, holiday_guest_id, kind, position, name)
+		VALUES (?, ?, 'emergency', 2, ?)`, school, guest, name+"X")
+	assert.Error(t, err, "a longer name is refused")
 }

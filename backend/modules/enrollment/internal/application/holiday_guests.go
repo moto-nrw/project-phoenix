@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -52,6 +53,7 @@ type HolidayGuests struct {
 	care   enrollment.HolidayGuestCareDays
 	log    enrollment.HolidayGuestAccessLog
 	today  func() calendar.Date
+	logger *slog.Logger
 }
 
 var _ enrollment.HolidayGuests = (*HolidayGuests)(nil)
@@ -65,7 +67,7 @@ func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeo
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayGuests{store: store, people: people, care: care, log: log, today: today}
+	return &HolidayGuests{store: store, people: people, care: care, log: log, today: today, logger: slog.Default().With("service", "holiday-guests")}
 }
 
 // AssignHolidayGuestGroup stores the group of the week and copies the
@@ -95,7 +97,9 @@ func (h *HolidayGuests) AssignHolidayGuestGroup(ctx context.Context, host enroll
 	if err := h.store.SetHostGroup(ctx, host.SchoolID, group); err != nil {
 		return enrollment.HolidayGuestTransfer{}, err
 	}
-	guests, err := h.reconcileWeek(ctx, host.SchoolID, group, today)
+	// A group choice replans every guest of the week: changes that came while
+	// the week had no group are written now.
+	guests, err := h.reconcileWeek(ctx, host.SchoolID, group, today, true)
 	if err != nil {
 		return enrollment.HolidayGuestTransfer{}, err
 	}
@@ -142,7 +146,7 @@ func (h *HolidayGuests) ReconcileHolidayGuests(ctx context.Context, schoolID int
 			continue
 		}
 		reconciled[guest.WeekID] = true
-		if _, err := h.reconcileWeek(ctx, schoolID, enrollment.HolidayHostGroup{OrganizationID: guest.OrganizationID, WeekID: guest.WeekID}, today); err != nil {
+		if _, err := h.reconcileWeek(ctx, schoolID, enrollment.HolidayHostGroup{OrganizationID: guest.OrganizationID, WeekID: guest.WeekID}, today, false); err != nil {
 			return err
 		}
 	}
@@ -154,7 +158,7 @@ func (h *HolidayGuests) reconcileAndRecord(ctx context.Context, schoolID int64, 
 	if err != nil {
 		return err
 	}
-	changes, err := h.reconcile(ctx, schoolID, group, week, found, today)
+	changes, err := h.reconcile(ctx, schoolID, group, week, found, today, false)
 	if err != nil {
 		return err
 	}
@@ -171,12 +175,12 @@ func (h *HolidayGuests) reconcileAndRecord(ctx context.Context, schoolID int64, 
 }
 
 // reconcileWeek reconciles one week and returns how many guests it holds.
-func (h *HolidayGuests) reconcileWeek(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup, today calendar.Date) (int, error) {
+func (h *HolidayGuests) reconcileWeek(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup, today calendar.Date, replanAll bool) (int, error) {
 	week, found, err := h.store.ReadGuestWeek(ctx, schoolID, group.WeekID, today)
 	if err != nil {
 		return 0, err
 	}
-	changes, err := h.reconcile(ctx, schoolID, group, week, found, today)
+	changes, err := h.reconcile(ctx, schoolID, group, week, found, today, replanAll)
 	return changes.guests, err
 }
 
@@ -189,7 +193,7 @@ type guestChanges struct {
 // bookings. A week the school no longer hosts, or whose period is no
 // longer published, ends every guest still in care; a guest whose booking
 // went ends as well. Without a group no new guest is copied.
-func (h *HolidayGuests) reconcile(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup, week enrollment.HolidayGuestWeek, found bool, today calendar.Date) (guestChanges, error) {
+func (h *HolidayGuests) reconcile(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup, week enrollment.HolidayGuestWeek, found bool, today calendar.Date, replanAll bool) (guestChanges, error) {
 	// An open week reads its ended guests too: a booking that comes back
 	// reopens its guest instead of copying the child a second time.
 	var existing []enrollment.HolidayGuest
@@ -209,7 +213,7 @@ func (h *HolidayGuests) reconcile(ctx context.Context, schoolID int64, group enr
 	for _, guest := range existing {
 		byChild[guest.ChildID] = guest
 	}
-	changes, err := h.applySources(ctx, schoolID, sources, byChild, week, group)
+	changes, err := h.applySources(ctx, schoolID, sources, byChild, week, group, replanAll)
 	if err != nil {
 		return guestChanges{}, err
 	}
@@ -227,7 +231,7 @@ func (h *HolidayGuests) reconcile(ctx context.Context, schoolID int64, group enr
 
 // applySources refreshes the guests that still have a confirmed booking and
 // copies the new ones, removing each handled guest from byChild.
-func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, week enrollment.HolidayGuestWeek, group enrollment.HolidayHostGroup) (guestChanges, error) {
+func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, week enrollment.HolidayGuestWeek, group enrollment.HolidayHostGroup, replanAll bool) (guestChanges, error) {
 	var groupID *int64
 	if group.GroupID > 0 {
 		groupID = &group.GroupID
@@ -238,7 +242,7 @@ func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, source
 		delete(byChild, source.ChildID)
 		switch {
 		case ok && guest.EndedOn == nil:
-			if err := h.refreshGuest(ctx, schoolID, guest, source, week, groupID, group.AssignedByAccountID, false); err != nil {
+			if err := h.refreshGuest(ctx, schoolID, guest, source, week, groupID, group.AssignedByAccountID, replanAll); err != nil {
 				return guestChanges{}, err
 			}
 		case groupID == nil:
@@ -278,7 +282,17 @@ func (h *HolidayGuests) planDays(ctx context.Context, studentID, actor int64, so
 	for day := week.StartsOn; !day.After(week.EndsOn); day = day.AddDays(1) {
 		days = append(days, day)
 	}
-	if err := h.care.PlanHolidayGuestDays(ctx, studentID, actor, days, source.TimeModelStarts, source.TimeModelEnds); err != nil {
+	err := h.care.PlanHolidayGuestDays(ctx, studentID, actor, days, source.TimeModelStarts, source.TimeModelEnds)
+	if errors.Is(err, enrollment.ErrHolidayGuestPlanAuthorMissing) {
+		// The account that picked the group has no staff record (any more):
+		// the guest still joins the group, only its days stay unplanned
+		// until the school picks the group again. The reconciliation of the
+		// other guests and the deletion of expired contacts go on.
+		h.logger.Warn("holiday guest days left unplanned: the account that picked the group has no staff record",
+			"student_id", studentID, "account_id", actor)
+		return nil
+	}
+	if err != nil {
 		return fmt.Errorf("plan the care days of a holiday guest: %w", err)
 	}
 	return nil

@@ -52,7 +52,10 @@ die `tenant_id` der ausrichtenden Schule (D4).
    Befehle `CreateArrivalException` und `CreatePickupException` eine
    Tagesausnahme mit Beginn und Ende des Zeitmodells ein (Grund
    „Ferienbetreuung“, Urheber die Person des Kontos, das die Gruppe gewählt
-   hat); ein beendeter Gast verliert sie.
+   hat); ein beendeter Gast verliert sie. Hat dieses Konto keinen
+   Personaleintrag (mehr), kommt der Gast trotzdem in die Gruppe, und nur
+   seine Tage bleiben offen. Jede Wahl der Gruppe plant alle Tage der Woche
+   neu, auch Änderungen aus der Zeit ohne Gruppe.
 3. **Zugriff nur aus bestätigter Buchung.** Die Schule wählt je Woche eine
    ihrer Gruppen (`PUT /api/holiday-weeks/{weekId}/guest-group`, Recht
    `users:create`, weil die Wahl Kinder anlegt). In derselben Transaktion
