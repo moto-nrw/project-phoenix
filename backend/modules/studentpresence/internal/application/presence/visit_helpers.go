@@ -27,24 +27,6 @@ func (s *service) ensureStudentHasNoActiveVisit(ctx context.Context, studentID i
 	return nil
 }
 
-// resolveStaffIDForAttendance resolves the staff ID for attendance tracking
-func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, deviceID int64) (int64, error) {
-	if staffID > 0 {
-		return staffID, nil
-	}
-	if deviceID > 0 {
-		supervisorID, err := s.getDeviceSupervisorID(ctx, deviceID)
-		if err == nil {
-			return supervisorID, nil
-		}
-		var unavailable *deviceSupervisorUnavailableError
-		if !errors.As(err, &unavailable) {
-			return 0, fmt.Errorf("resolve check-in staff attribution: %w", err)
-		}
-	}
-	return 0, nil
-}
-
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
 func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *studentpresence.Visit, staffID, deviceID int64) error {
 	visitDate := calendar.DateFromTime(visit.EntryTime)
@@ -72,25 +54,26 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *studentpr
 // two timestamps being identical. Never replace either side with an
 // independent time.Now().
 func (s *service) createAttendanceRecord(ctx context.Context, visit *studentpresence.Visit, staffID, deviceID int64, visitDate calendar.Date) error {
-	resolvedStaffID, err := s.resolveStaffIDForAttendance(ctx, staffID, deviceID)
-	if err != nil {
-		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
-	}
 	resolvedDeviceID, err := s.resolveDeviceIDForAttendance(ctx, deviceID)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
+	recorderStaffID := s.attendanceRecorderStaffID(ctx, staffID)
 
 	attendance := studentpresence.Attendance{
 		StudentID:   visit.StudentID,
 		Date:        visitDate.String(),
 		CheckInTime: visit.EntryTime,
-		CheckedInBy: resolvedStaffID,
+		CheckedInBy: recorderStaffID,
 		DeviceID:    resolvedDeviceID,
 	}
 	if visit.ExitTime != nil {
 		attendance.CheckOutTime = visit.ExitTime
-		attendance.CheckedOutBy = &resolvedStaffID
+		if recorderStaffID > 0 {
+			attendance.CheckedOutBy = &recorderStaffID
+		} else if deviceID > 0 {
+			attendance.CheckedOutDeviceID = &resolvedDeviceID
+		}
 	}
 
 	attendance.TenantID = tenant.FromContext(ctx)
