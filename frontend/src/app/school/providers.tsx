@@ -5,9 +5,13 @@ import { SessionProvider } from "next-auth/react";
 import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-session";
 import { SCHOOL_ANALYTICS_CONSENT_COPY } from "~/components/analytics/analytics-consent-copy";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { schoolPath } from "~/lib/school-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
 import { ModulePortalProvider } from "~/lib/module-portal-context";
+
+// Where a page lands that still showed another account (#5000).
+const schoolHome = () => schoolPath("/school");
 
 /**
  * School-scoped providers ("moto schule", #2207).
@@ -34,7 +38,7 @@ export function SchoolProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
-      <PersonalStorageGuard />
+      <PersonalStorageGuard homeHref={schoolHome} />
       {/* Rebinds an existing browser push subscription to the current school
           session (#2208) — the tenant and parents portals do the same. */}
       <PushSubscriptionSync portal="school" />

@@ -4,10 +4,14 @@ import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { ParentPortalAnalyticsSession } from "~/components/analytics/parent-portal-analytics-session";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { parentPath } from "~/lib/parent-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
 import { ModulePortalProvider } from "~/lib/module-portal-context";
 import { ParentLocaleProvider } from "~/lib/parent-locale-context";
+
+// Where a page lands that still showed another account (#5000).
+const parentsHome = () => parentPath("/parents");
 
 /**
  * Parent-scoped providers.
@@ -39,7 +43,7 @@ export function ParentProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
-      <PersonalStorageGuard />
+      <PersonalStorageGuard homeHref={parentsHome} />
       <PushSubscriptionSync portal="parent" />
       <ParentPortalAnalyticsSession />
       <SentrySessionContext portal="parent" />

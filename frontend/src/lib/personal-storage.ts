@@ -159,14 +159,60 @@ function boundOwner(): string | null {
   }
 }
 
+// Diese Seite gehört einem vorigen Konto und wird gerade ersetzt.
+let leaving = false;
+
 /**
  * Darf `owner` (Schule und Konto der Sitzung, die schreibt) jetzt einen
  * personenbezogenen Eintrag schreiben? Nur wenn die Einträge in diesem
  * Browser genau diesem Besitzer gehören. Der Besitzer steht in localStorage
  * und gilt für alle Tabs dieses Hosts; nach einem Logout steht dort keiner.
+ * Eine Seite, die gerade für ein anderes Konto neu lädt, schreibt nichts mehr.
  */
 export function mayWritePersonalStorage(owner: string | null): boolean {
-  return owner !== null && boundOwner() === owner;
+  return !leaving && owner !== null && boundOwner() === owner;
+}
+
+/** Das Konto eines Besitzers, ohne die Schule. */
+export function personalStorageAccount(owner: string | null): string | null {
+  if (!owner) return null;
+  const separator = owner.indexOf(":");
+  return separator === -1 ? owner : owner.slice(separator + 1);
+}
+
+/**
+ * Meldet, wenn ein anderer Tab dieses Hosts die Einträge an einen neuen
+ * Besitzer bindet oder sie räumt (`null`). Der eigene Tab löst kein
+ * storage-Ereignis aus.
+ */
+export function onOtherTabOwnerChange(
+  listener: (owner: string | null) => void,
+): () => void {
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key !== OWNER_KEY) return;
+    if (event.storageArea && event.storageArea !== webStorage("localStorage")) {
+      return;
+    }
+    listener(event.newValue);
+  };
+  globalThis.addEventListener("storage", handleStorage);
+  return () => globalThis.removeEventListener("storage", handleStorage);
+}
+
+/**
+ * Ersetzt diese Seite durch `href`, weil sie noch Zustand und Adresse eines
+ * anderen Kontos trägt (#5000). Ab hier schreibt sie keinen
+ * personenbezogenen Eintrag mehr; die Seite, die danach lädt, beginnt leer.
+ */
+export function leaveForAnotherAccount(href: string): void {
+  if (leaving) return;
+  leaving = true;
+  globalThis.location.replace(href);
+}
+
+/** Nur für Tests: in Tests ersetzt keine neue Seite diese. */
+export function _resetPersonalStorageLeave(): void {
+  leaving = false;
 }
 
 /** Entfernt alle personenbezogenen Einträge dieses Browsers für diesen Host. */
