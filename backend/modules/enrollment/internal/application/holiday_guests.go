@@ -289,7 +289,9 @@ func (h *HolidayGuests) planDays(ctx context.Context, studentID, actor int64, so
 		// until the school picks the group again. The reconciliation of the
 		// other guests and the deletion of expired contacts go on.
 		h.logger.Warn("holiday guest days left unplanned: the account that picked the group has no staff record",
-			"student_id", studentID, "account_id", actor)
+			"student_id", studentID,
+			"account_id", actor,
+		)
 		return nil
 	}
 	if err != nil {
