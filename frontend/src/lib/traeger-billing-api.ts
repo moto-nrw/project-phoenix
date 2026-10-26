@@ -23,7 +23,7 @@ export interface BillingRun {
   readonly totalCents: number | null;
 }
 
-export type BillingPositionKind =
+type BillingPositionKind =
   "base" | "sibling" | "benefits_exemption" | "correction";
 
 export interface BillingPosition {
@@ -40,7 +40,7 @@ export interface BillingPosition {
   readonly note: string;
 }
 
-export interface BillingCorrection {
+interface BillingCorrection {
   readonly id: string;
   readonly amountCents: number;
   readonly totalBeforeCents: number;
