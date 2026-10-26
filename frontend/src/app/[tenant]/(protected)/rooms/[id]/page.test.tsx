@@ -14,6 +14,8 @@ const {
   serviceDeleteMock,
   toastSuccessMock,
   toastErrorMock,
+  exportPlanMock,
+  showErrorMock,
   supervisionState,
   weekendOpenState,
 } = vi.hoisted(() => ({
@@ -26,6 +28,8 @@ const {
   serviceDeleteMock: vi.fn(() => Promise.resolve(null)),
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
+  exportPlanMock: vi.fn(() => Promise.resolve()),
+  showErrorMock: vi.fn(() => Promise.resolve()),
   supervisionState: { overviewEnabled: false },
   weekendOpenState: { value: false },
 }));
@@ -65,6 +69,8 @@ vi.mock("~/lib/tenant-context", () => ({
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: toastSuccessMock, error: toastErrorMock }),
+  // Der Exportfehler des Raumplans geht als Toast über den Fehlerweg.
+  useApiErrorDisplay: () => ({ show: showErrorMock }),
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -161,27 +167,8 @@ vi.mock("~/components/rooms/room-plan-navigation", () => ({
     `${canManage ? "/betreuungsplan" : "/calendar"}?room=${roomId}&d=${day}&view=${view}`,
 }));
 
-vi.mock("~/components/planning/plan-export-modal", () => ({
-  PlanExportModal: ({
-    filter,
-    filterLabel,
-    isWeekOnScreen,
-    weekDay,
-  }: {
-    filter: { roomId: string | null };
-    filterLabel: string;
-    isWeekOnScreen: boolean;
-    weekDay: string;
-  }) => (
-    <div
-      data-testid="plan-export"
-      data-room={filter.roomId}
-      data-week={String(isWeekOnScreen)}
-      data-week-day={weekDay}
-    >
-      {filterLabel}
-    </div>
-  ),
+vi.mock("~/lib/plan-export-api", () => ({
+  exportPlan: exportPlanMock,
 }));
 
 vi.mock("~/components/ui/confirm-delete-modal", () => ({
@@ -578,31 +565,73 @@ describe("RoomDetailPage", () => {
     });
   });
 
-  it("prints the room's plan filtered to the room", async () => {
+  it("downloads the room's plan of the shown week as PDF", async () => {
     mockSession(["rooms:read", "schedules:read", "users:read"]);
     searchParams.set("tab", "plan");
+    searchParams.set("d", "2026-09-09");
     render(<RoomDetailPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Raumplan drucken" }));
-    const exportDialog = await screen.findByTestId("plan-export");
-    expect(exportDialog).toHaveAttribute("data-room", "7");
-    expect(exportDialog).toHaveAttribute("data-week", "true");
-    expect(exportDialog).toHaveTextContent("Raum „Gruppenraum Sonne“");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Raumplan als PDF" }));
+    await waitFor(() => expect(exportPlanMock).toHaveBeenCalledTimes(1));
+    expect(exportPlanMock).toHaveBeenCalledWith(
+      "betreuungsplan",
+      {
+        from: "2026-09-09",
+        to: "2026-09-09",
+        template: "offerings",
+        variant: "aushang",
+        filter: { groupId: null, staffId: null, roomId: "7" },
+      },
+      "pdf",
+      "download",
+    );
   });
 
-  it("prints the displayed Monday for a weekend deep link", async () => {
+  it("exports the displayed Monday for a weekend deep link", async () => {
     mockSession(["rooms:read", "schedules:read", "users:read"]);
     searchParams.set("tab", "plan");
     searchParams.set("d", "2026-09-12");
     render(<RoomDetailPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Raumplan drucken" }));
-    expect(await screen.findByTestId("plan-export")).toHaveAttribute(
-      "data-week-day",
-      "2026-09-14",
+    fireEvent.click(screen.getByRole("menuitem", { name: "Raumplan als PDF" }));
+    await waitFor(() =>
+      expect(exportPlanMock).toHaveBeenCalledWith(
+        "betreuungsplan",
+        expect.objectContaining({ from: "2026-09-14", to: "2026-09-14" }),
+        "pdf",
+        "download",
+      ),
     );
+  });
+
+  it("shows a failed room plan export as an error", async () => {
+    mockSession(["rooms:read", "schedules:read", "users:read"]);
+    exportPlanMock.mockRejectedValueOnce(new Error("offline"));
+    searchParams.set("tab", "plan");
+    render(<RoomDetailPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Raumplan als PDF" }));
+    await waitFor(() =>
+      expect(showErrorMock).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({ object: "das Erstellen des Raumplans" }),
+      ),
+    );
+  });
+
+  it("offers no room plan PDF without users:read", () => {
+    mockSession(["rooms:read", "schedules:read"]);
+    searchParams.set("tab", "plan");
+    render(<RoomDetailPage />);
+
+    // Anker: der Plan ist da, das Menü fehlt mangels Einträgen.
+    expect(screen.getByTestId("room-plan")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the plan beside the room information in binary presence mode", async () => {

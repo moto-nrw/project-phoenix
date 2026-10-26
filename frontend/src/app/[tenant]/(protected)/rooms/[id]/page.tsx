@@ -8,7 +8,6 @@ import {
   useRef,
   useState,
 } from "react";
-import dynamic from "next/dynamic";
 import {
   useParams,
   usePathname,
@@ -16,7 +15,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Printer, Trash2 } from "lucide-react";
+import { FileDown, Trash2 } from "lucide-react";
 import { ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -41,7 +40,11 @@ import {
   RoomPlanTab,
 } from "~/components/rooms/room-plan-lazy";
 import { roomsConfig } from "~/components/database/configs/rooms.config";
-import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  useApiErrorDisplay,
+  useApiFormError,
+  useToast,
+} from "~/contexts/ToastContext";
 import { roomService } from "~/lib/api";
 import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -49,7 +52,9 @@ import { useOptionalSupervision } from "~/lib/supervision-context";
 import { createCrudService } from "~/lib/database/service-factory";
 import { berlinTodayISO, isValidISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { exportPlan } from "~/lib/plan-export-api";
 import { NO_PLAN_FILTER } from "~/lib/plan-filter";
+import { roomPlanCareDay } from "~/lib/room-plan";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { formatFloor, isSystemRoom, type Room } from "~/lib/room-helpers";
 import { useTenantMutate, useTenantMutateMatching } from "~/lib/swr";
@@ -57,19 +62,10 @@ import {
   ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
   ROOM_LIST_CACHE_KEYS,
 } from "~/lib/swr/room-derived-caches";
-import { careDayISO } from "~/lib/timetable-helpers";
 import { usePresenceMode, useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { resolveDetailReferrer, useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoomDetailLoadingPage } from "./page-skeleton";
-
-// Der Druckdialog wird erst über das Aktionsmenü geöffnet. Sein Kalender und
-// Exportablauf gehören deshalb nicht in das initiale Bundle der Raumseite.
-const PlanExportModal = dynamic(() =>
-  import("~/components/planning/plan-export-modal").then(
-    (mod) => mod.PlanExportModal,
-  ),
-);
 
 const logger = createLogger({ component: "RoomDetailPage" });
 
@@ -208,7 +204,7 @@ function RoomDetailPageContent() {
       : berlinTodayISO();
   // Der Reiter zeigt Wochenend-Deeplinks ohne Wochenendbetreuung ab Montag.
   // Der Druck muss dieselbe angezeigte Woche verwenden.
-  const planExportDayISO = careDayISO(planAnchorISO, weekendOpen);
+  const planExportDayISO = roomPlanCareDay(planAnchorISO, weekendOpen);
   const planView = parseRoomPlanView(searchParams.get("view"));
   const planHref = useRoomPlanHref(
     roomId,
@@ -226,7 +222,35 @@ function RoomDetailPageContent() {
     },
     [navRouter, pathname, searchParams],
   );
-  const [exportOpen, setExportOpen] = useState(false);
+  // „Raumplan als PDF“ (#4768): der Aushang der angezeigten Woche, mit dem
+  // Raumfilter des Betreuungsplan-Exports. Bewusst ohne den Druckdialog des
+  // Betreuungsplans: dessen Kalender wöge mehr als die ganze Raumseite.
+  const { show: showExportError } = useApiErrorDisplay();
+  const [exporting, setExporting] = useState(false);
+  const exportRoomPlan = useCallback(async () => {
+    setExporting(true);
+    try {
+      await exportPlan(
+        "betreuungsplan",
+        {
+          from: planExportDayISO,
+          to: planExportDayISO,
+          template: "offerings",
+          variant: "aushang",
+          filter: { ...NO_PLAN_FILTER, roomId },
+        },
+        "pdf",
+        "download",
+      );
+    } catch (exportError) {
+      void showExportError(exportError, {
+        object: "das Erstellen des Raumplans",
+        retry: () => void exportRoomPlan(),
+      });
+    } finally {
+      setExporting(false);
+    }
+  }, [planExportDayISO, roomId, showExportError]);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -335,9 +359,11 @@ function RoomDetailPageContent() {
     ...(showsPlan && canExportPlan
       ? [
           {
-            label: "Raumplan drucken",
-            icon: <Printer className="size-4" aria-hidden />,
-            onClick: () => setExportOpen(true),
+            label: exporting ? "Raumplan wird erstellt…" : "Raumplan als PDF",
+            icon: <FileDown className="size-4" aria-hidden />,
+            onClick: () => {
+              if (!exporting) void exportRoomPlan();
+            },
           },
         ]
       : []),
@@ -425,18 +451,6 @@ function RoomDetailPageContent() {
       }
       overlays={
         <>
-          {exportOpen && canExportPlan ? (
-            <PlanExportModal
-              isOpen
-              plan="betreuungsplan"
-              weekDay={planExportDayISO}
-              isWeekOnScreen={planView === "woche"}
-              canExportInternal={canManageSchedules}
-              filter={{ ...NO_PLAN_FILTER, roomId: room.id }}
-              filterLabel={`Raum „${room.name}“`}
-              onClose={() => setExportOpen(false)}
-            />
-          ) : null}
           <ConfirmDeleteModal
             isOpen={showDeleteModal}
             onClose={() => {

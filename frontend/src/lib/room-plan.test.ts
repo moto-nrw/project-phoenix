@@ -1,39 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { roomDayPlan, type RoomPlanRow } from "./room-plan";
-import type { EnrichedInstance } from "./timetable-types";
+import {
+  roomDayPlan,
+  roomPlanCareDay,
+  roomPlanDayLabel,
+  roomPlanStepDay,
+  roomPlanStepWeek,
+  roomPlanWeekDays,
+  type RoomPlanBlock,
+  type RoomPlanRow,
+} from "./room-plan";
 
 function block(
   id: string,
   startTime: string,
   endTime: string,
-  status: EnrichedInstance["status"] = "planned",
-): EnrichedInstance {
-  const instance: EnrichedInstance = {
+  status = "planned",
+): RoomPlanBlock {
+  return {
     id,
     date: "2026-09-09",
     startTime,
     endTime,
     title: `Block ${id}`,
     status,
-    isSpontaneous: false,
-    isLive: false,
-    activityType: "activity",
-    roomId: "3",
-    roomName: "Werkraum",
-    staff: [],
-    studentIds: [],
-    students: [],
-    staffCount: 0,
-    absentStaffCount: 0,
-    expectedStudentsCount: 0,
-    presentStudentsCount: 0,
-    notScheduledStudentsCount: 0,
-    requiredStaffCount: 0,
-    assignedStaffCount: 0,
-    conflictWarnings: [],
   };
-  return instance;
 }
 
 function describeRows(rows: RoomPlanRow[]): string[] {
@@ -105,5 +96,37 @@ describe("roomDayPlan (#4768)", () => {
     expect(describeRows(roomDayPlan([], "08:30", "16:15"))).toEqual([
       "frei 08:30-16:15",
     ]);
+  });
+});
+
+describe("room plan days (#4768)", () => {
+  it("snaps the weekend to Monday unless the school cares on weekends", () => {
+    expect(roomPlanCareDay("2026-09-12", false)).toBe("2026-09-14");
+    expect(roomPlanCareDay("2026-09-13", false)).toBe("2026-09-14");
+    expect(roomPlanCareDay("2026-09-12", true)).toBe("2026-09-12");
+    expect(roomPlanCareDay("2026-09-09", false)).toBe("2026-09-09");
+  });
+
+  it("steps from care day to care day", () => {
+    expect(roomPlanStepDay("2026-09-11", 1, false)).toBe("2026-09-14");
+    expect(roomPlanStepDay("2026-09-14", -1, false)).toBe("2026-09-11");
+    expect(roomPlanStepDay("2026-09-11", 1, true)).toBe("2026-09-12");
+  });
+
+  it("lists the week from Monday and steps by whole weeks", () => {
+    expect(roomPlanWeekDays("2026-09-09", false)).toEqual([
+      "2026-09-07",
+      "2026-09-08",
+      "2026-09-09",
+      "2026-09-10",
+      "2026-09-11",
+    ]);
+    expect(roomPlanWeekDays("2026-09-13", true)).toHaveLength(7);
+    expect(roomPlanWeekDays("2026-09-13", true)[0]).toBe("2026-09-07");
+    expect(roomPlanStepWeek("2026-09-07", -1)).toBe("2026-08-31");
+  });
+
+  it("names the day in full", () => {
+    expect(roomPlanDayLabel("2026-10-27")).toBe("Dienstag, 27.10.2026");
   });
 });

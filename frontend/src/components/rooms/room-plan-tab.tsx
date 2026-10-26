@@ -22,23 +22,21 @@ import {
   berlinTodayISO,
   formatWeekLabel,
   parseISODate,
-  toISODate,
 } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
-import { NO_PLAN_FILTER } from "~/lib/plan-filter";
-import { roomDayPlan, type RoomPlanRow } from "~/lib/room-plan";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import { timetableService } from "~/lib/timetable-api";
 import {
-  careDayISO,
-  formatFullDayLabel,
-  getWeekRange,
-  getWeekdays,
-  nextCareDayISO,
-  previousCareDayISO,
-} from "~/lib/timetable-helpers";
-import type { EnrichedInstance } from "~/lib/timetable-types";
+  roomDayPlan,
+  roomPlanCareDay,
+  roomPlanDayLabel,
+  roomPlanStepDay,
+  roomPlanStepWeek,
+  roomPlanWeekDays,
+  type RoomPlanBlock,
+  type RoomPlanRow,
+} from "~/lib/room-plan";
+import { fetchRoomPlanBlocks } from "~/lib/room-plan-api";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import type { RoomPlanView } from "./room-plan-navigation";
 
@@ -47,14 +45,10 @@ export type { RoomPlanView } from "./room-plan-navigation";
 /** Die angezeigten Tage: ein Betreuungstag oder dessen Woche. */
 function useRoomPlanDays(view: RoomPlanView, anchorISO: string) {
   const weekendOpen = useWeekendFollowsFriday();
-  const dayISO = careDayISO(anchorISO, weekendOpen);
+  const dayISO = roomPlanCareDay(anchorISO, weekendOpen);
   return useMemo(() => {
     if (view === "tag") return { dayISO, days: [dayISO], weekendOpen };
-    const monday = getWeekRange(parseISODate(dayISO), 0).from;
-    const days = getWeekdays(monday)
-      .slice(0, weekendOpen ? 7 : 5)
-      .map(toISODate);
-    return { dayISO, days, weekendOpen };
+    return { dayISO, days: roomPlanWeekDays(dayISO, weekendOpen), weekendOpen };
   }, [dayISO, view, weekendOpen]);
 }
 /** SWR-Schlüssel der Blöcke eines Raums im angezeigten Zeitraum. */
@@ -83,11 +77,11 @@ export function RoomPlanControls({
   planLinkLabel,
 }: RoomPlanControlsProps) {
   const { dayISO, days, weekendOpen } = useRoomPlanDays(view, anchorISO);
-  const todayTarget = careDayISO(berlinTodayISO(), weekendOpen);
+  const todayTarget = roomPlanCareDay(berlinTodayISO(), weekendOpen);
   const showsToday = days.includes(todayTarget);
   const label =
     view === "tag"
-      ? formatFullDayLabel(parseISODate(dayISO))
+      ? roomPlanDayLabel(dayISO)
       : formatWeekLabel(
           parseISODate(days[0]!),
           parseISODate(days[days.length - 1]!),
@@ -95,17 +89,10 @@ export function RoomPlanControls({
 
   const step = (direction: 1 | -1) => {
     if (view === "tag") {
-      onChange({
-        d:
-          direction === 1
-            ? nextCareDayISO(dayISO, weekendOpen)
-            : previousCareDayISO(dayISO, weekendOpen),
-      });
+      onChange({ d: roomPlanStepDay(dayISO, direction, weekendOpen) });
       return;
     }
-    const target = parseISODate(days[0]!);
-    target.setDate(target.getDate() + 7 * direction);
-    onChange({ d: toISODate(target) });
+    onChange({ d: roomPlanStepWeek(days[0]!, direction) });
   };
 
   return (
@@ -152,21 +139,21 @@ export function RoomPlanTab({ roomId, view, anchorISO }: RoomPlanTabProps) {
   const to = days[days.length - 1]!;
   const key = roomPlanKey(roomId, from, to);
   const { data, error, isLoading } = useSWRAuth(key, () =>
-    timetableService.getWeek(from, to, { ...NO_PLAN_FILTER, roomId }),
+    fetchRoomPlanBlocks(roomId, from, to),
   );
   const loadError = useSwrLoadError(error, "den Plan des Raums", () =>
     tenantMutate(key),
   );
 
   const byDay = useMemo(() => {
-    const map = new Map<string, EnrichedInstance[]>();
-    for (const instance of data?.instances ?? []) {
+    const map = new Map<string, RoomPlanBlock[]>();
+    for (const instance of data ?? []) {
       const list = map.get(instance.date) ?? [];
       list.push(instance);
       map.set(instance.date, list);
     }
     return map;
-  }, [data?.instances]);
+  }, [data]);
 
   if (error && !data) {
     return (
@@ -214,7 +201,7 @@ function RoomPlanDay({
   readonly showHeading: boolean;
   readonly rows: readonly RoomPlanRow[];
 }) {
-  const label = formatFullDayLabel(parseISODate(dayISO));
+  const label = roomPlanDayLabel(dayISO);
   return (
     <section aria-label={label} data-testid={`room-plan-day-${dayISO}`}>
       {showHeading && (
@@ -245,11 +232,7 @@ function RoomPlanDay({
   );
 }
 
-function RoomPlanBlockRow({
-  instance,
-}: {
-  readonly instance: EnrichedInstance;
-}) {
+function RoomPlanBlockRow({ instance }: { readonly instance: RoomPlanBlock }) {
   const cancelled = instance.status === "cancelled";
   return (
     <li

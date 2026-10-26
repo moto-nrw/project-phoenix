@@ -1441,7 +1441,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "`Frei` heißt: In dieser Zeit ist im Raum nichts geplant.",
           "Ein durchgestrichener Termin mit `Abgesagt` belegt den Raum nicht.",
           "Wählen Sie `Im Betreuungsplan ansehen`, um den Plan dieses Raums dort zu öffnen. Planende sehen dort `Im Betreuungsplan bearbeiten`.",
-          "Zum Drucken öffnen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie `Raumplan drucken`.",
+          "Für einen Aushang öffnen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie `Raumplan als PDF`. Sie erhalten die angezeigte Woche als PDF.",
         ],
       },
       {
@@ -1461,7 +1461,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
     troubleshootingDetails: [
       "Steht unter `Zielraum` `Keine aktiven Räume`? Dann läuft gerade keine Aufsicht, in die Sie Kinder setzen können.",
       "Fehlt unter `Unterwegs` die Auswahl der Kinder? Dann erfasst Ihre OGS die Anwesenheit nicht über die App. Fragen Sie Ihre Leitung.",
-      "Fehlt der Reiter `Plan` oder `Raumplan drucken`? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
+      "Fehlt der Reiter `Plan` oder `Raumplan als PDF`? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
     ],
     related: [HELP_TOPICS.activeSupervision, HELP_TOPICS.changeLocation],
   };
