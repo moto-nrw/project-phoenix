@@ -384,4 +384,49 @@ describe("FerienwochenPage", () => {
       screen.queryByRole("button", { name: "Feriengäste übernehmen" }),
     ).not.toBeInTheDocument();
   });
+
+  it("forgets an unsaved group choice when switching to another week", async () => {
+    sessionPermissions.current = ["config:read", "users:create"];
+    weeksMock.mockResolvedValue([firstWeek, secondWeek]);
+    participantsMock.mockImplementation((id: string) =>
+      Promise.resolve(listOf(id === "52" ? secondWeek : firstWeek)),
+    );
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Gruppe für die Feriengäste" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Gruppe für die Feriengäste" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Feriengruppe" }));
+    fireEvent.click(
+      await screen.findByRole("tab", { name: "21.09. bis 25.09.2026" }),
+    );
+
+    // Anker: die Statuszeile nennt schon die zweite Woche.
+    expect(
+      await screen.findByText(
+        "Sommerferien 2026 · 21.09. bis 25.09.2026 · 2 Kinder",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Feriengäste übernehmen" }),
+    ).toBeDisabled();
+    expect(assignMock).not.toHaveBeenCalled();
+  });
+
+  it("says when the groups cannot be loaded", async () => {
+    sessionPermissions.current = ["config:read", "users:create"];
+    groupsMock.mockRejectedValue(new Error("network down"));
+    weeksMock.mockResolvedValue([firstWeek]);
+    participantsMock.mockResolvedValue(listOf(firstWeek));
+
+    renderPage();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Gruppen/);
+  });
 });

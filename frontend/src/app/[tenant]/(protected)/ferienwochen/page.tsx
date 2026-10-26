@@ -243,6 +243,7 @@ export default function FerienwochenPage() {
       {list && selectedWeek && (
         <div className="flex flex-col gap-6">
           <HolidayGuestGroupCard
+            key={selectedWeek.id}
             week={selectedWeek}
             canAssign={canAssignGuests}
             onAssigned={() => void weeks.mutate()}

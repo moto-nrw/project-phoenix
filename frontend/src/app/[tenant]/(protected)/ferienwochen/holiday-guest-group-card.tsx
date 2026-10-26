@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { groupService } from "~/lib/api";
@@ -10,6 +11,7 @@ import {
   assignHolidayGuestGroup,
   type HostedHolidayWeek,
 } from "~/lib/holiday-host-api";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -23,7 +25,9 @@ function guestCount(count: number): string {
  * Feriengruppe einer Woche (#4666): Die Leitung wählt eine Gruppe ihrer OGS.
  * Die bestätigten Feriengäste der Woche kommen dann in diese Gruppe und in
  * den Check-in, mit Betreuung, Notfall und Abholung. Wer keine Kinder anlegen
- * darf, sieht nur, welche Gruppe gewählt ist.
+ * darf, sieht nur, welche Gruppe gewählt ist. Die Seite gibt der Karte je
+ * Woche einen eigenen Schlüssel, damit eine nicht übernommene Auswahl nicht
+ * in die nächste Woche wandert.
  */
 export function HolidayGuestGroupCard({
   week,
@@ -36,6 +40,9 @@ export function HolidayGuestGroupCard({
 }>) {
   const groups = useSWRAuth("holiday-guest-groups", () =>
     groupService.getGroups(),
+  );
+  const groupsError = useSwrLoadError(groups.error, "die Gruppen", () =>
+    groups.mutate(),
   );
   const [chosen, setChosen] = useState<string>("");
   const [saving, setSaving] = useState(false);
@@ -88,6 +95,7 @@ export function HolidayGuestGroupCard({
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-gray-700">{status}</p>
+        {groupsError && <LoadErrorAlert error={groupsError} />}
         {canAssign && (
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <CustomSelect

@@ -278,6 +278,33 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 		fmt.Sprintf("holiday_guest_sheet:%d", f.roster(t, weekDay)["Tom Beispiel"]),
 	}, f.guestLog(t, f.nord), "every transfer and every sheet read stands in the school's access log")
 
+	// The Träger-Büro rebooks Ben away from the week and back: the ended guest
+	// returns as the same child instead of failing the reconciliation.
+	var benChild int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM enrollment.holiday_registration_children WHERE holiday_registration_id = ? AND first_name = 'Ben'`,
+		f.siblings).Scan(t.Context(), &benChild))
+	rebook := func(weeks ...int) {
+		t.Helper()
+		bookings := []map[string]any{}
+		for _, index := range weeks {
+			bookings = append(bookings, map[string]any{"week_id": f.offer.Weeks[index].ID, "time_model_id": f.offer.Weeks[index].TimeModels[0].ID})
+		}
+		path := fmt.Sprintf("%s/registrations/%d/children/%d/bookings", holidayPeriodPath(f.periodID(t)), f.siblings, benChild)
+		rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, path, map[string]any{"bookings": bookings})
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	}
+	rebook(1)
+	f.reconcile(t)
+	assert.Equal(t, []string{"Tom Beispiel"}, names(f.roster(t, weekDay)), "the guest rebooked away leaves the group")
+	assert.Empty(t, f.careDays(t, ben))
+	rebook(0, 1)
+	f.reconcile(t)
+	back := f.roster(t, weekDay)
+	assert.Equal(t, []string{"Ben Muster", "Tom Beispiel"}, names(back), "the guest booked back returns to the group")
+	assert.Equal(t, ben, back["Ben Muster"], "the returning guest is the same child")
+	assert.Len(t, f.careDays(t, ben), 5, "the returning guest has its days planned again")
+	assert.Equal(t, http.StatusOK, f.sheet(t, lead, ben).Code)
+
 	// A cancellation ends the guest at the next reconciliation.
 	f.confirm(t, f.siblings, "cancel")
 	f.reconcile(t)
@@ -286,6 +313,7 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 	rec = f.sheet(t, lead, ben)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 	assert.Contains(t, rec.Body.String(), "enrollment.holiday_guest_not_found")
+
 }
 
 func TestHolidayGuestRoutesNeedTheSchoolPermissionAndTheHostingSchool(t *testing.T) {

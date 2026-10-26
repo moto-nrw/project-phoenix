@@ -263,6 +263,39 @@ func (s *HolidayGuestStore) ListOpenGuests(ctx context.Context, schoolID, weekID
 	return result, nil
 }
 
+// ListWeekGuests lists every guest of one week of the school, also those
+// whose access ended early.
+func (s *HolidayGuestStore) ListWeekGuests(ctx context.Context, schoolID, weekID int64) ([]enrollment.HolidayGuest, error) {
+	db, err := hostDB(ctx, schoolID)
+	if err != nil {
+		return nil, err
+	}
+	var guests []holidayGuestRow
+	if err := db.NewSelect().TableExpr("enrollment.holiday_guests").ColumnExpr(holidayGuestColumns).
+		Where("tenant_id = ?", schoolID).Where("holiday_period_week_id = ?", weekID).
+		OrderExpr("holiday_registration_child_id").Scan(ctx, &guests); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: list holiday guests of the week: %w", err)
+	}
+	result := make([]enrollment.HolidayGuest, len(guests))
+	for i := range guests {
+		result[i] = guests[i].guest()
+	}
+	return result, nil
+}
+
+// ReopenGuest clears the early end of a guest.
+func (s *HolidayGuestStore) ReopenGuest(ctx context.Context, schoolID, guestID int64) error {
+	db, err := hostDB(ctx, schoolID)
+	if err != nil {
+		return err
+	}
+	if _, err := db.NewRaw(`UPDATE enrollment.holiday_guests SET ended_on = NULL, updated_at = CURRENT_TIMESTAMP
+		WHERE tenant_id = ? AND id = ?`, schoolID, guestID).Exec(ctx); err != nil {
+		return fmt.Errorf("enrollment postgres: reopen holiday guest: %w", err)
+	}
+	return nil
+}
+
 // InsertGuest stores a new guest with its contacts.
 func (s *HolidayGuestStore) InsertGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest) error {
 	db, err := hostDB(ctx, schoolID)
