@@ -1591,6 +1591,7 @@ function OwnZeiterfassungSection({
   ownStaffId,
   schedule,
   onEditDay,
+  isSessionOpen,
   viewMode,
   weekAnchor,
   monthAnchor,
@@ -1603,6 +1604,8 @@ function OwnZeiterfassungSection({
     absence: StaffAbsence | null,
     laborDay?: WorkDayLaborHint,
   ) => void;
+  /** Ein offener Block verändert Tages- und Wochensummen fortlaufend. */
+  readonly isSessionOpen: boolean;
   /** Zeitfenster und Auflösung kommen aus der Bedienleiste der Kopfkarte
    *  (Bauart 3, Regel 1) — die Fläche navigiert nicht mehr selbst. */
   readonly viewMode: ViewMode;
@@ -1670,7 +1673,11 @@ function OwnZeiterfassungSection({
     `time-tracking-table-${tableHistoryFromKey}-${tableHistoryToKey}`,
     () =>
       timeTrackingService.getHistory(tableHistoryFromKey, tableHistoryToKey),
-    { keepPreviousData: true, revalidateOnFocus: false },
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      refreshInterval: isSessionOpen ? OPEN_MONTH_REFRESH_MS : 0,
+    },
   );
   const tableHistory = useMemo(() => tableData?.sessions ?? [], [tableData]);
 
@@ -3325,7 +3332,13 @@ function TimeTrackingContent() {
       ? `time-tracking-history-${chartFromDate}-${toDate}`
       : null,
     () => timeTrackingService.getHistory(chartFromDate, toDate),
-    { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      errorRetryCount: 1,
+      refreshInterval:
+        currentSession?.checkOutTime === null ? OPEN_MONTH_REFRESH_MS : 0,
+    },
   );
 
   const history = useMemo(() => historyData?.sessions ?? [], [historyData]);
@@ -4252,6 +4265,7 @@ function TimeTrackingContent() {
       <OwnZeiterfassungSection
         ownStaffId={ownStaffId}
         schedule={ownSchedule ?? null}
+        isSessionOpen={currentSession?.checkOutTime === null}
         viewMode={viewMode}
         weekAnchor={weekAnchor}
         monthAnchor={monthAnchor}
