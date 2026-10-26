@@ -69,3 +69,17 @@ func TestAttendanceExportColumns_NameWhoRecorded(t *testing.T) {
 		assert.Contains(t, columns, attendanceColumnCheckedOut)
 	}
 }
+
+func TestAttendanceExportRowsWithoutActors_LeavesActorColumnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	date := calendar.NewDate(2026, 9, 29)
+	checkIn := date.BerlinMidnight().Add(8 * time.Hour)
+	rows := attendanceExportRowsWithoutActors(nil, []*studentpresence.Attendance{{
+		Date: date.String(), CheckInTime: checkIn, CheckedInBy: 11,
+	}})
+
+	require.Len(t, rows, 1)
+	assert.NotContains(t, rows[0].Values, attendanceColumnCheckedIn)
+	assert.NotContains(t, rows[0].Values, attendanceColumnCheckedOut)
+}

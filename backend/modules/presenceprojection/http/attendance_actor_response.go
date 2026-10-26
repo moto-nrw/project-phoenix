@@ -70,7 +70,10 @@ func attendanceActorExportLabel(actor *studentpresence.AttendanceActor) string {
 // withAttendanceActors fills the export row's "Angemeldet von" and
 // "Abgemeldet von" from the school stay the row belongs to; a row outside
 // every stay keeps both empty.
-func withAttendanceActors(row lists.Row, stay *studentpresence.Attendance, recorders studentpresence.AttendanceRecorders) lists.Row {
+func withAttendanceActors(row lists.Row, stay *studentpresence.Attendance, recorders *studentpresence.AttendanceRecorders) lists.Row {
+	if recorders == nil {
+		return row
+	}
 	checkedIn, checkedOut := "–", "–"
 	if stay != nil {
 		actor := recorders.CheckIn(*stay)

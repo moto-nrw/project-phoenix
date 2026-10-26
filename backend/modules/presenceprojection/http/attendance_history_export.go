@@ -4,6 +4,7 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
+	slog "log/slog"
 	http "net/http"
 	sort "sort"
 	strconv "strconv"
@@ -155,19 +156,26 @@ func (rs *Resource) buildAttendanceExportDocument(
 	if err != nil {
 		return lists.Document{}, err
 	}
-	recorders, err := rs.StudentHistoryService.AttendanceRecorders(ctx, attendance)
-	if err != nil {
-		return lists.Document{}, err
-	}
 	title, columns := "Anwesenheit je Betreuungsangebot", attendanceExportColumns()
 	if !expectSlots {
 		title, columns = "Anwesenheit", attendanceSessionExportColumns()
+	}
+	recorders, err := rs.StudentHistoryService.AttendanceRecorders(ctx, attendance)
+	var rows []lists.Row
+	if err != nil {
+		rs.attendanceHistoryLogger().Warn("failed to resolve attendance staff names",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		rows = attendanceExportRowsWithoutActors(slots, attendance)
+	} else {
+		rows = attendanceExportRows(slots, attendance, recorders)
 	}
 	return lists.Document{
 		Title:       title,
 		Subtitle:    fmt.Sprintf("Kind-ID %d · %s bis %s", studentID, from.Format(attendanceExportDateLayout), to.Format(attendanceExportDateLayout)),
 		GeneratedAt: time.Now(), Columns: columns,
-		Rows: attendanceExportRows(slots, attendance, recorders), Footer: "Vertrauliche Anwesenheitsdaten",
+		Rows: rows, Footer: "Vertrauliche Anwesenheitsdaten",
 	}, nil
 }
 
@@ -198,6 +206,14 @@ func attendanceSessionExportColumns() []lists.Column {
 // one chronologically sorted list (date, then start clock time) so multi-day
 // exports read in order regardless of which source a row came from.
 func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance, recorders studentpresence.AttendanceRecorders) []lists.Row {
+	return attendanceExportRowsWithOptionalActors(slots, attendanceRows, &recorders)
+}
+
+func attendanceExportRowsWithoutActors(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance) []lists.Row {
+	return attendanceExportRowsWithOptionalActors(slots, attendanceRows, nil)
+}
+
+func attendanceExportRowsWithOptionalActors(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance, recorders *studentpresence.AttendanceRecorders) []lists.Row {
 	type sortableExportRow struct {
 		date  calendar.Date
 		clock string // HH:MM:SS in Berlin, orders rows within a day

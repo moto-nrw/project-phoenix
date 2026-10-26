@@ -213,9 +213,13 @@ func (rs *Resource) buildAttendanceHistory(ctx context.Context, logger *slog.Log
 	days = attachUnassignedAttendance(days, sources.SlotExpectation)
 	recorders, err := rs.StudentHistoryService.AttendanceRecorders(ctx, sources.Attendance)
 	if err != nil {
-		return attendanceHistoryResponse{}, common.ErrorInternalServerWrap("failed to load attendance history", err)
+		logger.Warn("failed to resolve attendance staff names",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+	} else {
+		attachAttendanceActors(days, recorders)
 	}
-	attachAttendanceActors(days, recorders)
 
 	resp := attendanceHistoryResponse{
 		StudentID: strconv.FormatInt(studentID, 10),
