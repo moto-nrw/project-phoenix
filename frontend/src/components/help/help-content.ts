@@ -7644,7 +7644,9 @@ function parentHolidayRegistrationTopic(): HelpTopic {
       "Tragen Sie unter `Wer darf die Kinder abholen?` alle Personen außer Ihnen ein.",
       "Setzen Sie die Haken unter `Einverständnis`.",
       "Wählen Sie `Weiter zur Zusammenfassung`.",
-      "Prüfen Sie alles. Wählen Sie dann `Anmeldung absenden`.",
+      "Prüfen Sie alles. Unter `Beitrag` steht, was die Ferienbetreuung kostet.",
+      "Bekommen Sie Leistungen wie Bürgergeld, Wohngeld oder Kinderzuschlag? Dann setzen Sie den Haken unter `Beitrag`, wenn er angeboten wird.",
+      "Wählen Sie dann `Anmeldung absenden`.",
     ],
     result:
       "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt.",
@@ -7652,6 +7654,7 @@ function parentHolidayRegistrationTopic(): HelpTopic {
       "Ein Elternkonto brauchen Sie nicht.",
       "Gesundheitsangaben sind freiwillig. Nur die Betreuung sieht sie.",
       "Ein Kind von einer anderen Schule kommt als Feriengast.",
+      "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
     ],
     differences: [
       "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
@@ -9009,6 +9012,7 @@ function traegerHolidayPeriodTopic(): HelpTopic {
     notes: [
       "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
       "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
+      "Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Beiträge` fest.",
     ],
     differences: [
       "Sie sehen oben kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
@@ -9017,7 +9021,7 @@ function traegerHolidayPeriodTopic(): HelpTopic {
       "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",
       "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
     ],
-    related: [HELP_TOPICS.traegerLogin],
+    related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerHolidayContribution],
   };
 }
 
@@ -9051,7 +9055,9 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         title: "Bestätigen oder stornieren",
         steps: [
           "Prüfen Sie die Angaben der Eltern und der Kinder.",
-          "Wählen Sie `Bestätigen`.",
+          "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
+          "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
+          "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
           "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
         ],
       },
@@ -9086,6 +9092,7 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
       "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin.",
       "Jedes Öffnen und jeder Export steht im Protokoll des Trägers.",
+      "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
     ],
     differences: [
       "Ein Kind ist als `Mögliche Doppelanmeldung` markiert? Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung. Öffnen Sie beide und stornieren Sie die doppelte.",
@@ -9097,6 +9104,71 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     related: [
       HELP_TOPICS.traegerHolidayRegistration,
       HELP_TOPICS.traegerHolidayPeriod,
+      HELP_TOPICS.traegerHolidayContribution,
+    ],
+  };
+}
+
+/** `/traeger/beitraege` (#4664): Regeln des Ferienbeitrags. */
+function traegerHolidayContributionTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerHolidayContribution,
+    title: "Ferienbeitrag festlegen",
+    question: "Wie rechnet moto den Ferienbeitrag?",
+    summary:
+      "Jede gebuchte Woche kostet den Preis ihres Zeitmodells. Geschwister zahlen weniger, Familien mit Leistungsbezug nichts.",
+    group: "anmeldeverwaltung",
+    audience: "traeger",
+    icon: "Landmark",
+    requirements: [
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht oben `Beiträge`.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Preis festlegen",
+        steps: [
+          "Den Preis jeder Woche legen Sie im Ferienzeitraum fest. Jedes Zeitmodell hat einen `Preis in Euro`.",
+        ],
+      },
+      {
+        title: "Geschwisterregel anlegen",
+        steps: [
+          "Wählen Sie oben `Beiträge`.",
+          "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel hinzufügen`.",
+          "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
+          "Wählen Sie `ab dem 2. Kind` oder `ab dem 3. Kind`.",
+          "Wählen Sie `Anteil in Prozent` oder `Betrag in Euro` und tragen Sie den Wert ein. Zum Beispiel 50 für die Hälfte.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Befreiung bei Leistungsbezug anlegen",
+        steps: [
+          "Wählen Sie bei `Befreiung bei Leistungsbezug` den Knopf `Befreiung hinzufügen`.",
+          "Tragen Sie ein, ab wann die Befreiung gilt.",
+          "Schreiben Sie den `Vermerk auf dem Beitrag`. Er steht bei jeder befreiten Familie.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+    ],
+    result:
+      "Eltern sehen den Beitrag vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
+    notes: [
+      "Geschwister sind Kinder derselben Ferienanmeldung. Das Kind mit dem höchsten Preis ist das erste Kind und zahlt voll.",
+      "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
+      "Eine Regel gilt nur für Anmeldungen, die nach der Änderung bestätigt werden. Bestätigte Anmeldungen behalten ihren Beitrag.",
+      "Ob eine Familie befreit ist, entscheidet das Träger-Büro beim Bestätigen.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Beiträge`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+    ],
+    troubleshootingDetails: [
+      "Die Regel lässt sich nicht speichern, weil schon eine andere gilt? Von jeder Art gilt an einem Tag nur eine Regel. Setzen Sie bei der alten Regel `Gilt bis` auf den Tag davor.",
+    ],
+    related: [
+      HELP_TOPICS.traegerHolidayPeriod,
+      HELP_TOPICS.traegerHolidayRegistrationReview,
     ],
   };
 }
@@ -9300,6 +9372,7 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   traegerHolidayPeriodTopic(),
   traegerHolidayRegistrationTopic(),
   traegerHolidayRegistrationReviewTopic(),
+  traegerHolidayContributionTopic(),
   traegerAccessLogTopic(),
   traegerBriefkopfTopic(),
   traegerSettingsTopic(),

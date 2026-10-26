@@ -185,6 +185,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/",
   "/access-log",
   "/accounts",
+  "/beitraege",
   "/briefkopf",
   "/einstellungen",
   "/ferien",

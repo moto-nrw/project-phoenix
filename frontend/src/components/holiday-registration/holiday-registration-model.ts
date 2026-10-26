@@ -6,6 +6,7 @@ import type {
   HolidayContactPayload,
   HolidayKnownChild,
   HolidayKnownFamily,
+  HolidayQuoteChild,
   HolidayRegistrationOffer,
   HolidayRegistrationPayload,
 } from "~/lib/holiday-registration-api";
@@ -54,6 +55,8 @@ export interface RegistrationDraft {
   readonly privacyConsent: boolean;
   readonly healthConsent: boolean;
   readonly bindingConfirmed: boolean;
+  /** The family receives benefits; the Träger checks it (#4664). */
+  readonly benefitsDeclared: boolean;
 }
 
 /** The reason a field is refused, as a key of `holidayRegistration.errors`. */
@@ -91,6 +94,7 @@ export function emptyRegistration(): RegistrationDraft {
     privacyConsent: false,
     healthConsent: false,
     bindingConfirmed: false,
+    benefitsDeclared: false,
   };
 }
 
@@ -258,6 +262,17 @@ function contactPayload(contact: ContactDraft): HolidayContactPayload {
   };
 }
 
+/** The bookings of a child as the backend reads them. */
+export function quoteBookings(
+  child: ChildDraft,
+  offer: HolidayRegistrationOffer,
+): HolidayQuoteChild {
+  return bookedWeeks(child, offer).map((booking) => ({
+    week_id: Number(booking.weekId),
+    time_model_id: Number(booking.timeModelId),
+  }));
+}
+
 /** The registration as the backend reads it. */
 export function payloadFromDraft(
   draft: RegistrationDraft,
@@ -282,10 +297,7 @@ export function payloadFromDraft(
         allergies: child.allergies.trim(),
         medication: child.medication.trim(),
         health_notes: child.healthNotes.trim(),
-        bookings: bookedWeeks(child, offer).map((booking) => ({
-          week_id: Number(booking.weekId),
-          time_model_id: Number(booking.timeModelId),
-        })),
+        bookings: quoteBookings(child, offer),
       };
     }),
     emergency_contacts: draft.emergencyContacts.map(contactPayload),
@@ -293,6 +305,7 @@ export function payloadFromDraft(
     privacy_consent: draft.privacyConsent,
     health_consent: hasHealthInfo(draft) && draft.healthConsent,
     binding_confirmed: offer.binding && draft.bindingConfirmed,
+    benefits_declared: draft.benefitsDeclared,
     captcha_token: captchaToken,
   };
 }

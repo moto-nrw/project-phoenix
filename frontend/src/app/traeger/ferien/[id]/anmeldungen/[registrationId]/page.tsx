@@ -1,10 +1,12 @@
 "use client";
 
 // Eine Ferienanmeldung prüfen (#4663): alles, was die Eltern angegeben
-// haben, mit Status, Umbuchen und Verlauf. Jedes Öffnen steht im Protokoll.
+// haben, mit Status, Ferienbeitrag (#4664), Umbuchen und Verlauf. Jedes
+// Öffnen steht im Protokoll.
 
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { HolidayContributionCard } from "~/components/traeger/holiday-contribution-card";
 import { HolidayRegistrationChildCard } from "~/components/traeger/holiday-registration-child-card";
 import {
   HOLIDAY_REGISTRATION_STATUS_LABELS,
@@ -24,6 +26,10 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { fetchHolidayPeriod, type HolidayPeriod } from "~/lib/traeger-api";
+import {
+  fetchHolidayContribution,
+  type HolidayContribution,
+} from "~/lib/traeger-contributions-api";
 import {
   fetchHolidayRegistration,
   type HolidayRegistrationContact,
@@ -67,18 +73,33 @@ export default function TraegerHolidayRegistrationPage() {
   const [period, setPeriod] = useState<HolidayPeriod | null>(null);
   const [registration, setRegistration] =
     useState<HolidayRegistrationDetail | null>(null);
+  const [contribution, setContribution] = useState<HolidayContribution | null>(
+    null,
+  );
+  // The exemption the confirmation applies; it starts with the parents'
+  // statement and the preview follows it.
+  const [exemption, setExemption] = useState(false);
+  // While the preview is computed again, the confirmation waits for it: it
+  // must freeze the amount the card shows.
+  const [previewPending, setPreviewPending] = useState(false);
+  const latestContribution = useRef(0);
   const { schools, error: schoolsError } = useTraegerSchools();
   const registrationLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = registrationLoad;
 
   const load = useCallback(async () => {
     try {
-      const [loadedPeriod, loadedRegistration] = await Promise.all([
-        fetchHolidayPeriod(periodId),
-        fetchHolidayRegistration(periodId, registrationId),
-      ]);
+      const [loadedPeriod, loadedRegistration, loadedContribution] =
+        await Promise.all([
+          fetchHolidayPeriod(periodId),
+          fetchHolidayRegistration(periodId, registrationId),
+          fetchHolidayContribution(periodId, registrationId),
+        ]);
+      latestContribution.current++;
       setPeriod(loadedPeriod);
       setRegistration(loadedRegistration);
+      setContribution(loadedContribution);
+      setExemption(loadedRegistration.benefitsDeclared);
       clearLoadError();
     } catch (err) {
       logger.error("traeger_holiday_registration_load_failed", {
@@ -94,6 +115,54 @@ export default function TraegerHolidayRegistrationPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // A change of the bookings or of the exemption changes what a confirmation
+  // would freeze, so the contribution is read again; only the newest answer
+  // is shown.
+  const refreshContribution = useCallback(
+    async (withExemption: boolean) => {
+      const request = ++latestContribution.current;
+      setPreviewPending(true);
+      try {
+        const next = await fetchHolidayContribution(
+          periodId,
+          registrationId,
+          withExemption,
+        );
+        if (request === latestContribution.current) {
+          setContribution(next);
+          setPreviewPending(false);
+        }
+      } catch (err) {
+        if (request !== latestContribution.current) return;
+        setPreviewPending(false);
+        logger.warn("traeger_holiday_contribution_refresh_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        await showLoadError(err, {
+          object: "der Ferienbeitrag",
+          retry: () => void load(),
+        });
+      }
+    },
+    [load, periodId, registrationId, showLoadError],
+  );
+
+  const changed = useCallback(
+    (next: HolidayRegistrationDetail) => {
+      setRegistration(next);
+      void refreshContribution(exemption);
+    },
+    [exemption, refreshContribution],
+  );
+
+  const changeExemption = useCallback(
+    (next: boolean) => {
+      setExemption(next);
+      void refreshContribution(next);
+    },
+    [refreshContribution],
+  );
 
   const loadError = registrationLoad.error ?? schoolsError;
   const names = schoolNames(schools);
@@ -140,8 +209,20 @@ export default function TraegerHolidayRegistrationPage() {
           <HolidayRegistrationStatusCard
             periodId={periodId}
             registration={registration}
-            onChanged={setRegistration}
+            contribution={contribution}
+            previewPending={previewPending}
+            exemption={exemption}
+            onExemptionChange={changeExemption}
+            onChanged={changed}
+            onConfirmed={load}
           />
+          {contribution &&
+          (registration.status !== "cancelled" || contribution.frozen) ? (
+            <HolidayContributionCard
+              contribution={contribution}
+              registration={registration}
+            />
+          ) : null}
           <SectionCard title="Eltern">
             <DataGrid>
               <DataField label="Name">
@@ -174,7 +255,7 @@ export default function TraegerHolidayRegistrationPage() {
                 (entry) => entry.childId === child.id,
               )}
               names={names}
-              onChanged={setRegistration}
+              onChanged={changed}
             />
           ))}
           <SectionCard title="Notfallkontakte und Abholung">
