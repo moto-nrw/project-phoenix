@@ -26,9 +26,9 @@ func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail en
 }
 
 // NewHolidayRegistrationRetention builds the hourly deletion of ended holiday
-// registrations (#4661, spec #4611 user story 121).
-func NewHolidayRegistrationRetention() enrollment.HolidayRegistrationRetention {
-	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), nil)
+// registrations (#4661, #4667); a nil today uses the Berlin calendar day.
+func NewHolidayRegistrationRetention(today func() calendar.Date) enrollment.HolidayRegistrationRetention {
+	return applicationNative.NewHolidayRegistrationRetention(postgres.NewHolidayRegistrationStore(), today)
 }
 
 // NewHolidayRegistrationReview builds the review of the holiday registrations
