@@ -367,22 +367,54 @@ Set them with `gh secret set POSTHOG_READ_API_KEY` and
 from the prompt. A local key for `--check` and `--dry-run` lives only in the
 local environment (for example `~/.config/project-phoenix/local.env`).
 
-| Dashboard | Deployment | Link |
-| --- | --- | --- |
-| Demo-Funnel | `demo` | <https://eu.posthog.com/project/140838/dashboard/972368> |
-| Nutzung pro Rolle und Oberfläche | `moto-app.de` | <https://eu.posthog.com/project/140838/dashboard/972369> |
-| Seiten (meistbesucht, kaum genutzt) | `moto-app.de` | <https://eu.posthog.com/project/140838/dashboard/972370> |
-| Reibung (Dead und Rage Clicks, Heatmaps) | `moto-app.de` and `demo`, separate tables | <https://eu.posthog.com/project/140838/dashboard/972371> |
-| Aktive Schulen | `moto-app.de` | <https://eu.posthog.com/project/140838/dashboard/972372> |
-| Funktionen in Schulen (Reichweite, je Schule, nach Rolle, pro Woche) | `moto-app.de` | <https://eu.posthog.com/project/140838/dashboard/1003811> |
-| Demo-Verhalten (letzte Seite, Sitzungstiefe, Funktionen, Aktionen) | `demo` | <https://eu.posthog.com/project/140838/dashboard/1003812> |
+One dashboard per product surface plus two across schools. Every tile title
+is the question it answers. The team guide (which dashboard for which
+question) lives in the dashboard descriptions.
+
+| Dashboard | Deployment | Questions | Link |
+| --- | --- | --- | --- |
+| Nutzung je Standort (home dashboard, pinned) | `moto-app.de` | How many schools use moto, on which days, for which flows, who slows down | <https://eu.posthog.com/project/140838/dashboard/1046428> |
+| OGS-App | `moto-app.de` | Most used pages per day with navigation name and time on page, actions per role, where users go from the start page, feature reach, rarely used pages, dead and rage clicks | created by the sync |
+| Eltern-App | `moto-app.de` | The same for parents; parents have no school | created by the sync |
+| Schul-App | `moto-app.de` | The same for teachers in the school portal | created by the sync |
+| Schule im Verlauf | `moto-app.de` | One school over time (`school_id` filter, do not save it) | <https://eu.posthog.com/project/140838/dashboard/1046854> |
+| Demo | `demo` | Conversion to „Kostenlos starten“, time in the demo, what visitors look at and try, where they stop, dead and rage clicks | created by the sync |
+
+A school counts as active through use: page views, core actions, and kiosk
+bookings (`ACTIVE_USE`), not a failed login or a dead click. Rage clicks come
+from PostHog's heatmap data (`heatmaps` table): autocapture is off in the
+project, so there is no `$rageclick` event. Page names come from
+`frontend/src/lib/section-navigation.ts`.
+
+Errors are tracked in Sentry (frontend and backend), not in PostHog.
+
+The sync never deletes. After the merge that introduced the per-surface
+dashboards, delete the replaced ones by hand, but not their insights: the
+new dashboards reuse those with an unchanged name. Replaced: Aktive Schulen (972372), Funktionen in Schulen (1003811), Nutzung pro
+Rolle und Oberfläche (972369), Seiten (972370), Reibung (972371), Demo-Funnel
+(972368), Demo-Verhalten (1003812). Then delete the insights no definition
+uses any more: Aktive Schulen: letzte 7 Tage; Aktive Schulen pro Woche und
+Oberfläche; Funktionen: je Schule (30 Tage); Funktionen: nach Rolle und
+Oberfläche (30 Tage); Nutzung: Seitenaufrufe pro Oberfläche und Woche;
+Nutzung: Rolle und Oberfläche der letzten 30 Tage; Nutzung: Kernaktionen nach
+Oberfläche und Rolle; Seiten: meistbesucht in den letzten 30 Tagen; Seiten:
+kaum oder nie genutzt in den letzten 30 Tagen; Reibung: Seiten in Schulen;
+Reibung: Seiten in der Demo; Reibung: Dead und Rage Clicks pro Woche in
+Schulen; Demo-Funnel: Schritte der letzten 30 Tage; Demo-Verhalten:
+Sitzungstiefe.
+
+Paths insights stay out: PostHog's Paths count people. „Wohin geht es von
+der Startseite?“ counts page changes (`$prev_pageview_pathname`) instead.
 
 The feature areas (Funktionsbereiche) are `FEATURES` in the script; the test
 fails for a route template without an area, so a new page needs one.
 
 The demo funnel starts with the link request (`demo_link_requested` from the
 backend). The click on „Demo starten" before it happens on the website,
-which measures with Umami, not PostHog.
+which measures with Umami, not PostHog. So does the intake form behind
+„Kostenlos starten" (`moto-ogs.de/start/?src=demo`): Umami events
+`start-form-start`, `start-form-step`, `start-form-submit`, and
+`start-form-result`, each with `src`.
 
 ## Privacy policy (website, `moto-ogs.de/datenschutz`)
 
