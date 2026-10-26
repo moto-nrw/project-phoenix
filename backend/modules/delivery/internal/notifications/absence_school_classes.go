@@ -6,6 +6,8 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+
+	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 )
 
 // Copy for the school-portal notice (#4792).
@@ -26,51 +28,14 @@ const (
 // with it. TestSchoolClassAbsencePermissionName pins it to the registry.
 const permissionClassDayAllClasses = "class_day:all_classes"
 
-// StudentClassTeachers is one reported child's class as entered and the
-// accounts of the Lehrkräfte assigned to it (education.class_teachers).
-type StudentClassTeachers struct {
-	SchoolClass string
-	AccountIDs  []int64
-}
-
-// SchoolClassReach names the class of each reported child and its assigned
-// Lehrkräfte. The root binds it over People Directory, School Membership and
-// the staff accounts. A child without a class is missing from the result;
-// SchoolClass is trimmed and never empty.
-type SchoolClassReach interface {
-	StudentClassTeachers(ctx context.Context, studentIDs []int64) (map[int64]StudentClassTeachers, error)
-}
-
-// schoolClassConsent is the consent enforcement point every producer uses: it
-// applies the tenant gate and the person's decision.
-type schoolClassConsent interface {
-	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
-}
-
-// schoolWideAccounts is the slice of Identity & Access that tells which
-// accounts of the school hold a permission, as for the opt-in e-mail.
-type schoolWideAccounts interface {
-	ListActiveAccountIDsForTenant(ctx context.Context, tenantID int64, accountIDs []int64) ([]int64, error)
-	FindEffectivePermissionNamesByAccountIDsForTenant(ctx context.Context, accountIDs []int64, tenantID int64) (map[int64][]string, error)
-}
-
-// SchoolClassRecipients are the collaborators of the moto schule notice.
-type SchoolClassRecipients struct {
-	Reach   SchoolClassReach
-	Consent schoolClassConsent
-	// Subscribers lists the accounts that switched the type on. It is the
-	// cheap first question (nobody, no lookup at all) and the source of the
-	// Schulverwaltung, narrowed by Accounts and Permissions.
-	Subscribers EmailSubscribers
-	Accounts    schoolWideAccounts
-	Permissions PermissionMatch
-}
-
 // WithSchoolClassRecipients adds the school-portal notice to the absence
 // notifier. Without it the notifier only informs the OGS.
-func WithSchoolClassRecipients(recipients SchoolClassRecipients) AbsenceNotifierOption {
+// A zero value (no Reach) changes nothing.
+func WithSchoolClassRecipients(recipients contract.SchoolClassRecipients) AbsenceNotifierOption {
 	return func(n *absenceNotifier) {
-		n.school = &recipients
+		if recipients.Reach != nil {
+			n.school = &recipients
+		}
 	}
 }
 
@@ -97,15 +62,20 @@ func (n *absenceNotifier) schoolClassEvents(ctx context.Context, report AbsenceR
 	if len(classes) == 0 {
 		return nil, nil
 	}
-	schoolWide, err := school.schoolWide(ctx, report.TenantID, subscribers)
+	schoolWide, err := schoolWideAccounts(ctx, school, report.TenantID, subscribers)
 	if err != nil {
 		return nil, err
 	}
-	agreed, err := school.agreed(ctx, report, classes, schoolWide)
+	agreed, err := agreedSchoolAccounts(ctx, school, report, classes, schoolWide)
 	if err != nil {
 		return nil, err
 	}
+	return schoolClassAbsenceEvents(report, studentIDs, classes, schoolWide, agreed), nil
+}
 
+// schoolClassAbsenceEvents addresses each child's notice to the agreed
+// accounts of its class.
+func schoolClassAbsenceEvents(report AbsenceReport, studentIDs []int64, classes map[int64]contract.StudentClassTeachers, schoolWide []int64, agreed map[int64]bool) []Event {
 	events := make([]Event, 0, len(studentIDs))
 	for _, studentID := range studentIDs {
 		class, ok := classes[studentID]
@@ -124,12 +94,12 @@ func (n *absenceNotifier) schoolClassEvents(ctx context.Context, report AbsenceR
 			events = append(events, schoolClassAbsenceEvent(report, studentID, class.SchoolClass, recipients))
 		}
 	}
-	return events, nil
+	return events
 }
 
 // schoolWide narrows the subscribers to the active accounts holding
 // class_day:all_classes, the Schulverwaltung.
-func (s *SchoolClassRecipients) schoolWide(ctx context.Context, tenantID int64, subscribers []int64) ([]int64, error) {
+func schoolWideAccounts(ctx context.Context, s *contract.SchoolClassRecipients, tenantID int64, subscribers []int64) ([]int64, error) {
 	active, err := s.Accounts.ListActiveAccountIDsForTenant(ctx, tenantID, subscribers)
 	if err != nil {
 		return nil, fmt.Errorf("check school class subscriber memberships: %w", err)
@@ -143,7 +113,7 @@ func (s *SchoolClassRecipients) schoolWide(ctx context.Context, tenantID int64, 
 	}
 	schoolWide := make([]int64, 0, len(active))
 	for _, accountID := range active {
-		if s.Permissions.permits(permissionClassDayAllClasses, names[accountID]) {
+		if s.Permissions != nil && s.Permissions(permissionClassDayAllClasses, names[accountID]) {
 			schoolWide = append(schoolWide, accountID)
 		}
 	}
@@ -152,7 +122,7 @@ func (s *SchoolClassRecipients) schoolWide(ctx context.Context, tenantID int64, 
 
 // agreed applies the single consent enforcement point to everyone reaching a
 // reported class, minus the people who originated the report.
-func (s *SchoolClassRecipients) agreed(ctx context.Context, report AbsenceReport, classes map[int64]StudentClassTeachers, schoolWide []int64) (map[int64]bool, error) {
+func agreedSchoolAccounts(ctx context.Context, s *contract.SchoolClassRecipients, report AbsenceReport, classes map[int64]contract.StudentClassTeachers, schoolWide []int64) (map[int64]bool, error) {
 	candidates := make(map[int64]struct{}, len(schoolWide))
 	for _, accountID := range schoolWide {
 		candidates[accountID] = struct{}{}

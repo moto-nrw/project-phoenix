@@ -7,6 +7,7 @@ import (
 
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -51,11 +52,13 @@ func NewTenantDurableWebPushChannel(runtime tenant.UnitOfWork, db *bun.DB, repo 
 
 // NewTenantAbsenceNotifier is NewAbsenceNotifier over the tenant unit of
 // work.
-func NewTenantAbsenceNotifier(runtime tenant.UnitOfWork, notifier Service, recipients StaffRecipientResolver, db *bun.DB, logger *slog.Logger, opts ...AbsenceNotifierOption) (AbsenceNotifier, error) {
+// school adds the moto schule notice (#4792); its zero value keeps the
+// notifier OGS-only.
+func NewTenantAbsenceNotifier(runtime tenant.UnitOfWork, notifier Service, recipients StaffRecipientResolver, db *bun.DB, logger *slog.Logger, school contract.SchoolClassRecipients) (AbsenceNotifier, error) {
 	if err := requireTenantRuntime("absence notifier", runtime, notifier != nil && recipients != nil && db != nil); err != nil {
 		return nil, err
 	}
-	service := NewAbsenceNotifier(notifier, recipients, db, logger, opts...).(*absenceNotifier)
+	service := NewAbsenceNotifier(notifier, recipients, db, logger, WithSchoolClassRecipients(school)).(*absenceNotifier)
 	service.tenantRuntime = &runtime
 	return service, nil
 }

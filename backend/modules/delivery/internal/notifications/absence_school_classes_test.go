@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -35,15 +36,15 @@ type fakeSchoolClassReach struct {
 	calls    int
 }
 
-func (f *fakeSchoolClassReach) StudentClassTeachers(_ context.Context, ids []int64) (map[int64]notifications.StudentClassTeachers, error) {
+func (f *fakeSchoolClassReach) StudentClassTeachers(_ context.Context, ids []int64) (map[int64]contract.StudentClassTeachers, error) {
 	f.calls++
 	if f.err != nil {
 		return nil, f.err
 	}
-	out := make(map[int64]notifications.StudentClassTeachers, len(ids))
+	out := make(map[int64]contract.StudentClassTeachers, len(ids))
 	for _, id := range ids {
 		if schoolClass, ok := f.classes[id]; ok {
-			out[id] = notifications.StudentClassTeachers{SchoolClass: schoolClass, AccountIDs: f.teachers[schoolClass]}
+			out[id] = contract.StudentClassTeachers{SchoolClass: schoolClass, AccountIDs: f.teachers[schoolClass]}
 		}
 	}
 	return out, nil
@@ -131,7 +132,7 @@ func newSchoolAbsenceWorld() (notifications.AbsenceNotifier, *schoolAbsenceWorld
 		w.consent, &fakeStudentReader{}, &fakeGroupReader{}, &fakeStaffAccountReader{},
 		&fakeAdminReader{}, &fakeOnDutySetting{}, &fakeDutyReader{})
 	producer := notifications.NewAbsenceNotifier(w.notifier, recipients, nil, nil,
-		notifications.WithSchoolClassRecipients(notifications.SchoolClassRecipients{
+		notifications.WithSchoolClassRecipients(contract.SchoolClassRecipients{
 			Reach: w.reach, Consent: w.consent, Subscribers: w.subscribers,
 			Accounts: w.accounts, Permissions: securityruntime.HasPermission,
 		}))

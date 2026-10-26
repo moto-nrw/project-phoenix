@@ -210,6 +210,21 @@ func (h *Hub) RegisterSchool(client *Client, tenantID int64) {
 	h.observe(tenantID, "connected")
 }
 
+// unindexSchool drops a school-portal client from the two indexes
+// RegisterSchool keeps: by account and by school. The caller holds h.mu.
+func (h *Hub) unindexSchool(client *Client) {
+	if client.AccountID > 0 {
+		h.schoolAccountClients[client.AccountID] = removeClient(h.schoolAccountClients[client.AccountID], client)
+		if len(h.schoolAccountClients[client.AccountID]) == 0 {
+			delete(h.schoolAccountClients, client.AccountID)
+		}
+	}
+	h.schoolTenantClients[client.TenantID] = removeClient(h.schoolTenantClients[client.TenantID], client)
+	if len(h.schoolTenantClients[client.TenantID]) == 0 {
+		delete(h.schoolTenantClients, client.TenantID)
+	}
+}
+
 // Unregister removes a client from the hub and all group subscriptions
 func (h *Hub) Unregister(client *Client) {
 	h.mu.Lock()
@@ -230,17 +245,7 @@ func (h *Hub) Unregister(client *Client) {
 			delete(h.guardianClients, client.UserID)
 		}
 	case client.IsSchool:
-		// Indexed by account and by school (RegisterSchool).
-		if client.AccountID > 0 {
-			h.schoolAccountClients[client.AccountID] = removeClient(h.schoolAccountClients[client.AccountID], client)
-			if len(h.schoolAccountClients[client.AccountID]) == 0 {
-				delete(h.schoolAccountClients, client.AccountID)
-			}
-		}
-		h.schoolTenantClients[client.TenantID] = removeClient(h.schoolTenantClients[client.TenantID], client)
-		if len(h.schoolTenantClients[client.TenantID]) == 0 {
-			delete(h.schoolTenantClients, client.TenantID)
-		}
+		h.unindexSchool(client)
 	default:
 		h.tenantClients[client.TenantID] = removeClient(h.tenantClients[client.TenantID], client)
 		if len(h.tenantClients[client.TenantID]) == 0 {

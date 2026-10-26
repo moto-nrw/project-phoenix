@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 
@@ -67,50 +67,57 @@ type deliverySchoolClassReach struct {
 	}
 }
 
-func (r deliverySchoolClassReach) StudentClassTeachers(ctx context.Context, studentIDs []int64) (map[int64]deliveryCompose.StudentClassTeachers, error) {
+func (r deliverySchoolClassReach) StudentClassTeachers(ctx context.Context, studentIDs []int64) (map[int64]deliveryContract.StudentClassTeachers, error) {
 	students, err := r.students.FindReadScopeByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
 	classOf := make(map[int64]string, len(students))
-	staffByClass := make(map[string][]int64)
 	for studentID, student := range students {
-		if student == nil {
-			continue
+		if student != nil && strings.TrimSpace(student.SchoolClass) != "" {
+			classOf[studentID] = strings.TrimSpace(student.SchoolClass)
 		}
-		schoolClass := strings.TrimSpace(student.SchoolClass)
-		if schoolClass == "" {
-			continue
-		}
-		classOf[studentID] = schoolClass
+	}
+	accountsByClass, err := r.teacherAccounts(ctx, classOf)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]deliveryContract.StudentClassTeachers, len(classOf))
+	for studentID, schoolClass := range classOf {
+		result[studentID] = deliveryContract.StudentClassTeachers{SchoolClass: schoolClass, AccountIDs: accountsByClass[schoolClass]}
+	}
+	return result, nil
+}
+
+// teacherAccounts maps each distinct class to the accounts of its assigned
+// Lehrkräfte: one assignment read per class (School Membership compares
+// classes trimmed and case-insensitive) and one account read for all.
+func (r deliverySchoolClassReach) teacherAccounts(ctx context.Context, classOf map[int64]string) (map[string][]int64, error) {
+	staffByClass := make(map[string][]int64)
+	for _, schoolClass := range classOf {
 		if _, loaded := staffByClass[schoolClass]; loaded {
 			continue
 		}
-		// School Membership compares classes trimmed and case-insensitive.
 		assignments, err := r.classTeachers.List(ctx, map[string]any{"school_class": schoolClass})
 		if err != nil {
 			return nil, err
 		}
 		staffByClass[schoolClass] = []int64{}
 		for _, assignment := range assignments {
-			if assignment != nil {
-				staffByClass[schoolClass] = append(staffByClass[schoolClass], assignment.StaffID)
-			}
+			staffByClass[schoolClass] = append(staffByClass[schoolClass], assignment.StaffID)
 		}
 	}
 	accountOf, err := r.staff.ListAccountIDsByStaffIDs(ctx, slices.Concat(slices.Collect(maps.Values(staffByClass))...))
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[int64]deliveryCompose.StudentClassTeachers, len(classOf))
-	for studentID, schoolClass := range classOf {
-		accounts := make([]int64, 0, len(staffByClass[schoolClass]))
-		for _, staffID := range staffByClass[schoolClass] {
+	accountsByClass := make(map[string][]int64, len(staffByClass))
+	for schoolClass, staffIDs := range staffByClass {
+		for _, staffID := range staffIDs {
 			if accountID, ok := accountOf[staffID]; ok {
-				accounts = append(accounts, accountID)
+				accountsByClass[schoolClass] = append(accountsByClass[schoolClass], accountID)
 			}
 		}
-		result[studentID] = deliveryCompose.StudentClassTeachers{SchoolClass: schoolClass, AccountIDs: accounts}
 	}
-	return result, nil
+	return accountsByClass, nil
 }

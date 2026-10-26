@@ -69,12 +69,11 @@ func BuildDeliveryNotifications(
 	recipients := deliveryCompose.NewStaffRecipientResolver(preferences, deliveryStudentGroups{students: people.Students},
 		structure.Groups, people.Staff, identity, settings,
 		deliveryOnDutyStaff{presence: workTime})
-	schoolClasses := deliveryCompose.SchoolClassRecipients{
+	schoolClasses := deliveryContract.SchoolClassRecipients{
 		Reach:   deliverySchoolClassReach{students: people.Students, classTeachers: structure.ClassTeachers, staff: people.Staff},
 		Consent: preferences, Subscribers: consent, Accounts: identity, Permissions: securityruntime.HasPermission,
 	}
-	absences, err := deliveryCompose.NewTenantAbsenceNotifier(unit, notifier, recipients, db.Pool(), logger.With("producer", "absence_notifications"),
-		deliveryCompose.WithSchoolClassRecipients(schoolClasses))
+	absences, err := deliveryCompose.NewTenantAbsenceNotifier(unit, notifier, recipients, db.Pool(), logger.With("producer", "absence_notifications"), schoolClasses)
 	if err != nil {
 		return DeliveryNotifications{}, err
 	}
