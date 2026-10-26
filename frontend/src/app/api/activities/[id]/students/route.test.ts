@@ -39,6 +39,18 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+function studentListResponse<T>(data: T[]) {
+  return {
+    data,
+    pagination: {
+      current_page: 1,
+      page_size: 50,
+      total_pages: data.length === 0 ? 0 : 1,
+      total_records: data.length,
+    },
+  };
+}
+
 describe("GET /api/activities/[id]/students", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -82,7 +94,7 @@ describe("GET /api/activities/[id]/students", () => {
 
     mockApiGet
       .mockResolvedValueOnce({ data: mockEnrolled })
-      .mockResolvedValueOnce({ data: mockAllStudents });
+      .mockResolvedValueOnce(studentListResponse(mockAllStudents));
 
     const request = createMockRequest(
       "/api/activities/5/students?available=true",
@@ -120,7 +132,7 @@ describe("GET /api/activities/[id]/students", () => {
 
     mockApiGet
       .mockResolvedValueOnce({ data: mockEnrolled })
-      .mockResolvedValueOnce({ data: mockAllStudents });
+      .mockResolvedValueOnce(studentListResponse(mockAllStudents));
 
     const request = createMockRequest(
       "/api/activities/5/students?available=true&search=Bob",
@@ -196,9 +208,7 @@ describe("GET /api/activities/[id]/students", () => {
 
   it("starts roster and student requests before either response resolves", async () => {
     const enrolled = deferred<{ data: Array<{ id: number }> }>();
-    const students = deferred<{
-      data: Array<{ id: number; first_name: string; last_name: string }>;
-    }>();
+    const students = deferred<ReturnType<typeof studentListResponse>>();
     mockApiGet.mockImplementation((endpoint: string) =>
       endpoint === "/api/activities/5/students"
         ? enrolled.promise
@@ -220,12 +230,12 @@ describe("GET /api/activities/[id]/students", () => {
       });
     } finally {
       enrolled.resolve({ data: [{ id: 1 }] });
-      students.resolve({
-        data: [
+      students.resolve(
+        studentListResponse([
           { id: 1, first_name: "Kind", last_name: "Eins" },
           { id: 2, first_name: "Kind", last_name: "Zwei" },
-        ],
-      });
+        ]),
+      );
       await pendingResponse;
     }
 
@@ -235,6 +245,109 @@ describe("GET /api/activities/[id]/students", () => {
       data: [{ id: "2", name: "Kind Zwei", school_class: "" }],
     });
   });
+
+  it.each([
+    { scenario: "empty intermediate page", pages: [[1], [], [3]], maxCalls: 3 },
+    { scenario: "repeated page contents", pages: [[1], [1], [3]], maxCalls: 3 },
+    {
+      scenario: "repeated page number",
+      pages: [[1], [2], [3]],
+      repeatPage: true,
+      maxCalls: 3,
+    },
+    {
+      scenario: "growing total_pages",
+      pages: [[1], [2], [3]],
+      growPages: true,
+      maxCalls: 3,
+    },
+    {
+      scenario: "empty pages with growing total_pages",
+      pages: [[1], [], []],
+      growPages: true,
+      maxCalls: 3,
+    },
+    {
+      scenario: "changed total_records",
+      pages: [[1], [2], [3]],
+      changeTotal: true,
+    },
+    { scenario: "missing final student", pages: [[1], [2], []] },
+    {
+      scenario: "duplicate IDs within one page",
+      pages: [[1, 1]],
+      pageSize: 2,
+      total: 2,
+      maxCalls: 2,
+    },
+    {
+      scenario: "missing pagination",
+      pages: [[1]],
+      omitPagination: true,
+      maxCalls: 2,
+    },
+    {
+      scenario: "excessive page count",
+      pages: [[1]],
+      total: 1001,
+      maxCalls: 2,
+    },
+  ])(
+    "rejects $scenario instead of returning a partial or duplicated success",
+    async ({
+      pages,
+      repeatPage,
+      growPages,
+      changeTotal,
+      pageSize = 1,
+      total = 3,
+      omitPagination,
+      maxCalls = 4,
+    }) => {
+      mockApiGet.mockImplementation(async (endpoint: string) => {
+        if (endpoint === "/api/activities/5/students") return { data: [] };
+        const page = Number(
+          new URL(endpoint, "http://localhost").searchParams.get("page") ?? 1,
+        );
+        // Bound the broken implementation too, so this regression cannot hang.
+        if (page > 5) throw new Error("Pagination did not terminate");
+        return {
+          data: (pages[page - 1] ?? []).map((id) => ({
+            id,
+            first_name: "Kind",
+            last_name: String(id),
+          })),
+          ...(omitPagination
+            ? {}
+            : {
+                pagination: {
+                  current_page: repeatPage && page === 2 ? 1 : page,
+                  page_size: pageSize,
+                  total_pages: growPages
+                    ? 2 + page
+                    : Math.ceil(total / pageSize),
+                  total_records: changeTotal && page > 1 ? total + 1 : total,
+                },
+              }),
+        };
+      });
+
+      const response = await GET(
+        createMockRequest("/api/activities/5/students?available=true"),
+        createMockContext({ id: "5" }),
+      );
+
+      expect(response.status).toBe(502);
+      expect(response.headers.get("Content-Type")).toBe(
+        "application/problem+json",
+      );
+      expect(await response.json()).toMatchObject({
+        status: 502,
+        code: "general.unavailable",
+      });
+      expect(mockApiGet.mock.calls.length).toBeLessThanOrEqual(maxCalls);
+    },
+  );
 
   it.each(["roster", "first page", "later page"])(
     "forwards a backend failure in the %s without returning a partial list",
@@ -260,8 +373,15 @@ describe("GET /api/activities/[id]/students", () => {
           });
         }
         return {
-          data: [{ id: 1, first_name: "Kind", last_name: "Eins" }],
-          pagination: { total_pages: 2 },
+          data: [
+            { id: isLaterPage ? 2 : 1, first_name: "Kind", last_name: "Eins" },
+          ],
+          pagination: {
+            current_page: isLaterPage ? 2 : 1,
+            page_size: 1,
+            total_pages: 2,
+            total_records: 2,
+          },
         };
       });
 
@@ -286,9 +406,14 @@ describe("GET /api/activities/[id]/students", () => {
   );
 
   it("returns an empty available list when the backend has no matching students", async () => {
-    mockApiGet
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ pagination: { total_pages: 0 } });
+    mockApiGet.mockResolvedValueOnce({ data: [] }).mockResolvedValueOnce({
+      pagination: {
+        current_page: 1,
+        page_size: 50,
+        total_pages: 0,
+        total_records: 0,
+      },
+    });
 
     const response = await GET(
       createMockRequest("/api/activities/5/students?available=true"),

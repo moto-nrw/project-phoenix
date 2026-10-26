@@ -1,6 +1,6 @@
 // app/api/activities/[id]/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiPut } from "~/lib/api-helpers.server";
+import { apiGet, apiPost, apiPut, bffError } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ActivityStudentsRoute" });
@@ -21,22 +21,93 @@ interface StudentListPage {
     last_name: string;
     school_class?: string;
   }>;
-  pagination?: { total_pages: number };
+  pagination?: {
+    current_page: number;
+    page_size: number;
+    total_pages: number;
+    total_records: number;
+  };
+}
+
+// Reject oversized/inconsistent responses, never truncate them into a success.
+const MAX_STUDENT_PAGES = 1_000;
+
+function failStudentPagination(reason: string): never {
+  logger.error("invalid_student_pagination", { reason });
+  throw bffError(502, "Invalid student list pagination", {
+    code: "general.unavailable",
+  });
 }
 
 async function fetchAllStudents(params: URLSearchParams, token: string) {
+  const firstResponse = await apiGet<StudentListPage>(
+    `/api/students?${params.toString()}`,
+    token,
+  );
+  const pagination = firstResponse.pagination;
+  if (!pagination) failStudentPagination("missing pagination");
+  // Freeze the traversal plan; later responses cannot extend the work.
+  const {
+    total_pages: totalPages,
+    total_records: totalRecords,
+    page_size: pageSize,
+  } = pagination;
+  if (
+    !Number.isSafeInteger(totalPages) ||
+    totalPages < 0 ||
+    totalPages > MAX_STUDENT_PAGES ||
+    !Number.isSafeInteger(totalRecords) ||
+    totalRecords < 0 ||
+    !Number.isSafeInteger(pageSize) ||
+    pageSize < 1 ||
+    totalPages !== Math.ceil(totalRecords / pageSize)
+  ) {
+    failStudentPagination("invalid pagination bounds");
+  }
+
   const students: NonNullable<StudentListPage["data"]> = [];
-  let page = 1;
-  let response: StudentListPage;
-  do {
-    if (page > 1) params.set("page", String(page));
-    response = await apiGet<StudentListPage>(
-      `/api/students?${params.toString()}`,
-      token,
+  const seenIds = new Set<number>();
+  for (let page = 1; page <= Math.max(1, totalPages); page++) {
+    let response = firstResponse;
+    if (page > 1) {
+      params.set("page", String(page));
+      response = await apiGet<StudentListPage>(
+        `/api/students?${params.toString()}`,
+        token,
+      );
+    }
+    if (
+      response.pagination?.current_page !== page ||
+      response.pagination.page_size !== pageSize ||
+      response.pagination.total_pages !== totalPages ||
+      response.pagination.total_records !== totalRecords
+    ) {
+      failStudentPagination("page metadata changed");
+    }
+    const data = response.data ?? [];
+    const expectedCount = Math.min(
+      pageSize,
+      totalRecords - (page - 1) * pageSize,
     );
-    students.push(...(response.data ?? []));
-    page++;
-  } while (page <= (response.pagination?.total_pages ?? 1));
+    if (!Array.isArray(data) || data.length !== expectedCount) {
+      failStudentPagination("unexpected page length");
+    }
+    for (const student of data) {
+      if (
+        !student ||
+        !Number.isSafeInteger(student.id) ||
+        student.id < 1 ||
+        seenIds.has(student.id)
+      ) {
+        failStudentPagination("invalid or repeated student ID");
+      }
+      seenIds.add(student.id);
+      students.push(student);
+    }
+  }
+  if (students.length !== totalRecords) {
+    failStudentPagination("student count differs from total_records");
+  }
   return students;
 }
 
