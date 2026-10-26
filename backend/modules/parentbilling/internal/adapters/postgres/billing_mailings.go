@@ -32,7 +32,10 @@ func (r documentMailingRow) mailing() parentbilling.BillingLetterSend {
 	}
 }
 
-// RunMailings reads every send of the letters of a run, oldest first.
+// RunMailings reads every send of the letters of a run in the order they
+// were stored. The ID orders them, not created_at: that is the start of a
+// transaction, and two sends of one letter store one after another under
+// the run lock in whichever order they got it.
 func (s *Store) RunMailings(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingLetterSend, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -40,7 +43,7 @@ func (s *Store) RunMailings(ctx context.Context, organizationID, runID int64) ([
 	}
 	var rows []documentMailingRow
 	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).Where("run_id = ?", runID).
-		OrderExpr("created_at, id").Scan(ctx); err != nil {
+		OrderExpr("id").Scan(ctx); err != nil {
 		return nil, err
 	}
 	mailings := make([]parentbilling.BillingLetterSend, len(rows))

@@ -19,7 +19,8 @@ type MailStore interface {
 	// RunLetterFiles reads the stored letters of a run in the order of
 	// their invoice numbers.
 	RunLetterFiles(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingDocumentLetter, error)
-	// RunMailings reads every send of the letters of a run, oldest first.
+	// RunMailings reads every send of the letters of a run in the order they
+	// were stored under the run lock; the last one is the current send.
 	RunMailings(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingLetterSend, error)
 	InsertMailing(ctx context.Context, organizationID, runID, accountID int64, mailing parentbilling.BillingLetterSend) (parentbilling.BillingLetterSend, error)
 	InsertRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
