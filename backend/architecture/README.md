@@ -57,9 +57,13 @@ records File Storage as the eighteenth domain, and
 records Export Transfer as the tenth platform module, for
 [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), resolved in
 [#3034](https://github.com/moto-nrw/project-phoenix/issues/3034).
+[ADR 0088](../../docs/adr/0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
+adds the Elternabrechnung (`parent-billing`) as the nineteenth domain, built
+first by [ADR 0115](../../docs/adr/0115-ferienbeitrag-entsteht-in-der-elternabrechnung-und-wird-bei-bestaetigung-festgehalten.md)
+in policy epoch 95.
 The canonical owner lists are:
 
-| Domain (18) | Policy owner |
+| Domain (19) | Policy owner |
 |---|---|
 | Identity & Access | `identity-access` |
 | People Directory | `people-directory` |
@@ -79,6 +83,7 @@ The canonical owner lists are:
 | Meal Plan | `meal-plan` |
 | Feedback | `feedback` |
 | File Storage | `file-storage` |
+| Elternabrechnung (Parent Billing, ADR 0088, ADR 0115) | `parent-billing` |
 
 | Platform (10) | Policy owner |
 |---|---|
@@ -5032,7 +5037,7 @@ numbered decision of the principle ADR.
 
 | Rule that holds | Sources | Principle |
 |---|---|---|
-| 18 domain and 10 platform modules, pinned by validation; a change needs its own decision | ADR 0010, ADR 0012 | 0066 point 1 |
+| 19 domain and 10 platform modules, pinned by validation; a change needs its own decision | ADR 0010, ADR 0012, ADR 0088 | 0066 point 1 |
 | A domain owns a business concept, a platform a runtime; File Storage, Document Rendering and Export Transfer boundaries | ADR 0010, ADR 0012 | 0066 point 2 |
 | Projection, workflow, tool, composition, kernel, migration and test-support owners are not modules; no `inbound` kind | ADR 0057 and ADR 0060 addenda | 0066 point 3 |
 | One runtime write owner per table; no invented owner for an obsolete table | this README | 0066 point 4 |

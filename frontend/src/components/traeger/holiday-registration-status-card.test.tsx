@@ -3,13 +3,28 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrations-api";
-import { HOLIDAY_REGISTRATION } from "~/test/fixtures/holiday-registrations";
+import type { HolidayContribution } from "~/lib/traeger-contributions-api";
+import {
+  HOLIDAY_CONTRIBUTION,
+  HOLIDAY_REGISTRATION,
+} from "~/test/fixtures/holiday-registrations";
 
-const { mockChange } = vi.hoisted(() => ({ mockChange: vi.fn() }));
+const { mockChange, mockConfirm } = vi.hoisted(() => ({
+  mockChange: vi.fn(),
+  mockConfirm: vi.fn(),
+}));
 
 vi.mock("~/lib/traeger-holiday-registrations-api", () => ({
   changeHolidayRegistration: (periodId: string, id: string, action: string) =>
     mockChange(periodId, id, action),
+}));
+
+vi.mock("~/lib/traeger-contributions-api", () => ({
+  confirmHolidayRegistration: (
+    periodId: string,
+    id: string,
+    benefitsExemption: boolean,
+  ) => mockConfirm(periodId, id, benefitsExemption),
 }));
 
 import { HolidayRegistrationStatusCard } from "./holiday-registration-status-card";
@@ -17,38 +32,112 @@ import { HolidayRegistrationStatusCard } from "./holiday-registration-status-car
 function renderCard(
   registration: HolidayRegistrationDetail,
   onChanged = vi.fn(),
+  contribution: HolidayContribution = HOLIDAY_CONTRIBUTION,
+  onConfirmed = vi.fn(() => Promise.resolve()),
 ) {
+  const onExemptionChange = vi.fn();
   render(
     <ToastProvider>
       <HolidayRegistrationStatusCard
         periodId="5"
         registration={registration}
+        contribution={contribution}
+        exemption={registration.benefitsDeclared}
+        onExemptionChange={onExemptionChange}
         onChanged={onChanged}
+        onConfirmed={onConfirmed}
       />
     </ToastProvider>,
   );
-  return onChanged;
+  return { onChanged, onConfirmed, onExemptionChange };
 }
 
 describe("HolidayRegistrationStatusCard", () => {
   beforeEach(() => {
     mockChange.mockReset();
+    mockConfirm.mockReset();
   });
 
-  it("confirms a received registration and says parents get no message yet", async () => {
-    const confirmed = { ...HOLIDAY_REGISTRATION, status: "confirmed" as const };
-    mockChange.mockResolvedValue(confirmed);
-    const onChanged = renderCard(HOLIDAY_REGISTRATION);
+  it("confirms a received registration through the contribution and says parents get no message yet", async () => {
+    mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+    const { onConfirmed, onExemptionChange } = renderCard(HOLIDAY_REGISTRATION);
 
     expect(
       screen.getByText(
         "Eltern bekommen beim Bestätigen noch keine Nachricht von moto.",
       ),
     ).toBeInTheDocument();
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Beim Bestätigen von der Zahlung befreien (Leistungsbezug)",
+    });
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+    expect(onExemptionChange).toHaveBeenCalledWith(true);
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
-    await waitFor(() => expect(onChanged).toHaveBeenCalledWith(confirmed));
-    expect(mockChange).toHaveBeenCalledWith("5", "7", "confirm");
+    await waitFor(() => expect(onConfirmed).toHaveBeenCalled());
+    expect(mockConfirm).toHaveBeenCalledWith("5", "7", false);
+    expect(mockChange).not.toHaveBeenCalled();
+  });
+
+  it("offers the exemption the parents stated and confirms with it", async () => {
+    mockConfirm.mockResolvedValue({ ...HOLIDAY_CONTRIBUTION, frozen: true });
+    renderCard({ ...HOLIDAY_REGISTRATION, benefitsDeclared: true });
+
+    expect(
+      screen.getByText(
+        "Die Eltern geben an, dass sie Leistungen beziehen. Bitte prüfen Sie den Nachweis.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Beim Bestätigen von der Zahlung befreien (Leistungsbezug)",
+      }),
+    ).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+    await waitFor(() =>
+      expect(mockConfirm).toHaveBeenCalledWith("5", "7", true),
+    );
+  });
+
+  it("waits with the confirmation until the preview is computed again", () => {
+    render(
+      <ToastProvider>
+        <HolidayRegistrationStatusCard
+          periodId="5"
+          registration={HOLIDAY_REGISTRATION}
+          contribution={HOLIDAY_CONTRIBUTION}
+          previewPending
+          exemption
+          onExemptionChange={vi.fn()}
+          onChanged={vi.fn()}
+          onConfirmed={vi.fn(() => Promise.resolve())}
+        />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeDisabled();
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Beim Bestätigen von der Zahlung befreien (Leistungsbezug)",
+      }),
+    ).toBeChecked();
+  });
+
+  it("names the missing rule when the parents state benefits", () => {
+    renderCard({ ...HOLIDAY_REGISTRATION, benefitsDeclared: true }, vi.fn(), {
+      ...HOLIDAY_CONTRIBUTION,
+      exemptionAvailable: false,
+    });
+
+    expect(
+      screen.getByText(
+        "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Beiträge“.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeEnabled();
+    expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
   it("cancels only after the confirmation", async () => {
@@ -104,7 +193,7 @@ describe("HolidayRegistrationStatusCard", () => {
   });
 
   it("shows a refused change as an error message", async () => {
-    mockChange.mockImplementation(() =>
+    mockConfirm.mockImplementation(() =>
       Promise.reject(
         new ApiError("frozen", 409, {
           code: "enrollment.holiday_registration_frozen",

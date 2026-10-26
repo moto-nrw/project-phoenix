@@ -22,6 +22,8 @@ import (
 	"github.com/uptrace/bun"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -57,7 +59,8 @@ func traegerPortalOn(t *testing.T, db *bun.DB, unit tenant.UnitOfWork) (*traeger
 	return &traegerPortalHandler{Handler: traegerPortalRouter(t, db, auth.Auth, unit), mail: mail}, auth.Auth
 }
 
-// traegerPortalRouter builds the /traeger router over identity.
+// traegerPortalRouter builds the /traeger router over identity, with the
+// Elternabrechnung's routes the serving root mounts beside it (#4664).
 func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork) http.Handler {
 	t.Helper()
 	database := testpkg.NewDatabase(t, db)
@@ -79,6 +82,11 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 		})
 	})
 	router.Mount("/traeger", portal.RouterWithAuthRateLimiter(nil, ProtectedTraegerRoutes))
+	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
+		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
+	})
+	require.NoError(t, err)
+	mountParentBillingRoutes(router, organizations, delivery.Module, slog.Default())
 	return testpkg.SessionVerifier(router)
 }
 

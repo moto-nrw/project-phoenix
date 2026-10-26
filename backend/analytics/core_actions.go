@@ -586,7 +586,6 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}:          notCaptured,
 	// The review of the holiday registrations (#4663) belongs to the
 	// Träger, not to a school: no school to count it for.
-	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/confirm"}:                    notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/cancel"}:                     notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/freeze"}:                     notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/reopen"}:                     notCaptured,
@@ -603,6 +602,14 @@ var coreActions = map[RouteKey]CoreAction{
 	// The public holiday registration of a Träger (#4661) has no session
 	// and no school, so no collection policy admits it yet.
 	{http.MethodPost, "/traeger/holiday-registrations/{token}"}: notCaptured,
+	// The Elternabrechnung (#4664, ADR 0115) belongs to the Träger: its
+	// rules, the confirmation that freezes a contribution and the public
+	// contribution of the form have no school to count them for.
+	{http.MethodPost, "/traeger/contribution-rules/"}:                                                     notCaptured,
+	{http.MethodPut, "/traeger/contribution-rules/{id}"}:                                                  notCaptured,
+	{http.MethodDelete, "/traeger/contribution-rules/{id}"}:                                               notCaptured,
+	{http.MethodPost, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm"}: notCaptured,
+	{http.MethodPost, "/traeger/holiday-quotes/{token}"}:                                                  notCaptured,
 
 	// School portal (Lehrkräfte).
 	{http.MethodPost, "/school/auth/login"}:                                                      session("login_success"),

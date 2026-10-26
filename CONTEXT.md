@@ -1042,12 +1042,13 @@ Ein **Fachmodul** ist der Teil des Backends, der einen fachlichen Begriff von
 moto mit seinen Regeln und Daten besitzt. Ein **Plattformmodul** stellt eine
 gemeinsame Laufzeit bereit, etwa Mandanten, Transaktionen, Sicherheit oder
 Zustellung, und besitzt nicht die fachliche Bedeutung dessen, was es
-transportiert. moto hat 18 Fachmodule und 10 Plattformmodule:
+transportiert. moto hat 19 Fachmodule und 10 Plattformmodule:
 
 - Fachmodule: Identity & Access, People Directory, School Membership,
   Organisation & Tenancy, School Structure, School Calendar, Facilities,
   Enrollment, Care Plan, Timetable & Activities, Student Presence, Workforce,
-  Appointments, Communication, Device Fleet, Meal Plan, Feedback, File Storage.
+  Appointments, Communication, Device Fleet, Meal Plan, Feedback, File Storage,
+  Elternabrechnung (ADR 0088).
 - Plattformmodule: Tenant Runtime, Transaction Runtime, Security Runtime,
   Settings Platform, Delivery Platform, Observability, Audit Platform,
   Scheduler Runtime, Document Rendering, Export Transfer.

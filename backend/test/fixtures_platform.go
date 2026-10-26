@@ -220,6 +220,17 @@ func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
 	})
 }
 
+// OwnTraegerContributionRules removes the contribution rules a test creates
+// for the Träger (#4664) when the test ends. The frozen contributions go with
+// the children of their registrations.
+func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM parent_billing.contribution_rules WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test contribution rules")
+	})
+}
+
 // OwnTraegerMasterData removes the master data a test creates for the Träger
 // (#4653) when the test ends: profile, bank accounts and their log. The rows
 // carry no tenant, so they need their own exact-key teardown like the

@@ -50,8 +50,9 @@ type HolidayRegistrationSchool struct {
 	Name string `json:"name"`
 }
 
-// HolidayRegistrationTimeModel is a bookable care time of a week. The price
-// stays with the Träger: the contribution follows with #4664.
+// HolidayRegistrationTimeModel is a bookable care time of a week. Its price
+// reaches the parents only as part of the contribution the Elternabrechnung
+// computes for the summary (#4664).
 type HolidayRegistrationTimeModel struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`
@@ -124,6 +125,7 @@ type HolidayRegistrationRequest struct {
 	PrivacyConsent    bool                    `json:"privacy_consent"`
 	HealthConsent     bool                    `json:"health_consent"`
 	BindingConfirmed  bool                    `json:"binding_confirmed"`
+	BenefitsDeclared  bool                    `json:"benefits_declared"`
 	CaptchaToken      string                  `json:"captcha_token"`
 }
 
@@ -149,6 +151,7 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 		EmergencyContacts: holidayContacts(req.EmergencyContacts),
 		PickupPersons:     holidayContacts(req.PickupPersons),
 		PrivacyConsent:    req.PrivacyConsent, HealthConsent: req.HealthConsent, BindingConfirmed: req.BindingConfirmed,
+		BenefitsDeclared: req.BenefitsDeclared,
 	}
 }
 
