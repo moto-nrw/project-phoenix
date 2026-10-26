@@ -193,10 +193,16 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
     {
       key: "filename",
       header: "Dokument",
+      // Die Spalte nimmt den freien Platz und kürzt einen langen Namen,
+      // statt die Tabelle über die Karte hinaus zu verbreitern (#4975).
+      className: "w-full max-w-0",
       render: (doc) => (
         <span className="flex min-w-0 items-center gap-2">
           {documentIcon(doc.contentType)}
-          <span className="truncate text-sm font-medium text-gray-900">
+          <span
+            title={doc.filename}
+            className="truncate text-sm font-medium text-gray-900"
+          >
             {doc.filename}
           </span>
         </span>
@@ -217,6 +223,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
     {
       key: "size",
       header: "Größe",
+      className: "whitespace-nowrap",
       render: (doc) => (
         <span className="text-xs text-gray-500">
           {formatFileSize(doc.sizeBytes)}
@@ -227,6 +234,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
     {
       key: "uploaded",
       header: "Hochgeladen",
+      className: "whitespace-nowrap",
       render: (doc) => (
         <span className="text-xs text-gray-500">
           {formatDate(doc.uploadedAt)}

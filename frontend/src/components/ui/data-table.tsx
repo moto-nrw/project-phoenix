@@ -17,6 +17,8 @@ import { Skeleton } from "~/components/ui/skeleton";
 type SortDirection = "asc" | "desc";
 
 export interface DataTableColumn<T> {
+  // The key "actions" marks the row-action column (the row's OverflowMenu).
+  // It stays pinned to the right edge of the table, see PINNED_COLUMN_KEY.
   key: string;
   header: string;
   render: (row: T) => ReactNode;
@@ -140,6 +142,21 @@ const headRowClass =
 const headCellClass =
   "px-5 py-3 font-medium max-sm:px-3 compact:px-4 compact:py-2";
 const bodyRowClass = "border-b border-gray-50 last:border-0";
+
+// The row-action column stays at the right edge of the surface while wider
+// columns scroll beneath it (#4975): on a tablet or phone the menu with
+// „Herunterladen“ or „Löschen“ must not hide behind a sideways scroll. When
+// the table fits, sticky changes nothing. The cell needs its own background,
+// which follows the row's hover and selection.
+const PINNED_COLUMN_KEY = "actions";
+const pinnedCellClass = "sticky right-0";
+
+function pinnedBodyCellClass(selected: boolean, clickable: boolean): string {
+  if (selected) return `${pinnedCellClass} bg-gray-50`;
+  return clickable
+    ? `${pinnedCellClass} bg-white transition-colors group-hover:bg-gray-50`
+    : `${pinnedCellClass} bg-white`;
+}
 const bodyCellClass =
   "px-5 py-3 align-middle max-sm:px-3 compact:px-4 compact:py-2";
 
@@ -682,12 +699,16 @@ export function DataTable<T>({
                   const align = alignClass[col.align ?? "left"];
                   const sortable = Boolean(col.sortValue);
                   const active = sort?.key === col.key;
+                  const pinned =
+                    col.key === PINNED_COLUMN_KEY
+                      ? `${pinnedCellClass} bg-white`
+                      : "";
                   if (!sortable) {
                     return (
                       <th
                         key={col.key}
                         scope="col"
-                        className={`${headCellClass} ${align} ${col.headerClassName ?? ""}`}
+                        className={`${headCellClass} ${align} ${pinned} ${col.headerClassName ?? ""}`}
                       >
                         {col.header}
                       </th>
@@ -721,7 +742,7 @@ export function DataTable<T>({
                       key={col.key}
                       scope="col"
                       aria-sort={ariaSort}
-                      className={`${headCellClass} ${align} ${col.headerClassName ?? ""}`}
+                      className={`${headCellClass} ${align} ${pinned} ${col.headerClassName ?? ""}`}
                     >
                       <button
                         type="button"
@@ -764,7 +785,7 @@ export function DataTable<T>({
                     selection?.selectedKeys.has(String(rowKey)) ?? false;
                   const rowClasses = [
                     `${bodyRowClass} transition-colors`,
-                    clickable ? "cursor-pointer hover:bg-gray-50" : "",
+                    clickable ? "group cursor-pointer hover:bg-gray-50" : "",
                     selected ? "bg-gray-50" : "",
                     rowClassName ? rowClassName(row) : "",
                   ]
@@ -814,10 +835,14 @@ export function DataTable<T>({
                       ) : null}
                       {shownColumns.map((col) => {
                         const align = alignClass[col.align ?? "left"];
+                        const pinned =
+                          col.key === PINNED_COLUMN_KEY
+                            ? pinnedBodyCellClass(selected, clickable)
+                            : "";
                         return (
                           <td
                             key={col.key}
-                            className={`${bodyCellClass} text-gray-900 ${align} ${col.className ?? ""}`}
+                            className={`${bodyCellClass} text-gray-900 ${align} ${pinned} ${col.className ?? ""}`}
                           >
                             {col.render(row)}
                           </td>
