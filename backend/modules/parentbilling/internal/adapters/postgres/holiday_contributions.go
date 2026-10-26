@@ -45,6 +45,14 @@ type holidayContributionLineRow struct {
 	Note                  string         `bun:"note"`
 }
 
+func (l holidayContributionLineRow) line() parentbilling.HolidayContributionLine {
+	return parentbilling.HolidayContributionLine{
+		Kind: l.Kind, AmountCents: l.AmountCents, WeekStartsOn: l.WeekStartsOn, WeekEndsOn: l.WeekEndsOn,
+		TimeModelName: l.TimeModelName, ChildRank: l.ChildRank, DiscountBasisPoints: l.DiscountBasisPoints,
+		DiscountCents: l.DiscountCents, Note: l.Note,
+	}
+}
+
 // HolidayContributions reads the frozen contributions of a registration
 // with their lines, the children in the order of the form.
 func (s *Store) HolidayContributions(ctx context.Context, organizationID, registrationID int64) (parentbilling.HolidayContribution, bool, error) {
@@ -61,25 +69,15 @@ func (s *Store) HolidayContributions(ctx context.Context, organizationID, regist
 	if len(rows) == 0 {
 		return parentbilling.HolidayContribution{}, false, nil
 	}
-	ids := make([]int64, len(rows))
-	for i, row := range rows {
-		ids[i] = row.ID
-	}
-	var lines []holidayContributionLineRow
-	if err := db.NewSelect().Model(&lines).
-		Where("organization_id = ?", organizationID).Where("holiday_contribution_id IN (?)", bun.List(ids)).
-		OrderExpr("holiday_contribution_id, position").Scan(ctx); err != nil {
+	byContribution, err := contributionLines(ctx, db, organizationID, rows)
+	if err != nil {
 		return parentbilling.HolidayContribution{}, false, err
 	}
-	byContribution := map[int64][]parentbilling.HolidayContributionLine{}
 	exemption := false
-	for _, line := range lines {
-		exemption = exemption || line.Kind == parentbilling.LineBenefitsExemption
-		byContribution[line.HolidayContributionID] = append(byContribution[line.HolidayContributionID], parentbilling.HolidayContributionLine{
-			Kind: line.Kind, AmountCents: line.AmountCents, WeekStartsOn: line.WeekStartsOn, WeekEndsOn: line.WeekEndsOn,
-			TimeModelName: line.TimeModelName, ChildRank: line.ChildRank, DiscountBasisPoints: line.DiscountBasisPoints,
-			DiscountCents: line.DiscountCents, Note: line.Note,
-		})
+	for _, lines := range byContribution {
+		for _, line := range lines {
+			exemption = exemption || line.Kind == parentbilling.LineBenefitsExemption
+		}
 	}
 	confirmedAt := rows[0].ConfirmedAt
 	contribution := parentbilling.HolidayContribution{

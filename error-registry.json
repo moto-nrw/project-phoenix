@@ -4832,6 +4832,66 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "work_session_overlap"
+    },
+    {
+      "code": "parent_billing.billing_correction_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.billing_correction_invalid"
+    },
+    {
+      "code": "parent_billing.billing_family_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_family_not_found"
+    },
+    {
+      "code": "parent_billing.billing_run_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_changed"
+    },
+    {
+      "code": "parent_billing.billing_run_empty",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_empty"
+    },
+    {
+      "code": "parent_billing.billing_run_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_not_found"
+    },
+    {
+      "code": "parent_billing.billing_run_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_open"
+    },
+    {
+      "code": "parent_billing.billing_run_released",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_released"
+    },
+    {
+      "code": "parent_billing.invoice_number_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.invoice_number_taken"
+    },
+    {
+      "code": "parent_billing.number_range_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.number_range_invalid"
+    },
+    {
+      "code": "parent_billing.number_range_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.number_range_missing"
     }
   ]
 }

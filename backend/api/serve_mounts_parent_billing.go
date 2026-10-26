@@ -23,12 +23,27 @@ import (
 // behind the right "Abrechnung", the contribution and confirmation of a
 // holiday registration at /traeger/holiday-contributions behind the right
 // "Anmeldung verwalten", and the public contribution of the registration
-// form at /traeger/holiday-quotes.
+// form at /traeger/holiday-quotes, and the billing runs and number ranges
+// at /traeger/billing-runs and /traeger/number-ranges behind the right
+// "Abrechnung" (#4668, ADR 0119).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, delivery deliveryRuntime.Capability, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, delivery, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
+	runs := NewBillingRunHTTP()
+	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
+}
+
+// NewBillingRunHTTP binds the billing runs to the right "Abrechnung" and to
+// Enrollment's holiday periods and the review of their registrations.
+func NewBillingRunHTTP() *parentBillingHTTP.BillingRunResource {
+	registrations := parentBillingBillingRegistrations{
+		periods: enrollmentCompose.NewHolidayPeriods(), review: enrollmentCompose.NewHolidayRegistrationReview(),
+	}
+	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations),
+		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
 // NewParentBillingHTTP binds the Elternabrechnung's routes to the Träger
@@ -94,6 +109,52 @@ func (b parentBillingHolidayRegistrations) ConfirmHolidayRegistration(ctx contex
 		return parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)
 	}
 	return parentBillingRegistration(detail), nil
+}
+
+// parentBillingBillingRegistrations binds the billing run's port to
+// Enrollment: the period of the session's Träger and its confirmed
+// registrations through the review, which records the read in the period's
+// audit trail (ADR 0114).
+type parentBillingBillingRegistrations struct {
+	periods enrollmentOwner.HolidayPeriods
+	review  enrollmentOwner.HolidayRegistrationReview
+}
+
+func (b parentBillingBillingRegistrations) HolidayBillingPeriod(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) (parentbilling.HolidayBillingPeriod, error) {
+	period, err := b.periods.HolidayPeriod(ctx, reviewer.OrganizationID, periodID)
+	if err != nil {
+		return parentbilling.HolidayBillingPeriod{}, parentBillingHolidayError(err)
+	}
+	billing := parentbilling.HolidayBillingPeriod{ID: period.ID, Name: period.Name}
+	for _, week := range period.Weeks {
+		if billing.StartsOn.IsZero() || week.StartsOn.Before(billing.StartsOn) {
+			billing.StartsOn = week.StartsOn
+		}
+		if billing.EndsOn.IsZero() || week.EndsOn.After(billing.EndsOn) {
+			billing.EndsOn = week.EndsOn
+		}
+	}
+	return billing, nil
+}
+
+func (b parentBillingBillingRegistrations) ConfirmedHolidayRegistrations(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) ([]parentbilling.HolidayBillingRegistration, error) {
+	list, err := b.review.ListHolidayRegistrations(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID,
+		enrollmentOwner.HolidayRegistrationFilter{Status: enrollmentOwner.HolidayRegistrationConfirmed})
+	if err != nil {
+		return nil, parentBillingHolidayError(err)
+	}
+	registrations := make([]parentbilling.HolidayBillingRegistration, len(list.Registrations))
+	for i, registration := range list.Registrations {
+		children := make([]parentbilling.HolidayBillingChild, len(registration.Children))
+		for j, child := range registration.Children {
+			children[j] = parentbilling.HolidayBillingChild{ID: child.ID, FirstName: child.FirstName, LastName: child.LastName}
+		}
+		registrations[i] = parentbilling.HolidayBillingRegistration{
+			ID: registration.ID, GuardianFirstName: registration.GuardianFirstName, GuardianLastName: registration.GuardianLastName,
+			GuardianEmail: registration.GuardianEmail, Children: children,
+		}
+	}
+	return registrations, nil
 }
 
 func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail) parentbilling.HolidayRegistration {
