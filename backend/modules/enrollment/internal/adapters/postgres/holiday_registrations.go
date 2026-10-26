@@ -202,27 +202,79 @@ func insertHolidayContacts(ctx context.Context, db bun.IDB, organizationID, regi
 }
 
 const (
-	deleteEndedHolidayRegistrationsQuery = `DELETE FROM enrollment.holiday_registrations
-		WHERE holiday_period_id IN (
-			SELECT week.holiday_period_id FROM enrollment.holiday_period_weeks AS week
-			GROUP BY week.holiday_period_id
-			HAVING max(week.ends_on) < ?)`
-	// deleteEndedHolidayAuditQuery deletes the audit trail of the ended
-	// periods: the entries of a list or an export, which name no
-	// registration, and with them those of the deleted registrations (#4663).
-	deleteEndedHolidayAuditQuery = `DELETE FROM enrollment.holiday_registration_audit
-		WHERE holiday_period_id IN (
-			SELECT week.holiday_period_id FROM enrollment.holiday_period_weeks AS week
-			GROUP BY week.holiday_period_id
-			HAVING max(week.ends_on) < ?)`
+	// deleteEndedHolidayRegistrationsQuery deletes, in one statement, the
+	// registrations of every period whose last week ended before the cutoff
+	// with their children, contacts and bookings (cascade), and the audit
+	// trail of those periods: the entries of a list or an export, which name
+	// no registration, and with them those of the deleted registrations
+	// (#4663). The same statement writes one row per period into the deletion
+	// log with the counts of what went (#4667, ADR 0118). All parts read the
+	// same snapshot, so the counted children are the ones the cascade
+	// deletes. A period with nothing left to delete writes no row.
+	deleteEndedHolidayRegistrationsQuery = `WITH ended AS (
+			SELECT week.organization_id, week.holiday_period_id, max(week.ends_on) AS ended_on
+			FROM enrollment.holiday_period_weeks AS week
+			GROUP BY week.organization_id, week.holiday_period_id
+			HAVING max(week.ends_on) < ?
+		), registrations AS (
+			DELETE FROM enrollment.holiday_registrations AS registration
+			USING ended
+			WHERE registration.organization_id = ended.organization_id
+				AND registration.holiday_period_id = ended.holiday_period_id
+			RETURNING registration.organization_id, registration.holiday_period_id, registration.id
+		), audit AS (
+			DELETE FROM enrollment.holiday_registration_audit AS entry
+			USING ended
+			WHERE entry.organization_id = ended.organization_id
+				AND entry.holiday_period_id = ended.holiday_period_id
+			RETURNING entry.organization_id, entry.holiday_period_id
+		), counts AS (
+			SELECT ended.organization_id, ended.holiday_period_id, ended.ended_on,
+				(SELECT count(*) FROM registrations
+					WHERE registrations.organization_id = ended.organization_id
+						AND registrations.holiday_period_id = ended.holiday_period_id) AS registrations,
+				(SELECT count(*) FROM enrollment.holiday_registration_children AS child
+					JOIN registrations ON registrations.organization_id = child.organization_id
+						AND registrations.id = child.holiday_registration_id
+					WHERE registrations.organization_id = ended.organization_id
+						AND registrations.holiday_period_id = ended.holiday_period_id) AS children,
+				(SELECT count(*) FROM audit
+					WHERE audit.organization_id = ended.organization_id
+						AND audit.holiday_period_id = ended.holiday_period_id) AS audit_entries
+			FROM ended
+		)
+		INSERT INTO enrollment.holiday_registration_deletions
+			(organization_id, holiday_period_id, period_ended_on, registrations, children, audit_entries)
+		SELECT organization_id, holiday_period_id, ended_on, registrations, children, audit_entries
+		FROM counts
+		WHERE registrations + audit_entries > 0
+		RETURNING id, organization_id, holiday_period_id, period_ended_on, registrations, children, audit_entries, deleted_at`
 	deleteAllExpiredHolidayRateLimitsQuery = `DELETE FROM enrollment.holiday_registration_rate_limits
 		WHERE window_start < statement_timestamp() - INTERVAL '24 hours'`
+	deleteExpiredHolidayRegistrationDeletionsQuery = `DELETE FROM enrollment.holiday_registration_deletions
+		WHERE deleted_at < statement_timestamp() - make_interval(years => ?)`
 )
+
+// holidayRegistrationDeletionRow is one row of the deletion log: the counts
+// of what the retention deleted for one period, no names (ADR 0118).
+type holidayRegistrationDeletionRow struct {
+	bun.BaseModel `bun:"table:enrollment.holiday_registration_deletions"`
+
+	ID              int64         `bun:"id,pk,autoincrement"`
+	OrganizationID  int64         `bun:"organization_id"`
+	HolidayPeriodID int64         `bun:"holiday_period_id"`
+	PeriodEndedOn   calendar.Date `bun:"period_ended_on,type:date"`
+	Registrations   int           `bun:"registrations"`
+	Children        int           `bun:"children"`
+	AuditEntries    int           `bun:"audit_entries"`
+	DeletedAt       time.Time     `bun:"deleted_at"`
+}
 
 // DeleteHolidayRegistrationsEndedBefore deletes, across every Träger, the
 // registrations and the audit trail of the periods whose last week ended
-// before cutoff and the expired abuse counters. Only the administrative transaction of the hourly
-// cleanup may delete across Träger.
+// before cutoff, logs each period in the deletion log of its Träger, and
+// deletes the expired abuse counters. Only the administrative transaction of
+// the hourly cleanup may delete across Träger.
 func (s *HolidayRegistrationStore) DeleteHolidayRegistrationsEndedBefore(ctx context.Context, cutoff calendar.Date) (int, error) {
 	if !tenant.IsAdminTx(ctx) {
 		return 0, errors.New("enrollment postgres: the holiday registration retention requires the administrative transaction")
@@ -231,19 +283,37 @@ func (s *HolidayRegistrationStore) DeleteHolidayRegistrationsEndedBefore(ctx con
 	if err != nil {
 		return 0, err
 	}
-	registrations, err := affectedRows(db.NewRaw(deleteEndedHolidayRegistrationsQuery, cutoff).Exec(ctx))
-	if err != nil {
+	var logged []holidayRegistrationDeletionRow
+	if err := db.NewRaw(deleteEndedHolidayRegistrationsQuery, cutoff).Scan(ctx, &logged); err != nil {
 		return 0, fmt.Errorf("enrollment postgres: delete ended holiday registrations: %w", err)
 	}
-	audit, err := affectedRows(db.NewRaw(deleteEndedHolidayAuditQuery, cutoff).Exec(ctx))
-	if err != nil {
-		return 0, fmt.Errorf("enrollment postgres: delete ended holiday registration audit: %w", err)
+	deleted := 0
+	for _, period := range logged {
+		deleted += period.Registrations + period.AuditEntries
 	}
 	counters, err := affectedRows(db.NewRaw(deleteAllExpiredHolidayRateLimitsQuery).Exec(ctx))
 	if err != nil {
 		return 0, fmt.Errorf("enrollment postgres: delete expired holiday registration counters: %w", err)
 	}
-	return registrations + audit + counters, nil
+	return deleted + counters, nil
+}
+
+// DeleteExpiredHolidayRegistrationDeletions deletes, across every Träger,
+// the rows of the deletion log older than years. Only the administrative
+// transaction of the hourly cleanup may delete across Träger.
+func (s *HolidayRegistrationStore) DeleteExpiredHolidayRegistrationDeletions(ctx context.Context, years int) (int, error) {
+	if !tenant.IsAdminTx(ctx) {
+		return 0, errors.New("enrollment postgres: the holiday registration deletion log retention requires the administrative transaction")
+	}
+	db, err := NewDatabase()(ctx)
+	if err != nil {
+		return 0, err
+	}
+	deleted, err := affectedRows(db.NewRaw(deleteExpiredHolidayRegistrationDeletionsQuery, years).Exec(ctx))
+	if err != nil {
+		return 0, fmt.Errorf("enrollment postgres: delete expired holiday registration deletion log: %w", err)
+	}
+	return deleted, nil
 }
 
 func affectedRows(result sql.Result, err error) (int, error) {
