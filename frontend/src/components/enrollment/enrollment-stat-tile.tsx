@@ -15,9 +15,15 @@ export function EnrollmentStatTile({
   value,
   icon: Icon,
   leading,
+  detail,
 }: Readonly<{
   label: string;
   value: ReactNode;
+  /**
+   * Zweite Zahl hinter dem Wert, etwa die freien Plätze. Sie bricht in einer
+   * schmalen Kachel um, statt über den Rand hinauszulaufen.
+   */
+  detail?: ReactNode;
   icon?: LucideIcon;
   /** Fertiges Symbol für Icon-Systeme ohne Lucide (MotoConceptIcon). */
   leading?: ReactNode;
@@ -31,8 +37,18 @@ export function EnrollmentStatTile({
           </span>
         ) : null}
         <span className="min-w-0">
-          <span className="block text-lg leading-none font-semibold text-gray-900">
+          <span
+            className={`block text-lg font-semibold text-gray-900 ${
+              detail ? "leading-tight" : "leading-none"
+            }`}
+          >
             {value}
+            {detail ? (
+              <span className="text-sm font-normal text-gray-500">
+                {" "}
+                · {detail}
+              </span>
+            ) : null}
           </span>
           <span className="mt-1 block truncate text-xs font-medium text-gray-500">
             {label}
