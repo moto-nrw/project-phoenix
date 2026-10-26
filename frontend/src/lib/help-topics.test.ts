@@ -561,7 +561,8 @@ describe("getParentHelpTopicForPath", () => {
     // 90 seit #4894: Welche Module hat meine Schule?
     // 92 seit #4781: Umfrage mit Fragebogen und das geteilte Teilnehmen.
     // 93 seit #4804 („Hinweise zu Pausen und Höchstarbeitszeit“).
-    expect(leadTopics).toHaveLength(93);
+    // 94 seit #4665: Die Kinder einer Ferienwoche ansehen.
+    expect(leadTopics).toHaveLength(94);
     expect(
       leadTopics.every(
         (topic) =>

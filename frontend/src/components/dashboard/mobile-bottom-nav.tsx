@@ -512,6 +512,12 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     requiresAllPermissions: ["config:read", "users:read"],
   },
   {
+    ...STAFF_FLAT_PAGES.holidayWeeks,
+    iconKey: "calendar",
+    concept: "holidayWeeks",
+    requiresPermission: "config:read",
+  },
+  {
     // Dateiablage (#2596): jeder mit Tenant-Zugang; welche Ordner sichtbar
     // sind, entscheidet das Backend pro Ordner.
     ...STAFF_FLAT_PAGES.dateien,

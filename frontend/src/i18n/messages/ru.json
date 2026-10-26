@@ -2679,7 +2679,8 @@
         "holiday_registration_invalid": "Пожалуйста, проверьте отмеченные поля.",
         "holiday_registration_not_found": "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
         "holiday_registration_state_conflict": "Не удалось изменить: {object}. Проверьте текущее состояние.",
-        "holiday_week_booked": "Не удалось изменить: {object}. Проверьте текущее состояние."
+        "holiday_week_booked": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "hosted_holiday_week_not_found": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },
       "files": {
         "announcement_published": "Не удалось изменить: {object}. Проверьте текущее состояние.",

@@ -2679,7 +2679,8 @@
         "holiday_registration_invalid": "Bitte prüfen Sie die markierten Felder.",
         "holiday_registration_not_found": "Diesen Anmeldelink gibt es nicht. Bitte nutzen Sie den Link, den Sie vom Träger bekommen haben.",
         "holiday_registration_state_conflict": "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
-        "holiday_week_booked": "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen."
+        "holiday_week_booked": "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
+        "hosted_holiday_week_not_found": "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da."
       },
       "files": {
         "announcement_published": "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",

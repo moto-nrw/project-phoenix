@@ -124,6 +124,7 @@ export const PAGE_MODULES: Readonly<Record<string, ModuleScope>> = {
   "/database/exports": BASIS,
   "/day-log": BASIS,
   "/statistics": BASIS,
+  "/ferienwochen": BASIS,
   "/dateien": BASIS,
   "/info-displays": BASIS,
 

@@ -309,6 +309,9 @@ export const STAFF_FLAT_PAGES = {
   dayLog: { href: "/day-log", label: "Tagesauswertung" },
   // Statistik (#2606): Quoten je Kind, Gruppe und Zeitraum plus Raumauslastung.
   statistics: { href: "/statistics", label: "Statistik" },
+  // Ferienwochen (#4665): die bestätigten Kinder der Wochen, die die OGS für
+  // ihren Träger ausrichtet, nur bis zum Ende der Woche.
+  holidayWeeks: { href: "/ferienwochen", label: "Ferienwochen" },
   emergency: { href: "/emergency", label: "Notfall" },
   help: { href: "/help", label: "Hilfe" },
   settings: { href: "/settings", label: "Einstellungen" },
