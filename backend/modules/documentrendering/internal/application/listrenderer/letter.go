@@ -48,6 +48,7 @@ const (
 	letterParagraph   = 9.0  // space after a paragraph
 	letterFactGap     = 3.0  // space before a table
 	letterHeadGap     = 12.0 // least space between the head and the subject
+	letterFactsGap    = 10.0 // least space between the letterhead and the facts
 )
 
 type letterLayout struct {
@@ -61,10 +62,16 @@ type letterLayout struct {
 	// headBottom is the lowest line of the head; a long block of facts
 	// pushes the subject down instead of running into it.
 	headBottom float64
-	page       int
-	total      int
-	draw       bool
-	trace      []string
+	// senderBottom is the line below the letterhead; the facts start
+	// beneath it when the letterhead runs long.
+	senderBottom float64
+	// footerLines are the footer wrapped to the page width: a long line,
+	// such as the bank account, wraps instead of losing its end.
+	footerLines []string
+	page        int
+	total       int
+	draw        bool
+	trace       []string
 }
 
 // renderLetterPDF renders one letter.
@@ -155,7 +162,10 @@ func imageSize(data []byte) (float64, float64, bool) {
 }
 
 func (l *letterLayout) run() error {
-	l.page, l.headBottom = 0, 0
+	l.page, l.headBottom, l.senderBottom = 0, 0, 0
+	if err := l.wrapFooter(); err != nil {
+		return err
+	}
 	if err := l.newPage(); err != nil {
 		return err
 	}
@@ -209,8 +219,20 @@ func (l *letterLayout) contentWidth() float64 {
 	return l.w - letterMarginLeft - letterMarginRight
 }
 
+// wrapFooter breaks the footer lines to the width of the page.
+func (l *letterLayout) wrapFooter() error {
+	if err := l.style(styleNormal, letterFooterSize, colorMuted); err != nil {
+		return err
+	}
+	l.footerLines = nil
+	for _, line := range l.letter.Footer {
+		l.footerLines = append(l.footerLines, l.wrap(line, l.contentWidth())...)
+	}
+	return nil
+}
+
 func (l *letterLayout) bodyBottom() float64 {
-	lines := float64(len(l.letter.Footer))
+	lines := float64(len(l.footerLines))
 	return l.h - letterTop - lines*letterFooterLine - letterFooterGap
 }
 
@@ -272,6 +294,7 @@ func (l *letterLayout) writeSender() error {
 			y += letterSmallSize + 3
 		}
 	}
+	l.senderBottom = y
 	return nil
 }
 
@@ -304,7 +327,7 @@ func (l *letterLayout) writeAddress() error {
 
 func (l *letterLayout) writeFacts() error {
 	x := l.w - letterMarginRight - letterSenderW
-	y := letterFactsTop
+	y := max(letterFactsTop, l.senderBottom+letterFactsGap)
 	for _, fact := range l.letter.Facts {
 		if err := l.style(styleNormal, letterReturnSize+0.5, colorMuted); err != nil {
 			return err
@@ -440,13 +463,13 @@ func (l *letterLayout) writeFooter() error {
 		return err
 	}
 	y := l.bodyBottom() + letterFooterGap/2
-	if l.draw && len(l.letter.Footer) > 0 {
+	if l.draw && len(l.footerLines) > 0 {
 		l.setStroke(colorBorder)
 		l.pdf.Line(letterMarginLeft, y, l.w-letterMarginRight, y)
 	}
-	for _, line := range l.letter.Footer {
+	for _, line := range l.footerLines {
 		y += letterFooterLine
-		if err := l.emit(letterMarginLeft, y, l.fitOneLine(line, l.contentWidth())); err != nil {
+		if err := l.emit(letterMarginLeft, y, line); err != nil {
 			return err
 		}
 	}

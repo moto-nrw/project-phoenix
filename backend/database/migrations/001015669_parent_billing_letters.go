@@ -33,8 +33,9 @@ func init() {
 //     layout of the Träger.
 //
 // Like an issued invoice, neither ever changes: the request role may only
-// read and add them, and the trigger of ADR 0119 refuses every update for
-// every role. They go with their run and invoice, so with the Träger. The
+// read and add them, and a trigger refuses every update for every role. The
+// only update a letter set allows is the ON DELETE SET NULL of the account
+// that created it, so that account can still be deleted. They go with their run and invoice, so with the Träger. The
 // trail of a run records the creation as the action 'letters'.
 const parentBillingLettersUpSQL = `
 CREATE TABLE parent_billing.run_letters (
@@ -76,9 +77,25 @@ CREATE INDEX idx_document_letters_run ON parent_billing.document_letters (organi
 COMMENT ON TABLE parent_billing.document_letters IS
 	'PDF of the confirmation letter of an issued invoice in the layout of the Träger (#4669, ADR 0121); rendered once, never changes, goes with its invoice.';
 
+-- What the letters print never changes. The one update allowed is the
+-- ON DELETE SET NULL of the account that created them, so an account can
+-- still be deleted.
+CREATE FUNCTION parent_billing.refuse_run_letters_change() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+	IF NEW.created_by_account_id IS NULL
+		AND (NEW.organization_id, NEW.run_id, NEW.payment_due_on, NEW.notes, NEW.emergency_contacts, NEW.created_at)
+			IS NOT DISTINCT FROM (OLD.organization_id, OLD.run_id, OLD.payment_due_on, OLD.notes, OLD.emergency_contacts, OLD.created_at) THEN
+		RETURN NEW;
+	END IF;
+	RAISE EXCEPTION 'an issued invoice of the Elternabrechnung never changes (%)', TG_TABLE_NAME
+		USING ERRCODE = '55000';
+END;
+$$;
+
 CREATE TRIGGER refuse_parent_billing_run_letters_change
 	BEFORE UPDATE ON parent_billing.run_letters
-	FOR EACH ROW EXECUTE FUNCTION parent_billing.refuse_issued_change();
+	FOR EACH ROW EXECUTE FUNCTION parent_billing.refuse_run_letters_change();
 
 CREATE TRIGGER refuse_parent_billing_document_letter_change
 	BEFORE UPDATE ON parent_billing.document_letters
@@ -101,12 +118,14 @@ CREATE POLICY traeger_isolation_parent_billing_document_letters ON parent_billin
 	WITH CHECK (organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint);
 
 REVOKE ALL ON parent_billing.run_letters, parent_billing.document_letters FROM PUBLIC;
+REVOKE ALL ON FUNCTION parent_billing.refuse_run_letters_change() FROM PUBLIC;
 GRANT SELECT, INSERT ON parent_billing.run_letters, parent_billing.document_letters TO phoenix_tenant;
 GRANT ALL ON parent_billing.run_letters, parent_billing.document_letters TO phoenix_admin;
 `
 
 const parentBillingLettersDownSQL = `
 DROP TABLE IF EXISTS parent_billing.document_letters, parent_billing.run_letters;
+DROP FUNCTION IF EXISTS parent_billing.refuse_run_letters_change();
 DELETE FROM parent_billing.run_events WHERE action = 'letters';
 ALTER TABLE parent_billing.run_events DROP CONSTRAINT chk_run_events_action;
 ALTER TABLE parent_billing.run_events ADD CONSTRAINT chk_run_events_action

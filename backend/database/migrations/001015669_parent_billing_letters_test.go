@@ -113,6 +113,27 @@ func TestConfirmationLettersNeverChange(t *testing.T) {
 		})
 		assert.ErrorContains(t, err, "permission denied", "the request role deletes no letter: %s", statement)
 	}
+	// Deleting the account that created the letters clears the reference
+	// and leaves the letters as they are.
+	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("brief-%d@test.local", testpkg.UniqueTestTenantID(t)), testpkg.NewTestPassword())
+	var other int64
+	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.runs (organization_id, service, holiday_period_id, period_name, service_from,
+			service_until, status, released_at, issued_on, document_count, total_cents)
+		VALUES (?, 'holiday', 9, 'Herbstferien', '2027-10-04', '2027-10-15', 'released', NOW(), '2027-09-01', 1, 4500) RETURNING id`, own).
+		Scan(ctx, &other))
+	_, err = db.ExecContext(ctx, `INSERT INTO parent_billing.run_letters (organization_id, run_id, payment_due_on, notes, created_by_account_id)
+		VALUES (?, ?, '2027-09-15', 'Gummistiefel', ?)`, own, other, account.ID)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE parent_billing.run_letters SET created_by_account_id = NULL, notes = 'anders' WHERE run_id = ?`, other)
+	assert.ErrorContains(t, err, "never changes", "clearing the creator does not open the letters to a change")
+	_, err = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
+	require.NoError(t, err, "an account that created letters can be deleted")
+	var creator sql.NullInt64
+	var notes string
+	require.NoError(t, db.NewRaw(`SELECT created_by_account_id, notes FROM parent_billing.run_letters WHERE run_id = ?`, other).Scan(ctx, &creator, &notes))
+	assert.False(t, creator.Valid, "the reference to the deleted account is gone")
+	assert.Equal(t, "Gummistiefel", notes, "the letters stay as they are")
+
 	err = asRequestRole("app.current_org_id", fmt.Sprint(foreign), func(tx bun.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.document_letters (organization_id, document_id, run_id, filename, pdf)
 			VALUES (?, ?, ?, 'x.pdf', ?)`, own, document, run, pdf)

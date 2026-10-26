@@ -5,6 +5,7 @@
 // Vor dem Erstellen ein Knopf, danach was in allen Schreiben steht. Die
 // Schreiben ändern sich nie.
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -13,7 +14,15 @@ import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import type { BillingLetters } from "~/lib/traeger-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
-import { BillingLettersModal } from "./billing-letters-modal";
+
+// Loaded when someone opens it: a run creates its letters once.
+const BillingLettersModal = dynamic(
+  () =>
+    import("./billing-letters-modal").then(
+      (module) => module.BillingLettersModal,
+    ),
+  { ssr: false },
+);
 
 export function BillingLettersCard({
   runId,
@@ -53,15 +62,17 @@ export function BillingLettersCard({
           . Ohne Bankverbindung lassen sich keine Schreiben erstellen; sie legt
           die Verwaltung fest.
         </p>
-        <BillingLettersModal
-          runId={runId}
-          isOpen={creating}
-          onClose={() => setCreating(false)}
-          onCreated={(created) => {
-            setCreating(false);
-            onCreated(created);
-          }}
-        />
+        {creating ? (
+          <BillingLettersModal
+            runId={runId}
+            isOpen
+            onClose={() => setCreating(false)}
+            onCreated={(created) => {
+              setCreating(false);
+              onCreated(created);
+            }}
+          />
+        ) : null}
       </SectionCard>
     );
   }

@@ -345,6 +345,29 @@ describe("TraegerBillingRunPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps a payment date in the past from going out", async () => {
+    api.fetchBillingRun.mockResolvedValue(RELEASED);
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Schreiben erstellen" }),
+    );
+    fireEvent.change(await screen.findByLabelText("Zahlen bis"), {
+      target: { value: "01.09.2026" },
+    });
+    for (const name of ["Vorschau ansehen", "Schreiben erstellen"]) {
+      fireEvent.click(screen.getAllByRole("button", { name }).at(-1)!);
+    }
+
+    expect(
+      await screen.findAllByText(
+        "Das Datum darf nicht in der Vergangenheit liegen.",
+      ),
+    ).not.toHaveLength(0);
+    expect(api.previewBillingLetter).not.toHaveBeenCalled();
+    expect(api.createBillingLetters).not.toHaveBeenCalled();
+  });
+
   it("names the missing bank account when the letters are refused", async () => {
     api.fetchBillingRun.mockResolvedValue(RELEASED);
     api.createBillingLetters.mockRejectedValue(

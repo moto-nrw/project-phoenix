@@ -2,6 +2,7 @@ package listexport
 
 import (
 	"bytes"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -204,5 +205,54 @@ func TestLetterSubjectStaysBelowALongHead(t *testing.T) {
 	}
 	if short.headBottom >= letterBodyTop {
 		t.Fatalf("a short head ends at %.1f, below the body top", short.headBottom)
+	}
+}
+
+// A long footer line, such as a bank account with a long holder name,
+// wraps and keeps its end instead of being cut.
+func TestLetterFooterWrapsLongLines(t *testing.T) {
+	t.Parallel()
+
+	letter := sampleLetter()
+	letter.Footer = []string{"Bankverbindung: " + strings.Repeat("Förderverein der Offenen Ganztagsschulen ", 4) + "· IBAN DE02 1203 0000 0000 2020 51 · BIC BYLADEM1001"}
+	pages, trace := traceLetter(t, letter)
+	if pages != 1 {
+		t.Fatalf("pages = %d, want 1", pages)
+	}
+	joined := strings.Join(trace, " ")
+	if !strings.Contains(joined, "BIC BYLADEM1001") || !strings.Contains(joined, "IBAN DE02 1203 0000 0000 2020 51") {
+		t.Fatalf("the footer lost its end: %q", trace)
+	}
+	if trace[0] == letter.Footer[0] {
+		t.Fatal("the long footer line was printed in one piece")
+	}
+}
+
+// A long letterhead pushes the facts below it instead of running into
+// them.
+func TestLetterFactsStartBelowALongLetterhead(t *testing.T) {
+	t.Parallel()
+
+	chrome, err := newLetterChrome("x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	letter := sampleLetter()
+	letter.Facts = letter.Facts[:1]
+	for i := range 12 {
+		letter.Sender = append(letter.Sender, fmt.Sprintf("Zeile %d", i))
+	}
+	layout, err := newLetterLayout(chrome, letter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := layout.run(); err != nil {
+		t.Fatal(err)
+	}
+	if layout.senderBottom <= letterFactsTop {
+		t.Fatalf("the letterhead ends at %.1f; the test needs one below the facts top", layout.senderBottom)
+	}
+	if layout.headBottom <= layout.senderBottom+letterFactsGap {
+		t.Fatalf("the facts end at %.1f, inside the letterhead ending at %.1f", layout.headBottom, layout.senderBottom)
 	}
 }

@@ -108,6 +108,9 @@ export function BillingLettersModal({
   onCreated: (letters: BillingLetters) => void;
 }>) {
   const [dueDate, setDueDate] = useState("");
+  // The date field keeps the last valid date while the typed one is not;
+  // nothing goes out until the field holds a valid date again.
+  const [dueDateValid, setDueDateValid] = useState(true);
   const [notes, setNotes] = useState("");
   const [contacts, setContacts] = useState<BillingEmergencyContact[]>([]);
   const [saving, setSaving] = useState(false);
@@ -120,6 +123,7 @@ export function BillingLettersModal({
   useEffect(() => {
     if (!isOpen) return;
     setDueDate(defaultDueDate());
+    setDueDateValid(true);
     setNotes("");
     setContacts([{ name: "", phone: "" }]);
     clearErrors();
@@ -137,6 +141,9 @@ export function BillingLettersModal({
     formErrors.clear();
     const fields: Record<string, string> = {};
     if (!dueDate) fields.payment_due_on = "Bitte geben Sie ein Datum an.";
+    else if (!dueDateValid)
+      fields.payment_due_on =
+        "Bitte geben Sie ein gültiges Datum ab heute im Format TT.MM.JJJJ ein.";
     if (incomplete >= 0)
       fields.emergency_contacts =
         "Bitte geben Sie zu jeder Notfallnummer Betreuung und Telefon an.";
@@ -248,6 +255,7 @@ export function BillingLettersModal({
           minDateError="Das Datum darf nicht in der Vergangenheit liegen."
           error={formErrors.fieldError("payment_due_on")}
           onChange={setDueDate}
+          onValidityChange={setDueDateValid}
         />
         <Textarea
           id="billing-letters-notes"
