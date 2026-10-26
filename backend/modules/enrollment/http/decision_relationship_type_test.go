@@ -63,7 +63,7 @@ func TestDecisionService_Decide_ExistingStudentKeepsRelationshipType(t *testing.
 			existing := testpkg.CreateTestStudent(t, env.db, "Ole", "Bestand-"+relationshipType, "2a")
 			guardian := testpkg.CreateTestGuardianProfileNamed(t, env.db, "Maren", "Bestand", "keep-type-"+relationshipType)
 			require.NotNil(t, guardian.Email)
-			linkGuardian(t, env, existing.ID, guardian.ID, relationshipType, securityruntime.GuardianRoleLegalGuardian)
+			testpkg.CreateTestStudentGuardianLinkOfType(t, env.db, testpkg.Tenant(t), existing.ID, guardian.ID, relationshipType, securityruntime.GuardianRoleLegalGuardian)
 
 			reqID, childID := submitReEnrollment(t, env, "Maren", "Bestand", *guardian.Email, nil,
 				"Ole", "Bestand-"+relationshipType, map[string]any{
@@ -101,7 +101,7 @@ func TestDecisionService_Decide_CoGuardianKeepsContactRelationshipType(t *testin
 	existing := testpkg.CreateTestStudent(t, env.db, "Tom", "Kontakt", "2a")
 	contact := testpkg.CreateTestGuardianProfileNamed(t, env.db, "Oma", "Kontakt", "co-guardian-relative")
 	require.NotNil(t, contact.Email)
-	linkGuardian(t, env, existing.ID, contact.ID, "relative", securityruntime.GuardianRoleEmergency)
+	testpkg.CreateTestStudentGuardianLinkOfType(t, env.db, testpkg.Tenant(t), existing.ID, contact.ID, "relative", securityruntime.GuardianRoleEmergency)
 
 	reqID, childID := submitReEnrollment(t, env, "Vera", "Kontakt", "primary-co-guardian-4930@example.com", nil,
 		"Tom", "Kontakt", map[string]any{
@@ -148,21 +148,4 @@ func assertPrimaryGuardianRights(t *testing.T, link *peopledirectory.GuardianRel
 	assert.True(t, link.CanPickup)
 	assert.True(t, guardianLinkHasPermission(link, securityruntime.GuardianPermissionPortalAccess),
 		"a %q link keeps parent-portal access", link.RelationshipType)
-}
-
-// linkGuardian links a guardian to the student with the given relationship
-// type and role preset, the way CreateTestStudentGuardianLink does for parents.
-func linkGuardian(t *testing.T, env *decisionTestEnv, studentID, guardianProfileID int64, relationshipType, role string) {
-	t.Helper()
-	link := &testpkg.StudentGuardian{
-		StudentID:          studentID,
-		GuardianProfileID:  guardianProfileID,
-		RelationshipType:   relationshipType,
-		IsEmergencyContact: true,
-		CanPickup:          true,
-		EmergencyPriority:  1,
-	}
-	testpkg.ApplyStudentGuardianRole(link, role)
-	link.TenantID = testpkg.Tenant(t)
-	require.NoError(t, testpkg.InsertTestStudentGuardian(testpkg.Ctx(t), env.db, link))
 }

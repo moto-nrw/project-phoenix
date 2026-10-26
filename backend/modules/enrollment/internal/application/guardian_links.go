@@ -452,7 +452,7 @@ const (
 // upsertContactStudentGuardianLink links a contact to the student or updates
 // the contact's existing link. A primary link or a full guardian keeps its
 // relationship untouched.
-func (d *Decisions) upsertContactStudentGuardianLink(ctx context.Context, rel *StudentGuardian, relationshipType relationshipTypeUpdate) error {
+func (d *Decisions) upsertContactStudentGuardianLink(ctx context.Context, rel *StudentGuardian, typeUpdate relationshipTypeUpdate) error {
 	if rel == nil {
 		return errors.New("contact student guardian link cannot be nil")
 	}
@@ -467,7 +467,7 @@ func (d *Decisions) upsertContactStudentGuardianLink(ctx context.Context, rel *S
 	if existing.IsPrimary || d.deps.People.Rules.IsFullGuardianRole(existing.GuardianRole) {
 		return nil
 	}
-	if relationshipType == overwriteRelationshipType {
+	if typeUpdate == overwriteRelationshipType {
 		existing.RelationshipType = rel.RelationshipType
 	}
 	existing.IsEmergencyContact = rel.IsEmergencyContact
