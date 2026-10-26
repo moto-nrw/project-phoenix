@@ -84,7 +84,7 @@ Design von moto drucken, aber keinen Brief.
    (Story 92).
 7. **Grenzen.**
    - Die Anwendung schreibt den Brief als eigenen Wert und ruft ihren Port
-     `LetterRenderer`; der Adapter `internal/adapters/letterpdf` übersetzt in
+     `LetterRenderer`; der Adapter `internal/adapters/rendering` übersetzt in
      den Vertrag von Document Rendering. Nur er importiert Document
      Rendering.
    - Das Branding liest der Port `parentbilling.BillingLetterheads`, den die
@@ -103,7 +103,7 @@ Design von moto drucken, aber keinen Brief.
 9. **Aufbewahrung.** Schreiben und Freitext gehen mit ihrer Rechnung und
    ihrem Lauf, also mit dem Träger; die Frist je Rechnung legt #4720 fest.
 10. **Register.**
-    - `policy.json`: Paket `modules/parentbilling/internal/adapters/letterpdf`
+    - `policy.json`: Paket `modules/parentbilling/internal/adapters/rendering`
       (Rolle `adapter`), drei an dieses Paket gebundene Regeln
       (`adapter` → Document Rendering `contract` `lists`, → eigene
       `application`, → eigene `public`) und zwei `data_objects` mit

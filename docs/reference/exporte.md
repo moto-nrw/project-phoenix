@@ -50,8 +50,9 @@ Hilfe-PDFs sind nicht Teil davon (Nicht-Ziel in #2223).
 | 18 | Mittagessen-Teilnehmer | Essensplan | **Angeglichen.** Die Einstiege nutzen `OverflowMenu`. |
 | 19 | Bankverbindungen | Eltern, Bankverbindungen | **Angeglichen.** Gemeinsamer Export-Dialog statt eigener Formatwahl. |
 | 20 | Einverständnisse | Elternbrief, Rückmeldestand | **Angeglichen.** Die Einstiege nutzen `OverflowMenu`. |
+| 21 | Übersicht je Abrechnungslauf für die Kämmerei | Träger-Portal, Abrechnungslauf | **Angeglichen.** Kompakte Tabelle über `lists.Renderer` (PDF, Excel, CSV), Einstieg `ExportMenu` auf der Karte (#4672, ADR 0122). |
 
-Die Nummern 1 bis 16 entsprechen der Bestandsaufnahme in #2223. 17 bis 20 sind
+Die Nummern 1 bis 16 entsprechen der Bestandsaufnahme in #2223. 17 bis 21 sind
 seitdem dazugekommen.
 
 ## Klassenliste: warum zwei

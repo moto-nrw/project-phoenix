@@ -228,6 +228,9 @@ type BillingRuns interface {
 	BillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (BillingRunDetail, error)
 	CorrectBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, input BillingCorrectionInput) (BillingRunDetail, error)
 	ReleaseBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, release BillingRelease) (BillingRunDetail, error)
+	// ExportBillingRun renders the overview of a released run for the
+	// Kämmerei as a PDF, an Excel or a CSV file (#4672, ADR 0122).
+	ExportBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, format string) (ExportFile, error)
 	ListNumberRanges(ctx context.Context, organizationID int64) ([]NumberRange, error)
 	SetNumberRange(ctx context.Context, organizationID int64, service, pattern string) (NumberRange, error)
 }

@@ -64,18 +64,19 @@ type RunStore interface {
 type BillingRuns struct {
 	store         RunStore
 	registrations parentbilling.HolidayBillingRegistrations
+	renderer      TableRenderer
 	today         func() calendar.Date
 }
 
 var _ parentbilling.BillingRuns = (*BillingRuns)(nil)
 
-// NewBillingRuns builds the billing runs. today is the issue date of a
-// release.
-func NewBillingRuns(store RunStore, registrations parentbilling.HolidayBillingRegistrations, today func() calendar.Date) *BillingRuns {
-	if store == nil || registrations == nil || today == nil {
-		panic("parent billing: the store, the holiday registrations and the clock are required")
+// NewBillingRuns builds the billing runs. renderer renders the overview of
+// a released run; today is the issue date of a release.
+func NewBillingRuns(store RunStore, registrations parentbilling.HolidayBillingRegistrations, renderer TableRenderer, today func() calendar.Date) *BillingRuns {
+	if store == nil || registrations == nil || renderer == nil || today == nil {
+		panic("parent billing: the store, the holiday registrations, the renderer and the clock are required")
 	}
-	return &BillingRuns{store: store, registrations: registrations, today: today}
+	return &BillingRuns{store: store, registrations: registrations, renderer: renderer, today: today}
 }
 
 func validReviewer(reviewer parentbilling.HolidayReviewer) error {
