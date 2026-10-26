@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeIdentityInvitationAccountLoginRequired        = "identity.invitation_account_login_required"
 	CodeIdentityInvitationAccountMismatch             = "identity.invitation_account_mismatch"
 	CodeIdentityInvitationExpired                     = "identity.invitation_expired"
 	CodeIdentityInvitationNotFound                    = "identity.invitation_not_found"
@@ -301,10 +302,10 @@ const (
 	CodeTimetableCompleteTooEarly                     = "timetable.complete_too_early"
 	CodeTimetableCompletionConfirmationStale          = "timetable.completion_confirmation_stale"
 	CodeTimetableCorrectionCancelled                  = "timetable.correction_cancelled"
-	CodeTimetableCorrectionNotCompleted               = "timetable.correction_not_completed"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.invitation_account_login_required":          "permission",
 	"identity.invitation_account_mismatch":                "permission",
 	"identity.invitation_expired":                         "business_rejection",
 	"identity.invitation_not_found":                       "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.complete_too_early":                        "business_rejection",
 	"timetable.completion_confirmation_stale":             "business_rejection",
 	"timetable.correction_cancelled":                      "business_rejection",
-	"timetable.correction_not_completed":                  "business_rejection",
 }
 
 func init() {

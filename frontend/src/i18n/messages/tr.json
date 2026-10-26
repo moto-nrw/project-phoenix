@@ -2679,7 +2679,8 @@
         "holiday_registration_invalid": "Lütfen işaretli alanları kontrol edin.",
         "holiday_registration_not_found": "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
         "holiday_registration_state_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "holiday_week_booked": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "holiday_week_booked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "hosted_holiday_week_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "files": {
         "announcement_published": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

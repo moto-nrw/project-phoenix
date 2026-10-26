@@ -58,6 +58,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/day-log",
   "/dienstplan",
   "/eltern/bankverbindungen",
+  "/ferienwochen",
   "/emergency",
   "/enrollment-form",
   "/enrollment-phases",

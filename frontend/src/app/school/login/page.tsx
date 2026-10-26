@@ -28,6 +28,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
+import { hasSessionAccess } from "~/lib/session-access";
 import { requestSchoolPasswordReset } from "~/lib/auth-api";
 import { schoolPath } from "~/lib/school-url";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
@@ -117,7 +118,9 @@ function LoginForm() {
         return;
       }
 
-      if (status === "authenticated" && session?.user?.token) {
+      // The layout's server snapshot carries no token (#4991) and redirects
+      // too; a stripped session (empty token) stays on the form.
+      if (status === "authenticated" && hasSessionAccess(session)) {
         window.location.href = schoolPath("/school");
         return;
       }

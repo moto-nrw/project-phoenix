@@ -51,6 +51,7 @@ import {
   ShieldCheckIcon,
   ShieldWarningIcon,
   SignOutIcon,
+  SunHorizonIcon,
   SunIcon,
   TranslateIcon,
   TrayIcon,
@@ -355,6 +356,15 @@ export const MOTO_CONCEPTS = {
     "Statistik",
     PresentationChartIcon,
     "indigo",
+    "function",
+    "administration",
+  ),
+  // Ferienwochen der ausrichtenden OGS (#4665): die bestätigten Kinder der
+  // Wochen, die die Schule für ihren Träger ausrichtet.
+  holidayWeeks: concept(
+    "Ferienwochen",
+    SunHorizonIcon,
+    "orange",
     "function",
     "administration",
   ),

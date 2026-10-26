@@ -371,366 +371,241 @@ const quoted = (name) => `\`${name}\``;
 
 const portalCondition = `properties.surface in ${sqlList(PORTALS)}`;
 
-function frictionTable(projectId, deployment, surfaces) {
-  return hogql(deployment, (where) => `
-select
-  properties.surface as \`Oberfläche\`,
-  properties.$pathname as Seite,
-  countIf(event = '$pageview') as Aufrufe,
-  countIf(event = '$dead_click') as \`Dead Clicks\`,
-  countIf(event = '$rageclick') as \`Rage Clicks\`,
-  round(100 * (countIf(event = '$dead_click') + countIf(event = '$rageclick')) / greatest(countIf(event = '$pageview'), 1), 1) as \`Reibung je 100 Aufrufe\`,
-  ${heatmapLink(projectId, deployment, 'properties.$pathname')} as Heatmap
-from events
-where ${where}
-  and properties.surface in ${sqlList(surfaces)}
-  and event in ('$pageview', '$dead_click', '$rageclick')
-  and timestamp > now() - interval 30 day
-group by \`Oberfläche\`, Seite
-having \`Dead Clicks\` + \`Rage Clicks\` > 0
-order by \`Dead Clicks\` + \`Rage Clicks\` desc
-limit 50`);
+/**
+ * HogQL condition: the event shows that a school worked with moto. Page
+ * views, core actions, and kiosk bookings count; other `$` events (dead
+ * clicks, page leaves) and a failed login do not.
+ */
+const ACTIVE_USE = "(event = '$pageview' or not startsWith(event, '$')) and event != 'login_failed'";
+
+/** Host every heatmap URL of a deployment starts with (`analyticsHost`). */
+const heatmapOrigin = (deployment) => `https://${DEPLOYMENTS[deploymentOf(deployment)]}`;
+
+/**
+ * Navigation names of the OGS portal's pages, read from section-navigation.ts
+ * so the page tables say „Alle Kinder“ instead of `/students/search`.
+ */
+export function readPageNames(
+  source = readFileSync(resolve(repositoryRoot, 'frontend/src/lib/section-navigation.ts'), 'utf8'),
+) {
+  const names = new Map();
+  for (const [, href, label] of source.matchAll(/href: "([^"]+)",\s*label: "([^"]+)"/g)) {
+    if (!names.has(href)) names.set(href, label);
+  }
+  if (names.size === 0) throw new Error('section-navigation.ts has no href/label pairs');
+  for (const [href, label] of OGS_EXTRA_PAGE_NAMES) if (!names.has(href)) names.set(href, label);
+  return names;
 }
 
-/** The dashboards of #3604 plus feature areas and demo behaviour. `projectId` feeds the heatmap links. */
-export function dashboards({ projectId, routes = readRouteTemplates(), browserEvents = readBrowserEvents() }) {
+/**
+ * OGS pages the navigation file does not name as `href`/`label` pair: detail
+ * pages, pages with a computed label, and the login.
+ */
+const OGS_EXTRA_PAGE_NAMES = new Map([
+  ['/', 'Anmeldung'], ['/students/:id', 'Kindakte'], ['/ogs-groups', 'Gruppen'],
+  ['/active-supervisions', 'Aktuelle Aufsicht'], ['/messages/:threadId', 'Nachrichtenverlauf'],
+]);
+
+/** Names of the parents portal's main pages; the portal has no navigation file of that shape. */
+const PARENT_PAGE_NAMES = new Map([
+  ['/', 'Start'], ['/login', 'Anmeldung'], ['/children', 'Kinder'], ['/children/:id', 'Kind (Details)'],
+  ['/messages', 'Nachrichten'], ['/messages/:studentId', 'Nachrichtenverlauf'], ['/calendar', 'Kalender'],
+  ['/meal-plan', 'Speiseplan'], ['/news', 'Neuigkeiten'], ['/settings', 'Einstellungen'],
+]);
+
+/** Names of the school portal's pages (Schul-App for teachers). */
+const SCHOOL_PAGE_NAMES = new Map([
+  ['/', 'Start'], ['/login', 'Anmeldung'], ['/klasse', 'Klasse'], ['/aufsichten', 'Aufsichten'],
+  ['/tagesinformationen', 'Tagesinformationen'], ['/kalender', 'Kalender'], ['/einstellungen', 'Einstellungen'],
+]);
+
+/** HogQL expression: the page's name, '' when it has none. */
+function pageName(names, column) {
+  const entries = [...names];
+  return `transform(${column}, ${`[${entries.map(([href]) => sqlString(href)).join(', ')}]`}, ${`[${entries.map(([, label]) => sqlString(label)).join(', ')}]`}, '')`;
+}
+
+/**
+ * Pages of one portal ranked by use per day with use: views per day, schools,
+ * sessions, and the median time on the page (`$prev_pageview_duration`, sent
+ * with the next page view or the page leave). Days without any use in the portal (weekends,
+ * holidays, school holidays with no one at work) do not dilute the average.
+ */
+function pagesPerDay(deployment, surface, names, days = 30) {
+  const schools = surface === 'parents' ? '' : `\n  p.Schulen as Schulen,`;
+  return hogql(deployment, (where) => `
+select
+  p.Seite as Seite,
+  ${pageName(names, 'p.Seite')} as Name,
+  p.Bereich as Bereich,
+  round(p.Aufrufe / greatest(t.Tage, 1), 1) as ${quoted('Aufrufe pro Tag')},${schools}
+  p.Sitzungen as Sitzungen,
+  d.Sekunden as ${quoted('Verweildauer (Median, s)')}
+from (
+  select properties.$pathname as Seite, any(${featureExpression()}) as Bereich, count() as Aufrufe,
+    uniq(toString(properties.school_id)) as Schulen, uniq(properties.$session_id) as Sitzungen
+  from events
+  where ${where} and event = '$pageview' and properties.surface = ${sqlString(surface)}
+    and timestamp > now() - interval ${days} day
+  group by Seite
+) as p
+cross join (
+  select uniq(toDate(timestamp)) as Tage
+  from events
+  where ${where} and event = '$pageview' and properties.surface = ${sqlString(surface)}
+    and timestamp > now() - interval ${days} day
+) as t
+left join (
+  select properties.$prev_pageview_pathname as Seite, round(median(toFloat(properties.$prev_pageview_duration))) as Sekunden
+  from events
+  where ${where} and event in ('$pageview', '$pageleave') and properties.surface = ${sqlString(surface)}
+    and isNotNull(properties.$prev_pageview_duration) and timestamp > now() - interval ${days} day
+  group by Seite
+) as d on p.Seite = d.Seite
+order by p.Aufrufe desc
+limit 25`);
+}
+
+/** Every route template of one portal, least used first; 0 means never opened. */
+function rarePages(deployment, surface, routes, days = 30) {
+  const rows = routes.filter(([s]) => s === surface).map(([, template]) => sqlString(template)).join(', ');
+  return hogql(deployment, (where) => `
+select Seite, coalesce(Aufrufe, 0) as Aufrufe, coalesce(Schulen, 0) as Schulen
+from (select arrayJoin([${rows}]) as Seite) as pages
+left join (
+  select properties.$pathname as path, count() as Aufrufe, uniq(toString(properties.school_id)) as Schulen
+  from events
+  where ${where} and event = '$pageview' and properties.surface = ${sqlString(surface)}
+    and timestamp > now() - interval ${days} day
+  group by path
+) as seen on pages.Seite = seen.path
+order by Aufrufe asc, Seite
+limit 300`);
+}
+
+/** Successful writes of one portal by role and action; logins and other non-feature events stay out. */
+function actionsByRole(deployment, surface, coreAction, days = 30) {
+  return hogql(deployment, (where) => `
+select
+  coalesce(properties.role, 'ohne Anmeldung') as Rolle,
+  ${featureExpression()} as Bereich,
+  event as Aktion,
+  count() as Anzahl${surface === 'parents' ? '' : ',\n  uniq(toString(properties.school_id)) as Schulen'}
+from events
+where ${where}
+  and properties.surface = ${sqlString(surface)}
+  and ${coreAction}
+  and timestamp > now() - interval ${days} day
+group by Rolle, Bereich, Aktion
+having Bereich != ''
+order by Anzahl desc
+limit 100`);
+}
+
+/**
+ * Where users go from one page: the next page view's page, counted from
+ * `$prev_pageview_pathname` on that view. Counts page changes, never people
+ * or sessions.
+ */
+function nextPages(deployment, surface, fromPage, names, days = 30) {
+  return hogql(deployment, (where) => `
+select
+  properties.$pathname as ${quoted('Nächste Seite')},
+  ${pageName(names, 'properties.$pathname')} as Name,
+  count() as Wechsel,
+  round(100 * count() / sum(count()) over (), 1) as ${quoted('Anteil in Prozent')}
+from events
+where ${where}
+  and event = '$pageview'
+  and properties.surface = ${sqlString(surface)}
+  and properties.$prev_pageview_pathname = ${sqlString(fromPage)}
+  and properties.$pathname != ${sqlString(fromPage)}
+  and timestamp > now() - interval ${days} day
+group by ${quoted('Nächste Seite')}, Name
+order by Wechsel desc
+limit 15`);
+}
+
+/**
+ * Dead clicks (events) and rage clicks (PostHog's heatmap data; autocapture
+ * is off in the project, so there is no `$rageclick` event) per page of the
+ * given portals, with the heatmap link. The heatmap rows carry no surface,
+ * so they are matched to the portal through their browser session. The
+ * heatmap behind the link is per route template and mixes portals that share
+ * one (`/`, `/messages`).
+ */
+function frictionTable(projectId, deployment, surfaces, days = 30) {
+  const origin = heatmapOrigin(deployment);
+  return hogql(deployment, (where) => `
+select
+  e.Seite as Seite,
+  e.Aufrufe as Aufrufe,
+  e.Dead as ${quoted('Dead Clicks')},
+  coalesce(r.Rage, 0) as ${quoted('Rage Clicks')},
+  round(100 * (e.Dead + coalesce(r.Rage, 0)) / greatest(e.Aufrufe, 1), 1) as ${quoted('Reibung je 100 Aufrufe')},
+  ${heatmapLink(projectId, deployment, 'e.Seite')} as Heatmap
+from (
+  select properties.$pathname as Seite, countIf(event = '$pageview') as Aufrufe, countIf(event = '$dead_click') as Dead
+  from events
+  where ${where}
+    and properties.surface in ${sqlList(surfaces)}
+    and event in ('$pageview', '$dead_click')
+    and timestamp > now() - interval ${days} day
+  group by Seite
+) as e
+left join (
+  select replaceOne(current_url, ${sqlString(origin)}, '') as Seite, count() as Rage
+  from heatmaps
+  where startsWith(current_url, ${sqlString(`${origin}/`)})${deployment === 'production' ? ` and ${ON_WORKDAY}` : ''}
+    and type = 'rageclick'
+    and timestamp > now() - interval ${days} day
+    and session_id in (
+      select $session_id from events
+      where ${where} and properties.surface in ${sqlList(surfaces)} and timestamp > now() - interval ${days} day
+    )
+  group by Seite
+) as r on e.Seite = r.Seite
+where e.Dead + coalesce(r.Rage, 0) > 0
+order by e.Dead + coalesce(r.Rage, 0) desc
+limit 30`);
+}
+
+/** Page views of one portal per week. */
+function viewsPerWeek(deployment, surface, name) {
+  return trends(deployment, {
+    series: [series('$pageview', name, {
+      properties: [{ key: 'surface', type: 'event', operator: 'exact', value: [surface] }],
+    })],
+    dateFrom: '-180d',
+  });
+}
+
+/**
+ * The dashboards: one per product surface (OGS-App, Eltern-App, Schul-App, Demo) plus
+ * two across schools (Nutzung je Standort, Schule im Verlauf). `projectId`
+ * feeds the heatmap links.
+ */
+export function dashboards({ projectId, routes = readRouteTemplates(), browserEvents = readBrowserEvents(), pageNames = readPageNames() }) {
   const coreAction = `not startsWith(event, '$') and event not in ${sqlList(browserEvents)}`;
   const feature = featureExpression();
-  const routeRows = routes.map(([surface, template]) => `(${sqlString(surface)}, ${sqlString(template)})`).join(', ');
 
   return [
     {
-      name: 'Nutzungsanalyse: Demo-Funnel',
-      description: 'Wo Interessenten in der öffentlichen Demo aussteigen. Nur deployment = demo. „Start geklickt“ auf der Website misst Umami, nicht PostHog.',
+      name: 'Nutzungsanalyse: Nutzung je Standort',
+      description: `Start hier. Wie viele Schulen moto nutzen, an welchen Tagen und wofür, je Schule (Schul-ID und Name), in echten Schulen (deployment = moto-app.de). Als aktiv zählen Seitenaufrufe, Kernaktionen und Kiosk-Buchungen. ${WORKDAYS_NOTE} Ferien und Schließtage kennt PostHog nicht, sie sind nicht abgezogen. Ein- und Auschecken wird erst seit dem 25.09.2026 erfasst. Das Elternportal kennt keine Schule und fehlt hier; es hat ein eigenes Dashboard.`,
       insights: [
-        {
-          name: 'Demo-Funnel: Schritte der letzten 30 Tage',
-          description: 'Link angefordert und Demo-Schule bereitgestellt kommen aus dem Backend, die übrigen Schritte aus dem Browser. Die Schritte laufen über drei Adressen, deshalb zählt die Tabelle Ereignisse je Schritt statt einzelner Besuche.',
-          ...hogql('demo', (where) => `
-select Schritt, Anzahl, round(100 * Anzahl / greatest(sum(if(Nr = 1, Anzahl, 0)) over (), 1)) as \`Prozent der Links\`
-from (
-  select 1 as Nr, 'Link angefordert' as Schritt, countIf(event = 'demo_link_requested') as Anzahl from events where ${where} and timestamp > now() - interval 30 day
-  union all
-  select 2, 'Link geöffnet (Warteraum)', countIf(event = '$pageview' and properties.surface = 'public' and properties.$pathname = '/demo') from events where ${where} and timestamp > now() - interval 30 day
-  union all
-  select 3, 'Demo-Schule bereitgestellt (Backend)', countIf(event = 'demo_started') from events where ${where} and timestamp > now() - interval 30 day
-  union all
-  select 4, 'Eingestiegen', countIf(event = 'demo_entered') from events where ${where} and timestamp > now() - interval 30 day
-  union all
-  select 5, 'Rolle gewechselt', countIf(event = 'demo_role_switched') from events where ${where} and timestamp > now() - interval 30 day
-  union all
-  select 6, 'Kostenlos starten', countIf(event = 'demo_start_clicked') from events where ${where} and timestamp > now() - interval 30 day
-)
-order by Nr`),
-        },
-        {
-          name: 'Demo-Funnel: Schritte pro Woche',
-          ...trends('demo', {
-            series: [
-              series('demo_link_requested', 'Link angefordert'),
-              series('demo_started', 'Demo-Schule bereitgestellt'),
-              series('demo_entered', 'Eingestiegen'),
-              series('demo_role_switched', 'Rolle gewechselt'),
-              series('demo_start_clicked', 'Kostenlos starten'),
-            ],
-          }),
-        },
-        {
-          name: 'Demo-Funnel: Einstieg bis Kostenlos starten',
-          description: 'Folgt einem Demo-Zugang (distinct_id ist der Zugang, keine Person) vom Einstieg über den Rollenwechsel bis „Kostenlos starten“.',
-          ...funnel('demo', {
-            series: [
-              series('demo_entered', 'Eingestiegen'),
-              series('demo_role_switched', 'Rolle gewechselt'),
-              series('demo_start_clicked', 'Kostenlos starten'),
-            ],
-          }),
-        },
-        {
-          name: 'Demo: Einstiege nach Rolle und Quelle',
-          description: 'Demo-Rolle und Kampagnenquelle (src) der letzten 30 Tage.',
-          ...hogql('demo', (where) => `
-select
-  coalesce(properties.demo_role, 'unbekannt') as \`Demo-Rolle\`,
-  coalesce(properties.src, 'ohne') as Quelle,
-  countIf(event = 'demo_entered') as Einstiege,
-  countIf(event = 'demo_role_switched') as Rollenwechsel,
-  countIf(event = 'demo_start_clicked') as \`Kostenlos starten\`
-from events
-where ${where}
-  and event in ('demo_entered', 'demo_role_switched', 'demo_start_clicked')
-  and timestamp > now() - interval 30 day
-group by \`Demo-Rolle\`, Quelle
-order by Einstiege desc`),
-        },
-      ],
-    },
-    {
-      name: 'Nutzungsanalyse: Nutzung pro Rolle und Oberfläche',
-      description: `Welche Rolle welche Oberfläche wie oft nutzt, in echten Schulen (deployment = moto-app.de). Kleinste Einheit ist die Rolle. ${WORKDAYS_NOTE}`,
-      insights: [
-        {
-          name: 'Nutzung: Seitenaufrufe pro Oberfläche und Woche',
-          ...trends('production', {
-            series: [series('$pageview', 'Seitenaufrufe', {
-              properties: [{ key: 'surface', type: 'event', operator: 'exact', value: PORTALS }],
-            })],
-            breakdown: 'surface',
-          }),
-        },
-        {
-          name: 'Nutzung: Rolle und Oberfläche der letzten 30 Tage',
-          description: 'Sitzungen zählen Browser-Sitzungen, nicht Personen. Kernaktionen sind die erfolgreichen Schreibvorgänge, die das Backend meldet.',
-          ...hogql('production', (where) => `
-select
-  properties.surface as \`Oberfläche\`,
-  coalesce(properties.role, 'ohne Anmeldung') as Rolle,
-  countIf(event = '$pageview') as Seitenaufrufe,
-  uniqIf(properties.$session_id, event = '$pageview') as Sitzungen,
-  countIf(${coreAction}) as Kernaktionen,
-  uniq(toString(properties.school_id)) as Schulen
-from events
-where ${where}
-  and ${portalCondition}
-  and timestamp > now() - interval 30 day
-group by \`Oberfläche\`, Rolle
-order by Seitenaufrufe desc`),
-        },
-        {
-          name: 'Nutzung: Kernaktionen nach Oberfläche und Rolle',
-          description: 'Erfolgreiche Schreibvorgänge der letzten 30 Tage (backend/analytics/core_actions.go).',
-          ...hogql('production', (where) => `
-select
-  properties.surface as \`Oberfläche\`,
-  coalesce(properties.role, 'ohne Anmeldung') as Rolle,
-  event as Kernaktion,
-  count() as Anzahl,
-  uniq(toString(properties.school_id)) as Schulen
-from events
-where ${where}
-  and ${portalCondition}
-  and ${coreAction}
-  and timestamp > now() - interval 30 day
-group by \`Oberfläche\`, Rolle, Kernaktion
-order by Anzahl desc
-limit 100`),
-        },
-      ],
-    },
-    {
-      name: 'Nutzungsanalyse: Seiten',
-      description: `Meistbesuchte und kaum genutzte Seiten als Routenmuster (frontend/src/lib/analytics-routes.ts), in echten Schulen (deployment = moto-app.de). ${WORKDAYS_NOTE}`,
-      insights: [
-        {
-          name: 'Seiten: meistbesucht in den letzten 30 Tagen',
-          description: 'Verweildauer ist der Median in Sekunden, gemessen beim Verlassen der Seite.',
-          ...hogql('production', (where) => `
-select
-  properties.surface as \`Oberfläche\`,
-  properties.$pathname as Seite,
-  countIf(event = '$pageview') as Aufrufe,
-  uniqIf(properties.$session_id, event = '$pageview') as Sitzungen,
-  uniqIf(toString(properties.school_id), event = '$pageview') as Schulen,
-  round(quantileIf(0.5)(toFloat(properties.$prev_pageview_duration), event = '$pageleave')) as \`Verweildauer (s)\`
-from events
-where ${where}
-  and ${portalCondition}
-  and event in ('$pageview', '$pageleave')
-  and timestamp > now() - interval 30 day
-group by \`Oberfläche\`, Seite
-order by Aufrufe desc
-limit 50`),
-        },
-        {
-          name: 'Seiten: kaum oder nie genutzt in den letzten 30 Tagen',
-          description: 'Jede Seite aus analytics-routes.ts, aufsteigend nach Aufrufen; 0 heißt nie geöffnet. Das Skript liest die Liste bei jedem Lauf neu.',
-          ...hogql('production', (where) => `
-select \`Oberfläche\`, Seite, coalesce(Aufrufe, 0) as Aufrufe, coalesce(Schulen, 0) as Schulen
-from (
-  select tupleElement(route, 1) as \`Oberfläche\`, tupleElement(route, 2) as Seite
-  from (select arrayJoin([${routeRows}]) as route)
-) as pages
-left join (
-  select properties.surface as surface, properties.$pathname as path, count() as Aufrufe, uniq(toString(properties.school_id)) as Schulen
-  from events
-  where ${where}
-    and event = '$pageview'
-    and ${portalCondition}
-    and timestamp > now() - interval 30 day
-  group by surface, path
-) as seen on pages.\`Oberfläche\` = seen.surface and pages.Seite = seen.path
-order by Aufrufe asc, \`Oberfläche\`, Seite
-limit 300`),
-        },
-        {
-          name: 'Seiten: Aufrufe ohne Routenmuster',
-          description: 'Seiten ohne Muster kommen als /unknown an. Steigt die Zahl, fehlt in analytics-routes.ts ein Eintrag.',
-          ...trends('production', {
-            series: [series('$pageview', 'Seiten ohne Muster', {
-              properties: [{ key: '$pathname', type: 'event', operator: 'exact', value: ['/unknown'] }],
-            })],
-            breakdown: 'surface',
-          }),
-        },
-      ],
-    },
-    {
-      name: 'Nutzungsanalyse: Reibung',
-      description: `Dead Clicks (Klick ohne Wirkung) und Rage Clicks (schnelle Mehrfachklicks) nach Seite, mit Link zur Heatmap der Seite. Schulen (moto-app.de) und Demo getrennt. ${WORKDAYS_NOTE}`,
-      insights: [
-        {
-          name: 'Reibung: Seiten in Schulen',
-          description: 'Letzte 30 Tage. Die Heatmap öffnet das Routenmuster; Seiten mit gleichem Muster in zwei Portalen teilen sich eine Heatmap.',
-          ...frictionTable(projectId, 'production', PORTALS),
-        },
-        {
-          name: 'Reibung: Seiten in der Demo',
-          description: 'Letzte 30 Tage, öffentliche Demo.',
-          ...frictionTable(projectId, 'demo', [...PORTALS, 'public']),
-        },
-        {
-          name: 'Reibung: Dead und Rage Clicks pro Woche in Schulen',
-          ...trends('production', {
-            series: [series('$dead_click', 'Dead Clicks'), series('$rageclick', 'Rage Clicks')],
-          }),
-        },
-      ],
-    },
-    {
-      name: 'Nutzungsanalyse: Aktive Schulen',
-      description: `Schulen mit mindestens einem Ereignis (Seitenaufruf, Kernaktion oder Kiosk) pro Woche, in echten Schulen (deployment = moto-app.de). ${WORKDAYS_NOTE}`,
-      insights: [
-        {
-          name: 'Aktive Schulen: letzte 7 Tage',
-          ...hogql('production', (where) => `
-select uniq(toString(properties.school_id)) as \`Aktive Schulen\`
-from events
-where ${where}
-  and isNotNull(properties.school_id)
-  and timestamp > now() - interval 7 day`, 'BoldNumber'),
-        },
         {
           name: 'Aktive Schulen pro Woche',
           ...trends('production', {
             series: [series(null, 'Aktive Schulen', {
               math: 'hogql',
               math_hogql: "uniqIf(toString(properties.school_id), isNotNull(properties.school_id))",
+              properties: [{ key: ACTIVE_USE, type: 'hogql' }],
             })],
             dateFrom: '-180d',
             display: 'ActionsBar',
           }),
         },
-        {
-          name: 'Aktive Schulen pro Woche und Oberfläche',
-          description: 'Wie viele Schulen jede Oberfläche in einer Woche genutzt haben.',
-          ...hogql('production', (where) => `
-select
-  toStartOfWeek(timestamp, 1) as Woche,
-  uniq(toString(properties.school_id)) as \`Aktive Schulen\`,
-  uniqIf(toString(properties.school_id), properties.surface = 'ogs') as \`OGS-Portal\`,
-  uniqIf(toString(properties.school_id), properties.surface = 'parents') as \`Eltern-Portal\`,
-  uniqIf(toString(properties.school_id), properties.surface = 'school') as \`Schul-Portal\`
-from events
-where ${where}
-  and isNotNull(properties.school_id)
-  and timestamp > now() - interval 12 week
-group by Woche
-order by Woche desc`),
-        },
-      ],
-    },
-    {
-      name: 'Nutzungsanalyse: Funktionen in Schulen',
-      description: `Welche Funktionsbereiche echte Schulen nutzen (deployment = moto-app.de): Seitenaufrufe und Aktionen, einschließlich Ein- und Auschecken am Kiosk. Die Zuordnung steht in FEATURES in scripts/posthog-dashboards.mjs. Das Elternportal kennt keine Schule und erscheint nur in der Tabelle nach Rolle. ${WORKDAYS_NOTE}`,
-      insights: [
-        {
-          name: 'Funktionen: Reichweite in Schulen (30 Tage)',
-          description: 'Je Funktionsbereich: wie viele Schulen ihn genutzt haben und welcher Anteil der aktiven Schulen das ist. Aktionen sind erfolgreiche Schreibvorgänge und Kiosk-Buchungen.',
-          ...hogql('production', (where) => `
-select
-  Funktion,
-  uniq(Schule) as Schulen,
-  round(100 * uniq(Schule) / greatest(any(t.Aktiv), 1)) as ${quoted('Anteil aktiver Schulen in Prozent')},
-  countIf(event = '$pageview') as Seitenaufrufe,
-  countIf(event != '$pageview') as Aktionen,
-  uniqIf(Sitzung, event = '$pageview') as Sitzungen
-from (${schoolFeatureEvents(where, 30)}) as e
-cross join (
-  select uniq(toString(properties.school_id)) as Aktiv
-  from events
-  where ${where}
-    and isNotNull(properties.school_id)
-    and timestamp > now() - interval 30 day
-) as t
-where Funktion != ''
-group by Funktion
-order by Schulen desc, Seitenaufrufe + Aktionen desc`),
-        },
-        {
-          name: 'Funktionen: je Schule (30 Tage)',
-          description: 'Eine Zeile je Schule (Schul-ID), eine Spalte je Funktionsbereich: Seitenaufrufe plus Aktionen. Zeigt, welche Schule was nutzt und was sie auslässt.',
-          ...hogql('production', (where) => `
-select
-  Schule as ${quoted('Schule (ID)')},
-  count() as Gesamt,
-  ${FEATURES.map((f) => `countIf(Funktion = ${sqlString(f.name)}) as ${quoted(f.name)}`).join(',\n  ')}
-from (${schoolFeatureEvents(where, 30)})
-where Funktion != ''
-group by Schule
-order by Gesamt desc`),
-        },
-        {
-          name: 'Funktionen: nach Rolle und Oberfläche (30 Tage)',
-          description: 'Wer welchen Funktionsbereich nutzt, einschließlich Elternportal. Ohne Oberfläche sind Ereignisse vom Kiosk und aus dem Backend.',
-          ...hogql('production', (where) => `
-select
-  Funktion,
-  ${quoted('Oberfläche')},
-  Rolle,
-  countIf(event = '$pageview') as Seitenaufrufe,
-  countIf(event != '$pageview') as Aktionen,
-  uniq(Schule) as Schulen
-from (
-  select
-    ${feature} as Funktion,
-    coalesce(properties.surface, 'ohne (Kiosk, Backend)') as ${quoted('Oberfläche')},
-    coalesce(properties.role, '-') as Rolle,
-    toString(properties.school_id) as Schule,
-    event
-  from events
-  where ${where}
-    and timestamp > now() - interval 30 day
-)
-where Funktion != ''
-group by Funktion, ${quoted('Oberfläche')}, Rolle
-order by Seitenaufrufe + Aktionen desc
-limit 100`),
-        },
-        {
-          name: 'Funktionen: Schulen pro Woche',
-          description: 'Wie viele Schulen jeden Funktionsbereich in einer Woche genutzt haben, letzte 12 Wochen. Zeigt, ob eine Funktion sich ausbreitet oder einschläft.',
-          ...hogql('production', (where) => `
-select
-  toStartOfWeek(timestamp, 1) as Woche,
-  uniq(Schule) as ${quoted('Aktive Schulen')},
-  ${FEATURES.map((f) => `uniqIf(Schule, Funktion = ${sqlString(f.name)}) as ${quoted(f.name)}`).join(',\n  ')}
-from (
-  select ${feature} as Funktion, toString(properties.school_id) as Schule, timestamp
-  from events
-  where ${where}
-    and isNotNull(properties.school_id)
-    and timestamp > now() - interval 12 week
-)
-where Funktion != ''
-group by Woche
-order by Woche desc`),
-        },
-      ],
-    },
-    {
-      name: 'Nutzungsanalyse: Nutzung je Standort',
-      description: 'Je Schule (Schul-ID): an welchen Tagen sie moto nutzt und wofür, in echten Schulen (deployment = moto-app.de). Gezählt werden nur Werktage: Montag bis Freitag ohne gesetzliche Feiertage in NRW. Ferien und Schließtage kennt PostHog nicht, sie sind nicht abgezogen. Ein- und Auschecken wird erst seit dem 25.09.2026 erfasst. Das Elternportal kennt keine Schule und fehlt hier.',
-      insights: [
         {
           name: 'Standorte: mit Anwesenheit in den letzten 7 Tagen',
           description: 'Schulen mit mindestens einer Ein- oder Auscheck-Buchung.',
@@ -742,7 +617,7 @@ from (${schoolDays(where, 7)})`, 'BoldNumber'),
           name: 'Standorte: mit Nutzung in den letzten 7 Tagen',
           description: 'Schulen mit mindestens einem Ereignis: Seitenaufruf, Kernaktion oder Kiosk.',
           ...hogql('production', (where) => `
-select uniq(Schule) as Standorte
+select uniqIf(Schule, Nutzung) as Standorte
 from (${schoolDays(where, 7)})`, 'BoldNumber'),
         },
         {
@@ -790,7 +665,7 @@ order by Anwesenheitsquote desc, Standort`, 'ActionsBarValue', {
           description: 'Seitenaufrufe, Kernaktionen und Kiosk-Buchungen je Schule und Tag, letzte 60 Tage. Zeigt auch Schulen, die moto ohne Anwesenheitserfassung nutzen.',
           ...trends('production', {
             series: [series(null, 'Seitenaufrufe und Aktionen', {
-              properties: [{ key: "isNotNull(properties.school_id) and (event = '$pageview' or not startsWith(event, '$'))", type: 'hogql' }],
+              properties: [{ key: `isNotNull(properties.school_id) and ${ACTIVE_USE}`, type: 'hogql' }],
             })],
             interval: 'day',
             dateFrom: '-60d',
@@ -805,7 +680,7 @@ order by Anwesenheitsquote desc, Standort`, 'ActionsBarValue', {
           ...hogql('production', (where) => `
 select Woche, Standort, round(Anzahl / greatest(avg(Anzahl) over (partition by Schule), 1), 2) as ${quoted('Anteil am eigenen Schnitt')}
 from (
-  select toStartOfWeek(Tag, 1) as Woche, Schule, any(Standort) as Standort, countIf(event = '$pageview' or not startsWith(event, '$')) as Anzahl
+  select toStartOfWeek(Tag, 1) as Woche, Schule, any(Standort) as Standort, countIf(Nutzung) as Anzahl
   from (${schoolDays(where, 91)})
   where Tag >= addDays(toStartOfWeek(today(), 1), -84) and Tag < toStartOfWeek(today(), 1)
   group by Woche, Schule
@@ -845,7 +720,7 @@ select
   ${workdaysSinceFirstAttendance} as ${quoted('Werktage seit erster Anwesenheit')},
   if(countIf(Anwesenheit) = 0, null, minIf(Tag, Anwesenheit)) as ${quoted('Erste Anwesenheit')},
   if(countIf(Anwesenheit) = 0, null, maxIf(Tag, Anwesenheit)) as ${quoted('Letzte Anwesenheit')},
-  uniqIf(Tag, Tag < today()) as ${quoted('Werktage mit Nutzung')},
+  uniqIf(Tag, Nutzung and Tag < today()) as ${quoted('Werktage mit Nutzung')},
   uniqIf(Tag, event = 'login_success') as ${quoted('Tage mit Login')},
   countIf(Anwesenheit) as ${quoted('Ein- und Auscheck-Buchungen')},
   countIf(${coreAction}) as Kernaktionen,
@@ -861,12 +736,157 @@ order by ${quoted('Werktage mit Anwesenheit')} desc, ${quoted('Werktage mit Nutz
 select
   any(Standort) as Standort,
   Schule as ${quoted('Schul-ID')},
-  uniq(Tag) as ${quoted('Tage mit Nutzung')},
+  uniqIf(Tag, Nutzung) as ${quoted('Tage mit Nutzung')},
   uniqIf(Tag, event = 'login_success') as Logins,
   ${FEATURES.map((f) => `uniqIf(Tag, Funktion = ${sqlString(f.name)}) as ${quoted(f.name)}`).join(',\n  ')}
 from (${schoolDays(where, 60)})
 group by Schule
 order by ${quoted('Tage mit Nutzung')} desc`),
+        },
+      ],
+    },
+    {
+      name: 'Nutzungsanalyse: OGS-App',
+      description: `Was Betreuung und Leitung in der OGS-App tun (surface = ogs), in echten Schulen (deployment = moto-app.de). Seiten erscheinen als Routenmuster mit ihrem Namen aus der Navigation, Bereiche wie in FEATURES (scripts/posthog-dashboards.mjs). ${WORKDAYS_NOTE}`,
+      insights: [
+        {
+          name: 'OGS-App: Welche Seiten werden am meisten genutzt?',
+          description: 'Letzte 30 Tage. Aufrufe pro Tag mit Nutzung, Schulen, Sitzungen und die mittlere Verweildauer. Tage ohne Nutzung (Ferien) zählen nicht mit.',
+          ...pagesPerDay('production', 'ogs', pageNames),
+        },
+        {
+          name: 'OGS-App: Was tun Betreuung und Leitung?',
+          description: 'Letzte 30 Tage. Erfolgreiche Speichervorgänge aus dem Backend je Rolle (staff = Betreuung, admin = Leitung/Verwaltung).',
+          ...actionsByRole('production', 'ogs', coreAction),
+        },
+        {
+          name: 'OGS-App: Wohin geht es von der Startseite?',
+          description: 'Letzte 30 Tage. Welche Seite nach der Startseite (/home) als nächste geöffnet wird, als Anteil aller Wechsel von dort.',
+          ...nextPages('production', 'ogs', '/home', pageNames),
+        },
+        {
+          name: 'Funktionen: Reichweite in Schulen (30 Tage)',
+          description: 'Je Funktionsbereich: wie viele Schulen ihn genutzt haben und welcher Anteil der aktiven Schulen das ist. Aktionen sind erfolgreiche Schreibvorgänge und Kiosk-Buchungen.',
+          ...hogql('production', (where) => `
+select
+  Funktion,
+  uniq(Schule) as Schulen,
+  round(100 * uniq(Schule) / greatest(any(t.Aktiv), 1)) as ${quoted('Anteil aktiver Schulen in Prozent')},
+  countIf(event = '$pageview') as Seitenaufrufe,
+  countIf(event != '$pageview') as Aktionen,
+  uniqIf(Sitzung, event = '$pageview') as Sitzungen
+from (${schoolFeatureEvents(where, 30)}) as e
+cross join (
+  select uniq(toString(properties.school_id)) as Aktiv
+  from events
+  where ${where}
+    and isNotNull(properties.school_id)
+    and ${ACTIVE_USE}
+    and timestamp > now() - interval 30 day
+) as t
+where Funktion != ''
+group by Funktion
+order by Schulen desc, Seitenaufrufe + Aktionen desc`),
+        },
+        {
+          name: 'Funktionen: Schulen pro Woche',
+          description: 'Wie viele Schulen jeden Funktionsbereich in einer Woche genutzt haben, letzte 12 Wochen. Zeigt, ob eine Funktion sich ausbreitet oder einschläft.',
+          ...hogql('production', (where) => `
+select
+  toStartOfWeek(timestamp, 1) as Woche,
+  uniq(Schule) as ${quoted('Aktive Schulen')},
+  ${FEATURES.map((f) => `uniqIf(Schule, Funktion = ${sqlString(f.name)}) as ${quoted(f.name)}`).join(',\n  ')}
+from (
+  select ${feature} as Funktion, toString(properties.school_id) as Schule, timestamp
+  from events
+  where ${where}
+    and isNotNull(properties.school_id)
+    and timestamp > now() - interval 12 week
+)
+where Funktion != ''
+group by Woche
+order by Woche desc`),
+        },
+        {
+          name: 'OGS-App: Welche Seiten öffnet kaum jemand?',
+          description: 'Jede Seite der OGS-App aus analytics-routes.ts, letzte 30 Tage, aufsteigend nach Aufrufen; 0 heißt nie geöffnet. Kandidaten zum Vereinfachen, Verstecken oder Streichen.',
+          ...rarePages('production', 'ogs', routes),
+        },
+        {
+          name: 'OGS-App: Wo klicken Nutzer ins Leere?',
+          description: 'Letzte 30 Tage. Dead Clicks (Klick ohne Wirkung) und Rage Clicks (schnelle Mehrfachklicks) je Seite, mit Link zur Heatmap. Seiten mit gleichem Muster in zwei Portalen (/, /messages) teilen sich eine Heatmap.',
+          ...frictionTable(projectId, 'production', ['ogs']),
+        },
+        {
+          name: 'Seiten: Aufrufe ohne Routenmuster',
+          description: 'Wartung, alle Portale (auch Eltern- und Schul-App): Seiten ohne Muster kommen als /unknown an. Steigt die Zahl, fehlt in analytics-routes.ts ein Eintrag.',
+          ...trends('production', {
+            series: [series('$pageview', 'Seiten ohne Muster', {
+              properties: [{ key: '$pathname', type: 'event', operator: 'exact', value: ['/unknown'] }],
+            })],
+            breakdown: 'surface',
+          }),
+        },
+      ],
+    },
+    {
+      name: 'Nutzungsanalyse: Eltern-App',
+      description: `Was Eltern in der Eltern-App tun (surface = parents), in echten Schulen (deployment = moto-app.de). Eltern haben keine Schule, deshalb gibt es hier keine Aufteilung nach Schule. ${WORKDAYS_NOTE} Eltern nutzen die App auch am Wochenende; diese Tage fehlen hier.`,
+      insights: [
+        {
+          name: 'Eltern-App: Welche Seiten werden am meisten genutzt?',
+          description: 'Letzte 30 Tage. Aufrufe pro Tag mit Nutzung, Sitzungen und die mittlere Verweildauer.',
+          ...pagesPerDay('production', 'parents', PARENT_PAGE_NAMES),
+        },
+        {
+          name: 'Eltern-App: Was schicken Eltern ab?',
+          description: 'Letzte 30 Tage. Erfolgreiche Speichervorgänge aus dem Backend, etwa Abwesenheit gemeldet oder Abholung geändert.',
+          ...actionsByRole('production', 'parents', coreAction),
+        },
+        {
+          name: 'Eltern-App: Seitenaufrufe pro Woche',
+          ...viewsPerWeek('production', 'parents', 'Seitenaufrufe'),
+        },
+        {
+          name: 'Eltern-App: Wohin geht es von der Startseite?',
+          description: 'Letzte 30 Tage. Welche Seite nach der Startseite als nächste geöffnet wird, als Anteil aller Wechsel von dort.',
+          ...nextPages('production', 'parents', '/', PARENT_PAGE_NAMES),
+        },
+        {
+          name: 'Eltern-App: Welche Seiten öffnet kaum jemand?',
+          description: 'Jede Seite der Eltern-App aus analytics-routes.ts, letzte 30 Tage, aufsteigend nach Aufrufen; 0 heißt nie geöffnet.',
+          ...rarePages('production', 'parents', routes),
+        },
+        {
+          name: 'Eltern-App: Wo klicken Eltern ins Leere?',
+          description: 'Letzte 30 Tage. Dead Clicks und Rage Clicks je Seite, mit Link zur Heatmap.',
+          ...frictionTable(projectId, 'production', ['parents']),
+        },
+      ],
+    },
+    {
+      name: 'Nutzungsanalyse: Schul-App',
+      description: `Was Lehrkräfte in der Schul-App tun (surface = school), in echten Schulen (deployment = moto-app.de). Die Schul-App wird bisher wenig genutzt; kleine Zahlen sind Einzelfälle. ${WORKDAYS_NOTE}`,
+      insights: [
+        {
+          name: 'Schul-App: Welche Seiten werden am meisten genutzt?',
+          description: 'Letzte 30 Tage. Aufrufe pro Tag mit Nutzung, Schulen, Sitzungen und die mittlere Verweildauer.',
+          ...pagesPerDay('production', 'school', SCHOOL_PAGE_NAMES),
+        },
+        {
+          name: 'Schul-App: Was tun Lehrkräfte?',
+          description: 'Letzte 30 Tage. Erfolgreiche Speichervorgänge aus dem Backend, etwa Anwesenheit in einer Aufsicht erfasst.',
+          ...actionsByRole('production', 'school', coreAction),
+        },
+        {
+          name: 'Schul-App: Welche Seiten öffnet kaum jemand?',
+          description: 'Jede Seite der Schul-App aus analytics-routes.ts, letzte 30 Tage, aufsteigend nach Aufrufen; 0 heißt nie geöffnet.',
+          ...rarePages('production', 'school', routes),
+        },
+        {
+          name: 'Schul-App: Wo klicken Lehrkräfte ins Leere?',
+          description: 'Letzte 30 Tage. Dead Clicks und Rage Clicks je Seite, mit Link zur Heatmap.',
+          ...frictionTable(projectId, 'production', ['school']),
         },
       ],
     },
@@ -881,7 +901,7 @@ order by ${quoted('Tage mit Nutzung')} desc`),
             series: [series(null, 'Tage mit Nutzung', {
               math: 'hogql',
               math_hogql: 'uniq(toDate(timestamp))',
-              properties: [{ key: "isNotNull(properties.school_id) and (event = '$pageview' or not startsWith(event, '$'))", type: 'hogql' }],
+              properties: [{ key: `isNotNull(properties.school_id) and ${ACTIVE_USE}`, type: 'hogql' }],
             })],
             dateFrom: '-180d',
             display: 'ActionsBar',
@@ -904,7 +924,7 @@ order by ${quoted('Tage mit Nutzung')} desc`),
           description: 'Wie viel die Schule mit moto arbeitet, gestrichelt die 90 Tage davor.',
           ...trends('production', {
             series: [series(null, 'Seitenaufrufe und Aktionen', {
-              properties: [{ key: "isNotNull(properties.school_id) and (event = '$pageview' or not startsWith(event, '$'))", type: 'hogql' }],
+              properties: [{ key: `isNotNull(properties.school_id) and ${ACTIVE_USE}`, type: 'hogql' }],
             })],
             compare: true,
           }),
@@ -932,55 +952,46 @@ order by ${quoted('Tage mit Nutzung')} desc`),
       ],
     },
     {
-      name: 'Nutzungsanalyse: Demo-Verhalten',
-      description: 'Was Besucher in der öffentlichen Demo ansehen und ausprobieren und wo sie aufhören. Nur deployment = demo, nur Seiten nach der Rollenwahl. Eine Sitzung endet auch beim Neuladen oder in einem neuen Tab (kein Cookie), „aufgehört“ heißt deshalb: letzte Seite einer Sitzung.',
+      name: 'Nutzungsanalyse: Demo',
+      description: 'Was Interessenten in der öffentlichen Demo ansehen, ausprobieren und wo sie aussteigen, bis zum Klick auf „Kostenlos starten“. Nur deployment = demo, Demo-Zugänge statt Personen. Eine Sitzung endet auch beim Neuladen oder in einem neuen Tab. „Kostenlos starten“ führt auf das Formular moto-ogs.de/start (?src=demo); seine Schritte und Absendungen misst Umami auf der Website (Events start-form-*), nicht PostHog.',
       insights: [
         {
-          name: 'Demo-Verhalten: letzte Seite vor dem Aufhören',
-          description: 'Letzte 30 Tage. Auf welcher Seite Demo-Sitzungen enden, wie viele Seiten und Sekunden die Sitzung bis dahin hatte.',
-          ...hogql('demo', (where) => `
-select
-  Funktion,
-  Seite,
-  count() as ${quoted('Sitzungen endeten hier')},
-  round(100 * count() / sum(count()) over (), 1) as ${quoted('Anteil in Prozent')},
-  round(median(Seiten)) as ${quoted('Median Seiten bis dahin')},
-  round(median(Dauer)) as ${quoted('Median Dauer (s)')}
-from (
-  select
-    Sitzung,
-    argMax(Funktion, timestamp) as Funktion,
-    argMax(Seite, timestamp) as Seite,
-    count() as Seiten,
-    dateDiff('second', min(timestamp), max(timestamp)) as Dauer
-  from (${demoPages(where)})
-  group by Sitzung
-)
-group by Funktion, Seite
-order by ${quoted('Sitzungen endeten hier')} desc
-limit 30`),
+          name: 'Demo-Funnel: Einstieg bis Kostenlos starten',
+          description: 'Folgt einem Demo-Zugang vom Einstieg über den Rollenwechsel bis „Kostenlos starten“, letzte 30 Tage. Das ist die Konversion der Demo.',
+          ...funnel('demo', {
+            series: [
+              series('demo_entered', 'Eingestiegen'),
+              series('demo_role_switched', 'Rolle gewechselt'),
+              series('demo_start_clicked', 'Kostenlos starten'),
+            ],
+          }),
         },
         {
-          name: 'Demo-Verhalten: Sitzungstiefe',
-          description: 'Letzte 30 Tage. Wie weit Besucher kommen: Sitzungen nach Zahl der Seiten, mit Dauer und Zahl der angesehenen Funktionsbereiche.',
+          name: 'Demo: Wie lange bleiben Besucher?',
+          description: 'Letzte 30 Tage, Sitzungen nach der Rollenwahl. Dauer vom ersten bis zum letzten Seitenaufruf der Sitzung; eine Sitzung mit nur einer Seite zählt als „unter 1 Minute“.',
           ...hogql('demo', (where) => `
 select
-  multiIf(Seiten = 1, '1 Seite', Seiten <= 3, '2-3 Seiten', Seiten <= 6, '4-6 Seiten', Seiten <= 10, '7-10 Seiten', Seiten <= 20, '11-20 Seiten', 'über 20 Seiten') as ${quoted('Tiefe')},
+  multiIf(Sekunden < 60, 'unter 1 Minute', Sekunden < 180, '1 bis 3 Minuten', Sekunden < 600, '3 bis 10 Minuten', Sekunden < 1800, '10 bis 30 Minuten', 'über 30 Minuten') as ${quoted('Dauer in der Demo')},
   count() as Sitzungen,
   round(100 * count() / sum(count()) over (), 1) as ${quoted('Anteil in Prozent')},
-  round(median(Dauer)) as ${quoted('Median Dauer (s)')},
-  round(avg(Funktionen), 1) as ${quoted('Funktionsbereiche (Mittel)')}
+  round(avg(Seiten), 1) as ${quoted('Seiten (Mittel)')},
+  countIf(Gestartet = 1) as ${quoted('davon Kostenlos starten')}
 from (
   select
-    Sitzung,
-    count() as Seiten,
-    dateDiff('second', min(timestamp), max(timestamp)) as Dauer,
-    uniqIf(Funktion, Funktion != '') as Funktionen
-  from (${demoPages(where)})
+    properties.$session_id as Sitzung,
+    dateDiff('second', minIf(timestamp, event = '$pageview'), maxIf(timestamp, event = '$pageview')) as Sekunden,
+    countIf(event = '$pageview') as Seiten,
+    max(event = 'demo_start_clicked') as Gestartet
+  from events
+  where ${where}
+    and isNotNull(properties.$session_id)
+    and (event = 'demo_start_clicked' or (event = '$pageview' and coalesce(properties.demo_role, properties.role) in ${sqlList(DEMO_ROLES)}))
+    and timestamp > now() - interval 30 day
   group by Sitzung
+  having Seiten > 0
 )
-group by ${quoted('Tiefe')}
-order by min(Seiten)`),
+group by ${quoted('Dauer in der Demo')}
+order by min(Sekunden)`),
         },
         {
           name: 'Demo-Verhalten: angesehene Funktionen nach Rolle',
@@ -1004,27 +1015,6 @@ join (
   group by Rolle
 ) as r on f.Rolle = r.Rolle
 order by Rolle, Sitzungen desc`),
-        },
-        {
-          name: 'Demo-Verhalten: ausprobierte Aktionen',
-          description: 'Letzte 30 Tage. Was Besucher selbst gespeichert oder abgeschickt haben. Nur Aktionen mit Browser-Sitzung: die Daten, die beim Bereitstellen der Demo-Schule entstehen, zählen nicht.',
-          ...hogql('demo', (where) => `
-select
-  Funktion,
-  event as Aktion,
-  count() as Anzahl,
-  uniq(Sitzung) as Sitzungen
-from (
-  select ${feature} as Funktion, event, properties.$session_id as Sitzung
-  from events
-  where ${where}
-    and event != '$pageview'
-    and isNotNull(properties.$session_id)
-    and timestamp > now() - interval 30 day
-)
-where Funktion != ''
-group by Funktion, Aktion
-order by Anzahl desc`),
         },
         {
           name: 'Demo-Verhalten: Funktionen vor „Kostenlos starten“',
@@ -1062,6 +1052,106 @@ where Funktion != ''
 group by Funktion
 order by ${quoted('Anteil mit Klick in Prozent')} desc, ${quoted('Anteil ohne Klick in Prozent')} desc`),
         },
+        {
+          name: 'Demo-Verhalten: ausprobierte Aktionen',
+          description: 'Letzte 30 Tage. Was Besucher selbst gespeichert oder abgeschickt haben. Nur Aktionen mit Browser-Sitzung: die Daten, die beim Bereitstellen der Demo-Schule entstehen, zählen nicht.',
+          ...hogql('demo', (where) => `
+select
+  Funktion,
+  event as Aktion,
+  count() as Anzahl,
+  uniq(Sitzung) as Sitzungen
+from (
+  select ${feature} as Funktion, event, properties.$session_id as Sitzung
+  from events
+  where ${where}
+    and event != '$pageview'
+    and isNotNull(properties.$session_id)
+    and timestamp > now() - interval 30 day
+)
+where Funktion != ''
+group by Funktion, Aktion
+order by Anzahl desc`),
+        },
+        {
+          name: 'Demo-Verhalten: letzte Seite vor dem Aufhören',
+          description: 'Letzte 30 Tage. Auf welcher Seite Demo-Sitzungen enden, wie viele Seiten und Sekunden die Sitzung bis dahin hatte.',
+          ...hogql('demo', (where) => `
+select
+  Funktion,
+  Seite,
+  count() as ${quoted('Sitzungen endeten hier')},
+  round(100 * count() / sum(count()) over (), 1) as ${quoted('Anteil in Prozent')},
+  round(median(Seiten)) as ${quoted('Median Seiten bis dahin')},
+  round(median(Dauer)) as ${quoted('Median Dauer (s)')}
+from (
+  select
+    Sitzung,
+    argMax(Funktion, timestamp) as Funktion,
+    argMax(Seite, timestamp) as Seite,
+    count() as Seiten,
+    dateDiff('second', min(timestamp), max(timestamp)) as Dauer
+  from (${demoPages(where)})
+  group by Sitzung
+)
+group by Funktion, Seite
+order by ${quoted('Sitzungen endeten hier')} desc
+limit 30`),
+        },
+        {
+          name: 'Demo: Einstiege nach Rolle und Quelle',
+          description: 'Demo-Rolle und Kampagnenquelle (src) der letzten 30 Tage.',
+          ...hogql('demo', (where) => `
+select
+  coalesce(properties.demo_role, 'unbekannt') as \`Demo-Rolle\`,
+  coalesce(properties.src, 'ohne') as Quelle,
+  countIf(event = 'demo_entered') as Einstiege,
+  countIf(event = 'demo_role_switched') as Rollenwechsel,
+  countIf(event = 'demo_start_clicked') as \`Kostenlos starten\`
+from events
+where ${where}
+  and event in ('demo_entered', 'demo_role_switched', 'demo_start_clicked')
+  and timestamp > now() - interval 30 day
+group by \`Demo-Rolle\`, Quelle
+order by Einstiege desc`),
+        },
+        {
+          name: 'Demo-Funnel: Schritte pro Woche',
+          ...trends('demo', {
+            series: [
+              series('demo_link_requested', 'Link angefordert'),
+              series('demo_started', 'Demo-Schule bereitgestellt'),
+              series('demo_entered', 'Eingestiegen'),
+              series('demo_role_switched', 'Rolle gewechselt'),
+              series('demo_start_clicked', 'Kostenlos starten'),
+            ],
+          }),
+        },
+        {
+          name: 'Demo-Funnel: Ereignisse je Schritt (30 Tage)',
+          description: 'Zählt Ereignisse, keine Besucher: Ein Besucher kann die Rolle mehrmals wechseln, ein Link mehrmals geöffnet werden. Link angefordert und Demo-Schule bereitgestellt kommen aus dem Backend, die übrigen Schritte aus dem Browser.',
+          ...hogql('demo', (where) => `
+select Schritt, Anzahl
+from (
+  select 1 as Nr, 'Link angefordert' as Schritt, countIf(event = 'demo_link_requested') as Anzahl from events where ${where} and timestamp > now() - interval 30 day
+  union all
+  select 2, 'Link geöffnet (Warteraum)', countIf(event = '$pageview' and properties.surface = 'public' and properties.$pathname = '/demo') from events where ${where} and timestamp > now() - interval 30 day
+  union all
+  select 3, 'Demo-Schule bereitgestellt (Backend)', countIf(event = 'demo_started') from events where ${where} and timestamp > now() - interval 30 day
+  union all
+  select 4, 'Eingestiegen', countIf(event = 'demo_entered') from events where ${where} and timestamp > now() - interval 30 day
+  union all
+  select 5, 'Rolle gewechselt', countIf(event = 'demo_role_switched') from events where ${where} and timestamp > now() - interval 30 day
+  union all
+  select 6, 'Kostenlos starten', countIf(event = 'demo_start_clicked') from events where ${where} and timestamp > now() - interval 30 day
+)
+order by Nr`),
+        },
+        {
+          name: 'Demo: Wo klicken Besucher ins Leere?',
+          description: 'Letzte 30 Tage, öffentliche Demo. Dead Clicks und Rage Clicks je Seite, mit Link zur Heatmap.',
+          ...frictionTable(projectId, 'demo', [...PORTALS, 'public']),
+        },
       ],
     },
   ];
@@ -1096,6 +1186,7 @@ function schoolDays(where, days) {
     ${SCHOOL_BREAKDOWN} as Standort,
     toDate(timestamp) as Tag,
     event in ${sqlList(ATTENDANCE_EVENTS)} as Anwesenheit,
+    ${ACTIVE_USE} as Nutzung,
     ${featureExpression()} as Funktion,
     event
   from events

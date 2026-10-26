@@ -22,6 +22,7 @@ import {
 } from "~/contexts/ToastContext";
 import { formatDeviceLabelFromUserAgent } from "~/lib/device-label";
 import { createLogger } from "~/lib/logger";
+import { getCachedSession } from "~/lib/session-cache";
 import {
   listTrustedDevices,
   revokeTrustedDevice,
@@ -54,7 +55,7 @@ export function TrustedDevicesSection({
   scope = "tenant",
 }: TrustedDevicesSectionProps = {}) {
   const { data: session, status: sessionStatus } = useSession();
-  const bearerToken = session?.user?.token;
+  const sessionToken = session?.user?.token;
   const toast = useToast();
   const [devices, setDevices] = useState<TrustedDeviceDTO[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -72,13 +73,22 @@ export function TrustedDevicesSection({
   const latestLoadRef = useRef<() => void>(() => undefined);
   const latestRevokeRef = useRef<(deviceId: number) => void>(() => undefined);
 
+  // The operator layout hydrates SessionProvider from a server snapshot
+  // without the access token (#4991, #5005). These routes still forward the
+  // token as a bearer, so a session without one reads it from the session
+  // route; a stripped session (empty token) sends no request.
+  const resolveBearerToken = useCallback(
+    async () => sessionToken ?? (await getCachedSession())?.user?.token ?? "",
+    [sessionToken],
+  );
+
   const load = useCallback(async () => {
-    if (!bearerToken) return;
+    if (sessionToken === "") return;
     setLoading(true);
     setLoadFailed(false);
     clear();
     try {
-      const list = await listTrustedDevices(scope, bearerToken);
+      const list = await listTrustedDevices(scope, await resolveBearerToken());
       setDevices(list);
     } catch (err) {
       logger.error("list_trusted_devices_failed", {
@@ -92,7 +102,7 @@ export function TrustedDevicesSection({
     } finally {
       setLoading(false);
     }
-  }, [bearerToken, clear, scope, showLoadError]);
+  }, [sessionToken, resolveBearerToken, clear, scope, showLoadError]);
 
   useEffect(() => {
     if (sessionStatus === "authenticated") {
@@ -104,11 +114,11 @@ export function TrustedDevicesSection({
 
   const handleRevoke = useCallback(
     async (deviceId: number) => {
-      if (!bearerToken) return;
+      if (sessionToken === "") return;
       setRevokingId(deviceId);
       revokeErrors.clear();
       try {
-        await revokeTrustedDevice(scope, bearerToken, deviceId);
+        await revokeTrustedDevice(scope, await resolveBearerToken(), deviceId);
         setRevokeTarget(null);
         toast.success("Das Gerät ist entfernt.");
         await load();
@@ -125,7 +135,7 @@ export function TrustedDevicesSection({
         setRevokingId(null);
       }
     },
-    [bearerToken, scope, toast, load, revokeErrors],
+    [sessionToken, resolveBearerToken, scope, toast, load, revokeErrors],
   );
 
   useLayoutEffect(() => {

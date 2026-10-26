@@ -197,6 +197,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.leadDutyRoster]: "lead",
   [HELP_TOPICS.leadSubstitutionPlan]: "lead",
   [HELP_TOPICS.leadDayLists]: "lead",
+  [HELP_TOPICS.leadHolidayWeeks]: "lead",
   [HELP_TOPICS.leadWorkTimeReview]: "lead",
   [HELP_TOPICS.leadAbsenceReport]: "lead",
   [HELP_TOPICS.leadStatistics]: "lead",

@@ -214,6 +214,7 @@ const (
 	CodeEnrollmentHolidayRegistrationNotFound            = "enrollment.holiday_registration_not_found"
 	CodeEnrollmentHolidayRegistrationStateConflict       = "enrollment.holiday_registration_state_conflict"
 	CodeEnrollmentHolidayWeekBooked                      = "enrollment.holiday_week_booked"
+	CodeEnrollmentHostedHolidayWeekNotFound              = "enrollment.hosted_holiday_week_not_found"
 	CodeEnrollmentInvalidEmail                           = "enrollment.invalid_email"
 	CodeEnrollmentInvalidPhone                           = "enrollment.invalid_phone"
 	CodeEnrollmentLateInviteInvalid                      = "enrollment.late_invite_invalid"
@@ -301,7 +302,6 @@ const (
 	CodeIdentityEmailChangeRateLimited                   = "identity.email_change_rate_limited"
 	CodeIdentityEmailChangeSameEmail                     = "identity.email_change_same_email"
 	CodeIdentityInvalidCredentials                       = "identity.invalid_credentials"
-	CodeIdentityInvitationAccountLoginRequired           = "identity.invitation_account_login_required"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -517,6 +517,7 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.holiday_registration_not_found":            "business_rejection",
 	"enrollment.holiday_registration_state_conflict":       "business_rejection",
 	"enrollment.holiday_week_booked":                       "business_rejection",
+	"enrollment.hosted_holiday_week_not_found":             "business_rejection",
 	"enrollment.invalid_email":                             "input",
 	"enrollment.invalid_phone":                             "input",
 	"enrollment.late_invite_invalid":                       "input",
@@ -604,7 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.email_change_rate_limited":                   "unavailable",
 	"identity.email_change_same_email":                     "input",
 	"identity.invalid_credentials":                         "input",
-	"identity.invitation_account_login_required":           "permission",
 }
 
 func init() {

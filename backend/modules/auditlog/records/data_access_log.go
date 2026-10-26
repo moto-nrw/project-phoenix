@@ -93,6 +93,16 @@ const (
 	// name and date of birth of one child. StudentID is SET; metadata carries
 	// organization_id. ActorRole is "guardian".
 	ResourceTypeHolidayPrefill = "holiday_prefill"
+
+	// ResourceTypeHolidayParticipants records the hosting school reading the
+	// participant list of a holiday week it hosts (#4665): name, date of
+	// birth, home school and time model of the confirmed children, who need
+	// not be students of the school. StudentID is NIL; RangeStart and
+	// RangeEnd span the week; metadata carries week_id and participants.
+	ResourceTypeHolidayParticipants = "holiday_participants"
+	// ResourceTypeHolidayParticipantsExport records an export of that list;
+	// metadata adds the format.
+	ResourceTypeHolidayParticipantsExport = "holiday_participants_export"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive
