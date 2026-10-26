@@ -10,7 +10,7 @@ import (
 func TestBlockFilterMatches(t *testing.T) {
 	t.Parallel()
 	group, otherGroup, staff, otherStaff := int64(71), int64(81), int64(11), int64(12)
-	room, otherRoom := int64(5), int64(6)
+	room, otherRoom := int64(51), int64(61)
 	rows := []timetable.InstanceStaff{{StaffID: staff, IsAbsent: true}, {StaffID: 13, IsSubstitute: true}}
 	groups := []int64{group}
 
