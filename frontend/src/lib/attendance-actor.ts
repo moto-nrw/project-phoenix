@@ -2,7 +2,8 @@
 // und, nur bei Mitarbeitenden, den Namen; der Text entsteht hier, damit
 // Kinderseite und Anwesenheitsprotokoll dieselben Wörter zeigen.
 
-type AttendanceActorKind = "staff" | "device" | "former_staff" | "automatic";
+export type AttendanceActorKind =
+  "staff" | "device" | "former_staff" | "automatic";
 
 export interface AttendanceActor {
   kind: AttendanceActorKind;
