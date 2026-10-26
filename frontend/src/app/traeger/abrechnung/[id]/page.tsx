@@ -6,6 +6,7 @@
 // nicht mehr. Jedes Öffnen steht im Protokoll des Laufs. Ein freigegebener
 // Lauf hat die Übersicht für die Kämmerei (#4672).
 
+import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -13,7 +14,6 @@ import {
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
 import { BillingDocumentCard } from "~/components/traeger/billing-document-card";
-import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
@@ -45,6 +45,16 @@ import {
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerBillingRunPage" });
+
+// Nur ein freigegebener Lauf zeigt die Übersicht für die Kämmerei; ihre
+// Tabelle und ihr Export-Menü laden erst dann (#4672).
+const BillingRunOverviewCard = dynamic(
+  () =>
+    import("~/components/traeger/billing-run-overview-card").then(
+      (mod) => mod.BillingRunOverviewCard,
+    ),
+  { ssr: false, loading: () => <Loading fullPage={false} /> },
+);
 
 function runDescription(run: BillingRunDetail): string {
   if (run.status === "released") {
