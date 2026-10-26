@@ -801,6 +801,7 @@ function setupSWR({
   conflictAcks = [] as string[],
   instances = [instance],
   filterGroups = [] as Array<{ id: string; name: string }>,
+  filterRooms = [] as Array<{ id: string; name: string }>,
 }: {
   periods?: Array<typeof period>;
   periodsState?: "ready" | "loading" | "error";
@@ -817,6 +818,7 @@ function setupSWR({
   conflictAcks?: string[];
   instances?: (typeof instance)[];
   filterGroups?: Array<{ id: string; name: string }>;
+  filterRooms?: Array<{ id: string; name: string }>;
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -873,6 +875,9 @@ function setupSWR({
     }
     if (key === "timetable-conflict-acks") {
       return { data: conflictAcks };
+    }
+    if (key === "timetable-filter-rooms") {
+      return { data: filterRooms };
     }
     if (key === "timetable-filter-groups") {
       return { data: filterGroups };
@@ -2498,7 +2503,7 @@ describe("BetreuungsplanView", () => {
         expect(timetableService.getWeek).toHaveBeenLastCalledWith(
           expect.any(String),
           expect.any(String),
-          { groupId: "5", staffId: "11" },
+          { groupId: "5", staffId: "11", roomId: null },
         );
         unmount();
       }
@@ -2515,7 +2520,7 @@ describe("BetreuungsplanView", () => {
       expect(timetableService.getWeek).toHaveBeenLastCalledWith(
         "2026-05-04",
         "2026-05-08",
-        { groupId: null, staffId: null },
+        { groupId: null, staffId: null, roomId: null },
       );
     });
 
@@ -2618,6 +2623,54 @@ describe("BetreuungsplanView", () => {
             key.startsWith("timetable-plan-staff-names-"),
         ),
       ).toBe(true);
+    });
+
+    it("filtert nach Raum aus der URL und schreibt die Auswahl zurück (#4768)", async () => {
+      mockUseSession.mockReturnValue({
+        status: "authenticated",
+        data: {
+          user: {
+            permissions: [
+              "schedules:read",
+              "schedules:manage",
+              "users:read",
+              "rooms:read",
+            ],
+          },
+        },
+      });
+      setupSWR({ filterRooms: [{ id: "3", name: "Werkraum" }] });
+      const { timetableService } = await import("~/lib/timetable-api");
+      setUrl("room=3&block=42");
+      render(<BetreuungsplanView />);
+
+      const { key, fetcher } = instanceFetch("week");
+      expect(key).toMatch(/-g-p-r3$/);
+      void fetcher();
+      expect(timetableService.getWeek).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.any(String),
+        { groupId: null, staffId: null, roomId: "3" },
+      );
+      expect(
+        screen.getByRole("combobox", { name: "Nach Raum filtern" }),
+      ).toHaveTextContent("Werkraum");
+
+      fireEvent.click(
+        screen.getByRole("combobox", { name: "Nach Raum filtern" }),
+      );
+      fireEvent.click(screen.getByRole("option", { name: "Alle Räume" }));
+      expect(urlParams().get("room")).toBeNull();
+      expect(urlParams().get("block")).toBeNull();
+    });
+
+    it("ignoriert den Raum ohne Raumliste (#4768)", () => {
+      setUrl("room=3&staff=11");
+      render(<BetreuungsplanView />);
+
+      expect(screen.getByTestId("plan-filter-staff")).toBeInTheDocument();
+      expect(screen.queryByTestId("plan-filter-room")).not.toBeInTheDocument();
+      expect(instanceFetch("week").key).toMatch(/-g-p11$/);
     });
 
     it("nennt einen leeren gefilterten Plan als leere Auswahl", () => {

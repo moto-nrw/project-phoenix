@@ -15,12 +15,12 @@ type stubInstanceFilter struct {
 	staffSeen *int
 }
 
-func (f stubInstanceFilter) MatchingInstances(_ context.Context, filter BlockFilter, ids []int64, staff []*InstanceStaff) (FilteredInstances, error) {
+func (f stubInstanceFilter) MatchingInstances(_ context.Context, filter BlockFilter, instances []*Instance, staff []*InstanceStaff) (FilteredInstances, error) {
 	*f.asked = filter
 	*f.staffSeen = len(staff)
-	matches := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		matches[id] = slices.Contains(f.keep, id)
+	matches := make(map[int64]bool, len(instances))
+	for _, instance := range instances {
+		matches[instance.ID] = slices.Contains(f.keep, instance.ID)
 	}
 	return FilteredInstances{Matches: matches, GroupName: f.groupName}, nil
 }
@@ -45,9 +45,9 @@ func TestBetreuungsplanPrintsOnlyFilteredBlocksAndNamesTheFilter(t *testing.T) {
 		Filter:        stubInstanceFilter{keep: []int64{12}, groupName: "Sonnen", asked: &asked, staffSeen: &staffSeen},
 		Renderer:      renderer,
 	}, nil)
-	group, staff := int64(51), int64(8)
+	group, staff, roomID := int64(51), int64(8), int64(4)
 	params := careParams()
-	params.Filter = BlockFilter{EducationGroupID: &group, StaffID: &staff}
+	params.Filter = BlockFilter{EducationGroupID: &group, StaffID: &staff, RoomID: &roomID}
 
 	if _, err := service.ExportBetreuungsplan(context.Background(), params); err != nil {
 		t.Fatalf("ExportBetreuungsplan: %v", err)
@@ -55,14 +55,18 @@ func TestBetreuungsplanPrintsOnlyFilteredBlocksAndNamesTheFilter(t *testing.T) {
 	if labels := rowLabels(renderer.doc); !slices.Equal(labels, []string{"Lernzeit"}) {
 		t.Fatalf("rows = %v, want only the filtered block", labels)
 	}
-	if asked.EducationGroupID == nil || *asked.EducationGroupID != group || asked.StaffID == nil || *asked.StaffID != staff {
-		t.Fatalf("filter asked = %+v, want the request's group and person", asked)
+	if asked.EducationGroupID == nil || *asked.EducationGroupID != group || asked.StaffID == nil || *asked.StaffID != staff ||
+		asked.RoomID == nil || *asked.RoomID != roomID {
+		t.Fatalf("filter asked = %+v, want the request's group, person and room", asked)
 	}
 	if staffSeen != 2 {
 		t.Fatalf("filter saw %d staff rows, want the loaded rows of every block", staffSeen)
 	}
 	if !slices.Contains(renderer.doc.Filters, "Gruppe: Sonnen") || !slices.Contains(renderer.doc.Filters, "Person: Müller, A.") {
 		t.Fatalf("filters = %v, want the group and person named", renderer.doc.Filters)
+	}
+	if !slices.Contains(renderer.doc.Filters, "Raum: Gruppenraum 1") {
+		t.Fatalf("filters = %v, want the room named (#4768)", renderer.doc.Filters)
 	}
 }
 
@@ -72,10 +76,11 @@ func TestBetreuungsplanRejectsNonPositiveFilterIDs(t *testing.T) {
 	service, _ := newBetreuungsplanService(nil, nil, nil)
 	zero := int64(0)
 	params := careParams()
-	params.Filter = BlockFilter{StaffID: &zero}
-
-	if _, err := service.ExportBetreuungsplan(context.Background(), params); !errors.Is(err, ErrInvalidParams) {
-		t.Fatalf("err = %v, want ErrInvalidParams", err)
+	for _, filter := range []BlockFilter{{StaffID: &zero}, {RoomID: &zero}} {
+		params.Filter = filter
+		if _, err := service.ExportBetreuungsplan(context.Background(), params); !errors.Is(err, ErrInvalidParams) {
+			t.Fatalf("filter %+v: err = %v, want ErrInvalidParams", filter, err)
+		}
 	}
 }
 
