@@ -1444,6 +1444,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "`Frei` heißt: In dieser Zeit ist im Raum nichts geplant.",
           "Ein durchgestrichener Termin mit `Abgesagt` belegt den Raum nicht.",
           "Wählen Sie `Im Betreuungsplan ansehen`, um den Plan dieses Raums dort zu öffnen. Planende sehen dort `Im Betreuungsplan bearbeiten`.",
+          "Für den PDF-Aushang brauchen Sie auch das Recht, die Kinderliste zu sehen.",
           "Für einen Aushang öffnen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie `Raumplan als PDF`. Sie erhalten die angezeigte Woche als PDF.",
         ],
       },
