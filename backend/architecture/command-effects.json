@@ -109857,8 +109857,8 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0116",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0116 approves the unchanged observer assignment."
+      "approval_adr": "0117",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0117 approves the unchanged observer assignment."
     },
     {
       "source_owner": "workforce",
@@ -112292,8 +112292,8 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0116",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0116 approves the unchanged observer assignment."
+      "approval_adr": "0117",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0117 approves the unchanged observer assignment."
     },
     {
       "source_owner": "workforce",
@@ -112327,8 +112327,8 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0116",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0116 approves the unchanged observer assignment."
+      "approval_adr": "0117",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0117 approves the unchanged observer assignment."
     },
     {
       "source_owner": "workforce",
@@ -115655,8 +115655,8 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0116",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0116 approves the unchanged observer assignment."
+      "approval_adr": "0117",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0117 approves the unchanged observer assignment."
     },
     {
       "source_owner": "workforce",
