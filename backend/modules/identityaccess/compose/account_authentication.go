@@ -103,7 +103,3 @@ func (tenantRuntime) WithoutTransaction(ctx context.Context) context.Context {
 func (tenantRuntime) AcquireLock(ctx context.Context, key string) error {
 	return tenant.AcquireLock(ctx, key, false)
 }
-
-func (tenantRuntime) WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
-	return application.RunInSavepoint(ctx, fn)
-}

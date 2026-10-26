@@ -143,7 +143,7 @@ func (l *AccountLifecycle) bulkInviteGuardian(ctx context.Context, run *bulkInvi
 	if run.req.DryRun {
 		return l.bulkInviteOne(ctx, run, candidate, profile, open)
 	}
-	err := l.runtime.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+	err := runInSavepoint(ctx, func(savepointCtx context.Context) error {
 		return l.bulkInviteOne(savepointCtx, run, candidate, profile, open)
 	})
 	if err == nil || errors.Is(err, domain.ErrTransactionUnusable) || !errors.Is(err, domain.ErrGuardianAccessMailNotQueued) {

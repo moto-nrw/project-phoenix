@@ -430,10 +430,6 @@ type Runtime interface {
 	WithoutTransaction(ctx context.Context) context.Context
 	// AcquireLock takes a transaction-scoped advisory lock.
 	AcquireLock(ctx context.Context, key string) error
-	// WithSavepoint runs fn in a savepoint of the caller's transaction: an
-	// error of fn rolls back its writes alone. A savepoint that cannot be
-	// controlled reports domain.ErrTransactionUnusable.
-	WithSavepoint(ctx context.Context, fn func(context.Context) error) error
 }
 
 // AccountAccessStore is the persistence port over the identity-owned rows

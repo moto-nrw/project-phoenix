@@ -136,12 +136,6 @@ func (r *fakeRuntime) WithoutTransaction(ctx context.Context) context.Context {
 	return context.WithValue(ctx, fakeAdminKey{}, false)
 }
 
-// WithSavepoint runs fn directly: the fakes keep no rollback state, so a
-// test of a rolled-back step asserts on what fn returned.
-func (r *fakeRuntime) WithSavepoint(ctx context.Context, fn func(context.Context) error) error {
-	return fn(ctx)
-}
-
 func (r *fakeRuntime) AcquireLock(_ context.Context, key string) error {
 	r.locks = append(r.locks, key)
 	if r.lockHook != nil {

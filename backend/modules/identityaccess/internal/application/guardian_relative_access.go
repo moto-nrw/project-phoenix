@@ -411,18 +411,7 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 
 	// Existing account: access is granted by the link; close the invitation.
 	if profile.HasAccount {
-		invitation.AcceptedAt = &now
-		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
-			return failed(opGuardianInviteApprove, err)
-		}
-		l.logger.Info("guardian invitation approved (existing account)",
-			slog.Int64("invitation_id", invitation.ID),
-			slog.Int64("approver_account_id", approverAccountID),
-		)
-		if err := l.mailExistingAccountAccess(ctx, profile, invitation.TenantID); err != nil {
-			return failed(opGuardianInviteApprove, err)
-		}
-		return nil
+		return l.approveForExistingAccount(ctx, invitation, profile, approverAccountID, now)
 	}
 
 	// No account yet: refresh expiry, clear stale email tracking, dispatch.
@@ -444,6 +433,24 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 		slog.Int64("approver_account_id", approverAccountID),
 	)
 	if err := l.mailNewInvitation(ctx, invitation, profile); err != nil {
+		return failed(opGuardianInviteApprove, err)
+	}
+	return nil
+}
+
+// approveForExistingAccount closes the approved invitation of an account
+// holder and tells them about the access; the approval rolls back when the
+// mail cannot be queued (#4602).
+func (l *AccountLifecycle) approveForExistingAccount(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, approverAccountID int64, now time.Time) error {
+	invitation.AcceptedAt = &now
+	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
+		return failed(opGuardianInviteApprove, err)
+	}
+	l.logger.Info("guardian invitation approved (existing account)",
+		slog.Int64("invitation_id", invitation.ID),
+		slog.Int64("approver_account_id", approverAccountID),
+	)
+	if err := l.mailExistingAccountAccess(ctx, profile, invitation.TenantID); err != nil {
 		return failed(opGuardianInviteApprove, err)
 	}
 	return nil
