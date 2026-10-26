@@ -175,7 +175,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // exactly 7 LOC.
 // ADR 0121: the confirmation letter constructor of
 // modules/parentbilling/compose adds exactly 8 LOC.
-// ADR 0122: the scan heartbeat savepoint binding adds exactly 9 LOC.
+// ADR 0124: the scan heartbeat savepoint binding adds exactly 9 LOC.
 const moduleComposeBudgetTotal = 12656
 
 // moduleComposeBudgets maps every owner composition package to its production
@@ -200,7 +200,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/delivery/compose":                      361,
 	"modules/devicefleet/compose":                   219,
 	"modules/devicefleet/compose/repositoryadapter": 10,
-	// ADR 0122: bind the optional heartbeat to the tenant runtime savepoint (+9).
+	// ADR 0124: bind the optional heartbeat to the tenant runtime savepoint (+9).
 	"modules/devicescan/compose":        540,
 	"modules/emergencysnapshot/compose": 13,
 	// Raised by ADR 0105: the holiday period constructor (+13); by ADR 0110:

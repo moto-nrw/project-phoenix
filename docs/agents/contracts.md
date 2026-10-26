@@ -162,9 +162,10 @@ checkout with or without `room_id`, room change, a check-in into a room that
 is not the kiosk's own, such as WC) and `POST /api/iot/pickup-query`.
 Exempt, with the session left as it was: a supervisor card, a refused scan
 (every error status), and a device without a running session (nothing to keep
-alive; the scan still answers as before). A failed refresh only logs and
-never fails the scan. `POST /api/iot/session/activity` itself is unchanged.
-Code: `touchDeviceSession` in
+alive; the scan still answers as before). The refresh runs in a savepoint: a
+failed lookup or update only logs and keeps the scan's writes; only a failed
+savepoint itself fails the scan (ADR 0124). `POST /api/iot/session/activity`
+itself is unchanged. Code: `touchDeviceSession` in
 `backend/modules/devicescan/internal/application/checkin.go`.
 
 ### Request timing (#5004)

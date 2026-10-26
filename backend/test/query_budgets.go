@@ -228,7 +228,7 @@ var queryBudgets = map[string]queryBudget{
 	// shows as Server-Timing "auth". The route-sized test router has no
 	// request settings cache, so each settings read counts. Flat from three
 	// to eight children present.
-	// ADR 0122: +2 statements for SAVEPOINT and RELEASE around the heartbeat.
+	// ADR 0124: +2 statements for SAVEPOINT and RELEASE around the heartbeat.
 	"api.iot.checkin.check_in":    {max: 38},
 	"api.iot.checkin.check_out":   {max: 26},
 	"api.iot.checkin.room_change": {max: 44},
