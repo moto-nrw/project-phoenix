@@ -210,10 +210,16 @@ type HolidayRegistrationMail struct {
 // setting of the Träger follows with #4720.
 const HolidayRegistrationRetentionDays = 92
 
+// HolidayRegistrationDeletionLogRetentionYears is how long the deletion log
+// of the holiday registrations keeps an entry, like the deletion log of a
+// school (ADR 0118).
+const HolidayRegistrationDeletionLogRetentionYears = 3
+
 // HolidayRegistrationRetention deletes the registrations of every Träger
-// whose period ended more than HolidayRegistrationRetentionDays ago, and the
-// expired abuse counters. It runs in the administrative transaction of the
-// hourly cleanup.
+// whose period ended more than HolidayRegistrationRetentionDays ago, logs
+// each deleted period in the deletion log of its Träger, and deletes the
+// expired abuse counters and log entries. It runs in the administrative
+// transaction of the hourly cleanup.
 type HolidayRegistrationRetention interface {
 	DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error)
 }

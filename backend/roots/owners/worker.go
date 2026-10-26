@@ -116,7 +116,7 @@ func NewWorker(
 		OperatorInvitationCleanup:    identity,
 		OperatorRetention:            schedulerPorts.OperatorRetention{Ledger: audit, Accounts: identity},
 		AccountRetention:             identity,
-		HolidayRegistrationRetention: enrollmentCompose.NewHolidayRegistrationRetention(),
+		HolidayRegistrationRetention: enrollmentCompose.NewHolidayRegistrationRetention(nil),
 		WorkSessionCleanup:           workforce.TimeTracking.Jobs,
 		BreakAutoEnder:               workforce.TimeTracking.Jobs,
 		AutoCheckouter:               workforce.TimeTracking.Jobs,
