@@ -131,6 +131,7 @@ export const nodeLogicTestFiles = [
   "src/lib/guardian-helpers.test.ts",
   "src/lib/guardian-invitation-api.test.ts",
   "src/lib/guardian-payment-api.test.ts",
+  "src/lib/help-topic-availability.test.ts",
   "src/lib/help-topics.test.ts",
   "src/lib/home-blocks.test.ts",
   "src/lib/home-clock.test.ts",
