@@ -1,16 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
-import {
-  AppRouterContext,
-  type AppRouterInstance,
-} from "next/dist/shared/lib/app-router-context.shared-runtime";
-import type { ComponentProps, ReactNode } from "react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { ComponentProps } from "react";
 
 import { NavLink } from "./nav-link";
+import { HOVER_PREFETCH_DELAY_MS } from "./navigation-link";
 
-const mockPrefetch = vi.fn();
 const linkProps = vi.fn();
-const mockRouter = { prefetch: mockPrefetch } as unknown as AppRouterInstance;
 
 vi.mock("next/link", () => ({
   default: ({
@@ -28,133 +23,152 @@ vi.mock("next/link", () => ({
   },
 }));
 
-// The same context next/link reads. The shell tests render without it.
-function withRouter(children: ReactNode) {
-  return (
-    <AppRouterContext.Provider value={mockRouter}>
-      {children}
-    </AppRouterContext.Provider>
-  );
+/** The `prefetch` value next/link received on its latest render. */
+function currentPrefetch(): boolean | null | undefined {
+  const calls = linkProps.mock.calls;
+  return (calls.at(-1)?.[0] as { prefetch?: boolean | null } | undefined)
+    ?.prefetch;
 }
 
 describe("NavLink", () => {
   beforeEach(() => {
-    mockPrefetch.mockClear();
     linkProps.mockClear();
   });
 
   it("switches the viewport prefetch of next/link off", () => {
-    render(withRouter(<NavLink href="/rooms">Räume</NavLink>));
+    render(<NavLink href="/rooms">Räume</NavLink>);
 
     expect(screen.getByRole("link", { name: "Räume" })).toHaveAttribute(
       "href",
       "/rooms",
     );
     expect(linkProps).toHaveBeenCalledWith({ href: "/rooms", prefetch: false });
-    expect(mockPrefetch).not.toHaveBeenCalled();
+    expect(currentPrefetch()).toBe(false);
   });
 
-  it("prefetches when the pointer enters the link", () => {
-    render(withRouter(<NavLink href="/rooms">Räume</NavLink>));
+  it("prefetches the full page once the mouse rests on the link", () => {
+    vi.useFakeTimers();
+    render(<NavLink href="/rooms">Räume</NavLink>);
 
-    fireEvent.pointerEnter(screen.getByRole("link", { name: "Räume" }));
+    fireEvent.pointerEnter(screen.getByRole("link", { name: "Räume" }), {
+      pointerType: "mouse",
+    });
+    act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS - 1));
+    expect(currentPrefetch()).toBe(false);
 
-    expect(mockPrefetch).toHaveBeenCalledTimes(1);
-    expect(mockPrefetch).toHaveBeenCalledWith("/rooms");
+    act(() => vi.advanceTimersByTime(1));
+    expect(currentPrefetch()).toBe(true);
+  });
+
+  it("does not prefetch when the mouse only passes over the link", () => {
+    vi.useFakeTimers();
+    render(<NavLink href="/rooms">Räume</NavLink>);
+
+    const link = screen.getByRole("link", { name: "Räume" });
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS / 2));
+    fireEvent.pointerLeave(link, { pointerType: "mouse" });
+    act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS * 2));
+
+    expect(currentPrefetch()).toBe(false);
+  });
+
+  it("prefetches at once when a touch starts on the link", () => {
+    render(<NavLink href="/rooms">Räume</NavLink>);
+
+    fireEvent.pointerEnter(screen.getByRole("link", { name: "Räume" }), {
+      pointerType: "touch",
+    });
+
+    expect(currentPrefetch()).toBe(true);
   });
 
   it("prefetches when the link receives keyboard focus", () => {
-    render(withRouter(<NavLink href="/staff">Mitarbeitende</NavLink>));
+    render(<NavLink href="/staff">Mitarbeitende</NavLink>);
 
     fireEvent.focus(screen.getByRole("link", { name: "Mitarbeitende" }));
 
-    expect(mockPrefetch).toHaveBeenCalledWith("/staff");
+    expect(linkProps).toHaveBeenLastCalledWith({
+      href: "/staff",
+      prefetch: true,
+    });
   });
 
   it("keeps the caller's pointer and focus handlers", () => {
     const onPointerEnter = vi.fn();
+    const onPointerLeave = vi.fn();
     const onFocus = vi.fn();
     render(
-      withRouter(
-        <NavLink
-          href="/rooms"
-          onPointerEnter={onPointerEnter}
-          onFocus={onFocus}
-        >
-          Räume
-        </NavLink>,
-      ),
+      <NavLink
+        href="/rooms"
+        onPointerEnter={onPointerEnter}
+        onPointerLeave={onPointerLeave}
+        onFocus={onFocus}
+      >
+        Räume
+      </NavLink>,
     );
 
     const link = screen.getByRole("link", { name: "Räume" });
-    fireEvent.pointerEnter(link);
+    fireEvent.pointerEnter(link, { pointerType: "touch" });
+    fireEvent.pointerLeave(link, { pointerType: "touch" });
     fireEvent.focus(link);
 
     expect(onPointerEnter).toHaveBeenCalledTimes(1);
+    expect(onPointerLeave).toHaveBeenCalledTimes(1);
     expect(onFocus).toHaveBeenCalledTimes(1);
-    expect(mockPrefetch).toHaveBeenCalledTimes(2);
+    expect(currentPrefetch()).toBe(true);
   });
 
   it("never prefetches links that open a new tab", () => {
+    vi.useFakeTimers();
     render(
-      withRouter(
-        <NavLink href="/help" target="_blank" rel="noopener noreferrer">
-          Hilfe
-        </NavLink>,
-      ),
+      <NavLink href="/help" target="_blank" rel="noopener noreferrer">
+        Hilfe
+      </NavLink>,
     );
 
     const link = screen.getByRole("link", { name: "Hilfe" });
-    fireEvent.pointerEnter(link);
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS * 2));
+    fireEvent.pointerEnter(link, { pointerType: "touch" });
     fireEvent.focus(link);
 
     expect(link).toHaveAttribute("target", "_blank");
-    expect(mockPrefetch).not.toHaveBeenCalled();
+    expect(currentPrefetch()).toBe(false);
   });
 
   it("never prefetches hrefs that are not same-origin paths", () => {
     render(
-      withRouter(
-        <>
-          <NavLink href="https://example.org/extern">Extern</NavLink>
-          <NavLink href="//example.org/extern">Protokollrelativ</NavLink>
-          <NavLink href="mailto:info@example.org">Mail</NavLink>
-        </>,
-      ),
+      <>
+        <NavLink href="https://example.org/extern">Extern</NavLink>
+        <NavLink href="//example.org/extern">Protokollrelativ</NavLink>
+        <NavLink href="mailto:info@example.org">Mail</NavLink>
+      </>,
     );
 
     for (const name of ["Extern", "Protokollrelativ", "Mail"]) {
-      fireEvent.pointerEnter(screen.getByRole("link", { name }));
+      const link = screen.getByRole("link", { name });
+      fireEvent.pointerEnter(link, { pointerType: "touch" });
+      fireEvent.focus(link);
     }
 
-    expect(mockPrefetch).not.toHaveBeenCalled();
-  });
-
-  it("renders without an app router and then never prefetches", () => {
-    render(<NavLink href="/rooms">Räume</NavLink>);
-
-    const link = screen.getByRole("link", { name: "Räume" });
-    fireEvent.pointerEnter(link);
-    fireEvent.focus(link);
-
-    expect(link).toHaveAttribute("href", "/rooms");
-    expect(linkProps).toHaveBeenCalledWith({ href: "/rooms", prefetch: false });
-    expect(mockPrefetch).not.toHaveBeenCalled();
+    expect(linkProps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ prefetch: true }),
+    );
   });
 
   it("passes className, aria and click handlers through to the anchor", () => {
     const onClick = vi.fn();
     render(
-      withRouter(
-        <NavLink
-          href="/rooms"
-          className="nav-item"
-          aria-label="Räume öffnen"
-          onClick={onClick}
-        >
-          Räume
-        </NavLink>,
-      ),
+      <NavLink
+        href="/rooms"
+        className="nav-item"
+        aria-label="Räume öffnen"
+        onClick={onClick}
+      >
+        Räume
+      </NavLink>,
     );
 
     const link = screen.getByRole("link", { name: "Räume öffnen" });

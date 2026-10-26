@@ -71,6 +71,94 @@ export const NAVIGATION_HOPS: readonly NavigationHop[] = [
   },
 ];
 
+/** Ein kalter Klick in der Seitenleiste, mit oder ohne Zeigen davor (#4987). */
+export interface IntentHop {
+  /** Kurzname für Protokoll und Artefakte. */
+  name: string;
+  /** Seite, auf der der Klick beginnt. */
+  from: string;
+  /** Sichtbar, sobald die Ausgangsseite ihre Daten zeigt. */
+  fromReady: (page: Page) => Locator;
+  /** Pfad der Zielseite, ohne Query. */
+  path: string;
+  /**
+   * Akkordeon der Seitenleiste, das offen sein muss. Gesetzt wird es wie im
+   * Alltag über den gespeicherten Zustand; ein Klick auf den Bereichskopf
+   * würde schon navigieren.
+   */
+  accordion?: "supervisions";
+  /** Der Seitenleisten-Link zum Ziel. */
+  link: (page: Page) => Locator;
+  /** Sichtbar, sobald die Zielseite echten Inhalt zeigt; gilt erst nach `path`. */
+  ready: (page: Page) => Locator;
+}
+
+/** Ein sichtbarer Seitenleisten-Link über sein Ziel; Badges ändern den Namen. */
+function sidebarHref(page: Page, href: string): Locator {
+  return page
+    .locator(`nav a[href="${href}"], nav a[href^="${href}?"]`)
+    .filter({ visible: true })
+    .first();
+}
+
+/** Die Kinderkarten sind Buttons „Vorname Nachname - Details öffnen“. */
+function childCardReady(page: Page): Locator {
+  return page.getByRole("button", { name: / - Details öffnen$/ }).first();
+}
+
+/** Die Zeilen des Bausteins „Offene Anfragen“ kommen mit dessen Daten. */
+function homeReady(page: Page): Locator {
+  return page.getByText("Wünsche von Eltern").first();
+}
+
+/**
+ * Die Ziele aus #4987: drei Seiten mit großem Routen-Bundle und die
+ * Startseite, deren vorgeladene RSC-Antwort die Startdaten nicht enthält.
+ */
+export const INTENT_HOPS: readonly IntentHop[] = [
+  {
+    name: "kindersuche",
+    path: "/students/search",
+    from: "/home",
+    fromReady: homeReady,
+    link: (page) => sidebarHref(page, "/students/search"),
+    ready: childCardReady,
+  },
+  {
+    name: "aktuelle-aufsicht",
+    path: "/active-supervisions",
+    from: "/home",
+    fromReady: homeReady,
+    // Die Räume unter „Aktuelle Aufsicht“ sind die Links; der Bereichskopf
+    // ist ein Knopf, der per `router.push` navigiert.
+    accordion: "supervisions",
+    link: (page) => sidebarHref(page, "/active-supervisions"),
+    ready: (page) =>
+      page
+        .getByRole("button", {
+          name: /Raum verlassen|Spontane Aktivität starten|Kinder unterwegs/,
+        })
+        .first(),
+  },
+  {
+    name: "anfragen",
+    path: "/anfragen",
+    from: "/home",
+    fromReady: homeReady,
+    link: (page) => sidebarHref(page, "/anfragen"),
+    // Eine Zeile der Anfragenliste: „1 offene Anfrage · Betreuungszeiten“.
+    ready: (page) => page.getByText(/\d+ offene Anfragen? ·/).first(),
+  },
+  {
+    name: "startseite",
+    path: "/home",
+    from: "/students/search",
+    fromReady: childCardReady,
+    link: (page) => sidebarHref(page, "/home"),
+    ready: homeReady,
+  },
+];
+
 export const PERF_TARGETS: readonly PerfTarget[] = [
   {
     name: "dashboard",
