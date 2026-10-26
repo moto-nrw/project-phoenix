@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -17,9 +18,13 @@ func productionGoSources(root string) (map[string]bool, error) {
 	load, _ := productionSourceIndexes.LoadOrStore(root, sync.OnceValues(func() (map[string]bool, error) {
 		command := exec.Command("go", "list", "-tags=", "-f", `{{range .GoFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}{{range .CgoFiles}}{{$.Dir}}/{{.}}{{"\n"}}{{end}}`, "./...")
 		command.Dir = root
-		output, err := command.CombinedOutput()
+		// Only stdout holds paths; stderr carries progress such as
+		// "go: downloading ..." on a cold module cache.
+		var stderr bytes.Buffer
+		command.Stderr = &stderr
+		output, err := command.Output()
 		if err != nil {
-			return nil, fmt.Errorf("list production source files: %w: %s", err, strings.TrimSpace(string(output)))
+			return nil, fmt.Errorf("list production source files: %w: %s", err, strings.TrimSpace(stderr.String()))
 		}
 		sources := make(map[string]bool)
 		for _, path := range strings.Split(string(output), "\n") {

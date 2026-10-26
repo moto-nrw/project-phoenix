@@ -337,6 +337,13 @@ func parseAPIResponse(t *testing.T, w *httptest.ResponseRecorder) apiResponse {
 
 // --- Interface compliance ---
 
+// ownAllowancesFunc serves workforce.OwnAbsenceAllowances from a function.
+type ownAllowancesFunc func(context.Context, int64, int) ([]workforce.AbsenceTypeAllowanceAccount, error)
+
+func (f ownAllowancesFunc) AllowanceAccounts(ctx context.Context, staffID int64, year int) ([]workforce.AbsenceTypeAllowanceAccount, error) {
+	return f(ctx, staffID, year)
+}
+
 var (
 	_ workforce.WorkSessions   = (*mockWorkSessionService)(nil)
 	_ workforce.OwnAbsences    = (*mockStaffAbsenceService)(nil)
@@ -376,13 +383,15 @@ func TestNewResource(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	rs := NewResource(Dependencies{
-		WorkSessions:     &mockWorkSessionService{},
-		StaffAbsences:    &mockStaffAbsenceService{},
-		AbsenceWrites:    &mockStaffAbsenceService{},
-		Staff:            defaultPersonSvc(),
-		AccountStartDate: func(context.Context) (string, error) { return "", nil },
-		Identity:         func(context.Context) Identity { return Identity{AccountID: testAccountID} },
-		WithinTenant:     testWithinTenant(db),
+		WorkSessions:       &mockWorkSessionService{},
+		StaffAbsences:      &mockStaffAbsenceService{},
+		AbsenceWrites:      &mockStaffAbsenceService{},
+		Staff:              defaultPersonSvc(),
+		Allowances:         ownAllowancesFunc(nil),
+		AllowanceResponses: func([]workforce.AbsenceTypeAllowanceAccount) any { return nil },
+		AccountStartDate:   func(context.Context) (string, error) { return "", nil },
+		Identity:           func(context.Context) Identity { return Identity{AccountID: testAccountID} },
+		WithinTenant:       testWithinTenant(db),
 	})
 	assert.NotNil(t, rs)
 	assert.NotNil(t, rs.WorkSessionService)

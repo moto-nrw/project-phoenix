@@ -109883,6 +109883,19 @@
     },
     {
       "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.AllowanceAccounts",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.AllowanceAccounts",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": "",
+      "binding_digest": "4a6c63bb7365af6cf9d81caa8ffa9d21",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0117",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0117 approves the unchanged observer assignment."
+    },
+    {
+      "source_owner": "workforce",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.AllowanceSummary",
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.AllowanceSummary",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
@@ -112305,6 +112318,19 @@
     },
     {
       "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.OwnAbsenceAllowances.AllowanceAccounts",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.AllowanceAccounts",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": "",
+      "binding_digest": "4a6c63bb7365af6cf9d81caa8ffa9d21",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0117",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0117 approves the unchanged observer assignment."
+    },
+    {
+      "source_owner": "workforce",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PlanningCalendar.ClosingDaysInRange",
       "binding": "github.com/moto-nrw/project-phoenix/api.planningCalendarCapability.ClosingDaysInRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListClosingDays",
@@ -112324,6 +112350,19 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.Calendar.TenantHolidays; modules/schoolcalendar.Calendar (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.Query.AllowanceAccounts",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.AllowanceAccounts",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": "",
+      "binding_digest": "4a6c63bb7365af6cf9d81caa8ffa9d21",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0117",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0117 approves the unchanged observer assignment."
     },
     {
       "source_owner": "workforce",
@@ -115639,6 +115678,19 @@
       "adr": "0083",
       "approval_adr": "0098",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.AllowanceAccounts",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.Service.AllowanceAccounts",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": "",
+      "binding_digest": "4a6c63bb7365af6cf9d81caa8ffa9d21",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0117",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe. The staff member's own Kontingente (#4971) run through the same operation wrapper as AllowanceSummary; ADR 0117 approves the unchanged observer assignment."
     },
     {
       "source_owner": "workforce",

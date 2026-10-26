@@ -55,7 +55,6 @@
     "contract",
     "domain",
     "http",
-    "legacy-model",
     "module-behavior-test",
     "module-internal-test",
     "postgres",
@@ -102,20 +101,6 @@
       "path": "beta/session",
       "owner": "beta",
       "role": "http",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/beta",
-      "owner": "beta",
-      "role": "legacy-model",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models/beta/betatest",
-      "owner": "beta",
-      "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -171,17 +156,6 @@
       "source_role": "application",
       "target_owner": "beta",
       "target_role": "public"
-    },
-    {
-      "id": "beta.application.legacy-model",
-      "description": "Beta maps its own retained rows.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "beta",
-      "source_role": "application",
-      "target_owner": "beta",
-      "target_role": "legacy-model"
     },
     {
       "id": "domain.compose.application",

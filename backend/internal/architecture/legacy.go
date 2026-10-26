@@ -153,7 +153,7 @@ func isCanonicalImportTarget(path string) bool {
 		return true
 	}
 	switch path {
-	case "api", "auth", "database", "internal", "models", "services", "test":
+	case "api", "auth", "database", "internal", "services", "test":
 		return false
 	default:
 		return true

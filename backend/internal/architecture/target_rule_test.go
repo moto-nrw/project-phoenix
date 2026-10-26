@@ -39,7 +39,7 @@ func TestTargetOnlyFixtureIsValid(t *testing.T) {
 
 func TestTargetOnlyRuleRejectsForeignPrivateRoles(t *testing.T) {
 	t.Parallel()
-	for _, role := range []string{"application", "domain", "adapter", "postgres", "cli", "legacy-model"} {
+	for _, role := range []string{"application", "domain", "adapter", "postgres", "cli"} {
 		t.Run(role, func(t *testing.T) {
 			t.Parallel()
 			err := targetOnlyFixture(t, addFixtureRule(map[string]any{
@@ -73,41 +73,10 @@ func TestTargetOnlyRuleKeepsOwnPrivateRoles(t *testing.T) {
 	for _, rule := range []map[string]any{
 		{"id": "beta.http.own-application", "source_owner": "beta", "source_role": "http", "target_owner": "beta", "target_role": "application"},
 		{"id": "kind.compose.own-adapter", "source_owner_kind": "domain", "source_role": "compose", "target_role": "adapter", "same_owner": true},
-		{"id": "beta.public.own-legacy-model", "source_owner": "beta", "source_role": "public", "target_owner": "beta", "target_role": "legacy-model"},
 		{"id": "alpha.application.beta-contract", "source_owner": "alpha", "source_role": "application", "target_owner": "beta", "target_role": "contract"},
 	} {
 		if err := targetOnlyFixture(t, addFixtureRule(rule)); err != nil {
 			t.Fatalf("%s rejected: %v", rule["id"], err)
-		}
-	}
-}
-
-func TestTargetOnlyRuleKeepsModelsPrivateToTheirOwner(t *testing.T) {
-	t.Parallel()
-	err := targetOnlyFixture(t, addFixtureRule(map[string]any{
-		"id": "alpha.application.beta-models", "source_owner": "alpha", "source_role": "application", "target_owner": "beta", "target_role": "legacy-model",
-	}))
-	if err == nil || !strings.Contains(err.Error(), "legacy-model role of beta") {
-		t.Fatalf("foreign rule onto beta's models accepted: %v", err)
-	}
-	for name, mutate := range map[string]func(map[string]any){
-		"models package in the domain role": func(document map[string]any) {
-			setFixturePackageRole(document, "models/beta", "domain")
-		},
-		"legacy-model outside models": func(document map[string]any) {
-			setFixturePackageRole(document, "beta/application", "legacy-model")
-		},
-	} {
-		if err := targetOnlyFixture(t, mutate); err == nil || !strings.Contains(err.Error(), "legacy-model") {
-			t.Fatalf("%s accepted: %v", name, err)
-		}
-	}
-}
-
-func setFixturePackageRole(document map[string]any, path, role string) {
-	for _, raw := range document["packages"].([]any) {
-		if pkg := raw.(map[string]any); pkg["path"] == path {
-			pkg["role"] = role
 		}
 	}
 }
@@ -182,15 +151,9 @@ func TestTargetOnlyRuleAppliesFromItsEpoch(t *testing.T) {
 		"marker": func(document map[string]any) {
 			document["rules"].([]any)[0].(map[string]any)["description"] = "Compatibility permission until #2675."
 		},
-		"models in the domain role": func(document map[string]any) { setFixturePackageRole(document, "models/beta", "domain") },
 	} {
 		err := targetOnlyFixture(t, func(document map[string]any) {
 			older(document)
-			// An older base has no legacy-model role yet.
-			setFixturePackageRole(document, "models/beta", "domain")
-			document["rules"] = slices.DeleteFunc(document["rules"].([]any), func(raw any) bool {
-				return raw.(map[string]any)["target_role"] == "legacy-model"
-			})
 			mutate(document)
 		})
 		if err != nil {

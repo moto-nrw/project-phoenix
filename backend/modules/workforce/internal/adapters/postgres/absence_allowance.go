@@ -37,6 +37,38 @@ func (s *Store) StaffAbsenceTypeEntitlements(ctx context.Context, staffID, absen
 	return result, stats, nil
 }
 
+// StaffEntitlementsByAbsenceType returns every yearly claim of one person for
+// all types in one read, keyed by type and year.
+func (s *Store) StaffEntitlementsByAbsenceType(ctx context.Context, staffID int64) (map[int64]map[int]float64, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []struct {
+		AbsenceTypeID int64   `bun:"absence_type_id"`
+		Year          int     `bun:"year"`
+		EntitledDays  float64 `bun:"entitled_days"`
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewSelect().TableExpr("active.staff_absence_type_allowances").Column("absence_type_id", "year", "entitled_days").
+		Where("tenant_id = ?", scope.TenantID).Where("staff_id = ?", staffID).
+		OrderExpr("absence_type_id ASC, year ASC").Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, err
+	}
+	result := make(map[int64]map[int]float64)
+	for _, row := range rows {
+		if result[row.AbsenceTypeID] == nil {
+			result[row.AbsenceTypeID] = make(map[int]float64)
+		}
+		result[row.AbsenceTypeID][row.Year] = row.EntitledDays
+	}
+	stats.Rows = int64(len(rows))
+	return result, stats, nil
+}
+
 type staffAbsenceAllowanceRow struct {
 	bun.BaseModel `bun:"table:active.staff_absence_type_allowances"`
 	TenantID      int64   `bun:"tenant_id"`
