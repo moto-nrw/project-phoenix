@@ -35,6 +35,7 @@ import type { AddUnplannedStudentModalProps } from "~/components/active-supervis
 import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
 import {
   SectionCard,
+  SectionCollapseHead,
   SectionCollapseToggle,
 } from "~/components/ui/section-card";
 import { Tooltip } from "~/components/ui/tooltip";
@@ -653,7 +654,7 @@ function TimetableRosterSection({
 
   return (
     <section className="moto-content-surface overflow-hidden rounded-lg border">
-      <div
+      <SectionCollapseHead
         className={`grid grid-cols-[1fr_auto] items-center gap-x-2 bg-gray-50 py-1 pr-2 pl-4 ${collapsed ? "" : "border-b border-gray-100"}`}
       >
         <span className="text-sm font-semibold text-gray-700">
@@ -671,7 +672,7 @@ function TimetableRosterSection({
             {description}
           </p>
         ) : null}
-      </div>
+      </SectionCollapseHead>
       {collapsed ? null : (
         <div id={bodyId}>
           {rows.map((row) => (
@@ -781,7 +782,7 @@ function TimetableRosterHeader({
       {/* Auf dem Telefon steht der Einklapp-Pfeil neben dem Titel und die
           Knöpfe darunter; ab sm steht der Pfeil hinter den Knöpfen, wie in
           der eingeklappten Karte. */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 p-4 sm:flex">
+      <SectionCollapseHead className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 p-4 sm:flex">
         {/* Ab sm hält der Titel seine Mindestbreite: viele Knöpfe brechen
             um, statt Raum und Uhrzeit abzuschneiden. */}
         <div className="flex min-w-0 items-center gap-3 sm:min-w-64">
@@ -882,7 +883,7 @@ function TimetableRosterHeader({
             </Button>
           ) : null}
         </div>
-      </div>
+      </SectionCollapseHead>
       {note ? (
         <p className="border-b border-gray-100 px-4 py-3 text-sm text-gray-600">
           {note}
