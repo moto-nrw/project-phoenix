@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, POST } from "./route";
 import { suppressConsole } from "~/test/helpers/console";
+import { captureException } from "@sentry/nextjs";
+import { ERROR_CODES } from "~/lib/error-codes.generated";
 import {
   type ExtendedSession,
   createMockContext,
@@ -23,6 +25,8 @@ const { mockAuth, mockApiGet, mockApiPost, mockApiPut } = vi.hoisted(() => ({
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
 }));
+
+vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 
 vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
@@ -247,6 +251,59 @@ describe("POST /api/students", () => {
     vi.clearAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
   });
+
+  it("returns a registered 400 field error without reporting to Sentry when the last name is missing", async () => {
+    const response = await POST(
+      createMockRequest("/api/students", {
+        method: "POST",
+        body: { first_name: "Mia", school_class: "2b" },
+      }),
+      createMockContext(),
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers.get("Content-Type")).toContain(
+      "application/problem+json",
+    );
+    const body = await response.json();
+    expect(ERROR_CODES).toContain(body.code);
+    expect(body).toMatchObject({
+      status: 400,
+      code: "general.input",
+      errors: [{ field: "last_name", reason: "required" }],
+    });
+    expect(mockApiPost).not.toHaveBeenCalled();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "", "   "])(
+    "reports every missing required field for %j without forwarding or reporting to Sentry",
+    async (value) => {
+      const response = await POST(
+        createMockRequest("/api/students", {
+          method: "POST",
+          body: {
+            first_name: value,
+            second_name: value,
+            school_class: value,
+          },
+        }),
+        createMockContext(),
+      );
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        code: "general.input",
+        errors: [
+          { field: "first_name", reason: "required" },
+          { field: "last_name", reason: "required" },
+          { field: "school_class", reason: "required" },
+        ],
+      });
+      expect(mockApiPost).not.toHaveBeenCalled();
+      expect(captureException).not.toHaveBeenCalled();
+    },
+  );
 
   it("creates a new student with the backend body built by the real request helpers", async () => {
     mockApiPost.mockResolvedValueOnce({
