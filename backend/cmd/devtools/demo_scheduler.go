@@ -49,33 +49,9 @@ type demoScheduler struct {
 }
 
 func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbeat string, once bool) error {
-	// Every order is seeded with this configuration. A broken one stops the
-	// process here instead of failing each visitor's order in turn.
-	if err := checkDemoProvisioning(demoProvisioningCredentials()); err != nil {
-		return err
-	}
-	adapter := schools.seedAdapter(baseURL, false)
-	if err := waitDemoServer(ctx, adapter); err != nil {
-		return err
-	}
-	if err := schools.ReleaseDemoSchoolOrders(ctx); err != nil {
-		return err
-	}
-	if err := schools.RequeueDeferredDemoSchoolOrders(ctx); err != nil {
-		return err
-	}
-	standing, err := schools.LoadDemoSchool(ctx, standingDemoSlug)
+	scheduler, err := newDemoScheduler(ctx, schools, baseURL, heartbeat)
 	if err != nil {
 		return err
-	}
-	ready, err := schools.ReadyDemoSchools(ctx)
-	if err != nil {
-		return err
-	}
-	scheduler := &demoScheduler{
-		schools: schools, baseURL: baseURL, heartbeat: heartbeat, adapter: newSharedOperatorSession(adapter),
-		tickers: newDemoTickers(), expiry: newDemoExpiry(schools, time.Now), seeds: make(chan struct{}, demoSeedWorkers),
-		failedRequeues: newDemoDeferredRequeues(), traegerSetupDone: standing != nil || len(ready) > 0,
 	}
 	defer scheduler.work.Wait()
 	if once {
@@ -103,6 +79,45 @@ func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbea
 			return nil
 		}
 	}
+}
+
+func newDemoScheduler(ctx context.Context, schools *DemoRuntime, baseURL, heartbeat string) (*demoScheduler, error) {
+	// Every order is seeded with this configuration. A broken one stops the
+	// process here instead of failing each visitor's order in turn.
+	if err := checkDemoProvisioning(demoProvisioningCredentials()); err != nil {
+		return nil, err
+	}
+	adapter := schools.seedAdapter(baseURL, false)
+	if err := waitDemoServer(ctx, adapter); err != nil {
+		return nil, err
+	}
+	if err := schools.ReleaseDemoSchoolOrders(ctx); err != nil {
+		return nil, err
+	}
+	if err := schools.RequeueDeferredDemoSchoolOrders(ctx); err != nil {
+		return nil, err
+	}
+	traegerSetupDone, err := hasDemoTraegerSetup(ctx, schools)
+	if err != nil {
+		return nil, err
+	}
+	return &demoScheduler{
+		schools: schools, baseURL: baseURL, heartbeat: heartbeat, adapter: newSharedOperatorSession(adapter),
+		tickers: newDemoTickers(), expiry: newDemoExpiry(schools, time.Now), seeds: make(chan struct{}, demoSeedWorkers),
+		failedRequeues: newDemoDeferredRequeues(), traegerSetupDone: traegerSetupDone,
+	}, nil
+}
+
+func hasDemoTraegerSetup(ctx context.Context, schools *DemoRuntime) (bool, error) {
+	standing, err := schools.LoadDemoSchool(ctx, standingDemoSlug)
+	if err != nil || standing != nil {
+		return standing != nil, err
+	}
+	ready, err := schools.ReadyDemoSchools(ctx)
+	if err != nil {
+		return false, err
+	}
+	return len(ready) > 0, nil
 }
 
 // startOrders claims waiting orders while a seed worker is free.
