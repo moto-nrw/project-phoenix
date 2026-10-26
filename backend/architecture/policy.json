@@ -4430,11 +4430,39 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.document_positions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.documents",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.holiday_contribution_lines",
       "write_owner": "parent-billing"
     },
     {
       "name": "parent_billing.holiday_contributions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.number_range_counters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.number_ranges",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.run_corrections",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.run_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.runs",
       "write_owner": "parent-billing"
     },
     {

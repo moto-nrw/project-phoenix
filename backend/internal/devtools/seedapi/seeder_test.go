@@ -1065,6 +1065,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/traeger/billing-runs/") && !strings.HasSuffix(r.URL.Path, "/release") && r.URL.Path != "/traeger/billing-runs/" {
+			// The preview of the billing run the same step releases (#4668).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":5,"preview_count":1,"preview_cents":9000,`+
+				`"documents":[{"registration_id":9,"children":[{"child_id":91,"total_cents":4500}]}]}}`)
+			return
+		}
 		// The Träger master data step (#4653) uploads a multipart logo and
 		// reads the bank accounts it already has.
 		if strings.HasPrefix(r.URL.Path, "/traeger/master-data/") {

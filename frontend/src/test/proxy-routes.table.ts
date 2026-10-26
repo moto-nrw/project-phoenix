@@ -1102,6 +1102,20 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/traeger/accounts/invitations/[invitationId]": [
     "DELETE traeger /traeger/accounts/invitations/invitationId%2F1",
   ],
+  "api/traeger/billing-runs": [
+    "GET traeger /traeger/billing-runs",
+    "POST traeger /traeger/billing-runs",
+  ],
+  "api/traeger/billing-runs/[id]": ["GET traeger /traeger/billing-runs/id%2F1"],
+  "api/traeger/billing-runs/[id]/corrections": [
+    "POST traeger /traeger/billing-runs/id%2F1/corrections",
+  ],
+  "api/traeger/billing-runs/[id]/release": [
+    "POST traeger /traeger/billing-runs/id%2F1/release",
+  ],
+  "api/traeger/billing-runs/periods": [
+    "GET traeger /traeger/billing-runs/periods",
+  ],
   "api/traeger/contribution-rules": [
     "GET traeger /traeger/contribution-rules",
     "POST traeger /traeger/contribution-rules",
@@ -1149,6 +1163,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/traeger/master-data/contact": [
     "PUT traeger /traeger/master-data/contact",
+  ],
+  "api/traeger/number-ranges": ["GET traeger /traeger/number-ranges"],
+  "api/traeger/number-ranges/[service]": [
+    "PUT traeger /traeger/number-ranges/service%2F1",
   ],
   "api/traeger/organization": ["GET traeger /traeger/organization"],
   "api/traeger/school-sessions": ["POST traeger /traeger/school-sessions"],

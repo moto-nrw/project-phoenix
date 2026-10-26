@@ -233,7 +233,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0110: the holiday registration retention of modules/enrollment (+1).
 // Raised by ADR 0112: the Träger logo read of modules/organizationtenancy (+1).
 // Raised by ADR 0115: the new owner modules/parentbilling (+5).
-const modulePassthroughOwnerBudgetTotal = 1411
+// Raised by ADR 0119: the billing run list of modules/parentbilling (+1).
+const modulePassthroughOwnerBudgetTotal = 1412
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -272,8 +273,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	"modules/organizationtenancy": 12,
 	// Added by ADR 0115: the rule checks and the link check of the new owner
-	// Elternabrechnung.
-	"modules/parentbilling":    5,
+	// Elternabrechnung. Raised by ADR 0119: the billing run list (+1).
+	"modules/parentbilling":    6,
 	"modules/peopledirectory":  208,
 	"modules/requestreview":    15,
 	"modules/schedulerruntime": 4,

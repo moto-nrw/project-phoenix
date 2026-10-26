@@ -9223,6 +9223,80 @@ function traegerHolidayContributionTopic(): HelpTopic {
     related: [
       HELP_TOPICS.traegerHolidayPeriod,
       HELP_TOPICS.traegerHolidayRegistrationReview,
+      HELP_TOPICS.traegerBillingRun,
+    ],
+  };
+}
+
+function traegerBillingRunTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerBillingRun,
+    title: "Ferien abrechnen",
+    question: "Wie stelle ich die Rechnungen für die Ferien aus?",
+    summary:
+      "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge und geben den Lauf frei.",
+    group: "anmeldeverwaltung",
+    audience: "traeger",
+    icon: "FileText",
+    requirements: [
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht oben `Abrechnung`.",
+      "Der Ferienzeitraum ist veröffentlicht, und die Anmeldungen sind bestätigt.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Rechnungsnummern festlegen",
+        description: "Das machen Sie einmal vor der ersten Freigabe.",
+        steps: [
+          "Wählen Sie oben `Abrechnung`.",
+          "Wählen Sie bei `Rechnungsnummern` den Knopf `Muster festlegen`.",
+          "Tragen Sie das Muster ein, zum Beispiel FE-{JJJJ}-{NNNN}. {NNNN} ist die laufende Nummer, {JJJJ} das Jahr.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Lauf starten und prüfen",
+        steps: [
+          "Wählen Sie bei `Abrechnungsläufe` den Knopf `Lauf starten`.",
+          "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
+          "Prüfen Sie die Vorschau. Je Familie steht eine Rechnung mit allen Positionen da.",
+        ],
+      },
+      {
+        title: "Einen Betrag korrigieren",
+        steps: [
+          "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
+          "Wählen Sie `Betrag für … korrigieren`.",
+          "Tragen Sie den neuen Betrag und eine Begründung ein.",
+          "Wählen Sie `Korrigieren`.",
+        ],
+      },
+      {
+        title: "Lauf freigeben",
+        steps: [
+          "Wählen Sie `Lauf freigeben`.",
+          "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
+        ],
+      },
+    ],
+    result:
+      "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen lassen sich nicht mehr ändern.",
+    notes: [
+      "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
+      "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
+      "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
+    ],
+    differences: [
+      "Sie sehen oben kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
+    ],
+    troubleshootingDetails: [
+      "Die Freigabe meldet, dass sich der Lauf geändert hat? Inzwischen wurde eine Anmeldung bestätigt. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
+      "Eine bestätigte Anmeldung fehlt in der Vorschau? Sie hat schon eine Rechnung, oder beim Bestätigen wurde kein Beitrag festgehalten.",
+    ],
+    related: [
+      HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerHolidayRegistrationReview,
     ],
   };
 }
@@ -9427,6 +9501,7 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   traegerHolidayRegistrationTopic(),
   traegerHolidayRegistrationReviewTopic(),
   traegerHolidayContributionTopic(),
+  traegerBillingRunTopic(),
   traegerAccessLogTopic(),
   traegerBriefkopfTopic(),
   traegerSettingsTopic(),
