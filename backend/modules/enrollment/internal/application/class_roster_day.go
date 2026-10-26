@@ -25,7 +25,20 @@ type classDayCoveringPhase struct {
 // entries. The class is loaded ONCE and shared across every covering phase's
 // roster build: the view fans out per class on the teachers' landing page.
 func (s *Reports) ClassRosterDay(ctx context.Context, schoolClass string, date calendar.Date) (*enrollment.ClassRosterDay, error) {
-	schoolClass = strings.TrimSpace(schoolClass)
+	return s.rosterDay(ctx, enrollment.ClassRosterFilters{SchoolClass: strings.TrimSpace(schoolClass)}, date)
+}
+
+// SchoolRosterDay builds the roster of every class on one calendar day for
+// the school-wide day overview (#4802): the same rows ClassRosterDay builds
+// per class, each naming its class, loaded and merged once for the whole
+// school instead of once per class.
+func (s *Reports) SchoolRosterDay(ctx context.Context, date calendar.Date) (*enrollment.ClassRosterDay, error) {
+	return s.rosterDay(ctx, enrollment.ClassRosterFilters{AllClasses: true}, date)
+}
+
+// rosterDay builds the day roster of one class, or of every class with
+// filters.AllClasses.
+func (s *Reports) rosterDay(ctx context.Context, filters enrollment.ClassRosterFilters, date calendar.Date) (*enrollment.ClassRosterDay, error) {
 	if s.deps.Students == nil {
 		return nil, fmt.Errorf("class day report: repos not configured")
 	}
@@ -36,14 +49,15 @@ func (s *Reports) ClassRosterDay(ctx context.Context, schoolClass string, date c
 	// The date matters for more than the offering selection: a child whose
 	// care ended belongs on the sheets of the days they were still there and
 	// on none after that (#2487).
-	students, err := s.classRosterStudents(ctx, enrollment.ClassRosterFilters{SchoolClass: schoolClass, OfferingDate: &date})
+	filters.OfferingDate = &date
+	students, err := s.classRosterStudents(ctx, filters)
 	if err != nil {
 		return nil, err
 	}
 	if len(students) > maxReportRows {
 		return nil, fmt.Errorf("class day report: %d students: %w", len(students), enrollment.ErrReportExportTooLarge)
 	}
-	rows, err := s.classDayRosterRows(ctx, schoolClass, date, phases, students)
+	rows, err := s.classDayRosterRows(ctx, filters, date, phases, students)
 	if err != nil {
 		return nil, err
 	}
@@ -66,12 +80,12 @@ func (s *Reports) ClassRosterDay(ctx context.Context, schoolClass string, date c
 // classDayRosterRows merges the rosters of every covering phase (or builds
 // the enrollment-less roster when none covers the day) and completes the
 // Klassenverband with the class-list-only entries (#2382).
-func (s *Reports) classDayRosterRows(ctx context.Context, schoolClass string, date calendar.Date, phases []classDayCoveringPhase, students []*RosterStudent) ([]enrollment.ClassRosterRow, error) {
-	rows, err := s.classDayPhaseRows(ctx, schoolClass, date, phases, students)
+func (s *Reports) classDayRosterRows(ctx context.Context, filters enrollment.ClassRosterFilters, date calendar.Date, phases []classDayCoveringPhase, students []*RosterStudent) ([]enrollment.ClassRosterRow, error) {
+	rows, err := s.classDayPhaseRows(ctx, filters, date, phases, students)
 	if err != nil {
 		return nil, err
 	}
-	entryRows, err := s.classListEntryRows(ctx, schoolClass, false)
+	entryRows, err := s.classListEntryRows(ctx, filters.SchoolClass, filters.AllClasses)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +100,7 @@ func (s *Reports) classDayRosterRows(ctx context.Context, schoolClass string, da
 	return rows, nil
 }
 
-func (s *Reports) classDayPhaseRows(ctx context.Context, schoolClass string, date calendar.Date, phases []classDayCoveringPhase, students []*RosterStudent) ([]enrollment.ClassRosterRow, error) {
+func (s *Reports) classDayPhaseRows(ctx context.Context, filters enrollment.ClassRosterFilters, date calendar.Date, phases []classDayCoveringPhase, students []*RosterStudent) ([]enrollment.ClassRosterRow, error) {
 	if len(phases) == 0 {
 		return s.classRosterRowsWithoutPhase(ctx, students)
 	}
@@ -99,7 +113,7 @@ func (s *Reports) classDayPhaseRows(ctx context.Context, schoolClass string, dat
 	// nothing.
 	rosters := make([][]enrollment.ClassRosterRow, 0, len(phases))
 	for _, phase := range phases {
-		roster, err := s.classRosterForStudents(ctx, enrollment.ClassRosterFilters{PhaseID: phase.id, SchoolClass: schoolClass, OfferingDate: &date, SkipGuardianData: true}, students)
+		roster, err := s.classRosterForStudents(ctx, enrollment.ClassRosterFilters{PhaseID: phase.id, SchoolClass: filters.SchoolClass, AllClasses: filters.AllClasses, OfferingDate: &date, SkipGuardianData: true}, students)
 		if err != nil {
 			return nil, err
 		}

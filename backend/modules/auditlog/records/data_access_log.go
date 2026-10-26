@@ -70,6 +70,11 @@ const (
 	// to a Lehrkraft (or any other class_day:read holder). StudentID stays
 	// NULL; metadata carries school_class, date and student_count.
 	ResourceTypeClassDayView = "class_day_view"
+	// ResourceTypeSchoolDayView records serving the school-wide day overview
+	// of moto schule (#4802): the day numbers and names of every class to a
+	// Schulverwaltung account, deduplicated like the class day view to one
+	// row per actor, report date and calendar day of access.
+	ResourceTypeSchoolDayView = "school_day_view"
 	// ResourceTypeSupervisionStudentSheet records serving ONE child's pickup
 	// and emergency contacts to a supervisor running the block that child is
 	// in (#2527). The class day view (ResourceTypeClassDayView) deliberately

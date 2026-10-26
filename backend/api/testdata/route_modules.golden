@@ -1097,6 +1097,7 @@ unterricht_vormittag
 	GET /school/class-day/arrival-exceptions
 	GET /school/class-day/arrival-exceptions/block-start
 	GET /school/class-day/classes
+	GET /school/class-day/school-day
 	GET /school/notifications/preferences/
 	GET /school/notifications/push/public-key
 	GET /school/staff-messages/

@@ -20,6 +20,7 @@ var dataLabels = map[string]string{
 	"staff_document_download":     "Dokument einer Fachkraft",
 	"student_document_download":   "Dokument eines Kindes",
 	"class_day_view":              "Tagesansicht einer Klasse",
+	"school_day_view":             "Tagesübersicht der ganzen Schule",
 	"supervision_student_sheet":   "Abholung und Notfallkontakte eines Kindes",
 	"student_health_list_export":  "Gesundheitsliste (Export)",
 	"attendance_statistics":       "Statistik der Anwesenheit",

@@ -138,8 +138,19 @@ type classDayRosters struct{ reports enrollmentOwner.Reports }
 
 func (b classDayRosters) ClassRosterDay(ctx context.Context, schoolClass string, date timezone.Date) (*classdayCompose.DayRoster, error) {
 	roster, err := b.reports.ClassRosterDay(ctx, schoolClass, date)
-	if err != nil || roster == nil {
-		return nil, err
+	return classDayRoster(roster), err
+}
+
+// SchoolRosterDay reads the roster of every class of the day (#4802).
+func (b classDayRosters) SchoolRosterDay(ctx context.Context, date timezone.Date) (*classdayCompose.DayRoster, error) {
+	roster, err := b.reports.SchoolRosterDay(ctx, date)
+	return classDayRoster(roster), err
+}
+
+// classDayRoster maps Enrollment's day roster onto the projection's port.
+func classDayRoster(roster *enrollmentOwner.ClassRosterDay) *classdayCompose.DayRoster {
+	if roster == nil {
+		return nil
 	}
 	out := &classdayCompose.DayRoster{
 		PhaseNames: roster.PhaseNames,
@@ -148,7 +159,7 @@ func (b classDayRosters) ClassRosterDay(ctx context.Context, schoolClass string,
 	}
 	for _, row := range roster.Rows {
 		out.Rows = append(out.Rows, classdayCompose.DayRosterRow{
-			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName,
+			StudentID: row.StudentID, SchoolClass: row.SchoolClass, FirstName: row.FirstName, LastName: row.LastName,
 			ListEntry: row.ListEntry, ListEntryID: row.ListEntryID, GroupName: row.GroupName, Registered: row.Registered,
 			OfferingsByDay: row.OfferingsByDay, ArrivalByDay: row.ArrivalByDay, PickupByDay: row.PickupByDay,
 		})
@@ -160,7 +171,7 @@ func (b classDayRosters) ClassRosterDay(ctx context.Context, schoolClass string,
 		}
 		out.Students = append(out.Students, classdayCompose.DayRosterStudent{ID: student.ID, DepartureModes: modes})
 	}
-	return out, nil
+	return out
 }
 
 // classDayStatusDays reads the active scheduled day statuses.
@@ -267,6 +278,15 @@ func (l classDayAccessLog) ClassDayViewSeenSince(ctx context.Context, actorAccou
 
 func (l classDayAccessLog) RecordClassDayView(ctx context.Context, entry classdayCompose.AccessRecord) error {
 	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassDayView, entry))
+}
+
+func (l classDayAccessLog) SchoolDayViewSeenSince(ctx context.Context, actorAccountID int64, date string, since time.Time) (bool, error) {
+	return l.repo.ExistsSince(ctx, actorAccountID, auditModels.ResourceTypeSchoolDayView,
+		map[string]string{"date": date}, since)
+}
+
+func (l classDayAccessLog) RecordSchoolDayView(ctx context.Context, entry classdayCompose.AccessRecord) error {
+	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeSchoolDayView, entry))
 }
 
 func (l classDayAccessLog) RecordSupervisionSheet(ctx context.Context, entry classdayCompose.AccessRecord) error {

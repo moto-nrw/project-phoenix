@@ -168,10 +168,27 @@ func (m morningAttendance) applyMorningAttendance(ctx context.Context, report *c
 	if !report.SchoolDay {
 		return nil
 	}
+	if err := m.fillMorningAttendance(ctx, report.Rows, date); err != nil {
+		return err
+	}
+	if date != m.today() {
+		return nil
+	}
+	may, err := m.mayRecord(ctx)
+	if err != nil {
+		return err
+	}
+	report.CanRecordMorningAttendance = may
+	return nil
+}
+
+// fillMorningAttendance sets the morning status of the rows from one read
+// of the stored marks, falling back to a reported absence.
+func (m morningAttendance) fillMorningAttendance(ctx context.Context, rows []classday.DayRow, date calendar.Date) error {
 	stored := map[studentpresence.MorningAttendanceChild]string{}
 	if m.store != nil {
-		children := make([]studentpresence.MorningAttendanceChild, 0, len(report.Rows))
-		for _, row := range report.Rows {
+		children := make([]studentpresence.MorningAttendanceChild, 0, len(rows))
+		for _, row := range rows {
 			children = append(children, morningChild(row))
 		}
 		entries, err := m.store.MorningAttendanceOn(ctx, date, children)
@@ -182,8 +199,8 @@ func (m morningAttendance) applyMorningAttendance(ctx context.Context, report *c
 			stored[entry.Child] = entry.Status
 		}
 	}
-	for i := range report.Rows {
-		row := &report.Rows[i]
+	for i := range rows {
+		row := &rows[i]
 		if status, ok := stored[morningChild(*row)]; ok {
 			row.MorningAttendance = &classday.DayMorningAttendance{Status: status, Source: classday.MorningAttendanceSourceTeacher}
 			continue
@@ -192,14 +209,6 @@ func (m morningAttendance) applyMorningAttendance(ctx context.Context, report *c
 			row.MorningAttendance = &classday.DayMorningAttendance{Status: classday.MorningAttendanceAbsent, Source: classday.MorningAttendanceSourceReport}
 		}
 	}
-	if date != m.today() {
-		return nil
-	}
-	may, err := m.mayRecord(ctx)
-	if err != nil {
-		return err
-	}
-	report.CanRecordMorningAttendance = may
 	return nil
 }
 

@@ -334,6 +334,10 @@ var queryBudgets = map[string]queryBudget{
 	// Every read is a bulk load by ID set; the count must not move with the
 	// roster.
 	"modules.classday.slot_list.build": {max: 16},
+	// modules/classday — GET /school/class-day/school-day (#4802): one
+	// school-wide roster and one read of each day fact for every class, 2 and
+	// then 4 classes. The count must not move with the classes.
+	"modules.classday.school_day": {max: 34},
 	// modules/mealplan — a week of orders reads each weekday in bulk (#3873),
 	// without a lock or a write; a due order not stored yet shares its day's
 	// reads with the current registration (ADR 0077).

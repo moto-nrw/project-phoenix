@@ -2,14 +2,17 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { ClassDayReport } from "~/lib/class-day-api";
+import type { SchoolDayReport } from "~/lib/school-class-day-api";
 import { setTestClock } from "~/test/clock";
 import { ClassDayOverview } from "./class-day-overview";
 
 // Die Übersicht lädt am Wochenende keine Klasse, außer die Schule betreut
 // Samstag und Sonntag nach dem Freitagsplan (#3921).
 
+const navigation = vi.hoisted(() => ({ search: "" }));
+
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(navigation.search),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
@@ -71,6 +74,7 @@ function classList(weekendFollowsFriday: boolean) {
 describe("ClassDayOverview on the weekend", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    navigation.search = "";
     setTestClock(new Date("2026-09-05T12:00:00+02:00")); // Samstag
   });
 
@@ -105,5 +109,168 @@ describe("ClassDayOverview on the weekend", () => {
       expect(fetchClassDay).toHaveBeenCalledWith("4a", "2026-09-05"),
     );
     expect(fetchClasses).toHaveBeenCalledTimes(1);
+  });
+});
+
+const schoolTotals = {
+  students: 0,
+  missing: 0,
+  absent: 0,
+  sick: 0,
+  excused: 0,
+  class_trip: 0,
+  staying: 0,
+  leaving: 0,
+  list_entries: 0,
+  changes: 0,
+};
+
+function schoolDay(date: string): SchoolDayReport {
+  return {
+    date,
+    weekday: "wed",
+    school_day: true,
+    enrollment_known: true,
+    totals: {
+      ...schoolTotals,
+      students: 3,
+      missing: 1,
+      absent: 1,
+      sick: 1,
+      staying: 1,
+      leaving: 1,
+    },
+    classes: [
+      {
+        school_class: "1a",
+        totals: {
+          ...schoolTotals,
+          students: 2,
+          missing: 1,
+          absent: 1,
+          sick: 1,
+          staying: 1,
+          changes: 1,
+        },
+        children: [
+          {
+            student_id: 1,
+            first_name: "Anna",
+            last_name: "Arndt",
+            after_school: "stays",
+          },
+          {
+            student_id: 2,
+            first_name: "Ben",
+            last_name: "Busch",
+            status: "sick",
+            missing: true,
+            changed: true,
+          },
+        ],
+      },
+      {
+        school_class: "2b",
+        totals: { ...schoolTotals, students: 1, leaving: 1 },
+        children: [
+          {
+            student_id: 3,
+            first_name: "Carl",
+            last_name: "Claus",
+            after_school: "goes_home",
+          },
+        ],
+      },
+    ],
+  };
+}
+
+// Die Schulverwaltung sieht alle Klassen (#4802): die Startseite lädt die
+// Tagesübersicht der Schule einmal statt einen Report je Klasse, und jede
+// Zahl öffnet die Kinder dahinter, nach Klasse gruppiert.
+describe("ClassDayOverview for the Schulverwaltung", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    navigation.search = "";
+    setTestClock(new Date("2026-09-09T12:00:00+02:00")); // Mittwoch
+  });
+
+  const classes = () =>
+    Promise.resolve({
+      classes: ["1a", "2b"],
+      can_write_arrival_exception: false,
+      can_view_school_day: true,
+    });
+
+  it("loads the school once instead of one report per class", async () => {
+    const fetchClassDay = vi.fn((_: string, date: string) =>
+      Promise.resolve(report(date)),
+    );
+    const fetchSchoolDay = vi.fn((date: string) =>
+      Promise.resolve(schoolDay(date)),
+    );
+    render(
+      <ClassDayOverview
+        fetchClasses={classes}
+        fetchClassDay={fetchClassDay}
+        fetchSchoolDay={fetchSchoolDay}
+      />,
+    );
+
+    expect(await screen.findByText("Ganze Schule")).toBeVisible();
+    expect(fetchSchoolDay).toHaveBeenCalledWith("2026-09-09");
+    expect(fetchClassDay).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("link", { name: "Krank: 1, Liste öffnen" }),
+    ).toHaveAttribute("href", "/school?tag=2026-09-09&liste=krank");
+    // Die Klassenzeilen kommen aus derselben Antwort.
+    expect(screen.getByText("Alle Klassen")).toBeVisible();
+    expect(
+      screen.getByText(/2 Kinder · 1 bleiben · 0 gehen heim/),
+    ).toBeVisible();
+    expect(screen.getByText("1 Kind anders als sonst")).toBeVisible();
+  });
+
+  it("lists the children of an opened number by class", async () => {
+    navigation.search = "tag=2026-09-09&liste=gehen-heim";
+    render(
+      <ClassDayOverview
+        fetchClasses={classes}
+        fetchClassDay={(_, date) => Promise.resolve(report(date))}
+        fetchSchoolDay={(date) => Promise.resolve(schoolDay(date))}
+      />,
+    );
+
+    expect(await screen.findByText("Gehen heim: 1")).toBeVisible();
+    expect(screen.getByText("Claus, Carl")).toBeVisible();
+    expect(screen.getByRole("link", { name: /2b · 1/ })).toBeVisible();
+    expect(screen.queryByText("Busch, Ben")).not.toBeInTheDocument();
+  });
+
+  it("keeps the per-class reports for a Lehrkraft", async () => {
+    const fetchSchoolDay = vi.fn((date: string) =>
+      Promise.resolve(schoolDay(date)),
+    );
+    const fetchClassDay = vi.fn((_: string, date: string) =>
+      Promise.resolve(report(date)),
+    );
+    render(
+      <ClassDayOverview
+        fetchClasses={() =>
+          Promise.resolve({
+            classes: ["4a"],
+            can_write_arrival_exception: false,
+          })
+        }
+        fetchClassDay={fetchClassDay}
+        fetchSchoolDay={fetchSchoolDay}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(fetchClassDay).toHaveBeenCalledWith("4a", "2026-09-09"),
+    );
+    expect(screen.getByText("Ihre Klassen")).toBeVisible();
+    expect(fetchSchoolDay).not.toHaveBeenCalled();
   });
 });
