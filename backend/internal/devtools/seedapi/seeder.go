@@ -58,10 +58,6 @@ type SeedOptions struct {
 	// DeferHistory leaves the deferred steps out of Seed: the school is usable
 	// without them, and SeedResult.Deferred runs them afterwards.
 	DeferHistory bool
-	// SkipTraegerSetup leaves out data that belongs to the shared Demo-Träger.
-	// The queued-demo scheduler lets one school create it, then seeds further
-	// schools of that Träger in parallel.
-	SkipTraegerSetup bool
 	// ReadMailLink reads the caterer's invitation mail (ADR 0077); nil invites none.
 	ReadMailLink MailLinkReader
 	// ProductScreenshots prepares the school for the product screenshots,

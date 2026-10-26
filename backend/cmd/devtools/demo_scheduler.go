@@ -42,10 +42,9 @@ type demoScheduler struct {
 	seeds           chan struct{}
 
 	failedRequeues *demoDeferredRequeues
-	// All demo schools share one Demo-Träger. Only the first provisioner builds
-	// its shared data; later schools can seed their own data concurrently.
-	sharedTraegerSetup sync.Mutex
-	traegerSetupDone   bool
+	// All demo schools share one Demo-Träger. Its master-data and holiday
+	// workflow must complete before the next school starts its full seed.
+	provisioning sync.Mutex
 }
 
 func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbeat string, once bool) error {
@@ -64,18 +63,10 @@ func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbea
 	if err := schools.RequeueDeferredDemoSchoolOrders(ctx); err != nil {
 		return err
 	}
-	standing, err := schools.LoadDemoSchool(ctx, standingDemoSlug)
-	if err != nil {
-		return err
-	}
-	ready, err := schools.ReadyDemoSchools(ctx)
-	if err != nil {
-		return err
-	}
 	scheduler := &demoScheduler{
 		schools: schools, baseURL: baseURL, heartbeat: heartbeat, adapter: newSharedOperatorSession(adapter),
 		tickers: newDemoTickers(), expiry: newDemoExpiry(schools, time.Now), seeds: make(chan struct{}, demoSeedWorkers),
-		failedRequeues: newDemoDeferredRequeues(), traegerSetupDone: standing != nil || len(ready) > 0,
+		failedRequeues: newDemoDeferredRequeues(),
 	}
 	defer scheduler.work.Wait()
 	if once {
@@ -149,6 +140,9 @@ func (s *demoScheduler) prepare(ctx context.Context, order DemoSchoolOrder) {
 // prepareLeased seeds an order while its visitor-erasure lease is held. That
 // includes optional history and every success or failure state write.
 func (s *demoScheduler) prepareLeased(ctx context.Context, order DemoSchoolOrder) {
+	s.provisioning.Lock()
+	defer s.provisioning.Unlock()
+
 	started := time.Now()
 	deferred, err := s.seedAndTick(ctx, order)
 	if ctx.Err() != nil {
@@ -290,18 +284,7 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order DemoSchoolOrder) 
 			DeferHistory:     true,
 		}
 		var err error
-		s.sharedTraegerSetup.Lock()
-		options.SkipTraegerSetup = s.traegerSetupDone
-		if options.SkipTraegerSetup {
-			s.sharedTraegerSetup.Unlock()
-			deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options)
-		} else {
-			deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options)
-			if err == nil {
-				s.traegerSetupDone = true
-			}
-			s.sharedTraegerSetup.Unlock()
-		}
+		deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options)
 		if err != nil {
 			return nil, err
 		}
