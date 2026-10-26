@@ -13,11 +13,15 @@ import { traegerRequest } from "./traeger-api";
 
 export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
 
-/** The changes the Träger-Büro makes with one action. */
-export type HolidayRegistrationAction =
-  "confirm" | "cancel" | "freeze" | "reopen";
+/**
+ * The changes the Träger-Büro makes with one action. A confirmation freezes
+ * the contribution and goes through the Elternabrechnung (#4664,
+ * `confirmHolidayRegistration` in traeger-contributions-api).
+ */
+export type HolidayRegistrationAction = "cancel" | "freeze" | "reopen";
 
-type HolidayRegistrationEventAction = HolidayRegistrationAction | "rebook";
+type HolidayRegistrationEventAction =
+  HolidayRegistrationAction | "confirm" | "rebook";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -68,6 +72,8 @@ export interface HolidayRegistrationSummary {
   readonly guardianLastName: string;
   readonly guardianEmail: string;
   readonly guardianPhone: string;
+  /** The parents state that they receive benefits (#4664). */
+  readonly benefitsDeclared: boolean;
   readonly children: readonly HolidayRegistrationChild[];
 }
 
@@ -146,6 +152,7 @@ interface BackendSummary {
   guardian_last_name: string;
   guardian_email: string;
   guardian_phone: string;
+  benefits_declared?: boolean;
   children?: BackendChild[] | null;
 }
 
@@ -199,6 +206,7 @@ function summaryFromBackend(
     guardianLastName: registration.guardian_last_name,
     guardianEmail: registration.guardian_email,
     guardianPhone: registration.guardian_phone,
+    benefitsDeclared: registration.benefits_declared ?? false,
     children: (registration.children ?? []).map((child) => ({
       id: String(child.id),
       firstName: child.first_name,
@@ -309,7 +317,7 @@ export async function fetchHolidayRegistration(
   );
 }
 
-/** Confirms, cancels, freezes or reopens a registration. */
+/** Cancels, freezes or reopens a registration. */
 export async function changeHolidayRegistration(
   periodId: string,
   registrationId: string,

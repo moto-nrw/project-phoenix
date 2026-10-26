@@ -661,6 +661,16 @@ export const ERROR_CATALOG = {
         "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
       "operator.audit_unavailable":
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
+      "parent_billing.benefits_exemption_unavailable":
+        "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Beiträge“. Bitte fragen Sie die Abrechnung.",
+      "parent_billing.contribution_rule_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.contribution_rule_not_found":
+        "Diese Regel gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.contribution_rule_overlap":
+        "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
+      "parent_billing.holiday_quote_invalid":
+        "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
       "pickup.bulk_exception_confirmation_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "pickup.invalid":
@@ -1734,6 +1744,8 @@ export const ERROR_CATALOG = {
         "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
       "module.not_booked":
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
+      "parent_billing.holiday_quote_invalid":
+        "The fee cannot be calculated for these weeks. Please reload the page.",
       "staff.external_access_invalid":
         "Please choose which access this person gets.",
       "staff.external_email_invalid":
@@ -2137,6 +2149,8 @@ export const ERROR_CATALOG = {
         "{object} сейчас невозможно. Школу ещё снабжает поставщик питания. Сначала завершите эти поставки.",
       "module.not_booked":
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
+      "parent_billing.holiday_quote_invalid":
+        "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
       "students.care_exception_raced":
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
       "students.care_offerings_disabled":
@@ -2519,6 +2533,8 @@ export const ERROR_CATALOG = {
         "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
       "module.not_booked":
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
+      "parent_billing.holiday_quote_invalid":
+        "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
       "students.care_exception_raced":
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
       "students.care_offerings_disabled":
@@ -2890,6 +2906,8 @@ export const ERROR_CATALOG = {
         "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
       "module.not_booked":
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
+      "parent_billing.holiday_quote_invalid":
+        "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
       "students.care_exception_raced":
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
       "students.care_offerings_disabled":
@@ -3265,6 +3283,8 @@ export const ERROR_CATALOG = {
         "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
       "module.not_booked":
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
+      "parent_billing.holiday_quote_invalid":
+        "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
       "students.care_exception_raced":
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
       "students.care_offerings_disabled":
@@ -3633,6 +3653,8 @@ export const ERROR_CATALOG = {
         "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання.",
       "module.not_booked":
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
+      "parent_billing.holiday_quote_invalid":
+        "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
       "students.care_exception_raced":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
       "students.care_offerings_disabled":
