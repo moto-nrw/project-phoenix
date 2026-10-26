@@ -1,6 +1,7 @@
 "use client";
 
-// Zusammenfassung vor dem Absenden der Ferienanmeldung (#4661).
+// Zusammenfassung vor dem Absenden der Ferienanmeldung (#4661), mit dem
+// Beitrag aus den Regeln des Trägers (#4664).
 
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
@@ -15,6 +16,7 @@ import {
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
+import { HolidayRegistrationContribution } from "./holiday-registration-contribution";
 import { useWeekLabels } from "./holiday-registration-sections";
 
 function contactLine(contact: ContactDraft): string {
@@ -25,6 +27,7 @@ function contactLine(contact: ContactDraft): string {
 }
 
 export function HolidayRegistrationSummary({
+  token,
   draft,
   offer,
   submitting,
@@ -32,7 +35,9 @@ export function HolidayRegistrationSummary({
   securityCheck,
   onBack,
   onSubmit,
+  onBenefitsDeclaredChange,
 }: Readonly<{
+  token: string;
   draft: RegistrationDraft;
   offer: HolidayRegistrationOffer;
   submitting: boolean;
@@ -41,6 +46,7 @@ export function HolidayRegistrationSummary({
   securityCheck: ReactNode;
   onBack: () => void;
   onSubmit: () => void;
+  onBenefitsDeclaredChange: (declared: boolean) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
   const locale = useLocale();
@@ -54,9 +60,7 @@ export function HolidayRegistrationSummary({
 
   return (
     <div className="space-y-6">
-      <SectionCard title={t("summaryTitle")} description={t("summaryText")}>
-        <p className="text-sm text-gray-700">{t("summaryFee")}</p>
-      </SectionCard>
+      <SectionCard title={t("summaryTitle")} description={t("summaryText")} />
 
       {draft.children.map((child, index) => (
         <SectionCard
@@ -118,6 +122,13 @@ export function HolidayRegistrationSummary({
           </DataField>
         </DataGrid>
       </SectionCard>
+
+      <HolidayRegistrationContribution
+        token={token}
+        draft={draft}
+        offer={offer}
+        onBenefitsDeclaredChange={onBenefitsDeclaredChange}
+      />
 
       {securityCheck}
 

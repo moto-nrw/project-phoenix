@@ -22,6 +22,8 @@ const logger = createLogger({ component: "TraegerShell" });
 const ACCOUNTS_RIGHT = "traeger_accounts:manage";
 /** The Träger right that opens the holiday periods (#4659). */
 const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
+/** The Träger right that keeps the contribution rules (#4664). */
+const BILLING_RIGHT = "traeger_billing:manage";
 /** The Träger right that opens the access log (#4655). */
 const ACCESS_LOG_RIGHT = "traeger_access_log:read";
 /** The Träger right that reads the Träger settings (ADR 0086, #4652) and
@@ -38,6 +40,12 @@ const NAV_ITEMS = [
     label: "Ferien",
     path: "/traeger/ferien",
     right: ENROLLMENT_RIGHT,
+  },
+  {
+    id: "beitraege",
+    label: "Beiträge",
+    path: "/traeger/beitraege",
+    right: BILLING_RIGHT,
   },
   {
     id: "personen",
@@ -67,7 +75,8 @@ const NAV_ITEMS = [
 
 /**
  * The pages of the portal as header tabs. The holiday periods need the right
- * "Anmeldung verwalten", the page "Personen" the right to manage accounts,
+ * "Anmeldung verwalten", the contribution rules (#4664) the right
+ * "Abrechnung", the page "Personen" the right to manage accounts,
  * the access log the right to read it, the letterhead (#4653) and the
  * settings (#4652) the right to read the overview; a person with none of
  * them has one page and no tabs.

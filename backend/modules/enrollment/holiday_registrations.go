@@ -128,6 +128,8 @@ type HolidayContactInput struct {
 // HolidayRegistrationInput is the whole registration as a parent submits it.
 // PrivacyConsent is always required, HealthConsent whenever a child carries
 // health information and BindingConfirmed when the period is binding.
+// BenefitsDeclared states that the family receives benefits (#4664); the
+// Träger-Büro checks it before it applies an exemption.
 type HolidayRegistrationInput struct {
 	Guardian          HolidayGuardianInput
 	Children          []HolidayChildInput
@@ -136,6 +138,7 @@ type HolidayRegistrationInput struct {
 	PrivacyConsent    bool
 	HealthConsent     bool
 	BindingConfirmed  bool
+	BenefitsDeclared  bool
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no

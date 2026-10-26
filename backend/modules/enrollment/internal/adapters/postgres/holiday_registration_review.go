@@ -30,6 +30,7 @@ type holidayReviewRegistrationRow struct {
 	PrivacyConsentAt   time.Time  `bun:"privacy_consent_at"`
 	HealthConsentAt    *time.Time `bun:"health_consent_at"`
 	BindingConfirmedAt *time.Time `bun:"binding_confirmed_at"`
+	BenefitsDeclared   bool       `bun:"benefits_declared"`
 }
 
 // holidayReviewChildRow is one child as the review reads it. The health
@@ -58,7 +59,7 @@ type holidayReviewBookingRow struct {
 const (
 	reviewRegistrationsQuery = `SELECT id, status, freeze_override, submitted_at,
 			guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
-			privacy_consent_at, health_consent_at, binding_confirmed_at
+			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared
 		FROM enrollment.holiday_registrations
 		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)
 		ORDER BY submitted_at, id`
@@ -158,7 +159,8 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 			HolidayRegistrationSummary: enrollment.HolidayRegistrationSummary{
 				ID: row.ID, Status: row.Status, SubmittedAt: row.SubmittedAt,
 				GuardianFirstName: row.GuardianFirstName, GuardianLastName: row.GuardianLastName,
-				GuardianEmail: row.GuardianEmail, GuardianPhone: row.GuardianPhone, Children: byRegistration[row.ID],
+				GuardianEmail: row.GuardianEmail, GuardianPhone: row.GuardianPhone, BenefitsDeclared: row.BenefitsDeclared,
+				Children: byRegistration[row.ID],
 			},
 			Health:           health[row.ID],
 			PrivacyConsentAt: row.PrivacyConsentAt, HealthConsentAt: row.HealthConsentAt, BindingConfirmedAt: row.BindingConfirmedAt,

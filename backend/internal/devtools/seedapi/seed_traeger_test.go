@@ -27,7 +27,7 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 
 	var mu sync.Mutex
 	requests := map[string]seedTraegerRequest{}
-	var invitations []map[string]any
+	var invitations, assignments []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		raw, err := io.ReadAll(r.Body)
@@ -38,6 +38,9 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 		requests[r.URL.Path] = seedTraegerRequest{authorization: r.Header.Get("Authorization"), body: body}
 		if r.URL.Path == "/traeger/accounts/invitations" {
 			invitations = append(invitations, body)
+		}
+		if r.URL.Path == "/operator/organizations/12/traeger-members" {
+			assignments = append(assignments, body)
 		}
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
@@ -64,7 +67,10 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	require.NoError(t, (seedTraegerBueroStep{}).Run(context.Background(), runtime))
 	assign := requests["/operator/organizations/12/traeger-members"]
 	assert.Equal(t, "Bearer operator-token", assign.authorization)
-	assert.Equal(t, map[string]any{"email": "admin@example.test", "role": "administration"}, assign.body)
+	assert.Equal(t, []map[string]any{
+		{"email": "admin@example.test", "role": "administration"},
+		{"email": "admin@example.test", "role": "billing"},
+	}, assignments, "the admin holds the Verwaltung and the Abrechnung")
 	login := requests["/traeger/auth/login"]
 	assert.Empty(t, login.authorization, "the Träger sign-in carries no session")
 	assert.Equal(t, map[string]any{"email": "admin@example.test", "password": "Geheim1234%", "organization_id": float64(12)}, login.body)
@@ -124,10 +130,13 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"GET /traeger/schools/ Bearer traeger-token",
 		"POST /traeger/holiday-periods/ Bearer traeger-token",
 		"POST /traeger/holiday-periods/5/publish Bearer traeger-token",
+		"POST /traeger/contribution-rules/ Bearer traeger-token",
+		"POST /traeger/contribution-rules/ Bearer traeger-token",
+		"POST /traeger/holiday-quotes/link-key ",
 		"POST /traeger/holiday-registrations/link-key ",
 		"POST /traeger/holiday-registrations/link-key ",
 		"GET /traeger/holiday-periods/5/registrations Bearer traeger-token",
-		"POST /traeger/holiday-periods/5/registrations/9/confirm Bearer traeger-token",
+		"POST /traeger/holiday-contributions/5/registrations/9/confirm Bearer traeger-token",
 	}, calls, "the registrations go through the public link without a session; the Träger-Büro reviews them with its session")
 	weeks, ok := period["weeks"].([]any)
 	require.True(t, ok)
@@ -321,9 +330,10 @@ func TestSeedTraegerStepsShareOneTraegerSession(t *testing.T) {
 		case "/traeger/holiday-periods/5/publish":
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[` +
 				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`))
-		case "/traeger/holiday-registrations/link-key":
-			// The public registration of the holiday step (#4661) has no
-			// session by design; it is no Träger request of the shared one.
+		case "/traeger/holiday-registrations/link-key", "/traeger/holiday-quotes/link-key":
+			// The public registration of the holiday step (#4661) and its
+			// contribution (#4664) have no session by design; they are no
+			// Träger requests of the shared one.
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
 			return
@@ -349,4 +359,23 @@ func TestSeedTraegerStepsShareOneTraegerSession(t *testing.T) {
 	for _, authorization := range traegerAuthorizations {
 		assert.Equal(t, "Bearer traeger-token", authorization, "every Träger request uses the shared session")
 	}
+}
+
+// A second demo school of the same Träger finds the Träger's rules already
+// kept (#4664): the overlap refusal leaves them as they are.
+func TestSeedContributionRulesKeepTheTraegersRules(t *testing.T) {
+	t.Parallel()
+
+	posts := 0
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		posts++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"status":409,"code":"parent_billing.contribution_rule_overlap","detail":"overlap"}`))
+	})
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	require.NoError(t, seedContributionRules(client, AuthRef{Kind: AuthBearer, Token: "traeger-token"}, calendar.NewDate(2026, time.September, 23)))
+	assert.Equal(t, 2, posts, "both kinds were offered once")
 }
