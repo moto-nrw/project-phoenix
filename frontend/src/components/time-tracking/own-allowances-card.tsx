@@ -85,6 +85,7 @@ export function OwnAllowancesCard() {
             <AllowanceCard
               key={entry.summary.absenceTypeId}
               title={entry.name}
+              headingLevel={3}
               year={entry.summary.year}
               entitled={entry.summary.entitledDays}
               taken={entry.summary.takenDays}

@@ -72,6 +72,7 @@ export function AllowanceCard({
   extraAction,
   editForm,
   footer,
+  headingLevel = 4,
 }: {
   readonly title: string;
   readonly year: number;
@@ -86,8 +87,11 @@ export function AllowanceCard({
   readonly extraAction?: ReactNode;
   readonly editForm?: ReactNode;
   readonly footer?: ReactNode;
+  /** 4 under the Leitung's level-3 section, 3 under a level-2 card. */
+  readonly headingLevel?: 3 | 4;
 }) {
   const isEditing = Boolean(editForm);
+  const Heading = `h${headingLevel}` as "h3" | "h4";
   return (
     <section
       aria-label={`${title} ${year}`}
@@ -97,9 +101,9 @@ export function AllowanceCard({
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <h4 className="truncate text-sm font-semibold text-gray-900">
+          <Heading className="truncate text-sm font-semibold text-gray-900">
             {title}
-          </h4>
+          </Heading>
           {retired ? <StatusBadge tone="gray" label="ausgeschaltet" /> : null}
         </div>
         {isEditing ? null : (
