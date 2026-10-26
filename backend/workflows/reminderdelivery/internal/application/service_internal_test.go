@@ -417,8 +417,8 @@ func TestActivityReminders(t *testing.T) {
 		instances[0].ID = 101
 		instances[1].ID = 102
 
-		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Instance: fakeInstance{instances: instances}, Room: fakeRoom{}}}
-		out, _, err := svc.activityReminders(context.Background(), adminScope, nil, testDate, nowMin, lead, overdueThreshold, true, true)
+		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Room: fakeRoom{}}}
+		out, _, err := svc.activityRemindersFor(context.Background(), adminScope, nil, instances, nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 2)
 
@@ -444,14 +444,14 @@ func TestActivityReminders(t *testing.T) {
 			plannedInstance("Schach", 1, 605, 700),  // upcoming
 			plannedInstance("Fußball", 1, 590, 650), // overdue
 		}
-		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Instance: fakeInstance{instances: instances}, Room: fakeRoom{}}}
+		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Room: fakeRoom{}}}
 
-		upcomingOnly, _, err := svc.activityReminders(context.Background(), adminScope, nil, testDate, nowMin, lead, overdueThreshold, true, false)
+		upcomingOnly, _, err := svc.activityRemindersFor(context.Background(), adminScope, nil, instances, nowMin, lead, overdueThreshold, true, false)
 		require.NoError(t, err)
 		require.Len(t, upcomingOnly, 1)
 		assert.Equal(t, reminder.TypeActivityStart, upcomingOnly[0].Type)
 
-		overdueOnly, _, err := svc.activityReminders(context.Background(), adminScope, nil, testDate, nowMin, lead, overdueThreshold, false, true)
+		overdueOnly, _, err := svc.activityRemindersFor(context.Background(), adminScope, nil, instances, nowMin, lead, overdueThreshold, false, true)
 		require.NoError(t, err)
 		require.Len(t, overdueOnly, 1)
 		assert.Equal(t, reminder.TypeActivityOverdue, overdueOnly[0].Type)
@@ -462,8 +462,8 @@ func TestActivityReminders(t *testing.T) {
 			plannedInstance("Schach", 10, 605, 700),  // room 10 — supervised
 			plannedInstance("Fußball", 99, 605, 700), // room 99 — not supervised
 		}
-		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Instance: fakeInstance{instances: instances}, Room: fakeRoom{}}}
-		out, _, err := svc.activityReminders(context.Background(), reminder.Scope{IsAdmin: false}, []int64{10}, testDate, nowMin, lead, overdueThreshold, true, true)
+		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Room: fakeRoom{}}}
+		out, _, err := svc.activityRemindersFor(context.Background(), reminder.Scope{IsAdmin: false}, []int64{10}, instances, nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
 		assert.Equal(t, "Schach", out[0].Title)
@@ -480,10 +480,10 @@ func TestActivityReminders(t *testing.T) {
 			{ID: 1, Name: "Lernraum"},
 			{ID: 2, Name: "Schulhof"},
 		}}
-		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Instance: fakeInstance{instances: instances}, Room: rooms}}
+		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Room: rooms}}
 
-		overdueOnly, next, err := svc.activityReminders(
-			context.Background(), adminScope, nil, testDate, nowMin,
+		overdueOnly, next, err := svc.activityRemindersFor(
+			context.Background(), adminScope, nil, instances, nowMin,
 			lead, overdueThreshold, false, true,
 		)
 
@@ -502,9 +502,9 @@ func TestActivityReminders(t *testing.T) {
 			{err: errors.New("rooms unavailable")},
 			{empty: true},
 		} {
-			svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Instance: fakeInstance{instances: instances}, Room: room}}
-			out, next, err := svc.activityReminders(
-				context.Background(), adminScope, nil, testDate, nowMin,
+			svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Room: room}}
+			out, next, err := svc.activityRemindersFor(
+				context.Background(), adminScope, nil, instances, nowMin,
 				lead, overdueThreshold, false, true,
 			)
 			require.Error(t, err)
@@ -513,9 +513,9 @@ func TestActivityReminders(t *testing.T) {
 		}
 	})
 
-	t.Run("nil instance reader yields nothing", func(t *testing.T) {
-		svc := &service{}
-		out, _, err := svc.activityReminders(context.Background(), adminScope, nil, testDate, nowMin, lead, overdueThreshold, true, true)
+	t.Run("an empty instance list yields nothing", func(t *testing.T) {
+		svc := &service{QueryDependencies: ports.QueryDependencies{Room: fakeRoom{}}}
+		out, _, err := svc.activityRemindersFor(context.Background(), adminScope, nil, nil, nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 	})
@@ -852,10 +852,11 @@ func TestActivityNextChange(t *testing.T) {
 	t.Run("an activity starting beyond the window schedules its earliest boundary", func(t *testing.T) {
 		// start 620, end 700. Boundaries: window entry 610, upcoming exit 621,
 		// overdue 625, slot end 700. The soonest is 610.
-		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Instance: fakeInstance{instances: []*ports.ActivityInstance{
+		instances := []*ports.ActivityInstance{
 			plannedInstance("Schach", 1, 620, 700),
-		}}, Room: fakeRoom{}}}
-		out, next, err := svc.activityReminders(context.Background(), adminScope, nil, testDate, nowMin, lead, overdueThreshold, true, true)
+		}
+		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Room: fakeRoom{}}}
+		out, next, err := svc.activityRemindersFor(context.Background(), adminScope, nil, instances, nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
 		assert.Equal(t, 610, next)
@@ -867,18 +868,19 @@ func TestActivityNextChange(t *testing.T) {
 		// first minute start is in the past, startMin+1 = 621 — NOT startMin.
 		// Upcoming-only isolates that boundary from the overdue ones.
 		const nowMin = 615
-		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Instance: fakeInstance{instances: []*ports.ActivityInstance{
+		instances := []*ports.ActivityInstance{
 			plannedInstance("Schach", 1, 620, 700),
-		}}, Room: fakeRoom{}}}
-		out, next, err := svc.activityReminders(context.Background(), adminScope, nil, testDate, nowMin, lead, overdueThreshold, true, false)
+		}
+		svc := &service{QueryDependencies: ports.QueryDependencies{Clock: testClock, Room: fakeRoom{}}}
+		out, next, err := svc.activityRemindersFor(context.Background(), adminScope, nil, instances, nowMin, lead, overdueThreshold, true, false)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
 		assert.Equal(t, 621, next, "upcoming exit is startMin+1, not startMin")
 	})
 
-	t.Run("nil instance reader yields no scheduled change", func(t *testing.T) {
-		svc := &service{}
-		_, next, err := svc.activityReminders(context.Background(), adminScope, nil, testDate, nowMin, lead, overdueThreshold, true, true)
+	t.Run("an empty instance list yields no scheduled change", func(t *testing.T) {
+		svc := &service{QueryDependencies: ports.QueryDependencies{Room: fakeRoom{}}}
+		_, next, err := svc.activityRemindersFor(context.Background(), adminScope, nil, nil, nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		assert.Equal(t, -1, next)
 	})

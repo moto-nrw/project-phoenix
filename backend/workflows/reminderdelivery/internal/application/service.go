@@ -360,18 +360,6 @@ func (s *service) logDroppedPickups(dropped []int64) {
 	}
 }
 
-func (s *service) activityReminders(ctx context.Context, scope reminder.Scope, roomIDs []int64, today string, nowMin, lead, overdueThreshold int, upcoming, overdue bool) ([]reminder.Reminder, int, error) {
-	nextChange := -1
-	if s.Instance == nil {
-		return nil, nextChange, nil
-	}
-	instances, err := s.Instance.FindByTenantAndDate(ctx, today)
-	if err != nil {
-		return nil, nextChange, err
-	}
-	return s.activityRemindersFor(ctx, scope, roomIDs, instances, nowMin, lead, overdueThreshold, upcoming, overdue)
-}
-
 // activityRemindersFor evaluates start and overdue reminders over already
 // loaded instances, so Compute reads today's blocks once for every activity
 // type.
