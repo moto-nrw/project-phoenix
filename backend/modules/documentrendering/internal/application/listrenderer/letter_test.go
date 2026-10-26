@@ -2,6 +2,7 @@ package listexport
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -294,5 +295,53 @@ func TestLetterTableWrapsALongValue(t *testing.T) {
 		if width > layout.contentWidth()*letterValueShare+0.5 {
 			t.Fatalf("%q is %.1f wide, more than its column", part, width)
 		}
+	}
+}
+
+// A footer that leaves too little room for the body is refused rather
+// than printed over the letter.
+func TestLetterRefusesAFooterWithoutRoomForTheBody(t *testing.T) {
+	t.Parallel()
+
+	letter := sampleLetter()
+	letter.Footer = []string{strings.Repeat("Vorstand\n", 60)}
+	if _, err := NewService().RenderLetter(letter, "x"); !errors.Is(err, listrecords.ErrLetterFooterTooLong) {
+		t.Fatalf("err = %v, want ErrLetterFooterTooLong", err)
+	}
+}
+
+// A table row longer than a page, such as a reason of many lines,
+// continues on the next page and never runs into the footer.
+func TestLetterSplitsATableRowLongerThanAPage(t *testing.T) {
+	t.Parallel()
+
+	letter := sampleLetter()
+	label := strings.TrimSuffix(strings.Repeat("Korrektur\n", 70), "\n")
+	letter.Blocks = []listrecords.LetterBlock{{Facts: []listrecords.LetterFact{{Label: label, Value: "-10,00 €"}}}}
+	chrome, err := newLetterChrome("x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout, err := newLetterLayout(chrome, letter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := layout.run(); err != nil {
+		t.Fatal(err)
+	}
+	if layout.page < 2 {
+		t.Fatalf("pages = %d, want the row to continue", layout.page)
+	}
+	lines := 0
+	for _, line := range layout.trace {
+		if line == "Korrektur" {
+			lines++
+		}
+	}
+	if lines != 70 {
+		t.Fatalf("printed %d of 70 lines", lines)
+	}
+	if layout.y > layout.bodyBottom() {
+		t.Fatalf("the last line ends at %.1f, below the body bottom %.1f", layout.y, layout.bodyBottom())
 	}
 }

@@ -102,6 +102,10 @@ type (
 	LetterBlock = records.LetterBlock
 )
 
+// ErrLetterFooterTooLong reports a footer that leaves too little room on a
+// page for the body of the letter; the letter is not rendered.
+var ErrLetterFooterTooLong = records.ErrLetterFooterTooLong
+
 // LetterRenderer renders a letter as a PDF. Like Renderer it neither stores
 // the file nor decides who may read it.
 type LetterRenderer interface {

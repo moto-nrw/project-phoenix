@@ -115,6 +115,7 @@ const (
 	CodeParentBillingContributionRuleOverlap          = "parent_billing.contribution_rule_overlap"
 	CodeParentBillingHolidayQuoteInvalid              = "parent_billing.holiday_quote_invalid"
 	CodeParentBillingInvoiceNumberTaken               = "parent_billing.invoice_number_taken"
+	CodeParentBillingLetterFooterTooLong              = "parent_billing.letter_footer_too_long"
 	CodeParentBillingNumberRangeInvalid               = "parent_billing.number_range_invalid"
 	CodeParentBillingNumberRangeMissing               = "parent_billing.number_range_missing"
 	CodePickupBulkExceptionConfirmationRequired       = "pickup.bulk_exception_confirmation_required"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableCorrectionReasonMissing              = "timetable.correction_reason_missing"
 	CodeTimetableCorrectionReasonTooLong              = "timetable.correction_reason_too_long"
 	CodeTimetableDateInPast                           = "timetable.date_in_past"
-	CodeTimetableDatesInPast                          = "timetable.dates_in_past"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -418,6 +418,7 @@ var errorCodeClasses1 = map[string]string{
 	"parent_billing.contribution_rule_overlap":            "business_rejection",
 	"parent_billing.holiday_quote_invalid":                "input",
 	"parent_billing.invoice_number_taken":                 "business_rejection",
+	"parent_billing.letter_footer_too_long":               "business_rejection",
 	"parent_billing.number_range_invalid":                 "input",
 	"parent_billing.number_range_missing":                 "business_rejection",
 	"pickup.bulk_exception_confirmation_required":         "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.correction_reason_missing":                 "input",
 	"timetable.correction_reason_too_long":                "input",
 	"timetable.date_in_past":                              "input",
-	"timetable.dates_in_past":                             "input",
 }
 
 func init() {

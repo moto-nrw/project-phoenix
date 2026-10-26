@@ -2848,6 +2848,7 @@
         "contribution_rule_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "holiday_quote_invalid": "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
         "invoice_number_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "letter_footer_too_long": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "number_range_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "number_range_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },

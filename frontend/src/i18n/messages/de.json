@@ -2848,6 +2848,7 @@
         "contribution_rule_overlap": "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
         "holiday_quote_invalid": "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
         "invoice_number_taken": "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
+        "letter_footer_too_long": "Die Fußzeile im Briefkopf ist zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
         "number_range_invalid": "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
         "number_range_missing": "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest."
       },

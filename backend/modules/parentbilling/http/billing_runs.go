@@ -300,6 +300,7 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 		{capability.ErrBillingRunNotReleased, common.CodeParentBillingBillingRunNotReleased},
 		{capability.ErrBillingLettersExist, common.CodeParentBillingBillingLettersExist},
 		{capability.ErrBankAccountMissing, common.CodeParentBillingBankAccountMissing},
+		{capability.ErrLetterFooterTooLong, common.CodeParentBillingLetterFooterTooLong},
 	} {
 		if errors.Is(err, conflict.err) {
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, conflict.code))

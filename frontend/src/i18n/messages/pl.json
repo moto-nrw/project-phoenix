@@ -2848,6 +2848,7 @@
         "contribution_rule_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_quote_invalid": "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
         "invoice_number_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "letter_footer_too_long": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "number_range_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "number_range_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },

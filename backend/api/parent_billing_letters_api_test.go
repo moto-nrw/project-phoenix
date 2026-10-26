@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -233,4 +234,28 @@ func TestBillingLettersNeedTheBillingRightAndStayWithTheirTraeger(t *testing.T) 
 	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	rec = traegerJSON(t, f.traeger, foreign.token, http.MethodGet, letterPath(run.ID, document), nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code, "another Träger reads no stored letter: %s", rec.Body.String())
+}
+
+// A footer of the Träger that leaves too little room for the letter is
+// refused before anything is stored.
+func TestBillingLettersRefuseAFooterWithoutRoomForTheLetter(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Schreiben Fußzeile")
+	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
+	run := releasedBillingRun(t, f, billing)
+	brandTraeger(t, f)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, "/traeger/settings/values/"+configModels.KeyBrandingFooterText,
+		map[string]any{"value": strings.Repeat("Vorstand\n", 60)})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	for _, path := range []string{billingRunPath(run.ID, "/letters/preview"), billingRunPath(run.ID, "/letters")} {
+		rec := traegerJSON(t, f.traeger, billing, http.MethodPost, path, lettersBody("2099-01-15"))
+		require.Equal(t, http.StatusConflict, rec.Code, "%s: %s", path, rec.Body.String())
+		code, _ := registrationRefusalOf(t, rec)
+		assert.Equal(t, "parent_billing.letter_footer_too_long", code, path)
+	}
+	var stored int
+	require.NoError(t, f.db.NewRaw(`SELECT (SELECT count(*) FROM parent_billing.run_letters WHERE run_id = ?)
+		+ (SELECT count(*) FROM parent_billing.document_letters WHERE run_id = ?)`, run.ID, run.ID).Scan(context.Background(), &stored))
+	assert.Zero(t, stored, "a refused creation stores nothing")
 }

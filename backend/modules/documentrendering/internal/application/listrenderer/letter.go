@@ -51,6 +51,7 @@ const (
 	letterFactsGap    = 10.0 // least space between the letterhead and the facts
 	letterValueShare  = 0.4  // widest share of a value in a table of the body
 	letterColumnGap   = 16.0 // space between label and value in a table
+	letterMinBody     = 20.0 // body lines a page keeps at least beside its footer
 )
 
 type letterLayout struct {
@@ -168,6 +169,9 @@ func (l *letterLayout) run() error {
 	if err := l.wrapFooter(); err != nil {
 		return err
 	}
+	if l.pageRoom() < letterMinBody*letterBodyLine {
+		return listrecords.ErrLetterFooterTooLong
+	}
 	if err := l.newPage(); err != nil {
 		return err
 	}
@@ -249,6 +253,11 @@ func (l *letterLayout) newPage() error {
 		l.pdf.RectFromUpperLeftWithStyle(0, 0, l.w, letterBand, "F")
 	}
 	return l.writeFooter()
+}
+
+// pageRoom is the height of the body on a page after the first.
+func (l *letterLayout) pageRoom() float64 {
+	return l.bodyBottom() - letterNextTop
 }
 
 // ensure starts a new page when height does not fit above the footer.
@@ -435,32 +444,49 @@ func (l *letterLayout) writeFactRow(fact listrecords.LetterFact) error {
 	if err != nil {
 		return err
 	}
-	if err := l.ensure(float64(max(len(labels), len(values))) * letterBodyLine); err != nil {
-		return err
+	rows := max(len(labels), len(values))
+	// A row that fits a page stays together; a longer one, such as a
+	// reason of many lines, continues line by line on the next page.
+	together := float64(rows)*letterBodyLine <= l.pageRoom()
+	if together {
+		if err := l.ensure(float64(rows) * letterBodyLine); err != nil {
+			return err
+		}
 	}
-	if err := l.style(style, letterBodySize, colorBody); err != nil {
-		return err
-	}
-	if fact.Bold && l.draw {
-		l.setStroke(colorBorder)
-		l.pdf.Line(letterMarginLeft, l.y, l.w-letterMarginRight, l.y)
-	}
-	for i := range max(len(labels), len(values)) {
-		if i < len(values) {
-			width, err := l.measure(values[i])
-			if err != nil {
-				return err
-			}
-			if err := l.emit(l.w-letterMarginRight-width, l.y+letterBodySize, values[i]); err != nil {
+	for i := range rows {
+		if !together {
+			if err := l.ensure(letterBodyLine); err != nil {
 				return err
 			}
 		}
-		if i < len(labels) {
-			if err := l.emit(letterMarginLeft, l.y+letterBodySize, labels[i]); err != nil {
-				return err
-			}
+		if err := l.style(style, letterBodySize, colorBody); err != nil {
+			return err
+		}
+		if i == 0 && fact.Bold && l.draw {
+			l.setStroke(colorBorder)
+			l.pdf.Line(letterMarginLeft, l.y, l.w-letterMarginRight, l.y)
+		}
+		if err := l.writeFactLine(labels, values, i); err != nil {
+			return err
 		}
 		l.y += letterBodyLine
+	}
+	return nil
+}
+
+// writeFactLine prints the i-th line of the label and of the value.
+func (l *letterLayout) writeFactLine(labels, values []string, i int) error {
+	if i < len(values) {
+		width, err := l.measure(values[i])
+		if err != nil {
+			return err
+		}
+		if err := l.emit(l.w-letterMarginRight-width, l.y+letterBodySize, values[i]); err != nil {
+			return err
+		}
+	}
+	if i < len(labels) {
+		return l.emit(letterMarginLeft, l.y+letterBodySize, labels[i])
 	}
 	return nil
 }

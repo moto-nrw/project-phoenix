@@ -2848,6 +2848,7 @@
         "contribution_rule_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "holiday_quote_invalid": "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
         "invoice_number_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "letter_footer_too_long": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "number_range_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "number_range_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },

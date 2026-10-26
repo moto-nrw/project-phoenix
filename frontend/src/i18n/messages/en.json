@@ -2848,6 +2848,7 @@
         "contribution_rule_overlap": "{object} could not be changed. Please check its current status.",
         "holiday_quote_invalid": "The fee cannot be calculated for these weeks. Please reload the page.",
         "invoice_number_taken": "{object} could not be changed. Please check its current status.",
+        "letter_footer_too_long": "{object} could not be changed. Please check its current status.",
         "number_range_invalid": "{object} could not be saved. Please check your entries.",
         "number_range_missing": "{object} could not be changed. Please check its current status."
       },

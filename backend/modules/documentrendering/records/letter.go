@@ -1,5 +1,11 @@
 package records
 
+import "errors"
+
+// ErrLetterFooterTooLong reports a footer that leaves too little room on a
+// page for the body of the letter.
+var ErrLetterFooterTooLong = errors.New("the footer of the letter leaves too little room for its body")
+
 // Letter is one letter in the layout of its sender (#4669): the sender's
 // logo, letterhead and colour, an address field, a block of facts beside
 // it, subject, salutation, the body and a footer on every page. The
