@@ -611,9 +611,10 @@ func buildPersonalReminderNotice(tenantID int64, day calendar.Date, accountID in
 }
 
 // personalReminderIdempotencyKey names the tick's day and the exact
-// occurrences a notice reports. The count alone would collide with a later notice of the same
-// kind and count that day, which the push outbox would then drop; the sorted
-// identities keep the key independent of the order the batch listed them in.
+// occurrences a notice reports. The count alone would collide with a later
+// notice of the same kind and count that day, which the push outbox would
+// then drop; the sorted identities keep the key independent of the order the
+// batch listed them in.
 func personalReminderIdempotencyKey(tenantID int64, day calendar.Date, accountID int64, notificationType string, occurrences []string) string {
 	digest := fnv.New64a()
 	for _, occurrence := range slices.Sorted(slices.Values(occurrences)) {
