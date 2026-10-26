@@ -93,3 +93,73 @@ func TestSeedTodaysAbsencesRequiresSevenStaff(t *testing.T) {
 	tuesday := seedDate{Time: time.Date(2026, time.October, 20, 0, 0, 0, 0, time.UTC)}
 	require.ErrorContains(t, seedTodaysAbsences(&Runtime{Client: fs.client, FixedSeeder: fs}, tuesday), "need 7 staff members")
 }
+
+// A demo school seeds its day after its first tick, which has completed the
+// blocks that are over. The Vertretungsplan refuses to rewrite those, so the
+// Leitung covers only the block still to come.
+func TestSeedTodaysAbsencesCoversOnlyBlocksNotOver(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	var deviation map[string]any
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.Method+" "+r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/staff/37/absences", "/api/staff/33/absences":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":1}}`)
+		case "/api/timetable/instances":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"instances":[`+
+				`{"id":61,"title":"Frühbetreuung","status":"completed","staff":[{"staff_id":32},{"staff_id":33}]},`+
+				`{"id":62,"title":"Essensausgabe","status":"planned","staff":[{"staff_id":33},{"staff_id":34}]}]}}`)
+		default:
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&deviation))
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+		}
+	})
+	defer srv.Close()
+
+	fs := NewFixedSeeder(newTestClient(srv.URL, false), false, "")
+	for index, staff := range DemoStaff[:7] {
+		fs.staffIDs[staff.FirstName+" "+staff.LastName] = int64(31 + index)
+	}
+	tuesday := seedDate{Time: time.Date(2026, time.October, 20, 0, 0, 0, 0, time.UTC)}
+	require.NoError(t, seedTodaysAbsences(&Runtime{Client: fs.client, FixedSeeder: fs, TenantAuth: AuthRef{Token: "admin"}}, tuesday))
+
+	assert.Equal(t, "POST /api/timetable/instances/62/deviations", paths[len(paths)-1])
+	substitution := deviation["substitutions"].([]any)[0].(map[string]any)
+	assert.Equal(t, []any{float64(62)}, substitution["instance_ids"], "the completed Frühbetreuung is not rewritten")
+}
+
+// After 13:00 both blocks are over: the sick report stays, no substitution.
+func TestSeedTodaysAbsencesLeavesADayThatIsOver(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.Method+" "+r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/timetable/instances":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"instances":[`+
+				`{"id":61,"title":"Frühbetreuung","status":"completed","staff":[{"staff_id":33}]},`+
+				`{"id":62,"title":"Essensausgabe","status":"completed","staff":[{"staff_id":33}]}]}}`)
+		default:
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":1}}`)
+		}
+	})
+	defer srv.Close()
+
+	fs := NewFixedSeeder(newTestClient(srv.URL, false), false, "")
+	for index, staff := range DemoStaff[:7] {
+		fs.staffIDs[staff.FirstName+" "+staff.LastName] = int64(31 + index)
+	}
+	tuesday := seedDate{Time: time.Date(2026, time.October, 20, 0, 0, 0, 0, time.UTC)}
+	require.NoError(t, seedTodaysAbsences(&Runtime{Client: fs.client, FixedSeeder: fs, TenantAuth: AuthRef{Token: "admin"}}, tuesday))
+
+	assert.Equal(t, []string{
+		"POST /api/staff/37/absences",
+		"POST /api/staff/33/absences",
+		"GET /api/timetable/instances",
+	}, paths)
+}
