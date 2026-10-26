@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The order day is the first weekday from today on, and its lead days
+// The order day is the first weekday after today, and its lead days
 // always put the deadline before today, at any time of day (#3873).
 func TestMealOrderSeedDayIsDueAtAnyTime(t *testing.T) {
 	t.Parallel()
@@ -21,8 +21,8 @@ func TestMealOrderSeedDayIsDueAtAnyTime(t *testing.T) {
 		today, day string
 		lead       int
 	}{
-		{"2026-09-08", "2026-09-08", 1}, // Tuesday → Tuesday
-		{"2026-09-11", "2026-09-11", 1}, // Friday → Friday
+		{"2026-09-08", "2026-09-09", 2}, // Tuesday → Wednesday
+		{"2026-09-11", "2026-09-14", 4}, // Friday → Monday
 		{"2026-09-12", "2026-09-14", 3}, // Saturday → Monday
 		{"2026-09-13", "2026-09-14", 2}, // Sunday → Monday
 	} {
