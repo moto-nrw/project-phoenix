@@ -82,7 +82,10 @@ func seedTodaysAbsences(rt *Runtime, today seedDate) error {
 var coveredSubstituteBlocks = []string{"Frühbetreuung", "Essensausgabe"}
 
 // coveredSickBlocks returns today's Frühbetreuung and Essensausgabe the ill
-// staff member was planned for, in the order the day lists them.
+// staff member was planned for, in the order the day lists them. A block that
+// is already over is history the Vertretungsplan refuses to rewrite: a demo
+// school seeds its day after its first tick, which completes the
+// Frühbetreuung from 08:30 on and the Essensausgabe from 13:00 on.
 func coveredSickBlocks(rt *Runtime, today seedDate, staffID int64) ([]int64, error) {
 	raw, err := rt.Client.Get(fmt.Sprintf("/api/timetable/instances?from=%s&to=%s", today.String(), today.String()))
 	if err != nil {
@@ -98,7 +101,7 @@ func coveredSickBlocks(rt *Runtime, today seedDate, staffID int64) ([]int64, err
 	}
 	var ids []int64
 	for _, instance := range envelope.Data.Instances {
-		if slices.Contains(coveredSubstituteBlocks, instance.Title) && instancePlansStaff(instance, staffID) {
+		if slices.Contains(coveredSubstituteBlocks, instance.Title) && !instanceIsOver(instance) && instancePlansStaff(instance, staffID) {
 			ids = append(ids, instance.ID)
 		}
 	}
@@ -112,4 +115,9 @@ func instancePlansStaff(instance seedPlanningInstance, staffID int64) bool {
 		}
 	}
 	return false
+}
+
+// instanceIsOver reports a completed or cancelled block.
+func instanceIsOver(instance seedPlanningInstance) bool {
+	return instance.Status == "completed" || instance.Status == "cancelled"
 }

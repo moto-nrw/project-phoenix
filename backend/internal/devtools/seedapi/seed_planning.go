@@ -13,6 +13,7 @@ type seedPlanningDemoStep struct{}
 type seedPlanningInstance struct {
 	ID              int64  `json:"id"`
 	Title           string `json:"title"`
+	Status          string `json:"status"`
 	ActivityGroupID *int64 `json:"activity_group_id"`
 	Staff           []struct {
 		StaffID int64 `json:"staff_id"`
