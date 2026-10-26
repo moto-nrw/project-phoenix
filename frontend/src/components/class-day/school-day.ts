@@ -12,7 +12,7 @@ import type {
   SchoolDayReport,
   SchoolDayTotals,
 } from "~/lib/school-class-day-api";
-import { classDayOverviewPath } from "./routes";
+import { classDayOverviewPath, classDayPath } from "./routes";
 
 /** Query-Parameter, unter dem die geöffnete Liste in der Adresse steht. */
 const SCHOOL_DAY_LIST_PARAM = "liste";
@@ -113,6 +113,16 @@ export function schoolDayListPath(
   list: SchoolDayListKey | null,
 ): string {
   const base = classDayOverviewPath(dateISO);
+  return list ? `${base}&${SCHOOL_DAY_LIST_PARAM}=${list}` : base;
+}
+
+/** Adresse einer Klasse mit der geöffneten Liste für den Rückweg. */
+export function schoolDayClassPath(
+  schoolClass: string,
+  dateISO: string,
+  list: SchoolDayListKey | null,
+): string {
+  const base = classDayPath(schoolClass, dateISO);
   return list ? `${base}&${SCHOOL_DAY_LIST_PARAM}=${list}` : base;
 }
 

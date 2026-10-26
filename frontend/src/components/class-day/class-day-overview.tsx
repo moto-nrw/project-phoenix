@@ -40,9 +40,10 @@ import type {
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 import { countDayChanges } from "./day-changes";
-import { classDayDateParam, classDayPath, isWeekendISO } from "./routes";
+import { classDayDateParam, isWeekendISO } from "./routes";
 import {
   schoolDayChildrenByClass,
+  schoolDayClassPath,
   schoolDayListParam,
   schoolDayListPath,
   visibleSchoolDayLists,
@@ -143,12 +144,14 @@ function ClassLink({
   failed,
   weekend,
   dateISO,
+  openList,
 }: Readonly<{
   klass: string;
   report: ClassLine | null;
   failed: boolean;
   weekend: boolean;
   dateISO: string;
+  openList: SchoolDayListKey | null;
 }>) {
   const changes = report?.school_day ? report.changes : 0;
   const summary = failed
@@ -158,7 +161,7 @@ function ClassLink({
       : "Wird geladen …";
   return (
     <ButtonLink
-      href={schoolPath(classDayPath(klass, dateISO))}
+      href={schoolPath(schoolDayClassPath(klass, dateISO, openList))}
       variant="surface"
       size="card"
       className="justify-between gap-3 text-left"
@@ -552,7 +555,11 @@ export function ClassDayOverview({
                                 >
                                   <NavigationLink
                                     href={schoolPath(
-                                      classDayPath(group.schoolClass, dateISO),
+                                      schoolDayClassPath(
+                                        group.schoolClass,
+                                        dateISO,
+                                        open.key,
+                                      ),
                                     )}
                                     className="text-sm font-semibold text-gray-900 underline-offset-2 hover:underline"
                                   >
@@ -601,6 +608,7 @@ export function ClassDayOverview({
                         failed={failedClasses.has(klass)}
                         weekend={weekend}
                         dateISO={dateISO}
+                        openList={schoolMode ? openList : null}
                       />
                     ))}
                   </div>

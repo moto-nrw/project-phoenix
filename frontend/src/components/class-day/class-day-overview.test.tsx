@@ -243,7 +243,14 @@ describe("ClassDayOverview for the Schulverwaltung", () => {
 
     expect(await screen.findByText("Gehen heim: 1")).toBeVisible();
     expect(screen.getByText("Claus, Carl")).toBeVisible();
-    expect(screen.getByRole("link", { name: /2b · 1/ })).toBeVisible();
+    expect(screen.getByRole("link", { name: /2b · 1/ })).toHaveAttribute(
+      "href",
+      "/school/klasse?klasse=2b&tag=2026-09-09&liste=gehen-heim",
+    );
+    expect(screen.getByRole("link", { name: /2b 1 Kinder/ })).toHaveAttribute(
+      "href",
+      "/school/klasse?klasse=2b&tag=2026-09-09&liste=gehen-heim",
+    );
     expect(screen.queryByText("Busch, Ben")).not.toBeInTheDocument();
   });
 
