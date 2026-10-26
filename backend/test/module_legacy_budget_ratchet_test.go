@@ -173,7 +173,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // Elternabrechnung adds exactly 20 LOC.
 // ADR 0116: the participant list constructor of modules/enrollment/compose
 // adds exactly 7 LOC.
-const moduleComposeBudgetTotal = 12647
+// ADR 0119: the billing run constructor of modules/parentbilling/compose adds
+// exactly 7 LOC.
+const moduleComposeBudgetTotal = 12654
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -218,7 +220,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	"modules/organizationtenancy/compose": 283,
 	// Added by ADR 0115: the Elternabrechnung's construction only.
-	"modules/parentbilling/compose":               20,
+	// Raised by ADR 0119: the billing run constructor (+7).
+	"modules/parentbilling/compose":               27,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":       973,

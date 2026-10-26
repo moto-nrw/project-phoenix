@@ -260,6 +260,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 func deferredPastSteps() []Step {
 	return []Step{
 		seedTimeTrackingHistoryStep{},
+		// Korrigiert eine Woche der Historie zu einer mit Hinweisen zu
+		// Pausen und Höchstarbeitszeit (#4804).
+		seedLaborHintsStep{},
 		// Nach der Historie und den Diensten der Woche: Die Krankmeldung
 		// sagt den Dienst ab und braucht die Sollzeiten der Historie.
 		seedTodaysAbsencesStep{},

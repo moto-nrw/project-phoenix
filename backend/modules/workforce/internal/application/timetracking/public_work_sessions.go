@@ -87,7 +87,23 @@ func publicHistory(value *HistoryResponse) *workforce.HistoryResponse {
 			result.WeeklySummaries = append(result.WeeklySummaries, workforce.WorkWeekSummary(week))
 		}
 	}
+	if value.LaborDays != nil {
+		result.LaborDays = make([]workforce.WorkDayLaborHint, 0, len(value.LaborDays))
+		for _, day := range value.LaborDays {
+			result.LaborDays = append(result.LaborDays, publicWorkDayLaborHint(day))
+		}
+	}
 	return result
+}
+
+func publicWorkDayLaborHint(day WorkDayLaborHint) workforce.WorkDayLaborHint {
+	return workforce.WorkDayLaborHint{
+		Date: day.Date.String(), NetMinutes: day.NetMinutes, BreakMinutes: day.BreakMinutes,
+		CountedBreakMinutes: day.CountedBreakMinutes, RequiredBreakMinutes: day.RequiredBreakMinutes,
+		IsBreakTooShort: day.IsBreakTooShort, IsOverDailyMax: day.IsOverDailyMax, IsRunning: day.IsRunning,
+		OverDailyMaxAt: day.OverDailyMaxAt, BreakTooShortAt: day.BreakTooShortAt,
+		BreakTooShortRequiredMinutes: day.BreakTooShortRequiredMinutes,
+	}
 }
 
 func publicWorkSessionEdit(entity *WorkSessionEdit) *workforce.WorkSessionEdit {

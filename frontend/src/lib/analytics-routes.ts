@@ -184,6 +184,8 @@ export const TRACKED_CATERER_ROUTE_TEMPLATES = [
 /** Träger portal pages under `app/traeger`, as the Träger host shows them. */
 export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/",
+  "/abrechnung",
+  "/abrechnung/:id",
   "/access-log",
   "/accounts",
   "/beitraege",

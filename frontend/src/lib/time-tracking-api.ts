@@ -16,13 +16,12 @@ import type {
   BackendHoliday,
   BackendMonthSummary,
   DayProjection,
+  HistoryResult,
   MonthSummary,
   StaffAbsence,
-  WeeklySummary,
   WorkSession,
   WorkSessionBreak,
   WorkSessionEdit,
-  WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
   mapClosingDaysResponse,
@@ -216,17 +215,12 @@ class TimeTrackingService {
     };
   }
 
-  async getHistory(
-    from: string,
-    to: string,
-  ): Promise<{
-    sessions: WorkSessionHistory[];
-    weeklySummaries: WeeklySummary[];
-  }> {
+  async getHistory(from: string, to: string): Promise<HistoryResult> {
     const params = new URLSearchParams({ from, to });
     const result = await this.request<{
       sessions: unknown[];
       weekly_summaries: unknown[];
+      labor_days?: unknown[] | null;
     }>(`/history?${params}`, "GET", "Failed to get history");
     return mapHistoryResponse(result.data as never);
   }

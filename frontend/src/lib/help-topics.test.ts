@@ -335,7 +335,8 @@ describe("getParentHelpTopicForPath", () => {
     // 42 seit #3821 („Eigenen Dienstplan ansehen“), 45 seit #4901
     // („Nutzungsanalyse erlauben oder ablehnen“, alle Rollen).
     // 46 seit #4781 („An einer Umfrage im Team teilnehmen“).
-    expect(caregiverTopics).toHaveLength(46);
+    // 47 seit #4804 („Hinweise zu Pausen und Höchstarbeitszeit“).
+    expect(caregiverTopics).toHaveLength(47);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -514,7 +515,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            46 -
+            47 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -559,8 +560,9 @@ describe("getParentHelpTopicForPath", () => {
     // 89 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
     // 90 seit #4894: Welche Module hat meine Schule?
     // 92 seit #4781: Umfrage mit Fragebogen und das geteilte Teilnehmen.
-    // 93 seit #4665: Die Kinder einer Ferienwoche ansehen.
-    expect(leadTopics).toHaveLength(93);
+    // 93 seit #4804 („Hinweise zu Pausen und Höchstarbeitszeit“).
+    // 94 seit #4665: Die Kinder einer Ferienwoche ansehen.
+    expect(leadTopics).toHaveLength(94);
     expect(
       leadTopics.every(
         (topic) =>
@@ -674,6 +676,7 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerHolidayRegistration,
       HELP_TOPICS.traegerHolidayRegistrationReview,
       HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerBillingRun,
       HELP_TOPICS.traegerAccessLog,
       HELP_TOPICS.traegerBriefkopf,
       HELP_TOPICS.traegerSettings,

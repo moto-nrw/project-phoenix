@@ -108,7 +108,13 @@ import {
   isEffectiveAbsenceStatus,
   isHalfAbsenceBoundary,
   startOfYear,
+  toIsoDayOfWeek,
 } from "~/lib/staff-metrics-helpers";
+import {
+  dayLaborHints,
+  liveDayLaborHints,
+  type LaborHint,
+} from "~/lib/labor-time-hints";
 import {
   DEVIATION_REASON_REQUIRED_CODE,
   PLANNED_START_NOT_REACHED_CODE,
@@ -121,7 +127,8 @@ import {
   type StaffAbsence,
   type WorkSession,
   type WorkSessionBreak,
-  type WeeklySummary,
+  type HistoryResult,
+  type WorkDayLaborHint,
   type WorkSessionHistory,
   absenceDisplayLabel,
   formatDuration,
@@ -285,20 +292,6 @@ function calcLiveBreakMins(
   return breakMins + activeBreakMins;
 }
 
-// Get break compliance warning based on work time and breaks taken
-function getBreakWarning(
-  netMinutes: number,
-  liveBreakMins: number,
-): string | null {
-  if (netMinutes > 540 && liveBreakMins < 45) {
-    return "45 Min Pause ab 9h nötig (§4 ArbZG)";
-  }
-  if (netMinutes > 360 && liveBreakMins < 30) {
-    return "30 Min Pause ab 6h nötig (§4 ArbZG)";
-  }
-  return null;
-}
-
 // Format countdown as MM:SS
 function formatCountdown(totalSecs: number): string {
   const m = Math.floor(totalSecs / 60);
@@ -460,15 +453,21 @@ function shouldAutoEndBreak(
   return countdownSecs !== null && countdownSecs <= 0 && isOnBreak && !loading;
 }
 
-// Get break warning only when checked in
-function getBreakWarningIfActive(
+// Hinweise zu Pause und Tageslimit, nur während der Arbeit. Werte und
+// Schwellen kommen vom Server (#4804); der Arbeitstag ist der Tag, an dem der
+// laufende Block begann.
+function getLiveLaborHints(
   isCheckedIn: boolean,
   session: WorkSession | null,
-  netMins: number,
-  breakMins: number,
-): string | null {
-  if (!isCheckedIn || !session) return null;
-  return getBreakWarning(netMins, breakMins);
+  laborDays: readonly WorkDayLaborHint[],
+  now: Date,
+): LaborHint[] {
+  if (!isCheckedIn || !session) return [];
+  const workday = berlinTodayISO(new Date(session.checkInTime));
+  return liveDayLaborHints(
+    laborDays.find((day) => day.date === workday),
+    now,
+  );
 }
 
 // Calculate checked-out net minutes
@@ -492,7 +491,7 @@ function renderTimerContent(
   plannedBreakEndsAt: string | null,
   activeBreakElapsedSecs: number,
   displayMinutes: number,
-  breakWarning: string | null,
+  laborHints: readonly LaborHint[],
 ): React.ReactNode {
   // Break with countdown timer
   if (
@@ -535,11 +534,15 @@ function renderTimerContent(
       <span className="text-4xl font-light text-gray-900 tabular-nums">
         {formatDuration(displayMinutes)}
       </span>
-      {breakWarning && (
-        <span className="text-moto-amber-strong mt-0.5 text-xs font-medium">
-          {breakWarning}
+      {laborHints.map((hint) => (
+        <span
+          key={hint.key}
+          title={hint.title}
+          className="text-moto-amber-strong mt-0.5 text-center text-xs font-medium"
+        >
+          {hint.text}
         </span>
-      )}
+      ))}
     </>
   );
 }
@@ -553,12 +556,12 @@ function ClockInCard({
   onEndBreak,
   weeklyMinutes,
   completedTodayMinutes,
-  completedTodayBreakMinutes,
   onAddAbsence,
   metrics,
   plannedShifts,
   cancelledShifts,
   stampingDisabled,
+  laborDays,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -568,13 +571,14 @@ function ClockInCard({
   readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
   readonly completedTodayMinutes: number;
-  readonly completedTodayBreakMinutes: number;
   readonly onAddAbsence: () => void;
   readonly metrics?: PeriodMetrics | null;
   readonly plannedShifts?: readonly StaffShift[];
   readonly cancelledShifts?: readonly StaffShift[];
   /** Session and absence data must be current before a stamp is allowed. */
   readonly stampingDisabled: boolean;
+  /** ArbZG-Sicht der geladenen Arbeitstage vom Server (#4804). */
+  readonly laborDays: readonly WorkDayLaborHint[];
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -662,7 +666,6 @@ function ClockInCard({
   );
   const netMinutes = Math.max(0, grossMinutes - liveBreakMins);
   const dayNetMinutes = completedTodayMinutes + netMinutes;
-  const dayBreakMinutes = completedTodayBreakMinutes + liveBreakMins;
   const displayMinutes = isCheckedIn ? dayNetMinutes : 0;
   const activeBreakElapsedSecs = activeBreak
     ? calcElapsedSeconds(activeBreak.startedAt, now)
@@ -757,12 +760,12 @@ function ClockInCard({
     return () => window.removeEventListener("resize", updateViewport);
   }, []);
 
-  // Break compliance warning (only shown when checked in)
-  const breakWarning = getBreakWarningIfActive(
+  // Hinweise zu Pause und Tageslimit (nur während der Arbeit)
+  const laborHints = getLiveLaborHints(
     isCheckedIn,
     currentSession,
-    dayNetMinutes,
-    dayBreakMinutes,
+    laborDays,
+    now,
   );
 
   // Checked-out net
@@ -1130,7 +1133,7 @@ function ClockInCard({
                   activeBreak?.plannedEndTime ?? null,
                   activeBreakElapsedSecs,
                   displayMinutes,
-                  breakWarning,
+                  laborHints,
                 )}
               </div>
 
@@ -1590,6 +1593,7 @@ function OwnZeiterfassungSection({
   ownStaffId,
   schedule,
   onEditDay,
+  isSessionOpen,
   viewMode,
   weekAnchor,
   monthAnchor,
@@ -1600,7 +1604,10 @@ function OwnZeiterfassungSection({
     date: Date,
     session: WorkSessionHistory | null,
     absence: StaffAbsence | null,
+    laborDay?: WorkDayLaborHint,
   ) => void;
+  /** Ein offener Block verändert Tages- und Wochensummen fortlaufend. */
+  readonly isSessionOpen: boolean;
   /** Zeitfenster und Auflösung kommen aus der Bedienleiste der Kopfkarte
    *  (Bauart 3, Regel 1) — die Fläche navigiert nicht mehr selbst. */
   readonly viewMode: ViewMode;
@@ -1637,11 +1644,24 @@ function OwnZeiterfassungSection({
   // range visible — /history bounds `from` against check_out_time, so every
   // block reaching into the range comes back however early it started
   // (TestWorkSessionRepository_ListOverlappingByStaffID_KeepsEarlierStarts).
+  //
+  // Im Monatsblick reicht der Abruf über die ganzen Kalenderwochen am
+  // Monatsrand: die 48-Std.-Grenze gilt je Woche, und die Wochensumme der
+  // ersten und letzten Woche wäre sonst nur ein Ausschnitt (#4804).
   const tableHistoryFromKey = useMemo(() => {
     const previousDay = new Date(visibleFrom);
+    if (viewMode === "month") {
+      previousDay.setDate(previousDay.getDate() - toIsoDayOfWeek(previousDay));
+    }
     previousDay.setDate(previousDay.getDate() - 1);
     return toISODate(previousDay);
-  }, [visibleFrom]);
+  }, [viewMode, visibleFrom]);
+  const tableHistoryToKey = useMemo(() => {
+    if (viewMode !== "month") return visibleToKey;
+    const sunday = new Date(visibleTo);
+    sunday.setDate(sunday.getDate() + 6 - toIsoDayOfWeek(sunday));
+    return toISODate(sunday);
+  }, [viewMode, visibleTo, visibleToKey]);
 
   // Dedicated table-range fetches. Independent from the WeekChart's
   // 10-workday history fetch, so navigating the table (especially in
@@ -1651,13 +1671,15 @@ function OwnZeiterfassungSection({
     isLoading: tableLoading,
     error: tableError,
     mutate: mutateTable,
-  } = useSWRAuth<{
-    sessions: WorkSessionHistory[];
-    weeklySummaries: WeeklySummary[];
-  }>(
-    `time-tracking-table-${tableHistoryFromKey}-${visibleToKey}`,
-    () => timeTrackingService.getHistory(tableHistoryFromKey, visibleToKey),
-    { keepPreviousData: true, revalidateOnFocus: false },
+  } = useSWRAuth<HistoryResult>(
+    `time-tracking-table-${tableHistoryFromKey}-${tableHistoryToKey}`,
+    () =>
+      timeTrackingService.getHistory(tableHistoryFromKey, tableHistoryToKey),
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      refreshInterval: isSessionOpen ? OPEN_MONTH_REFRESH_MS : 0,
+    },
   );
   const tableHistory = useMemo(() => tableData?.sessions ?? [], [tableData]);
 
@@ -1881,7 +1903,14 @@ function OwnZeiterfassungSection({
       tableAbsences.find(
         (a) => a.dateStart <= dateKey && a.dateEnd >= dateKey,
       ) ?? null;
-    onEditDay(date, session, absence);
+    // Der Arbeitstag eines Blocks ist der Tag, an dem er begann.
+    const workday = session
+      ? berlinTodayISO(new Date(session.checkInTime))
+      : dateKey;
+    const laborDay = (tableData?.laborDays ?? []).find(
+      (day) => day.date === workday,
+    );
+    onEditDay(date, session, absence, laborDay);
   };
 
   return (
@@ -1946,6 +1975,8 @@ function OwnZeiterfassungSection({
               onEditDay={(date, session) => handleEdit(date, session)}
               plannedShifts={tableShifts ?? []}
               fetchEdits={fetchOwnEdits}
+              laborDays={tableData?.laborDays}
+              weeklySummaries={tableData?.weeklySummaries}
             />
           )}
         </>
@@ -2005,42 +2036,6 @@ function timeInputToMinutes(value: string): number | null {
     return null;
   }
   return hours * 60 + minutes;
-}
-
-/** Calculate compliance warnings for edited session times */
-function calcEditComplianceWarnings(
-  startTime: string,
-  endTime: string,
-  breakMinutes: number,
-): string[] {
-  if (!startTime || !endTime) return [];
-
-  const [sh, sm] = startTime.split(":").map(Number);
-  const [eh, em] = endTime.split(":").map(Number);
-
-  if (
-    sh === undefined ||
-    sm === undefined ||
-    eh === undefined ||
-    em === undefined
-  ) {
-    return [];
-  }
-
-  const totalMins = eh * 60 + em - (sh * 60 + sm);
-  const netMins = totalMins - breakMinutes;
-  const warnings: string[] = [];
-
-  if (netMins > 600) {
-    warnings.push("Arbeitszeit > 10h (§3 ArbZG)");
-  }
-  if (netMins > 540 && breakMinutes < 45) {
-    warnings.push("Pausenzeit < 45 Min bei > 9h Arbeitszeit (§4 ArbZG)");
-  } else if (netMins > 360 && breakMinutes < 30) {
-    warnings.push("Pausenzeit < 30 Min bei > 6h Arbeitszeit (§4 ArbZG)");
-  }
-
-  return warnings;
 }
 
 /** Get modal title based on content */
@@ -2194,10 +2189,13 @@ function EditSessionModal({
   onDeleteAbsence,
   canManage,
   ownStaffId,
+  laborDay,
 }: {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly session: WorkSessionHistory | null;
+  /** ArbZG-Sicht des gespeicherten Arbeitstags vom Server (#4804). */
+  readonly laborDay?: WorkDayLaborHint;
   readonly date: Date | null;
   // Nachtragen ist bewusst admin-only (#2361). Mit time_tracking:manage
   // bietet der Hinweis-Dialog den Absprung in die eigene Verwaltungs-Ansicht.
@@ -2366,8 +2364,10 @@ function EditSessionModal({
     ? Array.from(breakDurations.values()).reduce((sum, d) => sum + d, 0)
     : Number.parseInt(breakMins, 10) || 0;
 
-  // Compliance check for the edited values
-  const warnings = calcEditComplianceWarnings(startTime, endTime, editedBreak);
+  // Hinweise zum gespeicherten Tag, vom Server bewertet (#4804). Sie gelten
+  // für den Stand vor dieser Änderung; nach dem Speichern prüft der Server
+  // den Tag neu.
+  const laborHints = dayLaborHints(laborDay);
   const startMinutes = timeInputToMinutes(startTime);
   const endMinutes = timeInputToMinutes(endTime);
   const hasInvalidTimeRange =
@@ -2734,11 +2734,15 @@ function EditSessionModal({
                 />
               </div>
 
-              {warnings.length > 0 && (
+              {laborHints.length > 0 && (
                 <div className="space-y-2">
-                  {warnings.map((w) => (
-                    <Alert key={w} type="warning" message={w} />
+                  {laborHints.map((hint) => (
+                    <Alert key={hint.key} type="warning" message={hint.text} />
                   ))}
+                  <p className="text-xs text-gray-500">
+                    So ist der Tag bisher gespeichert. Nach dem Speichern wird
+                    er neu geprüft.
+                  </p>
                 </div>
               )}
             </div>
@@ -3224,6 +3228,7 @@ function TimeTrackingContent() {
     date: Date;
     session: WorkSessionHistory | null;
     absence: StaffAbsence | null;
+    laborDay?: WorkDayLaborHint;
   } | null>(null);
   const [currentBreaks, setCurrentBreaks] = useState<WorkSessionBreak[]>([]);
   const [absenceModalOpen, setAbsenceModalOpen] = useState(false);
@@ -3324,15 +3329,18 @@ function TimeTrackingContent() {
     data: historyData,
     error: historyError,
     mutate: mutateHistory,
-  } = useSWRAuth<{
-    sessions: WorkSessionHistory[];
-    weeklySummaries: WeeklySummary[];
-  }>(
+  } = useSWRAuth<HistoryResult>(
     chartFromDate && toDate
       ? `time-tracking-history-${chartFromDate}-${toDate}`
       : null,
     () => timeTrackingService.getHistory(chartFromDate, toDate),
-    { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
+    {
+      keepPreviousData: true,
+      revalidateOnFocus: false,
+      errorRetryCount: 1,
+      refreshInterval:
+        currentSession?.checkOutTime === null ? OPEN_MONTH_REFRESH_MS : 0,
+    },
   );
 
   const history = useMemo(() => historyData?.sessions ?? [], [historyData]);
@@ -3615,7 +3623,6 @@ function TimeTrackingContent() {
     const today = closedMinutesByDate.get(todayISO);
     return {
       minutes: today?.netMinutes ?? 0,
-      breaks: today?.breakMinutes ?? 0,
     };
   }, [closedMinutesByDate, todayISO]);
 
@@ -4075,6 +4082,7 @@ function TimeTrackingContent() {
             onDeleteAbsence={handleDeleteAbsence}
             canManage={canManageTimeTracking}
             ownStaffId={ownStaffId}
+            laborDay={editModal?.laborDay}
           />
 
           {/* Create absence modal */}
@@ -4238,7 +4246,7 @@ function TimeTrackingContent() {
           onEndBreak={handleEndBreak}
           weeklyMinutes={weeklyCompletedMinutes}
           completedTodayMinutes={completedToday.minutes}
-          completedTodayBreakMinutes={completedToday.breaks}
+          laborDays={historyData?.laborDays ?? []}
           onAddAbsence={() => setAbsenceModalOpen(true)}
           metrics={ownMetrics}
           plannedShifts={todayShifts}
@@ -4269,11 +4277,12 @@ function TimeTrackingContent() {
       <OwnZeiterfassungSection
         ownStaffId={ownStaffId}
         schedule={ownSchedule ?? null}
+        isSessionOpen={currentSession?.checkOutTime === null}
         viewMode={viewMode}
         weekAnchor={weekAnchor}
         monthAnchor={monthAnchor}
-        onEditDay={(date, session, absence) =>
-          setEditModal({ date, session, absence })
+        onEditDay={(date, session, absence, laborDay) =>
+          setEditModal({ date, session, absence, laborDay })
         }
       />
     </TenantPage>

@@ -2832,10 +2832,20 @@
       },
       "parent_billing": {
         "benefits_exemption_unavailable": "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Beiträge“. Bitte fragen Sie die Abrechnung.",
+        "billing_correction_invalid": "Bitte prüfen Sie die markierten Felder.",
+        "billing_family_not_found": "Dieses Kind ist nicht mehr im Lauf. Bitte laden Sie die Seite neu.",
+        "billing_run_changed": "Seit Ihrer Prüfung hat sich der Lauf geändert. Bitte prüfen Sie die neue Vorschau und geben Sie dann frei.",
+        "billing_run_empty": "Der Lauf hat keine Rechnung. Es gibt nichts freizugeben.",
+        "billing_run_not_found": "Diesen Abrechnungslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“.",
+        "billing_run_open": "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
+        "billing_run_released": "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
         "contribution_rule_invalid": "Bitte prüfen Sie die markierten Felder.",
         "contribution_rule_not_found": "Diese Regel gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "contribution_rule_overlap": "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
-        "holiday_quote_invalid": "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu."
+        "holiday_quote_invalid": "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
+        "invoice_number_taken": "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
+        "number_range_invalid": "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
+        "number_range_missing": "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",

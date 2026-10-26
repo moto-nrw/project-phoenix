@@ -80,7 +80,8 @@ func seedTraegerInvitation(rt *Runtime) error {
 // (#4661): one child of the Träger's first school and a holiday guest; the
 // Träger-Büro reviews the registrations (#4663). The Abrechnung keeps a
 // sibling rule and an exemption, the form shows the contribution, and the
-// confirmation freezes it (#4664). Last, the first seeded parent reads the
+// confirmation freezes it (#4664). The Abrechnung bills the period in a run
+// and releases its invoice (#4668). Last, the first seeded parent reads the
 // link's prefill of known children (#4662).
 type seedTraegerHolidayPeriodStep struct{}
 
@@ -119,6 +120,9 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	}
 	token, err := seedHolidayRegistrations(rt, auth, periodID, published, schools[0])
 	if err != nil {
+		return err
+	}
+	if err := seedHolidayBillingRun(rt.Client, auth, periodID); err != nil {
 		return err
 	}
 	if err := seedHolidayRegistrationPrefill(ctx, rt, token); err != nil {

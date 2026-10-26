@@ -930,12 +930,29 @@ export interface StaffHistorySession {
   audit_count?: number;
 }
 
+/** Die Antwort der Verlaufsroute samt Wochensummen und ArbZG-Hinweisen. */
+export interface StaffHistoryDetails {
+  sessions: StaffHistorySession[];
+  weeklySummaries: WeeklySummary[];
+  laborDays: WorkDayLaborHint[];
+}
+
 class StaffHistoryService {
   async getHistory(
     staffId: string,
     from: string,
     to: string,
   ): Promise<StaffHistorySession[]> {
+    return (await this.getHistoryDetails(staffId, from, to)).sessions;
+  }
+
+  // Dieselbe Route wie getHistory, mit Wochensummen und Hinweisen zu Pausen
+  // und Höchstarbeitszeit (#4804).
+  async getHistoryDetails(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<StaffHistoryDetails> {
     const params = new URLSearchParams({ from, to });
     const response = await sessionFetch(
       `/api/staff/${staffId}/time-tracking/history?${params}`,
@@ -949,9 +966,17 @@ class StaffHistoryService {
     // The wire row IS StaffHistorySession — the id arrives quoted, so there is
     // nothing to convert and no number to round.
     const json = (await response.json()) as {
-      data: { sessions: StaffHistorySession[] };
+      data: {
+        sessions: StaffHistorySession[] | null;
+        weekly_summaries?: BackendWeeklySummary[] | null;
+        labor_days?: BackendWorkDayLaborHint[] | null;
+      };
     };
-    return json.data.sessions ?? [];
+    return {
+      sessions: json.data.sessions ?? [],
+      weeklySummaries: mapWeeklySummaries(json.data.weekly_summaries),
+      laborDays: (json.data.labor_days ?? []).map(mapWorkDayLaborHint),
+    };
   }
 }
 
@@ -1481,6 +1506,8 @@ import {
   mapMonthCloseResultResponse,
   mapMonthCloseSnapshotResponse,
   mapMonthSummaryResponse,
+  mapWeeklySummaries,
+  mapWorkDayLaborHint,
   mapWorkSessionEditResponse,
   type BackendBalanceAdjustment,
   type BackendDailyProjection,
@@ -1489,11 +1516,15 @@ import {
   type BackendMonthCloseResult,
   type BackendMonthCloseSnapshot,
   type BackendMonthSummary,
+  type BackendWeeklySummary,
+  type BackendWorkDayLaborHint,
   type BackendWorkSessionEdit,
   type BalanceAdjustment,
   type MonthCloseResult,
   type MonthCloseSnapshot,
   type MonthSummary,
+  type WeeklySummary,
+  type WorkDayLaborHint,
   type WorkSessionEdit,
 } from "./time-tracking-helpers";
 
