@@ -2840,7 +2840,7 @@
         "billing_run_changed": "Seit Ihrer Prüfung hat sich der Lauf geändert. Bitte prüfen Sie die neue Vorschau und geben Sie dann frei.",
         "billing_run_empty": "Der Lauf hat keine Rechnung. Es gibt nichts freizugeben.",
         "billing_run_not_found": "Diesen Abrechnungslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“.",
-        "billing_run_not_released": "Schreiben gibt es erst nach der Freigabe. Bitte geben Sie den Lauf zuerst frei.",
+        "billing_run_not_released": "Schreiben und Übersicht gibt es erst nach der Freigabe. Bitte geben Sie den Lauf zuerst frei.",
         "billing_run_open": "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
         "billing_run_released": "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
         "contribution_rule_invalid": "Bitte prüfen Sie die markierten Felder.",

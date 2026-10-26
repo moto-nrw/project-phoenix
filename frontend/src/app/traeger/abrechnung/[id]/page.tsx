@@ -3,7 +3,8 @@
 // Ein Abrechnungslauf (#4668): Vorschau aller Rechnungen eines
 // Ferienzeitraums, Korrekturen mit Begründung und die Freigabe, die jede
 // Rechnung mit ihrer Nummer ausstellt. Ausgestellte Rechnungen ändern sich
-// nicht mehr. Jedes Öffnen steht im Protokoll des Laufs.
+// nicht mehr. Jedes Öffnen steht im Protokoll des Laufs. Ein freigegebener
+// Lauf hat die Übersicht für die Kämmerei (#4672).
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -13,6 +14,7 @@ import {
 } from "~/components/traeger/billing-correction-modal";
 import { BillingDocumentCard } from "~/components/traeger/billing-document-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
+import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
@@ -202,6 +204,9 @@ export default function TraegerBillingRunPage() {
               letters={run.letters}
               onCreated={(letters) => setRun({ ...run, letters })}
             />
+          ) : null}
+          {run.status === "released" && run.documents.length > 0 ? (
+            <BillingRunOverviewCard run={run} />
           ) : null}
           {run.documents.length === 0 ? (
             <SectionCard>

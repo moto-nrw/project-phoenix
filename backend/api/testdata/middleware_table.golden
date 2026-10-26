@@ -147,6 +147,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /traeger/billing-runs/periods
 	GET /traeger/billing-runs/{id}
 	GET /traeger/billing-runs/{id}/documents/{documentID}/letter
+	GET /traeger/billing-runs/{id}/export
 	GET /traeger/contribution-rules/
 	GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 	GET /traeger/number-ranges/

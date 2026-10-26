@@ -2,7 +2,9 @@ package parentbillinghttp
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -47,6 +49,7 @@ func (rs *BillingRunResource) RunRouter(protectedTraegerRoutes func(chi.Router, 
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/corrections", rs.correct)
 		billing.Post("/{id}/release", rs.release)
+		billing.Get("/{id}/export", rs.export)
 		billing.Post("/{id}/letters", rs.createLetters)
 		billing.Post("/{id}/letters/preview", rs.previewLetter)
 		billing.Get("/{id}/documents/{documentID}/letter", rs.letter)
@@ -218,6 +221,28 @@ func (rs *BillingRunResource) release(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, detail, "Billing run released successfully")
 }
 
+// export answers GET /traeger/billing-runs/{id}/export?format=pdf|xlsx|csv
+// with the overview of a released run for the Kämmerei (#4672). A failed
+// record of the download rolls back.
+func (rs *BillingRunResource) export(w http.ResponseWriter, r *http.Request) {
+	reviewer, runID, ok := runKey(w, r)
+	if !ok {
+		return
+	}
+	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
+	file, err := rs.runs.ExportBillingRun(r.Context(), reviewer, runID, format)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderBillingError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(file.Data)
+}
+
 func (rs *BillingRunResource) numberRanges(w http.ResponseWriter, r *http.Request) {
 	organizationID, ok := traegerOf(w, r)
 	if !ok {
@@ -254,6 +279,8 @@ func (rs *BillingRunResource) setNumberRange(w http.ResponseWriter, r *http.Requ
 func renderBillingError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	switch {
+	case errors.As(err, &fields) && fields["format"] != nil:
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, invalidFieldsCode(fields)))
 	case errors.Is(err, capability.ErrHolidayPeriodNotFound):
@@ -293,11 +320,11 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 	}{
 		{capability.ErrBillingRunOpen, common.CodeParentBillingBillingRunOpen},
 		{capability.ErrBillingRunReleased, common.CodeParentBillingBillingRunReleased},
+		{capability.ErrBillingRunNotReleased, common.CodeParentBillingBillingRunNotReleased},
 		{capability.ErrBillingRunChanged, common.CodeParentBillingBillingRunChanged},
 		{capability.ErrBillingRunEmpty, common.CodeParentBillingBillingRunEmpty},
 		{capability.ErrNumberRangeMissing, common.CodeParentBillingNumberRangeMissing},
 		{capability.ErrInvoiceNumberTaken, common.CodeParentBillingInvoiceNumberTaken},
-		{capability.ErrBillingRunNotReleased, common.CodeParentBillingBillingRunNotReleased},
 		{capability.ErrBillingLettersExist, common.CodeParentBillingBillingLettersExist},
 		{capability.ErrBankAccountMissing, common.CodeParentBillingBankAccountMissing},
 		{capability.ErrLetterheadTooLong, common.CodeParentBillingLetterheadTooLong},
