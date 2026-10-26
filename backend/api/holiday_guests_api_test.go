@@ -66,13 +66,29 @@ type holidayGuestFixture struct {
 	child     func(t *testing.T, student int64) (class, from, until string, health *string)
 }
 
+// careDays lists the planned days of a child as "date arrival-pickup", the
+// dated arrival and pickup exceptions the group's day planning reads.
+func (f holidayGuestFixture) careDays(t *testing.T, student int64) []string {
+	t.Helper()
+	var days []string
+	require.NoError(t, f.db.NewRaw(`SELECT a.exception_date::text || ' ' || to_char(a.expected_arrival, 'HH24:MI') || '-' || to_char(p.pickup_time, 'HH24:MI')
+		FROM schedule.student_arrival_exceptions AS a
+		JOIN schedule.student_pickup_exceptions AS p ON p.student_id = a.student_id AND p.exception_date = a.exception_date
+		WHERE a.student_id = ? ORDER BY a.exception_date`, student).Scan(t.Context(), &days))
+	return days
+}
+
 func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 	t.Helper()
 	f := newHolidayHostFixture(t, name)
 	persons := owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, f.db))
 	accessLog := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog
 	clock := func() calendar.Date { return f.today.Load().(calendar.Date) }
-	guests := owners.NewHolidayGuests(persons, accessLog, clock)
+	carePlan, err := owners.NewUnobservedCarePlan(testpkg.NewDatabase(t, f.db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, f.db)), persons)
+	require.NoError(t, err)
+	staff, err := NewRFIDTestPeople(testpkg.NewDatabase(t, f.db))
+	require.NoError(t, err)
+	guests := owners.NewHolidayGuests(persons, carePlan, staff, accessLog, clock)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
 	unit := testpkg.TenantRuntime(t, f.db)
@@ -212,6 +228,9 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 	assert.Equal(t, 1, listed[0].Guests)
 
 	ben := children["Ben Muster"]
+	assert.Equal(t, []string{
+		"2099-07-06 08:00-13:00", "2099-07-07 08:00-13:00", "2099-07-08 08:00-13:00", "2099-07-09 08:00-13:00", "2099-07-10 08:00-13:00",
+	}, f.careDays(t, ben), "each day of the week expects the guest with the times of its time model")
 	class, from, until, health := f.child(t, ben)
 	assert.Equal(t, enrollment.HolidayGuestSchoolClass, class)
 	assert.Equal(t, "2099-07-06", from)
@@ -263,6 +282,7 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 	f.confirm(t, f.siblings, "cancel")
 	f.reconcile(t)
 	assert.Equal(t, []string{"Tom Beispiel"}, names(f.roster(t, calendar.NewDate(2099, 7, 1))), "the cancelled guest leaves the group")
+	assert.Empty(t, f.careDays(t, ben), "the cancelled guest has no planned day left")
 	rec = f.sheet(t, lead, ben)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 	assert.Contains(t, rec.Body.String(), "enrollment.holiday_guest_not_found")

@@ -97,6 +97,17 @@ type HolidayGuestPeople interface {
 	UpdateHolidayGuestChild(ctx context.Context, studentID int64, child HolidayGuestChild) error
 }
 
+// HolidayGuestCareDays plans the booked days of a guest in Care Plan, so the
+// group and the check-in show it as expected on those days and no other:
+// on each day of the week it arrives at the start and is collected at the
+// end of its time model (clock times "15:04"). actorAccountID is the account
+// the plan is written for. ClearHolidayGuestDays removes the plan of a
+// guest that ended. The root binds Care Plan's dated exceptions.
+type HolidayGuestCareDays interface {
+	PlanHolidayGuestDays(ctx context.Context, studentID, actorAccountID int64, days []calendar.Date, arrival, pickup string) error
+	ClearHolidayGuestDays(ctx context.Context, studentID int64) error
+}
+
 // Kinds of a holiday guest access in the access log of the hosting school.
 const (
 	HolidayGuestAccessTransfer = "transfer"

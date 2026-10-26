@@ -146,6 +146,6 @@ func NewWorker(
 		StudentStatusDayRepo:         NewStudentStatusDayRepository(carePlan),
 		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
 		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)),
-		ReminderNotifications:        reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, accessLog),
+		ReminderNotifications:        reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog),
 	})
 }

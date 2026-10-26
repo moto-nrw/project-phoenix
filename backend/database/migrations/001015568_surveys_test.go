@@ -43,6 +43,9 @@ func TestSurveysKeepEarlierDeletionKinds(t *testing.T) {
 func TestSurveysRollbackPreservesSchoolErasure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// Roll back the holiday guests first (#4666): their tables and foreign
+	// keys extend the erasure functions the older migrations restore.
+	rollBackHolidayGuests(t, db)
 	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	school := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, school)

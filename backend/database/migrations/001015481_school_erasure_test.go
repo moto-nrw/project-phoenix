@@ -469,6 +469,9 @@ func TestEveryTenantTableHasASchoolErasureWriteFence(t *testing.T) {
 func TestSchoolErasureMigrationRoundTripPreservesEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// Roll back the holiday guests first (#4666): their tables and foreign
+	// keys extend the erasure functions the older migrations restore.
+	rollBackHolidayGuests(t, db)
 	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	schoolID := testpkg.Tenant(t)
 	require.NoError(t, schoolErasureDown(t.Context(), db))

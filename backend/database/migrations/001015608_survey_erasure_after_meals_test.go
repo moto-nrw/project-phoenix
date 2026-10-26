@@ -18,6 +18,9 @@ import (
 func TestSurveyErasureAfterMealsRepairsLateSurveyMigration(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// Roll back the holiday guests first (#4666): their tables and foreign
+	// keys extend the erasure functions the older migrations restore.
+	rollBackHolidayGuests(t, db)
 	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := t.Context()
 	school := testpkg.UniqueTestTenantID(t)

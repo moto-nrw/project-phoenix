@@ -119,3 +119,12 @@ func TestHolidayGuestContactsReachOnlyTheHostOfAConfirmedGuest(t *testing.T) {
 	})
 	assert.ErrorContains(t, err, "row-level security", "a school writes no guest data of another school")
 }
+
+// rollBackHolidayGuests rolls back 1.15.678 and 1.15.677 in an isolated
+// database, for a test that rolls back an older migration which reinstalls
+// the school erasure functions without the holiday guest tables.
+func rollBackHolidayGuests(t *testing.T, db *bun.DB) {
+	t.Helper()
+	require.NoError(t, holidayGuestErasureDown(t.Context(), db))
+	require.NoError(t, holidayGuestsDown(t.Context(), db))
+}
