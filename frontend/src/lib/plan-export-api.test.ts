@@ -103,6 +103,7 @@ describe("exportPlan", () => {
         filter: {
           groupId: "9007199254740993",
           staffId: "9223372036854775807",
+          roomId: "9007199254740995",
         },
       },
       "pdf",
@@ -116,6 +117,7 @@ describe("exportPlan", () => {
       template: "offerings",
       group_id: "9007199254740993",
       staff_id: "9223372036854775807",
+      room_id: "9007199254740995",
       format: "pdf",
     });
   });

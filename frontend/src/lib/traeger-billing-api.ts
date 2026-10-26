@@ -5,6 +5,8 @@
  * Money stays whole cent. Backend int64 IDs leave here as strings.
  */
 
+import { apiErrorFromBody, transportFetch } from "./api-error";
+import { filenameFromDisposition } from "./file-download";
 import { traegerRequest } from "./traeger-api";
 
 export type BillingRunStatus = "calculated" | "released";
@@ -59,6 +61,8 @@ export interface BillingChild {
 }
 
 export interface BillingDocument {
+  /** Empty for a draft; the invoice once issued. */
+  readonly id: string;
   /** Empty for a draft. */
   readonly number: string;
   readonly issuedOn: string | null;
@@ -80,6 +84,26 @@ export interface BillingRunDetail extends BillingRun {
   readonly unbilled: number;
   readonly numberPattern: string;
   readonly numberRangeSet: boolean;
+  /** Set once the confirmation letters of the released run exist (#4669). */
+  readonly letters: BillingLetters | null;
+}
+
+/** An emergency number of a hosting OGS on the letters of a run. */
+export interface BillingEmergencyContact {
+  readonly name: string;
+  readonly phone: string;
+}
+
+/** What the confirmation letters of a released run print (#4669). */
+export interface BillingLettersInput {
+  /** Calendar date "YYYY-MM-DD". */
+  readonly paymentDueOn: string;
+  readonly notes: string;
+  readonly emergencyContacts: readonly BillingEmergencyContact[];
+}
+
+export interface BillingLetters extends BillingLettersInput {
+  readonly createdAt: string;
 }
 
 export interface BillingPeriod {
@@ -122,6 +146,7 @@ interface BackendPosition {
 }
 
 interface BackendDocument {
+  id: number;
   number: string;
   issued_on: string | null;
   registration_id: number;
@@ -159,6 +184,26 @@ interface BackendRunDetail extends BackendRun {
   unbilled: number;
   number_pattern: string;
   number_range_set: boolean;
+  letters?: BackendLetters | null;
+}
+
+interface BackendLetters {
+  payment_due_on: string;
+  notes: string;
+  emergency_contacts?: { name: string; phone: string }[] | null;
+  created_at: string;
+}
+
+function lettersFromBackend(letters: BackendLetters): BillingLetters {
+  return {
+    paymentDueOn: letters.payment_due_on,
+    notes: letters.notes,
+    emergencyContacts: (letters.emergency_contacts ?? []).map((contact) => ({
+      name: contact.name,
+      phone: contact.phone,
+    })),
+    createdAt: letters.created_at,
+  };
 }
 
 function runFromBackend(run: BackendRun): BillingRun {
@@ -192,6 +237,7 @@ function positionFromBackend(position: BackendPosition): BillingPosition {
 
 function documentFromBackend(document: BackendDocument): BillingDocument {
   return {
+    id: document.id ? String(document.id) : "",
     number: document.number,
     issuedOn: document.issued_on,
     registrationId: String(document.registration_id),
@@ -228,6 +274,7 @@ function detailFromBackend(run: BackendRunDetail): BillingRunDetail {
     unbilled: run.unbilled,
     numberPattern: run.number_pattern,
     numberRangeSet: run.number_range_set,
+    letters: run.letters ? lettersFromBackend(run.letters) : null,
   };
 }
 
@@ -305,6 +352,97 @@ export async function releaseBillingRun(
         total_cents: run.previewCents,
       },
     }),
+  );
+}
+
+function lettersBody(input: BillingLettersInput) {
+  return {
+    payment_due_on: input.paymentDueOn,
+    notes: input.notes,
+    emergency_contacts: input.emergencyContacts.map((contact) => ({
+      name: contact.name,
+      phone: contact.phone,
+    })),
+  };
+}
+
+/**
+ * Creates the confirmation letter of every invoice of a released run once;
+ * afterwards they never change.
+ */
+export async function createBillingLetters(
+  runId: string,
+  input: BillingLettersInput,
+): Promise<BillingLetters> {
+  return lettersFromBackend(
+    await traegerRequest<BackendLetters>(`${runPath(runId)}/letters`, {
+      method: "POST",
+      body: lettersBody(input),
+    }),
+  );
+}
+
+/** A PDF with the file name the backend chose. */
+export interface BillingLetterFile {
+  readonly blob: Blob;
+  readonly filename: string;
+}
+
+async function letterFile(
+  path: string,
+  init: RequestInit,
+  fallbackName: string,
+): Promise<BillingLetterFile> {
+  const response = await transportFetch(path, {
+    credentials: "include",
+    cache: "no-store",
+    ...init,
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    let body: unknown = null;
+    try {
+      body = text ? (JSON.parse(text) as unknown) : null;
+    } catch {
+      body = null;
+    }
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      body,
+    );
+  }
+  return {
+    blob: await response.blob(),
+    filename: filenameFromDisposition(response) ?? fallbackName,
+  };
+}
+
+/** The letter of the first invoice with the input, without storing it. */
+export async function previewBillingLetter(
+  runId: string,
+  input: BillingLettersInput,
+): Promise<BillingLetterFile> {
+  return letterFile(
+    `${runPath(runId)}/letters/preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lettersBody(input)),
+    },
+    "vorschau.pdf",
+  );
+}
+
+/** The stored letter of one invoice of the run. */
+export async function downloadBillingLetter(
+  runId: string,
+  documentId: string,
+): Promise<BillingLetterFile> {
+  return letterFile(
+    `${runPath(runId)}/documents/${encodeURIComponent(documentId)}/letter`,
+    {},
+    "bestaetigung.pdf",
   );
 }
 

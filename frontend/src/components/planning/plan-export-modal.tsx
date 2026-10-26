@@ -41,8 +41,9 @@ interface PlanExportModalProps {
   /** Internal exports can contain sensitive absence and cancellation details. */
   readonly canExportInternal: boolean;
   /**
-   * Gruppen- und Personenfilter des Betreuungsplans (#4766). Der Druck zeigt
-   * dann nur die Blöcke, die der Plan auf dem Bildschirm zeigt.
+   * Gruppen-, Personen- (#4766) und Raumfilter (#4768) des Betreuungsplans.
+   * Der Druck zeigt dann nur die Blöcke, die der Plan auf dem Bildschirm
+   * zeigt.
    */
   readonly filter?: PlanFilter;
   /** Was der Filter zeigt, z. B. „Gruppe Sonnen“; steht im Dialog. */

@@ -73,20 +73,23 @@ export function validateStudentFields(
   body: Partial<Student>,
 ): ValidatedStudentFields {
   rejectRetiredStudentContacts(body);
-  const firstName = body.first_name?.trim();
-  const lastName = body.second_name?.trim();
-  const schoolClass = body.school_class?.trim();
+  const firstName = body.first_name?.trim() ?? "";
+  const lastName = body.second_name?.trim() ?? "";
+  const schoolClass = body.school_class?.trim() ?? "";
+  const missingFields = [
+    { field: "first_name", value: firstName, detail: "First name is required" },
+    { field: "last_name", value: lastName, detail: "Last name is required" },
+    {
+      field: "school_class",
+      value: schoolClass,
+      detail: "School class is required",
+    },
+  ].filter(({ value }) => !value);
 
-  if (!firstName) {
-    throw new Error("First name is required");
-  }
-
-  if (!lastName) {
-    throw new Error("Last name is required");
-  }
-
-  if (!schoolClass) {
-    throw new Error("School class is required");
+  if (missingFields.length > 0) {
+    throw bffError(400, missingFields.map(({ detail }) => detail).join(". "), {
+      errors: missingFields.map(({ field }) => ({ field, reason: "required" })),
+    });
   }
 
   return {

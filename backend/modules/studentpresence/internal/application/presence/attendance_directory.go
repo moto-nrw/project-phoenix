@@ -17,6 +17,9 @@ type EducationGroupRoom struct {
 }
 
 // AttendanceStaffNames supplies the names attached to attendance records.
+// StaffNames maps staff IDs to display names in one read within the school
+// in context. Staff who left stay named; a member whose personal data the
+// automatic deletion erased, or who is not found, is left out (#4761).
 type AttendanceStaffNames interface {
-	StaffName(context.Context, int64) (string, error)
+	StaffNames(context.Context, []int64) (map[int64]string, error)
 }

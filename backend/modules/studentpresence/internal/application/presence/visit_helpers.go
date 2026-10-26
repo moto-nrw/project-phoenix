@@ -27,7 +27,9 @@ func (s *service) ensureStudentHasNoActiveVisit(ctx context.Context, studentID i
 	return nil
 }
 
-// resolveStaffIDForAttendance resolves the staff ID for attendance tracking
+// resolveStaffIDForAttendance validates the device's session supervision for
+// attendance tracking. The supervisor authorizes an unstaffed kiosk visit but
+// is not the attendance actor.
 func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, deviceID int64) (int64, error) {
 	if staffID > 0 {
 		return staffID, nil
@@ -72,25 +74,29 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *studentpr
 // two timestamps being identical. Never replace either side with an
 // independent time.Now().
 func (s *service) createAttendanceRecord(ctx context.Context, visit *studentpresence.Visit, staffID, deviceID int64, visitDate calendar.Date) error {
-	resolvedStaffID, err := s.resolveStaffIDForAttendance(ctx, staffID, deviceID)
-	if err != nil {
+	if _, err := s.resolveStaffIDForAttendance(ctx, staffID, deviceID); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
 	resolvedDeviceID, err := s.resolveDeviceIDForAttendance(ctx, deviceID)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 	}
+	recorderStaffID := s.attendanceRecorderStaffID(ctx, staffID)
 
 	attendance := studentpresence.Attendance{
 		StudentID:   visit.StudentID,
 		Date:        visitDate.String(),
 		CheckInTime: visit.EntryTime,
-		CheckedInBy: resolvedStaffID,
+		CheckedInBy: recorderStaffID,
 		DeviceID:    resolvedDeviceID,
 	}
 	if visit.ExitTime != nil {
 		attendance.CheckOutTime = visit.ExitTime
-		attendance.CheckedOutBy = &resolvedStaffID
+		if recorderStaffID > 0 {
+			attendance.CheckedOutBy = &recorderStaffID
+		} else if deviceID > 0 {
+			attendance.CheckedOutDeviceID = &resolvedDeviceID
+		}
 	}
 
 	attendance.TenantID = tenant.FromContext(ctx)

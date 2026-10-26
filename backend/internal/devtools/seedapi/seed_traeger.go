@@ -122,9 +122,11 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err != nil {
 		return err
 	}
-	if err := seedHolidayBillingRun(rt.Client, auth, periodID); err != nil {
+	runID, err := seedHolidayBillingRun(rt.Client, auth, periodID)
+	if err != nil {
 		return err
 	}
+	rt.Values[seedBillingRunKey] = runID
 	if err := seedHolidayRegistrationPrefill(ctx, rt, token); err != nil {
 		return err
 	}

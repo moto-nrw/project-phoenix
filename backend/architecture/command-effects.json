@@ -44970,6 +44970,62 @@
     },
     {
       "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter",
+      "target_owner": "document-rendering",
+      "binding_digest": "7177b243029649c01ef5bc9d3c6fc639",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter: lays out the confirmation letter the Elternabrechnung wrote as PDF bytes; it stores nothing and decides no access (#4669, ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "target_owner": "document-rendering",
+      "binding_digest": "e449cab5019738db1dd0311e6f8fe5a5",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.LetterRenderer.RenderLetter: the letter contract of Document Rendering returns the PDF bytes of one letter; it stores nothing and decides no access (#4669, ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform",
+      "binding_digest": "10cb33104f1f0cd4899303225a8f1c5c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the colour, letterhead and footer of the session's Träger (its value or the registry default), read in its Träger transaction for the confirmation letters (ADR 0112, ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.LogoImage",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "14eefa6f4a411c2a15a7f33e8ba95d27",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.LogoImage: the stored logo of the session's Träger, read in its Träger transaction for the confirmation letters; the logo carries no person and is read without a log entry (ADR 0112 point 6, ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "bab78935d2088b585c5225f58bceb9a0",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/organizationtenancy.TraegerMasterData.Profile: Organisation \u0026 Tenancy reads the contact person and the bank accounts of the session's Träger and appends the read to platform.traeger_master_data_audit (ADR 0112 point 6) in the caller's Träger transaction before the Elternabrechnung renders the confirmation letters; the route rolls back on any later refusal (ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.ConfirmedHolidayRegistrations",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrations",
@@ -79141,10 +79197,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange",
       "target": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs",
       "target_owner": "facilities",
-      "binding_digest": "e7ed17d92b21d2342429552ff6a7710f",
+      "binding_digest": "3892ce76cae17e09c85296f9d2e27e06",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: student-presence reaches modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: student-presence reaches modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -79152,10 +79208,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "464141d22f4ea8749553fbec9a269e37",
+      "binding_digest": "bc4ee576c0af4901cab6cc4476859b74",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Capability.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Capability.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -79163,10 +79219,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "26483cc7aa8ff4bd092f6b96899e45c2",
+      "binding_digest": "d3c6f94eacab2a7d7896e0ae9278d61f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Catalog.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Catalog.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -79174,10 +79230,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "6d149a2ddabe1f5dab8427f552df7193",
+      "binding_digest": "177f06247ae5f7c9a300a5f614600f5e",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Query.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Query.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -80525,69 +80581,80 @@
     },
     {
       "source_owner": "student-presence",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffName",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffName",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffNames",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffNames",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.DirectoryPersonSnapshot.GetFullName",
       "target_owner": "people-directory",
-      "binding_digest": "351b4b8928f3b56ec70598e1a064869f",
+      "binding_digest": "b8d763a37849ccbe686a30f80f545956",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.DirectoryPersonSnapshot.GetFullName; modules/peopledirectory/record_person.go:23. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Read-only target: student-presence reaches *modules/peopledirectory.DirectoryPersonSnapshot.GetFullName through roots/owners.attendanceStaffNames.StaffNames, the tenant-scoped staff-name read behind attendance records (#4761). No owned-row mutation or locking read. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "student-presence",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffName",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffName",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffNames",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffNames",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
       "target_owner": "people-directory",
-      "binding_digest": "5326a7feaf4eb4c3bfe0f65064f79ce9",
+      "binding_digest": "139c362eaa2a0771ae49865e8cd05da8",
       "effect": "query",
       "classification": "query",
-      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target modules/peopledirectory.Staff.SetTenantID; modules/peopledirectory/record_metadata.go:14. May-bind method surface, not a production-call/liveness claim. Re-reviewed for #4573 (ADR 0091): staff hydration now sets the external caregiver marker instead of the guest flag; value mapping only, no owned-row mutation or locking read added."
+      "reason": "Value-only tenant metadata setter on a returned DTO, not a database write or transaction-scope switch. Target *modules/peopledirectory.Staff.SetTenantID. Reviewed for #4761: the attendance staff-name read of student-presence hydrates retired staff with their persons; no owned-row mutation or locking read."
     },
     {
       "source_owner": "student-presence",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffName",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffName",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.Get",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffNames",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffNames",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
       "target_owner": "people-directory",
-      "binding_digest": "63765777240061f0f85f3cb3a6a98a42",
+      "binding_digest": "e32b3e502a22097d2b860f16db79c0f2",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.PersonDirectory.Get; modules/peopledirectory/ports/person_directory_port.go:25. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Read-only target: student-presence reaches modules/peopledirectory/ports.PersonRepository.FindByIDs through roots/owners.attendanceStaffNames.StaffNames, the tenant-scoped staff-name read behind attendance records (#4761). No owned-row mutation or locking read. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "student-presence",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffName",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffName",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindByID",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffNames",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffNames",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindWithPersonByIDs",
       "target_owner": "people-directory",
-      "binding_digest": "d119cf386c95aa6b7d057b9a603f674a",
+      "binding_digest": "9368d65f06bf41c880a015e5a5c68de6",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.FindByID; modules/peopledirectory/internal/application/student_records_boundary.go:23. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Read-only target: student-presence reaches modules/peopledirectory/ports.StaffRepository.FindWithPersonByIDs through roots/owners.attendanceStaffNames.StaffNames, the tenant-scoped staff-name read behind attendance records (#4761). No owned-row mutation or locking read. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "student-presence",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffName",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffName",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaff",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffNames",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffNames",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
       "target_owner": "school-membership",
-      "binding_digest": "168d9806048d54174e57e5e60b72d033",
+      "binding_digest": "44148f6f33f3181196297a85e41cbe9c",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Capability.FindStaff; modules/schoolmembership.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Read-only target: student-presence reaches modules/schoolmembership.Capability.ListStaff through roots/owners.attendanceStaffNames.StaffNames, the tenant-scoped staff-name read behind attendance records (#4761). No owned-row mutation or locking read. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "student-presence",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffName",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffName",
-      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaff",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffNames",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffNames",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
       "target_owner": "school-membership",
-      "binding_digest": "b748c50defebf40865904fd5c3e80a2c",
+      "binding_digest": "cf1c9fa55d9158eb900a79e9eba4e311",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolmembership.Owner.FindStaff; modules/schoolmembership.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+      "reason": "Read-only target: student-presence reaches modules/schoolmembership.ExternalCaregiver through roots/owners.attendanceStaffNames.StaffNames, the tenant-scoped staff-name read behind attendance records (#4761). No owned-row mutation or locking read. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.AttendanceStaffNames.StaffNames",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.attendanceStaffNames.StaffNames",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership",
+      "binding_digest": "af0740ff1be89cbb338283d26081934d",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: student-presence reaches modules/schoolmembership.Owner.ListStaff through roots/owners.attendanceStaffNames.StaffNames, the tenant-scoped staff-name read behind attendance records (#4761). No owned-row mutation or locking read. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "student-presence",
@@ -81963,10 +82030,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange",
       "target": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs",
       "target_owner": "facilities",
-      "binding_digest": "e7ed17d92b21d2342429552ff6a7710f",
+      "binding_digest": "3892ce76cae17e09c85296f9d2e27e06",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: student-presence reaches modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: student-presence reaches modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -81974,10 +82041,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "464141d22f4ea8749553fbec9a269e37",
+      "binding_digest": "bc4ee576c0af4901cab6cc4476859b74",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Capability.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Capability.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -81985,10 +82052,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "26483cc7aa8ff4bd092f6b96899e45c2",
+      "binding_digest": "d3c6f94eacab2a7d7896e0ae9278d61f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Catalog.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Catalog.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -81996,10 +82063,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "6d149a2ddabe1f5dab8427f552df7193",
+      "binding_digest": "177f06247ae5f7c9a300a5f614600f5e",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Query.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Query.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",

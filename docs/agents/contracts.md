@@ -6,9 +6,15 @@ repository root unless the section says otherwise.
 
 ## Ecosystem and IoT
 
-The sibling `../PyrePortal/` repository runs the Raspberry Pi kiosk (Tauri +
-React). The Phoenix backend runs on the server, never on the Pi. PRs target
-`development`.
+The sibling `../PyrePortal/` repository runs the React web kiosk on GKT/GKTL
+devices and tablets with USB NFC readers in keyboard-emulation mode (Wedge).
+The production bundle selects GKT when the native `GKTKiosk` bridge exists
+and Wedge otherwise. GKT receives NFC scans through `system.js`; Wedge reads
+keyboard input. A browser mock supports local development. The Phoenix
+backend runs on the server, not on the kiosk. PRs target `development`.
+Platform selection and scan handling live in PyrePortal's
+`src/platform/kiosk/index.ts`, `src/platform/gkt/index.ts` and
+`src/platform/wedge/index.ts`.
 
 PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
 `../PyrePortal/src/services/apiErrors.ts` maps registry error codes (its

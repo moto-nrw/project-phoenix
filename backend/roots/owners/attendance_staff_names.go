@@ -8,32 +8,43 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
+// attendanceNameStaff reads staff members of the school in context with
+// their persons, retired members included.
 type attendanceNameStaff interface {
-	FindByID(context.Context, any) (*peopleValues.Staff, error)
-}
-
-type attendanceNamePeople interface {
-	Get(context.Context, interface{}) (*peopleValues.DirectoryPersonSnapshot, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.Staff, error)
 }
 
 type attendanceStaffNames struct {
-	staff  attendanceNameStaff
-	people attendanceNamePeople
+	staff attendanceNameStaff
 }
 
-// NewAttendanceStaffNames retains the staff and person lookups used by attendance.
-func NewAttendanceStaffNames(staff attendanceNameStaff, people attendanceNamePeople) presenceservice.AttendanceStaffNames {
-	return attendanceStaffNames{staff: staff, people: people}
+// NewAttendanceStaffNames names the staff members behind attendance records
+// (#4761). The membership read is tenant-scoped, so only staff of the
+// child's school resolve.
+func NewAttendanceStaffNames(staff attendanceNameStaff) presenceservice.AttendanceStaffNames {
+	return attendanceStaffNames{staff: staff}
 }
 
-func (q attendanceStaffNames) StaffName(ctx context.Context, id int64) (string, error) {
-	staff, err := q.staff.FindByID(ctx, id)
-	if err != nil || staff == nil {
-		return "", err
+// StaffNames keeps retired staff named while their records are kept. The
+// automatic deletion of staff anonymizes and soft-deletes the person of an
+// erased tombstone, so the person read finds none and the record names a
+// former staff member instead.
+func (q attendanceStaffNames) StaffNames(ctx context.Context, ids []int64) (map[int64]string, error) {
+	names := make(map[int64]string, len(ids))
+	if len(ids) == 0 {
+		return names, nil
 	}
-	person, err := q.people.Get(ctx, staff.PersonID)
-	if err != nil || person == nil {
-		return "", err
+	rows, err := q.staff.FindWithPersonByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
 	}
-	return person.GetFullName(), nil
+	for id, row := range rows {
+		if row == nil || row.Person == nil {
+			continue
+		}
+		if name := row.Person.GetFullName(); name != "" {
+			names[id] = name
+		}
+	}
+	return names, nil
 }

@@ -104,32 +104,60 @@ func newPlanExport(sources planExportSources) planexport.Service {
 }
 
 // planExportInstanceFilter applies the Timetable owner's block filter rule
-// (#4766) to the export's blocks, with the same block groups the planner
+// (#4766, #4768) to the export's blocks, with the same block groups the planner
 // filters by.
 type planExportInstanceFilter struct {
 	blockGroups planExportBlockGroupReader
 	groupNames  planExportGroupNameReader
 }
 
-func (a planExportInstanceFilter) MatchingInstances(ctx context.Context, filter planexport.BlockFilter, instanceIDs []int64, staff []*planexport.InstanceStaff) (planexport.FilteredInstances, error) {
+func (a planExportInstanceFilter) MatchingInstances(ctx context.Context, filter planexport.BlockFilter, instances []*planexport.Instance, staff []*planexport.InstanceStaff) (planexport.FilteredInstances, error) {
 	var result planexport.FilteredInstances
-	var groups map[int64][]int64
-	if filter.EducationGroupID != nil {
-		if a.blockGroups == nil || a.groupNames == nil {
-			return result, fmt.Errorf("plan export filter: block groups are not wired")
-		}
-		names, err := a.groupNames.EducationGroupNames(ctx, []int64{*filter.EducationGroupID})
-		if err != nil {
-			return result, err
-		}
-		result.GroupName = names[*filter.EducationGroupID]
-		if len(instanceIDs) > 0 {
-			if groups, err = a.blockGroups.BlockEducationGroups(ctx, instanceIDs); err != nil {
-				return result, err
-			}
-		}
+	groups, groupName, err := a.blockGroupsFor(ctx, filter, instances)
+	if err != nil {
+		return result, err
 	}
-	staffByInstance := make(map[int64][]timetable.InstanceStaff, len(instanceIDs))
+	result.GroupName = groupName
+	staffByInstance := planExportStaffByInstance(staff)
+	rule := timetable.BlockFilter{EducationGroupID: filter.EducationGroupID, StaffID: filter.StaffID, RoomID: filter.RoomID}
+	result.Matches = make(map[int64]bool, len(instances))
+	for _, instance := range instances {
+		result.Matches[instance.ID] = rule.Matches(instance.RoomID, staffByInstance[instance.ID], groups[instance.ID])
+	}
+	return result, nil
+}
+
+// blockGroupsFor names the filtered group and loads the blocks' OGS groups;
+// without a group filter it reads nothing.
+func (a planExportInstanceFilter) blockGroupsFor(ctx context.Context, filter planexport.BlockFilter, instances []*planexport.Instance) (map[int64][]int64, string, error) {
+	if filter.EducationGroupID == nil {
+		return nil, "", nil
+	}
+	if a.blockGroups == nil || a.groupNames == nil {
+		return nil, "", fmt.Errorf("plan export filter: block groups are not wired")
+	}
+	names, err := a.groupNames.EducationGroupNames(ctx, []int64{*filter.EducationGroupID})
+	if err != nil {
+		return nil, "", err
+	}
+	if len(instances) == 0 {
+		return nil, names[*filter.EducationGroupID], nil
+	}
+	instanceIDs := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		instanceIDs = append(instanceIDs, instance.ID)
+	}
+	groups, err := a.blockGroups.BlockEducationGroups(ctx, instanceIDs)
+	if err != nil {
+		return nil, "", err
+	}
+	return groups, names[*filter.EducationGroupID], nil
+}
+
+// planExportStaffByInstance maps the export's staff rows onto the rows the
+// Timetable filter rule reads.
+func planExportStaffByInstance(staff []*planexport.InstanceStaff) map[int64][]timetable.InstanceStaff {
+	staffByInstance := make(map[int64][]timetable.InstanceStaff)
 	for _, row := range staff {
 		if row != nil {
 			staffByInstance[row.InstanceID] = append(staffByInstance[row.InstanceID], timetable.InstanceStaff{
@@ -137,12 +165,7 @@ func (a planExportInstanceFilter) MatchingInstances(ctx context.Context, filter 
 			})
 		}
 	}
-	rule := timetable.BlockFilter{EducationGroupID: filter.EducationGroupID, StaffID: filter.StaffID}
-	result.Matches = make(map[int64]bool, len(instanceIDs))
-	for _, id := range instanceIDs {
-		result.Matches[id] = rule.Matches(staffByInstance[id], groups[id])
-	}
-	return result, nil
+	return staffByInstance
 }
 
 // planExportRange resolves the port's day strings. The capability only ever

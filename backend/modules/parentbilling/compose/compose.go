@@ -3,6 +3,7 @@ package compose
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/adapters/letterpdf"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -24,4 +25,11 @@ func NewHolidayContributions(registrations parentbilling.HolidayRegistrations) p
 // holiday periods and confirmed registrations, which the root binds.
 func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations) parentbilling.BillingRuns {
 	return application.NewBillingRuns(postgres.NewStore(), registrations, calendar.TodayDate)
+}
+
+// NewBillingLetters builds the confirmation letters of the released runs
+// (#4669, ADR 0121) over the letterhead of the Träger, which the root
+// binds, and the letter layout of Document Rendering.
+func NewBillingLetters(letterheads parentbilling.BillingLetterheads) parentbilling.BillingLetterService {
+	return application.NewBillingLetters(postgres.NewStore(), letterheads, letterpdf.NewRenderer(), calendar.TodayDate)
 }

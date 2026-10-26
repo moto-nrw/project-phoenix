@@ -10,8 +10,13 @@ const { api } = vi.hoisted(() => ({
     fetchBillingRun: vi.fn(),
     correctBillingRun: vi.fn(),
     releaseBillingRun: vi.fn(),
+    createBillingLetters: vi.fn(),
+    previewBillingLetter: vi.fn(),
+    downloadBillingLetter: vi.fn(),
   },
 }));
+const { downloadBlob } = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
+vi.mock("~/lib/file-download", () => ({ downloadBlob }));
 
 vi.mock("~/lib/traeger-billing-api", () => api);
 vi.mock("~/lib/traeger-url", () => ({
@@ -41,8 +46,10 @@ const PREVIEW: BillingRunDetail = {
   unbilled: 1,
   numberPattern: "FE-{NNNN}",
   numberRangeSet: true,
+  letters: null,
   documents: [
     {
+      id: "",
       number: "",
       issuedOn: null,
       registrationId: "31",
@@ -268,5 +275,194 @@ describe("TraegerBillingRunPage", () => {
         name: "Aktionen für die Rechnung an Eva Muster",
       }),
     ).not.toBeInTheDocument();
+  });
+
+  const RELEASED: BillingRunDetail = {
+    ...PREVIEW,
+    status: "released",
+    issuedOn: "2026-09-09",
+    documentCount: 1,
+    totalCents: 11250,
+    unbilled: 0,
+    documents: [
+      {
+        ...PREVIEW.documents[0]!,
+        id: "51",
+        number: "FE-0001",
+        issuedOn: "2026-09-09",
+      },
+    ],
+  };
+
+  it("creates the letters of a released run once", async () => {
+    api.fetchBillingRun.mockResolvedValue(RELEASED);
+    api.createBillingLetters.mockResolvedValue({
+      paymentDueOn: "2026-09-23",
+      notes: "Hausschuhe mitbringen.",
+      emergencyContacts: [{ name: "OGS Am Lindenhof", phone: "0170 1" }],
+      createdAt: "2026-09-09T10:00:00Z",
+    });
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Schreiben erstellen" }),
+    );
+    fireEvent.change(
+      await screen.findByLabelText("Hinweise für die Eltern (freiwillig)"),
+      { target: { value: "Hausschuhe mitbringen." } },
+    );
+    fireEvent.change(screen.getByLabelText("Betreuung"), {
+      target: { value: "OGS Am Lindenhof" },
+    });
+    const create = () =>
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Schreiben erstellen" }).at(-1)!,
+      );
+    create();
+    expect(
+      await screen.findByText(
+        "Bitte geben Sie zu jeder Notfallnummer Betreuung und Telefon an.",
+      ),
+    ).toBeInTheDocument();
+    expect(api.createBillingLetters).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Telefon"), {
+      target: { value: "0170 1" },
+    });
+    create();
+
+    await waitFor(() =>
+      expect(api.createBillingLetters).toHaveBeenCalledWith("9", {
+        paymentDueOn: "2026-09-23",
+        notes: "Hausschuhe mitbringen.",
+        emergencyContacts: [{ name: "OGS Am Lindenhof", phone: "0170 1" }],
+      }),
+    );
+    expect(await screen.findByText("23.09.2026")).toBeInTheDocument();
+    expect(screen.getByText("OGS Am Lindenhof: 0170 1")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Schreiben erstellen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a payment date in the past from going out", async () => {
+    api.fetchBillingRun.mockResolvedValue(RELEASED);
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Schreiben erstellen" }),
+    );
+    fireEvent.change(await screen.findByLabelText("Zahlen bis"), {
+      target: { value: "01.09.2026" },
+    });
+    for (const name of ["Vorschau ansehen", "Schreiben erstellen"]) {
+      fireEvent.click(screen.getAllByRole("button", { name }).at(-1)!);
+    }
+
+    expect(
+      await screen.findAllByText(
+        "Das Datum darf nicht in der Vergangenheit liegen.",
+      ),
+    ).not.toHaveLength(0);
+    expect(api.previewBillingLetter).not.toHaveBeenCalled();
+    expect(api.createBillingLetters).not.toHaveBeenCalled();
+  });
+
+  it("downloads the preview when the browser blocks the tab", async () => {
+    const blob = new Blob(["%PDF"], { type: "application/pdf" });
+    api.fetchBillingRun.mockResolvedValue(RELEASED);
+    api.previewBillingLetter.mockResolvedValue({
+      blob,
+      filename: "bestaetigung-fe-0001.pdf",
+    });
+    const open = vi.spyOn(globalThis, "open").mockReturnValue(null);
+    const createURL = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:preview");
+    const revokeURL = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => undefined);
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Schreiben erstellen" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Vorschau ansehen" }),
+    );
+
+    await waitFor(() =>
+      expect(downloadBlob).toHaveBeenCalledWith(
+        blob,
+        "bestaetigung-fe-0001.pdf",
+      ),
+    );
+    expect(open).toHaveBeenCalledTimes(1);
+    open.mockRestore();
+    createURL.mockRestore();
+    revokeURL.mockRestore();
+  });
+
+  it("names the missing bank account when the letters are refused", async () => {
+    api.fetchBillingRun.mockResolvedValue(RELEASED);
+    api.createBillingLetters.mockRejectedValue(
+      new ApiError("missing", 409, {
+        code: "parent_billing.bank_account_missing",
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Schreiben erstellen" }),
+    );
+    fireEvent.click(
+      (
+        await screen.findAllByRole("button", { name: "Schreiben erstellen" })
+      ).at(-1)!,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("parent_billing.bank_account_missing", "die Schreiben"),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("downloads the letter of a family once the letters exist", async () => {
+    const blob = new Blob(["%PDF"], { type: "application/pdf" });
+    api.fetchBillingRun.mockResolvedValue({
+      ...RELEASED,
+      letters: {
+        paymentDueOn: "2026-09-23",
+        notes: "",
+        emergencyContacts: [],
+        createdAt: "2026-09-09T10:00:00Z",
+      },
+    });
+    api.downloadBillingLetter.mockResolvedValue({
+      blob,
+      filename: "bestaetigung-fe-0001.pdf",
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText(/Die Schreiben sind erstellt/),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Aktionen für die Rechnung an Eva Muster",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Schreiben herunterladen" }),
+    );
+
+    await waitFor(() =>
+      expect(downloadBlob).toHaveBeenCalledWith(
+        blob,
+        "bestaetigung-fe-0001.pdf",
+      ),
+    );
+    expect(api.downloadBillingLetter).toHaveBeenCalledWith("9", "51");
   });
 });

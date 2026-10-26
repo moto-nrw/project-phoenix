@@ -186,6 +186,10 @@ type StudentDetailResponse struct {
 	GroupSupervisors          []SupervisorContact `json:"group_supervisors,omitempty"`
 	AttendanceLogEnabled      bool                `json:"attendance_log_enabled"`
 	FeedbackEnabled           bool                `json:"feedback_enabled"`
+	// ActualArrivalBy and ActualPickupBy name who recorded today's arrival
+	// and pickup (#4761); set for full access only, like the times.
+	ActualArrivalBy *AttendanceActorResponse `json:"actual_arrival_by,omitempty"`
+	ActualPickupBy  *AttendanceActorResponse `json:"actual_pickup_by,omitempty"`
 }
 
 type StudentConsentResponse struct {

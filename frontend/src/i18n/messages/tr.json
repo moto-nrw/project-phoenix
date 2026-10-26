@@ -2831,12 +2831,17 @@
         "supply_active": "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın."
       },
       "parent_billing": {
+        "bank_account_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "benefits_exemption_unavailable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_correction_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "billing_family_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_letter_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_letters_exist": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_letters_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "billing_run_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_run_empty": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_run_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_run_not_released": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_run_open": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_run_released": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "contribution_rule_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -2844,6 +2849,7 @@
         "contribution_rule_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "holiday_quote_invalid": "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
         "invoice_number_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "letterhead_too_long": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "number_range_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "number_range_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },

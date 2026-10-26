@@ -536,6 +536,29 @@ describe("StudentRoomHistoryPage", () => {
     });
   });
 
+  it("names who recorded the arrival and the pickup (#4761)", async () => {
+    const recordedDay = {
+      ...fullDay,
+      attendance: {
+        ...fullDay.attendance,
+        checked_in_actor: { kind: "staff", name: "Anna Muster" },
+        checked_out_actor: { kind: "device" },
+      },
+    };
+    setupFetch(mockAttendanceHistoryResponse([recordedDay]));
+    render(<StudentRoomHistoryPage />);
+
+    // Tabelle (Desktop) nennt beide Buchungen in ihrer Spalte, die Karte
+    // (Mobil) beide in einer Zeile.
+    expect(
+      await screen.findByText(/^Angemeldet:\s*Anna Muster$/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^Abgemeldet:\s*am Gerät$/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Angemeldet: Anna Muster · Abgemeldet: am Gerät"),
+    ).toBeInTheDocument();
+  });
+
   it("shows 'Noch anwesend' when student has no check-out", async () => {
     setupFetch(mockAttendanceHistoryResponse([stillCheckedInDay]));
     render(<StudentRoomHistoryPage />);

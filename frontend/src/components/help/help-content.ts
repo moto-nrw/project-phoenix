@@ -501,6 +501,9 @@ function studentSearchTopic(
         steps: [
           "Wählen Sie die Karte des Kindes.",
           currentStatusStep,
+          // #4761: die Zeilen stehen unter `Heutige Ankunft` und `Heutige
+          // Abholung`, sobald das Kind an- oder abgemeldet ist.
+          "Unter der Zeit steht, wer das Kind heute an- und abgemeldet hat. `am Gerät` heißt: am Tablet ohne Person. `Ehemalige Mitarbeitende` heißt: Die Person ist nicht mehr in moto. `automatisch` heißt: moto hat das Kind selbst abgemeldet.",
           // #4795: dieselbe Zeile steht in der Aufsicht und in der Gruppe.
           "Steht auf der Karte `Hinweis der Lehrkraft`? Den hat die Lehrkraft heute in moto schule geschrieben. Morgen ist er weg.",
         ],
@@ -527,6 +530,8 @@ function studentSearchTopic(
         title: "Ein Anwesenheitsprotokoll herunterladen",
         steps: [
           "Öffnen Sie beim Kind `Historie` und danach `Anwesenheitsprotokoll`.",
+          // #4761: Tabelle und Export nennen dieselben Angaben.
+          "Bei jedem Tag steht, wer das Kind an- und abgemeldet hat. Die Datei enthält dazu die Spalten `Angemeldet von` und `Abgemeldet von`.",
           "Wählen Sie im Drei-Punkte-Menü `Exportieren`.",
           "Wählen Sie unter `Von` und `Bis` den Zeitraum.",
           "Möglich sind nur die sichtbaren Tage bis heute.",
@@ -1289,13 +1294,15 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     notes: [
       // #4766: Filter Gruppe und Person, auch in der Leseansicht.
       "Nur eine Gruppe oder eine Person sehen? Wählen Sie oben bei `Alle Gruppen` eine Gruppe oder bei `Alle Personen` eine Person. Die Person sieht auch ihre Vertretungen.",
+      // #4768: Raumfilter.
+      "Nur einen Raum sehen? Wählen Sie oben bei `Alle Räume` einen Raum.",
       "Die Adresse der Seite behält Ihre Auswahl. So können Sie den gefilterten Plan teilen.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     troubleshootingDetails: [
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
       "Steht dort `Noch kein Planungszeitraum`? Dann hat Ihre Leitung den Zeitraum noch nicht angelegt.",
-      "Steht dort `Für diese Auswahl ist nichts geplant`? Wählen Sie `Alle Gruppen` und `Alle Personen`.",
+      "Steht dort `Für diese Auswahl ist nichts geplant`? Stellen Sie die Filter wieder auf `Alle Gruppen`, `Alle Personen` und `Alle Räume`.",
     ],
     related: [HELP_TOPICS.mySchedule, HELP_TOPICS.activeSupervision],
   };
@@ -1430,6 +1437,22 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Wählen Sie bei Bedarf ein Kind, um seine Angaben zu öffnen.",
         ],
       },
+      // #4768: Reiter `Plan` mit den Terminen des Raums laut Betreuungsplan.
+      {
+        title: "Sehen, wann ein Raum laut Plan frei ist",
+        description:
+          "Der Reiter `Plan` zeigt die Termine des Betreuungsplans in diesem Raum. Ändern können Sie den Plan dort nicht.",
+        steps: [
+          "Öffnen Sie `Räume` und wählen Sie einen Raum aus.",
+          "Wählen Sie den Reiter `Plan`.",
+          "Wählen Sie oben `Tag` oder `Woche`. Mit den Pfeilen wechseln Sie den Zeitraum.",
+          "`Frei` heißt: In dieser Zeit ist im Raum nichts geplant.",
+          "Ein durchgestrichener Termin mit `Abgesagt` belegt den Raum nicht.",
+          "Wählen Sie `Im Betreuungsplan ansehen`, um den Plan dieses Raums dort zu öffnen. Planende sehen dort `Im Betreuungsplan bearbeiten`.",
+          "Für den PDF-Aushang brauchen Sie auch das Recht, die Kinderliste zu sehen.",
+          "Für einen Aushang öffnen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie `Raumplan als PDF`. Sie erhalten die angezeigte Woche als PDF.",
+        ],
+      },
       {
         title: "Kinder ohne Raum in einen Raum setzen",
         description:
@@ -1447,6 +1470,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
     troubleshootingDetails: [
       "Steht unter `Zielraum` `Keine aktiven Räume`? Dann läuft gerade keine Aufsicht, in die Sie Kinder setzen können.",
       "Fehlt unter `Unterwegs` die Auswahl der Kinder? Dann erfasst Ihre OGS die Anwesenheit nicht über die App. Fragen Sie Ihre Leitung.",
+      "Fehlt der Reiter `Plan` oder `Raumplan als PDF`? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
     ],
     related: [HELP_TOPICS.activeSupervision, HELP_TOPICS.changeLocation],
   };
@@ -5590,6 +5614,8 @@ function leadCarePlanTopic(): HelpTopic {
       "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       // #4766: Filter Gruppe und Person in Tag, Woche und Monat.
       "Nur eine Gruppe oder eine Person planen? Wählen Sie oben bei `Alle Gruppen` eine OGS-Gruppe oder bei `Alle Personen` eine Person. Die Gruppe zeigt Termine mit Kindern der Gruppe oder mit der Gruppe als Teilnehmer. Die Person zeigt auch ihre Vertretungen.",
+      // #4768: Raumfilter.
+      "Einen Raum für eine neue AG suchen? Wählen Sie oben bei `Alle Räume` den Raum. Dann sehen Sie, wann er belegt ist.",
       "Ist ein Filter gewählt, druckt `Drucken oder exportieren` nur die gefilterten Termine.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
@@ -9284,7 +9310,7 @@ function traegerBillingRunTopic(): HelpTopic {
     title: "Ferien abrechnen",
     question: "Wie stelle ich die Rechnungen für die Ferien aus?",
     summary:
-      "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge und geben den Lauf frei.",
+      "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "FileText",
@@ -9328,13 +9354,28 @@ function traegerBillingRunTopic(): HelpTopic {
           "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
         ],
       },
+      {
+        title: "Bestätigungsschreiben erstellen",
+        description:
+          "Jede Familie bekommt ein Schreiben im Briefkopf des Trägers. Es bestätigt die Anmeldung und ist zugleich die Rechnung.",
+        steps: [
+          "Wählen Sie im freigegebenen Lauf bei `Bestätigungsschreiben` den Knopf `Schreiben erstellen`.",
+          "Tragen Sie bei `Zahlen bis` das Datum ein, bis wann die Familien zahlen sollen.",
+          "Schreiben Sie bei `Hinweise für die Eltern` zum Beispiel die Packliste und was bei Krankheit gilt.",
+          "Tragen Sie bei `Notfallnummern der Betreuung` je Betreuung den Namen und die Telefonnummer ein.",
+          "Wählen Sie `Vorschau ansehen`. Sie sehen das Schreiben der ersten Familie.",
+          "Wählen Sie `Schreiben erstellen`.",
+          "Das Schreiben einer Familie laden Sie über das Menü mit den drei Punkten bei ihrer Rechnung herunter: `Schreiben herunterladen`.",
+        ],
+      },
     ],
     result:
-      "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen lassen sich nicht mehr ändern.",
+      "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern.",
     notes: [
       "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
       "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
       "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
+      "Logo, Farbe, Absender, Fußzeile, Ansprechperson und Bankverbindung im Schreiben kommen aus dem `Briefkopf`. Als Verwendungszweck steht die Rechnungsnummer im Schreiben.",
     ],
     differences: [
       "Sie sehen oben kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
@@ -9343,6 +9384,7 @@ function traegerBillingRunTopic(): HelpTopic {
     troubleshootingDetails: [
       "Die Freigabe meldet, dass sich der Lauf geändert hat? Inzwischen wurde eine Anmeldung bestätigt. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
       "Eine bestätigte Anmeldung fehlt in der Vorschau? Sie hat schon eine Rechnung, oder beim Bestätigen wurde kein Beitrag festgehalten.",
+      "Die Schreiben lassen sich nicht erstellen, weil eine Bankverbindung fehlt? Die Verwaltung trägt sie unter `Briefkopf` ein. Danach erstellen Sie die Schreiben.",
     ],
     related: [
       HELP_TOPICS.traegerHolidayContribution,
