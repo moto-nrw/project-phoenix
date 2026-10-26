@@ -1,6 +1,8 @@
 package checkin_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -137,4 +139,53 @@ func assertHeartbeatSQLFailurePreservesAttendance(t *testing.T, failure string) 
 		assert.True(t, present, "attendance commits despite a heartbeat SQL error")
 	}
 	assert.Equal(t, stale, testpkg.ActiveGroupLastActivity(t, k.db, sessionID))
+}
+
+// The lookup of the device's session in the scanned room is part of the
+// heartbeat. A PostgreSQL error in that statement (for example a
+// statement_timeout) must not abort the scan's transaction: the checkout
+// before it commits and only the heartbeat is skipped.
+func TestScanHeartbeat_RoomLookupSQLFailurePreservesCheckout(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	k := setupCheckinRoute(t)
+	device, deviceID := k.deviceRow(t, "room-lookup-checkout")
+	tag, studentID, _ := k.studentCard(t, "RoomLookup", "Checkout", "2a")
+	roomID, sessionID, stale := k.kioskSession(t, "Room Lookup Checkout Room", deviceID)
+	visit := testpkg.CreateTestVisit(t, k.db, studentID, sessionID, time.Now().Add(-10*time.Minute), nil)
+	failDeviceRoomLookup(t, k, roomID, deviceID)
+
+	rr := k.callIsolated(t, "POST", "/checkin", checkinBody(tag, roomID), device)
+
+	testutil.AssertSuccessResponse(t, rr, 200)
+	assert.Equal(t, "checked_out", responseData(t, rr.Body.Bytes())["action"])
+	ended, err := k.presence(t).FindVisit(testpkg.Ctx(t), visit.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, ended.ExitTime, "the checkout commits despite the failed lookup")
+	assert.Equal(t, stale, testpkg.ActiveGroupLastActivity(t, k.db, sessionID), "the failed lookup skips the heartbeat")
+}
+
+// failDeviceRoomLookup makes PostgreSQL reject the statement that looks up
+// the device's open session in roomID: a restrictive row policy for the
+// request role raises on that session's row while the running statement
+// filters on that room and device. Every other statement passes. The test
+// owns its database clone, so the policy stays there.
+func failDeviceRoomLookup(t *testing.T, k *kiosk, roomID, deviceID int64) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	marker := fmt.Sprintf("(room_id = %d) AND (device_id = %d)", roomID, deviceID)
+	_, err := k.db.ExecContext(ctx, fmt.Sprintf(`CREATE FUNCTION active.fail_device_room_lookup() RETURNS boolean LANGUAGE plpgsql AS $$
+BEGIN
+	IF strpos(current_query(), %s) > 0 THEN
+		RAISE EXCEPTION 'injected device-session lookup failure';
+	END IF;
+	RETURN true;
+END $$`, quoteLiteral(marker)))
+	require.NoError(t, err)
+	_, err = k.db.ExecContext(ctx, `CREATE POLICY fail_device_room_lookup ON active.groups AS RESTRICTIVE FOR SELECT TO phoenix_tenant USING (active.fail_device_room_lookup())`)
+	require.NoError(t, err)
+}
+
+func quoteLiteral(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }

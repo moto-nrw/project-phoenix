@@ -79,6 +79,7 @@ func TestScan_KeepsDeviceSessionAlive(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, tc.action, result.Action)
 			assert.Equal(t, []int64{deviceSessionID}, h.sessions.touched, "the device session gets exactly one heartbeat")
+			assert.Empty(t, h.sessions.outsideSavepoint, "every heartbeat lookup and write runs in the savepoint")
 		})
 	}
 }
@@ -95,6 +96,43 @@ func TestScan_DeviceSessionInRoomGetsOneHeartbeat(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{250}, h.sessions.touched)
+	assert.Empty(t, h.sessions.outsideSavepoint)
+}
+
+// A failed lookup of the device's session in the scanned room belongs to the
+// heartbeat: it runs in the savepoint, so the checkout before it stands and
+// the kiosk count falls back to the room.
+func TestScan_DeviceSessionLookupFailureKeepsCheckout(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.visits.current = &ports.CurrentVisit{ID: 55, EntryTime: fixedNow.Add(-time.Hour), Session: &ports.SessionRef{
+		ID: 201, RoomID: testRoomID, StartTime: fixedNow.Add(-time.Hour), Room: &ports.Room{ID: testRoomID, Name: "Klassenraum 1a"},
+	}}
+	h.sessions.deviceErr = errBoom
+	h.presence.roomCounts[testRoomID] = 2
+
+	result, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
+
+	require.NoError(t, err)
+	assert.Equal(t, devicescan.ScanActionCheckedOut, result.Action)
+	assert.Equal(t, []int64{55}, h.visits.ended)
+	assert.Zero(t, h.unit.rollbacks, "the checkout is not rolled back")
+	assert.Empty(t, h.sessions.touched)
+	assert.Equal(t, []string(nil), h.sessions.outsideSavepoint, "the failing lookup ran inside the savepoint")
+	require.NotNil(t, result.ActiveStudents)
+	assert.Equal(t, 2, *result.ActiveStudents)
+}
+
+func TestPickupInfo_HeartbeatRunsInSavepoint(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.sessions.current = &devicescan.Session{ID: deviceSessionID}
+
+	_, err := h.service().PickupInfo(context.Background(), testTag)
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{deviceSessionID}, h.sessions.touched)
+	assert.Empty(t, h.sessions.outsideSavepoint)
 }
 
 // Exempt paths: a device without a running session has nothing to keep

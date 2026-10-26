@@ -49,12 +49,16 @@ func (c fakeClock) Day(instant time.Time) calendar.Date { return calendar.DateFr
 type fakeUnit struct {
 	rollbacks     int
 	bestEffortErr error
+	// inSavepoint is true while a BestEffort callback runs.
+	inSavepoint bool
 }
 
 func (u *fakeUnit) BestEffort(ctx context.Context, fn func(context.Context) error) error {
 	if u.bestEffortErr != nil {
 		return u.bestEffortErr
 	}
+	u.inSavepoint = true
+	defer func() { u.inSavepoint = false }()
 	_ = fn(ctx)
 	return nil
 }
@@ -267,15 +271,27 @@ type fakeSessions struct {
 	supervisorsErr error
 	replaced       [][]int64
 	replaceErr     error
+
+	// unit lets the fake record heartbeat lookups and writes that ran outside
+	// a savepoint (#5004).
+	unit             *fakeUnit
+	outsideSavepoint []string
 }
 
 func (s *fakeSessions) ListOpenInRoom(context.Context, int64) ([]devicescan.Session, error) {
 	return s.open, s.listErr
 }
+func (s *fakeSessions) recordSavepoint(call string) {
+	if s.unit != nil && !s.unit.inSavepoint {
+		s.outsideSavepoint = append(s.outsideSavepoint, call)
+	}
+}
 func (s *fakeSessions) FindDeviceSessionInRoom(context.Context, int64, int64) (*devicescan.Session, error) {
+	s.recordSavepoint("FindDeviceSessionInRoom")
 	return s.deviceSession, s.deviceErr
 }
 func (s *fakeSessions) Current(context.Context, int64) (*devicescan.Session, error) {
+	s.recordSavepoint("Current")
 	return s.current, s.currentErr
 }
 func (s *fakeSessions) Start(_ context.Context, input devicescan.NewSession) (devicescan.Session, error) {
@@ -305,6 +321,7 @@ func (s *fakeSessions) End(_ context.Context, id int64) error {
 	return s.endErr
 }
 func (s *fakeSessions) UpdateSessionActivity(_ context.Context, id int64) error {
+	s.recordSavepoint("UpdateSessionActivity")
 	s.touched = append(s.touched, id)
 	return s.touchErr
 }
@@ -523,6 +540,7 @@ func newHarness(t *testing.T) *harness {
 		clock:      fakeClock{now: fixedNow},
 		logger:     slog.New(slog.DiscardHandler),
 	}
+	h.sessions.unit = h.unit
 	return h
 }
 

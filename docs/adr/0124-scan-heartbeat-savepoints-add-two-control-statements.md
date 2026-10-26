@@ -7,8 +7,11 @@ status: accepted
 PR #5040 promises that a failed optional session heartbeat cannot discard a
 successful scan. PostgreSQL statement errors abort the request transaction;
 logging alone does not recover it. The device-scan workflow therefore runs
-its heartbeat lookup and update in the existing tenant runtime's savepoint,
-through its consumer-owned unit-of-work port. Ordinary operation errors roll
+every heartbeat statement in one savepoint of the existing tenant runtime,
+through its consumer-owned unit-of-work port: the lookup of the device's
+session in the scanned room, the lookup of its running session and the
+update. No heartbeat lookup runs before the savepoint, because a failed
+statement there would abort the transaction the savepoint needs. Ordinary operation errors roll
 back to that savepoint; savepoint-control failures fail the request.
 
 The `backend/test/query_budgets.go` entries this PR adds therefore include
@@ -18,8 +21,8 @@ count without it (36, 24, 42). The two statements are one `SAVEPOINT` and one
 `RELEASE SAVEPOINT` per successful scan. The existing tests
 still count every statement from BEGIN through COMMIT and require flat counts
 with three and eight children. Failure-path regression tests verify that real
-PostgreSQL lookup and update errors leave the preceding attendance or visit
-write committed.
+PostgreSQL lookup and update errors, including an error in the room lookup of
+a detailed checkout, leave the preceding attendance or visit write committed.
 
 The runtime binding also adds exactly nine production lines in
 `modules/devicescan/compose`: the `errors` import and `unitOfWork.BestEffort`,
