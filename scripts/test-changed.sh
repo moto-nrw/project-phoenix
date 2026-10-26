@@ -99,13 +99,7 @@ run_frontend_vitest() {
     # The changed-test command is unattended. CI mode lets pnpm recreate a
     # stale generated modules directory from the frozen lockfile.
     CI=true pnpm install --frozen-lockfile
-    if [[ "$(uname -s)" == Darwin && "$(uname -m)" == arm64 ]]; then
-      # The local Node/V8 build can SIGSEGV in ConcurrentBaselineCompiler.
-      # Keep Sparkplug enabled, but compile on the foreground thread instead.
-      node --no-concurrent-sparkplug node_modules/vitest/vitest.mjs run "$@"
-    else
-      pnpm vitest run "$@"
-    fi
+    pnpm vitest run "$@"
   )
 }
 
