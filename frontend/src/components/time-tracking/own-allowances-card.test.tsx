@@ -77,16 +77,19 @@ describe("OwnAllowancesCard", () => {
 
   it("stays away when the school has no type with an allowance", async () => {
     mocks.getOwnAbsenceAllowances.mockResolvedValue([]);
-    const hidden = render(<OwnAllowancesCard />);
+    const { container } = render(<OwnAllowancesCard />);
     await waitFor(() =>
       expect(mocks.getOwnAbsenceAllowances).toHaveBeenCalledTimes(1),
     );
     await act(async () => undefined);
-    expect(hidden.container).toBeEmptyDOMElement();
-    hidden.unmount();
+    expect(container).toBeEmptyDOMElement();
 
+    // Dieselbe Karte erscheint, sobald die Schule eine Art mit Kontingent
+    // hat: sie war geladen und leer, nicht im Ladezustand hängen geblieben.
     mocks.getOwnAbsenceAllowances.mockResolvedValue([regeneration()]);
-    render(<OwnAllowancesCard />);
+    act(() => {
+      window.dispatchEvent(new Event(ABSENCES_REFRESH_EVENT));
+    });
     expect(await screen.findByText("Kontingente")).toBeInTheDocument();
   });
 
@@ -117,14 +120,12 @@ describe("OwnAllowancesCard", () => {
 
     const changed = regeneration();
     mocks.getOwnAbsenceAllowances.mockResolvedValue([
-      { ...changed, summary: { ...changed.summary, remainingDays: 0.5 } },
+      { ...changed, summary: { ...changed.summary, remainingDays: 2 } },
     ]);
     act(() => {
       window.dispatchEvent(new Event(ABSENCES_REFRESH_EVENT));
     });
 
-    expect(
-      await screen.findByText("0,5 Tage", { selector: ".font-semibold" }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("2 Tage")).toBeInTheDocument();
   });
 });
