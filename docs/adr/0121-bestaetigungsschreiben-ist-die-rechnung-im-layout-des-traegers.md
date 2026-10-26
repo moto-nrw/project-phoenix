@@ -114,7 +114,7 @@ Design von moto drucken, aber keinen Brief.
     - Transaktionsregister: `TraegerSettings.TraegerTexts` als Stelle der
       Träger-Transaktion (wie `Schema`, ADR 0107).
     - Budget `modules/parentbilling/compose` 27 → 35 Zeilen
-      (`moduleComposeBudgetTotal` 12641 → 12649).
+      (`moduleComposeBudgetTotal` 12639 → 12647).
     - Datenlebenszyklus: zwei Einträge mit `scope: organization`.
 
 ## Verworfene Optionen

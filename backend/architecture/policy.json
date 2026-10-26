@@ -4053,10 +4053,6 @@
       "write_owner": "audit-platform"
     },
     {
-      "name": "auth.account_permissions",
-      "write_owner": "identity-access"
-    },
-    {
       "name": "auth.account_roles",
       "write_owner": "identity-access"
     },
@@ -5082,7 +5078,6 @@
       "package": "modules/parentrequestfeedprojection/internal/adapters/postgres",
       "data_objects": [
         "active.excused_absence_requests",
-        "auth.account_permissions",
         "auth.account_roles",
         "auth.account_tenants",
         "auth.accounts",
@@ -5297,7 +5292,6 @@
         "audit.time_tracking_deletions",
         "audit.unregistered_tag_scans",
         "audit.work_session_edits",
-        "auth.account_permissions",
         "auth.account_roles",
         "auth.account_tenants",
         "auth.accounts",

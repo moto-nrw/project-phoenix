@@ -1,5 +1,12 @@
 import type { HelpIconName } from "~/components/help/help-icons";
 import {
+  hiddenHelpTopicIds,
+  helpAudienceIncludes,
+  type HelpAudience,
+  type HelpGroupMode,
+  type HelpPresenceMode,
+} from "~/lib/help-topic-availability";
+import {
   HELP_TOPICS,
   type HelpRole,
   type HelpTopicId,
@@ -10,8 +17,7 @@ import {
 // ohne die Artikeltexte zu laden. Hier nur weitergereicht, damit die
 // bestehenden Importe aus dieser Datei weiter stimmen.
 export type { HelpRole };
-export type HelpPresenceMode = "detailed" | "binary" | "unknown";
-export type HelpGroupMode = "fixed_groups" | "open_care" | "unknown";
+export type { HelpGroupMode, HelpPresenceMode };
 export type HelpTopicGroup =
   // Betreuungskraefte
   | "einstieg"
@@ -60,7 +66,7 @@ export interface HelpTopic {
    * eine Betreuungskraft. Zwei fast gleiche Artikel waeren sonst die Folge,
    * und einer davon liefe irgendwann hinterher. `"all"` heisst jede Rolle.
    */
-  readonly audience: "all" | HelpRole | readonly HelpRole[];
+  readonly audience: HelpAudience;
   readonly icon: HelpIconName;
   readonly requirements?: readonly string[];
   readonly steps: readonly string[];
@@ -91,10 +97,7 @@ export function helpTopicMatchesRole(
   topic: HelpTopic,
   role: HelpRole,
 ): boolean {
-  const { audience } = topic;
-  if (audience === "all") return true;
-  if (Array.isArray(audience)) return audience.includes(role);
-  return audience === role;
+  return helpAudienceIncludes(topic.audience, role);
 }
 
 function loginResult(
@@ -9558,57 +9561,6 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherFeatureMissingTopic(),
 ] as const;
 
-// Themen, die es ohne NFC in der OGS schlicht nicht gibt: das Tablet, die
-// Armbaender und der Bereich `Aktivitaeten`, den moto nur mit NFC anzeigt.
-// Sagt eine OGS ausdruecklich "kein NFC", verschwinden sie aus Seitenleiste
-// und Suche, statt eine Nichtverfuegbarkeit zu erklaeren.
-//
-// Nur bei einem ausdruecklichen `false`. Ist die Arbeitsweise unbekannt
-// (`null`), bleiben die Themen stehen und erklaeren, wovon sie abhaengen --
-// sonst verschwiegen wir jemandem ein Thema, den wir nie gefragt haben.
-const NFC_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
-  HELP_TOPICS.tabletLogin,
-  HELP_TOPICS.tagAssignment,
-  HELP_TOPICS.nfcWorkTime,
-  HELP_TOPICS.nfcSupervision,
-  HELP_TOPICS.nfcCheckIn,
-  HELP_TOPICS.nfcProblem,
-  HELP_TOPICS.manageActivity,
-  // Ohne NFC hat die OGS keine Geraete, die sie verwalten koennte -- und der
-  // Aktivitaetenkatalog fehlt ihr ebenfalls: beide Seiten stehen in
-  // `NFC_ONLY_HREFS` (dashboard/sidebar.tsx).
-  HELP_TOPICS.leadDevices,
-  HELP_TOPICS.leadActivities,
-  HELP_TOPICS.leadTabletSetup,
-  HELP_TOPICS.leadNfcSettings,
-]);
-
-// Dasselbe fuer die einfache Anwesenheit: haelt eine OGS nur fest, ob ein
-// Kind da ist, gibt es weder Raeume noch Aufsichten noch Aktivitaeten -- und
-// damit auch keinen Aufenthaltsort, den man aendern koennte. Das An- und
-// Abmelden steht als eigenes Thema in der Liste.
-//
-// Wieder nur bei einem ausdruecklichen "binary". Bei unbekannter
-// Arbeitsweise bleiben die Themen stehen und erklaeren, wovon sie abhaengen.
-const DETAILED_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
-  HELP_TOPICS.rooms,
-  HELP_TOPICS.activeSupervision,
-  // Die Lernzeit führt man nur in `Aktuelle Aufsicht`.
-  HELP_TOPICS.homeworkFeedback,
-  HELP_TOPICS.manageActivity,
-  HELP_TOPICS.changeLocation,
-  // Der Tagesplan liegt hinter dem BinaryModeGuard
-  // (`app/[tenant]/(protected)/tagesplan/page.tsx`).
-  HELP_TOPICS.dayPlan,
-]);
-
-// Und dasselbe fuer die offene Betreuung: ohne feste eigene Gruppen gibt es
-// weder `Gruppen` noch eine Gruppe, die man uebergeben koennte.
-const FIXED_GROUPS_ONLY_TOPIC_IDS: ReadonlySet<HelpTopicId> = new Set([
-  HELP_TOPICS.ownGroups,
-  HELP_TOPICS.transferGroup,
-]);
-
 /** So viele Themen zeigt die Startseite einer Rolle als Kacheln. */
 export const HOME_TOPIC_COUNT = 6;
 
@@ -9692,16 +9644,7 @@ export function getHelpTopics(
     analyticsConsentTopic(),
   ];
 
-  const hidden = new Set<HelpTopicId>();
-  if (nfcEnabled === false) {
-    for (const id of NFC_ONLY_TOPIC_IDS) hidden.add(id);
-  }
-  if (presenceMode === "binary") {
-    for (const id of DETAILED_ONLY_TOPIC_IDS) hidden.add(id);
-  }
-  if (groupMode === "open_care") {
-    for (const id of FIXED_GROUPS_ONLY_TOPIC_IDS) hidden.add(id);
-  }
+  const hidden = hiddenHelpTopicIds(presenceMode, groupMode, nfcEnabled);
   if (hidden.size === 0) return topics;
 
   return topics.filter((topic) => !hidden.has(topic.id));

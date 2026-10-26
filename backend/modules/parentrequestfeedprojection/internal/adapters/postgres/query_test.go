@@ -121,26 +121,6 @@ func TestResolveAccessRequiresSchoolWideRightsAndActiveMembership(t *testing.T) 
 	require.False(t, access.GeneralRequests, "a plain account must not get a school-wide feed")
 	require.False(t, access.EnrollmentRequests)
 
-	result, err := db.ExecContext(testpkg.Ctx(t), `
-		INSERT INTO auth.account_permissions (tenant_id, account_id, permission_id, granted)
-		SELECT ?, ?, id, TRUE
-		FROM auth.permissions
-		WHERE name = 'config:manage'
-	`, tenantID, account.ID)
-	require.NoError(t, err)
-	rows, err := result.RowsAffected()
-	require.NoError(t, err)
-	require.EqualValues(t, 1, rows, "the seeded config:manage permission must exist")
-
-	err = testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		var resolveErr error
-		access, found, resolveErr = ResolveAccess(ctx, tx, tenantID, account.ID)
-		return resolveErr
-	})
-	require.NoError(t, err)
-	require.True(t, found)
-	require.False(t, access.EnrollmentRequests, "a retired direct grant no longer opens the feed (#4485)")
-
 	testpkg.GrantTestPermission(t, db, tenantID, account.ID, "config:manage")
 	err = testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, tx bun.Tx) error {
 		var resolveErr error

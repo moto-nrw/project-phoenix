@@ -42,7 +42,8 @@ type notificationPushSubscription struct {
 // this whole epic is built to avoid.
 func TestNotificationPreferencesBackfill(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 
 	parentAccount := testpkg.CreateTestAccount(t, db, "backfill-parent@example.com")
@@ -229,7 +230,8 @@ func TestNotificationPreferencesBackfill(t *testing.T) {
 // no-op, so nothing takes it back.
 func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 
 	env := setupBackfillTenants(t, db)
@@ -281,7 +283,8 @@ func TestNotificationPreferencesBackfillOnlyForSchoolsWithDispatchEnabled(t *tes
 // wrong (data minimisation).
 func TestNotificationPreferencesBackfillSkipsInactiveGuardians(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 
 	env := setupBackfillTenants(t, db)

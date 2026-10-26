@@ -175,7 +175,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // exactly 7 LOC.
 // ADR 0121: the confirmation letter constructor of
 // modules/parentbilling/compose adds exactly 8 LOC.
-const moduleComposeBudgetTotal = 12649
+const moduleComposeBudgetTotal = 12647
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -256,7 +256,7 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,
 	"workflows/staffclock/compose":       36,
-	"workflows/staffoffboarding/compose": 76,
+	"workflows/staffoffboarding/compose": 74,
 	// Added by ADR 0104: construction of the Träger projection, no retained logic.
 	"modules/traegerview/compose": 20,
 	// Added by ADR 0076: construction and the ambient transaction guard.
