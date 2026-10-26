@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -73,6 +72,8 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/cancel", rs.cancelAbsence)
 		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/absences/{id}/resubmit", rs.resubmitAbsence)
 		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/vacation/quota", rs.getOwnVacationQuota)
+		// Own Kontingente of the school's absence types, read-only (#4971)
+		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/absence-allowances", rs.getOwnAbsenceAllowances)
 
 		// Presence map - for internal use by staff page
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/presence-map", rs.getPresenceMap)
@@ -598,7 +599,7 @@ func (rs *Resource) getOwnVacationQuota(w http.ResponseWriter, r *http.Request) 
 func parseYearParam(r *http.Request) (int, error) {
 	yearStr := r.URL.Query().Get("year")
 	if yearStr == "" {
-		return time.Now().Year(), nil
+		return calendar.TodayDate().Year(), nil
 	}
 	year, err := strconv.Atoi(yearStr)
 	if err != nil || year < 2000 || year > 2100 {

@@ -110,3 +110,7 @@ type TenantTransaction func(context.Context, int64, func(context.Context) error)
 // ShiftResponses renders the shared shift wire values through a Root-bound adapter.
 // The time-tracking adapter does not import a peer HTTP package.
 type ShiftResponses func([]workforce.PlannedShift) any
+
+// AllowanceResponses renders the staff member's own Kontingente in the wire
+// form of the absence-type administration through a Root-bound adapter.
+type AllowanceResponses func([]workforce.AbsenceTypeAllowanceAccount) any
