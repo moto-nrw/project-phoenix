@@ -15,6 +15,7 @@ import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { toISODate, todayISO } from "~/lib/date-helpers";
+import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
   type BillingEmergencyContact,
@@ -171,9 +172,14 @@ export function BillingLettersModal({
     try {
       const file = await previewBillingLetter(runId, value);
       const url = URL.createObjectURL(file.blob);
-      if (tab) tab.location.href = url;
-      else globalThis.open(url, "_blank");
-      globalThis.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      if (tab) {
+        tab.location.href = url;
+        globalThis.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } else {
+        // The browser refused the tab: the preview comes as a download.
+        URL.revokeObjectURL(url);
+        downloadBlob(file.blob, file.filename);
+      }
     } catch (err) {
       tab?.close();
       logger.error("billing_letter_preview_failed", {

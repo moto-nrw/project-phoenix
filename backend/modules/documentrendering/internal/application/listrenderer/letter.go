@@ -49,6 +49,8 @@ const (
 	letterFactGap     = 3.0  // space before a table
 	letterHeadGap     = 12.0 // least space between the head and the subject
 	letterFactsGap    = 10.0 // least space between the letterhead and the facts
+	letterValueShare  = 0.4  // widest share of a value in a table of the body
+	letterColumnGap   = 16.0 // space between label and value in a table
 )
 
 type letterLayout struct {
@@ -418,8 +420,9 @@ func (l *letterLayout) writeBlock(block listrecords.LetterBlock) error {
 	return nil
 }
 
-// writeFactRow prints a label on the left and its value right-aligned; a
-// long label wraps beside the value.
+// writeFactRow prints a label on the left and its value right-aligned. Both
+// wrap in their column: the value takes at most letterValueShare of the
+// width, the label the rest, and the row is as high as the longer one.
 func (l *letterLayout) writeFactRow(fact listrecords.LetterFact) error {
 	style := styleNormal
 	if fact.Bold {
@@ -428,13 +431,11 @@ func (l *letterLayout) writeFactRow(fact listrecords.LetterFact) error {
 	if err := l.style(style, letterBodySize, colorBody); err != nil {
 		return err
 	}
-	valueW, err := l.measure(fact.Value)
+	labels, values, err := l.factColumns(fact)
 	if err != nil {
 		return err
 	}
-	labelW := max(l.contentWidth()-valueW-16, l.contentWidth()/2)
-	lines := l.wrap(fact.Label, labelW)
-	if err := l.ensure(float64(len(lines)) * letterBodyLine); err != nil {
+	if err := l.ensure(float64(max(len(labels), len(values))) * letterBodyLine); err != nil {
 		return err
 	}
 	if err := l.style(style, letterBodySize, colorBody); err != nil {
@@ -444,16 +445,39 @@ func (l *letterLayout) writeFactRow(fact listrecords.LetterFact) error {
 		l.setStroke(colorBorder)
 		l.pdf.Line(letterMarginLeft, l.y, l.w-letterMarginRight, l.y)
 	}
-	if err := l.emit(l.w-letterMarginRight-valueW, l.y+letterBodySize, fact.Value); err != nil {
-		return err
-	}
-	for _, line := range lines {
-		if err := l.emit(letterMarginLeft, l.y+letterBodySize, line); err != nil {
-			return err
+	for i := range max(len(labels), len(values)) {
+		if i < len(values) {
+			width, err := l.measure(values[i])
+			if err != nil {
+				return err
+			}
+			if err := l.emit(l.w-letterMarginRight-width, l.y+letterBodySize, values[i]); err != nil {
+				return err
+			}
+		}
+		if i < len(labels) {
+			if err := l.emit(letterMarginLeft, l.y+letterBodySize, labels[i]); err != nil {
+				return err
+			}
 		}
 		l.y += letterBodyLine
 	}
 	return nil
+}
+
+// factColumns wraps the value into its column and the label into the room
+// the value leaves.
+func (l *letterLayout) factColumns(fact listrecords.LetterFact) ([]string, []string, error) {
+	values := l.wrap(fact.Value, l.contentWidth()*letterValueShare)
+	valueW := 0.0
+	for _, line := range values {
+		width, err := l.measure(line)
+		if err != nil {
+			return nil, nil, err
+		}
+		valueW = max(valueW, width)
+	}
+	return l.wrap(fact.Label, l.contentWidth()-valueW-letterColumnGap), values, nil
 }
 
 // writeFooter prints the footer lines below a hairline at the foot of the

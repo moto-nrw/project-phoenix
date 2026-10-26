@@ -368,6 +368,41 @@ describe("TraegerBillingRunPage", () => {
     expect(api.createBillingLetters).not.toHaveBeenCalled();
   });
 
+  it("downloads the preview when the browser blocks the tab", async () => {
+    const blob = new Blob(["%PDF"], { type: "application/pdf" });
+    api.fetchBillingRun.mockResolvedValue(RELEASED);
+    api.previewBillingLetter.mockResolvedValue({
+      blob,
+      filename: "bestaetigung-fe-0001.pdf",
+    });
+    const open = vi.spyOn(globalThis, "open").mockReturnValue(null);
+    const createURL = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:preview");
+    const revokeURL = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => undefined);
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Schreiben erstellen" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Vorschau ansehen" }),
+    );
+
+    await waitFor(() =>
+      expect(downloadBlob).toHaveBeenCalledWith(
+        blob,
+        "bestaetigung-fe-0001.pdf",
+      ),
+    );
+    expect(open).toHaveBeenCalledTimes(1);
+    open.mockRestore();
+    createURL.mockRestore();
+    revokeURL.mockRestore();
+  });
+
   it("names the missing bank account when the letters are refused", async () => {
     api.fetchBillingRun.mockResolvedValue(RELEASED);
     api.createBillingLetters.mockRejectedValue(

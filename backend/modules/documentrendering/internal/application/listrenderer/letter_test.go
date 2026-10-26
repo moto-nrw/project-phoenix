@@ -256,3 +256,43 @@ func TestLetterFactsStartBelowALongLetterhead(t *testing.T) {
 		t.Fatalf("the facts end at %.1f, inside the letterhead ending at %.1f", layout.headBottom, layout.senderBottom)
 	}
 }
+
+// A long value of a table, such as an emergency number with a note, wraps
+// in its column instead of running over the label or off the page.
+func TestLetterTableWrapsALongValue(t *testing.T) {
+	t.Parallel()
+
+	letter := sampleLetter()
+	long := "0170 0000001 oder 0170 0000002, montags bis freitags zwischen 8 und 16 Uhr, sonst über die Zentrale"
+	letter.Blocks = []listrecords.LetterBlock{{Facts: []listrecords.LetterFact{{Label: "OGS Am Lindenhof", Value: long}}}}
+	_, trace := traceLetter(t, letter)
+	var parts []string
+	for _, line := range trace {
+		if strings.Contains(long, line) && line != long {
+			parts = append(parts, line)
+		}
+	}
+	if len(parts) < 2 || !strings.Contains(strings.Join(parts, " "), "über die Zentrale") {
+		t.Fatalf("the long value was not wrapped into its column: %q", trace)
+	}
+	chrome, err := newLetterChrome("x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	layout, err := newLetterLayout(chrome, letter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := layout.setFont(styleNormal, letterBodySize); err != nil {
+		t.Fatal(err)
+	}
+	for _, part := range parts {
+		width, err := layout.measure(part)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if width > layout.contentWidth()*letterValueShare+0.5 {
+			t.Fatalf("%q is %.1f wide, more than its column", part, width)
+		}
+	}
+}
