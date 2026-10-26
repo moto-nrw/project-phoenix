@@ -3,6 +3,7 @@ package listexport
 import (
 	"bytes"
 	"encoding/csv"
+	"regexp"
 	"strings"
 
 	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
@@ -44,9 +45,14 @@ func renderCSV(doc listrecords.Document) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// csvCell keeps a value from being read as a spreadsheet formula.
+// germanNumber is a plain amount such as "-1.234,56": a spreadsheet reads it
+// as a number, never as a formula (#4672).
+var germanNumber = regexp.MustCompile(`^-?\d{1,3}(\.\d{3})*(,\d+)?$|^-?\d+(,\d+)?$`)
+
+// csvCell keeps a value from being read as a spreadsheet formula. A negative
+// amount stays a number.
 func csvCell(value string) string {
-	if value != "" && strings.ContainsRune("=+-@\t\r", rune(value[0])) {
+	if value != "" && strings.ContainsRune("=+-@\t\r", rune(value[0])) && !germanNumber.MatchString(value) {
 		return "'" + value
 	}
 	return value

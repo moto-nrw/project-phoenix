@@ -37,3 +37,21 @@ func TestCSVExportIsAFlatTableForSpreadsheets(t *testing.T) {
 	}, strings.Split(strings.TrimSuffix(strings.TrimPrefix(text, "\xEF\xBB\xBF"), "\n"), "\n"),
 		"title, filters and group headings stay out; a formula is defused and style markers are removed")
 }
+
+func TestCSVKeepsNegativeAmountsAsNumbersAndDefusesFormulas(t *testing.T) {
+	t.Parallel()
+	for value, want := range map[string]string{
+		"-32,50":     "-32,50",
+		"-1.234,56":  "-1.234,56",
+		"-1234":      "-1234",
+		"-1+1":       "'-1+1",
+		"-2,5-3":     "'-2,5-3",
+		"-A1":        "'-A1",
+		"+32,50":     "'+32,50",
+		"-":          "'-",
+		"-12.34,5":   "'-12.34,5",
+		"-32,50\n=1": "'-32,50\n=1",
+	} {
+		assert.Equal(t, want, csvCell(value), "cell %q", value)
+	}
+}

@@ -1,7 +1,8 @@
 /**
  * Client of the billing runs in the Träger portal (#4668): the runs of a
  * holiday period with their preview, corrections with a reason, the release
- * that issues the numbered invoices, and the number range of the invoices.
+ * that issues the numbered invoices, the overview of a released run for the
+ * Kämmerei, and the number range of the invoices.
  * Money stays whole cent. Backend int64 IDs leave here as strings.
  */
 
@@ -382,17 +383,17 @@ export async function createBillingLetters(
   );
 }
 
-/** A PDF with the file name the backend chose. */
-export interface BillingLetterFile {
+/** A file with the name the backend chose. */
+export interface BillingFile {
   readonly blob: Blob;
   readonly filename: string;
 }
 
-async function letterFile(
+async function billingFile(
   path: string,
   init: RequestInit,
   fallbackName: string,
-): Promise<BillingLetterFile> {
+): Promise<BillingFile> {
   const response = await transportFetch(path, {
     credentials: "include",
     cache: "no-store",
@@ -422,8 +423,8 @@ async function letterFile(
 export async function previewBillingLetter(
   runId: string,
   input: BillingLettersInput,
-): Promise<BillingLetterFile> {
-  return letterFile(
+): Promise<BillingFile> {
+  return billingFile(
     `${runPath(runId)}/letters/preview`,
     {
       method: "POST",
@@ -438,8 +439,8 @@ export async function previewBillingLetter(
 export async function downloadBillingLetter(
   runId: string,
   documentId: string,
-): Promise<BillingLetterFile> {
-  return letterFile(
+): Promise<BillingFile> {
+  return billingFile(
     `${runPath(runId)}/documents/${encodeURIComponent(documentId)}/letter`,
     {},
     "bestaetigung.pdf",
@@ -447,10 +448,8 @@ export async function downloadBillingLetter(
 }
 
 /** All stored letters of the run in one PDF to print (#4670). */
-export async function printBillingLetters(
-  runId: string,
-): Promise<BillingLetterFile> {
-  return letterFile(
+export async function printBillingLetters(runId: string): Promise<BillingFile> {
+  return billingFile(
     `${runPath(runId)}/letters/print`,
     {},
     "bestaetigungsschreiben.pdf",
@@ -544,6 +543,23 @@ export async function mailBillingLetter(
       `${runPath(runId)}/documents/${encodeURIComponent(documentId)}/mailings`,
       { method: "POST" },
     ),
+  );
+}
+
+export type BillingRunExportFormat = "pdf" | "xlsx" | "csv";
+
+/**
+ * The overview of a released run for the Kämmerei (#4672): every invoice
+ * with its positions and sums.
+ */
+export async function downloadBillingRunOverview(
+  id: string,
+  format: BillingRunExportFormat,
+): Promise<BillingFile> {
+  return billingFile(
+    `${runPath(id)}/export?format=${format}`,
+    {},
+    `abrechnungsanordnung.${format}`,
   );
 }
 

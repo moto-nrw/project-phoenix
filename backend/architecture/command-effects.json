@@ -44944,6 +44944,39 @@
     },
     {
       "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.Renderer.Render",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.Render",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.Render",
+      "target_owner": "document-rendering",
+      "binding_digest": "dc5b0dd0d20aee96fd07f08164831c1b",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/internal/application/listrenderer.RendererService.Render: the list renderer of Document Rendering turns the overview of a released billing run for the Kämmerei into a PDF, Excel or CSV file; it stores nothing and decides no access (#4672, ADR 0122)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.Renderer.Render",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RendererService.Render",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RendererService.Render",
+      "target_owner": "document-rendering",
+      "binding_digest": "f70c5aa84646dbadf54e00aa6b06f03b",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.RendererService.Render: the list renderer of Document Rendering turns the overview of a released billing run for the Kämmerei into a PDF, Excel or CSV file; it stores nothing and decides no access (#4672, ADR 0122)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.Renderer.Render",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.Renderer.Render",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.Renderer.Render",
+      "target_owner": "document-rendering",
+      "binding_digest": "1a45f68068a265b44d9300aa9d46bba8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.Renderer.Render: the list renderer of Document Rendering turns the overview of a released billing run for the Kämmerei into a PDF, Excel or CSV file; it stores nothing and decides no access (#4672, ADR 0122)."
+    },
+    {
+      "source_owner": "parent-billing",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.EnqueueLetterMail",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueLetterMail",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",

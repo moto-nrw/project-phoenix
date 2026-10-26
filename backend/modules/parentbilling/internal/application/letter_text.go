@@ -225,15 +225,7 @@ func childNames(children []parentbilling.BillingChild) string {
 
 // formatEuro prints cents as "1.234,50 €"; a discount keeps its minus.
 func formatEuro(cents int64) string {
-	sign := ""
-	if cents < 0 {
-		sign, cents = "-", -cents
-	}
-	euros := fmt.Sprint(cents / 100)
-	for i := len(euros) - 3; i > 0; i -= 3 {
-		euros = euros[:i] + "." + euros[i:]
-	}
-	return fmt.Sprintf("%s%s,%02d €", sign, euros, cents%100)
+	return formatAmount(cents) + " €"
 }
 
 func germanDate(date calendar.Date) string {

@@ -1,7 +1,9 @@
-// Package letterpdf binds the letter renderer of the Elternabrechnung to the
-// letter layout of Document Rendering (#4669, ADR 0121). It translates the
-// owner's letter into the Document Rendering contract and stores nothing.
-package letterpdf
+// Package rendering binds the renderers of the Elternabrechnung to Document
+// Rendering: the confirmation letters to its letter layout (#4669, ADR 0121)
+// and the overview of a run to its list renderer (#4672, ADR 0122). It
+// translates the owner's values into the Document Rendering contract and
+// stores nothing.
+package rendering
 
 import (
 	"errors"
@@ -12,19 +14,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application"
 )
 
-// Renderer lays out the confirmation letters.
+// Renderer lays out the confirmation letters and the overview of a run.
 type Renderer struct {
 	letters lists.LetterRenderer
+	tables  lists.Renderer
 }
 
 var (
 	_ application.LetterRenderer = (*Renderer)(nil)
 	_ application.LetterCombiner = (*Renderer)(nil)
+	_ application.TableRenderer  = (*Renderer)(nil)
 )
 
 // NewRenderer returns the renderer over Document Rendering.
 func NewRenderer() *Renderer {
-	return &Renderer{letters: lists.NewLetterRenderer()}
+	return &Renderer{letters: lists.NewLetterRenderer(), tables: lists.NewRenderer()}
 }
 
 // RenderLetter renders one letter as a PDF.
