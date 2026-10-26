@@ -13,7 +13,10 @@ func installMealOrderErasurePreview(ctx context.Context, tx bun.Tx) error {
 	return err
 }
 
-const mealOrderErasurePreviewSQL = `
+const mealOrderErasurePreviewSQL = mealOrderErasurePreviewSQLPrefix + ` v_counts := v_counts || jsonb_build_object('auth.account_permissions',(SELECT count(*) FROM auth.account_permissions AS r WHERE r.tenant_id = p_school));
+` + mealOrderErasurePreviewSQLSuffix
+
+const mealOrderErasurePreviewSQLPrefix = `
  CREATE OR REPLACE FUNCTION platform.school_erasure_preview(p_school BIGINT,p_operator BIGINT)
  RETURNS JSONB LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $body$
  DECLARE v_counts JSONB := '{}';
@@ -83,8 +86,9 @@ const mealOrderErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('audit.unregistered_tag_scans',(SELECT count(*) FROM audit.unregistered_tag_scans AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('audit.wc_alias_migration_backup',(SELECT count(*) FROM audit.wc_alias_migration_backup AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('audit.work_session_edits',(SELECT count(*) FROM audit.work_session_edits AS r WHERE r.tenant_id = p_school));
- v_counts := v_counts || jsonb_build_object('auth.account_permissions',(SELECT count(*) FROM auth.account_permissions AS r WHERE r.tenant_id = p_school));
- v_counts := v_counts || jsonb_build_object('auth.account_roles',(SELECT count(*) FROM auth.account_roles AS r WHERE r.tenant_id = p_school));
+`
+
+const mealOrderErasurePreviewSQLSuffix = ` v_counts := v_counts || jsonb_build_object('auth.account_roles',(SELECT count(*) FROM auth.account_roles AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('auth.account_tenants',(SELECT count(*) FROM auth.account_tenants AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('auth.guardian_invitations',(SELECT count(*) FROM auth.guardian_invitations AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('auth.guardian_student_access',(SELECT count(*) FROM auth.guardian_student_access AS r WHERE r.tenant_id = p_school));
@@ -273,3 +277,9 @@ const mealOrderErasurePreviewSQL = `
  RETURN v_counts;
  END $body$;
 `
+
+// 1.15.646 removes only direct grants; the 1.15.605 SQL above stays unchanged.
+func installRetiredDirectPermissionsPreview(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, mealOrderErasurePreviewSQLPrefix+mealOrderErasurePreviewSQLSuffix)
+	return err
+}

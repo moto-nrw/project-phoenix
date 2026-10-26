@@ -19,18 +19,16 @@ func TestNewStaffDeletionCountsTheRemovedRowsAndTheStaffMember(t *testing.T) {
 		Membership: schoolmembership.Retirement{GroupAssignments: 10, ClassAssignments: 11},
 		Timetable:  timetable.OffboardingCounts{PlannedSupervisors: 12, InstanceAssignments: 13},
 		Workforce:  workforce.OffboardingCounts{Substitutions: 14, Shifts: 15, Series: 16, Absences: 17},
-		Access:     staffoffboarding.AccessResult{PermissionsRevoked: 18},
 	}
 
 	deletion := staffoffboarding.NewStaffDeletion(staffoffboarding.Actor{TenantID: tenantID, Username: "Frau Weber"}, result)
 
 	assert.Equal(t, staffoffboarding.StaffDeletion{
-		TenantID: tenantID, StaffID: staffID, RecordsDeleted: 1 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17 + 18,
+		TenantID: tenantID, StaffID: staffID, RecordsDeleted: 1 + 10 + 11 + 12 + 13 + 14 + 15 + 16 + 17,
 		DeletedBy: "Frau Weber", Reason: "staff offboarding",
 		Counts: map[string]int64{
 			"group_teacher": 10, "class_teachers": 11, "activity_supervisors": 12, "timetable_instance_staff": 13,
 			"group_substitutions": 14, "staff_shifts": 15, "staff_shift_series": 16, "staff_absences": 17,
-			"account_permissions": 18,
 		},
 	}, deletion)
 }

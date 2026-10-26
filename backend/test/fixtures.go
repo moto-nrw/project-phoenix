@@ -625,7 +625,7 @@ func cleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
 	require.NoError(tb, err)
 }
 
-// cleanupPermissionRecords removes permissions and their role/account associations.
+// cleanupPermissionRecords removes permissions and their role associations.
 func cleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64) {
 	tb.Helper()
 	if len(permissionIDs) == 0 {
@@ -636,12 +636,6 @@ func cleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64)
 
 	_, err := db.NewDelete().
 		TableExpr("auth.role_permissions").
-		Where("permission_id IN (?)", bun.List(permissionIDs)).
-		Exec(ctx)
-	require.NoError(tb, err)
-
-	_, err = db.NewDelete().
-		TableExpr("auth.account_permissions").
 		Where("permission_id IN (?)", bun.List(permissionIDs)).
 		Exec(ctx)
 	require.NoError(tb, err)

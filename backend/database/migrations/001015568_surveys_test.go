@@ -15,6 +15,7 @@ import (
 func TestSurveysKeepEarlierDeletionKinds(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := t.Context()
 	school := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, school)
@@ -42,6 +43,7 @@ func TestSurveysKeepEarlierDeletionKinds(t *testing.T) {
 func TestSurveysRollbackPreservesSchoolErasure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	school := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, school)
 	student := testpkg.CreateTestStudentForTenant(t, db, school, "Um", "Frage", "3a")

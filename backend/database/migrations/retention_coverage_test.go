@@ -148,7 +148,6 @@ var tableRetentions = map[string]tableRetention{
 	"audit.wc_alias_migration_backup":                       notPersonal("one-off migration backup of alias names"),
 	"audit.work_session_edits":                              parent("active.work_sessions"),
 	"auth.account_avatar_file_cleanup":                      own("hourly CleanupErasedAccountAvatars removes each intent immediately after file deletion or confirmed absence; failures remain for retry (#4756)"),
-	"auth.account_permissions":                              parent("auth.accounts"),
 	"auth.account_roles":                                    parent("auth.accounts"),
 	"auth.account_tenants":                                  parent("auth.accounts"),
 	"auth.accounts":                                         own("anonymized, not deleted, so messages, protocols and records of other people keep their reference: hourly token-cleanup, EraseUnusedAccounts -> SQL auth.erase_unused_accounts once no school needs the account (#4043)"),
