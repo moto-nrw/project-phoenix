@@ -9435,7 +9435,7 @@ function traegerHolidayRegistrationTopic(): HelpTopic {
       "Ein Kind ohne Schule Ihres Trägers melden Eltern als Feriengast an. Es wird dadurch kein Schulkind einer OGS.",
       "Eltern bekommen eine Bestätigung per E-Mail. Sie ist noch keine Zusage.",
       "Gesundheitsangaben stehen nur in der Anmeldung. Die Bestätigung nennt sie nicht.",
-      "Drei Monate nach der letzten Woche löscht moto die Anmeldungen.",
+      "Drei Monate nach der letzten Woche löscht moto die Anmeldungen. Ausgestellte Rechnungen und Bestätigungsschreiben bleiben.",
     ],
     differences: [
       "Sie sehen keinen Link? Dann ist der Ferienzeitraum noch ein Entwurf. Veröffentlichen Sie ihn zuerst.",

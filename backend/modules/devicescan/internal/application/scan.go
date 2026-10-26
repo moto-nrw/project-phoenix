@@ -224,7 +224,7 @@ func (s *Service) addSupervisor(ctx context.Context, device *devicescan.Principa
 const deviceAttributed int64 = 0
 
 // scanBinary toggles today's attendance row for a binary-mode tenant. The
-// scan stays device-attributed.
+// scan stays device-attributed and keeps the device session alive.
 func (s *Service) scanBinary(ctx context.Context, device *devicescan.PrincipalDevice, student *ports.Student, person *ports.Person) (*devicescan.ScanResult, error) {
 	// skipAuthCheck: the device and device-PIN layer already authorized this
 	// scan; the default path would also require a session supervisor, which
@@ -254,6 +254,9 @@ func (s *Service) scanBinary(ctx context.Context, device *devicescan.PrincipalDe
 		slog.Int64("student_id", student.ID),
 		slog.Int64("device_id", device.ID),
 	)
+	if err := s.touchDeviceSession(ctx, device.ID); err != nil {
+		return nil, err
+	}
 	return &devicescan.ScanResult{
 		Outcome:     devicescan.ScanOutcomeAttendance,
 		PersonID:    student.ID,
@@ -317,8 +320,9 @@ func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDev
 	}
 
 	s.applyCheckoutFlags(ctx, result, student, checkout.Visit)
-	if command.RoomID != nil {
-		result.ActiveStudents = s.resolveActiveStudentCount(ctx, checkin, *command.RoomID, device.ID)
+	result.ActiveStudents, err = s.resolveActiveStudentCount(ctx, checkin, command.RoomID, device.ID)
+	if err != nil {
+		return nil, err
 	}
 	s.applyPickupTime(ctx, result, student.ID, now)
 
