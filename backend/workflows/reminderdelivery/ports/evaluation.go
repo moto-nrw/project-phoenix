@@ -1,6 +1,10 @@
 package ports
 
-import "time"
+import (
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
 
 type Room struct {
 	ID   int64
@@ -40,6 +44,7 @@ const (
 
 type ActivityInstance struct {
 	ID        int64
+	Date      calendar.Date
 	Title     string
 	RoomID    int64
 	StartTime time.Time

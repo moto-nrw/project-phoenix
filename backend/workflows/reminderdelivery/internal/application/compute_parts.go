@@ -76,7 +76,7 @@ func (s *service) computeActivityPart(ctx context.Context, scope reminder.Scope,
 		nextChange = minFuture(nextChange, partNext)
 	}
 	if gates.runningOver {
-		part, partNext, rerr := s.runningOverPart(ctx, scope, roomIDs, instances, today, nowMin)
+		part, partNext, rerr := s.runningOverPart(ctx, scope, roomIDs, today, nowMin)
 		if rerr != nil {
 			return nil, nextChange, rerr
 		}
@@ -110,13 +110,17 @@ func (s *service) activityInputs(ctx context.Context, scope reminder.Scope, toda
 	return roomIDs, instances, nil
 }
 
-func (s *service) runningOverPart(ctx context.Context, scope reminder.Scope, roomIDs []int64, instances []*ports.ActivityInstance, today string, nowMin int) ([]reminder.Reminder, int, error) {
+func (s *service) runningOverPart(ctx context.Context, scope reminder.Scope, roomIDs []int64, today string, nowMin int) ([]reminder.Reminder, int, error) {
 	grace, err := s.runningOverMinutes(ctx)
 	if err != nil {
 		return nil, -1, err
 	}
 	if s.Instance == nil {
 		return nil, -1, nil
+	}
+	instances, err := s.Instance.FindActiveByTenant(ctx)
+	if err != nil {
+		return nil, -1, err
 	}
 	return s.runningOverReminders(ctx, scope, roomIDs, instances, today, nowMin, grace)
 }

@@ -230,6 +230,11 @@ func (w *world) FindByTenantAndDate(_ context.Context, _ string) ([]*ports.Activ
 	return w.instances, nil
 }
 
+func (w *world) FindActiveByTenant(_ context.Context) ([]*ports.ActivityInstance, error) {
+	w.hit("FindActiveByTenant")
+	return w.instances, nil
+}
+
 // --- studentReader ------------------------------------------------------------
 
 func (w *world) FindReadScopeByIDs(_ context.Context, ids []int64) (map[int64]*ports.Student, error) {

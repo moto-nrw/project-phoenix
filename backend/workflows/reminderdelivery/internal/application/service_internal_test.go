@@ -146,6 +146,7 @@ func (f fakePickup) GetBulkEffectivePickupTimesForDate(_ context.Context, _ []in
 
 type fakeInstance struct {
 	instances []*ports.ActivityInstance
+	active    []*ports.ActivityInstance
 	err       error
 }
 
@@ -173,6 +174,13 @@ func (f fakeRoom) FindByIDs(_ context.Context, ids []int64) ([]*ports.Room, erro
 }
 
 func (f fakeInstance) FindByTenantAndDate(_ context.Context, _ string) ([]*ports.ActivityInstance, error) {
+	return f.instances, f.err
+}
+
+func (f fakeInstance) FindActiveByTenant(_ context.Context) ([]*ports.ActivityInstance, error) {
+	if f.active != nil {
+		return f.active, f.err
+	}
 	return f.instances, f.err
 }
 
@@ -915,6 +923,7 @@ func TestPureHelpers(t *testing.T) {
 	assert.Equal(t, "10:05", formatMinutes(605))
 	assert.Equal(t, "00:00", formatMinutes(0))
 	assert.Equal(t, "09:55", formatMinutes(595))
+	assert.Equal(t, "2026-09-05T00:10:00+02:00", formatNextChangeAt(testDate, 1450))
 	assert.Equal(t, 605, minutesOfDay(wallClock(605)))
 	assert.Equal(t, "7", *int64String(7))
 }

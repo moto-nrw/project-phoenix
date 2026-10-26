@@ -19,6 +19,7 @@ import (
 	"context"
 	"strconv"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
@@ -49,15 +50,16 @@ func (c batchConfig) anyEnabled() bool { return c.anyPickup() || c.anyActivity()
 
 // batchInputs is everything read once for the whole tenant.
 type batchInputs struct {
-	today           string
-	nowMin          int
-	attendanceIDs   []int64
-	visitsByRoom    map[int64][]int64
-	roomsByStaff    map[int64][]int64
-	instances       []*ports.ActivityInstance
-	students        map[int64]*ports.Student
-	pickupTimes     map[int64]*ports.EffectivePickupTime
-	presenceByStaff map[int64][]int64
+	today            string
+	nowMin           int
+	attendanceIDs    []int64
+	visitsByRoom     map[int64][]int64
+	roomsByStaff     map[int64][]int64
+	instances        []*ports.ActivityInstance
+	runningInstances []*ports.ActivityInstance
+	students         map[int64]*ports.Student
+	pickupTimes      map[int64]*ports.EffectivePickupTime
+	presenceByStaff  map[int64][]int64
 	// assignedInstances holds, per staff member, the activity instances they
 	// are planned on and not absent from.
 	assignedInstances map[int64]map[int64]struct{}
@@ -416,9 +418,9 @@ func batchActivityResult(sc reminder.BatchScope, cfg batchConfig, in *batchInput
 			next = minFuture(next, assignedNext)
 		}
 		if cfg.runningOver {
-			due, runningNext := dueRunningOver(in.instances, activityScopeFilter(roomFilter, nil),
-				runningOverWindow{nowMin: in.nowMin, grace: cfg.runningOverGrace})
-			part = append(part, buildRunningOverReminders(due, in.nowMin, in.runningOver)...)
+			due, runningNext := dueRunningOver(in.runningInstances, activityScopeFilter(roomFilter, nil),
+				runningOverWindow{nowMin: in.nowMin, grace: cfg.runningOverGrace, today: calendar.Date(in.today)})
+			part = append(part, buildRunningOverReminders(due, calendar.Date(in.today), in.nowMin, in.runningOver)...)
 			next = minFuture(next, runningNext)
 		}
 		activityPart = part
@@ -472,7 +474,7 @@ func (s *service) renderBatchResults(recipients []reminder.BatchScope, pickupsBy
 		nextChange := sp.nextChange
 
 		activityPart, nextChange := batchActivityResult(sc, cfg, in, nextChange)
-		result := assembleResult(pickupPart, activityPart, nextChange)
+		result := assembleResult(pickupPart, activityPart, in.today, nextChange)
 		result.AssignedActivityInstanceIDs = assignedIDStrings(in.assignedInstances[sc.StaffID])
 		results[resultKey(sc)] = result
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
@@ -21,6 +22,7 @@ import (
 type runningOverWindow struct {
 	nowMin int
 	grace  int
+	today  calendar.Date
 }
 
 // runningOverFacts are the reads a due running-over reminder is rendered from:
@@ -52,7 +54,14 @@ func dueRunningOver(
 		if inScope != nil && !inScope(inst) {
 			continue
 		}
-		threshold := minutesOfDay(inst.EndTime) + w.grace
+		elapsedDays := 0
+		if w.today != "" && inst.Date != "" {
+			if inst.Date.After(w.today) {
+				continue
+			}
+			elapsedDays = inst.Date.DaysUntil(w.today)
+		}
+		threshold := minutesOfDay(inst.EndTime) + w.grace - elapsedDays*24*60
 		if w.nowMin >= threshold {
 			due = append(due, inst)
 			continue
@@ -74,7 +83,7 @@ func runningOverRoomIDs(due []*ports.ActivityInstance) map[int64]struct{} {
 // buildRunningOverReminders renders due blocks. Pure. A child counts once its
 // pickup time is reached (pickup minute <= now); a child without a pickup
 // time for today never counts.
-func buildRunningOverReminders(due []*ports.ActivityInstance, nowMin int, facts runningOverFacts) []reminder.Reminder {
+func buildRunningOverReminders(due []*ports.ActivityInstance, today calendar.Date, nowMin int, facts runningOverFacts) []reminder.Reminder {
 	out := make([]reminder.Reminder, 0, len(due))
 	for _, inst := range due {
 		count := 0
@@ -94,11 +103,18 @@ func buildRunningOverReminders(due []*ports.ActivityInstance, nowMin int, facts 
 			Title:              inst.Title,
 			Subtitle:           facts.roomNames[inst.RoomID],
 			DueTime:            formatMinutes(endMin),
-			MinutesAway:        endMin - nowMin,
+			MinutesAway:        runningOverMinutesAway(inst, today, nowMin),
 			PickupDueCount:     &count,
 		})
 	}
 	return out
+}
+
+func runningOverMinutesAway(inst *ports.ActivityInstance, today calendar.Date, nowMin int) int {
+	if today == "" || inst.Date == "" {
+		return minutesOfDay(inst.EndTime) - nowMin
+	}
+	return minutesOfDay(inst.EndTime) - nowMin - inst.Date.DaysUntil(today)*24*60
 }
 
 // loadRunningOverFacts reads what the due blocks are rendered from. Every
@@ -155,13 +171,13 @@ func (s *service) loadRunningOverFacts(ctx context.Context, today string, due []
 // runningOverReminders is the single-caller path over today's loaded blocks:
 // the started ones in the caller's rooms (every room for admins).
 func (s *service) runningOverReminders(ctx context.Context, scope reminder.Scope, roomIDs []int64, instances []*ports.ActivityInstance, today string, nowMin, grace int) ([]reminder.Reminder, int, error) {
-	w := runningOverWindow{nowMin: nowMin, grace: grace}
+	w := runningOverWindow{nowMin: nowMin, grace: grace, today: calendar.Date(today)}
 	due, nextChange := dueRunningOver(instances, activityScopeFilter(activityRoomFilter(scope, roomIDs), nil), w)
 	facts, err := s.loadRunningOverFacts(ctx, today, due)
 	if err != nil {
 		return nil, nextChange, err
 	}
-	return buildRunningOverReminders(due, nowMin, facts), nextChange, nil
+	return buildRunningOverReminders(due, calendar.Date(today), nowMin, facts), nextChange, nil
 }
 
 // runningOverMinutes resolves the grace period after the planned end. As with

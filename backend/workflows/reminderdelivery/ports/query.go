@@ -28,6 +28,7 @@ type pickupReader interface {
 
 type instanceReader interface {
 	FindByTenantAndDate(ctx context.Context, date string) ([]*ActivityInstance, error)
+	FindActiveByTenant(ctx context.Context) ([]*ActivityInstance, error)
 }
 
 type roomReader interface {

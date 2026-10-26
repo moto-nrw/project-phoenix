@@ -21,6 +21,7 @@ type ReminderTimetableReader struct {
 	}
 	Sessions interface {
 		ListSessionInstances(context.Context, calendar.Date) ([]timetable.ScheduledInstance, error)
+		ListActiveSessionInstances(context.Context) ([]timetable.ScheduledInstance, error)
 	}
 }
 
@@ -36,7 +37,25 @@ func (r ReminderTimetableReader) FindByTenantAndDate(ctx context.Context, date s
 	result := make([]*ports.ActivityInstance, 0, len(values))
 	for _, value := range values {
 		result = append(result, &ports.ActivityInstance{
-			ID: value.ID, Title: value.Title, RoomID: value.RoomID,
+			ID: value.ID, Date: value.Date, Title: value.Title, RoomID: value.RoomID,
+			StartTime: value.StartTime, EndTime: value.EndTime, Status: value.Status,
+			IsSpontaneous: value.IsSpontaneous,
+		})
+	}
+	return result, nil
+}
+
+// FindActiveByTenant returns active sessions independent of their planned day:
+// a block that crosses midnight remains active until it is completed.
+func (r ReminderTimetableReader) FindActiveByTenant(ctx context.Context) ([]*ports.ActivityInstance, error) {
+	values, err := r.Sessions.ListActiveSessionInstances(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*ports.ActivityInstance, 0, len(values))
+	for _, value := range values {
+		result = append(result, &ports.ActivityInstance{
+			ID: value.ID, Date: value.Date, Title: value.Title, RoomID: value.RoomID,
 			StartTime: value.StartTime, EndTime: value.EndTime, Status: value.Status,
 			IsSpontaneous: value.IsSpontaneous,
 		})

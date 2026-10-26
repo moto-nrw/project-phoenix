@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
@@ -78,6 +79,13 @@ func (s *service) loadBatchActivities(ctx context.Context, cfg batchConfig, reci
 		return err
 	}
 	in.instances = instances
+	if cfg.runningOver {
+		active, activeErr := s.Instance.FindActiveByTenant(ctx)
+		if activeErr != nil {
+			return activeErr
+		}
+		in.runningInstances = active
+	}
 	if err := s.loadBatchActivityRooms(ctx, cfg, in); err != nil {
 		return err
 	}
@@ -158,7 +166,7 @@ func (s *service) loadBatchRunningOver(ctx context.Context, cfg batchConfig, rec
 		return nil
 	}
 	roomFilter := batchRunningOverRoomFilter(recipients, in.roomsByStaff)
-	due, _ := dueRunningOver(in.instances, activityScopeFilter(roomFilter, nil), runningOverWindow{nowMin: in.nowMin, grace: cfg.runningOverGrace})
+	due, _ := dueRunningOver(in.runningInstances, activityScopeFilter(roomFilter, nil), runningOverWindow{nowMin: in.nowMin, grace: cfg.runningOverGrace, today: calendar.Date(in.today)})
 	facts, err := s.loadRunningOverFacts(ctx, in.today, due)
 	if err != nil {
 		return err

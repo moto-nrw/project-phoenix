@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
@@ -48,6 +49,20 @@ func TestDueRunningOverBoundaries(t *testing.T) {
 	t.Run("at the planned end itself the block is not due yet", func(t *testing.T) {
 		due, _ := dueRunningOver([]*ports.ActivityInstance{block}, nil, runningOverWindow{nowMin: 700, grace: grace})
 		assert.Empty(t, due)
+	})
+
+	t.Run("a block from yesterday waits through a grace period after midnight", func(t *testing.T) {
+		late := activeInstance(2, "Späte AG", 5, 1300, 1439)
+		late.Date = calendar.Date("2026-09-03")
+		window := runningOverWindow{nowMin: 10, grace: 120, today: calendar.Date(testDate)}
+		due, next := dueRunningOver([]*ports.ActivityInstance{late}, nil, window)
+		assert.Empty(t, due)
+		assert.Equal(t, 119, next)
+
+		window.nowMin = 119
+		due, next = dueRunningOver([]*ports.ActivityInstance{late}, nil, window)
+		require.Len(t, due, 1)
+		assert.Equal(t, -1, next)
 	})
 
 	t.Run("completed, planned and cancelled blocks never run over", func(t *testing.T) {
@@ -101,7 +116,7 @@ func TestBuildRunningOverRemindersCountsReachedPickups(t *testing.T) {
 		},
 	}
 
-	out := buildRunningOverReminders([]*ports.ActivityInstance{block}, nowMin, facts)
+	out := buildRunningOverReminders([]*ports.ActivityInstance{block}, calendar.Date(testDate), nowMin, facts)
 	require.Len(t, out, 1)
 	got := out[0]
 	assert.Equal(t, reminder.TypeActivityRunningOver, got.Type)
@@ -120,7 +135,7 @@ func TestComputeRunningOver(t *testing.T) {
 	t.Parallel()
 
 	// testClock is 12:00 (720).
-	service := func(settings fakeSettings, instances []*ports.ActivityInstance, sup fakeSupervision) *service {
+	makeService := func(settings fakeSettings, instances []*ports.ActivityInstance, sup fakeSupervision) *service {
 		return &service{QueryDependencies: ports.QueryDependencies{
 			Clock:       testClock,
 			Settings:    settings,
@@ -134,7 +149,7 @@ func TestComputeRunningOver(t *testing.T) {
 	presence := fakeSupervision{presentByRoom: map[int64][]int64{5: {1, 2}}}
 
 	t.Run("an admin sees the running-over block with room and reached pickups", func(t *testing.T) {
-		svc := service(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, presence)
+		svc := makeService(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, presence)
 		res, err := svc.Compute(context.Background(), reminder.Scope{IsAdmin: true})
 		require.NoError(t, err)
 		require.True(t, res.Enabled)
@@ -147,7 +162,7 @@ func TestComputeRunningOver(t *testing.T) {
 	t.Run("once the block is completed the reminder is gone", func(t *testing.T) {
 		completed := activeInstance(7, "Fußball-AG", 5, 600, 700)
 		completed.Status = "completed"
-		svc := service(runningOverSettings(), []*ports.ActivityInstance{completed}, presence)
+		svc := makeService(runningOverSettings(), []*ports.ActivityInstance{completed}, presence)
 		res, err := svc.Compute(context.Background(), reminder.Scope{IsAdmin: true})
 		require.NoError(t, err)
 		assert.True(t, res.Enabled)
@@ -155,17 +170,42 @@ func TestComputeRunningOver(t *testing.T) {
 	})
 
 	t.Run("a block that has not reached the threshold schedules the refetch", func(t *testing.T) {
-		svc := service(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 715)}, presence)
+		svc := makeService(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 715)}, presence)
 		res, err := svc.Compute(context.Background(), reminder.Scope{IsAdmin: true})
 		require.NoError(t, err)
 		assert.Empty(t, res.Reminders)
 		assert.Equal(t, "12:05", res.NextChangeAt)
 	})
 
+	t.Run("a threshold after midnight includes its date and offset", func(t *testing.T) {
+		svc := makeService(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Späte AG", 5, 1300, 1439)}, presence)
+		svc.Clock = func() (string, int) { return testDate, 1400 }
+		res, err := svc.Compute(context.Background(), reminder.Scope{IsAdmin: true})
+		require.NoError(t, err)
+		assert.Empty(t, res.Reminders)
+		assert.Equal(t, "2026-09-05T00:09:00+02:00", res.NextChangeAt)
+	})
+
+	t.Run("an active block from yesterday remains visible after midnight", func(t *testing.T) {
+		yesterday := activeInstance(7, "Späte AG", 5, 1300, 1439)
+		yesterday.Date = calendar.Date("2026-09-03")
+		svc := &service{QueryDependencies: ports.QueryDependencies{
+			Clock:    func() (string, int) { return testDate, 10 },
+			Settings: runningOverSettings(),
+			Instance: fakeInstance{active: []*ports.ActivityInstance{yesterday}},
+			Room:     fakeRoom{rooms: []*ports.Room{{ID: 5, Name: "Turnhalle"}}},
+			Visits:   presence,
+		}}
+		res, err := svc.Compute(context.Background(), reminder.Scope{IsAdmin: true})
+		require.NoError(t, err)
+		require.Len(t, res.Reminders, 1)
+		assert.Equal(t, -11, res.Reminders[0].MinutesAway)
+	})
+
 	t.Run("switched off means no reminder", func(t *testing.T) {
 		settings := runningOverSettings()
 		settings.bools = map[string]bool{"reminders.activity_overdue_enabled": true}
-		svc := service(settings, []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, presence)
+		svc := makeService(settings, []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, presence)
 		res, err := svc.Compute(context.Background(), reminder.Scope{IsAdmin: true})
 		require.NoError(t, err)
 		for _, r := range res.Reminders {
@@ -179,13 +219,13 @@ func TestComputeRunningOver(t *testing.T) {
 			groups:        map[int64]*ports.Group{30: {RoomID: 6}},
 			presentByRoom: presence.presentByRoom,
 		}
-		svc := service(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, sup)
+		svc := makeService(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, sup)
 		res, err := svc.Compute(context.Background(), reminder.Scope{StaffID: 3})
 		require.NoError(t, err)
 		assert.Empty(t, res.Reminders)
 
 		sup.groups = map[int64]*ports.Group{30: {RoomID: 5}}
-		svc = service(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, sup)
+		svc = makeService(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, sup)
 		res, err = svc.Compute(context.Background(), reminder.Scope{StaffID: 3})
 		require.NoError(t, err)
 		require.Len(t, res.Reminders, 1)
@@ -194,13 +234,13 @@ func TestComputeRunningOver(t *testing.T) {
 	t.Run("a failed grace read fails the request", func(t *testing.T) {
 		settings := runningOverSettings()
 		settings.intErr = errors.New("settings down")
-		svc := service(settings, []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, presence)
+		svc := makeService(settings, []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, presence)
 		_, err := svc.Compute(context.Background(), reminder.Scope{IsAdmin: true})
 		require.Error(t, err)
 	})
 
 	t.Run("an unresolvable room fails instead of an unnamed reminder", func(t *testing.T) {
-		svc := service(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, presence)
+		svc := makeService(runningOverSettings(), []*ports.ActivityInstance{activeInstance(7, "Fußball-AG", 5, 600, 700)}, presence)
 		svc.Room = fakeRoom{empty: true}
 		_, err := svc.Compute(context.Background(), reminder.Scope{IsAdmin: true})
 		require.Error(t, err)
@@ -246,6 +286,29 @@ func TestComputeBatchMatchesComputeForRunningOver(t *testing.T) {
 		assert.NotEqual(t, reminder.TypeActivityRunningOver, r.Type,
 			"Theater-AG is only 5 minutes past its end, below the 10 minute grace")
 	}
+}
+
+func TestBatchActivityResultKeepsYesterdayRunningOver(t *testing.T) {
+	t.Parallel()
+
+	yesterday := activeInstance(101, "Späte AG", 10, 1300, 1439)
+	yesterday.Date = calendar.Date("2026-09-03")
+	part, _ := batchActivityResult(admin(1), batchConfig{
+		runningOver:      true,
+		runningOverGrace: 10,
+	}, &batchInputs{
+		today:            testDate,
+		nowMin:           10,
+		runningInstances: []*ports.ActivityInstance{yesterday},
+		runningOver: runningOverFacts{
+			roomNames:    map[int64]string{10: "Turnhalle"},
+			roomStudents: map[int64][]int64{},
+			pickupTimes:  map[int64]*ports.EffectivePickupTime{},
+		},
+	}, -1)
+
+	require.Len(t, part, 1)
+	assert.Equal(t, -11, part[0].MinutesAway)
 }
 
 func TestComputeBatchRunningOverLoadsOnlyRecipientRooms(t *testing.T) {
