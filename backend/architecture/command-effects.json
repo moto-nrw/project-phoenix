@@ -79037,10 +79037,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange",
       "target": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs",
       "target_owner": "facilities",
-      "binding_digest": "e7ed17d92b21d2342429552ff6a7710f",
+      "binding_digest": "3892ce76cae17e09c85296f9d2e27e06",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: student-presence reaches modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: student-presence reaches modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -79048,10 +79048,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "464141d22f4ea8749553fbec9a269e37",
+      "binding_digest": "bc4ee576c0af4901cab6cc4476859b74",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Capability.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Capability.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -79059,10 +79059,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "26483cc7aa8ff4bd092f6b96899e45c2",
+      "binding_digest": "d3c6f94eacab2a7d7896e0ae9278d61f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Catalog.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Catalog.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -79070,10 +79070,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "6d149a2ddabe1f5dab8427f552df7193",
+      "binding_digest": "177f06247ae5f7c9a300a5f614600f5e",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Query.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Query.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistory.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -81870,10 +81870,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange",
       "target": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs",
       "target_owner": "facilities",
-      "binding_digest": "e7ed17d92b21d2342429552ff6a7710f",
+      "binding_digest": "3892ce76cae17e09c85296f9d2e27e06",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: student-presence reaches modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: student-presence reaches modules/facilities/internal/application/repositoryadapter.Repository.FindByIDs (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -81881,10 +81881,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "464141d22f4ea8749553fbec9a269e37",
+      "binding_digest": "bc4ee576c0af4901cab6cc4476859b74",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Capability.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Capability.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -81892,10 +81892,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "26483cc7aa8ff4bd092f6b96899e45c2",
+      "binding_digest": "d3c6f94eacab2a7d7896e0ae9278d61f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Catalog.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Catalog.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
@@ -81903,10 +81903,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange",
       "target": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
       "target_owner": "facilities",
-      "binding_digest": "6d149a2ddabe1f5dab8427f552df7193",
+      "binding_digest": "177f06247ae5f7c9a300a5f614600f5e",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Query.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: student-presence reaches modules/facilities.Query.ListRoomsByID (facilities) through modules/studentpresence/internal/application/presence.studentHistoryService.GetVisitsByStudentAndTimeRange. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4761: the test root's room-name closure moved into api.studentHTTPTestRoomNames; the same room read, no owned-row mutation or locking read added."
     },
     {
       "source_owner": "student-presence",
