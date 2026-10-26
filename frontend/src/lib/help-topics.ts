@@ -302,11 +302,6 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   // bewusst draußen: es führt auf die Startseite, und zu der gibt es noch
   // keinen Artikel -- ein allgemeiner wäre geraten, nicht passend.
   "/admin/change-requests": HELP_TOPICS.parentRequests,
-  "/invitations": HELP_TOPICS.leadInviteStaff,
-  "/planung": HELP_TOPICS.leadCarePlan,
-  "/staff/dienstplan": HELP_TOPICS.leadDutyRoster,
-  "/timetables": HELP_TOPICS.leadCarePlan,
-  "/vertretungsplan": HELP_TOPICS.leadSubstitutionPlan,
 };
 
 const PREFIX_HELP_TOPICS: ReadonlyArray<

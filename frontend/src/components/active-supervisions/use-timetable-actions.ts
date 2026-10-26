@@ -214,6 +214,7 @@ export function useTimetableActions(
     complete: () => void;
     confirmExpected: (rows: TimetableRosterRow[]) => void;
     reopen: () => void;
+    rosterSync: () => void;
   }>({
     startPlanned: () => undefined,
     startSpontaneous: () => undefined,
@@ -222,6 +223,7 @@ export function useTimetableActions(
     complete: () => undefined,
     confirmExpected: () => undefined,
     reopen: () => undefined,
+    rosterSync: () => undefined,
   });
 
   // Starting, ending or reopening a block changes which supervisions run.
@@ -276,6 +278,37 @@ export function useTimetableActions(
     },
     [revalidateRoster],
   );
+
+  // The action is saved; only the open list could not follow. Say so and
+  // offer to load the list again instead of reloading the page (#5001).
+  // `action`, not `retry`: a local update that crashed is not retryable on
+  // the error path, but loading the list again still helps.
+  const showRosterSyncError = useCallback(
+    (err: unknown) => {
+      void showActionError(err, {
+        object: "die Anwesenheitsliste",
+        messageSuffix: "Ihre Änderung ist gespeichert.",
+        action: {
+          label: "Liste neu laden",
+          onClick: () => retryRef.current.rosterSync(),
+        },
+      });
+    },
+    [showActionError],
+  );
+
+  const syncRoster = useCallback(async () => {
+    const instanceId = activeTimetableInstanceIdRef.current;
+    try {
+      await mutateRoster();
+    } catch (err) {
+      if (activeTimetableInstanceIdRef.current !== instanceId) return;
+      logger.warn("timetable_roster_sync_retry_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      showRosterSyncError(err);
+    }
+  }, [activeTimetableInstanceIdRef, mutateRoster, showRosterSyncError]);
 
   const handleStartPlannedInstance = useCallback(
     async (instance: PlannedTimetableInstance) => {
@@ -427,15 +460,12 @@ export function useTimetableActions(
           : mutateRoster());
       } catch (err) {
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
-        // Sichtbar über das Neuladen: die Aktion ist gespeichert, nur die
-        // Liste ist nicht mehr aktuell.
         logger.warn("timetable_roster_sync_failed_after_successful_action", {
           action,
           student_id: row.studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        void logger.flush();
-        window.location.reload();
+        showRosterSyncError(err);
       }
     },
     [
@@ -444,6 +474,7 @@ export function useTimetableActions(
       mutateRoster,
       reloadAfterDenial,
       showActionError,
+      showRosterSyncError,
     ],
   );
 
@@ -778,6 +809,7 @@ export function useTimetableActions(
       complete: () => void confirmCompleteTimetableInstance(),
       confirmExpected: (rows) => void handleConfirmExpectedStudents(rows),
       reopen: () => void handleReopenTimetableInstance(),
+      rosterSync: () => void syncRoster(),
     };
   });
 

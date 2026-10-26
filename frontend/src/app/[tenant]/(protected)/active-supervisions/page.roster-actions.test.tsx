@@ -336,6 +336,7 @@ import MeinRaumPage from "./page";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
 
 // Aktionen melden Fehler als Toast oder im Dialog (#2517); der Provider
 // zeigt den Toast echt an.
@@ -554,7 +555,9 @@ describe("MeinRaumPage roster actions", () => {
       { status: "expected", substatus: null, note: null },
     ],
   ] as const)(
-    "reloads after a successful %s when the local roster update fails",
+    // #5001: the action is saved, only the local list update failed. The
+    // page stays loaded and offers to load the list again.
+    "offers to reload the list after a successful %s when the local roster update fails",
     async (_action, buttonName, row, apiMethod, expectedPayload) => {
       primaryRosterRows = [row];
       const updatedRoster = {
@@ -603,9 +606,29 @@ describe("MeinRaumPage roster actions", () => {
             expectedPayload,
           );
         }
-        expect(reload).toHaveBeenCalledOnce();
       });
-      expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
+
+      // A crashed local update has no code: the error path shows its crash
+      // text, followed by the note that the action itself is saved.
+      const crash = ERROR_CATALOG.de.actions.crash.replace(
+        "{object}",
+        "die Anwesenheitsliste",
+      );
+      expect(
+        await screen.findByText(
+          `${crash.charAt(0).toUpperCase()}${crash.slice(1)} Ihre Änderung ist gespeichert.`,
+        ),
+      ).toBeInTheDocument();
+      expect(reload).not.toHaveBeenCalled();
+
+      const rosterLoadsBefore = mockRosterMutate.mock.calls.length;
+      fireEvent.click(screen.getByRole("button", { name: "Liste neu laden" }));
+      await waitFor(() => {
+        expect(mockRosterMutate.mock.calls.length).toBe(rosterLoadsBefore + 1);
+      });
+      // Loading the list again does not repeat the saved action.
+      expect(mockRosterMutate.mock.calls.at(-1)).toEqual([]);
+      expect(reload).not.toHaveBeenCalled();
     },
   );
 
