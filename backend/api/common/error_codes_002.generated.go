@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeTimetableCorrectionReasonMissing               = "timetable.correction_reason_missing"
+	CodeTimetableCorrectionReasonTooLong               = "timetable.correction_reason_too_long"
 	CodeTimetableDateInPast                            = "timetable.date_in_past"
 	CodeTimetableDatesInPast                           = "timetable.dates_in_past"
 	CodeTimetableDatesRequired                         = "timetable.dates_required"
@@ -198,6 +200,8 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.correction_reason_missing":                  "input",
+	"timetable.correction_reason_too_long":                 "input",
 	"timetable.date_in_past":                               "input",
 	"timetable.dates_in_past":                              "input",
 	"timetable.dates_required":                             "input",

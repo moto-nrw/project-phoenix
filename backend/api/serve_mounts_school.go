@@ -195,8 +195,9 @@ func mountSchoolRoutes(
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(activities, timetableOwner, NewTimetableSupervisorDirectory(users), caller, TimetableHTTPTransactions).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).
 	tenant.Mount("/enrollment", enrollment.Router(TenantSessionChain))
-	// The hosting school's holiday participant lists (#4665).
-	mountHolidayHostRoutes(tenant, holidaySchools, holidayAccessLog)
+	// The hosting school's holiday participant lists (#4665) and holiday
+	// guests (#4666).
+	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayAccessLog)
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the root composes it and the IoT service hands it back here
 	// (#2676).

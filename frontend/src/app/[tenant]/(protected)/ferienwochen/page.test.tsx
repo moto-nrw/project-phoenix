@@ -19,23 +19,40 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 vi.unmock("swr");
 
-vi.mock("next-auth/react", () => ({
-  useSession: () => ({
-    status: "authenticated",
-    data: { user: { token: "test-token" } },
-  }),
-}));
-
-const { weeksMock, participantsMock, downloadMock } = vi.hoisted(() => ({
+const {
+  weeksMock,
+  participantsMock,
+  downloadMock,
+  assignMock,
+  groupsMock,
+  sessionPermissions,
+} = vi.hoisted(() => ({
   weeksMock: vi.fn(),
   participantsMock: vi.fn(),
   downloadMock: vi.fn(),
+  assignMock: vi.fn(),
+  groupsMock: vi.fn(),
+  sessionPermissions: { current: [] as string[] },
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    status: "authenticated",
+    data: {
+      user: { token: "test-token", permissions: sessionPermissions.current },
+    },
+  }),
 }));
 
 vi.mock("~/lib/holiday-host-api", () => ({
   fetchHostedHolidayWeeks: weeksMock,
   fetchHolidayParticipants: participantsMock,
   downloadHolidayParticipants: downloadMock,
+  assignHolidayGuestGroup: assignMock,
+}));
+
+vi.mock("~/lib/api", () => ({
+  groupService: { getGroups: groupsMock },
 }));
 
 vi.mock("~/lib/hooks/use-require-permission", () => ({
@@ -72,6 +89,8 @@ const firstWeek: HostedHolidayWeek = {
   startsOn: "2026-09-14",
   endsOn: "2026-09-18",
   participants: 2,
+  guestGroupId: null,
+  guests: 0,
 };
 
 const secondWeek: HostedHolidayWeek = {
@@ -80,6 +99,8 @@ const secondWeek: HostedHolidayWeek = {
   startsOn: "2026-09-21",
   endsOn: "2026-09-25",
   participants: 1,
+  guestGroupId: null,
+  guests: 0,
 };
 
 function listOf(week: HostedHolidayWeek): HolidayParticipantList {
@@ -133,6 +154,11 @@ describe("FerienwochenPage", () => {
     vi.clearAllMocks();
     vi.mocked(useTenantSlugSafe).mockReturnValue("test-tenant");
     downloadMock.mockResolvedValue(undefined);
+    sessionPermissions.current = [];
+    groupsMock.mockResolvedValue([
+      { id: "7", name: "Feriengruppe" },
+      { id: "8", name: "Bären" },
+    ]);
   });
 
   it("shows the confirmed children of the hosted week with their counts", async () => {
@@ -299,5 +325,63 @@ describe("FerienwochenPage", () => {
     );
 
     expect(downloadMock).toHaveBeenCalledWith("51", "xlsx");
+  });
+
+  it("lets the lead take the holiday guests into a chosen group", async () => {
+    sessionPermissions.current = ["config:read", "users:create"];
+    weeksMock.mockResolvedValue([firstWeek]);
+    participantsMock.mockResolvedValue(listOf(firstWeek));
+    assignMock.mockResolvedValue(1);
+
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        /Noch keine Gruppe gewählt\. Erst mit einer Gruppe/,
+      ),
+    ).toBeInTheDocument();
+    const take = screen.getByRole("button", { name: "Feriengäste übernehmen" });
+    expect(take).toBeDisabled();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Gruppe für die Feriengäste" }),
+      ).toBeEnabled(),
+    );
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Gruppe für die Feriengäste" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Feriengruppe" }));
+    weeksMock.mockResolvedValue([
+      { ...firstWeek, guestGroupId: "7", guests: 1 },
+    ]);
+    fireEvent.click(take);
+
+    await waitFor(() => expect(assignMock).toHaveBeenCalledWith("51", "7"));
+    expect(
+      await screen.findByText(
+        "1 Feriengast in der Gruppe Feriengruppe. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("1 Feriengast in der Gruppe."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the chosen group without a choice to a role that cannot add children", async () => {
+    weeksMock.mockResolvedValue([
+      { ...firstWeek, guestGroupId: "7", guests: 2 },
+    ]);
+    participantsMock.mockResolvedValue(listOf(firstWeek));
+
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "2 Feriengäste in der Gruppe Feriengruppe. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Feriengäste übernehmen" }),
+    ).not.toBeInTheDocument();
   });
 });

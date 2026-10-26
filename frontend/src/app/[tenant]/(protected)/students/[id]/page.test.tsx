@@ -211,6 +211,20 @@ vi.mock("~/components/students/student-detail-components", () => ({
 }));
 
 // Mock des Bearbeiten-Zustands im Stammdaten-Reiter (kein Modal mehr).
+vi.mock("~/components/students/holiday-guest-section", () => ({
+  HolidayGuestSection: ({
+    studentId,
+    canRead,
+  }: {
+    studentId: string;
+    canRead: boolean;
+  }) => (
+    <div data-testid="holiday-guest-section">
+      {studentId}:{String(canRead)}
+    </div>
+  ),
+}));
+
 vi.mock("~/components/students/personal-info-edit-panel", () => ({
   PersonalInfoEditPanel: ({
     onCancel,
@@ -2713,6 +2727,35 @@ describe("StudentDetailPage", () => {
       expect(
         screen.getByRole("tab", { name: "Stammdaten" }),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("Holiday guest (#4666)", () => {
+    it("shows only the holiday guest sheet instead of the sections of the record", () => {
+      mockUseStudentData.mockReturnValue({
+        ...mockUseStudentData(),
+        student: { ...mockStudent, school_class: "Feriengast" },
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("holiday-guest-section")).toHaveTextContent(
+        "1:true",
+      );
+      expect(
+        screen.queryByRole("tablist", { name: "Bereiche der Kindakte" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps the sections of the record for a child of the school", () => {
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tablist", { name: "Bereiche der Kindakte" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("holiday-guest-section"),
+      ).not.toBeInTheDocument();
     });
   });
 });

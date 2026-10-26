@@ -48,6 +48,7 @@ type Scheduler struct {
 	pwaUsageCleanup            ports.PWAUsageCleanup
 	staffMessageCleanup        ports.StaffMessageCleanup
 	bookingConsistency         ports.BookingConsistencyAudit
+	holidayGuests              ports.HolidayGuestReconciliation
 	mealOrders                 ports.MealOrderSettlement
 	enrollmentRejectedCleanup  ports.RejectedEnrollmentCleaner
 	autoStart                  ports.InstanceAutoStart
@@ -211,6 +212,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		autoCheckouter:         deps.AutoCheckouter,
 		materializer:           deps.Materializer,
 		bookingConsistency:     deps.BookingConsistency,
+		holidayGuests:          deps.HolidayGuests,
 		mealOrders:             deps.MealOrders,
 		autoStart:              deps.AutoStart,
 		autoEnd:                deps.AutoEnd,
@@ -228,13 +230,12 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		rolloverDeadlineRunner: deps.RolloverDeadlineRunner,
 		reminderNotifications:  deps.ReminderNotifications,
 		appointmentReminders:   deps.AppointmentReminders,
-
-		settings:              deps.Settings,
-		schoolRepo:            deps.SchoolRepo,
-		tenantRuntime:         deps.TenantRuntime,
-		tenantRuntimeObserver: deps.TenantRuntimeObserver,
-		unitOfWorkObserver:    deps.UnitOfWorkObserver,
-		workerTracer:          deps.Tracer,
+		settings:               deps.Settings,
+		schoolRepo:             deps.SchoolRepo,
+		tenantRuntime:          deps.TenantRuntime,
+		tenantRuntimeObserver:  deps.TenantRuntimeObserver,
+		unitOfWorkObserver:     deps.UnitOfWorkObserver,
+		workerTracer:           deps.Tracer,
 	}
 }
 

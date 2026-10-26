@@ -651,6 +651,49 @@ function editStudentTopic(): HelpTopic {
   };
 }
 
+/**
+ * Feriengäste im Alltag (#4666): Kinder anderer Schulen in der Feriengruppe
+ * der ausrichtenden OGS. Die Kindakte zeigt nur Betreuung, Notfall und
+ * Abholung.
+ */
+function holidayGuestsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.holidayGuests,
+    title: "Feriengäste betreuen",
+    question: "Wo sehe ich Notfall und Abholung eines Feriengasts?",
+    summary:
+      "In den Ferien kommen Kinder anderer Schulen in Ihre OGS. Sie stehen in der Feriengruppe.",
+    group: "gruppen",
+    audience: ["caregiver", "lead"],
+    icon: "SunHorizon",
+    requirements: [
+      "Ihre OGS richtet eine Ferienwoche für den Träger aus.",
+      "Die Leitung hat unter `Ferienwochen` eine Feriengruppe gewählt.",
+    ],
+    steps: [
+      "Öffnen Sie die Feriengruppe. Unter dem Namen jedes Feriengasts steht `Feriengast`.",
+      "Melden Sie Feriengäste an und ab wie jedes andere Kind.",
+      "Öffnen Sie die Karte eines Feriengasts.",
+      "Lesen Sie unter `Betreuung` die Woche und die gebuchte Zeit.",
+      "Unter `Notfall` stehen die Eltern und weitere Kontakte. Unter `Abholung` steht, wer das Kind außer den Eltern abholen darf.",
+    ],
+    result:
+      "Sie wissen, wann das Kind gehen darf und wen Sie im Notfall anrufen.",
+    notes: [
+      "Mehr als Betreuung, Notfall und Abholung sehen Sie von einem Feriengast nicht. Die übrigen Angaben bleiben beim Träger.",
+      "Jeder Blick auf Notfall und Abholung steht im Zugriffsprotokoll Ihrer OGS.",
+    ],
+    differences: [
+      "Nach dem letzten Tag der Woche steht der Feriengast nicht mehr in der Gruppe und nicht mehr im Check-in. Seine Angaben bleiben noch 7 Tage zum Nachlesen.",
+    ],
+    troubleshootingDetails: [
+      "Fehlt ein Feriengast? Anmeldungen bestätigt der Träger. Neu bestätigte Kinder kommen innerhalb einer Stunde in die Gruppe.",
+      "Sehen Sie `Notfall` und `Abholung` nicht? Dafür brauchen Sie das Recht, die Angaben der Kinder zu lesen. Fragen Sie Ihre Leitung.",
+    ],
+    related: [HELP_TOPICS.webAttendance, HELP_TOPICS.ownGroups],
+  };
+}
+
 function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
   const result =
     presenceMode === "detailed"
@@ -3041,6 +3084,7 @@ function caregiverTopics(
     emergencyTopic(presenceMode),
     ownGroupsTopic(presenceMode, groupMode),
     transferGroupTopic(groupMode),
+    holidayGuestsTopic(),
     roomsTopic(presenceMode),
     activeSupervisionTopic(presenceMode),
     homeworkFeedbackTopic(),
@@ -5981,7 +6025,54 @@ function holidayWeeksTopic(): HelpTopic {
       "Fehlt ein Kind? Anmeldungen prüft und bestätigt der Träger. Fragen Sie dort nach.",
       "Fehlt `Ferienwochen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
     ],
-    related: [HELP_TOPICS.leadStatistics, HELP_TOPICS.leadExports],
+    related: [
+      HELP_TOPICS.leadHolidayGuestGroup,
+      HELP_TOPICS.leadStatistics,
+      HELP_TOPICS.leadExports,
+    ],
+  };
+}
+
+/**
+ * `/ferienwochen` (#4666): Die Leitung wählt die Gruppe für die Feriengäste
+ * einer Woche. Die bestätigten Gäste kommen dann in die Gruppe und in den
+ * Check-in.
+ */
+function holidayGuestGroupTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadHolidayGuestGroup,
+    title: "Die Feriengruppe wählen",
+    question: "Wie kommen Feriengäste in eine Gruppe?",
+    summary:
+      "Wählen Sie für jede Ferienwoche eine Gruppe. Dort sieht Ihr Team die Feriengäste.",
+    group: "auswertung",
+    audience: "lead",
+    icon: "UsersThree",
+    requirements: [
+      "Der Träger hat Ihre OGS für eine Ferienwoche eingetragen.",
+      "Es gibt eine Gruppe für die Ferienwoche, zum Beispiel `Feriengruppe`. Eine neue Gruppe legen Sie unter `Gruppen` an.",
+    ],
+    steps: [
+      "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
+      "Öffnen Sie `Ferienwochen`.",
+      "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
+      "Wählen Sie unter `Feriengruppe` die Gruppe.",
+      "Wählen Sie `Feriengäste übernehmen`.",
+    ],
+    result:
+      "Die Feriengäste stehen in der Gruppe und im Check-in. Ihr Team sieht bei jedem Feriengast Betreuung, Notfall und Abholung.",
+    notes: [
+      "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
+      "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",
+      "Jede Übernahme steht im Zugriffsprotokoll Ihrer OGS.",
+    ],
+    differences: [
+      "Fehlen Auswahl und Knopf? Gruppen wählen darf nur, wer Kinder anlegen darf.",
+    ],
+    troubleshootingDetails: [
+      "Nach dem letzten Tag der Woche stehen die Feriengäste nicht mehr in der Gruppe und nicht mehr im Check-in.",
+    ],
+    related: [HELP_TOPICS.leadHolidayWeeks, HELP_TOPICS.holidayGuests],
   };
 }
 
@@ -6759,6 +6850,7 @@ function leadTopics(
     absenceReportTopic(),
     statisticsTopic(),
     holidayWeeksTopic(),
+    holidayGuestGroupTopic(),
     exportsTopic(),
 
     // --- Einstellungen und Geräte ---

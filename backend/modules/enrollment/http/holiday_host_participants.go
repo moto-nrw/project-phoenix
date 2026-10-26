@@ -26,9 +26,11 @@ import (
 
 // HolidayHostResource serves the participant lists to the hosting school.
 type HolidayHostResource struct {
-	participants capability.HolidayHostParticipants
-	schoolNames  capability.HolidayHostSchoolNames
-	requireRead  common.Middleware
+	participants  capability.HolidayHostParticipants
+	schoolNames   capability.HolidayHostSchoolNames
+	requireRead   common.Middleware
+	guests        capability.HolidayGuests
+	requireAssign common.Middleware
 }
 
 // NewHolidayHostResource builds the routes. requireRead is the school
@@ -49,6 +51,9 @@ func (rs *HolidayHostResource) Router(protectedTenantRoutes func(chi.Router, fun
 		read := r.With(rs.requireRead, rs.withSchoolNames, withTx)
 		read.Get("/{weekId}/participants", rs.getParticipants)
 		read.Get("/{weekId}/participants/export", rs.exportParticipants)
+		if rs.guests != nil {
+			r.With(rs.requireRead, rs.requireAssign, withTx).Put("/{weekId}/guest-group", rs.assignGuestGroup)
+		}
 	})
 	return r
 }

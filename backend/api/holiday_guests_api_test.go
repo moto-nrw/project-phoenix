@@ -1,0 +1,332 @@
+// Router-level tests for the holiday guests of the school that hosts a
+// holiday week (#4666, ADR 0120): the school picks a group, the confirmed
+// guests of other schools become children of that group whose care covers
+// the week, the staff see only care, emergency contacts and pickup persons,
+// the access ends after the week by the service clock and at once with a
+// cancellation, every access stands in the access log, and the school
+// permissions apply.
+package api
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"sort"
+	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+type holidayGuestSheetBody struct {
+	StudentID       int64  `json:"student_id"`
+	StartsOn        string `json:"starts_on"`
+	EndsOn          string `json:"ends_on"`
+	TimeModelName   string `json:"time_model_name"`
+	TimeModelStarts string `json:"time_model_starts_at"`
+	TimeModelEnds   string `json:"time_model_ends_at"`
+	HomeSchoolID    *int64 `json:"home_school_id"`
+	GuestSchoolName string `json:"guest_school_name"`
+	Emergency       []struct {
+		Name         string `json:"name"`
+		Phone        string `json:"phone"`
+		Relationship string `json:"relationship"`
+	} `json:"emergency_contacts"`
+	Pickup []struct {
+		Name string `json:"name"`
+	} `json:"pickup_contacts"`
+	ReadOnly bool `json:"read_only"`
+}
+
+// holidayGuestFixture adds the holiday guest routes to the host fixture,
+// over the same service clock, and a group "Feriengruppe" of the OGS Nord,
+// which hosts week 1. roster names the children of that group the school
+// cares for on a day, the roster the group page, the check-in and the kiosk
+// read; reconcile runs the hourly reconciliation of the OGS Nord; child reads
+// the class and the care interval of a child of the OGS Nord.
+type holidayGuestFixture struct {
+	holidayHostFixture
+	router    http.Handler
+	nord      int64
+	group     int64
+	roster    func(t *testing.T, day calendar.Date) map[string]int64
+	reconcile func(t *testing.T)
+	child     func(t *testing.T, student int64) (class, from, until string, health *string)
+}
+
+func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
+	t.Helper()
+	f := newHolidayHostFixture(t, name)
+	persons := owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, f.db))
+	accessLog := owners.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog
+	clock := func() calendar.Date { return f.today.Load().(calendar.Date) }
+	guests := owners.NewHolidayGuests(persons, accessLog, clock)
+	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
+	require.NoError(t, err)
+	unit := testpkg.TenantRuntime(t, f.db)
+	router := chi.NewRouter()
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(tenant.WithUnitOfWork(r.Context(), unit)))
+		})
+	})
+	router.Mount("/api/holiday-weeks", NewHolidayHostGuestHTTP(NewHolidayHostHTTP(organizations, accessLog, clock), guests).Router(ProtectedTenantRoutes))
+	router.Mount("/api/holiday-guests", NewHolidayGuestHTTP(guests).Router(ProtectedTenantRoutes))
+	nord := f.office.schools[0]
+	group := testpkg.CreateTestEducationGroupForTenant(t, f.db, nord, "Feriengruppe").ID
+	inNord := func(t *testing.T, fn func(context.Context) error) {
+		t.Helper()
+		id, err := tenant.NewTenantID(nord)
+		require.NoError(t, err)
+		require.NoError(t, tenant.WithinTenant(tenant.WithUnitOfWork(t.Context(), unit), id, fn))
+	}
+	return holidayGuestFixture{
+		holidayHostFixture: f, router: testpkg.SessionVerifier(router), nord: nord, group: group,
+		roster: func(t *testing.T, day calendar.Date) map[string]int64 {
+			t.Helper()
+			children := map[string]int64{}
+			inNord(t, func(ctx context.Context) error {
+				entries, err := persons.ListStudentRosterByGroup(ctx, []int64{group}, day.String())
+				for _, entry := range entries {
+					children[entry.FirstName+" "+entry.LastName] = entry.Record.ID
+				}
+				return err
+			})
+			return children
+		},
+		reconcile: func(t *testing.T) {
+			t.Helper()
+			inNord(t, func(ctx context.Context) error { return guests.ReconcileHolidayGuests(ctx, nord) })
+		},
+		child: func(t *testing.T, student int64) (string, string, string, *string) {
+			t.Helper()
+			var class, from, until string
+			var health *string
+			inNord(t, func(ctx context.Context) error {
+				record, err := persons.ReadEnrollmentStudent(ctx, student, "")
+				class, from, until, health = record.SchoolClass, record.EnrolledFrom, record.EnrolledUntil, record.HealthInfo
+				return err
+			})
+			return class, from, until, health
+		},
+	}
+}
+
+func (f holidayGuestFixture) do(t *testing.T, token, method, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	var payload bytes.Buffer
+	if body != nil {
+		require.NoError(t, json.NewEncoder(&payload).Encode(body))
+	}
+	req := httptest.NewRequest(method, path, &payload)
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	f.router.ServeHTTP(rec, req)
+	return rec
+}
+
+func (f holidayGuestFixture) assign(t *testing.T, token string, week, group int64) *httptest.ResponseRecorder {
+	t.Helper()
+	return f.do(t, token, http.MethodPut, fmt.Sprintf("/api/holiday-weeks/%d/guest-group", week),
+		map[string]string{"group_id": fmt.Sprint(group)})
+}
+
+func (f holidayGuestFixture) sheet(t *testing.T, token string, student int64) *httptest.ResponseRecorder {
+	t.Helper()
+	return f.do(t, token, http.MethodGet, fmt.Sprintf("/api/holiday-guests/%d", student), nil)
+}
+
+// guestLog lists the school's holiday guest access log entries as
+// "resource_type:guests:automatic" for a transfer and "resource_type:student"
+// for a sheet read, oldest first.
+func (f holidayGuestFixture) guestLog(t *testing.T, school int64) []string {
+	t.Helper()
+	var rows []struct {
+		ResourceType string `bun:"resource_type"`
+		StudentID    *int64 `bun:"student_id"`
+		Guests       string `bun:"guests"`
+		Automatic    string `bun:"automatic"`
+	}
+	require.NoError(t, f.db.NewRaw(`SELECT resource_type, student_id, COALESCE(metadata->>'guests', '') AS guests,
+			COALESCE(metadata->>'automatic', '') AS automatic
+		FROM audit.data_access_log WHERE tenant_id = ? AND resource_type LIKE 'holiday_guest%' ORDER BY id`, school).
+		Scan(t.Context(), &rows))
+	entries := make([]string, len(rows))
+	for i, row := range rows {
+		if row.StudentID != nil {
+			entries[i] = fmt.Sprintf("%s:%d", row.ResourceType, *row.StudentID)
+			continue
+		}
+		entries[i] = row.ResourceType + ":" + row.Guests + ":" + row.Automatic
+	}
+	return entries
+}
+
+func names(children map[string]int64) []string {
+	result := make([]string, 0, len(children))
+	for name := range children {
+		result = append(result, name)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t *testing.T) {
+	t.Parallel()
+	f := newHolidayGuestFixture(t, "Träger Feriengäste")
+	week := f.offer.Weeks[0].ID
+	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
+	weekDay := calendar.NewDate(2099, 7, 8)
+
+	rec := f.assign(t, lead, week, f.group)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, enrollment.HolidayGuestTransfer{WeekID: week, GroupID: f.group, Guests: 0},
+		decodeSchoolPortalData[enrollment.HolidayGuestTransfer](t, rec.Body.Bytes()), "without a confirmed booking no child comes")
+	assert.Empty(t, f.roster(t, weekDay))
+
+	f.confirm(t, f.siblings, "confirm")
+	f.reconcile(t)
+	children := f.roster(t, weekDay)
+	assert.Equal(t, []string{"Ben Muster"}, names(children),
+		"the confirmed holiday guest joins the group; Lia is a child of the OGS Nord already, Tom is not confirmed")
+	listed := decodeSchoolPortalData[[]struct {
+		GuestGroupID *int64 `json:"guest_group_id"`
+		Guests       int    `json:"guests"`
+	}](t, f.get(t, lead, "/").Body.Bytes())
+	require.Len(t, listed, 1)
+	require.NotNil(t, listed[0].GuestGroupID)
+	assert.Equal(t, f.group, *listed[0].GuestGroupID)
+	assert.Equal(t, 1, listed[0].Guests)
+
+	ben := children["Ben Muster"]
+	class, from, until, health := f.child(t, ben)
+	assert.Equal(t, enrollment.HolidayGuestSchoolClass, class)
+	assert.Equal(t, "2099-07-06", from)
+	assert.Equal(t, "2099-07-10", until)
+	assert.Nil(t, health, "no health information leaves the Träger")
+
+	rec = f.sheet(t, lead, ben)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	sheet := decodeSchoolPortalData[holidayGuestSheetBody](t, rec.Body.Bytes())
+	assert.Equal(t, "bis 13 Uhr", sheet.TimeModelName)
+	assert.Equal(t, "2099-07-06", sheet.StartsOn)
+	assert.Equal(t, "2099-07-10", sheet.EndsOn)
+	assert.Nil(t, sheet.HomeSchoolID)
+	assert.Equal(t, "Grundschule Melle", sheet.GuestSchoolName)
+	require.Len(t, sheet.Emergency, 2)
+	assert.Equal(t, "Eva Muster", sheet.Emergency[0].Name, "the registering parent comes first")
+	assert.Equal(t, "0151 2345678", sheet.Emergency[0].Phone)
+	assert.Equal(t, "Eltern", sheet.Emergency[0].Relationship)
+	assert.Equal(t, "Oma Muster", sheet.Emergency[1].Name)
+	assert.Equal(t, "05402 1234", sheet.Emergency[1].Phone)
+	require.Len(t, sheet.Pickup, 1)
+	assert.Equal(t, "Opa Muster", sheet.Pickup[0].Name)
+	assert.False(t, sheet.ReadOnly)
+	for _, private := range []string{"Erdnüsse", "eva.muster@example.org"} {
+		assert.NotContains(t, rec.Body.String(), private, "only care, emergency contacts and pickup persons leave the Träger")
+	}
+
+	// Tom's booking is confirmed later: the hourly reconciliation brings him.
+	var tom int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM enrollment.holiday_registrations WHERE id <> ? AND organization_id =
+		(SELECT organization_id FROM enrollment.holiday_registrations WHERE id = ?)`, f.siblings, f.siblings).Scan(t.Context(), &tom))
+	f.confirm(t, tom, "confirm")
+	f.reconcile(t)
+	f.reconcile(t)
+	assert.Equal(t, []string{"Ben Muster", "Tom Beispiel"}, names(f.roster(t, weekDay)), "a second run copies nobody twice")
+	rec = f.sheet(t, lead, f.roster(t, weekDay)["Tom Beispiel"])
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, f.offer.Schools[1].ID, *decodeSchoolPortalData[holidayGuestSheetBody](t, rec.Body.Bytes()).HomeSchoolID)
+
+	assert.Equal(t, []string{
+		"holiday_guest_transfer:0:false",
+		"holiday_guest_transfer:1:true",
+		fmt.Sprintf("holiday_guest_sheet:%d", ben),
+		"holiday_guest_transfer:2:true",
+		fmt.Sprintf("holiday_guest_sheet:%d", f.roster(t, weekDay)["Tom Beispiel"]),
+	}, f.guestLog(t, f.nord), "every transfer and every sheet read stands in the school's access log")
+
+	// A cancellation ends the guest at the next reconciliation.
+	f.confirm(t, f.siblings, "cancel")
+	f.reconcile(t)
+	assert.Equal(t, []string{"Tom Beispiel"}, names(f.roster(t, calendar.NewDate(2099, 7, 1))), "the cancelled guest leaves the group")
+	rec = f.sheet(t, lead, ben)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Contains(t, rec.Body.String(), "enrollment.holiday_guest_not_found")
+}
+
+func TestHolidayGuestRoutesNeedTheSchoolPermissionAndTheHostingSchool(t *testing.T) {
+	t.Parallel()
+	f := newHolidayGuestFixture(t, "Träger Feriengäste Rechte")
+	week := f.offer.Weeks[0].ID
+	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
+	f.confirm(t, f.siblings, "confirm")
+	require.Equal(t, http.StatusOK, f.assign(t, lead, week, f.group).Code)
+	ben := f.roster(t, calendar.NewDate(2099, 7, 8))["Ben Muster"]
+	require.NotZero(t, ben)
+
+	readOnly := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.StudentsRead)
+	assert.Equal(t, http.StatusForbidden, f.assign(t, readOnly, week, f.group).Code, "picking the group needs users:create")
+	assert.Equal(t, http.StatusForbidden, f.sheet(t, readOnly, ben).Code, "the contacts need users:read")
+
+	sued := f.office.schools[1]
+	other := f.staffOf(t, sued, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
+	rec := f.assign(t, other, week, testpkg.CreateTestEducationGroupForTenant(t, f.db, sued, "Fremde Gruppe").ID)
+	assert.Equal(t, http.StatusNotFound, rec.Code, "a school of the same Träger cannot take a week it does not host")
+	assert.Contains(t, rec.Body.String(), "enrollment.hosted_holiday_week_not_found")
+	assert.Equal(t, http.StatusNotFound, f.sheet(t, other, ben).Code, "another school sees no guest of the host")
+
+	foreign := newTraegerOffice(t, f.db, f.traeger, "Träger Feriengäste Fremd", identityaccess.TraegerRoleAdministration)
+	stranger := f.staffOf(t, foreign.schools[0], permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
+	assert.Equal(t, http.StatusNotFound, f.assign(t, stranger, week, f.group).Code, "a school of another Träger sees no week")
+	assert.Equal(t, http.StatusNotFound, f.sheet(t, stranger, ben).Code)
+
+	foreignGroup := testpkg.CreateTestEducationGroupForTenant(t, f.db, sued, "Gruppe der OGS Süd").ID
+	rec = f.assign(t, lead, week, foreignGroup)
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "the group must be one of the school's")
+	assert.Contains(t, rec.Body.String(), "enrollment.holiday_guest_group_invalid")
+	assert.Empty(t, f.guestLog(t, sued), "a refused access is not logged")
+}
+
+func TestHolidayGuestsLeaveGroupAndCheckInAfterTheWeek(t *testing.T) {
+	t.Parallel()
+	f := newHolidayGuestFixture(t, "Träger Feriengäste Ende")
+	week := f.offer.Weeks[0].ID
+	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
+	f.confirm(t, f.siblings, "confirm")
+	require.Equal(t, http.StatusOK, f.assign(t, lead, week, f.group).Code)
+	ben := f.roster(t, calendar.NewDate(2099, 7, 10))["Ben Muster"]
+	require.NotZero(t, ben, "the last day of the week still shows the guest")
+
+	f.today.Store(calendar.NewDate(2099, 7, 11))
+	assert.Empty(t, f.roster(t, calendar.NewDate(2099, 7, 11)), "from the day after the week the guest is no longer cared for")
+	rec := f.sheet(t, lead, ben)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.True(t, decodeSchoolPortalData[holidayGuestSheetBody](t, rec.Body.Bytes()).ReadOnly, "seven days only to read")
+
+	f.today.Store(calendar.NewDate(2099, 7, 17))
+	f.reconcile(t)
+	assert.Equal(t, http.StatusOK, f.sheet(t, lead, ben).Code, "the seventh day after the week still shows the sheet")
+
+	f.today.Store(calendar.NewDate(2099, 7, 18))
+	f.reconcile(t)
+	rec = f.sheet(t, lead, ben)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Contains(t, rec.Body.String(), "enrollment.holiday_guest_not_found")
+	var contacts int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM enrollment.holiday_guest_contacts WHERE tenant_id = ?`, f.nord).Scan(t.Context(), &contacts))
+	assert.Zero(t, contacts, "the contacts are deleted after the read-only days")
+}

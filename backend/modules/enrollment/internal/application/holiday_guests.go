@@ -1,0 +1,353 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// Holiday guests of the hosting school (#4666, ADR 0120). The caller runs
+// every operation in the tenant transaction of the hosting school. The store
+// reads only the confirmed guests of weeks the school hosts until their last
+// day; this service decides by the calendar day of its clock which guest the
+// school still cares for and when the read-only days are over.
+
+// HolidayGuestStore reads and writes the holiday guests in the tenant
+// transaction of the hosting school.
+type HolidayGuestStore interface {
+	// LockGuests serializes the reconciliations of the school until the
+	// transaction ends, so the hourly run and a group choice cannot copy the
+	// same guest twice.
+	LockGuests(ctx context.Context, schoolID int64) error
+	SetHostGroup(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup) error
+	ListHostGroups(ctx context.Context, schoolID int64) ([]enrollment.HolidayHostGroup, error)
+	// ReadGuestWeek reads a hosted week of a published period that ends on
+	// today or later; found is false otherwise.
+	ReadGuestWeek(ctx context.Context, schoolID, weekID int64, today calendar.Date) (enrollment.HolidayGuestWeek, bool, error)
+	// ListGuestSources reads the confirmed children of the week who are no
+	// students of the school.
+	ListGuestSources(ctx context.Context, schoolID int64, week enrollment.HolidayGuestWeek) ([]enrollment.HolidayGuestSource, error)
+	// ListOpenGuests lists the guests whose access has not ended early, of
+	// one week or, with weekID 0, of every week ending on from or later.
+	ListOpenGuests(ctx context.Context, schoolID, weekID int64, from calendar.Date) ([]enrollment.HolidayGuest, error)
+	InsertGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest) error
+	UpdateGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest) error
+	EndGuest(ctx context.Context, schoolID, guestID int64, endedOn calendar.Date) error
+	PurgeContacts(ctx context.Context, schoolID int64, lastReadableEnd calendar.Date) error
+	ReadGuest(ctx context.Context, schoolID, studentID int64, lastReadableEnd calendar.Date) (enrollment.HolidayGuest, bool, error)
+}
+
+// HolidayGuests serves enrollment.HolidayGuests.
+type HolidayGuests struct {
+	store  HolidayGuestStore
+	people enrollment.HolidayGuestPeople
+	log    enrollment.HolidayGuestAccessLog
+	today  func() calendar.Date
+}
+
+var _ enrollment.HolidayGuests = (*HolidayGuests)(nil)
+
+// NewHolidayGuests builds the holiday guests; a nil today uses the Berlin
+// calendar day.
+func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
+	if store == nil || people == nil || log == nil {
+		panic("enrollment: the holiday guest store, People Directory and the access log are required")
+	}
+	if today == nil {
+		today = calendar.TodayDate
+	}
+	return &HolidayGuests{store: store, people: people, log: log, today: today}
+}
+
+// AssignHolidayGuestGroup stores the group of the week and copies the
+// week's guests into it in the same transaction.
+func (h *HolidayGuests) AssignHolidayGuestGroup(ctx context.Context, host enrollment.HolidayHost, weekID, groupID int64) (enrollment.HolidayGuestTransfer, error) {
+	if host.SchoolID <= 0 || host.AccountID <= 0 {
+		return enrollment.HolidayGuestTransfer{}, errors.New("enrollment: the hosting school and the account are required")
+	}
+	if weekID <= 0 {
+		return enrollment.HolidayGuestTransfer{}, enrollment.ErrHostedHolidayWeekNotFound
+	}
+	if groupID <= 0 {
+		return enrollment.HolidayGuestTransfer{}, errors.New("enrollment: the group is required")
+	}
+	if err := h.store.LockGuests(ctx, host.SchoolID); err != nil {
+		return enrollment.HolidayGuestTransfer{}, err
+	}
+	today := h.today()
+	week, found, err := h.store.ReadGuestWeek(ctx, host.SchoolID, weekID, today)
+	if err != nil {
+		return enrollment.HolidayGuestTransfer{}, err
+	}
+	if !found {
+		return enrollment.HolidayGuestTransfer{}, enrollment.ErrHostedHolidayWeekNotFound
+	}
+	group := enrollment.HolidayHostGroup{OrganizationID: week.OrganizationID, WeekID: week.ID, GroupID: groupID, AssignedByAccountID: host.AccountID}
+	if err := h.store.SetHostGroup(ctx, host.SchoolID, group); err != nil {
+		return enrollment.HolidayGuestTransfer{}, err
+	}
+	guests, err := h.reconcileWeek(ctx, host.SchoolID, group, today)
+	if err != nil {
+		return enrollment.HolidayGuestTransfer{}, err
+	}
+	if err := h.log.RecordHolidayGuestAccess(ctx, enrollment.HolidayGuestAccess{
+		Kind: enrollment.HolidayGuestAccessTransfer, ActorAccountID: host.AccountID, ActorRole: host.Role,
+		WeekID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, Guests: guests,
+	}); err != nil {
+		return enrollment.HolidayGuestTransfer{}, fmt.Errorf("record holiday guest transfer: %w", err)
+	}
+	return enrollment.HolidayGuestTransfer{WeekID: week.ID, GroupID: groupID, Guests: guests}, nil
+}
+
+// ReconcileHolidayGuests reconciles every week the school picked a group
+// for, ends the guests of weeks whose access ended otherwise, and deletes
+// the contacts past the read-only days. A transfer that copied or ended a
+// guest is recorded under the account that picked the group.
+func (h *HolidayGuests) ReconcileHolidayGuests(ctx context.Context, schoolID int64) error {
+	if schoolID <= 0 {
+		return errors.New("enrollment: the hosting school is required")
+	}
+	if err := h.store.LockGuests(ctx, schoolID); err != nil {
+		return err
+	}
+	today := h.today()
+	groups, err := h.store.ListHostGroups(ctx, schoolID)
+	if err != nil {
+		return err
+	}
+	reconciled := make(map[int64]bool, len(groups))
+	for _, group := range groups {
+		reconciled[group.WeekID] = true
+		if err := h.reconcileAndRecord(ctx, schoolID, group, today); err != nil {
+			return err
+		}
+	}
+	// A week without a group (its group was deleted) keeps its guests in
+	// care without a group until its access ends; ending them is still due.
+	open, err := h.store.ListOpenGuests(ctx, schoolID, 0, today)
+	if err != nil {
+		return err
+	}
+	for _, guest := range open {
+		if reconciled[guest.WeekID] {
+			continue
+		}
+		reconciled[guest.WeekID] = true
+		if _, err := h.reconcileWeek(ctx, schoolID, enrollment.HolidayHostGroup{OrganizationID: guest.OrganizationID, WeekID: guest.WeekID}, today); err != nil {
+			return err
+		}
+	}
+	return h.store.PurgeContacts(ctx, schoolID, today.AddDays(-enrollment.HolidayGuestReadOnlyDays))
+}
+
+func (h *HolidayGuests) reconcileAndRecord(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup, today calendar.Date) error {
+	week, found, err := h.store.ReadGuestWeek(ctx, schoolID, group.WeekID, today)
+	if err != nil {
+		return err
+	}
+	changes, err := h.reconcile(ctx, schoolID, group, week, found, today)
+	if err != nil {
+		return err
+	}
+	if changes.copied == 0 || !found {
+		return nil
+	}
+	if err := h.log.RecordHolidayGuestAccess(ctx, enrollment.HolidayGuestAccess{
+		Kind: enrollment.HolidayGuestAccessTransfer, ActorAccountID: group.AssignedByAccountID, ActorRole: "system",
+		WeekID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, Guests: changes.guests, Automatic: true,
+	}); err != nil {
+		return fmt.Errorf("record holiday guest transfer: %w", err)
+	}
+	return nil
+}
+
+// reconcileWeek reconciles one week and returns how many guests it holds.
+func (h *HolidayGuests) reconcileWeek(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup, today calendar.Date) (int, error) {
+	week, found, err := h.store.ReadGuestWeek(ctx, schoolID, group.WeekID, today)
+	if err != nil {
+		return 0, err
+	}
+	changes, err := h.reconcile(ctx, schoolID, group, week, found, today)
+	return changes.guests, err
+}
+
+type guestChanges struct {
+	guests int
+	copied int
+}
+
+// reconcile brings the guests of one week in line with its confirmed
+// bookings. A week the school no longer hosts, or whose period is no
+// longer published, ends every guest still in care; a guest whose booking
+// went ends as well. Without a group no new guest is copied.
+func (h *HolidayGuests) reconcile(ctx context.Context, schoolID int64, group enrollment.HolidayHostGroup, week enrollment.HolidayGuestWeek, found bool, today calendar.Date) (guestChanges, error) {
+	existing, err := h.store.ListOpenGuests(ctx, schoolID, group.WeekID, today)
+	if err != nil {
+		return guestChanges{}, err
+	}
+	var sources []enrollment.HolidayGuestSource
+	if found {
+		if sources, err = h.store.ListGuestSources(ctx, schoolID, week); err != nil {
+			return guestChanges{}, err
+		}
+	}
+	byChild := make(map[int64]enrollment.HolidayGuest, len(existing))
+	for _, guest := range existing {
+		byChild[guest.ChildID] = guest
+	}
+	changes, err := h.applySources(ctx, schoolID, sources, byChild, week, group)
+	if err != nil {
+		return guestChanges{}, err
+	}
+	// What is left has no confirmed booking in the week any more.
+	for _, gone := range byChild {
+		if err := h.endGuest(ctx, schoolID, gone, today); err != nil {
+			return guestChanges{}, err
+		}
+	}
+	return changes, nil
+}
+
+// applySources refreshes the guests that still have a confirmed booking and
+// copies the new ones, removing each handled guest from byChild.
+func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, week enrollment.HolidayGuestWeek, group enrollment.HolidayHostGroup) (guestChanges, error) {
+	var groupID *int64
+	if group.GroupID > 0 {
+		groupID = &group.GroupID
+	}
+	changes := guestChanges{}
+	for _, source := range sources {
+		guest, ok := byChild[source.ChildID]
+		delete(byChild, source.ChildID)
+		switch {
+		case ok:
+			if err := h.refreshGuest(ctx, schoolID, guest, source, week, groupID); err != nil {
+				return guestChanges{}, err
+			}
+		case groupID == nil:
+			continue
+		default:
+			if err := h.copyGuest(ctx, schoolID, source, week, groupID); err != nil {
+				return guestChanges{}, err
+			}
+			changes.copied++
+		}
+		changes.guests++
+	}
+	return changes, nil
+}
+
+func (h *HolidayGuests) copyGuest(ctx context.Context, schoolID int64, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64) error {
+	studentID, err := h.people.CreateHolidayGuestChild(ctx, guestChild(source, week, groupID))
+	if err != nil {
+		return fmt.Errorf("create the child of a holiday guest: %w", err)
+	}
+	return h.store.InsertGuest(ctx, schoolID, guestRecord(enrollment.HolidayGuest{
+		OrganizationID: week.OrganizationID, WeekID: week.ID, ChildID: source.ChildID, StudentID: studentID,
+	}, source, week))
+}
+
+// refreshGuest follows a change of the registration (names, time model,
+// contacts) or of the group and writes the child only when it differs.
+func (h *HolidayGuests) refreshGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64) error {
+	current, err := h.people.ReadHolidayGuestChild(ctx, guest.StudentID)
+	if err != nil {
+		return fmt.Errorf("read the child of a holiday guest: %w", err)
+	}
+	if groupID == nil {
+		groupID = current.GroupID
+	}
+	wanted := guestChild(source, week, groupID)
+	if !sameGuestChild(current, wanted) {
+		if err := h.people.UpdateHolidayGuestChild(ctx, guest.StudentID, wanted); err != nil {
+			return fmt.Errorf("update the child of a holiday guest: %w", err)
+		}
+	}
+	return h.store.UpdateGuest(ctx, schoolID, guestRecord(guest, source, week))
+}
+
+// endGuest ends the care of a guest whose booking or week went: from
+// today on the child is no longer cared for, and its contacts go.
+func (h *HolidayGuests) endGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, today calendar.Date) error {
+	current, err := h.people.ReadHolidayGuestChild(ctx, guest.StudentID)
+	if err != nil {
+		return fmt.Errorf("read the child of a holiday guest: %w", err)
+	}
+	lastDay := today.AddDays(-1)
+	if current.EnrolledUntil == "" || current.EnrolledUntil.After(lastDay) {
+		current.EnrolledUntil = lastDay
+		if current.EnrolledFrom == "" || current.EnrolledFrom.After(lastDay) {
+			current.EnrolledFrom = lastDay
+		}
+		if err := h.people.UpdateHolidayGuestChild(ctx, guest.StudentID, current); err != nil {
+			return fmt.Errorf("end the care of a holiday guest: %w", err)
+		}
+	}
+	return h.store.EndGuest(ctx, schoolID, guest.ID, today)
+}
+
+func guestChild(source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64) enrollment.HolidayGuestChild {
+	return enrollment.HolidayGuestChild{
+		FirstName: source.FirstName, LastName: source.LastName, BirthDate: source.BirthDate, GroupID: groupID,
+		EnrolledFrom: week.StartsOn, EnrolledUntil: week.EndsOn,
+	}
+}
+
+func sameGuestChild(a, b enrollment.HolidayGuestChild) bool {
+	sameGroup := (a.GroupID == nil) == (b.GroupID == nil) && (a.GroupID == nil || *a.GroupID == *b.GroupID)
+	return sameGroup && a.FirstName == b.FirstName && a.LastName == b.LastName && a.BirthDate == b.BirthDate &&
+		a.EnrolledFrom == b.EnrolledFrom && a.EnrolledUntil == b.EnrolledUntil
+}
+
+func guestRecord(guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek) enrollment.HolidayGuest {
+	guest.StartsOn, guest.EndsOn = week.StartsOn, week.EndsOn
+	guest.HomeSchoolID, guest.GuestSchoolName = source.HomeSchoolID, source.GuestSchoolName
+	guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds = source.TimeModelName, source.TimeModelStarts, source.TimeModelEnds
+	guest.Emergency, guest.Pickup = source.Emergency, source.Pickup
+	return guest
+}
+
+// HolidayGuestSheet returns the sheet of a guest until the read-only days
+// after its week are over and records the read.
+func (h *HolidayGuests) HolidayGuestSheet(ctx context.Context, host enrollment.HolidayHost, studentID int64) (enrollment.HolidayGuestSheet, error) {
+	if host.SchoolID <= 0 || host.AccountID <= 0 {
+		return enrollment.HolidayGuestSheet{}, errors.New("enrollment: the hosting school and the account are required")
+	}
+	if studentID <= 0 {
+		return enrollment.HolidayGuestSheet{}, enrollment.ErrHolidayGuestNotFound
+	}
+	today := h.today()
+	guest, found, err := h.store.ReadGuest(ctx, host.SchoolID, studentID, today.AddDays(-enrollment.HolidayGuestReadOnlyDays))
+	if err != nil {
+		return enrollment.HolidayGuestSheet{}, err
+	}
+	if !found {
+		return enrollment.HolidayGuestSheet{}, enrollment.ErrHolidayGuestNotFound
+	}
+	if err := h.log.RecordHolidayGuestAccess(ctx, enrollment.HolidayGuestAccess{
+		Kind: enrollment.HolidayGuestAccessSheet, ActorAccountID: host.AccountID, ActorRole: host.Role,
+		WeekID: guest.WeekID, StudentID: guest.StudentID, StartsOn: guest.StartsOn, EndsOn: guest.EndsOn,
+	}); err != nil {
+		return enrollment.HolidayGuestSheet{}, fmt.Errorf("record holiday guest sheet read: %w", err)
+	}
+	return holidayGuestSheet(guest, today), nil
+}
+
+func holidayGuestSheet(guest enrollment.HolidayGuest, today calendar.Date) enrollment.HolidayGuestSheet {
+	sheet := enrollment.HolidayGuestSheet{
+		StudentID: guest.StudentID, WeekID: guest.WeekID, StartsOn: guest.StartsOn, EndsOn: guest.EndsOn,
+		TimeModelName: guest.TimeModelName, TimeModelStarts: guest.TimeModelStarts, TimeModelEnds: guest.TimeModelEnds,
+		HomeSchoolID: guest.HomeSchoolID, GuestSchoolName: guest.GuestSchoolName,
+		Emergency: guest.Emergency, Pickup: guest.Pickup, ReadOnly: guest.EndsOn.Before(today),
+	}
+	if sheet.Emergency == nil {
+		sheet.Emergency = []enrollment.HolidayGuestContact{}
+	}
+	if sheet.Pickup == nil {
+		sheet.Pickup = []enrollment.HolidayGuestContact{}
+	}
+	return sheet
+}

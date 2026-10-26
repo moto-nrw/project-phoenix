@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "next-auth/react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -7,6 +8,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
 import { formatDate } from "~/lib/date-helpers";
 import {
   downloadHolidayParticipants,
@@ -22,6 +24,7 @@ import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
+import { HolidayGuestGroupCard } from "./holiday-guest-group-card";
 
 const logger = createLogger({ component: "FerienwochenPage" });
 
@@ -34,6 +37,9 @@ const REFRESH = { revalidateOnFocus: true, refreshInterval: 60_000 };
 // Woche die Kinder, deren Anmeldung der Träger bestätigt hat, mit Zahlen je
 // Zeitmodell und Heimatschule. Nach dem letzten Tag der Woche ist die Liste
 // weg. Die Seite liest nur; Anmeldungen prüft und bestätigt der Träger.
+//
+// Die Leitung wählt hier auch die Feriengruppe der Woche (#4666): Die
+// bestätigten Feriengäste kommen dann in diese Gruppe und in den Check-in.
 //
 // Bauart 3 (Werkzeug): eine Liste zum Vorbereiten und Ausdrucken, kein
 // Objekt, das hier bearbeitet wird.
@@ -118,6 +124,8 @@ export default function FerienwochenPage() {
   const { isReady, isLoading: permissionLoading } = useRequirePermission([
     "config:read",
   ]);
+  const { data: session } = useSession();
+  const canAssignGuests = hasPermission(session, "users:create");
   // Tenant-scoped keys: the list holds children's names and birth dates, so
   // another school's cache entry must never show here.
   const weeks = useSWRAuth(
@@ -232,7 +240,16 @@ export default function FerienwochenPage() {
           : null
       }
     >
-      {list && <ParticipantList list={list} />}
+      {list && selectedWeek && (
+        <div className="flex flex-col gap-6">
+          <HolidayGuestGroupCard
+            week={selectedWeek}
+            canAssign={canAssignGuests}
+            onAssigned={() => void weeks.mutate()}
+          />
+          <ParticipantList list={list} />
+        </div>
+      )}
     </TenantPage>
   );
 }

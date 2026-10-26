@@ -333,6 +333,10 @@ func TestSeedTraegerHolidayPeriodStepReadsTheHostedParticipantList(t *testing.T)
 				case "/api/holiday-weeks/51/participants":
 					reads = append(reads, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
 					_, _ = w.Write([]byte(`{"status":"success","data":{"participants":[]}}`))
+				case "/api/holiday-weeks/51/guest-group":
+					// The holiday guests join the new group (#4666).
+					reads = append(reads, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
+					_, _ = w.Write([]byte(`{"status":"success","data":{"week_id":51,"group_id":5,"guests":1}}`))
 				case "/traeger/billing-runs/5", "/traeger/billing-runs/5/corrections":
 					// The billing run of the same step (#4668) checks one invoice.
 					_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"documents":[{"registration_id":9,"children":[{"child_id":91}]}]}}`))
@@ -358,7 +362,8 @@ func TestSeedTraegerHolidayPeriodStepReadsTheHostedParticipantList(t *testing.T)
 			assert.Equal(t, []string{
 				"GET /api/holiday-weeks/ Bearer school-token",
 				"GET /api/holiday-weeks/51/participants Bearer school-token",
-			}, reads, "the hosting school reads its list with its own school session")
+				"PUT /api/holiday-weeks/51/guest-group Bearer school-token",
+			}, reads, "the hosting school reads its list and takes its holiday guests with its own school session")
 		})
 	}
 }

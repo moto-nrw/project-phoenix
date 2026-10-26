@@ -43,3 +43,9 @@ func NewHolidayRegistrationReview() enrollment.HolidayRegistrationReview {
 func NewHolidayHostParticipants(log enrollment.HolidayParticipantAccessLog, today func() calendar.Date) enrollment.HolidayHostParticipants {
 	return applicationNative.NewHolidayHostParticipants(postgres.NewHolidayHostStore(), log, today)
 }
+
+// NewHolidayGuests builds the hosting school's holiday guests (#4666,
+// ADR 0120); a nil today uses the Berlin calendar day.
+func NewHolidayGuests(people enrollment.HolidayGuestPeople, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) enrollment.HolidayGuests {
+	return applicationNative.NewHolidayGuests(postgres.NewHolidayGuestStore(), people, log, today)
+}

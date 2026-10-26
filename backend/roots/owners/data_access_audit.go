@@ -111,3 +111,35 @@ func (a holidayParticipantAccessLog) RecordHolidayParticipantAccess(ctx context.
 		Metadata: metadata,
 	})
 }
+
+// NewHolidayGuestAccessLog records the hosting school's transfers of holiday
+// guests and the reads of a guest's sheet (#4666, ADR 0120) in its own data
+// access log, in the caller's tenant transaction. The entry spans the week.
+func NewHolidayGuestAccessLog(writer DataAccessAppender) enrollmentOwner.HolidayGuestAccessLog {
+	if writer == nil {
+		return nil
+	}
+	return holidayGuestAccessLog{writer: writer}
+}
+
+type holidayGuestAccessLog struct {
+	writer DataAccessAppender
+}
+
+func (a holidayGuestAccessLog) RecordHolidayGuestAccess(ctx context.Context, access enrollmentOwner.HolidayGuestAccess) error {
+	entry := &auditModels.DataAccessLog{
+		ActorAccountID: access.ActorAccountID, ActorRole: access.ActorRole,
+		RangeStart: access.StartsOn.BerlinMidnight(), RangeEnd: access.EndsOn.EndOfDay(), AccessedAt: time.Now(),
+		Metadata: map[string]any{"week_id": access.WeekID},
+	}
+	switch access.Kind {
+	case enrollmentOwner.HolidayGuestAccessSheet:
+		studentID := access.StudentID
+		entry.ResourceType, entry.StudentID = auditModels.ResourceTypeHolidayGuestSheet, &studentID
+	default:
+		entry.ResourceType = auditModels.ResourceTypeHolidayGuestTransfer
+		entry.Metadata["guests"] = access.Guests
+		entry.Metadata["automatic"] = access.Automatic
+	}
+	return a.writer.Create(ctx, entry)
+}
