@@ -78,7 +78,7 @@ export interface SchoolDayTotals {
 
 /** Ein Kind der Tagesübersicht, nur mit dem, was die Zahlen zählen. */
 export interface SchoolDayChild {
-  student_id?: number;
+  student_id?: string;
   list_entry?: boolean;
   list_entry_id?: string;
   first_name: string;

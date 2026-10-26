@@ -620,7 +620,7 @@ const (
 // what its numbers count: the name, the day status, the morning status and
 // whether the child stays in the OGS. No times, departures or contacts.
 type SchoolDayChild struct {
-	StudentID int64 `json:"student_id,omitempty"`
+	StudentID int64 `json:"student_id,string,omitempty"`
 	// ListEntry marks a class-list-only entry (#2382); ListEntryID carries
 	// its id as a JSON string.
 	ListEntry   bool   `json:"list_entry,omitempty"`

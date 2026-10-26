@@ -34,6 +34,7 @@ import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import type {
   ClassDayClasses,
+  SchoolDayChild,
   SchoolDayReport,
 } from "~/lib/school-class-day-api";
 import { schoolPath } from "~/lib/school-url";
@@ -199,7 +200,7 @@ function ClassLink({
  * „Fehlen“ der Tagesstatus, in „Kinder“ das Kind ohne Betreuung.
  */
 function childNote(
-  child: SchoolDayReport["classes"][number]["children"][number],
+  child: SchoolDayChild,
   list: SchoolDayListKey,
 ): string | null {
   if (list !== "kinder" && list !== "fehlen") return null;
@@ -540,7 +541,7 @@ export function ClassDayOverview({
                           </div>
                           {groups.length === 0 ? (
                             <p className="mt-2 text-sm text-gray-500">
-                              An diesem Tag sind es keine Kinder.
+                              An diesem Tag stehen keine Kinder in dieser Liste.
                             </p>
                           ) : (
                             <div className="mt-2 grid gap-3 lg:grid-cols-2">

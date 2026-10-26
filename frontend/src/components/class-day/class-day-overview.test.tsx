@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { ClassDayReport } from "~/lib/class-day-api";
@@ -9,11 +9,11 @@ import { ClassDayOverview } from "./class-day-overview";
 // Die Übersicht lädt am Wochenende keine Klasse, außer die Schule betreut
 // Samstag und Sonntag nach dem Freitagsplan (#3921).
 
-const navigation = vi.hoisted(() => ({ search: "" }));
+const navigation = vi.hoisted(() => ({ search: "", replace: vi.fn() }));
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(navigation.search),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: navigation.replace }),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -154,13 +154,13 @@ function schoolDay(date: string): SchoolDayReport {
         },
         children: [
           {
-            student_id: 1,
+            student_id: "1",
             first_name: "Anna",
             last_name: "Arndt",
             after_school: "stays",
           },
           {
-            student_id: 2,
+            student_id: "2",
             first_name: "Ben",
             last_name: "Busch",
             status: "sick",
@@ -174,7 +174,7 @@ function schoolDay(date: string): SchoolDayReport {
         totals: { ...schoolTotals, students: 1, leaving: 1 },
         children: [
           {
-            student_id: 3,
+            student_id: "3",
             first_name: "Carl",
             last_name: "Claus",
             after_school: "goes_home",
@@ -245,6 +245,24 @@ describe("ClassDayOverview for the Schulverwaltung", () => {
     expect(screen.getByText("Claus, Carl")).toBeVisible();
     expect(screen.getByRole("link", { name: /2b · 1/ })).toBeVisible();
     expect(screen.queryByText("Busch, Ben")).not.toBeInTheDocument();
+  });
+
+  it("keeps the opened list when the day changes", async () => {
+    navigation.search = "tag=2026-09-09&liste=krank";
+    render(
+      <ClassDayOverview
+        fetchClasses={classes}
+        fetchClassDay={(_, date) => Promise.resolve(report(date))}
+        fetchSchoolDay={(date) => Promise.resolve(schoolDay(date))}
+      />,
+    );
+
+    expect(await screen.findByText("Krank: 1")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Vorheriger Tag" }));
+    expect(navigation.replace).toHaveBeenCalledWith(
+      "/school?tag=2026-09-08&liste=krank",
+      { scroll: false },
+    );
   });
 
   it("keeps the per-class reports for a Lehrkraft", async () => {

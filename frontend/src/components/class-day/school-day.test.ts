@@ -36,13 +36,13 @@ const report: SchoolDayReport = {
       totals: zero,
       children: [
         {
-          student_id: 1,
+          student_id: "1",
           first_name: "Anna",
           last_name: "Arndt",
           after_school: "stays",
         },
         {
-          student_id: 2,
+          student_id: "2",
           first_name: "Ben",
           last_name: "Busch",
           status: "sick",
@@ -56,7 +56,7 @@ const report: SchoolDayReport = {
       totals: zero,
       children: [
         {
-          student_id: 3,
+          student_id: "3",
           first_name: "Carl",
           last_name: "Claus",
           after_school: "goes_home",
