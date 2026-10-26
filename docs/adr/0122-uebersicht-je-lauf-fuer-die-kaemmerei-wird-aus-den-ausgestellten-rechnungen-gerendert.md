@@ -28,7 +28,9 @@ auf, führt keinen Owner ein und hält fest, was die Übersicht in den Registern
    ADR 0114: Die Elternabrechnung füllt die Tabelle, Document Rendering
    rendert sie mit `lists.Renderer`. Beträge stehen als deutscher Text
    („1.234,56“) in der Spalte „Betrag in Euro“; CSV hat Semikolon, BOM und
-   entschärfte Formeln.
+   entschärfte Formeln. Ein negativer Betrag („-32,50“) ist keine Formel:
+   Der CSV-Renderer lässt eine reine Zahl ohne Apostroph, damit Rabatte und
+   Korrekturen als Zahl in der Tabellenkalkulation ankommen.
 4. **Abhängigkeit.** `parent-billing/http` darf Document Rendering nicht
    importieren, und eine neue Regel zwischen zwei bestehenden Punkten lehnt
    die Policy ab. Die Elternabrechnung erklärt deshalb ihren Port

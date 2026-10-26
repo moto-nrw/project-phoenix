@@ -88,7 +88,7 @@ func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.
 	}
 	rows = append(rows, map[string]string{"position": "Gesamtsumme des Laufs", "amount": formatEuro(total)})
 	return parentbilling.ExportTable{
-		Title: "Abrechnungsanordnung", Subtitle: "Ferienbetreuung: " + run.PeriodName,
+		Title: "Abrechnungsanordnung", Subtitle: run.PeriodName,
 		Lines: overviewLines(run, documents, total), Columns: billingRunOverviewColumns, Rows: rows,
 		Footer: "Vertraulich. Enthält personenbezogene Daten.",
 	}
@@ -100,11 +100,12 @@ func overviewLines(run parentbilling.BillingRun, documents []parentbilling.Billi
 	if run.IssuedOn != nil {
 		lines = append(lines, "Rechnungsdatum: "+run.IssuedOn.Format("02.01.2006"))
 	}
-	count := "1 Rechnung"
-	if len(documents) != 1 {
-		count = strconv.Itoa(len(documents)) + " Rechnungen"
-	}
-	if len(documents) > 0 {
+	count := strconv.Itoa(len(documents)) + " Rechnungen"
+	switch len(documents) {
+	case 0:
+	case 1:
+		count = "1 Rechnung: " + documents[0].Number
+	default:
 		count += ", Nummern " + documents[0].Number + " bis " + documents[len(documents)-1].Number
 	}
 	return append(lines, count, "Gesamtsumme: "+formatEuro(total)+" Euro")

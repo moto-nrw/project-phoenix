@@ -53,7 +53,7 @@ func TestOverviewListsEveryPositionPerFamilyWithTheSums(t *testing.T) {
 
 	table := billingRunOverview(run, documents)
 	assert.Equal(t, "Abrechnungsanordnung", table.Title)
-	assert.Equal(t, "Ferienbetreuung: Winterferien 2027", table.Subtitle)
+	assert.Equal(t, "Winterferien 2027", table.Subtitle)
 	assert.Equal(t, []string{
 		"Leistungszeitraum: 04.01.2027 bis 15.01.2027", "Rechnungsdatum: 01.12.2026",
 		"2 Rechnungen, Nummern FE-0001 bis FE-0002", "Gesamtsumme: 62,50 Euro",
@@ -74,4 +74,5 @@ func TestOverviewListsEveryPositionPerFamilyWithTheSums(t *testing.T) {
 			assert.NotContains(t, value, "@", "the overview carries no mail address")
 		}
 	}
+	assert.Contains(t, billingRunOverview(run, documents[:1]).Lines, "1 Rechnung: FE-0001")
 }

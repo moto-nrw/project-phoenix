@@ -116,7 +116,6 @@ export function BillingRunOverviewCard({
         rows={[...run.documents]}
         getRowKey={(document) => document.number}
         stackedOnMobile
-        stackedLayout="row"
       />
     </SectionCard>
   );

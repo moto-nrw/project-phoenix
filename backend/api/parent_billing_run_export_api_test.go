@@ -69,6 +69,8 @@ func TestReleasedBillingRunExportsTheOverviewForTheKaemmerei(t *testing.T) {
 	assert.Equal(t, "FE-0001;Muster, Eva;;Summe der Rechnung;"+euroText(invoice.TotalCents), strings.TrimSpace(lines[len(lines)-2]))
 	assert.Equal(t, ";;;Gesamtsumme des Laufs;"+euroText(*released.TotalCents), strings.TrimSpace(lines[len(lines)-1]))
 	assert.NotContains(t, rec.Body.String(), invoice.RecipientEmail)
+	assert.Contains(t, rec.Body.String(), ";Geschwister: 2. Kind, 50 % weniger;-", "a discount is a negative amount")
+	assert.NotContains(t, rec.Body.String(), ";'-", "a negative amount stays a number, not text")
 
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunPath(run.ID, "/export?format=xlsx"), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
