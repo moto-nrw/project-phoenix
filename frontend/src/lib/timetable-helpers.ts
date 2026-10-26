@@ -1367,6 +1367,8 @@ export function getCurrentTimeOffset(
 export interface LaneBlock {
   startTime: string;
   endTime: string;
+  /** Numeric end for windows that reach the day boundary (24:00). */
+  endMinute?: number;
 }
 
 export interface LanedBlock<T extends LaneBlock> {
@@ -1466,7 +1468,7 @@ export function assignBlockLanes<T extends LaneBlock>(
 
   for (const inst of sorted) {
     const startMin = parseTimeToMinutes(inst.startTime);
-    const endMin = parseTimeToMinutes(inst.endTime);
+    const endMin = inst.endMinute ?? parseTimeToMinutes(inst.endTime);
 
     if (startMin >= clusterMaxEnd) {
       flushCluster();

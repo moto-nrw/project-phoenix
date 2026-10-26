@@ -33,6 +33,7 @@ export interface TagesplanGroup {
 interface Window {
   startTime: string;
   endTime: string;
+  endMinute: number;
   instance: PlannedTimetableInstance;
 }
 
@@ -50,14 +51,24 @@ function formatMinutes(total: number): string {
 function effectiveEnd(
   instance: PlannedTimetableInstance,
   nowHHMM: string | null,
-): string {
+): Pick<Window, "endTime" | "endMinute"> {
   const end =
     instance.endTime > instance.startTime
       ? instance.endTime
       : instance.startTime;
-  if (nowHHMM == null || !hasOpenEnd(instance)) return end;
-  const runningUntil = formatMinutes(parseTimeToMinutes(nowHHMM) + 1);
-  return runningUntil > end ? runningUntil : end;
+  const endMinute = parseTimeToMinutes(end);
+  if (nowHHMM == null || !hasOpenEnd(instance)) {
+    return { endTime: end, endMinute };
+  }
+
+  // `24:00` is a valid end-of-day boundary, but not a valid HH:MM input.
+  // Keep its minute value so lane assignment never parses that display value.
+  const runningUntil = Math.min(parseTimeToMinutes(nowHHMM) + 1, 24 * 60);
+  const effectiveEndMinute = Math.max(endMinute, runningUntil);
+  return {
+    endTime: formatMinutes(effectiveEndMinute),
+    endMinute: effectiveEndMinute,
+  };
 }
 
 function compareWindows(a: Window, b: Window): number {
@@ -97,7 +108,7 @@ export function groupParallelBlocks(
 ): TagesplanGroup[] {
   const windows: Window[] = instances.map((instance) => ({
     startTime: instance.startTime,
-    endTime: effectiveEnd(instance, nowHHMM),
+    ...effectiveEnd(instance, nowHHMM),
     instance,
   }));
   const laned = assignBlockLanes(windows, compareWindows);
@@ -107,16 +118,16 @@ export function groupParallelBlocks(
   const flush = () => {
     const first = members[0];
     if (!first) return;
-    const endTime = members.reduce(
-      (max, m) => (m.instance.endTime > max ? m.instance.endTime : max),
-      first.instance.endTime,
+    const endMinute = members.reduce(
+      (max, member) => Math.max(max, member.instance.endMinute),
+      first.instance.endMinute,
     );
     groups.push({
       key: first.instance.instance.id,
       laneCount: first.laneCount,
       cells: placeRows(members),
       startTime: first.instance.startTime,
-      endTime,
+      endTime: formatMinutes(endMinute),
       openEnd: members.some((m) => hasOpenEnd(m.instance.instance)),
     });
     members = [];
