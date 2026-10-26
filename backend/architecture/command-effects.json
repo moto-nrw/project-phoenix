@@ -44979,6 +44979,17 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayRegistrations.ResolveHolidayRegistrationLink: resolves the Träger and the published period of a public link in the administrative transaction, like the registration form (ADR 0110, ADR 0115)."
     },
     {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.TableRenderer.RenderTable",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingTableRenderer.RenderTable",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.Renderer.Render",
+      "target_owner": "document-rendering",
+      "binding_digest": "f2de79f311df5714200a6e2ff08a5a1a",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.Renderer.Render. ADR 0122: the overview of a released billing run for the Kämmerei is a list document the renderer turns into a PDF, Excel or CSV file without storing it."
+    },
+    {
       "source_owner": "people-directory",
       "port": "github.com/moto-nrw/project-phoenix/api/common.StudentAccessSource.StudentAccessFacts",
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.StudentAccessFacts",

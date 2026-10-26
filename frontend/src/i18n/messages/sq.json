@@ -2837,6 +2837,7 @@
         "billing_run_empty": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "billing_run_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "billing_run_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "billing_run_not_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "billing_run_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "contribution_rule_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "contribution_rule_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

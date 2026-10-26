@@ -389,6 +389,7 @@ basis
 	GET /traeger/billing-runs/
 	GET /traeger/billing-runs/periods
 	GET /traeger/billing-runs/{id}
+	GET /traeger/billing-runs/{id}/export
 	GET /traeger/contribution-rules/
 	GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 	GET /traeger/holiday-periods/

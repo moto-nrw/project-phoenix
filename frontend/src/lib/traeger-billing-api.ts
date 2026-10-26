@@ -1,10 +1,13 @@
 /**
  * Client of the billing runs in the Träger portal (#4668): the runs of a
  * holiday period with their preview, corrections with a reason, the release
- * that issues the numbered invoices, and the number range of the invoices.
+ * that issues the numbered invoices, the overview of a released run for the
+ * Kämmerei, and the number range of the invoices.
  * Money stays whole cent. Backend int64 IDs leave here as strings.
  */
 
+import { apiErrorFromBody, transportFetch } from "./api-error";
+import { filenameFromDisposition } from "./file-download";
 import { traegerRequest } from "./traeger-api";
 
 export type BillingRunStatus = "calculated" | "released";
@@ -306,6 +309,40 @@ export async function releaseBillingRun(
       },
     }),
   );
+}
+
+export type BillingRunExportFormat = "pdf" | "xlsx" | "csv";
+
+/**
+ * The overview of a released run for the Kämmerei (#4672): every invoice
+ * with its positions and sums, with the file name the backend chose.
+ */
+export async function downloadBillingRunOverview(
+  id: string,
+  format: BillingRunExportFormat,
+): Promise<{ readonly blob: Blob; readonly filename: string | null }> {
+  const response = await transportFetch(
+    `${runPath(id)}/export?format=${format}`,
+    { credentials: "include", cache: "no-store" },
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    let body: unknown = null;
+    try {
+      body = text ? (JSON.parse(text) as unknown) : null;
+    } catch {
+      body = null;
+    }
+    throw apiErrorFromBody(
+      `Request failed (${response.status})`,
+      response.status,
+      body,
+    );
+  }
+  return {
+    blob: await response.blob(),
+    filename: filenameFromDisposition(response),
+  };
 }
 
 const NUMBER_RANGES_PATH = "/api/traeger/number-ranges";

@@ -10,10 +10,13 @@ const { api } = vi.hoisted(() => ({
     fetchBillingRun: vi.fn(),
     correctBillingRun: vi.fn(),
     releaseBillingRun: vi.fn(),
+    downloadBillingRunOverview: vi.fn(),
   },
 }));
+const { downloadBlob } = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
 
 vi.mock("~/lib/traeger-billing-api", () => api);
+vi.mock("~/lib/file-download", () => ({ downloadBlob }));
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path.replace(/^\/traeger/, "") || "/",
 }));
@@ -148,9 +151,22 @@ function renderPage() {
   );
 }
 
+const RELEASED: BillingRunDetail = {
+  ...PREVIEW,
+  status: "released",
+  issuedOn: "2026-09-09",
+  documentCount: 1,
+  totalCents: 11250,
+  unbilled: 0,
+  documents: [
+    { ...PREVIEW.documents[0]!, number: "FE-0001", issuedOn: "2026-09-09" },
+  ],
+};
+
 describe("TraegerBillingRunPage", () => {
   beforeEach(() => {
     for (const fn of Object.values(api)) fn.mockReset();
+    downloadBlob.mockReset();
     api.fetchBillingRun.mockResolvedValue(PREVIEW);
   });
 
@@ -240,17 +256,7 @@ describe("TraegerBillingRunPage", () => {
   });
 
   it("shows issued invoices without a way to change them", async () => {
-    api.fetchBillingRun.mockResolvedValue({
-      ...PREVIEW,
-      status: "released",
-      issuedOn: "2026-09-09",
-      documentCount: 1,
-      totalCents: 11250,
-      unbilled: 0,
-      documents: [
-        { ...PREVIEW.documents[0]!, number: "FE-0001", issuedOn: "2026-09-09" },
-      ],
-    });
+    api.fetchBillingRun.mockResolvedValue(RELEASED);
     renderPage();
 
     expect(
@@ -268,5 +274,64 @@ describe("TraegerBillingRunPage", () => {
         name: "Aktionen für die Rechnung an Eva Muster",
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers the overview for the Kämmerei only once the run is released", async () => {
+    renderPage();
+    await screen.findByText("Eva Muster");
+    expect(screen.getByText("Abrechnungslauf")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Übersicht für die Kämmerei"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("downloads the overview of a released run", async () => {
+    api.fetchBillingRun.mockResolvedValue(RELEASED);
+    const blob = new Blob(["Rechnungsnummer"]);
+    api.downloadBillingRunOverview.mockResolvedValue({
+      blob,
+      filename: "abrechnungsanordnung-Winterferien_2027.csv",
+    });
+    renderPage();
+
+    expect(
+      await screen.findByText("Übersicht für die Kämmerei"),
+    ).toBeInTheDocument();
+    // The table renders a desktop row and a stacked phone row.
+    expect(screen.getAllByText("FE-0001")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Muster, Eva")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Lia, Ben")[0]).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als CSV herunterladen" }),
+    );
+    await waitFor(() =>
+      expect(downloadBlob).toHaveBeenCalledWith(
+        blob,
+        "abrechnungsanordnung-Winterferien_2027.csv",
+      ),
+    );
+    expect(api.downloadBillingRunOverview).toHaveBeenCalledWith("9", "csv");
+  });
+
+  it("names the overview when its download fails", async () => {
+    api.fetchBillingRun.mockResolvedValue(RELEASED);
+    api.downloadBillingRunOverview.mockRejectedValue(
+      new ApiError("not released", 409, {
+        code: "parent_billing.billing_run_not_released",
+      }),
+    );
+    renderPage();
+    await screen.findByText("Übersicht für die Kämmerei");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als PDF herunterladen" }),
+    );
+    expect(
+      await screen.findByText(
+        catalogText("parent_billing.billing_run_not_released", "die Übersicht"),
+      ),
+    ).toBeInTheDocument();
+    expect(downloadBlob).not.toHaveBeenCalled();
   });
 });

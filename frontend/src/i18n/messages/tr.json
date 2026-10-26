@@ -2837,6 +2837,7 @@
         "billing_run_empty": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_run_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_run_open": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "billing_run_not_released": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_run_released": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "contribution_rule_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "contribution_rule_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

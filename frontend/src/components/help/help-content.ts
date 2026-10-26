@@ -9278,9 +9278,18 @@ function traegerBillingRunTopic(): HelpTopic {
           "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
         ],
       },
+      {
+        title: "Übersicht für die Kämmerei herunterladen",
+        description: "Das geht, sobald der Lauf freigegeben ist.",
+        steps: [
+          "Öffnen Sie den freigegebenen Lauf.",
+          "Wählen Sie bei `Übersicht für die Kämmerei` das Format: `Als PDF herunterladen`, `Als Excel herunterladen` oder `Als CSV herunterladen`.",
+          "Geben Sie die Datei an die Kämmerei weiter.",
+        ],
+      },
     ],
     result:
-      "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen lassen sich nicht mehr ändern.",
+      "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen lassen sich nicht mehr ändern. Die Übersicht zeigt jede Position je Familie, die Summe jeder Rechnung und die Gesamtsumme.",
     notes: [
       "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
       "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
@@ -9289,6 +9298,7 @@ function traegerBillingRunTopic(): HelpTopic {
     differences: [
       "Sie sehen oben kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
       "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
+      "Sie sehen keine `Übersicht für die Kämmerei`? Der Lauf ist noch nicht freigegeben.",
     ],
     troubleshootingDetails: [
       "Die Freigabe meldet, dass sich der Lauf geändert hat? Inzwischen wurde eine Anmeldung bestätigt. Prüfen Sie die neue Vorschau und geben Sie dann frei.",

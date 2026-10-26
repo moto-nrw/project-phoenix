@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -25,7 +27,8 @@ import (
 // "Anmeldung verwalten", and the public contribution of the registration
 // form at /traeger/holiday-quotes, and the billing runs and number ranges
 // at /traeger/billing-runs and /traeger/number-ranges behind the right
-// "Abrechnung" (#4668, ADR 0119).
+// "Abrechnung" (#4668, ADR 0119), with the overview of a released run for
+// the Kämmerei (#4672, ADR 0122).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, delivery deliveryRuntime.Capability, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, delivery, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
@@ -36,14 +39,50 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
 }
 
-// NewBillingRunHTTP binds the billing runs to the right "Abrechnung" and to
-// Enrollment's holiday periods and the review of their registrations.
+// NewBillingRunHTTP binds the billing runs to the right "Abrechnung", to
+// Enrollment's holiday periods and the review of their registrations, and
+// the overview of a run to Document Rendering's list renderer.
 func NewBillingRunHTTP() *parentBillingHTTP.BillingRunResource {
 	registrations := parentBillingBillingRegistrations{
 		periods: enrollmentCompose.NewHolidayPeriods(), review: enrollmentCompose.NewHolidayRegistrationReview(),
 	}
-	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations),
+	renderer := parentBillingTableRenderer{renderer: lists.NewRenderer()}
+	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations, renderer),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+}
+
+// parentBillingTableRenderer binds the Elternabrechnung's table renderer to
+// Document Rendering's list contract (#4672, ADR 0122): the table becomes a
+// list document whose values are free of the renderer's style markers.
+type parentBillingTableRenderer struct {
+	renderer lists.Renderer
+}
+
+func (b parentBillingTableRenderer) RenderTable(table parentbilling.ExportTable, format, filenameBase string) (parentbilling.ExportFile, error) {
+	columns := make([]lists.Column, len(table.Columns))
+	for i, column := range table.Columns {
+		columns[i] = lists.Column{ID: lists.ColumnID(column.ID), Label: column.Label}
+	}
+	rows := make([]lists.Row, len(table.Rows))
+	for i, row := range table.Rows {
+		values := make(map[lists.ColumnID]string, len(row))
+		for id, value := range row {
+			values[lists.ColumnID(id)] = lists.SanitizeUserText(value)
+		}
+		rows[i] = lists.Row{Values: values}
+	}
+	lines := make([]string, len(table.Lines))
+	for i, line := range table.Lines {
+		lines[i] = lists.SanitizeUserText(line)
+	}
+	file, err := b.renderer.Render(lists.Document{
+		Title: table.Title, Subtitle: lists.SanitizeUserText(table.Subtitle), GeneratedAt: time.Now(),
+		Filters: lines, Columns: columns, Rows: rows, Footer: table.Footer,
+	}, lists.Format(format), filenameBase)
+	if err != nil {
+		return parentbilling.ExportFile{}, err
+	}
+	return parentbilling.ExportFile{Filename: file.Filename, ContentType: file.ContentType, Data: file.Data}, nil
 }
 
 // NewParentBillingHTTP binds the Elternabrechnung's routes to the Träger

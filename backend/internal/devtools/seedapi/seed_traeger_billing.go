@@ -26,7 +26,8 @@ type seedBillingRunDetail struct {
 // seedHolidayBillingRun bills the holiday period in advance (#4668): the
 // Abrechnung keeps its number range, starts a run for the period, lowers
 // the amount of one child with a reason and releases the run, which issues
-// the numbered invoice of the confirmed siblings.
+// the numbered invoice of the confirmed siblings. It downloads the overview
+// of the run for the Kämmerei (#4672).
 func seedHolidayBillingRun(client *Client, auth AuthRef, periodID int64) error {
 	if _, err := client.PutWithAuth(auth, "/traeger/number-ranges/holiday", map[string]any{"pattern": seedBillingNumberPattern}); err != nil {
 		return fmt.Errorf("keep the number range: %w", err)
@@ -59,7 +60,16 @@ func seedHolidayBillingRun(client *Client, auth AuthRef, periodID int64) error {
 	}); err != nil {
 		return fmt.Errorf("release the billing run: %w", err)
 	}
-	fmt.Printf("  Abrechnung: holiday run released with %d invoice(s) and one correction\n", run.PreviewCount)
+	// The overview for the Kämmerei (#4672) is downloaded once, so the trail
+	// of the run shows a download.
+	overview, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/export?format=csv", runID))
+	if err != nil {
+		return fmt.Errorf("download the overview of the billing run: %w", err)
+	}
+	if len(overview) == 0 {
+		return fmt.Errorf("the overview of the billing run is empty")
+	}
+	fmt.Printf("  Abrechnung: holiday run released with %d invoice(s) and one correction, overview downloaded\n", run.PreviewCount)
 	return nil
 }
 

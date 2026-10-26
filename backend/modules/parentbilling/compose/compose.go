@@ -20,8 +20,8 @@ func NewHolidayContributions(registrations parentbilling.HolidayRegistrations) p
 	return application.NewHolidayContributions(postgres.NewStore(), registrations)
 }
 
-// NewBillingRuns builds the billing runs (#4668, ADR 0119) over Enrollment's
-// holiday periods and confirmed registrations, which the root binds.
-func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations) parentbilling.BillingRuns {
-	return application.NewBillingRuns(postgres.NewStore(), registrations, calendar.TodayDate)
+// NewBillingRuns builds the billing runs (#4668, ADR 0119, ADR 0122) over the
+// holiday registrations and the overview renderer the root binds.
+func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations, renderer parentbilling.TableRenderer) parentbilling.BillingRuns {
+	return application.NewBillingRuns(postgres.NewStore(), registrations, renderer, calendar.TodayDate)
 }

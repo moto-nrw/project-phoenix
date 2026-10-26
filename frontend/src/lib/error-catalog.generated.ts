@@ -1390,6 +1390,8 @@ export const ERROR_CATALOG = {
         "Der Lauf hat keine Rechnung. Es gibt nichts freizugeben.",
       "parent_billing.billing_run_not_found":
         "Diesen Abrechnungslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“.",
+      "parent_billing.billing_run_not_released":
+        "Die Übersicht gibt es erst, wenn der Lauf freigegeben ist.",
       "parent_billing.billing_run_open":
         "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
       "parent_billing.billing_run_released":

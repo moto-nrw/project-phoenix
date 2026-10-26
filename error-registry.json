@@ -4864,6 +4864,12 @@
       "legacy": "parent_billing.billing_run_not_found"
     },
     {
+      "code": "parent_billing.billing_run_not_released",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_not_released"
+    },
+    {
       "code": "parent_billing.billing_run_open",
       "class": "business_rejection",
       "parameters": [],

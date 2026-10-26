@@ -2837,6 +2837,7 @@
         "billing_run_empty": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "billing_run_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "billing_run_open": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "billing_run_not_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "billing_run_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "contribution_rule_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "contribution_rule_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

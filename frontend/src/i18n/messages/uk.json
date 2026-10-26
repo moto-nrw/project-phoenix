@@ -2837,6 +2837,7 @@
         "billing_run_empty": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_open": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "billing_run_not_released": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_released": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "contribution_rule_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "contribution_rule_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",

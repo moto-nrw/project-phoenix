@@ -2837,6 +2837,7 @@
         "billing_run_empty": "{object} could not be changed. Please check its current status.",
         "billing_run_not_found": "{object} could not be changed. Please check its current status.",
         "billing_run_open": "{object} could not be changed. Please check its current status.",
+        "billing_run_not_released": "{object} could not be changed. Please check its current status.",
         "billing_run_released": "{object} could not be changed. Please check its current status.",
         "contribution_rule_invalid": "{object} could not be saved. Please check your entries.",
         "contribution_rule_not_found": "{object} could not be changed. Please check its current status.",

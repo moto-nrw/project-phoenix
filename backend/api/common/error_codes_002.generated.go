@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableExportEndBeforeStart                  = "timetable.export_end_before_start"
 	CodeTimetableExportInternalForbidden               = "timetable.export_internal_forbidden"
 	CodeTimetableExportRangeTooLarge                   = "timetable.export_range_too_large"
 	CodeTimetableGroupAlreadyEnded                     = "timetable.group_already_ended"
@@ -191,6 +192,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.export_end_before_start":                    "input",
 	"timetable.export_internal_forbidden":                  "permission",
 	"timetable.export_range_too_large":                     "input",
 	"timetable.group_already_ended":                        "business_rejection",

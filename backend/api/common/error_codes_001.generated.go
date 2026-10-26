@@ -103,6 +103,7 @@ const (
 	CodeParentBillingBillingRunChanged                = "parent_billing.billing_run_changed"
 	CodeParentBillingBillingRunEmpty                  = "parent_billing.billing_run_empty"
 	CodeParentBillingBillingRunNotFound               = "parent_billing.billing_run_not_found"
+	CodeParentBillingBillingRunNotReleased            = "parent_billing.billing_run_not_released"
 	CodeParentBillingBillingRunOpen                   = "parent_billing.billing_run_open"
 	CodeParentBillingBillingRunReleased               = "parent_billing.billing_run_released"
 	CodeParentBillingContributionRuleInvalid          = "parent_billing.contribution_rule_invalid"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableDeviationNoteTooLong                 = "timetable.deviation_note_too_long"
 	CodeTimetableDeviationSelectionInvalid            = "timetable.deviation_selection_invalid"
 	CodeTimetableDuplicateInstance                    = "timetable.duplicate_instance"
-	CodeTimetableExportEndBeforeStart                 = "timetable.export_end_before_start"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -406,6 +406,7 @@ var errorCodeClasses1 = map[string]string{
 	"parent_billing.billing_run_changed":                  "business_rejection",
 	"parent_billing.billing_run_empty":                    "business_rejection",
 	"parent_billing.billing_run_not_found":                "business_rejection",
+	"parent_billing.billing_run_not_released":             "business_rejection",
 	"parent_billing.billing_run_open":                     "business_rejection",
 	"parent_billing.billing_run_released":                 "business_rejection",
 	"parent_billing.contribution_rule_invalid":            "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.deviation_note_too_long":                   "input",
 	"timetable.deviation_selection_invalid":               "input",
 	"timetable.duplicate_instance":                        "business_rejection",
-	"timetable.export_end_before_start":                   "input",
 }
 
 func init() {
