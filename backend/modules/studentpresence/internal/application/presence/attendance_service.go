@@ -143,10 +143,11 @@ func (s *service) toggleStudentAttendance(ctx context.Context, studentID, staffI
 	// from either should perform a checkout. Only "not_checked_in" and
 	// "checked_out" start a fresh check-in.
 	var result *AttendanceResult
+	recorderStaffID := s.attendanceRecorderStaffID(ctx, authorizedStaffID)
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
-		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeToggle)
+		result, err = s.performCheckIn(ctx, studentID, recorderStaffID, deviceID, now, today, checkinTypeToggle)
 	} else {
-		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, deviceID, now, today, checkoutTypeToggle, "")
+		result, err = s.performCheckOut(ctx, studentID, recorderStaffID, deviceID, now, today, checkoutTypeToggle, "")
 	}
 	if err != nil {
 		return nil, err
@@ -233,7 +234,7 @@ func (s *service) checkInStudent(ctx context.Context, studentID, staffID, device
 	}
 	now := s.now()
 	today := calendar.DateFromTime(now)
-	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeWeb)
+	result, err := s.performCheckIn(ctx, studentID, s.attendanceRecorderStaffID(ctx, authorizedStaffID), deviceID, now, today, checkinTypeWeb)
 	if err != nil {
 		return nil, err
 	}
@@ -365,6 +366,16 @@ func (s *service) authorizeIoTDeviceToggle(ctx context.Context, deviceID int64) 
 		}
 	}
 	return supervisorStaffID, nil
+}
+
+// attendanceRecorderStaffID separates a kiosk's session supervisor from the
+// actor recorded on attendance. The supervisor authorizes the device and is
+// still auto-stamped as working, but the authenticated device made the scan.
+func (s *service) attendanceRecorderStaffID(ctx context.Context, staffID int64) int64 {
+	if s.attendancePrincipal(ctx).IsIoT {
+		return 0
+	}
+	return staffID
 }
 
 // performCheckIn creates a new attendance record for check-in.

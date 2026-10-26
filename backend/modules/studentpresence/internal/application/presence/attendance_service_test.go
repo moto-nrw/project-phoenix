@@ -667,6 +667,15 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Equal(t, "checked_in", result.Action)
+
+		var checkedInBy *int64
+		err = db.NewSelect().
+			TableExpr(`active.attendance`).
+			Column("checked_in_by").
+			Where("id = ?", result.AttendanceID).
+			Scan(ctx, &checkedInBy)
+		require.NoError(t, err)
+		assert.Nil(t, checkedInBy, "the kiosk scan must remain device-attributed, not name its supervisor")
 	})
 
 	t.Run("IoT device toggle fails without active group", func(t *testing.T) {
