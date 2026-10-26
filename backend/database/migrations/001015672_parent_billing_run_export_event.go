@@ -15,6 +15,7 @@ func init() {
 		Description: "Elternabrechnung: Download der Übersicht eines Laufs für die Kämmerei steht in der Spur des Laufs (#4672)",
 		DependsOn: []string{
 			parentBillingHolidayRunsVersion, // the trail of a run
+			parentBillingLettersVersion,     // the letters action of the trail
 		},
 	})
 	Migrations.MustRegister(parentBillingRunExportEventUp, parentBillingRunExportEventDown)
@@ -25,7 +26,7 @@ func init() {
 const parentBillingRunExportEventUpSQL = `
 ALTER TABLE parent_billing.run_events DROP CONSTRAINT chk_run_events_action;
 ALTER TABLE parent_billing.run_events ADD CONSTRAINT chk_run_events_action
-	CHECK (action IN ('create', 'read', 'correct', 'release', 'export'));
+	CHECK (action IN ('create', 'read', 'correct', 'release', 'letters', 'export'));
 `
 
 // parentBillingRunExportEventDownSQL drops the recorded downloads with the
@@ -34,7 +35,7 @@ const parentBillingRunExportEventDownSQL = `
 DELETE FROM parent_billing.run_events WHERE action = 'export';
 ALTER TABLE parent_billing.run_events DROP CONSTRAINT chk_run_events_action;
 ALTER TABLE parent_billing.run_events ADD CONSTRAINT chk_run_events_action
-	CHECK (action IN ('create', 'read', 'correct', 'release'));
+	CHECK (action IN ('create', 'read', 'correct', 'release', 'letters'));
 `
 
 func parentBillingRunExportEventUp(ctx context.Context, db *bun.DB) error {

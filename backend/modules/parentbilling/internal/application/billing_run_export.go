@@ -15,6 +15,30 @@ import (
 // runEventExport records the download of the overview of a run.
 const runEventExport = "export"
 
+// ExportColumn is one column of an exported table.
+type ExportColumn struct {
+	ID    string
+	Label string
+}
+
+// ExportTable is a list the Elternabrechnung exports: a title, the lines
+// under it, the columns and one map of values per row.
+type ExportTable struct {
+	Title    string
+	Subtitle string
+	Lines    []string
+	Columns  []ExportColumn
+	Rows     []map[string]string
+	Footer   string
+}
+
+// TableRenderer renders an exported table as a PDF, an Excel or a CSV
+// file. The adapter binds it to Document Rendering's list renderer; it
+// neither stores the file nor decides who may read it.
+type TableRenderer interface {
+	RenderTable(table ExportTable, format, filenameBase string) (parentbilling.ExportFile, error)
+}
+
 // ExportBillingRun renders the overview of a released run for the Kämmerei
 // (#4672, ADR 0122): every issued invoice with its positions per family, the
 // sum of every invoice and of the run. It records the download in the run's
@@ -55,7 +79,7 @@ func (b *BillingRuns) ExportBillingRun(ctx context.Context, reviewer parentbilli
 
 // billingRunOverviewColumns are the columns of the overview: one row per
 // position, then the sum of the invoice; the last row is the sum of the run.
-var billingRunOverviewColumns = []parentbilling.ExportColumn{
+var billingRunOverviewColumns = []ExportColumn{
 	{ID: "number", Label: "Rechnungsnummer"},
 	{ID: "recipient", Label: "Empfänger"},
 	{ID: "child", Label: "Kind"},
@@ -66,7 +90,7 @@ var billingRunOverviewColumns = []parentbilling.ExportColumn{
 // billingRunOverview is the general layout of the overview of a released
 // run. The recipient's mail address stays out; the Kämmerei needs who pays
 // what, not how to reach them.
-func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.BillingDocument) parentbilling.ExportTable {
+func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.BillingDocument) ExportTable {
 	rows := []map[string]string{}
 	var total int64
 	for _, document := range documents {
@@ -76,18 +100,18 @@ func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.
 			for _, position := range child.Positions {
 				rows = append(rows, map[string]string{
 					"number": document.Number, "recipient": recipient, "child": name,
-					"position": positionLabel(position), "amount": formatEuro(position.AmountCents),
+					"position": overviewPositionLabel(position), "amount": formatAmount(position.AmountCents),
 				})
 			}
 		}
 		rows = append(rows, map[string]string{
 			"number": document.Number, "recipient": recipient, "position": "Summe der Rechnung",
-			"amount": formatEuro(document.TotalCents),
+			"amount": formatAmount(document.TotalCents),
 		})
 		total += document.TotalCents
 	}
-	rows = append(rows, map[string]string{"position": "Gesamtsumme des Laufs", "amount": formatEuro(total)})
-	return parentbilling.ExportTable{
+	rows = append(rows, map[string]string{"position": "Gesamtsumme des Laufs", "amount": formatAmount(total)})
+	return ExportTable{
 		Title: "Abrechnungsanordnung", Subtitle: run.PeriodName,
 		Lines: overviewLines(run, documents, total), Columns: billingRunOverviewColumns, Rows: rows,
 		Footer: "Vertraulich. Enthält personenbezogene Daten.",
@@ -108,11 +132,12 @@ func overviewLines(run parentbilling.BillingRun, documents []parentbilling.Billi
 	default:
 		count += ", Nummern " + documents[0].Number + " bis " + documents[len(documents)-1].Number
 	}
-	return append(lines, count, "Gesamtsumme: "+formatEuro(total)+" Euro")
+	return append(lines, count, "Gesamtsumme: "+formatAmount(total)+" Euro")
 }
 
-// positionLabel names what a position stands for, as the run page does.
-func positionLabel(position parentbilling.BillingPosition) string {
+// overviewPositionLabel names what a position stands for, as the run page
+// does; the letters name it shorter (positionLabel).
+func overviewPositionLabel(position parentbilling.BillingPosition) string {
 	switch position.Kind {
 	case parentbilling.LineBase:
 		if position.WeekStartsOn != nil && position.WeekEndsOn != nil {
@@ -129,7 +154,7 @@ func positionLabel(position parentbilling.BillingPosition) string {
 		case position.DiscountBasisPoints != nil:
 			label += ", " + formatShare(*position.DiscountBasisPoints) + " weniger"
 		case position.DiscountCents != nil:
-			label += ", " + formatEuro(*position.DiscountCents) + " Euro weniger"
+			label += ", " + formatAmount(*position.DiscountCents) + " Euro weniger"
 		}
 		return label
 	case parentbilling.LineBenefitsExemption:
@@ -140,9 +165,9 @@ func positionLabel(position parentbilling.BillingPosition) string {
 	return position.Kind
 }
 
-// formatEuro writes cents the German way without a currency sign:
+// formatAmount writes cents the German way without a currency sign:
 // 123456 → "1.234,56", -500 → "-5,00".
-func formatEuro(cents int64) string {
+func formatAmount(cents int64) string {
 	sign := ""
 	if cents < 0 {
 		sign, cents = "-", -cents
@@ -157,6 +182,6 @@ func formatEuro(cents int64) string {
 // formatShare writes basis points as a percentage: 5000 → "50 %",
 // 1250 → "12,5 %".
 func formatShare(basisPoints int) string {
-	share := strings.TrimRight(strings.TrimRight(formatEuro(int64(basisPoints)), "0"), ",")
+	share := strings.TrimRight(strings.TrimRight(formatAmount(int64(basisPoints)), "0"), ",")
 	return share + " %"
 }

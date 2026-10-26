@@ -17,7 +17,7 @@ import (
 func TestEuroAmountsAndSharesAreWrittenTheGermanWay(t *testing.T) {
 	t.Parallel()
 	for cents, want := range map[int64]string{0: "0,00", 5: "0,05", 4500: "45,00", 123456: "1.234,56", 100000000: "1.000.000,00", -500: "-5,00"} {
-		assert.Equal(t, want, formatEuro(cents), "%d cents", cents)
+		assert.Equal(t, want, formatAmount(cents), "%d cents", cents)
 	}
 	for basisPoints, want := range map[int]string{5000: "50 %", 1250: "12,5 %", 10000: "100 %", 5: "0,05 %"} {
 		assert.Equal(t, want, formatShare(basisPoints), "%d basis points", basisPoints)

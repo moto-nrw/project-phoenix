@@ -184,7 +184,7 @@ export function AccountsTable({
         sortValue: (row) => row.status.toLowerCase(),
       },
       {
-        key: "action",
+        key: "actions",
         header: "Aktion",
         align: "right",
         render: (row) => {

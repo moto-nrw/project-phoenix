@@ -1110,6 +1110,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/traeger/billing-runs/[id]/corrections": [
     "POST traeger /traeger/billing-runs/id%2F1/corrections",
   ],
+  "api/traeger/billing-runs/[id]/letters": [
+    "POST traeger /traeger/billing-runs/id%2F1/letters",
+  ],
   "api/traeger/billing-runs/[id]/release": [
     "POST traeger /traeger/billing-runs/id%2F1/release",
   ],

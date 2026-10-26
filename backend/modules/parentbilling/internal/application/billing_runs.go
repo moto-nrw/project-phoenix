@@ -53,6 +53,9 @@ type RunStore interface {
 	IssueDocuments(ctx context.Context, organizationID int64, run parentbilling.BillingRun, year int, first int64, documents []parentbilling.BillingDocument) error
 	MarkRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64) (parentbilling.BillingRun, error)
 	RunDocuments(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingDocument, error)
+	// RunLetters reads the letters of a released run; nil before they are
+	// created (#4669).
+	RunLetters(ctx context.Context, organizationID, runID int64) (*parentbilling.BillingLetters, error)
 }
 
 // BillingRuns serves parentbilling.BillingRuns. The period and its confirmed
@@ -61,7 +64,7 @@ type RunStore interface {
 type BillingRuns struct {
 	store         RunStore
 	registrations parentbilling.HolidayBillingRegistrations
-	renderer      parentbilling.TableRenderer
+	renderer      TableRenderer
 	today         func() calendar.Date
 }
 
@@ -69,7 +72,7 @@ var _ parentbilling.BillingRuns = (*BillingRuns)(nil)
 
 // NewBillingRuns builds the billing runs. renderer renders the overview of
 // a released run; today is the issue date of a release.
-func NewBillingRuns(store RunStore, registrations parentbilling.HolidayBillingRegistrations, renderer parentbilling.TableRenderer, today func() calendar.Date) *BillingRuns {
+func NewBillingRuns(store RunStore, registrations parentbilling.HolidayBillingRegistrations, renderer TableRenderer, today func() calendar.Date) *BillingRuns {
 	if store == nil || registrations == nil || renderer == nil || today == nil {
 		panic("parent billing: the store, the holiday registrations, the renderer and the clock are required")
 	}
@@ -374,6 +377,9 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: read corrections: %w", err)
 		}
 		detail.Documents = withHistory(documents, corrections)
+		if detail.Letters, err = b.store.RunLetters(ctx, reviewer.OrganizationID, run.ID); err != nil {
+			return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: read letters: %w", err)
+		}
 	} else {
 		current, err := b.preview(ctx, reviewer, run)
 		if err != nil {

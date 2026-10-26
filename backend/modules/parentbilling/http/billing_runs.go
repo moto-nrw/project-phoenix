@@ -20,19 +20,21 @@ import (
 // (#4668, ADR 0119). Every route sits behind the Träger session, needs the
 // Träger right "Abrechnung" and runs in the Träger transaction of the
 // session's Träger. The Träger comes from the session, never from the
-// request.
+// request. The confirmation letters of a released run sit below the run
+// (#4669, ADR 0121).
 type BillingRunResource struct {
 	runs           capability.BillingRuns
+	letters        capability.BillingLetterService
 	requireBilling common.Middleware
 }
 
 // NewBillingRunResource builds the resource. requireBilling admits only a
 // session with the Träger right "Abrechnung".
-func NewBillingRunResource(runs capability.BillingRuns, requireBilling common.Middleware) *BillingRunResource {
-	if runs == nil || requireBilling == nil {
-		panic("parent billing http: the billing runs and the right check are required")
+func NewBillingRunResource(runs capability.BillingRuns, letters capability.BillingLetterService, requireBilling common.Middleware) *BillingRunResource {
+	if runs == nil || letters == nil || requireBilling == nil {
+		panic("parent billing http: the billing runs, the letters and the right check are required")
 	}
-	return &BillingRunResource{runs: runs, requireBilling: requireBilling}
+	return &BillingRunResource{runs: runs, letters: letters, requireBilling: requireBilling}
 }
 
 // RunRouter returns the routes mounted at /traeger/billing-runs.
@@ -48,6 +50,9 @@ func (rs *BillingRunResource) RunRouter(protectedTraegerRoutes func(chi.Router, 
 		billing.Post("/{id}/corrections", rs.correct)
 		billing.Post("/{id}/release", rs.release)
 		billing.Get("/{id}/export", rs.export)
+		billing.Post("/{id}/letters", rs.createLetters)
+		billing.Post("/{id}/letters/preview", rs.previewLetter)
+		billing.Get("/{id}/documents/{documentID}/letter", rs.letter)
 	})
 	return r
 }
@@ -277,22 +282,35 @@ func renderBillingError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.As(err, &fields) && fields["format"] != nil:
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.As(err, &fields):
-		code := common.CodeParentBillingBillingCorrectionInvalid
-		if _, pattern := fields["pattern"]; pattern {
-			code = common.CodeParentBillingNumberRangeInvalid
-		} else if _, service := fields["service"]; service {
-			code = common.CodeParentBillingNumberRangeInvalid
-		}
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, code))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, invalidFieldsCode(fields)))
 	case errors.Is(err, capability.ErrHolidayPeriodNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayPeriodNotFound))
 	case errors.Is(err, capability.ErrBillingRunNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingBillingRunNotFound))
 	case errors.Is(err, capability.ErrBillingFamilyNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingBillingFamilyNotFound))
+	case errors.Is(err, capability.ErrBillingLetterNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingBillingLetterNotFound))
 	default:
 		renderBillingConflict(w, r, err)
 	}
+}
+
+// invalidFieldsCode names the refused input by its fields: a number range,
+// the letters or a correction.
+func invalidFieldsCode(fields validation.Errors) string {
+	for _, field := range []struct{ name, code string }{
+		{"pattern", common.CodeParentBillingNumberRangeInvalid},
+		{"service", common.CodeParentBillingNumberRangeInvalid},
+		{"payment_due_on", common.CodeParentBillingBillingLettersInvalid},
+		{"notes", common.CodeParentBillingBillingLettersInvalid},
+		{"emergency_contacts", common.CodeParentBillingBillingLettersInvalid},
+	} {
+		if _, ok := fields[field.name]; ok {
+			return field.code
+		}
+	}
+	return common.CodeParentBillingBillingCorrectionInvalid
 }
 
 func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
@@ -307,6 +325,9 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 		{capability.ErrBillingRunEmpty, common.CodeParentBillingBillingRunEmpty},
 		{capability.ErrNumberRangeMissing, common.CodeParentBillingNumberRangeMissing},
 		{capability.ErrInvoiceNumberTaken, common.CodeParentBillingInvoiceNumberTaken},
+		{capability.ErrBillingLettersExist, common.CodeParentBillingBillingLettersExist},
+		{capability.ErrBankAccountMissing, common.CodeParentBillingBankAccountMissing},
+		{capability.ErrLetterheadTooLong, common.CodeParentBillingLetterheadTooLong},
 	} {
 		if errors.Is(err, conflict.err) {
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, conflict.code))

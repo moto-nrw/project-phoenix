@@ -4,6 +4,7 @@ package compose
 import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/adapters/rendering"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -20,8 +21,16 @@ func NewHolidayContributions(registrations parentbilling.HolidayRegistrations) p
 	return application.NewHolidayContributions(postgres.NewStore(), registrations)
 }
 
-// NewBillingRuns builds the billing runs (#4668, ADR 0119, ADR 0122) over the
-// holiday registrations and the overview renderer the root binds.
-func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations, renderer parentbilling.TableRenderer) parentbilling.BillingRuns {
-	return application.NewBillingRuns(postgres.NewStore(), registrations, renderer, calendar.TodayDate)
+// NewBillingRuns builds the billing runs (#4668, ADR 0119) over the holiday
+// registrations, which the root binds, and renders the overview of a run
+// with the list renderer of Document Rendering (#4672, ADR 0122).
+func NewBillingRuns(registrations parentbilling.HolidayBillingRegistrations) parentbilling.BillingRuns {
+	return application.NewBillingRuns(postgres.NewStore(), registrations, rendering.NewRenderer(), calendar.TodayDate)
+}
+
+// NewBillingLetters builds the confirmation letters of the released runs
+// (#4669, ADR 0121) over the letterhead of the Träger, which the root
+// binds, and the letter layout of Document Rendering.
+func NewBillingLetters(letterheads parentbilling.BillingLetterheads) parentbilling.BillingLetterService {
+	return application.NewBillingLetters(postgres.NewStore(), letterheads, rendering.NewRenderer(), calendar.TodayDate)
 }

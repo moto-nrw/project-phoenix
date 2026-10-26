@@ -134,7 +134,8 @@ type BillingDocument struct {
 
 // BillingRunDetail is a run with its invoices. A calculated run shows the
 // preview of today: Unbilled counts the confirmed registrations without a
-// frozen contribution, which the run leaves out.
+// frozen contribution, which the run leaves out. Letters is set once the
+// letters of a released run are created (#4669).
 type BillingRunDetail struct {
 	BillingRun
 	Documents       []BillingDocument `json:"documents"`
@@ -144,6 +145,7 @@ type BillingRunDetail struct {
 	NumberPattern   string            `json:"number_pattern"`
 	NumberRangeSet  bool              `json:"number_range_set"`
 	BilledInAdvance bool              `json:"billed_in_advance"`
+	Letters         *BillingLetters   `json:"letters"`
 }
 
 // BillingCorrectionInput changes the amount of one child of a family in a

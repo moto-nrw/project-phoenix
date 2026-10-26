@@ -3507,6 +3507,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/parentbilling/internal/adapters/rendering",
+      "owner": "parent-billing",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/parentbilling/internal/adapters/postgres",
       "owner": "parent-billing",
       "role": "postgres",
@@ -4430,6 +4437,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.document_letters",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.documents",
       "write_owner": "parent-billing"
     },
@@ -4451,6 +4462,10 @@
     },
     {
       "name": "parent_billing.run_corrections",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.run_letters",
       "write_owner": "parent-billing"
     },
     {
@@ -8065,6 +8080,40 @@
       "target_owner": "tenant-runtime",
       "target_role": "public",
       "target_package": "tenant"
+    },
+    {
+      "id": "parent-billing.adapter.document-rendering-lists",
+      "description": "The rendering adapter of the Elternabrechnung lays out its confirmation letters through the letter of the Document Rendering contract and the overview of a run through its list renderer; the owner writes every text and decides who reads the file (#4669, ADR 0121, #4672, ADR 0122).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "adapter",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/lists"
+    },
+    {
+      "id": "parent-billing.adapter.application",
+      "description": "The rendering adapter implements the letter and table renderer ports of the Elternabrechnung's application over its native values (#4669, ADR 0121, #4672, ADR 0122).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "adapter",
+      "target_owner": "parent-billing",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-billing.adapter.public",
+      "description": "The rendering adapter answers in the Elternabrechnung's public letter and export files (#4669, ADR 0121, #4672, ADR 0122).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "adapter",
+      "target_owner": "parent-billing",
+      "target_role": "public"
     },
     {
       "id": "parent-billing.postgres.tenant-runtime",

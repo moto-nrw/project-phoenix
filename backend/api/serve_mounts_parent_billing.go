@@ -5,19 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	parentBillingHTTP "github.com/moto-nrw/project-phoenix/modules/parentbilling/http"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 )
 
 // mountParentBillingRoutes serves the Elternabrechnung (ADR 0088, #4664, ADR
@@ -27,62 +28,77 @@ import (
 // "Anmeldung verwalten", and the public contribution of the registration
 // form at /traeger/holiday-quotes, and the billing runs and number ranges
 // at /traeger/billing-runs and /traeger/number-ranges behind the right
-// "Abrechnung" (#4668, ADR 0119), with the overview of a released run for
-// the Kämmerei (#4672, ADR 0122).
-func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, delivery deliveryRuntime.Capability, logger *slog.Logger) {
+// "Abrechnung" (#4668, ADR 0119), with the confirmation letters of a
+// released run in the layout of the Träger (#4669, ADR 0121) and its
+// overview for the Kämmerei (#4672, ADR 0122).
+func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, delivery, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
-	runs := NewBillingRunHTTP()
+	runs := NewBillingRunHTTP(settings)
 	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
 }
 
 // NewBillingRunHTTP binds the billing runs to the right "Abrechnung", to
 // Enrollment's holiday periods and the review of their registrations, and
-// the overview of a run to Document Rendering's list renderer.
-func NewBillingRunHTTP() *parentBillingHTTP.BillingRunResource {
+// their letters to the master data and branding settings of the Träger.
+func NewBillingRunHTTP(settings TraegerBrandingSettings) *parentBillingHTTP.BillingRunResource {
 	registrations := parentBillingBillingRegistrations{
 		periods: enrollmentCompose.NewHolidayPeriods(), review: enrollmentCompose.NewHolidayRegistrationReview(),
 	}
-	renderer := parentBillingTableRenderer{renderer: lists.NewRenderer()}
-	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations, renderer),
-		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+	letterheads := parentBillingLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(), settings: settings}
+	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations),
+		parentBillingCompose.NewBillingLetters(letterheads), common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
-// parentBillingTableRenderer binds the Elternabrechnung's table renderer to
-// Document Rendering's list contract (#4672, ADR 0122): the table becomes a
-// list document whose values are free of the renderer's style markers.
-type parentBillingTableRenderer struct {
-	renderer lists.Renderer
+// TraegerBrandingSettings is the Träger level of the settings system as the
+// letters read the branding of a Träger (ADR 0112).
+type TraegerBrandingSettings interface {
+	TraegerTexts(ctx context.Context, organizationID int64, keys []string) (map[string]string, error)
 }
 
-func (b parentBillingTableRenderer) RenderTable(table parentbilling.ExportTable, format, filenameBase string) (parentbilling.ExportFile, error) {
-	columns := make([]lists.Column, len(table.Columns))
-	for i, column := range table.Columns {
-		columns[i] = lists.Column{ID: lists.ColumnID(column.ID), Label: column.Label}
-	}
-	rows := make([]lists.Row, len(table.Rows))
-	for i, row := range table.Rows {
-		values := make(map[lists.ColumnID]string, len(row))
-		for id, value := range row {
-			values[lists.ColumnID(id)] = lists.SanitizeUserText(value)
-		}
-		rows[i] = lists.Row{Values: values}
-	}
-	lines := make([]string, len(table.Lines))
-	for i, line := range table.Lines {
-		lines[i] = lists.SanitizeUserText(line)
-	}
-	file, err := b.renderer.Render(lists.Document{
-		Title: table.Title, Subtitle: lists.SanitizeUserText(table.Subtitle), GeneratedAt: time.Now(),
-		Filters: lines, Columns: columns, Rows: rows, Footer: table.Footer,
-	}, lists.Format(format), filenameBase)
+// parentBillingLetterheads binds the letterhead of the letters to the
+// master data of Organisation & Tenancy, which logs the read of the
+// contact person and the bank accounts, and to the branding settings of
+// the Träger (ADR 0112, ADR 0121).
+type parentBillingLetterheads struct {
+	masterData organizationtenancy.TraegerMasterData
+	settings   TraegerBrandingSettings
+}
+
+func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer parentbilling.HolidayReviewer) (parentbilling.Letterhead, error) {
+	profile, err := b.masterData.Profile(ctx, reviewer.OrganizationID, reviewer.AccountID)
 	if err != nil {
-		return parentbilling.ExportFile{}, err
+		return parentbilling.Letterhead{}, err
 	}
-	return parentbilling.ExportFile{Filename: file.Filename, ContentType: file.ContentType, Data: file.Data}, nil
+	texts, err := b.settings.TraegerTexts(ctx, reviewer.OrganizationID,
+		[]string{configModels.KeyBrandingPrimaryColor, configModels.KeyBrandingLetterheadText, configModels.KeyBrandingFooterText})
+	if err != nil {
+		return parentbilling.Letterhead{}, err
+	}
+	head := parentbilling.Letterhead{
+		AccentColor: texts[configModels.KeyBrandingPrimaryColor], SenderText: texts[configModels.KeyBrandingLetterheadText],
+		FooterText: texts[configModels.KeyBrandingFooterText], ContactName: profile.Contact.Name,
+		ContactPhone: profile.Contact.Phone, ContactEmail: profile.Contact.Email,
+	}
+	for _, account := range profile.BankAccounts {
+		if account.IsDefault {
+			head.BankAccount = &parentbilling.LetterheadBankAccount{
+				AccountHolder: account.AccountHolder, IBAN: account.IBAN, BIC: account.BIC, BankName: account.BankName,
+			}
+		}
+	}
+	if profile.Logo == nil {
+		return head, nil
+	}
+	logo, err := b.masterData.LogoImage(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.Letterhead{}, err
+	}
+	head.Logo = logo.Data
+	return head, nil
 }
 
 // NewParentBillingHTTP binds the Elternabrechnung's routes to the Träger

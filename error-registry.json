@@ -4864,12 +4864,6 @@
       "legacy": "parent_billing.billing_run_not_found"
     },
     {
-      "code": "parent_billing.billing_run_not_released",
-      "class": "business_rejection",
-      "parameters": [],
-      "legacy": "parent_billing.billing_run_not_released"
-    },
-    {
       "code": "parent_billing.billing_run_open",
       "class": "business_rejection",
       "parameters": [],
@@ -4898,6 +4892,42 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.number_range_missing"
+    },
+    {
+      "code": "parent_billing.bank_account_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.bank_account_missing"
+    },
+    {
+      "code": "parent_billing.billing_letter_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_letter_not_found"
+    },
+    {
+      "code": "parent_billing.billing_letters_exist",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_letters_exist"
+    },
+    {
+      "code": "parent_billing.billing_letters_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.billing_letters_invalid"
+    },
+    {
+      "code": "parent_billing.billing_run_not_released",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_not_released"
+    },
+    {
+      "code": "parent_billing.letterhead_too_long",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.letterhead_too_long"
     }
   ]
 }

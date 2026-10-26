@@ -75,10 +75,7 @@ export function BillingRunOverviewCard({
     setExporting(format);
     try {
       const file = await downloadBillingRunOverview(run.id, format);
-      downloadBlob(
-        file.blob,
-        file.filename ?? `abrechnungsanordnung.${format}`,
-      );
+      downloadBlob(file.blob, file.filename);
     } catch (err) {
       logger.error("traeger_billing_run_export_failed", {
         error: err instanceof Error ? err.message : String(err),

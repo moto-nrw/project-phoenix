@@ -13,6 +13,7 @@ import {
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
 import { BillingDocumentCard } from "~/components/traeger/billing-document-card";
+import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
 import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import {
   BILLING_RUN_STATUS_LABELS,
@@ -36,9 +37,12 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
+import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
+  type BillingDocument,
   type BillingRunDetail,
+  downloadBillingLetter,
   fetchBillingRun,
   releaseBillingRun,
 } from "~/lib/traeger-billing-api";
@@ -65,6 +69,7 @@ export default function TraegerBillingRunPage() {
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const releaseErrors = useApiErrorDisplay();
+  const letterErrors = useApiErrorDisplay();
   const { success } = useToast();
 
   const load = useCallback(async () => {
@@ -102,6 +107,19 @@ export default function TraegerBillingRunPage() {
       void load();
     } finally {
       setReleasing(false);
+    }
+  };
+
+  const downloadLetter = async (document: BillingDocument) => {
+    if (!run) return;
+    try {
+      const file = await downloadBillingLetter(run.id, document.id);
+      downloadBlob(file.blob, file.filename);
+    } catch (err) {
+      logger.error("traeger_billing_letter_download_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void letterErrors.show(err, { object: "das Schreiben" });
     }
   };
 
@@ -180,6 +198,13 @@ export default function TraegerBillingRunPage() {
               message={`${run.unbilled} bestätigte Anmeldung(en) haben keinen festgehaltenen Beitrag und kommen nicht in diesen Lauf.`}
             />
           ) : null}
+          {run.status === "released" ? (
+            <BillingLettersCard
+              runId={run.id}
+              letters={run.letters}
+              onCreated={(letters) => setRun({ ...run, letters })}
+            />
+          ) : null}
           {run.status === "released" && run.documents.length > 0 ? (
             <BillingRunOverviewCard run={run} />
           ) : null}
@@ -203,6 +228,9 @@ export default function TraegerBillingRunPage() {
                           child,
                         })
                     : undefined
+                }
+                onDownloadLetter={
+                  run.letters ? () => void downloadLetter(document) : undefined
                 }
               />
             ))

@@ -31,14 +31,14 @@ auf, führt keinen Owner ein und hält fest, was die Übersicht in den Registern
    entschärfte Formeln. Ein negativer Betrag („-32,50“) ist keine Formel:
    Der CSV-Renderer lässt eine reine Zahl ohne Apostroph, damit Rabatte und
    Korrekturen als Zahl in der Tabellenkalkulation ankommen.
-4. **Abhängigkeit.** `parent-billing/http` darf Document Rendering nicht
-   importieren, und eine neue Regel zwischen zwei bestehenden Punkten lehnt
-   die Policy ab. Die Elternabrechnung erklärt deshalb ihren Port
-   `TableRenderer` mit eigenen Werten (`ExportTable`, `ExportFile`); die Root
-   bindet ihn in `api/serve_mounts_parent_billing.go`
-   (`parentBillingTableRenderer`) an `lists.NewRenderer()` und entfernt dabei
-   die Stilmarken des Renderers aus jedem Wert. Das Layout bleibt im Owner,
-   die Root übersetzt nur. Kein Import geht zwischen den Owners.
+4. **Abhängigkeit.** Die Anwendung erklärt ihren Port `TableRenderer` mit
+   eigenen Werten (`ExportTable`, `ExportColumn`) und antwortet mit der
+   öffentlichen Datei `parentbilling.ExportFile`. Der Adapter
+   `internal/adapters/rendering`, der auch die Bestätigungsschreiben setzt
+   (ADR 0121), bindet ihn an `lists.NewRenderer()` und entfernt dabei die
+   Stilmarken des Renderers aus jedem Wert; `compose.NewBillingRuns` baut
+   ihn ein. Das Layout bleibt im Owner, der Adapter übersetzt nur. Nur er
+   importiert Document Rendering, über die Adapter-Regeln aus ADR 0121.
 5. **Recht und Grenze.** `GET /traeger/billing-runs/{id}/export?format=pdf|xlsx|csv`
    liegt hinter dem Träger-Recht „Abrechnung“ und läuft in der
    Träger-Transaktion der Sitzung (ADR 0105). Ein Lauf eines anderen Trägers
@@ -48,9 +48,11 @@ auf, führt keinen Owner ein und hält fest, was die Übersicht in den Registern
    der Eintrag, scheitert die Anfrage und rollt zurück. Die Migration
    `1.15.672` erweitert dafür die erlaubten Aktionen.
 7. **Register.**
-   - `policy.json`: unverändert; keine Regel, kein `data_object`.
-   - `command-effects.json`: eine geprüfte Bindung (`TableRenderer.RenderTable`
-     → `lists.Renderer.Render`, query).
+   - `policy.json`: keine neue Regel, kein `data_object`; die drei
+     Adapter-Regeln aus ADR 0121 nennen in ihrer Beschreibung jetzt auch die
+     Übersicht, das Adapterpaket heißt `rendering`.
+   - `command-effects.json`: die Bindung von `lists.Renderer.Render` über
+     den Adapter (query).
    - Budgets: unverändert.
    - Route-Golden: eine lesende Route.
 
@@ -59,6 +61,11 @@ auf, führt keinen Owner ein und hält fest, was die Übersicht in den Registern
 - **Regel `parent-billing/http` → `document-rendering/contract`:** Wie bei
   Enrollment wäre das die kürzeste Kante, aber die Policy lässt keine neue
   Regel zwischen bestehenden Punkten zu.
+- **Bindung in der Root:** Ein öffentlicher Port, den
+  `api/serve_mounts_parent_billing.go` an `lists.NewRenderer()` bindet, war
+  die erste Fassung. Seit ADR 0121 hat die Elternabrechnung einen eigenen
+  Adapter zu Document Rendering; zwei Wege zum selben Renderer wären eine
+  Doppelung.
 - **Übersicht auch für die Vorschau:** Eine Abrechnungsanordnung ohne
   Rechnungsnummern würde wie eine fertige aussehen. Die Vorschau prüft die
   Abrechnung auf der Lauf-Seite.

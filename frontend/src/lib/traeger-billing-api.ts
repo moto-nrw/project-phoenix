@@ -62,6 +62,8 @@ export interface BillingChild {
 }
 
 export interface BillingDocument {
+  /** Empty for a draft; the invoice once issued. */
+  readonly id: string;
   /** Empty for a draft. */
   readonly number: string;
   readonly issuedOn: string | null;
@@ -83,6 +85,26 @@ export interface BillingRunDetail extends BillingRun {
   readonly unbilled: number;
   readonly numberPattern: string;
   readonly numberRangeSet: boolean;
+  /** Set once the confirmation letters of the released run exist (#4669). */
+  readonly letters: BillingLetters | null;
+}
+
+/** An emergency number of a hosting OGS on the letters of a run. */
+export interface BillingEmergencyContact {
+  readonly name: string;
+  readonly phone: string;
+}
+
+/** What the confirmation letters of a released run print (#4669). */
+export interface BillingLettersInput {
+  /** Calendar date "YYYY-MM-DD". */
+  readonly paymentDueOn: string;
+  readonly notes: string;
+  readonly emergencyContacts: readonly BillingEmergencyContact[];
+}
+
+export interface BillingLetters extends BillingLettersInput {
+  readonly createdAt: string;
 }
 
 export interface BillingPeriod {
@@ -125,6 +147,7 @@ interface BackendPosition {
 }
 
 interface BackendDocument {
+  id: number;
   number: string;
   issued_on: string | null;
   registration_id: number;
@@ -162,6 +185,26 @@ interface BackendRunDetail extends BackendRun {
   unbilled: number;
   number_pattern: string;
   number_range_set: boolean;
+  letters?: BackendLetters | null;
+}
+
+interface BackendLetters {
+  payment_due_on: string;
+  notes: string;
+  emergency_contacts?: { name: string; phone: string }[] | null;
+  created_at: string;
+}
+
+function lettersFromBackend(letters: BackendLetters): BillingLetters {
+  return {
+    paymentDueOn: letters.payment_due_on,
+    notes: letters.notes,
+    emergencyContacts: (letters.emergency_contacts ?? []).map((contact) => ({
+      name: contact.name,
+      phone: contact.phone,
+    })),
+    createdAt: letters.created_at,
+  };
 }
 
 function runFromBackend(run: BackendRun): BillingRun {
@@ -195,6 +238,7 @@ function positionFromBackend(position: BackendPosition): BillingPosition {
 
 function documentFromBackend(document: BackendDocument): BillingDocument {
   return {
+    id: document.id ? String(document.id) : "",
     number: document.number,
     issuedOn: document.issued_on,
     registrationId: String(document.registration_id),
@@ -231,6 +275,7 @@ function detailFromBackend(run: BackendRunDetail): BillingRunDetail {
     unbilled: run.unbilled,
     numberPattern: run.number_pattern,
     numberRangeSet: run.number_range_set,
+    letters: run.letters ? lettersFromBackend(run.letters) : null,
   };
 }
 
@@ -311,20 +356,49 @@ export async function releaseBillingRun(
   );
 }
 
-export type BillingRunExportFormat = "pdf" | "xlsx" | "csv";
+function lettersBody(input: BillingLettersInput) {
+  return {
+    payment_due_on: input.paymentDueOn,
+    notes: input.notes,
+    emergency_contacts: input.emergencyContacts.map((contact) => ({
+      name: contact.name,
+      phone: contact.phone,
+    })),
+  };
+}
 
 /**
- * The overview of a released run for the Kämmerei (#4672): every invoice
- * with its positions and sums, with the file name the backend chose.
+ * Creates the confirmation letter of every invoice of a released run once;
+ * afterwards they never change.
  */
-export async function downloadBillingRunOverview(
-  id: string,
-  format: BillingRunExportFormat,
-): Promise<{ readonly blob: Blob; readonly filename: string | null }> {
-  const response = await transportFetch(
-    `${runPath(id)}/export?format=${format}`,
-    { credentials: "include", cache: "no-store" },
+export async function createBillingLetters(
+  runId: string,
+  input: BillingLettersInput,
+): Promise<BillingLetters> {
+  return lettersFromBackend(
+    await traegerRequest<BackendLetters>(`${runPath(runId)}/letters`, {
+      method: "POST",
+      body: lettersBody(input),
+    }),
   );
+}
+
+/** A file with the name the backend chose. */
+export interface BillingFile {
+  readonly blob: Blob;
+  readonly filename: string;
+}
+
+async function billingFile(
+  path: string,
+  init: RequestInit,
+  fallbackName: string,
+): Promise<BillingFile> {
+  const response = await transportFetch(path, {
+    credentials: "include",
+    cache: "no-store",
+    ...init,
+  });
   if (!response.ok) {
     const text = await response.text();
     let body: unknown = null;
@@ -341,8 +415,53 @@ export async function downloadBillingRunOverview(
   }
   return {
     blob: await response.blob(),
-    filename: filenameFromDisposition(response),
+    filename: filenameFromDisposition(response) ?? fallbackName,
   };
+}
+
+/** The letter of the first invoice with the input, without storing it. */
+export async function previewBillingLetter(
+  runId: string,
+  input: BillingLettersInput,
+): Promise<BillingFile> {
+  return billingFile(
+    `${runPath(runId)}/letters/preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(lettersBody(input)),
+    },
+    "vorschau.pdf",
+  );
+}
+
+/** The stored letter of one invoice of the run. */
+export async function downloadBillingLetter(
+  runId: string,
+  documentId: string,
+): Promise<BillingFile> {
+  return billingFile(
+    `${runPath(runId)}/documents/${encodeURIComponent(documentId)}/letter`,
+    {},
+    "bestaetigung.pdf",
+  );
+}
+
+export type BillingRunExportFormat = "pdf" | "xlsx" | "csv";
+
+/**
+ * The overview of a released run for the Kämmerei (#4672): every invoice
+ * with its positions and sums.
+ */
+export async function downloadBillingRunOverview(
+  id: string,
+  format: BillingRunExportFormat,
+): Promise<BillingFile> {
+  return billingFile(
+    `${runPath(id)}/export?format=${format}`,
+    {},
+    `abrechnungsanordnung.${format}`,
+  );
 }
 
 const NUMBER_RANGES_PATH = "/api/traeger/number-ranges";

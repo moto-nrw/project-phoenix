@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -198,7 +204,9 @@ describe("FilesPage errors", () => {
     renderWithToasts(<FilesPage />);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Aktionen für Konzept.pdf" }),
+      within(screen.getByTestId("data-table-table")).getByRole("button", {
+        name: "Aktionen für Konzept.pdf",
+      }),
     );
     fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
     // Zwei Schritte: erst „Ja, löschen“, dann „Endgültig löschen“.
@@ -217,5 +225,66 @@ describe("FilesPage errors", () => {
     expect(
       screen.queryByText(/file storage action not permitted/),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("FilesPage file list on narrow screens (#4975)", () => {
+  const longName =
+    "Elternbrief_Herbstferien_2026_Betreuungszeiten_und_Anmeldung_zur_Ferienbetreuung_final_v3.pdf";
+
+  beforeEach(() => {
+    useSession.mockReturnValue({ data: null });
+    useSWRAuth.mockImplementation((key: string) => ({
+      data:
+        key === "files-folders"
+          ? {
+              folders: [{ ...folder, fileCount: 1 }],
+              canManage: true,
+              canUpload: true,
+              staffUploadEnabled: true,
+              usedBytes: 0,
+              maxBytes: 0,
+            }
+          : {
+              folder,
+              files: [
+                {
+                  id: "9",
+                  folderId: "1",
+                  filename: longName,
+                  sizeBytes: 2048,
+                  contentType: "application/pdf",
+                  uploadedAt: "2026-09-01T10:00:00Z",
+                  uploadedBy: "Anna",
+                  canDelete: true,
+                },
+              ],
+            },
+      error: undefined,
+      isLoading: false,
+      mutate,
+    }));
+  });
+
+  it("puts the menu with Herunterladen into the phone line of each file", async () => {
+    renderWithToasts(<FilesPage />);
+
+    const phone = screen.getByTestId("data-table-stacked");
+    expect(within(phone).getByText(/01\.09\.2026/)).toBeInTheDocument();
+    fireEvent.click(
+      within(phone).getByRole("button", { name: `Aktionen für ${longName}` }),
+    );
+    expect(
+      await screen.findByRole("menuitem", { name: "Herunterladen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("lets the file name column give way instead of widening the table", () => {
+    renderWithToasts(<FilesPage />);
+
+    const table = screen.getByTestId("data-table-table");
+    const name = within(table).getByRole("link", { name: longName });
+    expect(name).toHaveAttribute("title", expect.stringContaining(longName));
+    expect(name.closest("td")).toHaveClass("w-full", "max-w-0");
   });
 });

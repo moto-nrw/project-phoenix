@@ -2,6 +2,11 @@
 package common
 
 const (
+	CodeTimetableDatesInPast                           = "timetable.dates_in_past"
+	CodeTimetableDatesRequired                         = "timetable.dates_required"
+	CodeTimetableDeviationNoteTooLong                  = "timetable.deviation_note_too_long"
+	CodeTimetableDeviationSelectionInvalid             = "timetable.deviation_selection_invalid"
+	CodeTimetableDuplicateInstance                     = "timetable.duplicate_instance"
 	CodeTimetableExportEndBeforeStart                  = "timetable.export_end_before_start"
 	CodeTimetableExportInternalForbidden               = "timetable.export_internal_forbidden"
 	CodeTimetableExportRangeTooLarge                   = "timetable.export_range_too_large"
@@ -192,6 +197,11 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.dates_in_past":                              "input",
+	"timetable.dates_required":                             "input",
+	"timetable.deviation_note_too_long":                    "input",
+	"timetable.deviation_selection_invalid":                "input",
+	"timetable.duplicate_instance":                         "business_rejection",
 	"timetable.export_end_before_start":                    "input",
 	"timetable.export_internal_forbidden":                  "permission",
 	"timetable.export_range_too_large":                     "input",
