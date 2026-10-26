@@ -2745,6 +2745,7 @@
         "operator_invitation_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "operator_self_deactivation": "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
         "invitation_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
+        "guardian_invitation_email_not_queued": "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
         "email_change_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
         "email_change_same_email": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "email_change_link_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",

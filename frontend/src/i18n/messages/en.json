@@ -2745,6 +2745,7 @@
         "operator_invitation_invalid": "{object} could not be changed. Please check its current status.",
         "operator_self_deactivation": "You cannot deactivate your own account. Ask another team member to do this.",
         "invitation_rate_limited": "{object} is unavailable right now. Please try again.",
+        "guardian_invitation_email_not_queued": "The invitation could not be sent right now. Please try again.",
         "email_change_rate_limited": "{object} is unavailable right now. Please try again.",
         "email_change_same_email": "{object} could not be saved. Please check your entries.",
         "email_change_link_invalid": "{object} could not be changed. Please check its current status.",

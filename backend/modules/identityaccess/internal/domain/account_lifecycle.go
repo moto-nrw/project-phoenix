@@ -173,6 +173,9 @@ type SchoolIdentity struct {
 
 var (
 	ErrGuardianInvitationNotFound = errors.New("invitation not found")
+	// ErrGuardianAccessMailNotQueued reports an access mail the outbox did not
+	// take; the access it announces rolls back with it (#4602).
+	ErrGuardianAccessMailNotQueued = errors.New("guardian access email could not be queued")
 )
 
 // GuardianInvitationValidationError marks input rejected by the guardian

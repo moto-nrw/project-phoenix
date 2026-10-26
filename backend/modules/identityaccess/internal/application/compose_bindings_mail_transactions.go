@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -30,6 +31,17 @@ func RunMailStep(ctx context.Context, step func(context.Context) error) error {
 		return nil
 	}
 	return RunMailStepInSavepoint(ctx, step)
+}
+
+// RunInSavepoint runs fn in a savepoint of the transaction in ctx and
+// returns its error after rolling back its writes. A savepoint that could
+// not be controlled leaves the transaction unusable.
+func RunInSavepoint(ctx context.Context, fn func(context.Context) error) error {
+	err := tenant.WithSavepoint(ctx, fn)
+	if errors.Is(err, tenant.ErrSavepointControl) {
+		return fmt.Errorf("%w: %w", domain.ErrTransactionUnusable, err)
+	}
+	return err
 }
 
 type SavepointGuardianEnrollments struct {

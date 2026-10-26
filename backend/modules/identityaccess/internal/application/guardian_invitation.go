@@ -75,7 +75,9 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 			slog.Int64("guardian_profile_id", profile.ID),
 			slog.Int64("created_by", request.CreatedBy),
 		)
-		l.mailNewInvitation(txCtx, invitation, profile)
+		if err := l.mailNewInvitation(txCtx, invitation, profile); err != nil {
+			return failed(opGuardianInviteCreate, err)
+		}
 		return nil
 	})
 	if err != nil {
@@ -102,26 +104,44 @@ func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID 
 }
 
 // mailNewInvitation queues the mail of a new token invitation and the
-// welcome that follows it (#3534). A resend mails the link alone.
-func (l *AccountLifecycle) mailNewInvitation(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile) {
+// welcome that follows it (#3534). A resend mails the link alone. An
+// invitation whose mail the outbox did not take must not be kept, so the
+// failure is returned for the caller's transaction to roll back (#4602).
+func (l *AccountLifecycle) mailNewInvitation(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile) error {
 	schoolName := l.delivery.SchoolName(ctx, invitation.TenantID)
-	precedingOutboxID, queued := l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, schoolName)
-	if !queued {
-		return
+	precedingOutboxID, err := l.enqueueInvitationEmail(ctx, invitation, profile, schoolName)
+	if err != nil {
+		return err
 	}
 	l.delivery.EnqueueWelcomeEmail(ctx, profile, invitation.TenantID, schoolName, precedingOutboxID)
+	return nil
+}
+
+// enqueueInvitationEmail queues the link mail alone and classifies its
+// failure.
+func (l *AccountLifecycle) enqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (int64, error) {
+	outboxID, err := l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, schoolName)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %w", domain.ErrGuardianAccessMailNotQueued, err)
+	}
+	return outboxID, nil
 }
 
 // mailExistingAccountAccess tells an account holder about access granted
 // without a token and welcomes them to the school (#3534); the delivery
-// sends the welcome once per guardian and school.
-func (l *AccountLifecycle) mailExistingAccountAccess(ctx context.Context, profile domain.GuardianProfile, tenantID int64) {
+// sends the welcome once per guardian and school. Like the invitation, the
+// access rolls back when its mail cannot be queued (#4602).
+func (l *AccountLifecycle) mailExistingAccountAccess(ctx context.Context, profile domain.GuardianProfile, tenantID int64) error {
 	schoolName := l.delivery.SchoolName(ctx, tenantID)
-	precedingOutboxID, queued := l.delivery.EnqueueExistingAccountEmail(ctx, profile, schoolName)
+	precedingOutboxID, queued, err := l.delivery.EnqueueExistingAccountEmail(ctx, profile, schoolName)
+	if err != nil {
+		return fmt.Errorf("%w: %w", domain.ErrGuardianAccessMailNotQueued, err)
+	}
 	if !queued {
-		return
+		return nil
 	}
 	l.delivery.EnqueueWelcomeEmail(ctx, profile, tenantID, schoolName, precedingOutboxID)
+	return nil
 }
 
 // ValidateGuardianInvitation returns the public details of a redeemable
@@ -323,7 +343,9 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 			slog.Int64("invitation_id", invitation.ID),
 			slog.Int64("actor_account_id", actorAccountID),
 		)
-		l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
+		if _, err := l.enqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID)); err != nil {
+			return failed(opGuardianInviteResend, err)
+		}
 		return nil
 	}
 	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {

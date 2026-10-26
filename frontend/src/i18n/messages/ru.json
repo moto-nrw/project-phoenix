@@ -2745,6 +2745,7 @@
         "operator_invitation_invalid": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "operator_self_deactivation": "Вы не можете деактивировать свою учётную запись. Попросите об этом другого участника команды.",
         "invitation_rate_limited": "{object} сейчас недоступен. Повторите попытку.",
+        "guardian_invitation_email_not_queued": "Сейчас не удалось отправить приглашение. Повторите попытку.",
         "email_change_rate_limited": "{object} сейчас недоступен. Повторите попытку.",
         "email_change_same_email": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "email_change_link_invalid": "Не удалось изменить: {object}. Проверьте текущее состояние.",

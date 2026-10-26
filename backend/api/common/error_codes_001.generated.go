@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeIdentityInvitationAccountLoginRequired         = "identity.invitation_account_login_required"
 	CodeIdentityInvitationAccountMismatch              = "identity.invitation_account_mismatch"
 	CodeIdentityInvitationExpired                      = "identity.invitation_expired"
 	CodeIdentityInvitationNotFound                     = "identity.invitation_not_found"
@@ -301,10 +302,10 @@ const (
 	CodeTimetableGuardianNoticeTextInvalid             = "timetable.guardian_notice_text_invalid"
 	CodeTimetableHomeworkFeedbackChildNotInSupervision = "timetable.homework_feedback_child_not_in_supervision"
 	CodeTimetableHomeworkFeedbackNotAllowed            = "timetable.homework_feedback_not_allowed"
-	CodeTimetableHomeworkFeedbackWithoutHomework       = "timetable.homework_feedback_without_homework"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.invitation_account_login_required":           "permission",
 	"identity.invitation_account_mismatch":                 "permission",
 	"identity.invitation_expired":                          "business_rejection",
 	"identity.invitation_not_found":                        "input",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.guardian_notice_text_invalid":               "input",
 	"timetable.homework_feedback_child_not_in_supervision": "permission",
 	"timetable.homework_feedback_not_allowed":              "permission",
-	"timetable.homework_feedback_without_homework":         "business_rejection",
 }
 
 func init() {

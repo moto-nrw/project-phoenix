@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableHomeworkFeedbackWithoutHomework     = "timetable.homework_feedback_without_homework"
 	CodeTimetableIdempotencyKeyReused                = "timetable.idempotency_key_reused"
 	CodeTimetableInstanceEndBeforeStart              = "timetable.instance_end_before_start"
 	CodeTimetableInstanceInPast                      = "timetable.instance_in_past"
@@ -181,6 +182,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.homework_feedback_without_homework":      "business_rejection",
 	"timetable.idempotency_key_reused":                  "business_rejection",
 	"timetable.instance_end_before_start":               "input",
 	"timetable.instance_in_past":                        "input",

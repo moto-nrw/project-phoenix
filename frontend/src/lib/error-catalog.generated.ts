@@ -539,6 +539,8 @@ export const ERROR_CATALOG = {
         "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
       "identity.email_change_same_email":
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
+      "identity.guardian_invitation_email_not_queued":
+        "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
       "identity.invalid_credentials":
         "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
       "identity.invitation_account_login_required":
@@ -1694,6 +1696,8 @@ export const ERROR_CATALOG = {
         "The demo school is being prepared. Please try again in a moment.",
       "identity.email_already_exists":
         "There is already an account for this email address. Please use a different address.",
+      "identity.guardian_invitation_email_not_queued":
+        "The invitation could not be sent right now. Please try again.",
       "identity.invalid_credentials":
         "The email address or the password is not correct. Please check your entry.",
       "identity.invitation_account_login_required":
@@ -2101,6 +2105,8 @@ export const ERROR_CATALOG = {
         "Демо-школа сейчас готовится. Попробуйте ещё раз через минуту.",
       "identity.email_already_exists":
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
+      "identity.guardian_invitation_email_not_queued":
+        "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invalid_credentials":
         "Неверный адрес электронной почты или пароль. Проверьте введённые данные.",
       "identity.invitation_account_login_required":
@@ -2484,6 +2490,8 @@ export const ERROR_CATALOG = {
         "Shkolla demo po përgatitet. Provoni përsëri pas pak.",
       "identity.email_already_exists":
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
+      "identity.guardian_invitation_email_not_queued":
+        "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invalid_credentials":
         "Adresa e email-it ose fjalëkalimi nuk është i saktë. Kontrolloni të dhënat.",
       "identity.invitation_account_login_required":
@@ -2857,6 +2865,8 @@ export const ERROR_CATALOG = {
         "Szkoła demo jest właśnie przygotowywana. Spróbuj ponownie za chwilę.",
       "identity.email_already_exists":
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
+      "identity.guardian_invitation_email_not_queued":
+        "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invalid_credentials":
         "Adres e-mail lub hasło są nieprawidłowe. Sprawdź wpisane dane.",
       "identity.invitation_account_login_required":
@@ -3235,6 +3245,8 @@ export const ERROR_CATALOG = {
         "Demo okul hazırlanıyor. Lütfen birazdan tekrar deneyin.",
       "identity.email_already_exists":
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
+      "identity.guardian_invitation_email_not_queued":
+        "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invalid_credentials":
         "E-posta adresi veya şifre doğru değil. Lütfen girdiğiniz bilgileri kontrol edin.",
       "identity.invitation_account_login_required":
@@ -3605,6 +3617,8 @@ export const ERROR_CATALOG = {
         "Демо-школа зараз готується. Спробуйте ще раз за хвилину.",
       "identity.email_already_exists":
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
+      "identity.guardian_invitation_email_not_queued":
+        "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invalid_credentials":
         "Неправильна адреса електронної пошти або пароль. Перевірте введені дані.",
       "identity.invitation_account_login_required":

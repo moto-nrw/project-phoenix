@@ -296,3 +296,31 @@ func TestRelatedAccountsEndpoint_SocialWorkerRefusedWithCode(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 	assert.Contains(t, rr.Body.String(), `"code":"care.guardian_social_worker_managed"`)
 }
+
+// relAcctMailNotQueuedInvites fails every invite the way an invitation mail
+// the outbox did not take does (#4602).
+type relAcctMailNotQueuedInvites struct{}
+
+func (relAcctMailNotQueuedInvites) InviteToStudent(_ context.Context, _ parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	return parentService.GuardianInviteOutcome{}, parentService.ErrInviteMailNotQueued
+}
+
+func (relAcctMailNotQueuedInvites) RevokeAccess(context.Context, parentService.GuardianAccessRevocation) error {
+	return nil
+}
+
+func TestRelatedAccountsEndpoint_MailNotQueuedAnswersWithCode(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	router := newRelAcctRouterWithInvites(t, db, relAcctMailNotQueuedInvites{})
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/related-accounts", token,
+		map[string]any{"email": "oma@example.test"})
+	require.Equal(t, http.StatusServiceUnavailable, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"code":"identity.guardian_invitation_email_not_queued"`)
+}

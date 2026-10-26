@@ -40,6 +40,10 @@ var (
 	ErrInviteSocialWorkerManaged        = errors.New("a social-worker contact is managed by the school and cannot be invited to the parents portal")
 	ErrGuardianInvitationNotFound       = errors.New("invitation not found")
 	ErrGuardianInvitationExpired        = errors.New("invitation has expired")
+	// ErrGuardianAccessMailNotQueued reports an invitation or access mail the
+	// outbox did not take. Nothing of the access was kept; the school can try
+	// again (#4602).
+	ErrGuardianAccessMailNotQueued = errors.New("guardian access email could not be queued")
 
 	// ErrAccountLifecycleUnavailable reports a module composed without the
 	// account-lifecycle dependencies (repository fixtures, CLI roots that

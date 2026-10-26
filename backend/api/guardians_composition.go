@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
@@ -22,6 +23,11 @@ import (
 // renderPeopleDirectoryFailure writes the shared error shape for a failure
 // kind the People Directory adapters classified.
 func renderPeopleDirectoryFailure(w http.ResponseWriter, r *http.Request, kind usersAPI.FailureKind, err error) {
+	// Nothing of the invitation was kept; the school can send it again (#4602).
+	if errors.Is(err, identityaccess.ErrGuardianAccessMailNotQueued) {
+		apiCommon.RenderError(w, r, apiCommon.ErrorServiceUnavailableWithCode(err, apiCommon.CodeIdentityGuardianInvitationEmailNotQueued))
+		return
+	}
 	for _, rule := range guardianInputCodes {
 		if kind == usersAPI.FailureInvalidRequest && errors.Is(err, rule.sentinel) {
 			if rule.field == "" {
