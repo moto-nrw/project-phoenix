@@ -5,8 +5,12 @@
 // Excel oder CSV mit allen Positionen und Summen.
 
 import { useState } from "react";
-import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import {
+  ExportMenu,
+  type ExportMenuOption,
+  exportFormatOptions,
+} from "~/components/ui/export-menu";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { downloadBlob } from "~/lib/file-download";
@@ -21,14 +25,11 @@ import { formatEuro } from "./contribution-format";
 
 const logger = createLogger({ component: "BillingRunOverviewCard" });
 
-const FORMATS: readonly {
-  readonly format: BillingRunExportFormat;
-  readonly label: string;
-}[] = [
-  { format: "pdf", label: "Als PDF herunterladen" },
-  { format: "xlsx", label: "Als Excel herunterladen" },
-  { format: "csv", label: "Als CSV herunterladen" },
-];
+const FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
+  "pdf",
+  "xlsx",
+  "csv",
+]);
 
 const COLUMNS: DataTableColumn<BillingDocument>[] = [
   {
@@ -93,22 +94,20 @@ export function BillingRunOverviewCard({
       title="Übersicht für die Kämmerei"
       description="Alle Rechnungen dieses Laufs. Die Datei enthält jede Position, die Summe je Rechnung und die Gesamtsumme."
       actions={
-        <div className="flex flex-wrap gap-2">
-          {FORMATS.map(({ format, label }) => (
-            <Button
-              key={format}
-              type="button"
-              variant="outline"
-              size="sm"
-              isLoading={exporting === format}
-              loadingText="Wird erstellt …"
-              disabled={exporting !== null}
-              onClick={() => void exportFile(format)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
+        <ExportMenu
+          ariaLabel="Übersicht für die Kämmerei herunterladen"
+          options={FORMATS}
+          busyKey={exporting}
+          onSelect={(option) => {
+            if (
+              option.format === "pdf" ||
+              option.format === "xlsx" ||
+              option.format === "csv"
+            ) {
+              void exportFile(option.format);
+            }
+          }}
+        />
       }
     >
       <DataTable

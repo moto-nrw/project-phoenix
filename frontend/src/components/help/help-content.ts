@@ -9283,7 +9283,8 @@ function traegerBillingRunTopic(): HelpTopic {
         description: "Das geht, sobald der Lauf freigegeben ist.",
         steps: [
           "Öffnen Sie den freigegebenen Lauf.",
-          "Wählen Sie bei `Übersicht für die Kämmerei` das Format: `Als PDF herunterladen`, `Als Excel herunterladen` oder `Als CSV herunterladen`.",
+          "Wählen Sie bei `Übersicht für die Kämmerei` den Knopf `Herunterladen`.",
+          "Wählen Sie das Format: `PDF`, `Excel` oder `CSV`.",
           "Geben Sie die Datei an die Kämmerei weiter.",
         ],
       },

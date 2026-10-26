@@ -303,8 +303,11 @@ describe("TraegerBillingRunPage", () => {
     expect(screen.getAllByText("Lia, Ben")[0]).toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Als CSV herunterladen" }),
+      screen.getByRole("button", {
+        name: "Übersicht für die Kämmerei herunterladen",
+      }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
     await waitFor(() =>
       expect(downloadBlob).toHaveBeenCalledWith(
         blob,
@@ -325,8 +328,11 @@ describe("TraegerBillingRunPage", () => {
     await screen.findByText("Übersicht für die Kämmerei");
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Als PDF herunterladen" }),
+      screen.getByRole("button", {
+        name: "Übersicht für die Kämmerei herunterladen",
+      }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "PDF" }));
     expect(
       await screen.findByText(
         catalogText("parent_billing.billing_run_not_released", "die Übersicht"),
