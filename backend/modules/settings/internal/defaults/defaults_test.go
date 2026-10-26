@@ -181,6 +181,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"reminders.activity_start_enabled",
 		"reminders.activity_start_lead_minutes",
 		"reminders.activity_overdue_enabled",
+		"reminders.activity_running_over_enabled",
+		"reminders.activity_running_over_minutes",
 		// Guardian appointment reminders (issue #1671): the parent-facing half of
 		// the Erinnerungen tab.
 		"calendar.appointment_reminder_enabled",

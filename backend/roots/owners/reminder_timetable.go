@@ -3,50 +3,64 @@ package owners
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
+// ReminderTimetableReader binds the reminder evaluation to Timetable. Today's
+// blocks come from the session records, whose status carries the execution
+// state (planned, active, completed, cancelled) of Student Presence: the plan
+// table alone knows only planned and cancelled, so a started block would read
+// as "not started" and a running one could never be told apart (#4765).
 type ReminderTimetableReader struct {
 	Source interface {
-		timetable.ActivityInstanceQuery
 		timetable.InstanceStaffQuery
+	}
+	Sessions interface {
+		ListSessionInstances(context.Context, calendar.Date) ([]timetable.ScheduledInstance, error)
+		ListActiveSessionInstances(context.Context) ([]timetable.ScheduledInstance, error)
 	}
 }
 
 func (r ReminderTimetableReader) FindByTenantAndDate(ctx context.Context, date string) ([]*ports.ActivityInstance, error) {
-	values, err := r.Source.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{Date: &date, OrderByDateAndTime: true})
+	day, err := calendar.ParseDate(date)
 	if err != nil {
-		return nil, timetableCompose.WrapDatabaseError("find by tenant and date", err)
+		return nil, timetableCompose.WrapDatabaseError("find by tenant and date", fmt.Errorf("parse activity instance date: %w", err))
+	}
+	values, err := r.Sessions.ListSessionInstances(ctx, day)
+	if err != nil {
+		return nil, err
 	}
 	result := make([]*ports.ActivityInstance, 0, len(values))
 	for _, value := range values {
-		instance, err := reminderInstance(value)
-		if err != nil {
-			return nil, timetableCompose.WrapDatabaseError("find by tenant and date", err)
-		}
-		result = append(result, instance)
+		result = append(result, &ports.ActivityInstance{
+			ID: value.ID, Date: value.Date, Title: value.Title, RoomID: value.RoomID,
+			StartTime: value.StartTime, EndTime: value.EndTime, Status: value.Status,
+			IsSpontaneous: value.IsSpontaneous,
+		})
 	}
 	return result, nil
 }
 
-func reminderInstance(value timetable.ActivityInstance) (*ports.ActivityInstance, error) {
-	// Retain the compatibility adapter's validation and error contract.
-	if _, err := timetableCompose.ParseActivityInstanceDate(value.Date); err != nil {
-		return nil, fmt.Errorf("parse activity instance date: %w", err)
-	}
-	start, err := time.Parse("15:04:05", value.StartTime)
+// FindActiveByTenant returns active sessions independent of their planned day:
+// a block that crosses midnight remains active until it is completed.
+func (r ReminderTimetableReader) FindActiveByTenant(ctx context.Context) ([]*ports.ActivityInstance, error) {
+	values, err := r.Sessions.ListActiveSessionInstances(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("parse activity instance start time: %w", err)
+		return nil, err
 	}
-	end, err := time.Parse("15:04:05", value.EndTime)
-	if err != nil {
-		return nil, fmt.Errorf("parse activity instance end time: %w", err)
+	result := make([]*ports.ActivityInstance, 0, len(values))
+	for _, value := range values {
+		result = append(result, &ports.ActivityInstance{
+			ID: value.ID, Date: value.Date, Title: value.Title, RoomID: value.RoomID,
+			StartTime: value.StartTime, EndTime: value.EndTime, Status: value.Status,
+			IsSpontaneous: value.IsSpontaneous,
+		})
 	}
-	return &ports.ActivityInstance{ID: value.ID, Title: value.Title, RoomID: value.RoomID, StartTime: start, EndTime: end, Status: value.Status}, nil
+	return result, nil
 }
 
 func (r ReminderTimetableReader) FindByInstanceIDs(ctx context.Context, ids []int64) ([]*ports.InstanceStaff, error) {

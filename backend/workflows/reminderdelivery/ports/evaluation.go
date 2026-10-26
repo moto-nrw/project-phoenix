@@ -1,6 +1,10 @@
 package ports
 
-import "time"
+import (
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
 
 type Room struct {
 	ID   int64
@@ -40,11 +44,15 @@ const (
 
 type ActivityInstance struct {
 	ID        int64
+	Date      calendar.Date
 	Title     string
 	RoomID    int64
 	StartTime time.Time
 	EndTime   time.Time
 	Status    string
+	// IsSpontaneous marks a block started on the spot. Its planned end is a
+	// placeholder (start plus one hour), not a time it was meant to end.
+	IsSpontaneous bool
 }
 
 type InstanceStaff struct {

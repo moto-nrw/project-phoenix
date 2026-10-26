@@ -17,14 +17,6 @@ func ParseActivityExceptionDate(value string) (calendar.Date, error) {
 	return parsed, nil
 }
 
-func ParseActivityInstanceDate(value string) (calendar.Date, error) {
-	parsed, err := calendar.ParseDate(value)
-	if err != nil {
-		return "", fmt.Errorf("invalid calendar date %q", value)
-	}
-	return parsed, nil
-}
-
 func InstanceStudentWallClock(at time.Time) string {
 	return at.In(calendar.Berlin).Format("15:04:05")
 }

@@ -747,7 +747,7 @@ func TestEveryPersonalReminderTypeHasCopy(t *testing.T) {
 // Pin the notice vocabulary where this workflow hands it to Delivery.
 func TestPersonalReminderNoticeWireVocabulary(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "my_activity_starting"}, personalReminderTypes)
+	assert.Equal(t, []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "activity_running_over", "my_activity_starting"}, personalReminderTypes)
 	assert.Equal(t, "normal", NoticePriorityNormal)
 	assert.Equal(t, "high", NoticePriorityHigh)
 	assert.Equal(t, "staff", NoticeScopeStaff)

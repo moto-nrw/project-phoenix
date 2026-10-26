@@ -12,6 +12,7 @@ import {
   isReminderOverdue,
   reminderKey,
   reminderRelativeLabel,
+  reminderSubtitle,
   reminderToneClass,
 } from "~/lib/reminders-display";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -90,6 +91,7 @@ export function RemindersBlock() {
                 // Eine Erinnerung zu einem Kind fuehrt zu diesem Kind; eine
                 // Erinnerung ohne Kind (Aktivitaetsbeginn) bleibt eine Anzeige
                 // und sieht auch nicht klickbar aus.
+                const subtitle = reminderSubtitle(reminder);
                 const href = reminder.student_id
                   ? tenantPath(`/students/${reminder.student_id}`)
                   : undefined;
@@ -107,9 +109,9 @@ export function RemindersBlock() {
                       <span className="truncate text-sm font-medium text-gray-900 sm:shrink-0">
                         {reminder.title}
                       </span>
-                      {reminder.subtitle && (
+                      {subtitle && (
                         <span className="min-w-0 truncate text-xs text-gray-500">
-                          {reminder.subtitle}
+                          {subtitle}
                         </span>
                       )}
                     </span>

@@ -260,6 +260,28 @@ describe("useReminders — next_change_at precise timer", () => {
     expect(mockMutate).toHaveBeenCalledTimes(1);
   });
 
+  it("schedules a date-qualified next-day boundary after midnight", () => {
+    mockUseSWRAuth.mockReturnValue(
+      swrReturn({
+        reminders: [],
+        count: 0,
+        enabled: true,
+        next_change_at: "2026-07-05T00:10:00+02:00",
+      }),
+    );
+
+    renderHook(() => useReminders());
+    act(() => {
+      vi.advanceTimersByTime(14 * 60 * 60 * 1000 + 10 * 60 * 1000 + 1000);
+    });
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+  });
+
   it("clears the scheduled timer on unmount", () => {
     mockUseSWRAuth.mockReturnValue(
       swrReturn({

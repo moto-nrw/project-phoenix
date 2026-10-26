@@ -10,6 +10,8 @@ type settingsResolver interface {
 	PickupOverdueEnabled(context.Context) (bool, error)
 	ActivityStartEnabled(context.Context) (bool, error)
 	ActivityOverdueEnabled(context.Context) (bool, error)
+	ActivityRunningOverEnabled(context.Context) (bool, error)
+	ActivityRunningOverMinutes(context.Context) (int, error)
 	PickupLeadMinutes(context.Context) (int, error)
 	ActivityLeadMinutes(context.Context) (int, error)
 	OverdueThresholdMinutes(context.Context) (int, error)
@@ -26,6 +28,7 @@ type pickupReader interface {
 
 type instanceReader interface {
 	FindByTenantAndDate(ctx context.Context, date string) ([]*ActivityInstance, error)
+	FindActiveByTenant(ctx context.Context) ([]*ActivityInstance, error)
 }
 
 type roomReader interface {

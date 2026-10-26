@@ -69,6 +69,7 @@ const (
 	TypePickupOverdue          = "pickup_overdue"
 	TypeActivityStart          = "activity_start"
 	TypeActivityOverdue        = "activity_overdue"
+	TypeActivityRunningOver    = "activity_running_over"
 	TypeMyActivityStarting     = "my_activity_starting"
 	TypeStudentAbsenceReported = "student_absence_reported"
 	TypeStaffParentMessage     = "staff_parent_message"
@@ -266,12 +267,21 @@ func registerActivityTypes() {
 		SortOrder:   2,
 	})
 	RegisterType(TypeDefinition{
+		Key:         TypeActivityRunningOver,
+		Label:       "AG dauert länger",
+		Description: "Wenn eine gestartete Aktivität in einem Raum Ihrer Aufsicht nach dem geplanten Ende noch läuft.",
+		Group:       GroupActivities,
+		Portal:      PortalStaff,
+		TenantGate:  settingRemindersActivityRunningOverEnabled,
+		SortOrder:   3,
+	})
+	RegisterType(TypeDefinition{
 		Key:         TypeMyActivityStarting,
 		Label:       "Ihr nächster Einsatz",
 		Description: "Kurz bevor ein Einsatz aus Ihrem Betreuungsplan beginnt, auch wenn Sie gerade keine Aufsicht führen.",
 		Group:       GroupActivities,
 		Portal:      PortalStaff,
-		SortOrder:   3,
+		SortOrder:   4,
 	})
 }
 
