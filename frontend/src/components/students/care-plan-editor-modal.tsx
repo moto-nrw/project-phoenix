@@ -863,8 +863,10 @@ function NoteEditor({
   const hasChanges = trimmedContent !== note.content;
 
   return (
-    <div className="flex gap-2">
-      <div className="min-w-0 flex-1">
+    // Two actions leave the field no room on a phone; it wraps to its own line
+    // instead of shrinking to a sliver.
+    <div className="flex flex-wrap gap-2">
+      <div className="min-w-48 flex-1">
         <Input
           aria-label={`${label} Hinweis`}
           value={content}
