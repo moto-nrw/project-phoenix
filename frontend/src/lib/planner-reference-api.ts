@@ -32,7 +32,7 @@ async function readReferenceResponse<T>(response: Response): Promise<T> {
 }
 
 export async function fetchPlannerRooms(): Promise<PlannerRoomReference[]> {
-  const response = await transportFetch("/api/rooms", {
+  const response = await transportFetch("/api/rooms?page_size=1000", {
     credentials: "include",
   });
   const body = await readReferenceResponse<

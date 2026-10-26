@@ -19,6 +19,9 @@ describe("planner reference lists", () => {
     await expect(fetchPlannerRooms()).resolves.toEqual([
       { id: "1", name: "Mensa" },
     ]);
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/rooms?page_size=1000", {
+      credentials: "include",
+    });
   });
 
   it("keeps code and request ID of a failed answer", async () => {
