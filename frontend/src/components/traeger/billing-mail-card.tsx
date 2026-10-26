@@ -46,23 +46,25 @@ const STATUS_TONES: Record<
   unknown: "gray",
 };
 
-function statusLabel(mailing: LetterMailing): string {
-  switch (mailing.status) {
-    case "not_sent":
-      return "Nicht gesendet";
-    case "queued":
-      return "Wird gesendet";
-    case "sent":
-      return mailing.sentAt
-        ? `Gesendet am ${formatBerlinDate(mailing.sentAt)}, ${formatTime(mailing.sentAt)} Uhr`
-        : "Gesendet";
-    case "failed":
-      return "Nicht angekommen";
-    case "unknown":
-      return mailing.requestedAt
-        ? `Am ${formatBerlinDate(mailing.requestedAt)} gesendet, Ergebnis nicht mehr bekannt`
-        : "Ergebnis nicht mehr bekannt";
+const STATUS_LABELS: Record<LetterMailStatus, string> = {
+  not_sent: "Nicht gesendet",
+  queued: "Wird gesendet",
+  sent: "Gesendet",
+  failed: "Nicht angekommen",
+  unknown: "Ergebnis unbekannt",
+};
+
+// The date beside the short status; it wraps on small screens.
+function statusDetail(mailing: LetterMailing): string | null {
+  const at = (iso: string) =>
+    `${formatBerlinDate(iso)}, ${formatTime(iso)} Uhr`;
+  if (mailing.status === "sent" && mailing.sentAt) {
+    return `am ${at(mailing.sentAt)}`;
   }
+  if (mailing.status === "unknown" && mailing.requestedAt) {
+    return `Gesendet am ${at(mailing.requestedAt)}. Das Ergebnis ist nicht mehr gespeichert.`;
+  }
+  return null;
 }
 
 function seriesMessage(series: LetterSeries): string {
@@ -225,11 +227,16 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
                       "Keine Mail-Adresse: Bitte drucken Sie das Schreiben."}
                   </p>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <StatusBadge
-                    label={statusLabel(mailing)}
+                    label={STATUS_LABELS[mailing.status]}
                     tone={STATUS_TONES[mailing.status]}
                   />
+                  {statusDetail(mailing) ? (
+                    <span className="text-sm text-gray-600">
+                      {statusDetail(mailing)}
+                    </span>
+                  ) : null}
                   {mailing.recipientEmail && mailing.status !== "queued" ? (
                     <Button
                       type="button"

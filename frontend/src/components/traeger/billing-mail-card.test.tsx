@@ -77,9 +77,8 @@ describe("BillingMailCard", () => {
 
     expect(await screen.findByText("Nicht gesendet")).toBeInTheDocument();
     expect(screen.getByText("Nicht angekommen")).toBeInTheDocument();
-    expect(
-      screen.getByText("Gesendet am 09.09.2026, 10:01 Uhr"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Gesendet")).toBeInTheDocument();
+    expect(screen.getByText("am 09.09.2026, 10:01 Uhr")).toBeInTheDocument();
     expect(
       screen.getByText(/Kam eine Mail nicht an, senden Sie sie erneut/),
     ).toBeInTheDocument();
@@ -110,6 +109,27 @@ describe("BillingMailCard", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Senden" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Erneut senden" })).toBeNull();
+  });
+
+  it("keeps the status short and explains a forgotten result beside it", async () => {
+    api.fetchLetterMailings.mockResolvedValue([
+      mailing({
+        status: "unknown",
+        sends: 1,
+        requestedAt: "2026-09-09T08:00:00Z",
+      }),
+    ]);
+    renderCard();
+
+    expect(await screen.findByText("Ergebnis unbekannt")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Gesendet am 09.09.2026, 10:00 Uhr. Das Ergebnis ist nicht mehr gespeichert.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut senden" }),
+    ).toBeInTheDocument();
   });
 
   it("mails every family and reports what it sent", async () => {
