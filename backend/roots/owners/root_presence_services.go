@@ -88,7 +88,7 @@ func BuildActivePresence(
 		ActivityCatRepo:    arrivalTimetable.NewCategoryCount(repos.ActivityCategory),
 		EducationGroupRepo: presence.AttendanceEducationGroups,
 		DeviceRepo:         NewSessionDeviceDirectory(devicefleetRepositoryAdapter.NewDeviceRepository(devices), settings, logger),
-		StaffNames:         NewAttendanceStaffNames(people.Staff, users), DB: db.Pool(),
+		StaffNames:         NewAttendanceStaffNames(people.Staff), DB: db.Pool(),
 		Broadcaster: NewPresenceEvents(hub, logger), Tracker: tracker,
 		WorkSessionService: PresenceAutoCheckIn{CheckIn: autoCheckIn}, AttendanceSyncer: attendanceSync,
 		TimetableBridgeCompleter: days.Bridge, Logger: logger, Now: env.Now,

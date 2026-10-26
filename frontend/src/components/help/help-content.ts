@@ -501,6 +501,9 @@ function studentSearchTopic(
         steps: [
           "Wählen Sie die Karte des Kindes.",
           currentStatusStep,
+          // #4761: die Zeilen stehen unter `Heutige Ankunft` und `Heutige
+          // Abholung`, sobald das Kind an- oder abgemeldet ist.
+          "Unter der Zeit steht, wer das Kind heute an- und abgemeldet hat. `am Gerät` heißt: am Tablet ohne Person. `Ehemalige Mitarbeitende` heißt: Die Person ist nicht mehr in moto. `automatisch` heißt: moto hat das Kind selbst abgemeldet.",
           // #4795: dieselbe Zeile steht in der Aufsicht und in der Gruppe.
           "Steht auf der Karte `Hinweis der Lehrkraft`? Den hat die Lehrkraft heute in moto schule geschrieben. Morgen ist er weg.",
         ],
@@ -527,6 +530,8 @@ function studentSearchTopic(
         title: "Ein Anwesenheitsprotokoll herunterladen",
         steps: [
           "Öffnen Sie beim Kind `Historie` und danach `Anwesenheitsprotokoll`.",
+          // #4761: Tabelle und Export nennen dieselben Angaben.
+          "Bei jedem Tag steht, wer das Kind an- und abgemeldet hat. Die Datei enthält dazu die Spalten `Angemeldet von` und `Abgemeldet von`.",
           "Wählen Sie im Drei-Punkte-Menü `Exportieren`.",
           "Wählen Sie unter `Von` und `Bis` den Zeitraum.",
           "Möglich sind nur die sichtbaren Tage bis heute.",

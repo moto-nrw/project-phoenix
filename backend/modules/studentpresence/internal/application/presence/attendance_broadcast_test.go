@@ -114,7 +114,6 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
-	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
@@ -133,13 +132,10 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
 		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 5, nil }}, nil),
-		StaffNames: owners.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
-			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: reposAccounts.RFIDCard, AccountExists: api.AccountExists(reposAccounts.Profile),
-		})),
-		DB:          db,
-		Broadcaster: owners.NewPresenceEvents(broadcaster, nil),
-		Logger:      slog.Default(),
+		StaffNames:         owners.NewAttendanceStaffNames(repos.Staff),
+		DB:                 db,
+		Broadcaster:        owners.NewPresenceEvents(broadcaster, nil),
+		Logger:             slog.Default(),
 	})
 
 	active.ConfigureForTest(svc, active.WithSettings(defaultPresenceSettings()))

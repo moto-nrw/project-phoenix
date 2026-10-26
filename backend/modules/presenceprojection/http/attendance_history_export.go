@@ -4,6 +4,7 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
+	slog "log/slog"
 	http "net/http"
 	sort "sort"
 	strconv "strconv"
@@ -33,6 +34,8 @@ const (
 	attendanceColumnCheckOut   lists.ColumnID = "checked_out_at"
 	attendanceColumnAssignment lists.ColumnID = "assignment"
 	attendanceColumnNote       lists.ColumnID = "check_out_note"
+	attendanceColumnCheckedIn  lists.ColumnID = "checked_in_by"
+	attendanceColumnCheckedOut lists.ColumnID = "checked_out_by"
 )
 
 func (rs *Resource) exportStudentAttendanceHistory(w http.ResponseWriter, r *http.Request) {
@@ -157,11 +160,22 @@ func (rs *Resource) buildAttendanceExportDocument(
 	if !expectSlots {
 		title, columns = "Anwesenheit", attendanceSessionExportColumns()
 	}
+	recorders, err := rs.StudentHistoryService.AttendanceRecorders(ctx, attendance)
+	var rows []lists.Row
+	if err != nil {
+		rs.attendanceHistoryLogger().Warn("failed to resolve attendance staff names",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		rows = attendanceExportRowsWithoutActors(slots, attendance)
+	} else {
+		rows = attendanceExportRows(slots, attendance, recorders)
+	}
 	return lists.Document{
 		Title:       title,
 		Subtitle:    fmt.Sprintf("Kind-ID %d · %s bis %s", studentID, from.Format(attendanceExportDateLayout), to.Format(attendanceExportDateLayout)),
 		GeneratedAt: time.Now(), Columns: columns,
-		Rows: attendanceExportRows(slots, attendance), Footer: "Vertrauliche Anwesenheitsdaten",
+		Rows: rows, Footer: "Vertrauliche Anwesenheitsdaten",
 	}, nil
 }
 
@@ -170,6 +184,7 @@ func attendanceExportColumns() []lists.Column {
 		{ID: attendanceColumnDate, Label: "Datum"}, {ID: attendanceColumnOffering, Label: "Betreuungsangebot"},
 		{ID: attendanceColumnWindow, Label: "Zeitslot"}, {ID: attendanceColumnStatus, Label: "Status"},
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
+		{ID: attendanceColumnCheckedIn, Label: "Angemeldet von"}, {ID: attendanceColumnCheckedOut, Label: "Abgemeldet von"},
 		{ID: attendanceColumnAssignment, Label: "Zuordnung"},
 		{ID: attendanceColumnNote, Label: "Früher gegangen"},
 	}
@@ -182,6 +197,7 @@ func attendanceSessionExportColumns() []lists.Column {
 		{ID: attendanceColumnDate, Label: "Datum"},
 		{ID: attendanceColumnWindow, Label: "Zeitraum"}, {ID: attendanceColumnStatus, Label: "Status"},
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
+		{ID: attendanceColumnCheckedIn, Label: "Angemeldet von"}, {ID: attendanceColumnCheckedOut, Label: "Abgemeldet von"},
 		{ID: attendanceColumnNote, Label: "Früher gegangen"},
 	}
 }
@@ -189,7 +205,15 @@ func attendanceSessionExportColumns() []lists.Column {
 // attendanceExportRows merges slot rows and unassigned observed sessions into
 // one chronologically sorted list (date, then start clock time) so multi-day
 // exports read in order regardless of which source a row came from.
-func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance) []lists.Row {
+func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance, recorders studentpresence.AttendanceRecorders) []lists.Row {
+	return attendanceExportRowsWithOptionalActors(slots, attendanceRows, &recorders)
+}
+
+func attendanceExportRowsWithoutActors(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance) []lists.Row {
+	return attendanceExportRowsWithOptionalActors(slots, attendanceRows, nil)
+}
+
+func attendanceExportRowsWithOptionalActors(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance, recorders *studentpresence.AttendanceRecorders) []lists.Row {
 	type sortableExportRow struct {
 		date  calendar.Date
 		clock string // HH:MM:SS in Berlin, orders rows within a day
@@ -216,7 +240,7 @@ func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows [
 		entries = append(entries, sortableExportRow{
 			date:  instanceDate,
 			clock: row.Instance.StartTime.Format("15:04:05"),
-			row:   slotExportRow(row, notes),
+			row:   withAttendanceActors(slotExportRow(row, notes), stayAt(attendanceRows, row.Attendance.CheckedInAt), recorders),
 		})
 	}
 	for _, attendance := range attendanceRows {
@@ -226,7 +250,7 @@ func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows [
 		entries = append(entries, sortableExportRow{
 			date:  calendar.Date(attendance.Date),
 			clock: attendance.CheckInTime.In(calendar.Berlin).Format("15:04:05"),
-			row:   unassignedExportRow(attendance),
+			row:   withAttendanceActors(unassignedExportRow(attendance), attendance, recorders),
 		})
 	}
 	sort.SliceStable(entries, func(i, j int) bool {
