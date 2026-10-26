@@ -410,7 +410,9 @@ function ParallelGroup({
       >
         Gleichzeitig · {span}
       </p>
-      <div className={scrolls ? "overflow-x-auto" : undefined}>
+      <div
+        className={scrolls ? "overflow-x-auto overflow-y-hidden" : undefined}
+      >
         <ul
           aria-labelledby={captionId}
           className="-mb-px grid"
