@@ -209,13 +209,11 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/architecture/owner_http_rule.go:reviewedOwnerHTTPRule": 51,
 	// ADR 0087.
-	"internal/architecture/policy.go:(*Policy).validate": 16,
-	// ADR 0087.
 	"internal/architecture/policy.go:(*Policy).validateHeader": 16,
 	// ADR 0087.
 	"internal/architecture/policy.go:(*Policy).validateLegacyComposition": 16,
 	// ADR 0087.
-	"internal/architecture/policy.go:(*Policy).validatePackages": 17,
+	"internal/architecture/policy.go:(*Policy).validatePackages": 16,
 	// ADR 0087.
 	"internal/architecture/policy.go:(*Policy).validateReadProjections": 18,
 	// ADR 0087.
