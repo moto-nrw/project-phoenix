@@ -2274,6 +2274,7 @@ function ownAbsenceTopic(): HelpTopic {
     ],
     notes: [
       "Ihre Abwesenheit steht danach in der Tabelle `Zeiterfassung` unter `Status`. Über das Stift-Symbol am Ende der Zeile öffnen Sie den Tag.",
+      "Hat eine Art Ihrer OGS feste Tage, sehen Sie den Stand in der Karte `Kontingente`. Den Anspruch trägt Ihre Leitung ein.",
     ],
     related: [HELP_TOPICS.vacation, HELP_TOPICS.trackWorkTime],
   };
@@ -5120,7 +5121,7 @@ function staffRecordTopic(): HelpTopic {
         steps: [
           "`Übersicht`: Stundenkonto, Urlaubstage und Krankheitstage des Jahres.",
           "`Zeiterfassung`: die einzelnen Buchungen dieser Person.",
-          "`Abwesenheiten`: Resturlaub, `Krank melden` und `Freizeitausgleich eintragen`.",
+          "`Abwesenheiten`: unter `Kontingente` der Resturlaub und die Tage eigener Abwesenheitsarten, dazu `Krank melden` und `Freizeitausgleich eintragen`.",
           "`Stammdaten`: Person, Kontakt, Arbeitsvertrag, Qualifikationen und Personalnummer.",
           "`Dokumente`: Dateien zur Akte, je mit Kategorie und Frist.",
           "`Klassen`: nur bei Lehrkräften.",

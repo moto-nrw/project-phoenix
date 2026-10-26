@@ -1218,7 +1218,7 @@ policy epoch 47 the loader rejects these rules
 (`internal/architecture/target_rule.go`):
 
 - a rule that lets one owner import another owner's `application`, `domain`,
-  `adapter`, `postgres`, `cli` or `legacy-model` role, for any pair of owners
+  `adapter`, `postgres` or `cli` role, for any pair of owners
   its source and target selectors can match; `same_owner` rules and rules
   whose source and target name the same owner are the owner's own reach;
 - a rule that lets a `platform` owner import a `domain`, `projection` or
@@ -1243,7 +1243,9 @@ including `public` and `contract` targets and test scopes. The selectors may
 not admit such a pair; there are no exceptions. A domain declares its own
 reader port and the root binds it ([ADR 0071, enforcement addendum
 #4540](../../docs/adr/0071-principle-owner-dependencies-point-one-way.md#enforcement-addendum-4540)).
-Earlier epochs remain loadable as immutable PR bases.
+Earlier epochs remain loadable as immutable PR bases. A base also keeps every
+role it declares, so a change may retire a role together with its packages;
+only the candidate's roles must be known to the checker (#4956).
 
 From epoch 48 a policy whose target graph closes a cycle is rejected too
 ([ADR 0058](../../docs/adr/0058-owner-dependencies-form-a-dag.md), #3417); a
@@ -1259,35 +1261,13 @@ predates epoch 47. `audit-issues` reads only the baseline's issues, with one
 request per distinct URL; it still loads the policy, so an invalid policy
 fails it. Closed issues, pull requests and failed requests fail the audit.
 
-The retained `models` and `models/*` packages carry their own role,
-`legacy-model`, which only their owner may import (ADR 0057 point 4). From
-epoch 47 every non-test-support package under `models/` has that role and no
-other package has it. The session token runtime
-`modules/identityaccess/sessiontoken` is classified as Identity & Access's
-`http` role (point 3): every HTTP adapter, composition and suite that
+The session token runtime `modules/identityaccess/sessiontoken` is classified
+as Identity & Access's `http` role (ADR 0057 point 3): every HTTP adapter, composition and suite that
 verifies or mints sessions reaches it through a rule into that role, and the
 typed roots reach it through `root-composition.reach.domain.http`. `http`
 rather than `contract`: the package holds the signing and verification
 runtime, not a pure contract, and the roots' standing reach into every
 domain's `http` role already covers them.
-
-The comparison carries exactly these two decided reclassifications over, bound
-to their packages and to epoch 47, the epoch that makes them
-(`internal/architecture/role_reclassification.go`):
-`modules/identityaccess/sessiontoken` from `adapter` to `http` and `models`
-and `models/*` from `domain` to `legacy-model`, each with unchanged owner and
-test roles and only while the base still has the old role. A rule or import
-into the new role of the owner counts as covered when the base let the same
-source into the old role or into the new role; so the owner's other packages
-in the new role become reachable for those sources too. Out of a package the
-old role's reach carries over only for the reclassified package itself; a
-rule out of an owner's role counts as covered only when every package of the
-owner in that role was reclassified into it. An unchanged package keeps its
-own base permissions. A role the base gives no package (`legacy-model`)
-takes the old role's permissions for every owner, so `same_owner` rules
-selected by kind keep their reach. Any other package, role change, later
-epoch, owner change or test-role change stays under the ordinary guards. The
-epoch may not decrease, so the epoch-gated validation cannot be switched off.
 
 `rules.stale` reports a rule that allows no edge across the union of production,
 internal-test and external-test scopes in the fixed build context. A rule used
@@ -5074,7 +5054,6 @@ numbered decision of the principle ADR.
 | Every role may import the closed shared kernel | ADR 0040 | 0069 point 8 |
 | A rule states the target only | ADR 0057 points 1 and 2 | 0070 point 1 |
 | Everything else is an exact key with one open carrier; a cutover never keeps old reach as a rule | ADR 0057 point 2 and consequences, ADR 0030, ADR 0035 to ADR 0038, ADR 0052 | 0070 point 2 |
-| `models/*` carry `legacy-model`, which no foreign owner imports | ADR 0057 point 4 | 0070 point 3 |
 | Ratchet budgets only fall; a raise needs an ADR the change adds | ADR 0057 point 5, ADR 0063, ADR 0064, ADR 0072, ADR 0073, ADR 0087 | 0070 point 4 |
 | Pass-throughs count per owner; moved code stays in the scan; five shapes and four named exceptions form the floor, and every budget equals it | ADR 0061, ADR 0064, ADR 0075 | 0070 point 5 |
 | File size, function length and cognitive complexity follow source across every backend tree, including migrations, tools and generated code | ADR 0082, ADR 0087 | 0070 point 5 |

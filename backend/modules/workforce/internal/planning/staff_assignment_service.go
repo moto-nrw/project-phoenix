@@ -176,19 +176,11 @@ func staffAssignmentFor(row *timetable.InstanceStaff, inst *timetable.ScheduledI
 // and these reads run inside TenantTxMiddleware, where a failed statement can
 // abort the transaction and make the commit fail after a 200 was written.
 func (s *staffAssignmentService) resolveRoomNames(ctx context.Context, rows []*timetable.InstanceStaff, instanceByID map[int64]*timetable.ScheduledInstance) (map[int64]string, error) {
-	idSet := make(map[int64]struct{})
-	for _, row := range rows {
-		if inst := instanceByID[row.InstanceID]; inst != nil {
-			idSet[inst.RoomID] = struct{}{}
-		}
-		if row.RoomID != nil {
-			idSet[*row.RoomID] = struct{}{}
-		}
+	instances := make([]*timetable.ScheduledInstance, 0, len(instanceByID))
+	for _, inst := range instanceByID {
+		instances = append(instances, inst)
 	}
-	ids := make([]int64, 0, len(idSet))
-	for id := range idSet {
-		ids = append(ids, id)
-	}
+	ids := effectiveAssignmentRoomIDs(instances, rows)
 	if len(ids) == 0 {
 		return make(map[int64]string), nil
 	}

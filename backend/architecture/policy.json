@@ -316,7 +316,6 @@
     "domain",
     "e2e-test",
     "http",
-    "legacy-model",
     "migration",
     "module-behavior-test",
     "module-internal-test",
@@ -1271,13 +1270,6 @@
       "path": "middleware",
       "owner": "tenant-runtime",
       "role": "http",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models",
-      "owner": "legacy-composition",
-      "role": "legacy-model",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -15631,7 +15623,7 @@
     },
     {
       "id": "care-plan.contracttest.enrollment-offering-contract",
-      "description": "Native availability and offering values replace the retired legacy-model test boundary.",
+      "description": "Native availability and offering values replace the retired model-package test boundary.",
       "scopes": [
         "external_test"
       ],
@@ -15847,7 +15839,7 @@
     },
     {
       "id": "delivery.postgres.native-subscriptions",
-      "description": "Same-owner native subscription values replace the exact legacy-model capability; actual definitions, no ORM or generic API.",
+      "description": "Same-owner native subscription values replace the exact model-package capability; actual definitions, no ORM or generic API.",
       "scopes": [
         "production"
       ],

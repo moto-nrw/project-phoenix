@@ -13,6 +13,7 @@ import dynamic from "next/dynamic";
 import { CalendarRange } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
+import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
 import { hasPermission } from "~/lib/auth-utils";
 import { useModuleBooked } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -68,6 +69,7 @@ import { StaffExportButton } from "~/components/staff/staff-export-button";
 import { BetreuungsplanHeuteCard } from "~/components/time-tracking/betreuungsplan-heute-card";
 import { Monatskarte } from "~/components/time-tracking/monatskarte";
 import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-card";
+import { OwnAllowancesCard } from "~/components/time-tracking/own-allowances-card";
 import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
@@ -3936,6 +3938,8 @@ function TimeTrackingContent() {
       });
       setAbsenceModalOpen(false);
       await Promise.all([mutateAbsences(), refreshTableData()]);
+      // Eine eigene Art mit Kontingent ändert die Kontingente (#4971).
+      dispatchAbsencesRefresh();
       toast.success("Die Abwesenheit ist eingetragen.");
     },
     [mutateAbsences, refreshTableData, toast],
@@ -3945,6 +3949,8 @@ function TimeTrackingContent() {
     async (id: string) => {
       await timeTrackingService.deleteAbsence(id);
       await Promise.all([mutateAbsences(), refreshTableData()]);
+      // Eine eigene Art mit Kontingent ändert die Kontingente (#4971).
+      dispatchAbsencesRefresh();
       toast.success("Die Abwesenheit ist gelöscht.");
     },
     [mutateAbsences, refreshTableData, toast],
@@ -3964,6 +3970,8 @@ function TimeTrackingContent() {
     ) => {
       await timeTrackingService.updateAbsence(id, req);
       await Promise.all([mutateAbsences(), refreshTableData()]);
+      // Eine eigene Art mit Kontingent ändert die Kontingente (#4971).
+      dispatchAbsencesRefresh();
       toast.success("Die Abwesenheit ist gespeichert.");
     },
     [mutateAbsences, refreshTableData, toast],
@@ -4249,6 +4257,10 @@ function TimeTrackingContent() {
       <BetreuungsplanHeuteCard />
 
       <LeaveRequestsCard />
+
+      {/* Eigene Kontingente der schuleigenen Abwesenheitsarten, nur lesend
+          (#4971). Rendert nichts, wenn die Schule keine Art mit Kontingent hat. */}
+      <OwnAllowancesCard />
 
       {/* Zeiterfassung — gleiche Struktur wie auf /staff/[id], damit es
           zwischen Admin-Sicht und MA-Sicht keinen Drift gibt. Die externe
