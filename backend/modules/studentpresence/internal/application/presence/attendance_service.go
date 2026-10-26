@@ -370,9 +370,11 @@ func (s *service) authorizeIoTDeviceToggle(ctx context.Context, deviceID int64) 
 
 // attendanceRecorderStaffID separates a kiosk's session supervisor from the
 // actor recorded on attendance. The supervisor authorizes the device and is
-// still auto-stamped as working, but the authenticated device made the scan.
+// still auto-stamped as working, but an unstaffed kiosk scan belongs to the
+// authenticated device. A confirmed staff identity remains the actor.
 func (s *service) attendanceRecorderStaffID(ctx context.Context, staffID int64) int64 {
-	if s.attendancePrincipal(ctx).IsIoT {
+	principal := s.attendancePrincipal(ctx)
+	if principal.IsIoT && !principal.HasStaff {
 		return 0
 	}
 	return staffID
