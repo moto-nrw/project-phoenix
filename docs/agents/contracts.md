@@ -152,6 +152,34 @@ values default to `detailed` for older kiosks. This wire-compatibility rule is
 not permission to default missing infrastructure configuration.
 Backend check-in semantics adapt transparently; the kiosk UI branches per mode.
 
+### A scan keeps the session alive (#5004)
+
+A successful student scan refreshes `last_activity` of the device's running
+session, the session `POST /api/iot/session/activity` refreshes, in the same
+request transaction. The kiosk needs no activity call after it. This covers
+`POST /api/iot/checkin` with a student card in both presence modes (check-in,
+checkout with or without `room_id`, room change, a check-in into a room that
+is not the kiosk's own, such as WC) and `POST /api/iot/pickup-query`.
+Exempt, with the session left as it was: a supervisor card, a refused scan
+(every error status), and a device without a running session (nothing to keep
+alive; the scan still answers as before). Every statement of the refresh,
+including the lookups of the device's session in the scanned room and of its
+running session, runs in one savepoint: a failed lookup or update only logs
+and keeps the scan's writes; only a failed savepoint itself fails the scan
+(ADR 0124). `POST /api/iot/session/activity`
+itself is unchanged. Code: `touchDeviceSession` in
+`backend/modules/devicescan/internal/application/checkin.go`.
+
+### Request timing (#5004)
+
+`phoenix_iot_request_duration_seconds` starts before device authentication,
+so it also counts requests the authentication rejects (tenant and device type
+`unknown`). Every answer of a device-authenticated `/api/iot/*` route
+carries `Server-Timing` with millisecond durations only: `auth` (device key, school and PIN), `tx` (the
+request transaction up to its commit or rollback) and `after-commit` (the
+hooks after a commit). Sections that did not run are left out. Code:
+`backend/api/iot_http_metrics.go`.
+
 ### Destination choice into released rooms (#3067)
 
 `GET /api/iot/rooms/available` flags each room with `is_open_room` (released
