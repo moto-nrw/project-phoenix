@@ -32,6 +32,11 @@ type (
 	// (#4011).
 	AbsenceNotifier = notifications.AbsenceNotifier
 	AbsenceReport   = notifications.AbsenceReport
+	// The school notice of an absence (#4792): a child's class with its
+	// Lehrkräfte, and the collaborators that add the Schulverwaltung.
+	SchoolClassReach      = notifications.SchoolClassReach
+	StudentClassTeachers  = notifications.StudentClassTeachers
+	SchoolClassRecipients = notifications.SchoolClassRecipients
 	// The mail renderers of Identity & Access, which the root binds to
 	// Delivery (#4006).
 	MailIntent       = emailoutbox.Intent
@@ -85,6 +90,7 @@ var (
 	NewTenantSSEChannel              = notifications.NewTenantSSEChannel
 	NewTenantDurableWebPushChannel   = notifications.NewTenantDurableWebPushChannel
 	NewTenantAbsenceNotifier         = notifications.NewTenantAbsenceNotifier
+	WithSchoolClassRecipients        = notifications.WithSchoolClassRecipients
 	NewTenantPreferenceService       = notifications.NewTenantPreferenceService
 	NewTenantPushSubscriptionService = notifications.NewTenantPushSubscriptionService
 	NewTenantPWAUsageService         = pwa.NewTenantUsageService

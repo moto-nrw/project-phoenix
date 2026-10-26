@@ -81,10 +81,13 @@ type Hub struct {
 	// schoolAccountClients keeps the school portal isolated from the broader
 	// staff notification surface.
 	schoolAccountClients map[int64][]*Client
-	mu                   sync.RWMutex
-	logger               *slog.Logger
-	observeConnection    ConnectionObserver
-	observeBroadcast     BroadcastObserver
+	// schoolTenantClients indexes school-portal clients by school for the one
+	// tenant-wide signal they receive, class_day_changed (#4792).
+	schoolTenantClients map[int64][]*Client
+	mu                  sync.RWMutex
+	logger              *slog.Logger
+	observeConnection   ConnectionObserver
+	observeBroadcast    BroadcastObserver
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -112,6 +115,7 @@ func NewHub(logger *slog.Logger, observers ...Observers) *Hub {
 		tenantClients:        make(map[int64][]*Client),
 		staffAccountClients:  make(map[int64][]*Client),
 		schoolAccountClients: make(map[int64][]*Client),
+		schoolTenantClients:  make(map[int64][]*Client),
 		logger:               logger,
 		observeConnection:    observe.Connection,
 		observeBroadcast:     observe.Broadcast,
@@ -180,10 +184,12 @@ func (h *Hub) RegisterParent(client *Client) {
 }
 
 // RegisterSchool adds a school-portal client (#2208). It is indexed by its
-// login account only, so the one fan-out that can reach it is
-// BroadcastToSchoolAccounts for its own tenant. It is deliberately NOT added
-// to tenantClients or any group: BroadcastToTenant/BroadcastToGroup carry
-// staff-only refresh triggers the Lehrkraft role has no surface for.
+// login account for BroadcastToSchoolAccounts at its own tenant. It is
+// deliberately NOT added to tenantClients or any group:
+// BroadcastToTenant/BroadcastToGroup carry staff-only refresh triggers the
+// Lehrkraft role has no surface for. The only exception is
+// class_day_changed, which BroadcastToTenant derives from student_updated
+// for the school clients of the same tenant (#4792).
 func (h *Hub) RegisterSchool(client *Client, tenantID int64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -194,6 +200,7 @@ func (h *Hub) RegisterSchool(client *Client, tenantID int64) {
 	if client.AccountID > 0 {
 		h.schoolAccountClients[client.AccountID] = append(h.schoolAccountClients[client.AccountID], client)
 	}
+	h.schoolTenantClients[tenantID] = append(h.schoolTenantClients[tenantID], client)
 
 	h.getLogger().Info("SSE school client connected",
 		slog.Int64("account_id", client.AccountID),
@@ -223,12 +230,16 @@ func (h *Hub) Unregister(client *Client) {
 			delete(h.guardianClients, client.UserID)
 		}
 	case client.IsSchool:
-		// Only ever indexed by account (RegisterSchool).
+		// Indexed by account and by school (RegisterSchool).
 		if client.AccountID > 0 {
 			h.schoolAccountClients[client.AccountID] = removeClient(h.schoolAccountClients[client.AccountID], client)
 			if len(h.schoolAccountClients[client.AccountID]) == 0 {
 				delete(h.schoolAccountClients, client.AccountID)
 			}
+		}
+		h.schoolTenantClients[client.TenantID] = removeClient(h.schoolTenantClients[client.TenantID], client)
+		if len(h.schoolTenantClients[client.TenantID]) == 0 {
+			delete(h.schoolTenantClients, client.TenantID)
 		}
 	default:
 		h.tenantClients[client.TenantID] = removeClient(h.tenantClients[client.TenantID], client)
@@ -398,7 +409,35 @@ func (h *Hub) BroadcastToTenant(tenantID int64, event Event) error {
 		slog.Int("recipient_count", recipients),
 	)
 	h.observeDelivery(tenantID, string(event.Type), "tenant", droppedCount)
+	if event.Type == EventStudentUpdated {
+		h.relayClassDayChanged(tenantID, event)
+	}
 	return nil
+}
+
+// relayClassDayChanged wakes the open class views of moto schule at the same
+// school after a student update (#4792). The caller holds h.mu. Only the
+// source travels on: the school clients of a school include teachers of
+// other classes, so the event names no child.
+func (h *Hub) relayClassDayChanged(tenantID int64, update Event) {
+	clients := h.schoolTenantClients[tenantID]
+	if len(clients) == 0 {
+		return
+	}
+	event := NewEvent(EventClassDayChanged, "", EventData{Source: update.Data.Source})
+	droppedCount := 0
+	for _, client := range clients {
+		select {
+		case client.Channel <- event:
+		default:
+			droppedCount++
+			h.getLogger().Warn("SSE client channel full, skipping class day broadcast",
+				slog.Int64("account_id", client.AccountID),
+				slog.Int64("tenant_id", tenantID),
+			)
+		}
+	}
+	h.observeDelivery(tenantID, string(event.Type), "school_tenant", droppedCount)
 }
 
 // BroadcastToTenantAdmins sends an event only to effective admins in one

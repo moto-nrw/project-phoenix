@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { CLASS_DAY_REFRESH_EVENT } from "~/components/class-day/routes";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { dispatchPhoenixNotification } from "~/lib/notification-events";
 import { schoolTeamChatDeepLink } from "~/lib/school-team-chat-links";
@@ -11,13 +12,19 @@ import type { SSEEvent } from "~/lib/sse-types";
 /**
  * Die eine SSE-Verbindung des Schul-Portals (#2208), einmal in der
  * angemeldeten Hülle eingehängt. Das Backend schickt hier nur, was an das
- * Konto der Lehrkraft adressiert ist; heute ist das der Team-Chat.
+ * Konto der Lehrkraft adressiert ist (Team-Chat, Hinweise), und das
+ * Signal, dass sich ein Klassentag geändert hat.
  *
  * Auf `staff_message` löst sie dieselben Fensterereignisse aus wie die
  * OGS-Verbindung (use-global-sse): den Ungelesen-Zähler der Navigation und die
  * Aktivität, auf die Posteingang und offene Unterhaltung lauschen. Die
  * Chat-Oberflächen sind in beiden Portalen dieselben Komponenten und
  * unterscheiden nicht, welche Verbindung sie geweckt hat.
+ *
+ * Auf `class_day_changed` (#4792) löst sie `class-day-refresh` aus: eine
+ * Krankmeldung oder ein anderer Status eines Kindes hat sich an dieser Schule
+ * geändert, und eine offene Klassenansicht lädt neu. Das Ereignis nennt kein
+ * Kind; die Ansicht lädt nur, was die Lehrkraft sehen darf.
  *
  * Ein `notification`-Ereignis (der persönliche Hinweis "Neue Nachricht aus
  * dem Team") geht an den app-weiten NotificationBridge-Toast; sein Deep-Link
@@ -51,6 +58,10 @@ export function SchoolRealtimeBridge() {
             }
           : event,
       );
+      return;
+    }
+    if (event.type === "class_day_changed") {
+      window.dispatchEvent(new CustomEvent(CLASS_DAY_REFRESH_EVENT));
       return;
     }
     if (event.type !== "staff_message") return;

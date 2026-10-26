@@ -51,11 +51,11 @@ func NewTenantDurableWebPushChannel(runtime tenant.UnitOfWork, db *bun.DB, repo 
 
 // NewTenantAbsenceNotifier is NewAbsenceNotifier over the tenant unit of
 // work.
-func NewTenantAbsenceNotifier(runtime tenant.UnitOfWork, notifier Service, recipients StaffRecipientResolver, db *bun.DB, logger *slog.Logger) (AbsenceNotifier, error) {
+func NewTenantAbsenceNotifier(runtime tenant.UnitOfWork, notifier Service, recipients StaffRecipientResolver, db *bun.DB, logger *slog.Logger, opts ...AbsenceNotifierOption) (AbsenceNotifier, error) {
 	if err := requireTenantRuntime("absence notifier", runtime, notifier != nil && recipients != nil && db != nil); err != nil {
 		return nil, err
 	}
-	service := NewAbsenceNotifier(notifier, recipients, db, logger).(*absenceNotifier)
+	service := NewAbsenceNotifier(notifier, recipients, db, logger, opts...).(*absenceNotifier)
 	service.tenantRuntime = &runtime
 	return service, nil
 }

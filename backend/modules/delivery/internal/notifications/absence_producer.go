@@ -61,7 +61,8 @@ type AbsenceReport struct {
 }
 
 // AbsenceNotifier turns a recorded absence into a notification for the people
-// responsible for that child.
+// responsible for that child: the OGS staff of its group and the office, and
+// in moto schule the accounts that reach its class (#4792).
 type AbsenceNotifier interface {
 	NotifyAbsenceReported(ctx context.Context, report AbsenceReport) error
 }
@@ -72,7 +73,13 @@ type absenceNotifier struct {
 	db            *bun.DB
 	logger        *slog.Logger
 	tenantRuntime *tenant.UnitOfWork
+	// school adds the moto schule notice (#4792); nil keeps the producer
+	// OGS-only.
+	school *SchoolClassRecipients
 }
+
+// AbsenceNotifierOption configures optional recipients of the producer.
+type AbsenceNotifierOption = func(*absenceNotifier)
 
 // NewAbsenceNotifier builds the sick/excused producer.
 func NewAbsenceNotifier(
@@ -80,13 +87,18 @@ func NewAbsenceNotifier(
 	recipients StaffRecipientResolver,
 	db *bun.DB,
 	logger *slog.Logger,
+	opts ...AbsenceNotifierOption,
 ) AbsenceNotifier {
-	return &absenceNotifier{
+	n := &absenceNotifier{
 		notifier:   notifier,
 		recipients: recipients,
 		db:         db,
 		logger:     logger,
 	}
+	for _, opt := range opts {
+		opt(n)
+	}
+	return n
 }
 
 func (n *absenceNotifier) getLogger() *slog.Logger {
@@ -152,11 +164,15 @@ func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) erro
 	if err != nil {
 		return err
 	}
-	if len(deliveries) == 0 {
+	schoolEvents, err := n.schoolClassEvents(ctx, report)
+	if err != nil {
+		return err
+	}
+	if len(deliveries) == 0 && len(schoolEvents) == 0 {
 		return nil
 	}
 
-	events := make([]Event, 0, len(deliveries))
+	events := make([]Event, 0, len(deliveries)+len(schoolEvents))
 	for _, delivery := range deliveries {
 		scopedReport := report
 		scopedReport.StudentIDs = delivery.studentIDs
@@ -179,6 +195,7 @@ func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) erro
 			},
 		})
 	}
+	events = append(events, schoolEvents...)
 	if batch, ok := n.notifier.(BatchNotifier); ok {
 		return batch.NotifyBatch(ctx, events)
 	}

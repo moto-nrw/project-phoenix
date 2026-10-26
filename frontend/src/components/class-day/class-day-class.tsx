@@ -65,6 +65,7 @@ import { ClassTripBulkStatusModal } from "~/components/students/class-trip-bulk-
 import { ClassArrivalExceptionDialog } from "./class-arrival-exception-dialog";
 import { handoverLine, handoverRows, initialAbsentIds } from "./class-handover";
 import { countDayChanges } from "./day-changes";
+import { useClassDayRefresh } from "./use-class-day-refresh";
 import {
   draftMarks,
   markOpenPresent,
@@ -290,6 +291,10 @@ export function ClassDayClass({
       keepPreviousData: false,
     },
   );
+
+  // Eine neue Krankmeldung oder ein anderer Status an dieser Schule lädt die
+  // offene Klasse neu, ohne Neuladen der Seite (#4792).
+  useClassDayRefresh(() => void refetchReport());
 
   // Ladefehler mit Katalogtext und Wiederholen (#2517); eine entzogene
   // Klasse meldet sich über ihren Code (fehlende Berechtigung).

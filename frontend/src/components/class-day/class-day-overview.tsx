@@ -34,6 +34,7 @@ import type { ClassDayClasses } from "~/lib/school-class-day-api";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 import { countDayChanges } from "./day-changes";
+import { useClassDayRefresh } from "./use-class-day-refresh";
 import { classDayDateParam, classDayPath, isWeekendISO } from "./routes";
 
 const logger = createLogger({ component: "ClassDayOverview" });
@@ -234,6 +235,10 @@ export function ClassDayOverview({
       keepPreviousData: false,
     },
   );
+
+  // Eine neue Krankmeldung an dieser Schule aktualisiert die Zahlen der
+  // Übersicht ohne Neuladen der Seite (#4792).
+  useClassDayRefresh(() => void reloadReports());
 
   const reports = useMemo(() => dayData?.reports ?? {}, [dayData]);
   const failedClasses = useMemo(

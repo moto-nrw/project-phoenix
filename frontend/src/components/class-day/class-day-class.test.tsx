@@ -116,6 +116,10 @@ vi.mock("~/components/students/class-trip-bulk-status-modal", () => ({
 }));
 
 import { ClassDayClass, classArrivalExceptionLine } from "./class-day-class";
+import {
+  CLASS_DAY_REFRESH_DEBOUNCE_MS,
+  CLASS_DAY_REFRESH_EVENT,
+} from "./routes";
 
 function report(overrides: Partial<ClassDayReport> = {}): ClassDayReport {
   return {
@@ -215,6 +219,36 @@ describe("ClassDayClass", () => {
     expect(await screen.findByText("Klassentag, Klara")).toBeInTheDocument();
     expect(fetchClassDay).toHaveBeenCalledWith("4a", "2026-09-05");
     expect(screen.queryByText("Kein Schultag")).not.toBeInTheDocument();
+  });
+
+  it("reloads the open class after a class day change without a page reload (#4792)", async () => {
+    const fetchClassDay = vi
+      .fn<() => Promise<ClassDayReport>>()
+      .mockResolvedValueOnce(report())
+      .mockResolvedValue(
+        report({
+          rows: [
+            {
+              student_id: 1,
+              first_name: "Klara",
+              last_name: "Klassentag",
+              registered: true,
+              stays_today: false,
+              offerings: ["Ganztag"],
+              status: "sick",
+            },
+          ],
+        }),
+      );
+    render(<ClassDayClass schoolClass="4a" fetchClassDay={fetchClassDay} />);
+    expect(await screen.findByText("Klassentag, Klara")).toBeInTheDocument();
+    expect(fetchClassDay).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new CustomEvent(CLASS_DAY_REFRESH_EVENT));
+
+    await waitFor(() => expect(fetchClassDay).toHaveBeenCalledTimes(2), {
+      timeout: CLASS_DAY_REFRESH_DEBOUNCE_MS + 1000,
+    });
   });
 
   it("shows the class-wide exception line even without write access", async () => {

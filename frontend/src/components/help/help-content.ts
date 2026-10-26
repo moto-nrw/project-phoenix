@@ -8107,7 +8107,10 @@ function teacherSettingsTopic(): HelpTopic {
     ],
     result: "moto meldet sich, sobald etwas Neues für Sie ansteht.",
     notes: [
-      "Die Hinweise kommen aus dem Team-Chat der OGS.",
+      "`Krankmeldungen meiner Klassen`: moto meldet sich, wenn ein Kind aus Ihren Klassen für heute krank oder entschuldigt ist. Name und Grund stehen nicht im Hinweis.",
+      "Tippen Sie auf den Hinweis. Dann öffnet sich die Liste der Klasse.",
+      "Die Schulverwaltung bekommt diesen Hinweis für alle Klassen der Schule.",
+      "`Nachrichten von Kolleginnen und Kollegen`: neue Nachrichten im Team-Chat der OGS.",
       "Benachrichtigungen kommen erst an, wenn moto schule auf dem Startbildschirm liegt.",
     ],
     differences: [
@@ -8208,6 +8211,7 @@ function teacherClassListTopic(): HelpTopic {
     notes: [
       "Bei einer anderen Abholzeit steht darunter die übliche Zeit mit `sonst`.",
       "Kam die Meldung heute herein, steht die Uhrzeit dabei.",
+      "Eine neue Krankmeldung erscheint von selbst. Sie müssen die Seite nicht neu laden.",
     ],
     differences: [
       "Abschnitte und Kennzeichen ändert das OGS-Team, nicht moto schule.",
