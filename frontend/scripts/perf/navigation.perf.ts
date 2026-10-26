@@ -4,7 +4,12 @@ import { join } from "node:path";
 
 import { gotoTolerant, loadAccess, login, tenantBaseUrl } from "./access";
 import { RequestRecorder } from "./recorder";
-import { NAVIGATION_HOPS, type NavigationHop } from "./targets";
+import {
+  INTENT_HOPS,
+  NAVIGATION_HOPS,
+  type IntentHop,
+  type NavigationHop,
+} from "./targets";
 
 // Seitenwechsel-Messung (#2828). Der kalte Aufruf ist in measure.perf.ts
 // gemessen; hier geht es um das, was eine Betreuungskraft den ganzen Tag tut:
@@ -322,4 +327,250 @@ test("measure sidebar navigation", async ({ browser }) => {
       await context.close();
     }
   }
+});
+
+// Zeigen vor dem Klick (#4987). Je Ziel ein frischer Kontext, damit der Klick
+// kalt ist: kein Modul der Zielseite im Cache, kein Eintrag im Router.
+// Beide Varianten warten INTENT_WINDOW_MS vor dem Klick; „hover“ hält die Maus
+// dabei auf dem Link, „click“ lässt sie liegen. Was im Fenster angefragt
+// wird, sind die Kosten des Vorladens — bei „click“ muss es leer sein.
+const INTENT_WINDOW_MS = 300;
+const INTENT_MODES = ["click", "hover"] as const;
+/**
+ * Vor dem Fenster muss die Ausgangsseite wirklich ruhen: unter 4x CPU liegen
+ * zwischen zwei Daten-Stufen der Startseite mehr als 1,5 s ohne Request.
+ */
+const INTENT_SETTLE = { quietMs: 3000, capMs: 30_000 } as const;
+/** Nach dem Klick reicht ein kürzeres Fenster: gezählt wird nur der Wechsel. */
+const INTENT_QUIET = { quietMs: 1500, capMs: 10_000 } as const;
+
+interface RequestCost {
+  requests: number;
+  rsc: number;
+  scripts: number;
+  api: number;
+  kB: number;
+}
+
+interface IntentResult {
+  name: string;
+  mode: (typeof INTENT_MODES)[number];
+  repeat: number;
+  toContentMs: number;
+  /** Klick bis zum ersten Daten-Request der Zielseite. */
+  firstApiMs: number | null;
+  settleMs: number;
+  /** Requests im Fenster vor dem Klick. */
+  window: RequestCost;
+  /** Requests ab dem Klick bis zur Ruhe. */
+  afterClick: RequestCost;
+  documents: number;
+  shellSurvived: boolean;
+  /** Hüllen-Endpunkte, die der Wechsel erneut abruft. */
+  shellApi: string[];
+  fallbacks: string[];
+  windowPaths: string[];
+  afterClickPaths: string[];
+  /** RSC und JS relativ zum Klick: „start..ende pfad“ in ms. */
+  timeline: string[];
+}
+
+function requestCost(
+  records: readonly {
+    path: string;
+    resourceType: string;
+    bytes: number | null;
+  }[],
+): RequestCost {
+  return {
+    requests: records.length,
+    rsc: records.filter((record) => record.path.includes("_rsc=")).length,
+    scripts: records.filter((record) => record.resourceType === "script")
+      .length,
+    api: records.filter((record) => record.path.startsWith("/api/")).length,
+    kB:
+      Math.round(
+        records.reduce((sum, record) => sum + (record.bytes ?? 0), 0) / 102.4,
+      ) / 10,
+  };
+}
+
+function median(values: readonly number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? sorted[middle]!
+    : Math.round((sorted[middle - 1]! + sorted[middle]!) / 2);
+}
+
+async function measureIntent(
+  page: Page,
+  recorder: RequestRecorder,
+  hop: IntentHop,
+  mode: IntentResult["mode"],
+  repeat: number,
+): Promise<IntentResult> {
+  if (hop.accordion) {
+    await page.addInitScript((section) => {
+      localStorage.setItem("sidebar-accordion-expanded", section);
+    }, hop.accordion);
+  }
+  await gotoTolerant(page, `${base}${hop.from}`);
+  await expect(hop.fromReady(page)).toBeVisible({ timeout: 30_000 });
+  const link = hop.link(page);
+  recorder.start();
+  await recorder.waitForQuiet(INTENT_SETTLE);
+  await expect(link).toBeVisible({ timeout: 30_000 });
+
+  await armProbe(page);
+  recorder.start();
+  const windowStarted = performance.now();
+  if (mode === "hover") await link.hover({ timeout: 15_000 });
+  await page.waitForTimeout(INTENT_WINDOW_MS);
+  const clickOffset = performance.now() - windowStarted;
+  const started = performance.now();
+  await link.click({ timeout: 15_000 });
+  // Manche Marken stehen auch auf der Ausgangsseite; erst die Adresse zählt.
+  await page.waitForURL((url) => url.pathname === hop.path, {
+    timeout: 30_000,
+    waitUntil: "commit",
+  });
+  await expect(hop.ready(page)).toBeVisible({ timeout: 30_000 });
+  const toContentMs = performance.now() - started;
+  await recorder.waitForQuiet(INTENT_QUIET);
+  const settleMs = performance.now() - started;
+  const probe = await readProbe(page);
+
+  const records = recorder.records.filter((record) => !record.noise);
+  const inWindow = records.filter((record) => record.startMs < clickOffset);
+  const afterClick = records.filter((record) => record.startMs >= clickOffset);
+  const firstApi = afterClick.find((record) => record.path.startsWith("/api/"));
+  return {
+    name: hop.name,
+    mode,
+    repeat,
+    toContentMs: Math.round(toContentMs),
+    firstApiMs: firstApi ? Math.round(firstApi.startMs - clickOffset) : null,
+    settleMs: Math.round(settleMs),
+    window: requestCost(inWindow),
+    afterClick: requestCost(afterClick),
+    documents: afterClick.filter((record) => record.resourceType === "document")
+      .length,
+    shellSurvived: probe.shellSurvived,
+    shellApi: afterClick
+      .map((record) => record.path.split("?")[0] ?? record.path)
+      .filter((path) => SHELL_ENDPOINTS.includes(path)),
+    fallbacks: probe.fallbacks,
+    windowPaths: countByPath(inWindow),
+    afterClickPaths: countByPath(afterClick),
+    timeline: records
+      .filter(
+        (record) =>
+          record.path.includes("_rsc=") || record.resourceType === "script",
+      )
+      .map(
+        (record) =>
+          `${Math.round(record.startMs - clickOffset)}..${
+            record.endMs === null
+              ? "offen"
+              : Math.round(record.endMs - clickOffset)
+          } ${record.path.replace(/\?.*$/, "")}`,
+      ),
+  };
+}
+
+test("measure cold click after intent", async ({ browser }) => {
+  test.setTimeout(REPEATS * INTENT_HOPS.length * INTENT_MODES.length * 180_000);
+  const loginState = join(OUT_DIR, "storage-state.json");
+  const storageState = join(OUT_DIR, "storage-state-intent.json");
+
+  // Der Hinweis zu Browser-Benachrichtigungen legt sich sonst über die
+  // Seitenleiste. Er merkt sich das Schließen im localStorage.
+  const setup = await browser.newContext({ storageState: loginState });
+  const setupPage = await setup.newPage();
+  await gotoTolerant(setupPage, `${base}/home`);
+  const dismiss = setupPage.getByRole("button", { name: "Verstanden" });
+  await dismiss.waitFor({ timeout: 10_000 }).catch(() => undefined);
+  if (await dismiss.isVisible()) await dismiss.click();
+  await setup.storageState({ path: storageState });
+  await setup.close();
+
+  const results: IntentResult[] = [];
+  for (let repeat = 0; repeat < REPEATS; repeat += 1) {
+    for (const hop of INTENT_HOPS) {
+      for (const mode of INTENT_MODES) {
+        const context = await browser.newContext({
+          storageState,
+          serviceWorkers: "block",
+        });
+        const page = await context.newPage();
+        const cdp = await context.newCDPSession(page);
+        await cdp.send("Emulation.setCPUThrottlingRate", {
+          rate: CPU_THROTTLE,
+        });
+        await cdp.send("Network.emulateNetworkConditions", {
+          offline: false,
+          ...NETWORK,
+        });
+        try {
+          const result = await measureIntent(
+            page,
+            new RequestRecorder(page),
+            hop,
+            mode,
+            repeat,
+          );
+          expect(result.documents, `${hop.name}: kein Dokument-Reload`).toBe(0);
+          expect(
+            result.shellSurvived,
+            `${hop.name}: Portalhülle bleibt erhalten`,
+          ).toBe(true);
+          results.push(result);
+          // Laufend sichern: ein Abbruch kostet sonst alle bisherigen Läufe.
+          writeFileSync(
+            join(OUT_DIR, "intent.json"),
+            JSON.stringify(results, null, 2),
+          );
+          console.log(
+            `${hop.name} ${mode} #${repeat}: ${result.toContentMs} ms, Fenster ${result.window.requests} Requests / ${result.window.kB} kB`,
+          );
+        } finally {
+          await context.close();
+        }
+      }
+    }
+  }
+  const rows = INTENT_HOPS.flatMap((hop) =>
+    INTENT_MODES.map((mode) => {
+      const runs = results.filter(
+        (result) => result.name === hop.name && result.mode === mode,
+      );
+      return {
+        ziel: hop.name,
+        variante: mode,
+        klickBisInhaltMs: median(runs.map((run) => run.toContentMs)),
+        ersterDatenRequestMs: median(
+          runs.flatMap((run) =>
+            run.firstApiMs === null ? [] : [run.firstApiMs],
+          ),
+        ),
+        fensterRequests: median(runs.map((run) => run.window.requests)),
+        fensterRsc: median(runs.map((run) => run.window.rsc)),
+        fensterJs: median(runs.map((run) => run.window.scripts)),
+        fensterKB: median(runs.map((run) => run.window.kB)),
+        nachKlickRsc: median(runs.map((run) => run.afterClick.rsc)),
+        nachKlickJs: median(runs.map((run) => run.afterClick.scripts)),
+        nachKlickKB: median(runs.map((run) => run.afterClick.kB)),
+        laeufe: runs.map((run) => run.toContentMs).join("/"),
+        ladehuellen: [...new Set(runs.flatMap((run) => run.fallbacks))].join(
+          ",",
+        ),
+      };
+    }),
+  );
+  console.table(rows);
+  writeFileSync(
+    join(OUT_DIR, "intent.summary.json"),
+    JSON.stringify(rows, null, 2),
+  );
 });

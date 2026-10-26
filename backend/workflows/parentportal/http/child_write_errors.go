@@ -119,6 +119,8 @@ func renderParentGuardianWriteError(w http.ResponseWriter, r *http.Request, err 
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareCannotRemoveOwnAccess))
 	case errors.Is(err, parentService.ErrInviteSocialWorkerManaged):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareGuardianSocialWorkerManaged))
+	case errors.Is(err, parentService.ErrInviteMailNotQueued):
+		common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityGuardianInvitationEmailNotQueued))
 	case errors.Is(err, parentService.ErrGuardianManagementDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareGuardianManagementDisabled))
 	case errors.Is(err, parentService.ErrGuardianNotLinked):

@@ -1931,6 +1931,40 @@ describe("Sidebar", () => {
       );
     });
 
+    it("opens the own supervision before a foreign one without a saved choice (#5035)", () => {
+      vi.spyOn(localStorage, "getItem").mockReturnValue(null);
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: true,
+        // Mit dem Überblick stehen fremde Sitzungen vor offenen Räumen.
+        supervisedRooms: [
+          { id: "10", name: "Atelier", groupId: "foreign-1" },
+          {
+            id: "sporthalle",
+            name: "Sporthalle",
+            groupId: "",
+            isOpenRoom: true,
+            isOwnSupervision: true,
+            sessionIds: ["own-1"],
+          },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      fireEvent.click(screen.getByText("Aktuelle Aufsichten"));
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?room=sporthalle",
+      );
+    });
+
     it("navigates to the shared view for a saved session in an own released room", () => {
       vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
         if (key === memoryKey("supervision-last-session")) return "active-open";

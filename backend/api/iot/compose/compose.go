@@ -77,7 +77,7 @@ func (rs *Resource) Router() chi.Router {
 	if rs.FeedbackStudents == nil || rs.FeedbackService == nil || rs.FeedbackResponseObserver == nil || rs.Runtime.Feedback == nil {
 		panic("IoT feedback: all dependencies are required")
 	}
-	if rs.Runtime.Protected == nil || rs.Runtime.Required == nil || rs.Runtime.Metrics == nil || rs.Runtime.TenantTx == nil || rs.Runtime.Info == nil || rs.Runtime.Data == nil || rs.Runtime.Checkin == nil || rs.Runtime.StaffClock == nil || rs.Runtime.Attendance == nil || rs.Runtime.Session == nil || rs.Runtime.RFID == nil || rs.ErrorReports == nil || (rs.OpenRooms != nil && rs.Runtime.OpenRooms == nil) {
+	if rs.Runtime.Protected == nil || rs.Runtime.Required == nil || rs.Runtime.Metrics == nil || rs.Runtime.TenantTx == nil || rs.Runtime.AuthTiming == nil || rs.Runtime.TxTiming == nil || rs.Runtime.Info == nil || rs.Runtime.Data == nil || rs.Runtime.Checkin == nil || rs.Runtime.StaffClock == nil || rs.Runtime.Attendance == nil || rs.Runtime.Session == nil || rs.Runtime.RFID == nil || rs.ErrorReports == nil || (rs.OpenRooms != nil && rs.Runtime.OpenRooms == nil) {
 		panic("IoT HTTP: route runtime is required")
 	}
 	r := chi.NewRouter()
@@ -98,9 +98,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps the handler in a tenant-scoped transaction
 	// so downstream queries run as phoenix_tenant with RLS enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(rs.Runtime.Required("DeviceOnlyAuthenticator", rs.DeviceOnlyAuthenticator))
-		r.Use(rs.Runtime.Metrics)
-		r.Use(rs.Runtime.TenantTx)
+		rs.useDeviceChain(r, "DeviceOnlyAuthenticator", rs.DeviceOnlyAuthenticator, true)
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
 		dataResource := rs.Runtime.Data(rs.Directory, rs.TagAssignments, rs.Rooms)
@@ -118,8 +116,7 @@ func (rs *Resource) Router() chi.Router {
 	// without a tenant transaction. The relay reads no table and must not
 	// hold a database connection while it waits for Sentry.
 	r.Group(func(r chi.Router) {
-		r.Use(rs.Runtime.Required("DeviceOnlyAuthenticator", rs.DeviceOnlyAuthenticator))
-		r.Use(rs.Runtime.Metrics)
+		rs.useDeviceChain(r, "DeviceOnlyAuthenticator", rs.DeviceOnlyAuthenticator, false)
 
 		errorReports := rs.ErrorReports(rs.getLogger().With(slog.String("sub", "error-reports")))
 		r.Post("/error-reports", errorReports.Post)
@@ -130,9 +127,7 @@ func (rs *Resource) Router() chi.Router {
 	// binds staff identity to a verified account PIN. TenantTxMiddleware then
 	// wraps each handler in a tenant-scoped transaction.
 	r.Group(func(r chi.Router) {
-		r.Use(rs.Runtime.Required("DeviceAuthenticator", rs.DeviceAuthenticator))
-		r.Use(rs.Runtime.Metrics)
-		r.Use(rs.Runtime.TenantTx)
+		rs.useDeviceChain(r, "DeviceAuthenticator", rs.DeviceAuthenticator, true)
 
 		// Feedback endpoint (device-based feedback submission)
 		feedbackResource := rs.Runtime.Feedback(rs.FeedbackStudents, rs.FeedbackService, rs.FeedbackResponseObserver, rs.getLogger().With(slog.String("sub", "feedback")))
@@ -182,4 +177,17 @@ func (rs *Resource) Router() chi.Router {
 	})
 
 	return r
+}
+
+// useDeviceChain mounts a kiosk group's middleware: the request metric in
+// front of device authentication, so it measures the authentication too
+// (#5004), then the tenant transaction where the group has one.
+func (rs *Resource) useDeviceChain(r chi.Router, name string, authenticator Middleware, transaction bool) {
+	r.Use(rs.Runtime.Metrics)
+	r.Use(rs.Runtime.Required(name, authenticator))
+	r.Use(rs.Runtime.AuthTiming)
+	if transaction {
+		r.Use(rs.Runtime.TenantTx)
+		r.Use(rs.Runtime.TxTiming)
+	}
 }

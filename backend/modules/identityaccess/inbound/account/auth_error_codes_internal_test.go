@@ -113,6 +113,7 @@ func TestInvitationRefusalsCarryCodes(t *testing.T) {
 		{identityaccess.ErrInvitationNotFound, http.StatusNotFound, "identity.invitation_not_found"},
 		{identityaccess.ErrInvitationExpired, http.StatusGone, "identity.invitation_expired"},
 		{identityaccess.ErrInvitationUsed, http.StatusGone, "identity.invitation_expired"},
+		{identityaccess.ErrGuardianAccessMailNotQueued, http.StatusServiceUnavailable, "identity.guardian_invitation_email_not_queued"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {

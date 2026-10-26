@@ -80,7 +80,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/guardian_invitation_test_helpers.go:lifecycleTestModule":        61,
 	"api/guardians_composition.go:newGuardiansResource":                  108,
 	"api/import_test_helpers.go:NewImportTestModuleWithOwners":           82,
-	"api/iot/compose/compose.go:(*Resource).Router":                      110,
+	"api/iot/compose/compose.go:(*Resource).Router":                      105,
 	"api/reminders_test_helpers.go:NewRemindersTestModule":               64,
 	"api/root_serve.go:composeServeRoot":                                 511,
 	"api/root_test_root.go:composeTestRootWith":                          283,

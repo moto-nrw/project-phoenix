@@ -554,32 +554,47 @@ func (s *Service) roomNameForResponse(ctx context.Context, currentVisit *ports.C
 	return ""
 }
 
-// resolveActiveStudentCount refreshes the heartbeat of the session tied to
-// the scan and returns the count the kiosk shows: scoped to the scanning
-// device's session where possible, otherwise the whole room.
-func (s *Service) resolveActiveStudentCount(ctx context.Context, checkin *checkinResult, roomID, deviceID int64) *int {
-	if checkin.SessionID != nil && checkin.DeviceScopedRoom {
-		s.touchSession(ctx, *checkin.SessionID)
-		return s.activeStudentCountForSession(ctx, *checkin.SessionID)
+// resolveActiveStudentCount refreshes the heartbeat of the device session
+// and returns the count the kiosk shows: scoped to the scanning device's
+// session where possible, otherwise the whole room, and none without a room.
+// The device session gets its heartbeat whichever room the scan named, so
+// the kiosk needs no POST /session/activity after it (#5004).
+func (s *Service) resolveActiveStudentCount(ctx context.Context, checkin *checkinResult, roomID *int64, deviceID int64) (*int, error) {
+	if roomID == nil {
+		return nil, s.touchDeviceSession(ctx, deviceID)
 	}
-	if session := s.deviceSessionInRoom(ctx, roomID, deviceID); session != nil {
-		s.touchSession(ctx, session.ID)
-		return s.activeStudentCountForSession(ctx, session.ID)
+	sessionID, err := s.touchScanSession(ctx, checkin, *roomID, deviceID)
+	if err != nil {
+		return nil, err
 	}
-	return s.activeStudentCountForRoom(ctx, roomID)
+	if sessionID != nil {
+		return s.activeStudentCountForSession(ctx, *sessionID), nil
+	}
+	return s.activeStudentCountForRoom(ctx, *roomID), nil
 }
 
-func (s *Service) deviceSessionInRoom(ctx context.Context, roomID, deviceID int64) *devicescan.Session {
-	session, err := s.sessions.FindDeviceSessionInRoom(ctx, roomID, deviceID)
-	if err != nil {
-		s.logger.WarnContext(ctx, "failed to find active group for room and device",
-			slog.Int64("room_id", roomID),
-			slog.Int64("device_id", deviceID),
-			slog.String("error", err.Error()),
-		)
-		return nil
+// touchScanSession refreshes the device session after a scan that named a
+// room and returns the device's session in that room, or nil when it runs
+// none there or the lookup failed. The lookup belongs to the heartbeat, so it
+// runs in the same savepoint as the update: a failed statement cannot abort
+// the scan's transaction.
+func (s *Service) touchScanSession(ctx context.Context, checkin *checkinResult, roomID, deviceID int64) (*int64, error) {
+	if checkin.SessionID != nil && checkin.DeviceScopedRoom {
+		return checkin.SessionID, s.touchSession(ctx, *checkin.SessionID)
 	}
-	return session
+	var inRoom *int64
+	err := s.runHeartbeat(ctx, func(ctx context.Context) error {
+		session, err := s.sessions.FindDeviceSessionInRoom(ctx, roomID, deviceID)
+		if err != nil {
+			return err
+		}
+		if session == nil {
+			return s.refreshCurrentSession(ctx, deviceID)
+		}
+		inRoom = &session.ID
+		return s.sessions.UpdateSessionActivity(ctx, session.ID)
+	}, slog.Int64("device_id", deviceID))
+	return inRoom, err
 }
 
 func (s *Service) activeStudentCountForRoom(ctx context.Context, roomID int64) *int {
@@ -606,12 +621,48 @@ func (s *Service) activeStudentCountForSession(ctx context.Context, sessionID in
 	return &count
 }
 
-// touchSession refreshes the session heartbeat; failures only log.
-func (s *Service) touchSession(ctx context.Context, sessionID int64) {
-	if err := s.sessions.UpdateSessionActivity(ctx, sessionID); err != nil {
-		s.logger.WarnContext(ctx, "failed to update session activity for group",
-			slog.Int64("group_id", sessionID),
-			slog.String("error", err.Error()),
-		)
+// touchDeviceSession refreshes the heartbeat of the device's running
+// session, the one POST /session/activity refreshes, so a scan keeps the
+// kiosk session alive by itself (#5004). A device without a running session
+// has nothing to refresh; operation failures only log.
+func (s *Service) touchDeviceSession(ctx context.Context, deviceID int64) error {
+	return s.runHeartbeat(ctx, func(ctx context.Context) error {
+		return s.refreshCurrentSession(ctx, deviceID)
+	}, slog.Int64("device_id", deviceID))
+}
+
+// refreshCurrentSession looks up and refreshes the device's running session.
+// Callers run it inside runHeartbeat's savepoint.
+func (s *Service) refreshCurrentSession(ctx context.Context, deviceID int64) error {
+	session, err := s.sessions.Current(ctx, deviceID)
+	if err != nil || session == nil {
+		return err
 	}
+	return s.sessions.UpdateSessionActivity(ctx, session.ID)
+}
+
+// touchSession refreshes the session heartbeat; operation failures only log.
+func (s *Service) touchSession(ctx context.Context, sessionID int64) error {
+	return s.runHeartbeat(ctx, func(ctx context.Context) error {
+		return s.sessions.UpdateSessionActivity(ctx, sessionID)
+	}, slog.Int64("group_id", sessionID))
+}
+
+// runHeartbeat isolates optional SQL errors from the scan's attendance writes.
+// Savepoint-control errors remain fatal because recovery is not guaranteed.
+func (s *Service) runHeartbeat(ctx context.Context, refresh func(context.Context) error, identity slog.Attr) error {
+	err := s.unit.BestEffort(ctx, func(ctx context.Context) error {
+		err := refresh(ctx)
+		if err != nil {
+			s.logger.LogAttrs(ctx, slog.LevelWarn, "failed to refresh session heartbeat",
+				identity,
+				slog.String("error", err.Error()),
+			)
+		}
+		return err
+	})
+	if err != nil {
+		return devicescan.Internal("failed to isolate session heartbeat", err)
+	}
+	return nil
 }

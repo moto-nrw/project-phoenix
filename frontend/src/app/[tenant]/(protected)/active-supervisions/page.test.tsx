@@ -5855,3 +5855,136 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
  * Tests for action button click handlers (lines 1305-1359, 1429)
  * These tests cover the actual click handlers on action buttons
  */
+
+// Mit dem Überblick über alle Aufsichten liefert das Dashboard auch fremde
+// Sitzungen, nach Raum sortiert. Ohne Auswahl öffnet die Seite die eigene
+// Sitzung; eine fremde ist als fremd erkennbar (#5035).
+describe("overview caller and foreign sessions (#5035)", () => {
+  const mockMutate = vi.fn();
+  const foreignSession = {
+    id: "foreign-1",
+    name: "Atelier",
+    room_id: "r1",
+    room: { id: "r1", name: "Atelier" },
+    isCurrentUserSupervising: false,
+    canAssign: false,
+    supervisorNames: ["Paul Weber"],
+  };
+  const ownSession = {
+    id: "own-1",
+    name: "Werkraum",
+    room_id: "r2",
+    room: { id: "r2", name: "Werkraum" },
+    isCurrentUserSupervising: true,
+    canAssign: true,
+    supervisorNames: ["Julia Klein"],
+  };
+
+  function mockDashboard(extra: Record<string, unknown> = {}) {
+    const dashboardData = {
+      supervisedGroups: [foreignSession, ownSession],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      schulhofStatus: null,
+      openRooms: [],
+      ...extra,
+    };
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? {
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          }
+        : {
+            data: null,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          }) as never);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("selects and saves the own session instead of the first foreign one", async () => {
+    // An aggregate without selectedGroupId keeps the frontend default.
+    mockDashboard();
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(localStorage.getItem(memoryKey("supervision-last-session"))).toBe(
+        "own-1",
+      );
+    });
+    expect(localStorage.getItem(memoryKey("sidebar-last-room"))).toBe("r2");
+    expect(screen.getByText("Julia Klein")).toBeInTheDocument();
+    expect(screen.queryByText("Nicht Ihre Aufsicht")).not.toBeInTheDocument();
+    expect(screen.getByTestId("transit-students-section")).toBeInTheDocument();
+  });
+
+  it("marks an explicitly opened foreign session and hides the room moves", async () => {
+    navigationMockState.sessionParam = "foreign-1";
+    mockDashboard({ selectedGroupId: "foreign-1" });
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Nicht Ihre Aufsicht")).toBeInTheDocument();
+    expect(screen.getByText("Paul Weber")).toBeInTheDocument();
+    expect(localStorage.getItem(memoryKey("supervision-last-session"))).toBe(
+      "foreign-1",
+    );
+    expect(
+      screen.queryByTestId("transit-students-section"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the children of a session that is not first in the list", async () => {
+    // The aggregate resolved the requested session; its visits belong under
+    // it even though another session stands first.
+    navigationMockState.sessionParam = "foreign-1";
+    mockDashboard({
+      selectedGroupId: "foreign-1",
+      firstRoomVisits: [
+        {
+          studentId: "s1",
+          studentName: "Lena Fremd",
+          schoolClass: "2a",
+          groupName: "G1",
+          activeGroupId: "foreign-1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Lena Fremd")).toBeInTheDocument();
+  });
+
+  it("keeps the room moves on a foreign session for callers who may assign", async () => {
+    navigationMockState.sessionParam = "foreign-1";
+    mockDashboard({
+      selectedGroupId: "foreign-1",
+      supervisedGroups: [{ ...foreignSession, canAssign: true }, ownSession],
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Nicht Ihre Aufsicht")).toBeInTheDocument();
+    expect(screen.getByTestId("transit-students-section")).toBeInTheDocument();
+  });
+});

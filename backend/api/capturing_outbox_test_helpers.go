@@ -17,6 +17,8 @@ type CapturingOutbox struct {
 	mu       sync.Mutex
 	requests []deliveryCompose.MailEnqueueRequest
 	failures map[string]func(context.Context) error
+	// failWhen fails the requests it returns an error for; nil records them.
+	failWhen func(ctx context.Context, kind string, payload map[string]any) error
 }
 
 // NewCapturingOutbox returns an empty capture.
@@ -31,6 +33,13 @@ func NewFailingCapturingOutbox(kind string, fail func(ctx context.Context) error
 	return &CapturingOutbox{failures: map[string]func(context.Context) error{kind: fail}}
 }
 
+// NewCapturingOutboxFailingWhen returns an empty capture that fails every
+// request failWhen returns an error for, given its kind and payload, and
+// records the others, so a suite can break the mail of one recipient (#4602).
+func NewCapturingOutboxFailingWhen(failWhen func(ctx context.Context, kind string, payload map[string]any) error) *CapturingOutbox {
+	return &CapturingOutbox{failWhen: failWhen}
+}
+
 // EnqueueOutbox records the request and accepts it, unless the capture
 // fails its kind.
 func (o *CapturingOutbox) EnqueueOutbox(ctx context.Context, req deliveryCompose.MailEnqueueRequest) error {
@@ -41,6 +50,11 @@ func (o *CapturingOutbox) EnqueueOutbox(ctx context.Context, req deliveryCompose
 // EnqueueOutboxWithResult records the request and exposes its stable capture
 // ID to flows that need to order a follow-up delivery behind it.
 func (o *CapturingOutbox) EnqueueOutboxWithResult(ctx context.Context, req deliveryCompose.MailEnqueueRequest) (deliveryCompose.MailEnqueued, error) {
+	if o.failWhen != nil {
+		if err := o.failWhen(ctx, req.Kind, req.Payload); err != nil {
+			return deliveryCompose.MailEnqueued{}, err
+		}
+	}
 	o.mu.Lock()
 	fail := o.failures[req.Kind]
 	if fail == nil {

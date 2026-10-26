@@ -57,4 +57,5 @@ var lifecycleSentinels = []struct {
 	{identityaccess.ErrInviteSocialWorkerManaged, identityaccess.ErrInviteSocialWorkerManaged},
 	{domain.ErrGuardianInvitationNotFound, identityaccess.ErrGuardianInvitationNotFound},
 	{identityaccess.ErrGuardianInvitationExpired, identityaccess.ErrGuardianInvitationExpired},
+	{domain.ErrGuardianAccessMailNotQueued, identityaccess.ErrGuardianAccessMailNotQueued},
 }

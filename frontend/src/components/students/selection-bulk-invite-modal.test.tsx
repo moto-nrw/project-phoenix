@@ -197,6 +197,40 @@ describe("SelectionBulkInviteModal", () => {
     ).toBeVisible();
   });
 
+  it("asks to try again later when a mail could not be sent (#4602)", async () => {
+    bulkInvite
+      .mockResolvedValueOnce(result({ invited: 2 }))
+      .mockResolvedValueOnce(
+        result({
+          dryRun: false,
+          invited: 1,
+          problems: [
+            {
+              guardianProfileId: "7",
+              guardianName: "Katharina Brenner",
+              studentNames: ["Mia Brenner"],
+              reason: "email_not_queued",
+            },
+          ],
+        }),
+      );
+    renderModal();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "2 Eltern einladen" }),
+    );
+
+    expect(await screen.findByText("Katharina Brenner")).toBeVisible();
+    expect(
+      screen.getByText(
+        /\(Mia Brenner\): E-Mail konnte gerade nicht verschickt werden/,
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Versuchen Sie es später noch einmal."),
+    ).toBeVisible();
+  });
+
   it("reports a failed run in the dialog and keeps it open", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     bulkInvite

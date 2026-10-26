@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET, POST, PUT } from "./route";
+import { ApiResponseError } from "~/lib/api-helpers.server";
 import {
   type ExtendedSession,
   createMockContext,
@@ -30,9 +31,29 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function studentListResponse<T>(data: T[]) {
+  return {
+    data,
+    pagination: {
+      current_page: 1,
+      page_size: 50,
+      total_pages: data.length === 0 ? 0 : 1,
+      total_records: data.length,
+    },
+  };
+}
+
 describe("GET /api/activities/[id]/students", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockAuth.mockResolvedValue(defaultSession);
   });
 
@@ -73,7 +94,7 @@ describe("GET /api/activities/[id]/students", () => {
 
     mockApiGet
       .mockResolvedValueOnce({ data: mockEnrolled })
-      .mockResolvedValueOnce({ data: mockAllStudents });
+      .mockResolvedValueOnce(studentListResponse(mockAllStudents));
 
     const request = createMockRequest(
       "/api/activities/5/students?available=true",
@@ -111,7 +132,7 @@ describe("GET /api/activities/[id]/students", () => {
 
     mockApiGet
       .mockResolvedValueOnce({ data: mockEnrolled })
-      .mockResolvedValueOnce({ data: mockAllStudents });
+      .mockResolvedValueOnce(studentListResponse(mockAllStudents));
 
     const request = createMockRequest(
       "/api/activities/5/students?available=true&search=Bob",
@@ -123,6 +144,285 @@ describe("GET /api/activities/[id]/students", () => {
       "/api/students?search=Bob",
       "test-token",
     );
+  });
+
+  it.each([
+    { total: 60, available: 55, pages: 2 },
+    { total: 160, available: 155, pages: 4 },
+  ])(
+    "returns all $available available students out of $total across $pages backend pages",
+    async ({ total, available, pages }) => {
+      const students = Array.from({ length: total }, (_, index) => ({
+        id: index + 1,
+        first_name: "Kind",
+        last_name: String(index + 1),
+        school_class: "3A",
+      }));
+      const enrolled = [1, 17, 49, 52, total].map((id) => ({ id }));
+
+      mockApiGet.mockImplementation(async (endpoint: string, token: string) => {
+        expect(token).toBe("test-token");
+        if (endpoint === "/api/activities/5/students") {
+          return { data: enrolled };
+        }
+        const url = new URL(endpoint, "http://localhost");
+        expect(url.pathname).toBe("/api/students");
+        expect(url.searchParams.get("search")).toBe("Kind");
+        expect(url.searchParams.get("group_id")).toBe("7");
+        const page = Number(url.searchParams.get("page") ?? 1);
+        return {
+          data: students.slice((page - 1) * 50, page * 50),
+          pagination: {
+            current_page: page,
+            page_size: 50,
+            total_pages: pages,
+            total_records: total,
+          },
+        };
+      });
+
+      const response = await GET(
+        createMockRequest(
+          "/api/activities/5/students?available=true&search=Kind&group_id=7",
+        ),
+        createMockContext({ id: "5" }),
+      );
+
+      expect(response.status).toBe(200);
+      const json = await parseJsonResponse<{
+        data: Array<{ id: string; name: string; school_class: string }>;
+      }>(response);
+      expect(json.data).toHaveLength(available);
+      expect(mockApiGet).toHaveBeenCalledTimes(pages + 1);
+      expect(json.data).toContainEqual({
+        id: "59",
+        name: "Kind 59",
+        school_class: "3A",
+      });
+      expect(json.data.at(-1)?.id).toBe(String(total - 1));
+      for (const id of ["1", "17", "49", "52", String(total)]) {
+        expect(json.data.map((student) => student.id)).not.toContain(id);
+      }
+    },
+  );
+
+  it("starts roster and student requests before either response resolves", async () => {
+    const enrolled = deferred<{ data: Array<{ id: number }> }>();
+    const students = deferred<ReturnType<typeof studentListResponse>>();
+    mockApiGet.mockImplementation((endpoint: string) =>
+      endpoint === "/api/activities/5/students"
+        ? enrolled.promise
+        : students.promise,
+    );
+
+    const pendingResponse = GET(
+      createMockRequest("/api/activities/5/students?available=true"),
+      createMockContext({ id: "5" }),
+    );
+
+    try {
+      await vi.waitFor(() => {
+        expect(mockApiGet).toHaveBeenCalledWith(
+          "/api/activities/5/students",
+          "test-token",
+        );
+        expect(mockApiGet).toHaveBeenCalledWith("/api/students?", "test-token");
+      });
+    } finally {
+      enrolled.resolve({ data: [{ id: 1 }] });
+      students.resolve(
+        studentListResponse([
+          { id: 1, first_name: "Kind", last_name: "Eins" },
+          { id: 2, first_name: "Kind", last_name: "Zwei" },
+        ]),
+      );
+      await pendingResponse;
+    }
+
+    const response = await pendingResponse;
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      data: [{ id: "2", name: "Kind Zwei", school_class: "" }],
+    });
+  });
+
+  it.each([
+    { scenario: "empty intermediate page", pages: [[1], [], [3]], maxCalls: 3 },
+    { scenario: "repeated page contents", pages: [[1], [1], [3]], maxCalls: 3 },
+    {
+      scenario: "repeated page number",
+      pages: [[1], [2], [3]],
+      repeatPage: true,
+      maxCalls: 3,
+    },
+    {
+      scenario: "growing total_pages",
+      pages: [[1], [2], [3]],
+      growPages: true,
+      maxCalls: 3,
+    },
+    {
+      scenario: "empty pages with growing total_pages",
+      pages: [[1], [], []],
+      growPages: true,
+      maxCalls: 3,
+    },
+    {
+      scenario: "changed total_records",
+      pages: [[1], [2], [3]],
+      changeTotal: true,
+    },
+    { scenario: "missing final student", pages: [[1], [2], []] },
+    {
+      scenario: "duplicate IDs within one page",
+      pages: [[1, 1]],
+      pageSize: 2,
+      total: 2,
+      maxCalls: 2,
+    },
+    {
+      scenario: "missing pagination",
+      pages: [[1]],
+      omitPagination: true,
+      maxCalls: 2,
+    },
+    {
+      scenario: "excessive page count",
+      pages: [[1]],
+      total: 1001,
+      maxCalls: 2,
+    },
+  ])(
+    "rejects $scenario instead of returning a partial or duplicated success",
+    async ({
+      pages,
+      repeatPage,
+      growPages,
+      changeTotal,
+      pageSize = 1,
+      total = 3,
+      omitPagination,
+      maxCalls = 4,
+    }) => {
+      mockApiGet.mockImplementation(async (endpoint: string) => {
+        if (endpoint === "/api/activities/5/students") return { data: [] };
+        const page = Number(
+          new URL(endpoint, "http://localhost").searchParams.get("page") ?? 1,
+        );
+        // Bound the broken implementation too, so this regression cannot hang.
+        if (page > 5) throw new Error("Pagination did not terminate");
+        return {
+          data: (pages[page - 1] ?? []).map((id) => ({
+            id,
+            first_name: "Kind",
+            last_name: String(id),
+          })),
+          ...(omitPagination
+            ? {}
+            : {
+                pagination: {
+                  current_page: repeatPage && page === 2 ? 1 : page,
+                  page_size: pageSize,
+                  total_pages: growPages
+                    ? 2 + page
+                    : Math.ceil(total / pageSize),
+                  total_records: changeTotal && page > 1 ? total + 1 : total,
+                },
+              }),
+        };
+      });
+
+      const response = await GET(
+        createMockRequest("/api/activities/5/students?available=true"),
+        createMockContext({ id: "5" }),
+      );
+
+      expect(response.status).toBe(502);
+      expect(response.headers.get("Content-Type")).toBe(
+        "application/problem+json",
+      );
+      expect(await response.json()).toMatchObject({
+        status: 502,
+        code: "general.unavailable",
+      });
+      expect(mockApiGet.mock.calls.length).toBeLessThanOrEqual(maxCalls);
+    },
+  );
+
+  it.each(["roster", "first page", "later page"])(
+    "forwards a backend failure in the %s without returning a partial list",
+    async (failure) => {
+      const body = JSON.stringify({
+        type: "about:blank",
+        title: "Service Unavailable",
+        status: 503,
+        code: "general.unavailable",
+        detail: "Temporarily unavailable",
+      });
+      mockApiGet.mockImplementation(async (endpoint: string) => {
+        const isRoster = endpoint === "/api/activities/5/students";
+        const isLaterPage = endpoint.includes("page=2");
+        if (
+          (failure === "roster" && isRoster) ||
+          (failure === "first page" && !isRoster && !isLaterPage) ||
+          (failure === "later page" && isLaterPage)
+        ) {
+          throw new ApiResponseError(503, body, {
+            contentType: "application/problem+json",
+            retryAfter: "13",
+          });
+        }
+        return {
+          data: [
+            { id: isLaterPage ? 2 : 1, first_name: "Kind", last_name: "Eins" },
+          ],
+          pagination: {
+            current_page: isLaterPage ? 2 : 1,
+            page_size: 1,
+            total_pages: 2,
+            total_records: 2,
+          },
+        };
+      });
+
+      const response = await GET(
+        createMockRequest("/api/activities/5/students?available=true"),
+        createMockContext({ id: "5" }),
+      );
+
+      expect(response.status).toBe(503);
+      expect(response.headers.get("Content-Type")).toBe(
+        "application/problem+json",
+      );
+      expect(response.headers.get("Retry-After")).toBe("13");
+      expect(await response.json()).toEqual({
+        type: "about:blank",
+        title: "Service Unavailable",
+        status: 503,
+        code: "general.unavailable",
+        detail: "Service Unavailable",
+      });
+    },
+  );
+
+  it("returns an empty available list when the backend has no matching students", async () => {
+    mockApiGet.mockResolvedValueOnce({ data: [] }).mockResolvedValueOnce({
+      pagination: {
+        current_page: 1,
+        page_size: 50,
+        total_pages: 0,
+        total_records: 0,
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/activities/5/students?available=true"),
+      createMockContext({ id: "5" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ data: [] });
+    expect(mockApiGet).toHaveBeenCalledTimes(2);
   });
 
   it("does not turn a failed backend request into an empty enrollment list", async () => {
