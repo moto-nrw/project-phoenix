@@ -33,14 +33,19 @@ describe("useTimetableDayHours", () => {
     vi.clearAllMocks();
   });
 
-  it("uses configured start and end hours from settings schema", () => {
+  it("uses configured start and end times from settings schema", () => {
     mockUseSettingsSchema.mockReturnValue({
       data: schema("08:30", "16:15"),
     });
 
     const { result } = renderHook(() => useTimetableDayHours());
 
-    expect(result.current).toEqual({ dayStartHour: 8, dayEndHour: 16 });
+    expect(result.current).toEqual({
+      dayStartHour: 8,
+      dayEndHour: 16,
+      dayStartTime: "08:30",
+      dayEndTime: "16:15",
+    });
   });
 
   it("falls back when settings are missing, malformed or inverted", () => {
@@ -48,6 +53,8 @@ describe("useTimetableDayHours", () => {
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
       dayStartHour: 9,
       dayEndHour: 17,
+      dayStartTime: "09:00",
+      dayEndTime: "17:00",
     });
 
     mockUseSettingsSchema.mockReturnValueOnce({
@@ -56,6 +63,8 @@ describe("useTimetableDayHours", () => {
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
       dayStartHour: 9,
       dayEndHour: 17,
+      dayStartTime: "09:00",
+      dayEndTime: "17:00",
     });
 
     mockUseSettingsSchema.mockReturnValueOnce({
@@ -64,6 +73,8 @@ describe("useTimetableDayHours", () => {
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
       dayStartHour: 18,
       dayEndHour: 17,
+      dayStartTime: "18:00",
+      dayEndTime: "17:00",
     });
   });
 });

@@ -36,17 +36,17 @@ function occupiesRoom(instance: EnrichedInstance): boolean {
  */
 export function roomDayPlan(
   instances: readonly EnrichedInstance[],
-  dayStartHour: number,
-  dayEndHour: number,
+  dayStartTime: string,
+  dayEndTime: string,
 ): RoomPlanRow[] {
   const blocks = [...instances].sort(
     (a, b) =>
       toMinutes(a.startTime) - toMinutes(b.startTime) ||
       toMinutes(a.endTime) - toMinutes(b.endTime),
   );
-  const dayEnd = dayEndHour * 60;
+  const dayEnd = toMinutes(dayEndTime);
   const free: { start: number; end: number }[] = [];
-  let cursor = dayStartHour * 60;
+  let cursor = toMinutes(dayStartTime);
   for (const block of blocks.filter(occupiesRoom)) {
     const start = toMinutes(block.startTime);
     if (start > cursor && cursor < dayEnd) {

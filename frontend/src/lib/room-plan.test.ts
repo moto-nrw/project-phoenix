@@ -46,14 +46,16 @@ function describeRows(rows: RoomPlanRow[]): string[] {
 
 describe("roomDayPlan (#4768)", () => {
   it("shows the whole planning day as free without blocks", () => {
-    expect(describeRows(roomDayPlan([], 8, 17))).toEqual(["frei 08:00-17:00"]);
+    expect(describeRows(roomDayPlan([], "08:00", "17:00"))).toEqual([
+      "frei 08:00-17:00",
+    ]);
   });
 
   it("puts free times between the blocks in start order", () => {
     const rows = roomDayPlan(
       [block("b", "14:00", "15:30"), block("a", "11:30", "13:00")],
-      8,
-      17,
+      "08:00",
+      "17:00",
     );
     expect(describeRows(rows)).toEqual([
       "frei 08:00-11:30",
@@ -67,8 +69,8 @@ describe("roomDayPlan (#4768)", () => {
   it("lets overlapping blocks share the room without a gap", () => {
     const rows = roomDayPlan(
       [block("a", "12:00", "14:00"), block("b", "13:00", "15:00")],
-      12,
-      15,
+      "12:00",
+      "15:00",
     );
     expect(describeRows(rows)).toEqual(["a planned", "b planned"]);
   });
@@ -76,8 +78,8 @@ describe("roomDayPlan (#4768)", () => {
   it("lists a cancelled block without counting it as occupied", () => {
     const rows = roomDayPlan(
       [block("a", "10:00", "11:00", "cancelled"), block("b", "12:00", "13:00")],
-      9,
-      13,
+      "09:00",
+      "13:00",
     );
     expect(describeRows(rows)).toEqual([
       "frei 09:00-12:00",
@@ -89,13 +91,19 @@ describe("roomDayPlan (#4768)", () => {
   it("keeps free times inside the planning day", () => {
     const rows = roomDayPlan(
       [block("a", "07:00", "09:00"), block("b", "16:00", "19:00")],
-      8,
-      17,
+      "08:00",
+      "17:00",
     );
     expect(describeRows(rows)).toEqual([
       "a planned",
       "frei 09:00-16:00",
       "b planned",
+    ]);
+  });
+
+  it("keeps minute-accurate planning bounds", () => {
+    expect(describeRows(roomDayPlan([], "08:30", "16:15"))).toEqual([
+      "frei 08:30-16:15",
     ]);
   });
 });

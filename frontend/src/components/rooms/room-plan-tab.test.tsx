@@ -33,7 +33,12 @@ vi.mock("~/lib/timetable-api", () => ({
 }));
 
 vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({
-  useTimetableDayHours: () => ({ dayStartHour: 8, dayEndHour: 17 }),
+  useTimetableDayHours: () => ({
+    dayStartHour: 8,
+    dayEndHour: 17,
+    dayStartTime: "08:00",
+    dayEndTime: "17:00",
+  }),
 }));
 
 vi.mock("~/lib/tenant-context", () => ({

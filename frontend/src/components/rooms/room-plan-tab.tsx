@@ -153,7 +153,7 @@ interface RoomPlanTabProps {
 /** Inhalt des Reiters: je Tag die Blöcke des Raums und die freien Zeiten. */
 export function RoomPlanTab({ roomId, view, anchorISO }: RoomPlanTabProps) {
   const { days } = useRoomPlanDays(view, anchorISO);
-  const { dayStartHour, dayEndHour } = useTimetableDayHours();
+  const { dayStartTime, dayEndTime } = useTimetableDayHours();
   const tenantMutate = useTenantMutate();
   const from = days[0]!;
   const to = days[days.length - 1]!;
@@ -203,7 +203,7 @@ export function RoomPlanTab({ roomId, view, anchorISO }: RoomPlanTabProps) {
               key={day}
               dayISO={day}
               showHeading={view === "woche"}
-              rows={roomDayPlan(byDay.get(day) ?? [], dayStartHour, dayEndHour)}
+              rows={roomDayPlan(byDay.get(day) ?? [], dayStartTime, dayEndTime)}
             />
           ))}
         </div>
