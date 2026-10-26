@@ -46,7 +46,13 @@ die `tenant_id` der ausrichtenden Schule (D4).
    Owners und ohne Sperrreihenfolge über Owner (ADR 0067, Nachtrag
    „command participation“, Bedingungen 1 bis 3). Gruppen, Check-in,
    Anwesenheit, Kiosk und Kiosk-Vertrag bleiben unverändert; der Gast hat
-   kein Armband und wird im Browser an- und abgemeldet.
+   kein Armband und wird im Browser an- und abgemeldet. Damit die
+   Tagesplanung der Gruppe den Gast an seinen Tagen erwartet und an keinem
+   anderen, trägt Enrollment für jeden Tag der Woche über die Care-Plan-
+   Befehle `CreateArrivalException` und `CreatePickupException` eine
+   Tagesausnahme mit Beginn und Ende des Zeitmodells ein (Grund
+   „Ferienbetreuung“, Urheber die Person des Kontos, das die Gruppe gewählt
+   hat); ein beendeter Gast verliert sie.
 3. **Zugriff nur aus bestätigter Buchung.** Die Schule wählt je Woche eine
    ihrer Gruppen (`PUT /api/holiday-weeks/{weekId}/guest-group`, Recht
    `users:create`, weil die Wahl Kinder anlegt). In derselben Transaktion
@@ -94,7 +100,13 @@ die `tenant_id` der ausrichtenden Schule (D4).
    - `policy.json`: drei `data_objects` mit `write_owner` Enrollment.
    - `command-effects.json`: die Bindung `HolidayGuestPeople` an die
      People-Directory-Befehle (leaf, ADR 0067) und an `FindPerson` (query),
-     das Zugriffsprotokoll (platform, ADR 0098).
+     `HolidayGuestCareDays` an die Tagesausnahmen von Care Plan (leaf,
+     ADR 0067) und an `ResolveStaffIDByAccountID` (query), das
+     Zugriffsprotokoll (platform, ADR 0098).
+   - Datenkatalog (`data_lifecycle_catalog.json`, Scope `tenant`),
+     Löschfristen und Schul-Löschung: Migration `1.15.678` installiert Plan,
+     Sperrliste mit neuem FK-Fingerabdruck, Restprüfung, Löschung und
+     Probelauf mit den drei Tabellen (ADR 0092).
    - Compose-LOC `modules/enrollment/compose` 585 → 591, Summe 12654 → 12660.
    - Route-, Middleware- und Modul-Golden +2 Routen (Basis), eine davon
      schreibend (Nutzungsanalyse `holiday_guests_taken_over`); Worker-Job

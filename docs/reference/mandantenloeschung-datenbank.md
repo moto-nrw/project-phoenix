@@ -162,6 +162,9 @@ Er umfasst 241 Löschziele: `tenant`, `tenantChild` und die Schulwurzel.
 Migration `1.15.605` installiert Plan, Sperrliste, Löschung, Restprüfung und
 Probelauf erneut mit den acht schulbezogenen Mittagessen-Tabellen
 (Bestellungen mit Zähler der Nachmeldungen, Anmeldeänderungen, Caterer-Einladungen und Belieferungen, #3873).
+Migration `1.15.678` ergänzt ebenso die drei Tabellen der Feriengäste der
+ausrichtenden OGS (Wahl der Feriengruppe, Feriengast, Kontakte; #4666,
+ADR 0120) samt neuem FK-Fingerabdruck.
 Der schulübergreifende Caterer-Betrieb und seine Konten bleiben erhalten.
 `platform.billing_key_date_counts.school_id` ist die explizite Ausnahme nach
 [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md#ergänzung-aufbewahrung-der-abrechnungszählungen-3837-b-runde-2).

@@ -583,7 +583,8 @@ Its holiday guests join daily care as a copy in that school (#4666,
 ADR 0120): `PUT /api/holiday-weeks/{weekId}/guest-group` (`users:create`)
 picks a group of the school and copies every confirmed guest of another
 school or without a school as an active child of class `Feriengast` whose
-`enrolled_from`/`enrolled_until` is the week; the hourly Worker job
+`enrolled_from`/`enrolled_until` is the week, with a dated arrival and
+pickup exception (Care Plan) for each booked day; the hourly Worker job
 `holiday-guest-reconciliation` adds new confirmations and ends cancelled
 guests. Groups, check-in and the kiosk read the copy unchanged (no IoT
 contract change); from the day after the week the live rosters drop it.
