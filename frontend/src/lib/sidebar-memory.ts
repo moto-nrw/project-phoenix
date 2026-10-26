@@ -10,13 +10,16 @@ import { personalStorageOwner } from "./personal-storage";
  * samt Namen, die laufende Aufsicht und die zuletzt offene Seite der
  * Datenverwaltung.
  */
-export type SidebarMemoryEntry =
-  | "sidebar-last-group"
-  | "sidebar-last-group-name"
-  | "sidebar-last-room"
-  | "sidebar-last-room-name"
-  | "supervision-last-session"
-  | "sidebar-last-database";
+export const SIDEBAR_MEMORY_ENTRIES = [
+  "sidebar-last-group",
+  "sidebar-last-group-name",
+  "sidebar-last-room",
+  "sidebar-last-room-name",
+  "supervision-last-session",
+  "sidebar-last-database",
+] as const;
+
+export type SidebarMemoryEntry = (typeof SIDEBAR_MEMORY_ENTRIES)[number];
 
 export interface SidebarMemory {
   /** Schlüssel im localStorage; null, solange niemand angemeldet ist. */

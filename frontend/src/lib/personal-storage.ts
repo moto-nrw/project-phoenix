@@ -4,21 +4,20 @@
 // vorigen sehen: keine Namen von Gruppen, Räumen oder Kindern, keine
 // Vorauswahl, keine Zähler. Dieses Modul ist das Inventar dieser Einträge und
 // räumt sie ab, wenn das Konto geht (Logout) oder wechselt (anderes Konto,
-// andere Schule, Vorschau als andere Person). Ein Schlüssel, der Daten einer
-// Person trägt, gehört in PERSONAL_STORAGE_PREFIXES; sonst überlebt er den
-// Logout.
+// andere Schule, Vorschau als andere Person).
 //
-// Bewusst nicht im Inventar, weil sie nur Einstellungen ohne fremde Daten
-// tragen und ihr Schlüssel schon an Schule und Konto hängt: die Ansicht
-// einer Sammlung (`collection-view:`, #3834), die erledigte
-// Geräte-Einrichtung (`moto.<portal>.notification-setup.`), der Fortschritt
-// der ersten Schritte im Elternportal (`parent-first-steps:v1:`) und die noch
-// nicht gespeicherte Sprache (`phoenix_parent_unsynced_locale`). Gelöscht
-// würden sie bei jeder Anmeldung neu abgefragt. Ebenso bleiben Geräte-Werte
-// ohne Konto: Seitenleiste ein- oder ausgeklappt, Hinweise zur
-// App-Installation, die Scrollposition des Tagesplans und die Markierung
-// `deliberateLogout`, die der Login-Seite nach dem Logout gerade sagen soll,
-// dass er gewollt war.
+// Jeder Schlüssel, den das Frontend in localStorage oder sessionStorage
+// schreibt, steht entweder in PERSONAL_STORAGE_PREFIXES (wird geräumt) oder
+// in KEPT_STORAGE_KEYS (bleibt, mit Grund). personal-storage.test.ts sucht
+// die Schlüssel im Quelltext und schlägt fehl, wenn einer in keiner der
+// beiden Listen steht.
+//
+// Bibliotheken: next-auth gleicht Tabs über BroadcastChannel ab, SWR hält
+// seinen Cache im RAM, Sentry zeichnet keine Replays auf. PostHog läuft mit
+// `persistence: "memory"`; das SDK schreibt nur die Einwilligung des Geräts
+// (`__ph_opt_in_out_<projekt>`) und Fenster-IDs in sessionStorage
+// (`ph_<projekt>_window_id`, `ph_<projekt>_primary_window_exists`), ohne
+// Konto. Beim Kontowechsel vergibt `posthog.reset()` neue IDs.
 
 import { clearAnnouncementStudents } from "./announcement-prefill";
 
@@ -58,8 +57,46 @@ export const PERSONAL_STORAGE_PREFIXES: readonly string[] = [
   "school-setup-opened:",
   "staff-onboarding-opened:",
   "parent-first-steps-opened:",
+  // „App-Nutzung dieser Sitzung schon gemeldet“, je Portal, Konto und Schule.
+  // Nach dem Räumen meldet die nächste Anmeldung einmal mehr; das Backend
+  // schreibt dann nur last_seen_at derselben Zeile neu (#2189).
+  "moto-pwa-usage-reported.",
   // Wem die Einträge gerade gehören (bindPersonalStorage).
   OWNER_KEY,
+];
+
+/**
+ * Schlüssel, die Logout und Kontowechsel überleben, jeweils mit Grund. `*`
+ * steht für einen eingesetzten Wert. Ein Eintrag, der doch geräumt werden
+ * soll, zieht als Präfix nach PERSONAL_STORAGE_PREFIXES um.
+ */
+export const KEPT_STORAGE_KEYS: readonly string[] = [
+  // Einstellungen je Konto ohne Daten anderer Personen; der Schlüssel trägt
+  // Schule und Konto, also übernimmt kein anderes Konto sie. Gelöscht fragte
+  // moto sie nach jeder Anmeldung neu ab.
+  "collection-view:*", // Kacheln oder Tabelle, Spalten (#3834)
+  "moto.*.notification-setup.v1*", // Geräte-Einrichtung erledigt oder später
+  "parent-first-steps:v1:*", // Fortschritt der ersten Schritte, Elternportal
+  // Gewählte Sprache, die das Elternportal noch speichern muss.
+  "phoenix_parent_unsynced_locale*",
+  "phoenix_parent_locale_save_failure",
+  // Gerätelayout.
+  "sidebar-collapsed",
+  "sidebar-open-groups",
+  "sidebar-accordion-expanded",
+  // Steuerwerte ohne Konto. deliberateLogout muss den Logout überleben: die
+  // Login-Seite liest daraus, dass er gewollt war.
+  "deliberateLogout",
+  "lastSuccessfulRefresh",
+  "tagesplan-scroll",
+  // Sperrzeit für die nächste Anfrage „Passwort vergessen“; entsteht vor der
+  // Anmeldung und trägt nur einen Zeitpunkt, weder Konto noch Adresse.
+  "passwordResetRateLimitUntil",
+  "parentPasswordResetRateLimitUntil",
+  // Hinweise auf diesem Gerät und die öffentliche Demo.
+  "schulhof-banner-dismissed",
+  "moto-pwa-install-hint-*",
+  "moto-demo-*",
 ];
 
 export function isPersonalStorageKey(key: string): boolean {

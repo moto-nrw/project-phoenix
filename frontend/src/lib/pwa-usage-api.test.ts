@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { clearPersonalStorage } from "~/lib/personal-storage";
 import { reportStandaloneUsage } from "~/lib/pwa-usage-api";
 import * as pushApi from "~/lib/push-api";
 
@@ -56,6 +57,21 @@ describe("reportStandaloneUsage", () => {
     await reportStandaloneUsage("tenant", accountID, 2);
     await reportStandaloneUsage("parent", accountID);
     expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  // Logout and account switch remove the mark (#5000). The next sign-in in
+  // this tab reports once more; the backend only advances last_seen_at of
+  // the same (school, account, portal) row, so no count grows.
+  it("reports once more after logout cleared the mark", async () => {
+    await reportStandaloneUsage("tenant", accountID, 1);
+    expect(sessionStorage.length).toBe(1);
+
+    clearPersonalStorage();
+    expect(sessionStorage.length).toBe(0);
+
+    await reportStandaloneUsage("tenant", accountID, 1);
+    await reportStandaloneUsage("tenant", accountID, 1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("does not mark the session on a rejected report", async () => {
