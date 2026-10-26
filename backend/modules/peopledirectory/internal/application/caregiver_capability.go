@@ -243,7 +243,10 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	// the transaction it retries: an ambient request transaction is already
 	// aborted after a deadlock and cannot be replayed. Its after-commit hooks
 	// also belong to that request, not to this independently committed
-	// operation.
+	// operation. Its locks wait on a second connection, where PostgreSQL
+	// cannot detect a wait for a lock the caller's open transaction holds, so
+	// callers run it before they lock or write anything; both routes do
+	// (#4605).
 	var result *peopleValues.CaregiverCapabilityState
 	retryCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	err = tenant.WithinTenantRetry(retryCtx, tenantID, func(txCtx context.Context) error {
