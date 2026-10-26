@@ -42,6 +42,7 @@ import { fetchStudentCompanions } from "~/lib/student-companion-api";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
 import { getLocationBadgeTone } from "~/lib/location-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
+import type { AttendanceActor } from "~/lib/attendance-actor";
 
 beforeEach(() => {
   mockUseSWR.mockReturnValue({
@@ -146,6 +147,8 @@ function StudentDetailHeader(
     isArrivalAbsent?: boolean;
     todayArrivalNote?: string;
     sickReason?: string;
+    todayArrivalBy?: AttendanceActor | null;
+    todayPickupBy?: AttendanceActor | null;
   }>,
 ) {
   return (
@@ -166,6 +169,8 @@ function StudentDetailHeader(
           isArrivalAbsent={props.isArrivalAbsent}
           todayArrivalNote={props.todayArrivalNote}
           sickReason={props.sickReason}
+          todayArrivalBy={props.todayArrivalBy}
+          todayPickupBy={props.todayPickupBy}
         />
       }
       actions={
@@ -373,6 +378,48 @@ describe("Kopf der Kindakte", () => {
     function rowFor(kind: "arrival" | "pickup") {
       return within(screen.getByTestId(`today-time-row-${kind}`));
     }
+
+    describe("wer gebucht hat (#4761)", () => {
+      it("names the staff member and the device under the times", () => {
+        renderHeaderWithTimes({
+          todayArrivalActualTime: "08:05",
+          todayPickupActualTime: "15:10",
+          todayArrivalBy: { kind: "staff", name: "Anna Muster" },
+          todayPickupBy: { kind: "device" },
+        });
+        expect(screen.getByTestId("today-arrival-by")).toHaveTextContent(
+          "Angemeldet: Anna Muster",
+        );
+        expect(screen.getByTestId("today-pickup-by")).toHaveTextContent(
+          "Abgemeldet: am Gerät",
+        );
+      });
+
+      it("names a former staff member and an automatic pickup", () => {
+        renderHeaderWithTimes({
+          todayArrivalActualTime: "08:05",
+          todayPickupActualTime: "18:00",
+          todayArrivalBy: { kind: "former_staff" },
+          todayPickupBy: { kind: "automatic" },
+        });
+        expect(screen.getByTestId("today-arrival-by")).toHaveTextContent(
+          "Angemeldet: Ehemalige Mitarbeitende",
+        );
+        expect(screen.getByTestId("today-pickup-by")).toHaveTextContent(
+          "Abgemeldet: automatisch",
+        );
+      });
+
+      it("names nobody for a pickup that has not happened yet", () => {
+        renderHeaderWithTimes({
+          todayArrivalActualTime: "08:05",
+          todayArrivalBy: { kind: "staff", name: "Anna Muster" },
+          todayPickupBy: { kind: "staff", name: "Paul Abholung" },
+        });
+        expect(screen.getByTestId("today-arrival-by")).toBeInTheDocument();
+        expect(screen.queryByTestId("today-pickup-by")).not.toBeInTheDocument();
+      });
+    });
 
     it("renders both rows with a dash placeholder when no times are configured", () => {
       // Always-render contract: caregivers should see the structural labels

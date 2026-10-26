@@ -1415,6 +1415,8 @@ function StudentDetailPageContent() {
             todayArrivalNote={todayArrival.note}
             isArrivalAbsent={todayArrival.isAbsent}
             sickReason={currentSickReason}
+            todayArrivalBy={student.actual_arrival_by}
+            todayPickupBy={student.actual_pickup_by}
           />
         </span>
       }

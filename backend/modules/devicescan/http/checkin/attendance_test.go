@@ -147,14 +147,15 @@ func TestToggleAttendance_Cancel(t *testing.T) {
 func TestToggleAttendance_ConfirmChecksInAndAttributesStaff(t *testing.T) {
 	t.Parallel()
 	k := setupAttendanceRoute(t)
-	staff, staffID, _ := k.staff(t, "TestStaff", "ForToggle")
+	authenticatedStaff, authenticatedStaffID, _ := k.staff(t, "TestStaff", "ForToggle")
+	_, supervisorStaffID, _ := k.staff(t, "Session", "Supervisor")
 	device, deviceID := k.deviceRow(t, "toggle-staff")
 	_, _, sessionID := k.roomWithSession(t, "Staff confirmation")
 	testpkg.LinkDeviceToActiveGroup(t, k.db, sessionID, deviceID)
-	testpkg.CreateTestGroupSupervisor(t, k.db, staffID, sessionID, "supervisor")
-	tag, _, _ := k.studentCard(t, "StaffToggle", "Test", "3b")
+	testpkg.CreateTestGroupSupervisor(t, k.db, supervisorStaffID, sessionID, "supervisor")
+	tag, studentID, _ := k.studentCard(t, "StaffToggle", "Test", "3b")
 
-	rr := k.call(t, "POST", "/toggle", toggle(tag, "confirm"), device, staff, testutil.WithIoTDeviceRequest())
+	rr := k.call(t, "POST", "/toggle", toggle(tag, "confirm"), device, authenticatedStaff, testutil.WithIoTDeviceRequest())
 
 	assert.Equal(t, 200, rr.Code, rr.Body.String())
 	data := responseData(t, rr.Body.Bytes())
@@ -163,6 +164,9 @@ func TestToggleAttendance_ConfirmChecksInAndAttributesStaff(t *testing.T) {
 	attendance, ok := data["attendance"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "TestStaff ForToggle", attendance["checked_in_by"])
+	records := k.todayAttendance(t, studentID)
+	require.Len(t, records, 1)
+	assert.Equal(t, authenticatedStaffID, records[0].CheckedInBy)
 }
 
 func TestToggleAttendance_ConfirmWithoutStaffChecksIn(t *testing.T) {
@@ -236,7 +240,7 @@ func TestToggleAttendance_DailyCheckout(t *testing.T) {
 			assert.Contains(t, rr.Body.String(), "student has no attendance record for today")
 		}
 	})
-	t.Run("zuhause closes the row with the device supervisor", func(t *testing.T) {
+	t.Run("zuhause with a supervisor stays device-attributed", func(t *testing.T) {
 		t.Parallel()
 		k := setupAttendanceRoute(t)
 		device, deviceID := k.deviceRow(t, "daily-zuhause")
@@ -258,8 +262,12 @@ func TestToggleAttendance_DailyCheckout(t *testing.T) {
 		records := k.todayAttendance(t, studentID)
 		require.Len(t, records, 1, "daily checkout closes the existing row")
 		require.NotNil(t, records[0].CheckOutTime)
-		require.NotNil(t, records[0].CheckedOutBy, "the device supervisor is the checkout principal")
-		assert.Equal(t, staffID, *records[0].CheckedOutBy)
+		assert.Nil(t, records[0].CheckedOutBy, "the device supervisor is not the checkout actor")
+		require.NotNil(t, records[0].CheckedOutDeviceID)
+		assert.Equal(t, deviceID, *records[0].CheckedOutDeviceID)
+		actor := studentpresence.NewAttendanceRecorders(nil).CheckOut(records[0])
+		require.NotNil(t, actor)
+		assert.Equal(t, studentpresence.AttendanceActorDevice, actor.Kind)
 		ended, err := k.presence(t).FindVisit(testpkg.Ctx(t), visit.ID)
 		require.NoError(t, err)
 		require.NotNil(t, ended.ExitTime, "daily checkout ends the open room visit (#895)")

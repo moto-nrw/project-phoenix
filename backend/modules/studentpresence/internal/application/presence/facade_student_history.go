@@ -2,15 +2,17 @@ package presence
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // NewStudentHistory composes owner attendance reads with visit history,
-// data-access logging and planned slot attendance. slots may be nil (no
-// timetable wired); slot reads then answer empty.
-func NewStudentHistory(attendance AttendanceHistoryReader, rooms HistoryRoomReader, accessLog DataAccessAudit, slots HistorySlotReader) studentpresence.StudentHistory {
+// data-access logging, planned slot attendance and the names of the staff
+// who recorded attendance. slots may be nil (no timetable wired); slot reads
+// then answer empty.
+func NewStudentHistory(attendance AttendanceHistoryReader, rooms HistoryRoomReader, accessLog DataAccessAudit, slots HistorySlotReader, staff AttendanceStaffNames) studentpresence.StudentHistory {
 	if slots == nil {
 		slots = noHistorySlots{}
 	}
@@ -18,6 +20,7 @@ func NewStudentHistory(attendance AttendanceHistoryReader, rooms HistoryRoomRead
 		StudentHistoryService: NewStudentHistoryService(attendance, rooms),
 		HistorySlotReader:     slots,
 		accessLog:             accessLog,
+		staff:                 staff,
 	}
 }
 
@@ -28,6 +31,31 @@ type studentHistory struct {
 	StudentHistoryService
 	HistorySlotReader
 	accessLog DataAccessAudit
+	staff     AttendanceStaffNames
+}
+
+// AttendanceRecorders reads the names of every staff member behind rows at
+// once. A failed read is an error: the history must not present a known
+// staff member as a former one.
+func (h studentHistory) AttendanceRecorders(ctx context.Context, rows []*studentpresence.Attendance) (studentpresence.AttendanceRecorders, error) {
+	values := make([]studentpresence.Attendance, 0, len(rows))
+	for _, row := range rows {
+		if row != nil {
+			values = append(values, *row)
+		}
+	}
+	ids := studentpresence.AttendanceStaffIDs(values)
+	if len(ids) == 0 {
+		return studentpresence.NewAttendanceRecorders(nil), nil
+	}
+	if h.staff == nil {
+		return studentpresence.AttendanceRecorders{}, errors.New("student history: attendance staff names are not bound")
+	}
+	names, err := h.staff.StaffNames(ctx, ids)
+	if err != nil {
+		return studentpresence.AttendanceRecorders{}, err
+	}
+	return studentpresence.NewAttendanceRecorders(names), nil
 }
 
 func (h studentHistory) RecordDataAccess(ctx context.Context, entry *studentpresence.DataAccessEvent) error {

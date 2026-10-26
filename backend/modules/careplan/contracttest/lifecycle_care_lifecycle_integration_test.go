@@ -45,7 +45,6 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db))
 	reposStructure := owners.NewSchoolStructureSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
-	reposAccounts := api.NewAccountSuiteRepositories(testpkg.NewDatabase(t, db))
 	timetableRepos := testTimetableRepositories(db)
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
@@ -67,12 +66,9 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
 		EducationGroupRepo: owners.NewAttendanceEducationGroups(reposStructure.Group, repos.Student),
 		DeviceRepo:         owners.NewSessionDeviceDirectory(devices, &settingsDouble{ResolveIntFn: func(context.Context, string) (int, error) { return 5, nil }}, nil),
-		StaffNames: owners.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
-			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
-			RFIDCards: reposAccounts.RFIDCard, AccountExists: api.AccountExists(reposAccounts.Profile),
-		})),
-		DB:     db,
-		Logger: slog.Default(),
+		StaffNames:         owners.NewAttendanceStaffNames(repos.Staff),
+		DB:                 db,
+		Logger:             slog.Default(),
 	}, presenceservice.WithPresenceSettings(api.PresenceSettings(&settingsDouble{ResolveStringFn: func(context.Context, string) (string, error) {
 		return "binary", nil
 	}})))

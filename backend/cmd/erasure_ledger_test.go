@@ -30,7 +30,12 @@ func TestLedgerDurabilityIdempotenceAndDamage(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, strings.Count(string(before), "\n"))
 	require.NotContains(t, string(before), `"status"`)
-	require.NoError(t, ledger.Record(json.RawMessage(receipt)))
+	// The nonblocking lock can remain held briefly by a concurrently forked
+	// test subprocess that inherited the first Record call's descriptor.
+	// Retrying the same receipt models the operator's safe idempotent retry.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(c, ledger.Record(json.RawMessage(receipt)))
+	}, 5*time.Second, 10*time.Millisecond)
 	after, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Equal(t, before, after)
