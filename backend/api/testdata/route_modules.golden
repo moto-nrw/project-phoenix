@@ -387,6 +387,7 @@ basis
 	GET /traeger/access-log/people
 	GET /traeger/accounts/
 	GET /traeger/billing-runs/
+	GET /traeger/billing-runs/periods
 	GET /traeger/billing-runs/{id}
 	GET /traeger/contribution-rules/
 	GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}

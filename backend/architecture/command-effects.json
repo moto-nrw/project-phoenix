@@ -44912,11 +44912,22 @@
     },
     {
       "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.HolidayBillingPeriods",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.HolidayBillingPeriods",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayPeriods.ListHolidayPeriods",
+      "target_owner": "enrollment",
+      "binding_digest": "ff676a9bd5dfe574a6b2ebc455ba87f0",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayPeriods.ListHolidayPeriods: the names and weeks of the periods of the session's Träger, read in its Träger transaction so the Abrechnung can choose a period for a billing run (ADR 0119)."
+    },
+    {
+      "source_owner": "parent-billing",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.HolidayBillingPeriod",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.HolidayBillingPeriod",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayPeriods.HolidayPeriod",
       "target_owner": "enrollment",
-      "binding_digest": "408407771c6aebcbe2ea4a6f288405b1",
+      "binding_digest": "c3afacbb42bf339d8346b2a4823cb739",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayPeriods.HolidayPeriod: the name and the weeks of a period of the session's Träger, read in its Träger transaction when the Abrechnung starts a billing run (ADR 0119)."

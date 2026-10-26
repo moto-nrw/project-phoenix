@@ -120,12 +120,32 @@ type parentBillingBillingRegistrations struct {
 	review  enrollmentOwner.HolidayRegistrationReview
 }
 
+func (b parentBillingBillingRegistrations) HolidayBillingPeriods(ctx context.Context, reviewer parentbilling.HolidayReviewer) ([]parentbilling.HolidayBillingPeriod, error) {
+	periods, err := b.periods.ListHolidayPeriods(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return nil, parentBillingHolidayError(err)
+	}
+	billing := make([]parentbilling.HolidayBillingPeriod, len(periods))
+	for i, period := range periods {
+		billing[i] = parentBillingPeriod(period)
+	}
+	return billing, nil
+}
+
 func (b parentBillingBillingRegistrations) HolidayBillingPeriod(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) (parentbilling.HolidayBillingPeriod, error) {
 	period, err := b.periods.HolidayPeriod(ctx, reviewer.OrganizationID, periodID)
 	if err != nil {
 		return parentbilling.HolidayBillingPeriod{}, parentBillingHolidayError(err)
 	}
-	billing := parentbilling.HolidayBillingPeriod{ID: period.ID, Name: period.Name}
+	return parentBillingPeriod(period), nil
+}
+
+// parentBillingPeriod keeps the name of a period and the days of its first
+// and last week.
+func parentBillingPeriod(period enrollmentOwner.HolidayPeriod) parentbilling.HolidayBillingPeriod {
+	billing := parentbilling.HolidayBillingPeriod{
+		ID: period.ID, Name: period.Name, Published: period.Status == enrollmentOwner.HolidayPeriodPublished,
+	}
 	for _, week := range period.Weeks {
 		if billing.StartsOn.IsZero() || week.StartsOn.Before(billing.StartsOn) {
 			billing.StartsOn = week.StartsOn
@@ -134,7 +154,7 @@ func (b parentBillingBillingRegistrations) HolidayBillingPeriod(ctx context.Cont
 			billing.EndsOn = week.EndsOn
 		}
 	}
-	return billing, nil
+	return billing
 }
 
 func (b parentBillingBillingRegistrations) ConfirmedHolidayRegistrations(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) ([]parentbilling.HolidayBillingRegistration, error) {

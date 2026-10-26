@@ -76,6 +76,13 @@ type billingRunBody struct {
 	BilledInAdvance bool                  `json:"billed_in_advance"`
 }
 
+type billingPeriodBody struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	StartsOn string `json:"starts_on"`
+	EndsOn   string `json:"ends_on"`
+}
+
 func billingRunPath(id int64, suffix string) string {
 	return fmt.Sprintf("%s/%d%s", billingRunsPath, id, suffix)
 }
@@ -124,6 +131,12 @@ func TestHolidayBillingRunPreviewsCorrectsAndIssuesNumberedInvoices(t *testing.T
 	rec := traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunsPath, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Empty(t, decodeSchoolPortalData[[]billingRunBody](t, rec.Body.Bytes()))
+	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunsPath+"/periods", nil)
+	require.Equal(t, http.StatusOK, rec.Code, "the Abrechnung lists the periods without the right Anmeldung verwalten: %s", rec.Body.String())
+	periods := decodeSchoolPortalData[[]billingPeriodBody](t, rec.Body.Bytes())
+	require.Len(t, periods, 1)
+	assert.Equal(t, f.period.ID, periods[0].ID)
+	assert.Equal(t, "2027-01-04", periods[0].StartsOn)
 
 	run := startBillingRun(t, f, billing, f.period.ID)
 	assert.Equal(t, "calculated", run.Status)
@@ -272,6 +285,7 @@ func TestHolidayBillingRunNeedsTheBillingRightAndStaysWithItsTraeger(t *testing.
 		body         any
 	}{
 		{http.MethodGet, billingRunsPath, nil},
+		{http.MethodGet, billingRunsPath + "/periods", nil},
 		{http.MethodPost, billingRunsPath, map[string]any{"holiday_period_id": f.period.ID}},
 		{http.MethodGet, billingRunPath(run.ID, ""), nil},
 		{http.MethodPost, billingRunPath(run.ID, "/corrections"), correction},
@@ -288,6 +302,9 @@ func TestHolidayBillingRunNeedsTheBillingRightAndStaysWithItsTraeger(t *testing.
 	rec := traegerJSON(t, f.traeger, foreign.token, http.MethodGet, billingRunsPath, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Empty(t, decodeSchoolPortalData[[]billingRunBody](t, rec.Body.Bytes()))
+	rec = traegerJSON(t, f.traeger, foreign.token, http.MethodGet, billingRunsPath+"/periods", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Empty(t, decodeSchoolPortalData[[]billingPeriodBody](t, rec.Body.Bytes()), "another Träger lists none of these periods")
 	for _, request := range []struct {
 		method, path string
 		body         any
@@ -388,10 +405,9 @@ func TestBillingRunListQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Budget Läufe")
 	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
-	second := openHolidays(t, f.holidayRegistrationFixture, f.office)
-	list := func() []string {
+	list := func(path string) []string {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
-		req := httptest.NewRequest(http.MethodGet, billingRunsPath, nil)
+		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+billing)
 		rec := httptest.NewRecorder()
 		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
@@ -399,8 +415,11 @@ func TestBillingRunListQueryBudgetIsFlat(t *testing.T) {
 		return counter.Selects("")
 	}
 	startBillingRun(t, f, billing, f.period.ID)
-	one := list()
+	runs, periods := list(billingRunsPath), list(billingRunsPath+"/periods")
+	second := openHolidays(t, f.holidayRegistrationFixture, f.office)
 	startBillingRun(t, f, billing, second.ID)
-	assert.Len(t, list(), len(one), "the list reads the same statements for any number of runs")
-	testpkg.AssertQueryBudget(t, "api.traeger.billing_runs", one)
+	assert.Len(t, list(billingRunsPath), len(runs), "the list reads the same statements for any number of runs")
+	assert.Len(t, list(billingRunsPath+"/periods"), len(periods), "the periods read the same statements for any number of periods")
+	testpkg.AssertQueryBudget(t, "api.traeger.billing_runs", runs)
+	testpkg.AssertQueryBudget(t, "api.traeger.billing_run_periods", periods)
 }

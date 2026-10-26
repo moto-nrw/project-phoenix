@@ -75,12 +75,15 @@ auf. Sie führt keinen Owner ein und hält fest, was der Lauf in den Registern
    personenbezogenen Daten.
 9. **Abhängigkeit.** Die Elternabrechnung erreicht Enrollment nur über ihren
    Port `HolidayBillingRegistrations`, den die Root bindet
-   (`api/serve_mounts_parent_billing.go`): Zeitraum über `HolidayPeriods` und
+   (`api/serve_mounts_parent_billing.go`): Zeiträume über `HolidayPeriods` und
    bestätigte Anmeldungen über `HolidayRegistrationReview`. Kein Import geht
    zwischen den Owners; der Graph bleibt azyklisch.
 10. **Recht.** Alle Routen unter `/traeger/billing-runs` und
     `/traeger/number-ranges` verlangen das Träger-Recht „Abrechnung“ und
-    laufen in der Träger-Transaktion der Sitzung (ADR 0105).
+    laufen in der Träger-Transaktion der Sitzung (ADR 0105). Damit die
+    Abrechnung ohne das Recht „Anmeldung verwalten“ einen Lauf starten kann,
+    liest `GET /traeger/billing-runs/periods` die veröffentlichten
+    Ferienzeiträume (Name und Tage, keine Personen).
 11. **Aufbewahrung.** Eine Rechnung bleibt, wenn ihre Anmeldung nach 92 Tagen
     geht, und geht mit dem Träger nach seinem Export (ADR 0088 §9, #4657).
     Die Frist je Rechnung legt #4720 fest. Korrekturen gehen mit dem Kind
@@ -88,15 +91,17 @@ auf. Sie führt keinen Owner ein und hält fest, was der Lauf in den Registern
 12. **Register.**
     - `policy.json`: sieben `data_objects` mit `write_owner`
       `parent-billing`; keine neue Regel, kein neues Paket.
-    - `command-effects.json`: zwei geprüfte Bindungen auf Enrollment (Liste
-      der bestätigten Anmeldungen als Teilnahme, Zeitraum als Abfrage).
-    - `passthrough.json`: `BillingRuns.ListBillingRuns` mit genauer
-      Evidenz.
+    - `command-effects.json`: drei geprüfte Bindungen auf Enrollment (Liste
+      der bestätigten Anmeldungen als Teilnahme, ein Zeitraum und die Liste
+      der Zeiträume als Abfrage).
+    - `passthrough.json`: `BillingRuns.ListBillingRuns` und die beiden
+      Root-Übersetzungen der Zeiträume mit genauer Evidenz.
     - Budgets: `modules/parentbilling/compose` 20 → 27 Zeilen
       (`moduleComposeBudgetTotal` 12640 → 12647) und `modules/parentbilling`
       5 → 6 Durchreichungen (`modulePassthroughOwnerBudgetTotal`
       1411 → 1412).
-    - Query-Budget `api.traeger.billing_runs` (2, exact).
+    - Query-Budgets `api.traeger.billing_runs` (2, exact) und
+      `api.traeger.billing_run_periods` (4, exact).
     - Datenlebenszyklus: sieben Einträge mit `scope: organization`.
 
 ## Verworfene Optionen

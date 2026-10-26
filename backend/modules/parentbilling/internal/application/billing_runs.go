@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation"
@@ -92,6 +93,26 @@ func (b *BillingRuns) ListBillingRuns(ctx context.Context, organizationID int64)
 		return nil, fmt.Errorf("parent billing: list billing runs: %w", err)
 	}
 	return runs, nil
+}
+
+// ListBillablePeriods lists the published periods with weeks, the latest
+// first.
+func (b *BillingRuns) ListBillablePeriods(ctx context.Context, reviewer parentbilling.HolidayReviewer) ([]parentbilling.HolidayBillingPeriod, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return nil, err
+	}
+	periods, err := b.registrations.HolidayBillingPeriods(ctx, reviewer)
+	if err != nil {
+		return nil, err
+	}
+	billable := make([]parentbilling.HolidayBillingPeriod, 0, len(periods))
+	for _, period := range periods {
+		if period.Published && !period.StartsOn.IsZero() {
+			billable = append(billable, period)
+		}
+	}
+	sort.SliceStable(billable, func(i, j int) bool { return billable[i].StartsOn.After(billable[j].StartsOn) })
+	return billable, nil
 }
 
 // StartHolidayBillingRun starts a calculated run for a period of the

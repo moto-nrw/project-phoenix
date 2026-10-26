@@ -41,6 +41,7 @@ func (rs *BillingRunResource) RunRouter(protectedTraegerRoutes func(chi.Router, 
 		billing := r.With(rs.requireBilling, withTx)
 		billing.Get("/", rs.list)
 		billing.Post("/", rs.start)
+		billing.Get("/periods", rs.periods)
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/corrections", rs.correct)
 		billing.Post("/{id}/release", rs.release)
@@ -111,6 +112,19 @@ func (rs *BillingRunResource) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, runs, "Billing runs retrieved successfully")
+}
+
+func (rs *BillingRunResource) periods(w http.ResponseWriter, r *http.Request) {
+	reviewer, ok := reviewerOf(w, r)
+	if !ok {
+		return
+	}
+	periods, err := rs.runs.ListBillablePeriods(r.Context(), reviewer)
+	if err != nil {
+		renderBillingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, periods, "Billable holiday periods retrieved successfully")
 }
 
 func (rs *BillingRunResource) start(w http.ResponseWriter, r *http.Request) {

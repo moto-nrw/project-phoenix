@@ -70,6 +70,11 @@ var queryBudgets = map[string]queryBudget{
 	// the Träger binding of the Träger transaction, then the runs of the
 	// Träger. Flat in the number of runs.
 	"api.traeger.billing_runs": {max: 2, exact: true},
+	// modules/parentbilling — GET /traeger/billing-runs/periods (#4668, ADR
+	// 0119): the Träger binding of the Träger transaction, then Enrollment's
+	// list of the periods with their weeks and time models. Flat in the number
+	// of periods.
+	"api.traeger.billing_run_periods": {max: 4, exact: true},
 	// modules/organizationtenancy — GET /traeger/master-data (#4653): the
 	// Träger binding of the Träger transaction, then the profile row and the
 	// bank accounts of the Träger; the read log writes but selects nothing.

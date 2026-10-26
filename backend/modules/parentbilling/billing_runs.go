@@ -173,12 +173,14 @@ type NumberRange struct {
 }
 
 // HolidayBillingPeriod is a holiday period as a run needs it: its name and
-// the days of its first and last week.
+// the days of its first and last week. Published names a period parents can
+// register for.
 type HolidayBillingPeriod struct {
-	ID       int64
-	Name     string
-	StartsOn calendar.Date
-	EndsOn   calendar.Date
+	ID        int64         `json:"id"`
+	Name      string        `json:"name"`
+	StartsOn  calendar.Date `json:"starts_on"`
+	EndsOn    calendar.Date `json:"ends_on"`
+	Published bool          `json:"-"`
 }
 
 // HolidayBillingChild is a child of a confirmed registration by its name.
@@ -204,6 +206,7 @@ type HolidayBillingRegistration struct {
 // another Träger; ConfirmedHolidayRegistrations records the read in the
 // period's audit trail (ADR 0114).
 type HolidayBillingRegistrations interface {
+	HolidayBillingPeriods(ctx context.Context, reviewer HolidayReviewer) ([]HolidayBillingPeriod, error)
 	HolidayBillingPeriod(ctx context.Context, reviewer HolidayReviewer, periodID int64) (HolidayBillingPeriod, error)
 	ConfirmedHolidayRegistrations(ctx context.Context, reviewer HolidayReviewer, periodID int64) ([]HolidayBillingRegistration, error)
 }
@@ -215,6 +218,10 @@ type HolidayBillingRegistrations interface {
 // change of a run is recorded in the run's trail.
 type BillingRuns interface {
 	ListBillingRuns(ctx context.Context, organizationID int64) ([]BillingRun, error)
+	// ListBillablePeriods lists the published holiday periods of the Träger
+	// with weeks, newest first, so the Abrechnung can start a run without
+	// the right "Anmeldung verwalten". It carries no personal data.
+	ListBillablePeriods(ctx context.Context, reviewer HolidayReviewer) ([]HolidayBillingPeriod, error)
 	StartHolidayBillingRun(ctx context.Context, reviewer HolidayReviewer, periodID int64) (BillingRun, error)
 	BillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (BillingRunDetail, error)
 	CorrectBillingRun(ctx context.Context, reviewer HolidayReviewer, runID int64, input BillingCorrectionInput) (BillingRunDetail, error)
