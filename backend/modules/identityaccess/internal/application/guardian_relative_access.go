@@ -25,8 +25,10 @@ const (
 	opGuardianInviteReject    = "reject guardian invitation"
 	opGuardianRevokeAccess    = "revoke guardian access"
 
-	// defaultRelationshipType is used when an invite doesn't specify one.
-	defaultRelationshipType = "guardian"
+	// defaultRelationshipType is used when an invite doesn't specify one. A
+	// legal guardian ("Vormund") is set by the school by hand; an existing
+	// link keeps its type (#4930).
+	defaultRelationshipType = "parent"
 )
 
 type resolvedProfile struct {

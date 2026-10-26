@@ -16,6 +16,12 @@ const (
 	payerFieldFalse = "false"
 )
 
+// newGuardianRelationshipType is the relationship type of a link an approval
+// creates. The form does not ask for one, and only the school knows who is a
+// legal guardian ("Vormund"), so a school sets that by hand. An existing link
+// keeps its type (#4930).
+const newGuardianRelationshipType = "parent"
+
 // linkAdditionalGuardians materializes the co-guardians stored on the
 // request (enrollment.request_guardians) as additional student-guardian
 // links for the student. Co-guardians are mapped identically to the primary
@@ -55,7 +61,7 @@ func (d *Decisions) linkAdditionalGuardian(ctx context.Context, extra *enrollmen
 	rel := &StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  profileID,
-		RelationshipType:   "guardian",
+		RelationshipType:   newGuardianRelationshipType,
 		IsPrimary:          false,
 		IsEmergencyContact: true,
 		CanPickup:          true,
@@ -64,7 +70,7 @@ func (d *Decisions) linkAdditionalGuardian(ctx context.Context, extra *enrollmen
 	if err := d.deps.People.Rules.ValidateStudentGuardian(rel); err != nil {
 		return fmt.Errorf("validate co-guardian student_guardian: %w", err)
 	}
-	if err := d.upsertContactStudentGuardianLink(ctx, rel); err != nil {
+	if err := d.upsertContactStudentGuardianLink(ctx, rel, keepRelationshipType); err != nil {
 		return fmt.Errorf("link co-guardian student_guardian: %w", err)
 	}
 	// Persist the co-guardian's phone number, mirroring the primary guardian.
@@ -147,9 +153,9 @@ func (d *Decisions) reconcilePrimaryGuardianLink(
 }
 
 // setPrimaryGuardianLink marks a link as the primary guardian relationship
-// with the primary guardian role.
+// with the primary guardian role. The relationship type stays as it is: the
+// rights come from the role, and a school may have set the type by hand.
 func (d *Decisions) setPrimaryGuardianLink(link *StudentGuardian) {
-	link.RelationshipType = "guardian"
 	link.IsPrimary = true
 	link.IsEmergencyContact = true
 	link.CanPickup = true
@@ -202,6 +208,7 @@ func (d *Decisions) repointPrimaryGuardianLink(ctx context.Context, primaryLink 
 		return err
 	}
 	primaryLink.GuardianProfileID = guardianProfileID
+	primaryLink.RelationshipType = newGuardianRelationshipType
 	d.setPrimaryGuardianLink(primaryLink)
 	if err := d.deps.People.Rules.ValidateStudentGuardian(primaryLink); err != nil {
 		return fmt.Errorf("decision: validate primary guardian link: %w", err)
@@ -215,7 +222,7 @@ func (d *Decisions) repointPrimaryGuardianLink(ctx context.Context, primaryLink 
 // createMissingPrimaryGuardianLink links the submitted guardian as primary to
 // a student that carries no link for them.
 func (d *Decisions) createMissingPrimaryGuardianLink(ctx context.Context, studentID, guardianProfileID int64) error {
-	rel := &StudentGuardian{StudentID: studentID, GuardianProfileID: guardianProfileID}
+	rel := &StudentGuardian{StudentID: studentID, GuardianProfileID: guardianProfileID, RelationshipType: newGuardianRelationshipType}
 	d.setPrimaryGuardianLink(rel)
 	if err := d.deps.People.Rules.ValidateStudentGuardian(rel); err != nil {
 		return fmt.Errorf("decision: validate missing primary guardian link: %w", err)
@@ -430,10 +437,22 @@ func snapshotContactEntries(snapshot map[string]any, childID int64, fieldKey str
 	return entries, true
 }
 
+// relationshipTypeUpdate says whether upsertContactStudentGuardianLink writes
+// the relationship type onto an existing link.
+type relationshipTypeUpdate bool
+
+const (
+	// overwriteRelationshipType applies a type the form asked for.
+	overwriteRelationshipType relationshipTypeUpdate = true
+	// keepRelationshipType leaves an existing link's type alone; rel's type
+	// only applies to a link the call creates.
+	keepRelationshipType relationshipTypeUpdate = false
+)
+
 // upsertContactStudentGuardianLink links a contact to the student or updates
 // the contact's existing link. A primary link or a full guardian keeps its
 // relationship untouched.
-func (d *Decisions) upsertContactStudentGuardianLink(ctx context.Context, rel *StudentGuardian) error {
+func (d *Decisions) upsertContactStudentGuardianLink(ctx context.Context, rel *StudentGuardian, relationshipType relationshipTypeUpdate) error {
 	if rel == nil {
 		return errors.New("contact student guardian link cannot be nil")
 	}
@@ -448,7 +467,9 @@ func (d *Decisions) upsertContactStudentGuardianLink(ctx context.Context, rel *S
 	if existing.IsPrimary || d.deps.People.Rules.IsFullGuardianRole(existing.GuardianRole) {
 		return nil
 	}
-	existing.RelationshipType = rel.RelationshipType
+	if relationshipType == overwriteRelationshipType {
+		existing.RelationshipType = rel.RelationshipType
+	}
 	existing.IsEmergencyContact = rel.IsEmergencyContact
 	existing.CanPickup = rel.CanPickup
 	existing.EmergencyPriority = rel.EmergencyPriority
