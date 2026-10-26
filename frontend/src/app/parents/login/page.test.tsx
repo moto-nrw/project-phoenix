@@ -227,6 +227,30 @@ describe("ParentLoginPage i18n", () => {
     expect(mocks.redirect).toHaveBeenCalledWith("/parents");
   });
 
+  // The layout's server snapshot carries no access token (#4990, #5005).
+  it("redirects a signed-in parent whose session came from the server snapshot", () => {
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { id: "41", scope: "parent" } },
+    });
+
+    render(<ParentLoginPage />);
+
+    expect(mocks.redirect).toHaveBeenCalledWith("/parents");
+  });
+
+  it("keeps the form for a session without a usable access token", () => {
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { id: "41", scope: "parent", token: "" } },
+    });
+
+    render(<ParentLoginPage />);
+
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
   it("leaves the redirect to the session and never pushes a second navigation", async () => {
     // Two concurrent navigations to the same target left the App Router state
     // as a pending thenable, and Next's conditional `use(state)` then rendered
