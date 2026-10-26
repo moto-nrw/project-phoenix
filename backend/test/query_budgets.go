@@ -371,6 +371,12 @@ var queryBudgets = map[string]queryBudget{
 	// ONE read of the staff member's
 	// Sonderarbeitszeiten. Flat in the number of ranges.
 	"workforce.staff_target_overrides.list": {max: 7, exact: true},
+	// modules/workforce/http/timetracking — GET
+	// /api/time-tracking/absence-allowances (#4971): the tenant-transaction
+	// statements, the three staff lookups behind the session, and ONE read each
+	// of the school's absence types, the caller's claims and the caller's
+	// absences. Flat in the number of types with an allowance.
+	"workforce.own_absence_allowances.list": {max: 10, exact: true},
 	"modules.careplan.request_feed.list":    {max: 1, exact: true},
 	// modules/identityaccess caller context (behavior/caller_request_cache_test.go) —
 	// the #2099 request cache dedups the identity chain.

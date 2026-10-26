@@ -1178,6 +1178,7 @@ zeiterfassung
 	GET /api/staff/{id}/time-tracking/schedule-targets
 	GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 	GET /api/staff/{id}/vacation/quota
+	GET /api/time-tracking/absence-allowances
 	GET /api/time-tracking/absences
 	GET /api/time-tracking/breaks/{sessionId}
 	GET /api/time-tracking/config
