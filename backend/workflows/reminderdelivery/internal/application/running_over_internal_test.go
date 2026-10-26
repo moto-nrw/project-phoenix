@@ -247,3 +247,27 @@ func TestComputeBatchMatchesComputeForRunningOver(t *testing.T) {
 			"Theater-AG is only 5 minutes past its end, below the 10 minute grace")
 	}
 }
+
+func TestComputeBatchRunningOverLoadsOnlyRecipientRooms(t *testing.T) {
+	t.Parallel()
+
+	_, nowMin := testClock()
+	w := newWorld()
+	w.settingBools = map[string]bool{"reminders.activity_running_over_enabled": true}
+	w.settingInts = map[string]int{"reminders.activity_running_over_minutes": 10}
+	w.supervises(7, 10)
+	w.addInstance(101, "Sichtbare AG", 10, nowMin-90, nowMin-15)
+	w.addInstance(102, "Fremde AG", 20, nowMin-90, nowMin-15)
+	for _, instance := range w.instances {
+		instance.Status = ports.InstanceStatusActive
+	}
+	w.unresolvedRooms = map[int64]struct{}{20: {}}
+
+	batch, err := w.service().ComputeBatch(context.Background(), []reminder.BatchScope{caregiver(7)})
+	require.NoError(t, err)
+	require.Len(t, batch[7].Reminders, 1)
+	assert.Equal(t, "101", *batch[7].Reminders[0].ActivityInstanceID)
+
+	_, err = w.service().ComputeBatch(context.Background(), []reminder.BatchScope{admin(1)})
+	require.Error(t, err, "an admin still needs facts for every room")
+}

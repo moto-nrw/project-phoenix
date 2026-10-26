@@ -35,9 +35,10 @@ type world struct {
 	visitsByRoom  map[int64][]int64
 	roomsByStaff  map[int64][]int64
 
-	instances     []*ports.ActivityInstance
-	instanceStaff []*ports.InstanceStaff
-	roomNames     map[int64]string
+	instances       []*ports.ActivityInstance
+	instanceStaff   []*ports.InstanceStaff
+	roomNames       map[int64]string
+	unresolvedRooms map[int64]struct{}
 
 	mu    sync.Mutex
 	calls map[string]int
@@ -296,6 +297,9 @@ func (r worldRooms) FindByIDs(_ context.Context, ids []int64) ([]*ports.Room, er
 	r.w.hit("Room.FindByIDs")
 	out := make([]*ports.Room, 0, len(ids))
 	for _, id := range ids {
+		if _, unresolved := r.w.unresolvedRooms[id]; unresolved {
+			continue
+		}
 		name, ok := r.w.roomNames[id]
 		if !ok {
 			name = "Lernraum"

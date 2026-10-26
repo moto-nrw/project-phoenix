@@ -81,7 +81,7 @@ func (s *service) loadBatchActivities(ctx context.Context, cfg batchConfig, reci
 	if err := s.loadBatchActivityRooms(ctx, cfg, in); err != nil {
 		return err
 	}
-	if err := s.loadBatchRunningOver(ctx, cfg, in); err != nil {
+	if err := s.loadBatchRunningOver(ctx, cfg, recipients, in); err != nil {
 		return err
 	}
 	return s.loadBatchAssignments(ctx, recipients, in)
@@ -150,18 +150,32 @@ func plannedBatchInstanceIDs(instances []*ports.ActivityInstance) []int64 {
 	return instanceIDs
 }
 
-// loadBatchRunningOver reads the facts of every block that runs over anywhere
-// in the school. The per-recipient scope is applied when rendering, so the
-// reads stay one each no matter how many people are addressed.
-func (s *service) loadBatchRunningOver(ctx context.Context, cfg batchConfig, in *batchInputs) error {
+// loadBatchRunningOver reads facts only for rooms at least one recipient can
+// see. An admin sees every room; otherwise the room union preserves one set of
+// shared reads without allowing an unrelated room to fail the whole batch.
+func (s *service) loadBatchRunningOver(ctx context.Context, cfg batchConfig, recipients []reminder.BatchScope, in *batchInputs) error {
 	if !cfg.runningOver {
 		return nil
 	}
-	due, _ := dueRunningOver(in.instances, nil, runningOverWindow{nowMin: in.nowMin, grace: cfg.runningOverGrace})
+	roomFilter := batchRunningOverRoomFilter(recipients, in.roomsByStaff)
+	due, _ := dueRunningOver(in.instances, activityScopeFilter(roomFilter, nil), runningOverWindow{nowMin: in.nowMin, grace: cfg.runningOverGrace})
 	facts, err := s.loadRunningOverFacts(ctx, in.today, due)
 	if err != nil {
 		return err
 	}
 	in.runningOver = facts
 	return nil
+}
+
+func batchRunningOverRoomFilter(recipients []reminder.BatchScope, roomsByStaff map[int64][]int64) map[int64]struct{} {
+	if hasAdmin(recipients) {
+		return nil
+	}
+	rooms := make(map[int64]struct{})
+	for _, sc := range recipients {
+		for _, roomID := range roomsByStaff[sc.StaffID] {
+			rooms[roomID] = struct{}{}
+		}
+	}
+	return rooms
 }

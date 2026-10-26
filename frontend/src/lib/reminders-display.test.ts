@@ -32,6 +32,14 @@ describe("reminders-display", () => {
       expect(reminderRelativeLabel(running)).toBe("30 Min länger");
     });
 
+    it("stays neutral and out of the overdue count", () => {
+      expect(isReminderOverdue(running)).toBe(false);
+      expect(reminderToneClass(running)).toBe("text-gray-500");
+      expect(
+        [running, makeReminder(-1)].filter(isReminderOverdue),
+      ).toHaveLength(1);
+    });
+
     it("names the room and the children whose pickup time is reached", () => {
       expect(reminderSubtitle(running)).toBe(
         "Turnhalle · 2 Kinder zur Abholung",
@@ -78,7 +86,7 @@ describe("reminders-display", () => {
   });
 
   describe("isReminderOverdue", () => {
-    it("is true only for negative minutes_away", () => {
+    it("is true for negative minutes_away except running activities", () => {
       expect(isReminderOverdue(makeReminder(-1))).toBe(true);
       expect(isReminderOverdue(makeReminder(0))).toBe(false);
       expect(isReminderOverdue(makeReminder(5))).toBe(false);

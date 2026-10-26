@@ -27,7 +27,7 @@ export const REMINDER_SECTIONS: {
 ];
 
 export function isReminderOverdue(reminder: Reminder): boolean {
-  return reminder.minutes_away < 0;
+  return reminder.type !== "activity_running_over" && reminder.minutes_away < 0;
 }
 
 export function reminderRelativeLabel(reminder: Reminder): string {
