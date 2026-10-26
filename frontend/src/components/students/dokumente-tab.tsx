@@ -188,7 +188,8 @@ export function StudentDokumenteTab({
       header: "Dokument",
       // Die Spalte nimmt den freien Platz und kürzt einen langen Namen,
       // statt die Tabelle über die Karte hinaus zu verbreitern (#4975).
-      className: "w-full max-w-0",
+      // min-w-40 hält auf dem Handy Platz für den Anfang des Namens.
+      className: "w-full max-w-0 min-w-40",
       render: (doc) => (
         <span className="flex min-w-0 items-center gap-2">
           {documentIcon(doc.contentType)}

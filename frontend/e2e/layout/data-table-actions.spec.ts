@@ -16,7 +16,7 @@ const SURFACE =
   "moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md grow";
 const CELL = "px-5 py-3 align-middle max-sm:px-3 text-gray-900";
 const PINNED = "sticky right-0 bg-white";
-const FILL = "w-full max-w-0";
+const FILL = "w-full max-w-0 min-w-40";
 
 let compiledCss = "";
 
@@ -114,6 +114,19 @@ for (const width of [480, 736, 900]) {
     );
   });
 }
+
+test("on a phone the cut file name keeps room beside the pinned menu", async ({
+  page,
+}) => {
+  // Die Dokumente von Kind und Mitarbeitenden bleiben auf dem Handy eine
+  // Tabelle. Die gekürzte Spalte darf dort nicht auf null schrumpfen.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await render(page, compiledCss, table(320, { fill: true, pinned: true }));
+
+  expect(await menuOverhang(page, "scroller")).toBeLessThanOrEqual(0);
+  const name = await page.getByRole("link").boundingBox();
+  expect(name!.width).toBeGreaterThanOrEqual(96);
+});
 
 test("without the fill column a long file name pushes the menu out of view", async ({
   page,

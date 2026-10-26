@@ -453,7 +453,8 @@ function FolderFilesPanel({
       stacked: "title",
       // Die Spalte nimmt den freien Platz und kürzt einen langen Namen,
       // statt die Tabelle über die Karte hinaus zu verbreitern (#4975).
-      className: "w-full max-w-0",
+      // min-w-40 hält auf dem Handy Platz für den Anfang des Namens.
+      className: "w-full max-w-0 min-w-40",
       render: (file) => (
         <span className="flex min-w-0 items-center gap-2">
           <FileTypeIcon contentType={file.contentType} />
@@ -503,11 +504,8 @@ function FolderFilesPanel({
       ),
       // Auf dem Handy steht die Größe mit in dieser Zeile unter dem Namen.
       stackedLabel: false,
-      stackedRender: (file) => (
-        <span className="text-xs text-gray-500">
-          {`${formatBytes(file.sizeBytes)} · ${formatDate(file.uploadedAt)}`}
-        </span>
-      ),
+      stackedRender: (file) =>
+        `${formatBytes(file.sizeBytes)} · ${formatDate(file.uploadedAt)}`,
       sortValue: (file) => file.uploadedAt,
     },
     {
