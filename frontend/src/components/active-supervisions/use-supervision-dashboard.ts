@@ -527,7 +527,7 @@ export function useSupervisionDashboard(
 
   // The session whose visits the aggregate carries. A payload without
   // selectedGroupId (older backend) keeps the former semantics: its visits
-  // belong to the first room.
+  // belong to the first room, which is the first own session (#5035).
   const resolvedRoom = useMemo(() => {
     if (!snapshot) return null;
     const firstRoom = allRoomsBase[0] ?? null;
@@ -712,6 +712,7 @@ export function useSupervisionDashboard(
   useEffect(() => {
     if (!selectedOpenRoomId || openRoomIds.has(selectedOpenRoomId)) return;
     setSelectedOpenRoomId(null);
+    // allRoomsBase lists own sessions first (#5035).
     setSelectedRoomId(allRoomsBase[0]?.id ?? null);
     setSelectedTimetableInstanceId(null);
   }, [allRoomsBase, selectedOpenRoomId, openRoomIds]);
@@ -873,7 +874,9 @@ export function useSupervisionDashboard(
     }
     if (target.kind === "persist-first") {
       // Nothing saved (e.g. fresh login) — persist the default so the next
-      // sidebar click and reload land on the same session.
+      // sidebar click and reload land on the same session. allRoomsBase
+      // lists own sessions first, so a foreign one is never saved while an
+      // own one runs (#5035).
       const firstRoom = allRoomsBase[0];
       if (firstRoom) {
         localStorage.setItem("supervision-last-session", firstRoom.id);

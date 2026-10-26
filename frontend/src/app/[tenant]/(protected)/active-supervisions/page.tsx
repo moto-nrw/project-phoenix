@@ -550,6 +550,13 @@ function MeinRaumPageContent() {
     (currentOpenRoom !== null || additionalSupervisionActiveGroupId) ? (
       <StatusBadge label="Eigene Aufsicht" tone="green" />
     ) : null;
+  // Mit dem Überblick über alle Aufsichten öffnet die Seite auch fremde
+  // Sitzungen. Wer dort nicht Betreuer ist, sieht das am Abzeichen; die
+  // Betreuer stehen in der Zeile darunter (#5035).
+  const foreignSupervisionBadge =
+    currentRoom && !currentOpenRoom && !currentRoom.isCurrentUserSupervising ? (
+      <StatusBadge label="Nicht Ihre Aufsicht" tone="gray" />
+    ) : null;
 
   // „Beaufsichtigen" steht als Kopf-Aktion dort, wo sonst „Aufsicht abgeben"
   // steht (#2161).
@@ -576,6 +583,7 @@ function MeinRaumPageContent() {
     runStateBadge ??
     openRoomBadge ??
     ownSupervisionBadge ??
+    foreignSupervisionBadge ??
     addSupervisorButton ??
     handOverButton ??
     superviseAction ??
@@ -815,11 +823,15 @@ function MeinRaumPageContent() {
             {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
                 Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen
                 untereinander läsen sich wie zwei Knöpfe. */}
-            {runStateBadge || openRoomBadge || ownSupervisionBadge ? (
+            {runStateBadge ||
+            openRoomBadge ||
+            ownSupervisionBadge ||
+            foreignSupervisionBadge ? (
               <span className="flex items-center gap-2">
                 {runStateBadge}
                 {openRoomBadge}
                 {ownSupervisionBadge}
+                {foreignSupervisionBadge}
               </span>
             ) : null}
             {addSupervisorButton}
@@ -963,9 +975,14 @@ function MeinRaumPageContent() {
           ) : null}
 
           {/* Kinder in einen Raum setzen ist eine Verwaltungsaktion. Einen
-              offenen Raum zu sehen verleiht sie nicht (#3065); wer dort die
-              Aufsicht hat, behält sie. */}
-          {(currentRoom ?? currentOpenRoom?.isUserSupervising) ? (
+              offenen Raum oder eine fremde Sitzung zu sehen verleiht sie
+              nicht (#3065, #5035); wer dort die Aufsicht hat, behält sie,
+              die Verwaltung auch auf fremden Sitzungen (canAssign). */}
+          {(
+            currentOpenRoom
+              ? currentOpenRoom.isUserSupervising
+              : currentRoom?.canAssign
+          ) ? (
             <Suspense fallback={null}>
               <TransitStudentsSection
                 fromReferrer="/active-supervisions"

@@ -1422,6 +1422,9 @@ function SidebarContent({
         (savedRoomId
           ? supervisionNavRooms.find((r) => r.id === savedRoomId)
           : undefined) ??
+        // Ohne gespeicherte Wahl die eigene Aufsicht, nicht die erste fremde
+        // aus dem Überblick (#5035).
+        supervisionNavRooms.find((r) => r.isOwnSupervision) ??
         supervisionNavRooms[0];
       if (targetRoom) {
         router.push(supervisionHref(targetRoom));
