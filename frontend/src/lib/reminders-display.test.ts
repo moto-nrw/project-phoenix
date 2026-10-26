@@ -34,10 +34,10 @@ describe("reminders-display", () => {
 
     it("names the room and the children whose pickup time is reached", () => {
       expect(reminderSubtitle(running)).toBe(
-        "Turnhalle · Abholzeit erreicht: 2 Kinder",
+        "Turnhalle · 2 Kinder zur Abholung",
       );
       expect(reminderSubtitle({ ...running, pickup_due_count: 1 })).toBe(
-        "Turnhalle · Abholzeit erreicht: 1 Kind",
+        "Turnhalle · 1 Kind zur Abholung",
       );
     });
 

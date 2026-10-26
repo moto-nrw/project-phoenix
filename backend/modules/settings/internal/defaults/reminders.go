@@ -114,7 +114,7 @@ var reminders_init_aktivitaeten_1Definitions = []config.Definition{
 	{
 		Key:             config.KeyRemindersActivityRunningOverMinutes,
 		Label:           "Nachlauf in Minuten",
-		Description:     "Wie viele Minuten nach dem geplanten Ende die Erinnerung erscheint.",
+		Description:     "Wie viele Minuten nach dem geplanten Ende die Erinnerung erscheint. Beendet moto Termine automatisch, wählen Sie hier weniger Minuten als den Puffer unter „Betrieb“.",
 		Type:            config.FieldNumber,
 		Default:         10,
 		ReadPermission:  "config:read",

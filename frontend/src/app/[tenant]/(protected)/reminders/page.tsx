@@ -22,7 +22,8 @@ function ReminderRow({ reminder }: { reminder: Reminder }) {
       <div className="min-w-0">
         <p className="truncate font-medium text-gray-900">{reminder.title}</p>
         {subtitle && (
-          <p className="truncate text-sm text-gray-500">{subtitle}</p>
+          // Umbrechen statt kürzen: die Zahl der Kinder steht am Ende.
+          <p className="text-sm break-words text-gray-500">{subtitle}</p>
         )}
       </div>
       <div className="flex flex-shrink-0 flex-col items-end">

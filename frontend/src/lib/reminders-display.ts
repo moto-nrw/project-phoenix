@@ -64,7 +64,7 @@ export function reminderSubtitle(reminder: Reminder): string | undefined {
   const pickup =
     count === 0
       ? undefined
-      : `Abholzeit erreicht: ${count} ${count === 1 ? "Kind" : "Kinder"}`;
+      : `${count} ${count === 1 ? "Kind" : "Kinder"} zur Abholung`;
   const parts = [reminder.subtitle, pickup].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
