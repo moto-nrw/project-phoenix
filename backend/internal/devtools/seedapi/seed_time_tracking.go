@@ -541,12 +541,12 @@ func seedHistorySession(admin *Client, rng *rand.Rand, staffID int64, day time.T
 		status = "home_office"
 	}
 	checkInWall := time.Date(day.Year(), day.Month(), day.Day(), 8, rng.IntN(20)-10, 0, 0, loc)
-	checkOutWall := time.Date(day.Year(), day.Month(), day.Day(), 16, 42+rng.IntN(30)-15, 0, 0, loc)
+	checkOutWall := time.Date(day.Year(), day.Month(), day.Day(), 16, 47+rng.IntN(30)-15, 0, 0, loc)
 	if _, err := admin.Post(fmt.Sprintf("/api/staff/%d/time-tracking/sessions", staffID), map[string]any{
 		"date":           time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC).Format(time.RFC3339),
 		"check_in_time":  checkInWall.Format(time.RFC3339),
 		"check_out_time": checkOutWall.Format(time.RFC3339),
-		"break_minutes":  30 + rng.IntN(11) - 5, // 25..35
+		"break_minutes":  30 + rng.IntN(11), // 30..40, enough for §4 ArbZG (#4804)
 		"status":         status,
 		"notes":          "Seed-Backdatierung",
 	}); err != nil {
