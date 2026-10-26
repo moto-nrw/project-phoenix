@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
@@ -84,17 +85,13 @@ func (s *service) Compute(ctx context.Context, scope reminder.Scope) (*reminder.
 	if err != nil {
 		return nil, err
 	}
-	activityStart, err := s.Settings.ActivityStartEnabled(ctx)
-	if err != nil {
-		return nil, err
-	}
-	activityOverdue, err := s.Settings.ActivityOverdueEnabled(ctx)
+	gates, err := s.activityGates(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	// Default-off: nothing enabled means no work and no data exposure.
-	if !pickupUpcoming && !pickupOverdue && !activityStart && !activityOverdue {
+	if !pickupUpcoming && !pickupOverdue && !gates.any() {
 		return empty, nil
 	}
 
@@ -112,11 +109,11 @@ func (s *service) Compute(ctx context.Context, scope reminder.Scope) (*reminder.
 	if err != nil {
 		return nil, err
 	}
-	activityPart, nextChange, err = s.computeActivityPart(ctx, scope, today, nowMin, activityStart, activityOverdue, nextChange)
+	activityPart, nextChange, err = s.computeActivityPart(ctx, scope, today, nowMin, gates, nextChange)
 	if err != nil {
 		return nil, err
 	}
-	return assembleResult(pickupPart, activityPart, nextChange), nil
+	return assembleResult(pickupPart, activityPart, today, nextChange), nil
 }
 
 func (s *service) withSettingsSnapshot(ctx context.Context) (context.Context, error) {
@@ -145,7 +142,7 @@ var errActivityRoomReaderMissing = errors.New("activity reminder room reader is 
 //
 // Pickups are appended before activities and the sort is stable, so the two
 // groups keep their relative order when they tie on urgency.
-func assembleResult(pickupPart, activityPart []reminder.Reminder, nextChange int) *reminder.Result {
+func assembleResult(pickupPart, activityPart []reminder.Reminder, today string, nextChange int) *reminder.Result {
 	reminders := make([]reminder.Reminder, 0, len(pickupPart)+len(activityPart))
 	reminders = append(reminders, pickupPart...)
 	reminders = append(reminders, activityPart...)
@@ -157,7 +154,7 @@ func assembleResult(pickupPart, activityPart []reminder.Reminder, nextChange int
 
 	result := &reminder.Result{Reminders: reminders, Count: len(reminders), Enabled: true}
 	if nextChange >= 0 {
-		result.NextChangeAt = formatMinutes(nextChange)
+		result.NextChangeAt = formatNextChangeAt(today, nextChange)
 	}
 	return result
 }
@@ -364,16 +361,11 @@ func (s *service) logDroppedPickups(dropped []int64) {
 	}
 }
 
-func (s *service) activityReminders(ctx context.Context, scope reminder.Scope, roomIDs []int64, today string, nowMin, lead, overdueThreshold int, upcoming, overdue bool) ([]reminder.Reminder, int, error) {
+// activityRemindersFor evaluates start and overdue reminders over already
+// loaded instances, so Compute reads today's blocks once for every activity
+// type.
+func (s *service) activityRemindersFor(ctx context.Context, scope reminder.Scope, roomIDs []int64, instances []*ports.ActivityInstance, nowMin, lead, overdueThreshold int, upcoming, overdue bool) ([]reminder.Reminder, int, error) {
 	nextChange := -1
-	if s.Instance == nil {
-		return nil, nextChange, nil
-	}
-	instances, err := s.Instance.FindByTenantAndDate(ctx, today)
-	if err != nil {
-		return nil, nextChange, err
-	}
-
 	roomFilter := activityRoomFilter(scope, roomIDs)
 
 	if overdue {
@@ -617,6 +609,21 @@ func minutesOfDay(t time.Time) int {
 
 func formatMinutes(m int) string {
 	return fmt.Sprintf("%02d:%02d", m/60, m%60)
+}
+
+// formatNextChangeAt keeps same-day changes in the established HH:MM form.
+// A next-day boundary needs its calendar date as well: an extended hour such
+// as 24:10 is neither an HH:MM value nor a precise instant for the client.
+func formatNextChangeAt(today string, m int) string {
+	if m < 24*60 {
+		return formatMinutes(m)
+	}
+	day, err := calendar.ParseDate(today)
+	if err != nil {
+		return formatMinutes(m)
+	}
+	target := day.AddDays(m / (24 * 60)).BerlinMidnight().Add(time.Duration(m%(24*60)) * time.Minute)
+	return target.Format(time.RFC3339)
 }
 
 // int64String renders an int64 ID as a *string for JSON, matching

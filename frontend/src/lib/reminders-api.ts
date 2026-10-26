@@ -5,7 +5,11 @@
 import { authFetch } from "./api-helpers";
 
 export type ReminderType =
-  "pickup_upcoming" | "pickup_overdue" | "activity_start" | "activity_overdue";
+  | "pickup_upcoming"
+  | "pickup_overdue"
+  | "activity_start"
+  | "activity_overdue"
+  | "activity_running_over";
 
 export interface Reminder {
   type: ReminderType;
@@ -15,6 +19,9 @@ export interface Reminder {
   subtitle?: string;
   due_time: string; // "HH:MM"
   minutes_away: number; // negative when overdue
+  // activity_running_over only: children still in the block's room whose
+  // pickup time has been reached (#4765).
+  pickup_due_count?: number;
 }
 
 export interface RemindersResult {
@@ -23,11 +30,10 @@ export interface RemindersResult {
   // True when the tenant has enabled at least one reminder type. Drives
   // whether the header bell (the only entry point to /reminders) renders at all.
   enabled: boolean;
-  // Wall-clock "HH:MM" of the soonest future moment this list changes purely by
-  // time passing (a pickup/activity entering or leaving its window). The hook
-  // schedules a timer to exactly this time so a reminder appears on its
-  // threshold instead of only on the next poll. Absent when nothing time-based
-  // is pending. Data-driven changes still arrive via the SSE-stale event.
+  // Wall-clock "HH:MM" of the soonest same-day future moment this list changes
+  // purely by time passing. A next-day boundary is an RFC 3339 instant, so the
+  // hook can schedule it without losing the calendar date. Absent when nothing
+  // time-based is pending. Data-driven changes still arrive via SSE.
   next_change_at?: string;
 }
 

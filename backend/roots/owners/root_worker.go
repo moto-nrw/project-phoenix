@@ -522,7 +522,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() error {
 			reminders = BuildReminders(db, env, caller, settings.Service, schedules, active, supervisions, timetableOwner, rooms, people,
-				calendarApp, announcements, delivery)
+				calendarApp, announcements, delivery, timetableRows.Repositories.NativeRecords())
 			return nil
 		},
 		func() (err error) {
