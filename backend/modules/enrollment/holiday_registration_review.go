@@ -76,6 +76,9 @@ type HolidayRegistrationBooking struct {
 	HostSchoolID  int64         `json:"host_school_id"`
 	TimeModelID   int64         `json:"time_model_id"`
 	TimeModelName string        `json:"time_model_name"`
+	// PriceCents is the price the time model has now. The contribution a
+	// confirmation freezes is the Elternabrechnung's (#4664).
+	PriceCents int64 `json:"price_cents"`
 }
 
 // HolidayRegistrationChild is one child of a reviewed registration. A nil
@@ -106,6 +109,11 @@ type HolidayRegistrationSummary struct {
 	GuardianEmail     string                     `json:"guardian_email"`
 	GuardianPhone     string                     `json:"guardian_phone"`
 	Children          []HolidayRegistrationChild `json:"children"`
+
+	// BenefitsDeclared is the parents' statement that they receive
+	// benefits; the Träger-Büro decides on the exemption when it confirms
+	// (#4664).
+	BenefitsDeclared bool `json:"benefits_declared"`
 }
 
 // HolidayRegistrationList is the list of a period: the registrations of the

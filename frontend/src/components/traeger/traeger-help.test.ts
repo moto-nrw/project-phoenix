@@ -31,6 +31,16 @@ describe("traegerHelpHref", () => {
     ).toBe("/ferien/5/anmeldungen");
   });
 
+  it("opens the article of the contribution rules on the page Beiträge (#4664)", () => {
+    for (const path of ["/beitraege", "/traeger/beitraege"]) {
+      const href = new URL(traegerHelpHref(path), "http://localhost");
+      expect(href.pathname).toBe(
+        `/help/${HELP_TOPICS.traegerHolidayContribution}`,
+      );
+      expect(href.searchParams.get("return_to")).toBe("/beitraege");
+    }
+  });
+
   it("keeps the settings article and the sign-in article for the other pages", () => {
     expect(traegerHelpHref("/einstellungen")).toContain(
       `/help/${HELP_TOPICS.traegerSettings}`,

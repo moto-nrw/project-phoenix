@@ -58,8 +58,7 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 	logger = migrationLogger(logger)
 	logger.InfoContext(ctx, "dropping and recreating all schemas")
 
-	// List of schemas to drop and recreate.
-	// NOTE: keep in sync with all CREATE SCHEMA calls across migrations,
+	// List of schemas to drop and recreate. NOTE: keep in sync with all CREATE SCHEMA calls across migrations,
 	// INCLUDING a schema a later migration drops again. A reset replays the
 	// full history, so 1.9.1 recreates suggestions long before 1.15.315 drops
 	// it. Leaving a stale copy in place makes the intervening
@@ -77,13 +76,14 @@ func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 		"active",
 		"config",
 		"meta",
-		"audit",       // created by migration 1.3.7
-		"suggestions", // created by 1.9.1, dropped again by 1.15.315
-		"platform",    // created by migration 1.11.1
-		"enrollment",  // created by migration 1.15.59
-		"calendar",    // created by migration 1.15.173
-		"display",     // created by migration 1.15.175
-		"documents",   // created by migration 1.15.332
+		"audit",          // created by migration 1.3.7
+		"suggestions",    // created by 1.9.1, dropped again by 1.15.315
+		"platform",       // created by migration 1.11.1
+		"enrollment",     // created by migration 1.15.59
+		"calendar",       // created by migration 1.15.173
+		"display",        // created by migration 1.15.175
+		"documents",      // created by migration 1.15.332
+		"parent_billing", // created by migration 1.15.645
 	}
 
 	// 1. Drop all schemas with CASCADE to remove all objects inside them

@@ -62,6 +62,10 @@ var queryBudgets = map[string]queryBudget{
 	// children with the duplicate hint and their bookings; the audit entry
 	// writes but selects nothing. Flat in the number of registrations.
 	"api.traeger.holiday_registrations": {max: 7, exact: true},
+	// modules/parentbilling — GET /traeger/contribution-rules (#4664, ADR
+	// 0115): the Träger binding of the Träger transaction, then the rules of
+	// the Träger. Flat in the number of rules.
+	"api.traeger.contribution_rules": {max: 2, exact: true},
 	// modules/enrollment — GET /api/holiday-weeks (#4665, ADR 0116): the
 	// tenant binding of the school's transaction, then the weeks the school
 	// hosts with their confirmed children counted. Flat in the number of

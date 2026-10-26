@@ -169,9 +169,11 @@ var moduleLegacyFileBudgets = map[string]int{
 // workflows/parentportal/compose adds exactly 1 LOC.
 // ADR 0114: the holiday registration review constructor of
 // modules/enrollment/compose adds exactly 7 LOC.
+// ADR 0115: the new owner composition modules/parentbilling/compose of the
+// Elternabrechnung adds exactly 20 LOC.
 // ADR 0116: the participant list constructor of modules/enrollment/compose
 // adds exactly 7 LOC.
-const moduleComposeBudgetTotal = 12627
+const moduleComposeBudgetTotal = 12647
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -214,7 +216,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/mealplan/compose":       74,   // raised by ADR 0078
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).
-	"modules/organizationtenancy/compose":         283,
+	"modules/organizationtenancy/compose": 283,
+	// Added by ADR 0115: the Elternabrechnung's construction only.
+	"modules/parentbilling/compose":               20,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":       973,

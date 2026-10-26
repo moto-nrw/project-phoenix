@@ -17,6 +17,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /traeger/auth/login
 	POST /traeger/auth/mfa/resend
 	POST /traeger/auth/mfa/verify
+	POST /traeger/holiday-quotes/{token}
 	POST /traeger/holiday-registrations/{token}
 	POST /traeger/invitations/{token}/accept
 
@@ -79,7 +80,6 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /traeger/holiday-periods/
 	POST /traeger/holiday-periods/{id}/publish
 	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/cancel
-	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/confirm
 	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/freeze
 	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen
 	POST /traeger/master-data/bank-accounts
@@ -142,6 +142,14 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /traeger/accounts/invitations
 	POST /traeger/school-sessions/
 	PUT /traeger/accounts/{accountId}/roles
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TraegerScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions.# > api/common.TraegerTxMiddleware
+	DELETE /traeger/contribution-rules/{id}
+	GET /traeger/contribution-rules/
+	GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
+	POST /traeger/contribution-rules/
+	POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm
+	PUT /traeger/contribution-rules/{id}
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > modules/identityaccess/sessiontoken.CatererMiddleware.# > api.SecurityPrincipalMiddleware
 	GET /caterer/orders/export

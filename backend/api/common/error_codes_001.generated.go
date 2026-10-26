@@ -98,6 +98,11 @@ const (
 	CodeMealsSupplyActive                              = "meals.supply_active"
 	CodeModuleNotBooked                                = "module.not_booked"
 	CodeOperatorAuditUnavailable                       = "operator.audit_unavailable"
+	CodeParentBillingBenefitsExemptionUnavailable      = "parent_billing.benefits_exemption_unavailable"
+	CodeParentBillingContributionRuleInvalid           = "parent_billing.contribution_rule_invalid"
+	CodeParentBillingContributionRuleNotFound          = "parent_billing.contribution_rule_not_found"
+	CodeParentBillingContributionRuleOverlap           = "parent_billing.contribution_rule_overlap"
+	CodeParentBillingHolidayQuoteInvalid               = "parent_billing.holiday_quote_invalid"
 	CodePickupBulkExceptionConfirmationRequired        = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                        = "pickup.future_manual_reset"
 	CodePickupInvalid                                  = "pickup.invalid"
@@ -297,11 +302,6 @@ const (
 	CodeTimetableGuardianNoticeTextInvalid             = "timetable.guardian_notice_text_invalid"
 	CodeTimetableHomeworkFeedbackChildNotInSupervision = "timetable.homework_feedback_child_not_in_supervision"
 	CodeTimetableHomeworkFeedbackNotAllowed            = "timetable.homework_feedback_not_allowed"
-	CodeTimetableHomeworkFeedbackWithoutHomework       = "timetable.homework_feedback_without_homework"
-	CodeTimetableIdempotencyKeyReused                  = "timetable.idempotency_key_reused"
-	CodeTimetableInstanceEndBeforeStart                = "timetable.instance_end_before_start"
-	CodeTimetableInstanceInPast                        = "timetable.instance_in_past"
-	CodeTimetableInstanceInvalid                       = "timetable.instance_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -401,6 +401,11 @@ var errorCodeClasses1 = map[string]string{
 	"meals.supply_active":                                  "business_rejection",
 	"module.not_booked":                                    "permission",
 	"operator.audit_unavailable":                           "unavailable",
+	"parent_billing.benefits_exemption_unavailable":        "business_rejection",
+	"parent_billing.contribution_rule_invalid":             "input",
+	"parent_billing.contribution_rule_not_found":           "business_rejection",
+	"parent_billing.contribution_rule_overlap":             "business_rejection",
+	"parent_billing.holiday_quote_invalid":                 "input",
 	"pickup.bulk_exception_confirmation_required":          "input",
 	"pickup.future_manual_reset":                           "business_rejection",
 	"pickup.invalid":                                       "input",
@@ -600,11 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.guardian_notice_text_invalid":               "input",
 	"timetable.homework_feedback_child_not_in_supervision": "permission",
 	"timetable.homework_feedback_not_allowed":              "permission",
-	"timetable.homework_feedback_without_homework":         "business_rejection",
-	"timetable.idempotency_key_reused":                     "business_rejection",
-	"timetable.instance_end_before_start":                  "input",
-	"timetable.instance_in_past":                           "input",
-	"timetable.instance_invalid":                           "input",
 }
 
 func init() {

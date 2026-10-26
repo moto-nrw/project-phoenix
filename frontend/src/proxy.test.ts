@@ -1043,6 +1043,17 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites /beitraege to /traeger/beitraege (#4664)", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/beitraege`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/beitraege",
+      );
+    });
+
     it("passes through /api/traeger/* without rewriting", () => {
       for (const path of [
         "/api/traeger/auth/session",

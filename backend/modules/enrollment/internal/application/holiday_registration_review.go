@@ -392,7 +392,7 @@ func completeHolidayChild(child *enrollment.HolidayRegistrationChild, models map
 		booking := &child.Bookings[b]
 		known := models[booking.TimeModelID]
 		booking.WeekStartsOn, booking.WeekEndsOn = known.week.StartsOn, known.week.EndsOn
-		booking.HostSchoolID, booking.TimeModelName = known.week.HostSchoolID, known.model.Name
+		booking.HostSchoolID, booking.TimeModelName, booking.PriceCents = known.week.HostSchoolID, known.model.Name, known.model.PriceCents
 	}
 	slices.SortFunc(child.Bookings, func(a, b enrollment.HolidayRegistrationBooking) int {
 		return models[a.TimeModelID].order - models[b.TimeModelID].order

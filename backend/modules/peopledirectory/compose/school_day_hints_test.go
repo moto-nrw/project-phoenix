@@ -36,7 +36,9 @@ func TestSchoolDayHintsRequireCallerTransaction(t *testing.T) {
 	require.Equal(t, write.Body, hints[0].Body)
 
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, module.ClearSchoolDayHint, clear))
-	hints, err = testpkg.TenantQuery2(t, ctx, db, module.ListSchoolDayHints, day, []int64{child.ID})
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	hints, err = testpkg.TenantQuery2(t, counter.Context(ctx), db, module.ListSchoolDayHints, day, []int64{child.ID})
 	require.NoError(t, err)
 	require.Empty(t, hints)
+	require.Empty(t, counter.Selects("persons"), "no author lookup is needed without hints")
 }

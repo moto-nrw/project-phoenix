@@ -2418,6 +2418,36 @@
       "legacy": "operator.audit_unavailable"
     },
     {
+      "code": "parent_billing.benefits_exemption_unavailable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.benefits_exemption_unavailable"
+    },
+    {
+      "code": "parent_billing.contribution_rule_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.contribution_rule_invalid"
+    },
+    {
+      "code": "parent_billing.contribution_rule_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.contribution_rule_not_found"
+    },
+    {
+      "code": "parent_billing.contribution_rule_overlap",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.contribution_rule_overlap"
+    },
+    {
+      "code": "parent_billing.holiday_quote_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.holiday_quote_invalid"
+    },
+    {
       "code": "pickup.bulk_exception_confirmation_required",
       "class": "input",
       "parameters": [],

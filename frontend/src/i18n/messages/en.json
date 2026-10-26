@@ -1727,7 +1727,17 @@
     "checkFields": "Please check the marked fields.",
     "summaryTitle": "Please check your details",
     "summaryText": "The registration only counts once you send it.",
-    "summaryFee": "The provider will tell you the fee.",
+    "contributionTitle": "Fee",
+    "contributionText": "This is what holiday care costs. The fee applies once the provider confirms the registration.",
+    "contributionLoading": "Calculating the fee …",
+    "contributionError": "The fee cannot be shown right now. You can still send the registration. The provider will then tell you the fee.",
+    "contributionRetry": "Try again",
+    "contributionSibling": "Siblings: child {rank}, {discount} less",
+    "contributionExemption": "Free because of benefits: {note}",
+    "contributionChildTotal": "Subtotal",
+    "contributionTotal": "Total",
+    "benefitsLabel": "We receive benefits, for example Bürgergeld, housing benefit (Wohngeld) or child supplement (Kinderzuschlag).",
+    "benefitsHint": "Then holiday care is free. The provider needs proof of this.",
     "guest": "Holiday guest",
     "none": "Not given",
     "back": "Back and change",
@@ -2819,6 +2829,13 @@
         "not_supplied": "You no longer supply this school. Please ask the school.",
         "order_not_found": "This order does not exist. Please reload the page.",
         "supply_active": "{object} is not possible right now. A caterer still supplies the school. Please end that supply first."
+      },
+      "parent_billing": {
+        "benefits_exemption_unavailable": "{object} could not be changed. Please check its current status.",
+        "contribution_rule_invalid": "{object} could not be saved. Please check your entries.",
+        "contribution_rule_not_found": "{object} could not be changed. Please check its current status.",
+        "contribution_rule_overlap": "{object} could not be changed. Please check its current status.",
+        "holiday_quote_invalid": "The fee cannot be calculated for these weeks. Please reload the page."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "{object} could not be saved. Please check your entries.",
