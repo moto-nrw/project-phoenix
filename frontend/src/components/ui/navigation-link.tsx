@@ -60,7 +60,11 @@ const NavigationLink = forwardRef<HTMLAnchorElement, NavigationLinkProps>(
       onClick,
       onNavigate,
     );
-    const [prefetch, setPrefetch] = useState(false);
+    const [intent, setIntent] = useState({ href, target, prefetch: false });
+    const sameDestination = intent.href === href && intent.target === target;
+    const prefetch = sameDestination && intent.prefetch;
+    // Reset before rendering next/link so a reused link never inherits intent.
+    if (!sameDestination) setIntent({ href, target, prefetch: false });
     const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const canPrefetch = target !== "_blank" && isInternalPath(href);
 
@@ -69,11 +73,11 @@ const NavigationLink = forwardRef<HTMLAnchorElement, NavigationLinkProps>(
       clearTimeout(hoverTimer.current);
       hoverTimer.current = null;
     };
-    useEffect(() => cancelHover, []);
+    useEffect(() => cancelHover, [href, target]);
 
     const startPrefetch = () => {
       cancelHover();
-      if (canPrefetch) setPrefetch(true);
+      if (canPrefetch) setIntent({ href, target, prefetch: true });
     };
 
     return (

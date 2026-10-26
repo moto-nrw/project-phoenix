@@ -94,6 +94,80 @@ describe("NavLink", () => {
     });
   });
 
+  it.each(["focus", "hover"])(
+    "requires fresh intent after href changes following %s",
+    (intent) => {
+      vi.useFakeTimers();
+      const { rerender } = render(<NavLink href="/rooms">Ziel</NavLink>);
+      const link = screen.getByRole("link", { name: "Ziel" });
+      if (intent === "focus") {
+        fireEvent.focus(link);
+      } else {
+        fireEvent.pointerEnter(link, { pointerType: "mouse" });
+        act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS));
+      }
+      expect(currentPrefetch()).toBe(true);
+
+      linkProps.mockClear();
+      rerender(<NavLink href="/staff">Ziel</NavLink>);
+      expect(link).toHaveAttribute("href", "/staff");
+      expect(
+        linkProps.mock.calls.every(([props]) => props.prefetch === false),
+      ).toBe(true);
+
+      rerender(<NavLink href="/rooms">Ziel</NavLink>);
+      expect(currentPrefetch()).toBe(false);
+      fireEvent.focus(link);
+      expect(currentPrefetch()).toBe(true);
+    },
+  );
+
+  it("cancels a pending hover when href changes", () => {
+    vi.useFakeTimers();
+    const { rerender } = render(<NavLink href="/rooms">Ziel</NavLink>);
+    const link = screen.getByRole("link", { name: "Ziel" });
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS / 2));
+
+    rerender(<NavLink href="/staff">Ziel</NavLink>);
+    expect(link).toHaveAttribute("href", "/staff");
+    act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS));
+    expect(currentPrefetch()).toBe(false);
+
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS - 1));
+    expect(currentPrefetch()).toBe(false);
+    act(() => vi.advanceTimersByTime(1));
+    expect(currentPrefetch()).toBe(true);
+  });
+
+  it("resets intent and cancels pending hover when target changes", () => {
+    vi.useFakeTimers();
+    const { rerender } = render(<NavLink href="/rooms">Ziel</NavLink>);
+    const link = screen.getByRole("link", { name: "Ziel" });
+    fireEvent.pointerEnter(link, { pointerType: "mouse" });
+    rerender(
+      <NavLink href="/rooms" target="_blank">
+        Ziel
+      </NavLink>,
+    );
+    act(() => vi.advanceTimersByTime(HOVER_PREFETCH_DELAY_MS));
+    expect(currentPrefetch()).toBe(false);
+
+    rerender(<NavLink href="/rooms">Ziel</NavLink>);
+    fireEvent.focus(link);
+    expect(currentPrefetch()).toBe(true);
+    rerender(
+      <NavLink href="/rooms" target="_blank">
+        Ziel
+      </NavLink>,
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(currentPrefetch()).toBe(false);
+    rerender(<NavLink href="/rooms">Ziel</NavLink>);
+    expect(currentPrefetch()).toBe(false);
+  });
+
   it("keeps the caller's pointer and focus handlers", () => {
     const onPointerEnter = vi.fn();
     const onPointerLeave = vi.fn();
