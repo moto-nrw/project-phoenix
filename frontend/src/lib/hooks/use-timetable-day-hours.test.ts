@@ -42,9 +42,22 @@ describe("useTimetableDayHours", () => {
 
     expect(result.current).toEqual({
       dayStartHour: 8,
-      dayEndHour: 16,
+      dayEndHour: 17,
       dayStartTime: "08:30",
       dayEndTime: "16:15",
+    });
+  });
+
+  it("keeps valid same-hour ranges and rounds the grid end up", () => {
+    mockUseSettingsSchema.mockReturnValue({
+      data: schema("08:30", "08:45"),
+    });
+
+    expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
+      dayStartHour: 8,
+      dayEndHour: 9,
+      dayStartTime: "08:30",
+      dayEndTime: "08:45",
     });
   });
 

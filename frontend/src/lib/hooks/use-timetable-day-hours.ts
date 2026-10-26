@@ -48,14 +48,13 @@ export function useTimetableDayHours(): {
     DEFAULT_END_TIME,
   );
   const dayStartHour = toHour(dayStartTime);
-  const dayEndHourRaw = toHour(dayEndTimeRaw);
-
-  const dayEndHour =
-    dayEndHourRaw <= dayStartHour ? DEFAULT_END_HOUR : dayEndHourRaw;
-  const dayEndTime =
-    toMinutes(dayEndTimeRaw) <= toMinutes(dayStartTime)
-      ? DEFAULT_END_TIME
-      : dayEndTimeRaw;
+  const dayStartMinutes = toMinutes(dayStartTime);
+  const dayEndMinutes = toMinutes(dayEndTimeRaw);
+  const hasValidDayRange = dayEndMinutes > dayStartMinutes;
+  const dayEndTime = hasValidDayRange ? dayEndTimeRaw : DEFAULT_END_TIME;
+  const dayEndHour = hasValidDayRange
+    ? Math.ceil(dayEndMinutes / 60)
+    : DEFAULT_END_HOUR;
 
   return { dayStartHour, dayEndHour, dayStartTime, dayEndTime };
 }
