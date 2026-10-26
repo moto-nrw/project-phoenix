@@ -44,11 +44,16 @@ type Feedback interface {
 type EndSession func(context.Context, int64) (time.Time, uint8, error)
 
 // RouterRuntime binds leaf constructors, guards, metrics and transactions from Root.
+// AuthTiming runs right behind device authentication and TxTiming inside the
+// tenant transaction; with Metrics in front of the authentication they time
+// the sections of a kiosk request (#5004).
 type RouterRuntime struct {
 	Protected  func(chi.Router, func(chi.Router, Middleware))
 	Required   func(string, Middleware) Middleware
 	Metrics    Middleware
 	TenantTx   Middleware
+	AuthTiming Middleware
+	TxTiming   Middleware
 	Info       func(devicescan.ConfigurationQuery, devicescan.SchoolNameQuery) RouteResource
 	Data       func(devicescan.Directory, devicescan.TagAssignments, devicescan.RoomAvailability) DataResource
 	Feedback   func(devicescan.FeedbackStudents, Feedback, func(int, string), *slog.Logger) RouteResource

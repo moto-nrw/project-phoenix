@@ -234,6 +234,16 @@ var queryBudgets = map[string]queryBudget{
 	"api.activities.available_supervisors.specialization.reads": {max: 5},
 	"api.iot.teacher_students.reads":                            {max: 5},
 	"api.rooms.snapshot_export.reads":                           {max: 4},
+	// modules/devicescan/http/checkin — POST /api/iot/checkin (#5004): one
+	// kiosk scan inside its request transaction (BEGIN to COMMIT), with the
+	// device session's heartbeat; device authentication runs before it and
+	// shows as Server-Timing "auth". The route-sized test router has no
+	// request settings cache, so each settings read counts. Flat from three
+	// to eight children present.
+	// ADR 0124: +2 statements for SAVEPOINT and RELEASE around the heartbeat.
+	"api.iot.checkin.check_in":    {max: 38},
+	"api.iot.checkin.check_out":   {max: 26},
+	"api.iot.checkin.room_change": {max: 44},
 	// modules/timetable/http — 14-day /week: FindByID + 7 preloads + class-exception
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},
