@@ -89,7 +89,7 @@ export interface SchoolDayChild {
   changed?: boolean;
 }
 
-export interface SchoolDayClass {
+interface SchoolDayClass {
   school_class: string;
   totals: SchoolDayTotals;
   children: SchoolDayChild[];
