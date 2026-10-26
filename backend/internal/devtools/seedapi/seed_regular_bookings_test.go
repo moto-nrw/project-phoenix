@@ -235,11 +235,13 @@ func TestMealOrdersNoteTheLunchDaysTheBookingsFollow(t *testing.T) {
 		ids[index] = int64(101 + index)
 	}
 	rt.FixedSeeder = &FixedSeeder{studentIDByIndex: ids}
-	for studentID := int64(1); studentID <= 18; studentID++ {
-		recordRegularLunchDays(rt, studentID, []int{1, 2, 3, 4, 5}) // the families' registrations
-	}
 	today, err := parseSeedDate("2026-09-07")
 	require.NoError(t, err)
+	initialDay, err := readMealDay(rt, today.AddDays(1))
+	require.NoError(t, err)
+	for _, child := range initialDay.participants {
+		recordRegularLunchDays(rt, child.id, []int{1, 2, 3, 4, 5}) // the families' registrations
+	}
 
 	require.NoError(t, seedMealOrders(context.Background(), rt, nil, today))
 
