@@ -82,7 +82,10 @@ func seedTodaysAbsences(rt *Runtime, today seedDate) error {
 var coveredSubstituteBlocks = []string{"Frühbetreuung", "Essensausgabe"}
 
 // coveredSickBlocks returns today's Frühbetreuung and Essensausgabe the ill
-// staff member was planned for, in the order the day lists them.
+// staff member was planned for, in the order the day lists them. A block
+// that has already ended or was cancelled takes no substitution any more:
+// later in the day, when a demo school's first tick has run the morning
+// blocks, only the Essensausgabe or nothing is left to cover.
 func coveredSickBlocks(rt *Runtime, today seedDate, staffID int64) ([]int64, error) {
 	raw, err := rt.Client.Get(fmt.Sprintf("/api/timetable/instances?from=%s&to=%s", today.String(), today.String()))
 	if err != nil {
@@ -98,11 +101,17 @@ func coveredSickBlocks(rt *Runtime, today seedDate, staffID int64) ([]int64, err
 	}
 	var ids []int64
 	for _, instance := range envelope.Data.Instances {
-		if slices.Contains(coveredSubstituteBlocks, instance.Title) && instancePlansStaff(instance, staffID) {
+		if slices.Contains(coveredSubstituteBlocks, instance.Title) && instanceTakesSubstitution(instance) && instancePlansStaff(instance, staffID) {
 			ids = append(ids, instance.ID)
 		}
 	}
 	return ids, nil
+}
+
+// instanceTakesSubstitution mirrors the timetable's rule that only a planned
+// or running block accepts deviations.
+func instanceTakesSubstitution(instance seedPlanningInstance) bool {
+	return instance.Status == "planned" || instance.Status == "active"
 }
 
 func instancePlansStaff(instance seedPlanningInstance, staffID int64) bool {

@@ -33,10 +33,10 @@ func TestSeedTodaysAbsencesCoversTheSickColleaguesMorning(t *testing.T) {
 		case "/api/timetable/instances":
 			instancesQuery = r.URL.RawQuery
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"instances":[`+
-				`{"id":61,"title":"Frühbetreuung","staff":[{"staff_id":32},{"staff_id":33}]},`+
-				`{"id":62,"title":"Essensausgabe","staff":[{"staff_id":33},{"staff_id":34}]},`+
-				`{"id":63,"title":"AG Klasse 1a","staff":[{"staff_id":31},{"staff_id":33}]},`+
-				`{"id":64,"title":"Busaufsicht","staff":[{"staff_id":34}]}]}}`)
+				`{"id":61,"title":"Frühbetreuung","status":"planned","staff":[{"staff_id":32},{"staff_id":33}]},`+
+				`{"id":62,"title":"Essensausgabe","status":"planned","staff":[{"staff_id":33},{"staff_id":34}]},`+
+				`{"id":63,"title":"AG Klasse 1a","status":"planned","staff":[{"staff_id":31},{"staff_id":33}]},`+
+				`{"id":64,"title":"Busaufsicht","status":"planned","staff":[{"staff_id":34}]}]}}`)
 		default:
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&deviation))
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
@@ -69,6 +69,60 @@ func TestSeedTodaysAbsencesCoversTheSickColleaguesMorning(t *testing.T) {
 	assert.EqualValues(t, 35, substitution["substitute_staff_id"])
 	assert.Equal(t, "Vertretung wegen Krankheit", substitution["reason"])
 	assert.Equal(t, []any{float64(61), float64(62)}, substitution["instance_ids"], "the afternoon block stays an open gap")
+}
+
+// A demo school seeds today's absences after its first tick. Later in the
+// day that tick has already run the Frühbetreuung, which takes no
+// substitution any more; the Essensausgabe is still covered. Once both
+// blocks are over, nothing is covered and the seed goes on.
+func TestSeedTodaysAbsencesCoversOnlyBlocksThatAreNotOver(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name, morning, lunch string
+		deviations           []string
+		covered              []any
+	}{
+		{"morning over", "completed", "planned", []string{"POST /api/timetable/instances/62/deviations"}, []any{float64(62)}},
+		{"lunch running", "completed", "active", []string{"POST /api/timetable/instances/62/deviations"}, []any{float64(62)}},
+		{"both over", "completed", "completed", nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var deviations []string
+			var deviation map[string]any
+			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/api/staff/37/absences", "/api/staff/33/absences":
+					_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":1}}`)
+				case "/api/timetable/instances":
+					_, _ = fmt.Fprintf(w, `{"status":"success","data":{"instances":[`+
+						`{"id":61,"title":"Frühbetreuung","status":%q,"staff":[{"staff_id":33}]},`+
+						`{"id":62,"title":"Essensausgabe","status":%q,"staff":[{"staff_id":33}]}]}}`, tc.morning, tc.lunch)
+				default:
+					deviations = append(deviations, r.Method+" "+r.URL.Path)
+					require.NoError(t, json.NewDecoder(r.Body).Decode(&deviation))
+					_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+				}
+			})
+			defer srv.Close()
+
+			fs := NewFixedSeeder(newTestClient(srv.URL, false), false, "")
+			for index, staff := range DemoStaff[:7] {
+				fs.staffIDs[staff.FirstName+" "+staff.LastName] = int64(31 + index)
+			}
+			rt := &Runtime{Client: fs.client, FixedSeeder: fs, TenantAuth: AuthRef{Token: "admin"}}
+			monday := seedDate{Time: time.Date(2026, time.October, 26, 0, 0, 0, 0, time.UTC)}
+			require.NoError(t, seedTodaysAbsences(rt, monday))
+
+			assert.Equal(t, tc.deviations, deviations)
+			if tc.covered != nil {
+				substitution := deviation["substitutions"].([]any)[0].(map[string]any)
+				assert.Equal(t, tc.covered, substitution["instance_ids"])
+			}
+		})
+	}
 }
 
 func TestSeedTodaysAbsencesSkipsTheWeekend(t *testing.T) {
