@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
@@ -190,6 +191,14 @@ func TestBillingLetterMailsReachEveryFamilyOnceAndShowTheirState(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "unknown", letterMailings(t, f, billing, run.ID)["FE-0002"].Status)
 
+	// A worker that stopped during the provider call leaves the outcome
+	// open: the mail may have gone out, so it is not shown as failed.
+	_, err = f.db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'dead_letter', dead_letter_at = NOW(), last_error = ?
+		WHERE organization_id = ? AND idempotency_key = ?`, deliveryContract.DispatchOutcomeUnknown, f.office.organization,
+		fmt.Sprintf("parent-billing-letter:%d:2", first.DocumentID))
+	require.NoError(t, err)
+	assert.Equal(t, "unknown", letterMailings(t, f, billing, run.ID)["FE-0001"].Status)
+
 	// All letters print as one PDF.
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunPath(run.ID, "/letters/print"), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -210,7 +219,7 @@ func TestBillingLetterMailsReachEveryFamilyOnceAndShowTheirState(t *testing.T) {
 	var reads []string
 	require.NoError(t, f.db.NewRaw(`SELECT COALESCE(details->>'mail', details->>'letter') FROM parent_billing.run_events
 		WHERE run_id = ? AND action = 'read' AND (details ? 'mail' OR details->>'letter' = 'print') ORDER BY id`, run.ID).Scan(ctx, &reads))
-	assert.Equal(t, []string{"status", "series", "series", "status", "status", "status", "print"}, reads)
+	assert.Equal(t, []string{"status", "series", "series", "status", "status", "status", "status", "print"}, reads)
 }
 
 func TestBillingLetterMailsNeedTheBillingRightAndStayWithTheirTraeger(t *testing.T) {

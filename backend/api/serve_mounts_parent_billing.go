@@ -104,20 +104,24 @@ func (p parentBillingLetterPost) LetterMailStates(ctx context.Context, organizat
 	states := make([]parentbilling.BillingLetterMailState, len(statuses))
 	for i, status := range statuses {
 		states[i] = parentbilling.BillingLetterMailState{
-			DeliveryID: status.ID, Status: parentBillingMailStatus(status.State), Attempts: status.Attempts, SentAt: status.SentAt,
+			DeliveryID: status.ID, Status: parentBillingMailStatus(status), Attempts: status.Attempts, SentAt: status.SentAt,
 		}
 	}
 	return states, nil
 }
 
 // parentBillingMailStatus names Delivery's state of a mail in the
-// Elternabrechnung's words: waiting, accepted by the mail server, or given
-// up.
-func parentBillingMailStatus(state deliveryContract.State) string {
-	switch state {
-	case deliveryContract.StateSent:
+// Elternabrechnung's words: waiting, accepted by the mail server, given up,
+// or unknown when the worker stopped during the provider call and the mail
+// may have gone out.
+func parentBillingMailStatus(status deliveryContract.Status) string {
+	switch {
+	case status.State == deliveryContract.StateSent:
 		return parentbilling.LetterMailSent
-	case deliveryContract.StateDeadLetter, deliveryContract.StateCancelled:
+	case status.State == deliveryContract.StateDeadLetter && status.LastError != nil &&
+		*status.LastError == deliveryContract.DispatchOutcomeUnknown:
+		return parentbilling.LetterMailUnknown
+	case status.State == deliveryContract.StateDeadLetter, status.State == deliveryContract.StateCancelled:
 		return parentbilling.LetterMailFailed
 	default:
 		return parentbilling.LetterMailQueued

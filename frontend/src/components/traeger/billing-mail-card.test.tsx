@@ -124,7 +124,7 @@ describe("BillingMailCard", () => {
     expect(await screen.findByText("Ergebnis unbekannt")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Versand angefragt am 09.09.2026, 10:00 Uhr. Das Ergebnis ist nicht mehr gespeichert.",
+        "Versand angefragt am 09.09.2026, 10:00 Uhr. Ob die Mail ankam, ist nicht bekannt.",
       ),
     ).toBeInTheDocument();
     expect(

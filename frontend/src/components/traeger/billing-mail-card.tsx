@@ -62,7 +62,7 @@ function statusDetail(mailing: LetterMailing): string | null {
     return `am ${at(mailing.sentAt)}`;
   }
   if (mailing.status === "unknown" && mailing.requestedAt) {
-    return `Versand angefragt am ${at(mailing.requestedAt)}. Das Ergebnis ist nicht mehr gespeichert.`;
+    return `Versand angefragt am ${at(mailing.requestedAt)}. Ob die Mail ankam, ist nicht bekannt.`;
   }
   return null;
 }

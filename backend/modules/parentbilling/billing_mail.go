@@ -34,8 +34,8 @@ const (
 	LetterMailSent = "sent"
 	// LetterMailFailed names a mail Delivery gave up on.
 	LetterMailFailed = "failed"
-	// LetterMailUnknown names a mail whose result Delivery no longer
-	// keeps.
+	// LetterMailUnknown names a mail whose result is not known: Delivery
+	// no longer keeps it, or the worker stopped while sending it.
 	LetterMailUnknown = "unknown"
 )
 

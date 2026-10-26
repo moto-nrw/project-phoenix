@@ -51,9 +51,11 @@ Träger-Transaktion.
    Mails eines Trägers zu einer Entität in dessen Träger-Transaktion (Policy
    aus ADR 0110). Der Lauf zeigt je Familie den letzten Versand: „nicht
    gesendet“, „wird gesendet“ (wartet oder neuer Versuch), „gesendet“ (vom
-   Mailserver angenommen), „nicht zugestellt“ (Delivery gibt auf oder bricht
-   ab) und „Ergebnis unbekannt“, wenn die Outbox die Mail schon
-   gelöscht hat.
+   Mailserver angenommen), „nicht angekommen“ (Delivery gibt auf oder bricht
+   ab) und „Ergebnis unbekannt“, wenn die Outbox die Mail schon gelöscht hat
+   oder der Worker während des Sendens stehen blieb (der Mailserver kann sie
+   angenommen haben; Delivery nennt das öffentlich
+   `contract.DispatchOutcomeUnknown`).
 5. **Erneut senden, idempotent.** Die Serie sendet nur an Familien mit
    Adresse und ohne Versand; ein zweiter Aufruf sendet nichts doppelt. Eine
    Familie lässt sich einzeln senden, zuerst oder erneut, außer ihre letzte
