@@ -1380,6 +1380,26 @@ export const ERROR_CATALOG = {
         "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
       "workforce.work_session_overlap":
         "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende.",
+      "parent_billing.billing_correction_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.billing_family_not_found":
+        "Dieses Kind ist nicht mehr im Lauf. Bitte laden Sie die Seite neu.",
+      "parent_billing.billing_run_changed":
+        "Seit Ihrer Prüfung hat sich der Lauf geändert. Bitte prüfen Sie die neue Vorschau und geben Sie dann frei.",
+      "parent_billing.billing_run_empty":
+        "Der Lauf hat keine Rechnung. Es gibt nichts freizugeben.",
+      "parent_billing.billing_run_not_found":
+        "Diesen Abrechnungslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“.",
+      "parent_billing.billing_run_open":
+        "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
+      "parent_billing.billing_run_released":
+        "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
+      "parent_billing.invoice_number_taken":
+        "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
+      "parent_billing.number_range_invalid":
+        "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
+      "parent_billing.number_range_missing":
+        "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
     },
   },
   en: {
