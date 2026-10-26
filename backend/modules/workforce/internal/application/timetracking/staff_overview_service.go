@@ -72,6 +72,9 @@ type TimeTrackingOverviewRow struct {
 	// actively closed month, live otherwise.
 	BalanceMinutes        int     `json:"balance_minutes"`
 	RemainingVacationDays float64 `json:"remaining_vacation_days"`
+	// LaborHintDays counts the workdays of the month with an ArbZG hint: a
+	// break too short or more than 10 hours of work (#4804).
+	LaborHintDays int `json:"labor_hint_days"`
 }
 
 // TimeTrackingOverview is the cross-staff list. Rows is never nil.
@@ -256,11 +259,15 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 		return nil, err
 	}
 
+	now := time.Now()
 	for _, staff := range staffMembers {
 		row, err := s.overviewRow(ctx, monthSvc, staff, key, vacation)
 		if err != nil {
 			return nil, err
 		}
+		// The prefetch already holds every block of the month with its
+		// breaks, so the hints cost no query.
+		row.LaborHintDays = CountLaborHintDays(prefetch.sessions[staff.ID], prefetch.breaks, now, key.firstDay(), key.lastDay())
 		if overviewSaldoInRange(row.BalanceMinutes, filters) {
 			overview.Rows = append(overview.Rows, row)
 		}

@@ -10,7 +10,11 @@ import {
   staffHistoryService,
   staffMonthSummaryService,
 } from "~/lib/staff-api";
-import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
+import type {
+  StaffAbsenceRow,
+  StaffHistoryDetails,
+  StaffHistorySession,
+} from "~/lib/staff-api";
 import {
   adaptAbsenceForMetrics,
   adaptHistorySessionForMetrics,
@@ -158,22 +162,25 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     latest: readonly StaffHistorySession[] | undefined,
   ) => (latest?.some((s) => !s.check_out_time) ? OPEN_MONTH_REFRESH_MS : 0);
 
+  // Same key and payload as the Zeiterfassung table (getHistoryDetails), so
+  // SWR keeps one entry with one shape for both readers.
   const {
-    data: adminSessions,
+    data: adminHistory,
     error: adminSessionsError,
     mutate: mutateAdminSessions,
-  } = useSWRAuth<readonly StaffHistorySession[]>(
+  } = useSWRAuth<StaffHistoryDetails>(
     staffId
       ? `staff-history-${staffId}-${weekHistoryFromKey}-${weekToKey}`
       : null,
     () =>
-      staffHistoryService.getHistory(
+      staffHistoryService.getHistoryDetails(
         staffId as string,
         weekHistoryFromKey,
         weekToKey,
       ),
-    { refreshInterval },
+    { refreshInterval: (latest) => refreshInterval(latest?.sessions) },
   );
+  const adminSessions = adminHistory?.sessions;
   const {
     data: ownHistory,
     error: ownHistoryError,

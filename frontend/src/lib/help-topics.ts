@@ -87,6 +87,7 @@ export const HELP_TOPICS = {
   trackWorkTime: "arbeitszeit-und-pausen-erfassen",
   ownShiftPlan: "eigenen-dienstplan-ansehen",
   correctWorkTime: "arbeitszeit-pruefen-und-korrigieren",
+  workTimeHints: "pausen-und-hoechstarbeitszeit",
   vacation: "urlaub-beantragen",
   ownAbsence: "eigene-abwesenheit-eintragen",
   tabletLogin: "am-tablet-anmelden",
