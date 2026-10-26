@@ -11,7 +11,7 @@ import {
   isPersonalStorageKey,
   KEPT_STORAGE_KEYS,
   PERSONAL_STORAGE_PREFIXES,
-  personalStorageLease,
+  mayWritePersonalStorage,
   personalStorageOwner,
 } from "./personal-storage";
 import { SIDEBAR_MEMORY_ENTRIES, sidebarMemoryKey } from "./sidebar-memory";
@@ -180,30 +180,23 @@ describe("bindPersonalStorage", () => {
   });
 });
 
-describe("personalStorageLease", () => {
-  it("holds while the same account keeps the entries", () => {
-    bindPersonalStorage(OWNER);
-    const stillOwned = personalStorageLease();
-
+describe("mayWritePersonalStorage", () => {
+  it("lets only the account the entries are bound to write", () => {
     bindPersonalStorage(OWNER);
 
-    expect(stillOwned()).toBe(true);
+    expect(mayWritePersonalStorage(OWNER)).toBe(true);
+    expect(mayWritePersonalStorage("1:8")).toBe(false);
+    expect(mayWritePersonalStorage("2:7")).toBe(false);
+    expect(mayWritePersonalStorage(null)).toBe(false);
   });
 
-  it.each([
-    ["a logout", () => clearPersonalStorage()],
-    ["an account switch", () => bindPersonalStorage("1:8")],
-    [
-      "another tab binding the entries to its account",
-      () => localStorage.setItem("moto:personal-storage-owner", "1:8"),
-    ],
-  ])("ends with %s", (_change, change) => {
+  it("lets nobody write after a logout", () => {
     bindPersonalStorage(OWNER);
-    const stillOwned = personalStorageLease();
 
-    change();
+    clearPersonalStorage();
 
-    expect(stillOwned()).toBe(false);
+    expect(localStorage.getItem("moto:personal-storage-owner")).toBeNull();
+    expect(mayWritePersonalStorage(OWNER)).toBe(false);
   });
 });
 

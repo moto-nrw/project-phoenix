@@ -15,6 +15,10 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { parseLocation } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import {
+  mayWritePersonalStorage,
+  personalStorageOwner,
+} from "~/lib/personal-storage";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   type CareOfferingOption,
@@ -58,8 +62,14 @@ function offeringStorageKey(
     : null;
 }
 
-function storeOffering(key: string | null, offeringId: string | null) {
-  if (!key || !offeringId) return;
+function storeOffering(
+  key: string | null,
+  owner: string | null,
+  offeringId: string | null,
+) {
+  // The choice belongs to this account. After a logout or an account switch,
+  // also in another tab, it must not come back (#5000).
+  if (!key || !offeringId || !mayWritePersonalStorage(owner)) return;
   try {
     globalThis.localStorage.setItem(key, offeringId);
   } catch {
@@ -164,6 +174,7 @@ export function PresentChildrenPicker({
   const [offeringChoice, setOfferingChoice] = useState<string | null>(null);
   const { data: session } = useSession();
   const storageKey = offeringStorageKey(useTenantSlugSafe(), session?.user?.id);
+  const storageOwner = personalStorageOwner(session?.user);
   const storedOfferingId = useLocalStorageValue(
     storageKey ?? "",
     storageKey !== null,
@@ -279,7 +290,9 @@ export function PresentChildrenPicker({
   };
   const changeScope = (nextScope: PresentChildScope) => {
     setScopeChoice(nextScope);
-    if (nextScope === "offering") storeOffering(storageKey, offeringId);
+    if (nextScope === "offering") {
+      storeOffering(storageKey, storageOwner, offeringId);
+    }
     // Another list starts without a selection: a hidden choice must never
     // come back and be added unseen.
     if (nextScope === "offering" || scope === "offering") {
@@ -303,7 +316,7 @@ export function PresentChildrenPicker({
   const changeOffering = (nextOfferingId: string) => {
     if (nextOfferingId !== offeringId) setSelected(new Set());
     setOfferingChoice(nextOfferingId);
-    storeOffering(storageKey, nextOfferingId);
+    storeOffering(storageKey, storageOwner, nextOfferingId);
   };
   const handleClose = () => {
     setSelected(new Set());

@@ -18,6 +18,7 @@ import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
+import { useArrivalOwner } from "~/lib/hooks/use-arrival-owner";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   buildGroupNameToIdMap,
@@ -819,6 +820,11 @@ export function useSupervisionDashboard(
     [openRoomIds, selectOpenRoom],
   );
 
+  // Whose rooms the dashboard holds (#5000). After an account switch the
+  // previous account's rooms stay until the new account's arrive; a selection
+  // resolved from them is not remembered for the new account.
+  const roomsOwner = useArrivalOwner(allRoomsBase, memory.owner);
+
   // Sync the selected session with the URL / sidebar memory. The resolution
   // order (session param > legacy room param > saved session > saved room)
   // lives in resolveSupervisionSelection; this effect only executes the
@@ -847,6 +853,7 @@ export function useSupervisionDashboard(
       openRoomIds,
     });
 
+    const ownRooms = roomsOwner.current === memory.owner;
     if (target.kind === "open-room") {
       selectOpenRoom(target.roomId);
       // A released room without an own supervision is only visited from
@@ -855,10 +862,12 @@ export function useSupervisionDashboard(
       const isOwnOpenRoom = openRooms.some(
         (room) => room.roomId === target.roomId && room.isUserSupervising,
       );
-      if (isOwnOpenRoom) {
-        memory.remove("supervision-last-session");
+      if (ownRooms) {
+        if (isOwnOpenRoom) {
+          memory.remove("supervision-last-session");
+        }
+        memory.write("sidebar-last-room", target.roomId);
       }
-      memory.write("sidebar-last-room", target.roomId);
       if (!roomParam) {
         router.replace(`/active-supervisions?room=${target.roomId}`);
       }
@@ -869,7 +878,9 @@ export function useSupervisionDashboard(
       if (selectedOpenRoomId) {
         setSelectedOpenRoomId(null);
       }
-      memory.write("supervision-last-session", target.sessionId);
+      if (ownRooms) {
+        memory.write("supervision-last-session", target.sessionId);
+      }
       void switchToRoom(target.sessionId);
       return;
     }
@@ -877,7 +888,7 @@ export function useSupervisionDashboard(
       // Nothing saved (e.g. fresh login) — persist the default so the next
       // sidebar click and reload land on the same session.
       const firstRoom = allRoomsBase[0];
-      if (firstRoom) {
+      if (firstRoom && ownRooms) {
         memory.write("supervision-last-session", firstRoom.id);
         if (firstRoom.room_id) {
           memory.write("sidebar-last-room", firstRoom.room_id);

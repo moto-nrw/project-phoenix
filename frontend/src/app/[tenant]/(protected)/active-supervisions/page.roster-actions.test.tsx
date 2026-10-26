@@ -415,6 +415,8 @@ describe("MeinRaumPage roster actions", () => {
     navigationMockState.permissions = [];
     window.innerWidth = 800;
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
     primaryRosterRows = [expectedRow];
     global.fetch = vi.fn();
     vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {

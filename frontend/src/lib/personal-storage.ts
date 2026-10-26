@@ -6,9 +6,11 @@
 // räumt sie ab, wenn das Konto geht (Logout) oder wechselt (anderes Konto,
 // andere Schule, Vorschau als andere Person).
 //
-// Wer einen solchen Eintrag erst nach einer Anfrage schreibt, holt vorher
-// personalStorageLease() und schreibt nur, solange sie gilt; sonst brächte
-// eine späte Antwort den Eintrag des vorigen Kontos zurück.
+// Wer einen solchen Eintrag in localStorage schreibt, kennt das Konto, für
+// das er schreibt, und fragt direkt davor mayWritePersonalStorage(): Nach
+// einem Logout oder sobald ein anderer Tab die Einträge an ein anderes Konto
+// gebunden hat, schreibt er nicht mehr. Sonst brächte eine späte Antwort oder
+// ein noch nicht aktualisierter Tab den Eintrag des vorigen Kontos zurück.
 //
 // Jeder Schlüssel, den das Frontend in localStorage oder sessionStorage
 // schreibt, steht entweder in PERSONAL_STORAGE_PREFIXES (wird geräumt) oder
@@ -125,11 +127,7 @@ export function personalStorageOwner(
   return `${user.tenantId ?? user.orgId ?? "-"}:${user.id}`;
 }
 
-// Zählt jedes Räumen in diesem Tab; personalStorageLease vergleicht ihn.
-let clearings = 0;
-
 function clearStorage(storage: Storage | undefined): void {
-  clearings += 1;
   if (!storage) return;
   try {
     const keys: string[] = [];
@@ -162,16 +160,13 @@ function boundOwner(): string | null {
 }
 
 /**
- * Schreiberlaubnis für einen personenbezogenen Eintrag, der erst nach einer
- * Anfrage entsteht. Vor der Anfrage holen, vor dem Schreiben fragen: Kam
- * dazwischen ein Logout oder ein Konto-, Schul- oder Vorschauwechsel, ist
- * schon geräumt, und ein später Eintrag des vorigen Kontos bliebe stehen,
- * weil niemand ein zweites Mal räumt.
+ * Darf `owner` (Schule und Konto der Sitzung, die schreibt) jetzt einen
+ * personenbezogenen Eintrag schreiben? Nur wenn die Einträge in diesem
+ * Browser genau diesem Besitzer gehören. Der Besitzer steht in localStorage
+ * und gilt für alle Tabs dieses Hosts; nach einem Logout steht dort keiner.
  */
-export function personalStorageLease(): () => boolean {
-  const clearingsAtStart = clearings;
-  const ownerAtStart = boundOwner();
-  return () => clearings === clearingsAtStart && boundOwner() === ownerAtStart;
+export function mayWritePersonalStorage(owner: string | null): boolean {
+  return owner !== null && boundOwner() === owner;
 }
 
 /** Entfernt alle personenbezogenen Einträge dieses Browsers für diesen Host. */

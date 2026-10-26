@@ -336,6 +336,8 @@ beforeEach(() => {
   authMockState.canReadSupervisionData = true;
   authMockState.isCaregiver = true;
   localStorage.clear();
+  // The sidebar memory belongs to the signed-in account (#5000).
+  localStorage.setItem("moto:personal-storage-owner", "1:7");
   vi.mocked(PageHeaderWithSearch)
     .mockReset()
     .mockImplementation(defaultPageHeader);
@@ -1935,6 +1937,8 @@ describe("BFF dashboard data with students and Schulhof", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
   });
 
   afterEach(() => {
@@ -2221,6 +2225,8 @@ describe("matchesStudentFilters edge cases", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
 
     // Override PageHeaderWithSearch to expose search and filter
     const mod =
@@ -2494,6 +2500,8 @@ describe("Schulhof user supervising view", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
     navigationMockState.roomParam = null;
   });
 
@@ -2920,6 +2928,8 @@ describe("Year filter (Klassenstufe) on active supervisions", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
 
     // Override PageHeaderWithSearch to expose year filter
     const mod =

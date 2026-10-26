@@ -559,6 +559,8 @@ function wireStudent(
 }
 
 beforeEach(() => {
+  // The sidebar memory belongs to the signed-in account (#5000).
+  localStorage.setItem("moto:personal-storage-owner", "1:7");
   vi.mocked(useSession)
     .mockReset()
     .mockReturnValue({
@@ -2420,7 +2422,9 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
 
   it("locks in first group ID on first data load", async () => {
     // Mock localStorage
-    const localStorageMock: Record<string, string> = {};
+    const localStorageMock: Record<string, string> = {
+      "moto:personal-storage-owner": "1:7",
+    };
     Object.defineProperty(window, "localStorage", {
       value: {
         getItem: (key: string) => localStorageMock[key] ?? null,
@@ -2711,7 +2715,7 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
     global.fetch = vi.fn();
 
     // Mock localStorage
-    localStorageMock = {};
+    localStorageMock = { "moto:personal-storage-owner": "1:7" };
     Object.defineProperty(window, "localStorage", {
       value: {
         getItem: (key: string) => localStorageMock[key] ?? null,
@@ -3022,7 +3026,9 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
     global.fetch = vi.fn();
 
     // Mock localStorage
-    const localStorageMock: Record<string, string> = {};
+    const localStorageMock: Record<string, string> = {
+      "moto:personal-storage-owner": "1:7",
+    };
     Object.defineProperty(window, "localStorage", {
       value: {
         getItem: (key: string) => localStorageMock[key] ?? null,

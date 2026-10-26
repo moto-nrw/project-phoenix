@@ -110,6 +110,8 @@ function renderPicker(
 describe("PresentChildrenPicker", () => {
   beforeEach(() => {
     globalThis.localStorage.clear();
+    // The offering choice belongs to the signed-in account (#5000).
+    globalThis.localStorage.setItem("moto:personal-storage-owner", "1:7");
     mocks.fetchStudents.mockReset();
     mocks.fetchStudents.mockResolvedValue({ students: presentStudents });
     mocks.fetchCareOfferingOptions.mockReset();

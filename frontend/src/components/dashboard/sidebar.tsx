@@ -48,6 +48,7 @@ import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { useSidebarCollapseTransition } from "~/lib/hooks/use-sidebar-collapse-transition";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
+import { useArrivalOwner } from "~/lib/hooks/use-arrival-owner";
 import {
   isOwnGroup,
   OGS_GROUPS_LABEL,
@@ -1350,38 +1351,59 @@ function SidebarContent({
       ),
     [supervisedRooms],
   );
+  // Who opened what the URL shows, and whose groups and rooms the sidebar
+  // holds (#5000). After a switch to another account the URL still shows what
+  // the previous person opened, and the lists stay until the new account's
+  // arrive. The sidebar remembers only what this account opened, and a name
+  // only from this account's list. Declared before the effects below, so the
+  // owners are current when those run.
+  const shownLocation = `${pathname}|${currentGroupParam ?? ""}|${currentRoomParam ?? ""}`;
+  const locationOwner = useArrivalOwner(shownLocation, memory.owner);
+  const groupsOwner = useArrivalOwner(groups, memory.owner);
+  const roomsOwner = useArrivalOwner(supervisedRooms, memory.owner);
+
   // Persist last selected sub-item per accordion section (per school and account).
   // Pages read this on mount to restore the user's last selection.
   useEffect(() => {
+    if (locationOwner.current !== memory.owner) return;
     if (pathname.startsWith("/ogs-groups") && currentGroupParam) {
       memory.write("sidebar-last-group", currentGroupParam);
       const group = groups.find((g) => g.id.toString() === currentGroupParam);
-      if (group) {
+      if (group && groupsOwner.current === memory.owner) {
         memory.write("sidebar-last-group-name", group.name);
       }
     }
-  }, [memory, pathname, currentGroupParam, groups]);
+  }, [memory, pathname, currentGroupParam, groups, locationOwner, groupsOwner]);
 
   useEffect(() => {
+    if (locationOwner.current !== memory.owner) return;
     if (pathname.startsWith("/active-supervisions") && currentRoomParam) {
       memory.write("sidebar-last-room", currentRoomParam);
       const roomName = supervisedRooms.find(
         (r) => r.id === currentRoomParam,
       )?.name;
-      if (roomName) {
+      if (roomName && roomsOwner.current === memory.owner) {
         memory.write("sidebar-last-room-name", roomName);
       }
     }
-  }, [memory, pathname, currentRoomParam, supervisedRooms]);
+  }, [
+    memory,
+    pathname,
+    currentRoomParam,
+    supervisedRooms,
+    locationOwner,
+    roomsOwner,
+  ]);
 
   useEffect(() => {
+    if (locationOwner.current !== memory.owner) return;
     if (
       pathname.startsWith("/database/") &&
       databaseSubPages.some((p) => pathname === p.href)
     ) {
       memory.write("sidebar-last-database", pathname);
     }
-  }, [memory, pathname, databaseSubPages]);
+  }, [memory, pathname, databaseSubPages, locationOwner]);
 
   // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
   // Reads the memory at click-time so the page loads with the right param immediately.

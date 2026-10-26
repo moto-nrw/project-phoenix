@@ -155,7 +155,10 @@ import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pend
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { MODULE_KEYS } from "~/lib/modules";
-import { personalStorageOwner } from "~/lib/personal-storage";
+import {
+  bindPersonalStorage,
+  personalStorageOwner,
+} from "~/lib/personal-storage";
 import {
   type SidebarMemoryEntry,
   sidebarMemoryKey,
@@ -1579,7 +1582,12 @@ describe("Sidebar", () => {
     beforeEach(() => {
       mockSetItem.mockClear();
       vi.spyOn(localStorage, "setItem").mockImplementation(mockSetItem);
-      vi.spyOn(localStorage, "getItem").mockReturnValue(null);
+      // Nothing stored yet; the entries belong to the signed-in account (#5000).
+      vi.spyOn(localStorage, "getItem").mockImplementation((key: string) =>
+        key === "moto:personal-storage-owner"
+          ? personalStorageOwner({ id: "1" })
+          : null,
+      );
       vi.spyOn(localStorage, "removeItem").mockImplementation(() => undefined);
     });
 
@@ -1716,6 +1724,105 @@ describe("Sidebar", () => {
         memoryKey("sidebar-last-room-name"),
         expect.any(String),
       );
+    });
+  });
+
+  // Another account signs in at the same school without a reload, as in a
+  // second tab. The URL still shows what the previous person opened, and
+  // the sidebar keeps the previous person's groups until the new account's
+  // list arrives (#5000).
+  describe("account switch without a reload (#5000)", () => {
+    const previousOwner = personalStorageOwner({ id: "1" })!;
+    const nextOwner = personalStorageOwner({ id: "3" })!;
+    const previousGroups = [
+      { id: "1", name: "Eulen" },
+      { id: "2", name: "Adler" },
+    ];
+
+    function signIn(id: string) {
+      const session = createMockSession(false);
+      mockUseSession.mockReturnValue({
+        ...session,
+        data: { ...session.data!, user: { ...session.data!.user, id } },
+      } as unknown as ReturnType<typeof useSession>);
+      bindPersonalStorage(personalStorageOwner({ id })!);
+    }
+
+    function showGroups(groups: { id: string; name: string }[]) {
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups,
+        refresh: vi.fn(),
+      });
+    }
+
+    function openGroup(id: string) {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "group" ? id : null)),
+      );
+    }
+
+    it("remembers nothing of the previous person for the new account", () => {
+      signIn("1");
+      showGroups(previousGroups);
+      openGroup("2");
+      const { rerender } = render(<Sidebar />);
+      // Anker: the previous account's own choice was remembered.
+      expect(
+        localStorage.getItem(
+          sidebarMemoryKey("sidebar-last-group-name", previousOwner),
+        ),
+      ).toBe("Adler");
+
+      signIn("3");
+      rerender(<Sidebar />);
+      showGroups([{ id: "5", name: "Füchse" }]);
+      rerender(<Sidebar />);
+
+      expect(screen.getByText("Füchse")).toBeInTheDocument();
+      expect(
+        localStorage.getItem(sidebarMemoryKey("sidebar-last-group", nextOwner)),
+      ).toBeNull();
+      expect(
+        localStorage.getItem(
+          sidebarMemoryKey("sidebar-last-group-name", nextOwner),
+        ),
+      ).toBeNull();
+    });
+
+    it("names a group only from the new account's own list", () => {
+      signIn("1");
+      showGroups(previousGroups);
+      openGroup("2");
+      const { rerender } = render(<Sidebar />);
+
+      signIn("3");
+      openGroup("1");
+      rerender(<Sidebar />);
+      // The new account opened group 1 itself; the name waits for its list.
+      expect(
+        localStorage.getItem(sidebarMemoryKey("sidebar-last-group", nextOwner)),
+      ).toBe("1");
+      expect(
+        localStorage.getItem(
+          sidebarMemoryKey("sidebar-last-group-name", nextOwner),
+        ),
+      ).toBeNull();
+
+      showGroups([{ id: "1", name: "Eulen" }]);
+      rerender(<Sidebar />);
+
+      expect(
+        localStorage.getItem(
+          sidebarMemoryKey("sidebar-last-group-name", nextOwner),
+        ),
+      ).toBe("Eulen");
     });
   });
 

@@ -96,6 +96,8 @@ function setup(overrides: { mutateDashboard?: () => Promise<unknown> } = {}) {
 describe("useTimetableActions lifecycle reload (#3888)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The undo belongs to the signed-in account (#5000).
+    bindPersonalStorage("1:7");
     refreshSupervision.mockResolvedValue(undefined);
     vi.mocked(timetableOperationsApi.complete).mockResolvedValue({
       reopenUntil: "2026-09-09T12:05:00+02:00",

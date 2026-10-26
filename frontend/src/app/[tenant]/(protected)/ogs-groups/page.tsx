@@ -121,6 +121,8 @@ import {
 
 import { createLogger } from "~/lib/logger";
 import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
+import { useArrivalOwner } from "~/lib/hooks/use-arrival-owner";
+import { useLatest } from "~/lib/hooks/use-latest";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -482,6 +484,13 @@ function OGSGroupPageContent() {
     },
   );
 
+  // Whose group list the page holds (#5000). After an account switch the
+  // previous account's list stays until the new one's arrives; nothing from
+  // it is remembered for the new account. The ref keeps this effect from
+  // running again just because the account changed.
+  const liveDataOwner = useArrivalOwner(liveData, memory.owner);
+  const memoryRef = useLatest(memory);
+
   // Sync the aggregated live data with local state. The response is
   // self-describing (groupId says which group its live sections belong to),
   // so a snapshot kept alive by keepPreviousData during a group switch can
@@ -575,10 +584,15 @@ function OGSGroupPageContent() {
         const resolvedGroup = ogsGroups.find(
           (group) => group.id === dataGroupId,
         );
-        if (resolvedGroup) {
-          persistGroupSelection(memory, resolvedGroup);
-        } else {
-          memory.write("sidebar-last-group", dataGroupId);
+        const pageMemory = memoryRef.current;
+        // A list that still belongs to the previous account is not
+        // remembered for this one.
+        if (liveDataOwner.current === pageMemory.owner) {
+          if (resolvedGroup) {
+            persistGroupSelection(pageMemory, resolvedGroup);
+          } else {
+            pageMemory.write("sidebar-last-group", dataGroupId);
+          }
         }
       }
     }
@@ -592,7 +606,8 @@ function OGSGroupPageContent() {
     }
   }, [
     liveData,
-    memory,
+    liveDataOwner,
+    memoryRef,
     selectedGroupId,
     setGroupAttendanceCount,
     tenantMutate,
@@ -620,15 +635,18 @@ function OGSGroupPageContent() {
       const savedGroup = savedGroupId
         ? allGroups.find((g) => g.id === savedGroupId)
         : undefined;
+      // A list that still belongs to the previous account is not
+      // remembered for this one (#5000).
+      const ownList = liveDataOwner.current === memory.owner;
       if (savedGroup) {
-        persistGroupSelection(memory, savedGroup);
+        if (ownList) persistGroupSelection(memory, savedGroup);
         if (savedGroup.id !== selectedGroupId) {
           switchToGroup(savedGroup.id);
         }
       } else if (!savedGroup) {
         // Nothing saved or saved group no longer exists — persist first group
         const firstGroup = allGroups[0];
-        if (firstGroup) {
+        if (firstGroup && ownList) {
           persistGroupSelection(memory, firstGroup);
         }
       }

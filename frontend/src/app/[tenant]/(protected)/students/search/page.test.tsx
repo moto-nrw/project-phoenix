@@ -506,6 +506,8 @@ describe("StudentSearchPage", () => {
     mockSearchParams.delete("sort");
     mockSearchParams.delete("view");
     localStorage.clear();
+    // The stored filters belong to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "7:user-1");
     window.history.replaceState(null, "", "/students/search");
 
     // Reset useSession mock to authenticated state

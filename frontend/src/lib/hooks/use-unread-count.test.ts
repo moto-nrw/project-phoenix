@@ -10,9 +10,13 @@ import { useUnreadCount } from "./use-unread-count";
 // Setup
 // ---------------------------------------------------------------------------
 
+// The cached count belongs to the signed-in account at school 1 (#5000).
+const OWNER = "1:7";
+
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   localStorage.clear();
+  bindPersonalStorage(OWNER);
 });
 
 afterEach(() => {
@@ -104,7 +108,12 @@ describe("useUnreadCount — cache", () => {
     );
 
     const { result } = renderHook(() =>
-      useUnreadCount({ enabled: true, fetcher, cacheKey: CACHE_KEY }),
+      useUnreadCount({
+        enabled: true,
+        fetcher,
+        cacheKey: CACHE_KEY,
+        cacheOwner: OWNER,
+      }),
     );
 
     // Cached value appears synchronously / immediately
@@ -122,7 +131,12 @@ describe("useUnreadCount — cache", () => {
 
     const fetcher = vi.fn().mockResolvedValue(9);
     const { result } = renderHook(() =>
-      useUnreadCount({ enabled: true, fetcher, cacheKey: CACHE_KEY }),
+      useUnreadCount({
+        enabled: true,
+        fetcher,
+        cacheKey: CACHE_KEY,
+        cacheOwner: OWNER,
+      }),
     );
 
     await waitFor(() => expect(result.current.unreadCount).toBe(9));
@@ -133,7 +147,12 @@ describe("useUnreadCount — cache", () => {
 
     const fetcher = vi.fn().mockResolvedValue(5);
     const { result } = renderHook(() =>
-      useUnreadCount({ enabled: true, fetcher, cacheKey: CACHE_KEY }),
+      useUnreadCount({
+        enabled: true,
+        fetcher,
+        cacheKey: CACHE_KEY,
+        cacheOwner: OWNER,
+      }),
     );
 
     await waitFor(() => expect(result.current.unreadCount).toBe(5));
@@ -142,7 +161,12 @@ describe("useUnreadCount — cache", () => {
   it("writes the fetched count back to localStorage", async () => {
     const fetcher = vi.fn().mockResolvedValue(15);
     renderHook(() =>
-      useUnreadCount({ enabled: true, fetcher, cacheKey: CACHE_KEY }),
+      useUnreadCount({
+        enabled: true,
+        fetcher,
+        cacheKey: CACHE_KEY,
+        cacheOwner: OWNER,
+      }),
     );
 
     await waitFor(() => {
@@ -161,7 +185,6 @@ describe("useUnreadCount — cache", () => {
   ])(
     "does not cache a count that arrives after %s",
     async (_change, change) => {
-      bindPersonalStorage("1:7");
       let answer!: (count: number) => void;
       const fetcher = vi.fn(
         () =>
@@ -170,7 +193,12 @@ describe("useUnreadCount — cache", () => {
           }),
       );
       const { result } = renderHook(() =>
-        useUnreadCount({ enabled: true, fetcher, cacheKey: CACHE_KEY }),
+        useUnreadCount({
+          enabled: true,
+          fetcher,
+          cacheKey: CACHE_KEY,
+          cacheOwner: OWNER,
+        }),
       );
       await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
 
@@ -185,6 +213,8 @@ describe("useUnreadCount — cache", () => {
   );
 
   it("does not write to localStorage when no cacheKey is given", async () => {
+    // Without the bound owner the storage starts empty.
+    localStorage.clear();
     const fetcher = vi.fn().mockResolvedValue(3);
     renderHook(() => useUnreadCount({ enabled: true, fetcher }));
 
@@ -223,7 +253,12 @@ describe("useUnreadCount — refresh", () => {
 
     const fetcher = vi.fn().mockResolvedValue(10);
     const { result } = renderHook(() =>
-      useUnreadCount({ enabled: true, fetcher, cacheKey: CACHE_KEY }),
+      useUnreadCount({
+        enabled: true,
+        fetcher,
+        cacheKey: CACHE_KEY,
+        cacheOwner: OWNER,
+      }),
     );
 
     await waitFor(() => expect(result.current.unreadCount).toBe(10));
@@ -293,6 +328,7 @@ describe("useUnreadCount — event listeners", () => {
         enabled: true,
         fetcher,
         cacheKey: CACHE_KEY,
+        cacheOwner: OWNER,
         eventNames: ["test-refresh-event"],
       }),
     );
@@ -445,7 +481,7 @@ describe("useUnreadCount — tenant/session isolation", () => {
 
     const { result, rerender } = renderHook(
       ({ cacheKey, fetcher }) =>
-        useUnreadCount({ enabled: true, cacheKey, fetcher }),
+        useUnreadCount({ enabled: true, cacheKey, cacheOwner: OWNER, fetcher }),
       { initialProps: { cacheKey: oldKey, fetcher: oldFetcher } },
     );
 
@@ -480,7 +516,13 @@ describe("useUnreadCount — tenant/session isolation", () => {
 
     const { result, rerender } = renderHook(
       ({ cacheKey, fetcher }) =>
-        useUnreadCount({ enabled: true, cacheKey, fetcher, onError }),
+        useUnreadCount({
+          enabled: true,
+          cacheKey,
+          cacheOwner: OWNER,
+          fetcher,
+          onError,
+        }),
       {
         initialProps: {
           cacheKey: "unread:school-a",
@@ -513,7 +555,8 @@ describe("useUnreadCount — tenant/session isolation", () => {
       );
 
     const { result, rerender } = renderHook(
-      ({ enabled }) => useUnreadCount({ enabled, cacheKey, fetcher }),
+      ({ enabled }) =>
+        useUnreadCount({ enabled, cacheKey, cacheOwner: OWNER, fetcher }),
       { initialProps: { enabled: true } },
     );
 
@@ -547,6 +590,7 @@ describe("useUnreadCount — initialCount", () => {
         enabled: true,
         fetcher,
         cacheKey: CACHE_KEY,
+        cacheOwner: OWNER,
         initialCount: 4,
       }),
     );
@@ -569,6 +613,7 @@ describe("useUnreadCount — initialCount", () => {
         enabled: true,
         fetcher,
         cacheKey: CACHE_KEY,
+        cacheOwner: OWNER,
         eventNames: ["seed-refresh"],
         initialCount: 4,
       }),

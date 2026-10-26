@@ -6,7 +6,10 @@
  */
 
 import { createLogger } from "~/lib/logger";
-import { personalStorageLease } from "~/lib/personal-storage";
+import {
+  mayWritePersonalStorage,
+  personalStorageOwner,
+} from "~/lib/personal-storage";
 import { isStandaloneApp, type PushPortal } from "~/lib/push-api";
 
 const logger = createLogger({ component: "PwaUsageApi" });
@@ -43,9 +46,9 @@ export async function reportStandaloneUsage(
     // Private mode can block storage; report anyway — the upsert is idempotent.
   }
 
-  // The mark belongs to this account; a logout or account switch while the
-  // report is in flight must not bring it back (#5000).
-  const stillOwned = personalStorageLease();
+  // The mark belongs to this account at this school. After a logout or an
+  // account switch, also in another tab, it must not come back (#5000).
+  const owner = personalStorageOwner({ id: accountID, tenantId: tenantID });
   try {
     const response = await fetch(path, {
       method: "POST",
@@ -58,7 +61,7 @@ export async function reportStandaloneUsage(
       });
       return;
     }
-    if (!stillOwned()) return;
+    if (!mayWritePersonalStorage(owner)) return;
     try {
       sessionStorage.setItem(sessionKey, "1");
     } catch {

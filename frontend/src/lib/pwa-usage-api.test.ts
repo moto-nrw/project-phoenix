@@ -15,10 +15,16 @@ const isStandaloneApp = vi.mocked(pushApi.isStandaloneApp);
 describe("reportStandaloneUsage", () => {
   const fetchMock = vi.fn();
   const accountID = "account-1";
+  const MARK = "moto-pwa-usage-reported.tenant.account-1.1";
+
+  // The mark belongs to the signed-in account at school 1 (#5000).
+  const OWNER = "1:account-1";
 
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
+    localStorage.clear();
+    bindPersonalStorage(OWNER);
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockResolvedValue({ ok: true, status: 204 });
     isStandaloneApp.mockReturnValue(true);
@@ -65,19 +71,20 @@ describe("reportStandaloneUsage", () => {
   // Logout and account switch remove the mark (#5000). The next sign-in in
   // this tab reports once more; the backend only advances last_seen_at of
   // the same (school, account, portal) row, so no count grows.
-  it("reports once more after logout cleared the mark", async () => {
+  it("reports once more after logout and a new sign-in", async () => {
     await reportStandaloneUsage("tenant", accountID, 1);
-    expect(sessionStorage.length).toBe(1);
+    expect(sessionStorage.getItem(MARK)).toBe("1");
 
     clearPersonalStorage();
-    expect(sessionStorage.length).toBe(0);
+    expect(sessionStorage.getItem(MARK)).toBeNull();
 
+    bindPersonalStorage(OWNER);
     await reportStandaloneUsage("tenant", accountID, 1);
     await reportStandaloneUsage("tenant", accountID, 1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  // The report starts for account 7, the tab then switches to account 8 or
+  // The report starts for this account, the tab then switches to another or
   // logs out, and only then the answer arrives (#5000).
   it.each([
     ["an account switch", () => bindPersonalStorage("1:8")],
@@ -85,7 +92,6 @@ describe("reportStandaloneUsage", () => {
   ])(
     "does not bring the mark back after %s during the report",
     async (_change, change) => {
-      bindPersonalStorage("1:7");
       let answer!: (response: { ok: boolean; status: number }) => void;
       fetchMock.mockReturnValueOnce(
         new Promise((resolve) => {
@@ -98,22 +104,14 @@ describe("reportStandaloneUsage", () => {
       answer({ ok: true, status: 204 });
       await report;
 
-      expect(
-        sessionStorage.getItem("moto-pwa-usage-reported.tenant.account-1.1"),
-      ).toBeNull();
-      localStorage.clear();
+      expect(sessionStorage.getItem(MARK)).toBeNull();
     },
   );
 
   it("marks the session when the account stayed during the report", async () => {
-    bindPersonalStorage("1:7");
-
     await reportStandaloneUsage("tenant", accountID, 1);
 
-    expect(
-      sessionStorage.getItem("moto-pwa-usage-reported.tenant.account-1.1"),
-    ).toBe("1");
-    localStorage.clear();
+    expect(sessionStorage.getItem(MARK)).toBe("1");
   });
 
   it("does not mark the session on a rejected report", async () => {

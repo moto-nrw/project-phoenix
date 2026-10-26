@@ -2,7 +2,10 @@
 
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { personalStorageOwner } from "./personal-storage";
+import {
+  mayWritePersonalStorage,
+  personalStorageOwner,
+} from "./personal-storage";
 
 /**
  * Was sich die Seitenleiste merkt, damit ein Klick auf „Gruppen“ oder
@@ -22,6 +25,8 @@ export const SIDEBAR_MEMORY_ENTRIES = [
 export type SidebarMemoryEntry = (typeof SIDEBAR_MEMORY_ENTRIES)[number];
 
 export interface SidebarMemory {
+  /** Schule und Konto, für die dieses Gedächtnis schreibt. */
+  readonly owner: string | null;
   /** Schlüssel im localStorage; null, solange niemand angemeldet ist. */
   readonly key: (entry: SidebarMemoryEntry) => string | null;
   readonly read: (entry: SidebarMemoryEntry) => string | null;
@@ -46,6 +51,7 @@ function sidebarMemory(owner: string | null): SidebarMemory {
   const key = (entry: SidebarMemoryEntry) =>
     owner === null ? null : sidebarMemoryKey(entry, owner);
   return {
+    owner,
     key,
     read: (entry) => {
       const storageKey = key(entry);
@@ -59,7 +65,10 @@ function sidebarMemory(owner: string | null): SidebarMemory {
     },
     write: (entry, value) => {
       const storageKey = key(entry);
-      if (storageKey === null) return;
+      // Nach einem Logout oder Kontowechsel schreibt das Gedächtnis des
+      // vorigen Kontos nicht mehr, auch nicht aus einer späten Antwort oder
+      // einem anderen Tab (#5000).
+      if (storageKey === null || !mayWritePersonalStorage(owner)) return;
       try {
         globalThis.localStorage.setItem(storageKey, value);
       } catch {
