@@ -1363,11 +1363,18 @@ export function getCurrentTimeOffset(
   return ((minutesNow - minutesStart) / 60) * hourHeightPx;
 }
 
-interface LanedInstance {
-  instance: EnrichedInstance;
+/** What lane assignment reads from a block: its wall-clock window. */
+export interface LaneBlock {
+  startTime: string;
+  endTime: string;
+}
+
+export interface LanedBlock<T extends LaneBlock> {
+  instance: T;
   lane: number; // 0-indexed lane within the overlap cluster
   laneCount: number; // total lanes in this cluster (column-width divisor)
   laneSpan: number; // lanes the block covers, from `lane` to the right
+  cluster: number; // 0-indexed overlap cluster, ascending in time
 }
 
 export function comparePlanningInstances(
@@ -1404,14 +1411,31 @@ export function comparePlanningInstances(
  * Google Calendar. Non-overlapping events stay full-width.
  */
 export function assignBlockLanes(
-  instances: EnrichedInstance[],
-): LanedInstance[] {
+  instances: readonly EnrichedInstance[],
+): LanedBlock<EnrichedInstance>[];
+/**
+ * Same algorithm for any block with a wall-clock window (#5020). `compare`
+ * fixes the order of blocks that start together; it must sort by start time
+ * first, the cluster walk relies on it.
+ */
+export function assignBlockLanes<T extends LaneBlock>(
+  instances: readonly T[],
+  compare: (a: T, b: T) => number,
+): LanedBlock<T>[];
+export function assignBlockLanes<T extends LaneBlock>(
+  instances: readonly T[],
+  compare?: (a: T, b: T) => number,
+): LanedBlock<T>[] {
   if (instances.length === 0) return [];
 
-  const sorted = [...instances].sort(comparePlanningInstances);
+  // Without a comparator the first overload applies: T is EnrichedInstance.
+  const order =
+    compare ?? (comparePlanningInstances as unknown as (a: T, b: T) => number);
+  const sorted = [...instances].sort(order);
 
-  const result: LanedInstance[] = [];
-  let cluster: LanedInstance[] = [];
+  const result: LanedBlock<T>[] = [];
+  let clusterIndex = -1;
+  let cluster: LanedBlock<T>[] = [];
   // Start/end minutes of the cluster members, index-aligned with `cluster`.
   let clusterStarts: number[] = [];
   let clusterEnds: number[] = [];
@@ -1446,6 +1470,7 @@ export function assignBlockLanes(
 
     if (startMin >= clusterMaxEnd) {
       flushCluster();
+      clusterIndex++;
     }
 
     const activeLanes = new Set(
@@ -1454,11 +1479,12 @@ export function assignBlockLanes(
     let lane = 0;
     while (activeLanes.has(lane)) lane++;
 
-    const laned: LanedInstance = {
+    const laned: LanedBlock<T> = {
       instance: inst,
       lane,
       laneCount: 1,
       laneSpan: 1,
+      cluster: clusterIndex,
     };
     cluster.push(laned);
     clusterStarts.push(startMin);
