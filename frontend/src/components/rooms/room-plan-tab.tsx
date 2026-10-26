@@ -40,14 +40,9 @@ import {
 } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
-import { useTenantAwarePath } from "~/lib/tenant-path";
+import type { RoomPlanView } from "./room-plan-navigation";
 
-export type RoomPlanView = "tag" | "woche";
-
-/** Liest `view` der Raumseite; alles außer „tag“ ist die Woche. */
-export function parseRoomPlanView(raw: string | null): RoomPlanView {
-  return raw === "tag" ? "tag" : "woche";
-}
+export type { RoomPlanView } from "./room-plan-navigation";
 
 /** Die angezeigten Tage: ein Betreuungstag oder dessen Woche. */
 function useRoomPlanDays(view: RoomPlanView, anchorISO: string) {
@@ -62,7 +57,6 @@ function useRoomPlanDays(view: RoomPlanView, anchorISO: string) {
     return { dayISO, days, weekendOpen };
   }, [dayISO, view, weekendOpen]);
 }
-
 /** SWR-Schlüssel der Blöcke eines Raums im angezeigten Zeitraum. */
 function roomPlanKey(roomId: string, from: string, to: string): string {
   return `room-plan-${roomId}-${from}-${to}`;
@@ -143,7 +137,6 @@ export function RoomPlanControls({
     </PlanningContextBar>
   );
 }
-
 interface RoomPlanTabProps {
   readonly roomId: string;
   readonly view: RoomPlanView;
@@ -285,20 +278,4 @@ function RoomPlanBlockRow({
       ) : null}
     </li>
   );
-}
-
-/** Pfad in den Betreuungsplan mit Raumfilter, Tag und Ansicht. */
-export function useRoomPlanHref(
-  roomId: string,
-  view: RoomPlanView,
-  anchorISO: string,
-  canManageSchedules: boolean,
-): string {
-  const tenantPath = useTenantAwarePath();
-  const query = new URLSearchParams({ room: roomId, d: anchorISO });
-  if (view === "tag") query.set("view", "tag");
-  // Planende ändern im Betreuungsplan; alle anderen sehen ihn im Kalender
-  // (Leseansicht, #2283), der die Plan-Parameter in den Reiter übernimmt.
-  const base = canManageSchedules ? "/betreuungsplan" : "/calendar";
-  return tenantPath(`${base}?${query.toString()}`);
 }

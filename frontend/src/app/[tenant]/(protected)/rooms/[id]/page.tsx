@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import dynamic from "next/dynamic";
 import {
   useParams,
   usePathname,
@@ -32,12 +33,13 @@ import {
 import { RoomStammdatenTab } from "~/components/rooms/room-stammdaten-tab";
 import {
   parseRoomPlanView,
-  RoomPlanControls,
-  RoomPlanTab,
   useRoomPlanHref,
   type RoomPlanView,
-} from "~/components/rooms/room-plan-tab";
-import { PlanExportModal } from "~/components/planning/plan-export-modal";
+} from "~/components/rooms/room-plan-navigation";
+import {
+  RoomPlanControls,
+  RoomPlanTab,
+} from "~/components/rooms/room-plan-lazy";
 import { roomsConfig } from "~/components/database/configs/rooms.config";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { roomService } from "~/lib/api";
@@ -59,6 +61,14 @@ import { usePresenceMode } from "~/lib/tenant-context";
 import { resolveDetailReferrer, useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoomDetailLoadingPage } from "./page-skeleton";
+
+// Der Druckdialog wird erst über das Aktionsmenü geöffnet. Sein Kalender und
+// Exportablauf gehören deshalb nicht in das initiale Bundle der Raumseite.
+const PlanExportModal = dynamic(() =>
+  import("~/components/planning/plan-export-modal").then(
+    (mod) => mod.PlanExportModal,
+  ),
+);
 
 const logger = createLogger({ component: "RoomDetailPage" });
 

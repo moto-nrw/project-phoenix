@@ -112,15 +112,7 @@ vi.mock("~/components/rooms/room-stammdaten-tab", () => ({
 
 // Der Reiter „Plan“ (#4768) hat seine eigenen Tests (room-plan-tab.test.tsx);
 // hier zählt, wann die Seite ihn zeigt und was sie ihm übergibt.
-vi.mock("~/components/rooms/room-plan-tab", () => ({
-  parseRoomPlanView: (raw: string | null) => (raw === "tag" ? "tag" : "woche"),
-  useRoomPlanHref: (
-    roomId: string,
-    view: string,
-    day: string,
-    canManage: boolean,
-  ) =>
-    `${canManage ? "/betreuungsplan" : "/calendar"}?room=${roomId}&d=${day}&view=${view}`,
+vi.mock("~/components/rooms/room-plan-lazy", () => ({
   RoomPlanControls: ({
     planHref,
     planLinkLabel,
@@ -153,6 +145,17 @@ vi.mock("~/components/rooms/room-plan-tab", () => ({
       data-day={anchorISO}
     />
   ),
+}));
+
+vi.mock("~/components/rooms/room-plan-navigation", () => ({
+  parseRoomPlanView: (raw: string | null) => (raw === "tag" ? "tag" : "woche"),
+  useRoomPlanHref: (
+    roomId: string,
+    view: string,
+    day: string,
+    canManage: boolean,
+  ) =>
+    `${canManage ? "/betreuungsplan" : "/calendar"}?room=${roomId}&d=${day}&view=${view}`,
 }));
 
 vi.mock("~/components/planning/plan-export-modal", () => ({
@@ -514,14 +517,14 @@ describe("RoomDetailPage", () => {
     expect(screen.queryByRole("tab", { name: "Plan" })).not.toBeInTheDocument();
   });
 
-  it("opens the room's plan from a deep link and links to the read-only plan", () => {
+  it("opens the room's plan from a deep link and links to the read-only plan", async () => {
     mockSession(["rooms:read", "schedules:read"]);
     searchParams.set("tab", "plan");
     searchParams.set("d", "2026-09-09");
     searchParams.set("view", "tag");
     render(<RoomDetailPage />);
 
-    const plan = screen.getByTestId("room-plan");
+    const plan = await screen.findByTestId("room-plan");
     expect(plan).toHaveAttribute("data-room", "7");
     expect(plan).toHaveAttribute("data-view", "tag");
     expect(plan).toHaveAttribute("data-day", "2026-09-09");
@@ -568,26 +571,26 @@ describe("RoomDetailPage", () => {
     });
   });
 
-  it("prints the room's plan filtered to the room", () => {
+  it("prints the room's plan filtered to the room", async () => {
     mockSession(["rooms:read", "schedules:read", "users:read"]);
     searchParams.set("tab", "plan");
     render(<RoomDetailPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Raumplan drucken" }));
-    const exportDialog = screen.getByTestId("plan-export");
+    const exportDialog = await screen.findByTestId("plan-export");
     expect(exportDialog).toHaveAttribute("data-room", "7");
     expect(exportDialog).toHaveAttribute("data-week", "true");
     expect(exportDialog).toHaveTextContent("Raum „Gruppenraum Sonne“");
   });
 
-  it("shows the plan beside the room information in binary presence mode", () => {
+  it("shows the plan beside the room information in binary presence mode", async () => {
     presenceModeState.mode = "binary";
     mockSession(["rooms:read", "schedules:read"]);
     render(<RoomDetailPage />);
 
     expect(screen.getByTestId("room-overview")).toBeInTheDocument();
-    expect(screen.getByTestId("room-plan")).toBeInTheDocument();
+    expect(await screen.findByTestId("room-plan")).toBeInTheDocument();
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 });
