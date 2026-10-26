@@ -202,8 +202,9 @@ export async function performStartStaffPreview(
 }
 
 /**
- * Full end sequence: restore the admin session, then record the end for the
- * audit trail (best effort — the preview token simply expires either way).
+ * Full end sequence: record the end for the audit trail (best effort), then
+ * restore the admin session. The session swap can make PersonalStorageGuard
+ * navigate immediately, so the audit request must settle before that swap.
  *
  * The preview token travels with that call as proof of which preview is being
  * closed: the backend reads the previewed person from the signed token, so no
@@ -225,6 +226,9 @@ export async function performEndStaffPreview(
   swrMutate: SwrMutateAll,
 ): Promise<void> {
   const tokenAtEnd = previewToken;
+  if (tokenAtEnd) {
+    await postPreviewEnd(tokenAtEnd);
+  }
   let restoreError: unknown = null;
   try {
     const result = await update({ previewEnd: true });
@@ -235,9 +239,6 @@ export async function performEndStaffPreview(
     restoreError = err;
   }
   clearSessionCache();
-  if (tokenAtEnd) {
-    await postPreviewEnd(tokenAtEnd);
-  }
   if (restoreError) {
     logger.error("staff_preview_restore_failed", {
       error:
