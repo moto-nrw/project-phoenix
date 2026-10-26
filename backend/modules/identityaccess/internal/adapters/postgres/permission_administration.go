@@ -249,17 +249,3 @@ func (s *Store) DeletePermissionAssignments(ctx context.Context, permissionID in
 	}
 	return nil
 }
-
-func (s *Store) DeletePermissionGrants(ctx context.Context, permissionID int64) error {
-	db, err := s.database(ctx)
-	if err != nil {
-		return err
-	}
-	query := db.NewDelete().TableExpr("auth.account_permissions AS account_permission").Where("account_permission.permission_id = ?", permissionID)
-	query = scopeTenantQuery(s.scope(ctx), query, "account_permission.tenant_id = ?")
-	_, err = query.Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("delete by permission ID: %w", err)
-	}
-	return nil
-}

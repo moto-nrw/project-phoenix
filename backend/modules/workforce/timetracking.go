@@ -175,10 +175,31 @@ type WorkWeekSummary struct {
 	IsOverWeeklyMax bool `json:"is_over_weekly_max"`
 }
 
-// HistoryResponse is the session history of a range with its weekly sums.
+// WorkDayLaborHint is the ArbZG view of one workday (#4804): every block
+// checked in on that Berlin day, evaluated together. The flags are hints and
+// block nothing. A running break is never judged as too short. While the day
+// runs and no break does, the *At instants name when a hint starts if work
+// simply continues, so a live clock needs no thresholds of its own.
+type WorkDayLaborHint struct {
+	Date                         string     `json:"date"`
+	NetMinutes                   int        `json:"net_minutes"`
+	BreakMinutes                 int        `json:"break_minutes"`
+	CountedBreakMinutes          int        `json:"counted_break_minutes"`
+	RequiredBreakMinutes         int        `json:"required_break_minutes"`
+	IsBreakTooShort              bool       `json:"is_break_too_short"`
+	IsOverDailyMax               bool       `json:"is_over_daily_max"`
+	IsRunning                    bool       `json:"is_running"`
+	OverDailyMaxAt               *time.Time `json:"over_daily_max_at"`
+	BreakTooShortAt              *time.Time `json:"break_too_short_at"`
+	BreakTooShortRequiredMinutes int        `json:"break_too_short_required_minutes"`
+}
+
+// HistoryResponse is the session history of a range with its weekly sums and
+// the ArbZG hints per workday.
 type HistoryResponse struct {
 	Sessions        []*SessionResponse `json:"sessions"`
 	WeeklySummaries []WorkWeekSummary  `json:"weekly_summaries"`
+	LaborDays       []WorkDayLaborHint `json:"labor_days"`
 }
 
 // WorkSessionEdit is one audit row of a session edit.

@@ -15,18 +15,9 @@ const targetOnlyRulesEpoch = 47
 const domainProjectionRulesEpoch = 91
 
 // privateRoles are the roles no other owner may import (ADR 0057 point 1).
-// legacy-model is the role of the retained models/* ORM packages (point 4).
 var privateRoles = map[string]bool{
 	"application": true, "domain": true, "adapter": true, "postgres": true, "cli": true,
-	legacyModelRole: true,
 }
-
-// legacyModelRole classifies the retained models/* packages until their
-// owners dissolve them. Only the owning owner may reach it.
-const legacyModelRole = "legacy-model"
-
-// legacyModelPath is the tree whose packages carry legacyModelRole.
-const legacyModelPath = "models"
 
 // platformForbiddenTargetKinds are the owner kinds a platform may not import
 // (ADR 0057 point 1, ADR 0058 point 2).
@@ -110,22 +101,6 @@ func validateTargetOnlyRule(rule Rule, owners map[string]Owner) error {
 			if source.Kind == "platform" && platformForbiddenTargetKinds[target.Kind] {
 				return fmt.Errorf("rule %q lets platform %s import %s owner %s: a platform depends on platforms and the shared kernel only (ADR 0057, ADR 0058)", rule.ID, source.ID, target.Kind, target.ID)
 			}
-		}
-	}
-	return nil
-}
-
-// validateLegacyModelPackages pins legacyModelRole to the models tree: a
-// models package is a legacy model unless it is test support, and no other
-// package may hide behind the role (ADR 0057 point 4).
-func (p *Policy) validateLegacyModelPackages() error {
-	for _, pkg := range p.Packages {
-		inTree := pkg.Path == legacyModelPath || strings.HasPrefix(pkg.Path, legacyModelPath+"/")
-		switch {
-		case inTree && pkg.Role != legacyModelRole && pkg.Role != "test-support":
-			return fmt.Errorf("package %q must have role %q or %q (ADR 0057)", pkg.Path, legacyModelRole, "test-support")
-		case !inTree && pkg.Role == legacyModelRole:
-			return fmt.Errorf("package %q is outside %s/ and may not have role %q (ADR 0057)", pkg.Path, legacyModelPath, legacyModelRole)
 		}
 	}
 	return nil

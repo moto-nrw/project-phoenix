@@ -13,6 +13,7 @@ var RestatedSettingKeys = []string{
 	settingRemindersPickupOverdueEnabled,
 	settingRemindersActivityStartEnabled,
 	settingRemindersActivityOverdueEnabled,
+	settingRemindersActivityRunningOverEnabled,
 	settingParentNotesEnabled,
 	settingStaffMessagingEnabled,
 	settingCalendarAppointmentReminder,

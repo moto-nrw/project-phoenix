@@ -2830,11 +2830,27 @@
         "supply_active": "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim."
       },
       "parent_billing": {
+        "bank_account_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "benefits_exemption_unavailable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "billing_correction_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "billing_family_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "billing_letter_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "billing_letters_exist": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "billing_letters_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "billing_run_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "billing_run_empty": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "billing_run_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "billing_run_not_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "billing_run_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "billing_run_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "contribution_rule_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "contribution_rule_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "contribution_rule_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "holiday_quote_invalid": "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen."
+        "holiday_quote_invalid": "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
+        "invoice_number_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "letterhead_too_long": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "number_range_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "number_range_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

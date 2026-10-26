@@ -212,6 +212,7 @@ type AbsenceTypeChange struct {
 type AbsenceQuery interface {
 	AbsenceTypeQuery
 	AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (AbsenceTypeAllowanceSummary, error)
+	OwnAbsenceAllowances
 	FindStaffAbsence(context.Context, int64) (StaffAbsence, error)
 	ListStaffAbsences(context.Context, StaffAbsenceFilter) ([]StaffAbsence, error)
 	CountStaffAbsences(context.Context, StaffAbsenceFilter) (int, error)
@@ -292,6 +293,20 @@ type AbsenceTypeAllowanceSummary struct {
 	BookingDays float64
 	// CarriedIn is the previous year's rest still usable in this year.
 	CarriedIn *AbsenceTypeAllowanceCarry
+}
+
+// AbsenceTypeAllowanceAccount is one active school-defined type with an
+// allowance and the staff member's yearly account for it.
+type AbsenceTypeAllowanceAccount struct {
+	AbsenceType StaffAbsenceType
+	Summary     AbsenceTypeAllowanceSummary
+}
+
+// OwnAbsenceAllowances is the staff member's read-only view of their own
+// allowances (#4971): every active type with an allowance, with the numbers
+// the Leitung sees for the same person. No type yields an empty list.
+type OwnAbsenceAllowances interface {
+	AllowanceAccounts(ctx context.Context, staffID int64, year int) ([]AbsenceTypeAllowanceAccount, error)
 }
 
 // AbsenceTypeAllowanceCarry is the previous year's account as seen from the

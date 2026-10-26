@@ -159,6 +159,7 @@ func (rs *Resource) enrichStudentDetailForToday(ctx context.Context, response *S
 			)
 		} else {
 			applyActualTimesFromAttendance(&response.StudentResponse, attendanceStatus)
+			applyAttendanceActorsToDetail(response, attendanceStatus)
 		}
 		attendances[student.ID] = attendanceStatus
 	}

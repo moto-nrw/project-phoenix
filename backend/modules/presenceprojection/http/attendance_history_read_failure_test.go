@@ -29,6 +29,16 @@ func (s *failedHistoryVisits) GetVisitsByStudentAndTimeRange(context.Context, in
 	return nil, errors.New("private visit history read failure")
 }
 
+type failedHistoryAttendanceRecorders struct {
+	studentpresence.StudentHistory
+	reads int
+}
+
+func (s *failedHistoryAttendanceRecorders) AttendanceRecorders(context.Context, []*studentpresence.Attendance) (studentpresence.AttendanceRecorders, error) {
+	s.reads++
+	return studentpresence.AttendanceRecorders{}, errors.New("private attendance staff names read failure")
+}
+
 func TestAttendanceHistoryRejectsFailedVisitReadAndCanRetry(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
@@ -53,6 +63,37 @@ func TestAttendanceHistoryRejectsFailedVisitReadAndCanRetry(t *testing.T) {
 	response = authExec(t, tc, request(), testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 	assert.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	assert.Contains(t, response.Body.String(), `"room_detail_available":true`)
+}
+
+func TestAttendanceHistoryAndExportContinueWhenActorNamesAreUnavailable(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+	enableAttendanceLog(t, tc)
+	student := testpkg.CreateTestStudent(t, tc.db, "History", "Actor Failure", "3a")
+	staff := testpkg.CreateTestStaff(t, tc.db, "History", "Staff")
+	device := testpkg.CreateTestDevice(t, tc.db, "history-actor-failure")
+	account := testpkg.CreateTestAccount(t, tc.db, "history-actor-failure-reader")
+	testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, calendar.Today().Add(8*time.Hour), nil)
+
+	original := tc.resource.StudentHistoryService
+	fault := &failedHistoryAttendanceRecorders{StudentHistory: original}
+	tc.resource.StudentHistoryService = fault
+	claims := testutil.AdminTestClaims(int(account.ID))
+	perms := []string{"admin:*"}
+
+	history := authExec(t, tc, testutil.NewRequest(http.MethodGet, fmt.Sprintf("/%d/attendance-history", student.ID), nil), claims, perms)
+	assert.Equal(t, http.StatusOK, history.Code, history.Body.String())
+	assert.Contains(t, history.Body.String(), `"check_in_time"`)
+	assert.NotContains(t, history.Body.String(), `"checked_in_actor"`)
+	assert.NotContains(t, history.Body.String(), `"checked_out_actor"`)
+	assert.NotContains(t, history.Body.String(), `"former_staff"`)
+
+	export := authExec(t, tc, testutil.NewRequest(http.MethodGet, fmt.Sprintf("/%d/attendance-history/export?format=xlsx", student.ID), nil), claims, perms)
+	assert.Equal(t, http.StatusOK, export.Code, export.Body.String())
+	assert.NotEmpty(t, export.Body.Bytes())
+	assert.Contains(t, export.Header().Get("Content-Type"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	assert.Equal(t, 2, fault.reads)
 }
 
 type failedHistorySettings struct {

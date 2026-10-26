@@ -187,25 +187,6 @@ func (s *Store) RemoveAccountRole(ctx context.Context, accountID, roleID, tenant
 	return stats, nil
 }
 
-func (s *Store) DeleteAccountPermissionsAtTenant(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	started := time.Now()
-	result, err := db.NewDelete().
-		TableExpr(`auth.account_permissions AS "account_permission"`).
-		Where(`"account_permission".account_id = ?`, accountID).
-		Where(`"account_permission".tenant_id = ?`, tenantID).
-		Exec(ctx)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
-	if err != nil {
-		return stats, fmt.Errorf("identity access postgres: delete account permissions at tenant: %w", err)
-	}
-	stats.Rows, _ = result.RowsAffected()
-	return stats, nil
-}
-
 type roleFactRow struct {
 	ID           int64   `bun:"id"`
 	Name         string  `bun:"name"`

@@ -32,6 +32,10 @@ type Resource struct {
 	// Calendar backs GET /holidays and GET /closing-days — the tenant's public
 	// holidays (#1418 3a) and closure periods (#1418 3b) for calendar marking.
 	Calendar workforce.PlanningCalendar
+	// allowances backs GET /absence-allowances — the staff member's own
+	// Kontingente of the school's absence types (#4971).
+	allowances         workforce.OwnAbsenceAllowances
+	allowanceResponses AllowanceResponses
 	// accountStartDate resolves the tenant's time-account start day ("" when
 	// unset) for GET /config; nil means the setting is not wired.
 	accountStartDate func(context.Context) (string, error)
@@ -50,6 +54,9 @@ type Dependencies struct {
 	StaffShifts   workforce.OwnShiftQuery
 	Assignments   workforce.StaffAssignmentQuery
 	Calendar      workforce.PlanningCalendar
+	Allowances    workforce.OwnAbsenceAllowances
+	// AllowanceResponses is required with Allowances.
+	AllowanceResponses AllowanceResponses
 	// AccountStartDate resolves the tenant's time-account start day; nil
 	// renders an empty start date.
 	AccountStartDate func(context.Context) (string, error)
@@ -63,8 +70,8 @@ func NewResource(deps Dependencies) *Resource {
 	if deps.StaffShifts != nil && deps.ShiftResponses == nil {
 		panic("time tracking resource: shift responses are required with staff shifts")
 	}
-	if deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.AbsenceWrites == nil || deps.Staff == nil || deps.Identity == nil || deps.WithinTenant == nil {
-		panic("time tracking resource: work sessions, absences, absence writes, staff directory, identity and tenant runtime are required")
+	if deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.AbsenceWrites == nil || deps.Staff == nil || deps.Allowances == nil || deps.AllowanceResponses == nil || deps.Identity == nil || deps.WithinTenant == nil {
+		panic("time tracking resource: work sessions, absences, absence writes, staff directory, allowances with their responses, identity and tenant runtime are required")
 	}
 	return &Resource{
 		WorkSessionService:     deps.WorkSessions,
@@ -75,6 +82,8 @@ func NewResource(deps Dependencies) *Resource {
 		StaffAssignmentService: deps.Assignments,
 		WorkTimeMonthService:   deps.WorkTimeMonth,
 		Calendar:               deps.Calendar,
+		allowances:             deps.Allowances,
+		allowanceResponses:     deps.AllowanceResponses,
 		accountStartDate:       deps.AccountStartDate,
 		identity:               deps.Identity,
 		withinTenant:           deps.WithinTenant,

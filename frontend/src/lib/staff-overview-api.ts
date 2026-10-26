@@ -50,6 +50,8 @@ export interface BackendTimeTrackingOverviewRow {
   /** Frozen closing balance for an actively closed month, live otherwise. */
   balance_minutes: number;
   remaining_vacation_days: number;
+  /** Tage im Monat mit Hinweis zu Pause oder Tageslimit (#4804). */
+  labor_hint_days?: number;
 }
 
 export interface BackendTimeTrackingOverview {
@@ -85,6 +87,8 @@ export interface TimeAccountRow {
   istMinutes: number;
   balanceMinutes: number;
   remainingVacationDays: number;
+  /** Tage im Monat mit Hinweis zu Pause oder Tageslimit (#4804). */
+  laborHintDays: number;
 }
 
 export interface TimeAccountOverview {
@@ -123,6 +127,7 @@ export function mapTimeAccountRow(
     istMinutes: data.ist_minutes,
     balanceMinutes: data.balance_minutes,
     remainingVacationDays: data.remaining_vacation_days,
+    laborHintDays: data.labor_hint_days ?? 0,
   };
 }
 

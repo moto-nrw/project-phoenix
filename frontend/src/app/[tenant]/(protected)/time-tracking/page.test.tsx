@@ -471,11 +471,13 @@ async function expectInDialog(text: string) {
   ).toBeInTheDocument();
 }
 import { timeTrackingService } from "~/lib/time-tracking-api";
-import type {
-  MonthSummary,
-  WorkSession,
-  WorkSessionHistory,
-  StaffAbsence,
+import {
+  OPEN_MONTH_REFRESH_MS,
+  type MonthSummary,
+  type WorkSession,
+  type WorkDayLaborHint,
+  type WorkSessionHistory,
+  type StaffAbsence,
 } from "~/lib/time-tracking-helpers";
 
 // ─── Test Data ──────────────────────────────────────────────────────────────
@@ -522,6 +524,24 @@ const mockHistorySession: WorkSessionHistory = {
   breaks: [],
   editCount: 0,
 };
+
+// ArbZG-Sicht eines Tags, wie sie der Server liefert (#4804).
+function makeLaborDay(overrides?: Partial<WorkDayLaborHint>): WorkDayLaborHint {
+  return {
+    date: weekdayISO,
+    netMinutes: 480,
+    breakMinutes: 30,
+    countedBreakMinutes: 30,
+    requiredBreakMinutes: 30,
+    isBreakTooShort: false,
+    isOverDailyMax: false,
+    isRunning: false,
+    overDailyMaxAt: null,
+    breakTooShortAt: null,
+    breakTooShortRequiredMinutes: 0,
+    ...overrides,
+  };
+}
 
 const mockHistorySessionWithEdits: WorkSessionHistory = {
   ...mockHistorySession,
@@ -639,6 +659,7 @@ function setupDefaultMocks(overrides?: {
   metricsError?: unknown;
   scheduleTargets?: ReadonlyMap<string, number>;
   monthSummary?: MonthSummary;
+  laborDays?: WorkDayLaborHint[];
 }) {
   vi.mocked(useSession).mockReturnValue({
     data: { user: { id: "1", token: "test-token" } },
@@ -656,6 +677,7 @@ function setupDefaultMocks(overrides?: {
   const scheduleTargets =
     overrides?.scheduleTargets ?? new Map<string, number>();
   const monthSummary = overrides?.monthSummary;
+  const laborDays = overrides?.laborDays ?? [];
 
   vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
     if (key === null) {
@@ -677,7 +699,7 @@ function setupDefaultMocks(overrides?: {
       } as never;
     } else if (key?.startsWith("time-tracking-history")) {
       return {
-        data: { sessions: history, weeklySummaries: [] },
+        data: { sessions: history, weeklySummaries: [], laborDays },
         isLoading: historyLoading,
         mutate: mockMutate,
         isValidating: false,
@@ -721,7 +743,7 @@ function setupDefaultMocks(overrides?: {
       } as never;
     } else if (key?.startsWith("time-tracking-table-")) {
       return {
-        data: { sessions: history, weeklySummaries: [] },
+        data: { sessions: history, weeklySummaries: [], laborDays },
         isLoading: historyLoading,
         mutate: mockMutate,
         isValidating: false,
@@ -1077,6 +1099,90 @@ describe("TimeTrackingPage", () => {
   // ── Active Session (Checked in) ─────────────────────────────────────────
 
   describe("active session - checked in", () => {
+    it("aktualisiert Historie und Tabelle während eines offenen Arbeitsblocks", () => {
+      setupDefaultMocks({ currentSession: mockActiveSession });
+      render(<TimeTrackingPage />);
+
+      const refreshOptionsFor = (matches: (key: string) => boolean) =>
+        vi
+          .mocked(useSWRAuth)
+          .mock.calls.filter(([key]) => typeof key === "string" && matches(key))
+          ?.at(-1)?.[2];
+
+      expect(
+        refreshOptionsFor((key) => key.startsWith("time-tracking-history-")),
+      ).toMatchObject({
+        refreshInterval: OPEN_MONTH_REFRESH_MS,
+      });
+      expect(
+        refreshOptionsFor((key) =>
+          /^time-tracking-table-\d{4}-\d{2}-\d{2}-\d{4}-\d{2}-\d{2}$/.test(key),
+        ),
+      ).toMatchObject({
+        refreshInterval: OPEN_MONTH_REFRESH_MS,
+      });
+    });
+
+    // #4804: the clock shows the server's hints for the running workday and
+    // switches at the instants the server named, without thresholds of its own.
+    it("shows the 10-hour hint once the server's instant has passed", () => {
+      setupDefaultMocks({
+        currentSession: mockActiveSession,
+        laborDays: [
+          makeLaborDay({
+            date: todayISO,
+            netMinutes: 240,
+            isRunning: true,
+            overDailyMaxAt: new Date(Date.now() - 60_000).toISOString(),
+          }),
+        ],
+      });
+      render(<TimeTrackingPage />);
+      expect(
+        screen.getByText("Mehr als 10 Std. gearbeitet"),
+      ).toBeInTheDocument();
+    });
+
+    it("shows no 10-hour hint before the server's instant", () => {
+      setupDefaultMocks({
+        currentSession: mockActiveSession,
+        laborDays: [
+          makeLaborDay({
+            date: todayISO,
+            netMinutes: 240,
+            isRunning: true,
+            overDailyMaxAt: new Date(Date.now() + 60_000).toISOString(),
+          }),
+        ],
+      });
+      render(<TimeTrackingPage />);
+      expect(screen.getByLabelText("Ausstempeln")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Mehr als 10 Std. gearbeitet"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("names the break the running day now needs", () => {
+      setupDefaultMocks({
+        currentSession: mockActiveSession,
+        laborDays: [
+          makeLaborDay({
+            date: todayISO,
+            netMinutes: 359,
+            countedBreakMinutes: 0,
+            requiredBreakMinutes: 0,
+            isRunning: true,
+            breakTooShortAt: new Date(Date.now() - 1_000).toISOString(),
+            breakTooShortRequiredMinutes: 30,
+          }),
+        ],
+      });
+      render(<TimeTrackingPage />);
+      expect(
+        screen.getByText("Pause zu kurz: 30 Min. nötig, 0 Min. gemacht"),
+      ).toBeInTheDocument();
+    });
+
     it("shows Ausstempeln button when checked in", () => {
       setupDefaultMocks({ currentSession: mockActiveSession });
       render(<TimeTrackingPage />);
@@ -2849,13 +2955,14 @@ describe("TimeTrackingPage", () => {
 
     async function openEditModal(
       pastSession: WorkSessionHistory,
-      moreSetup?: { absences?: StaffAbsence[] },
+      moreSetup?: { absences?: StaffAbsence[]; laborDays?: WorkDayLaborHint[] },
     ) {
       // No active currentSession => canEdit = isToday && !isActive is true
       setupDefaultMocks({
         currentSession: null,
         history: [pastSession],
         absences: moreSetup?.absences,
+        laborDays: moreSetup?.laborDays,
       });
       vi.mocked(timeTrackingService.updateSession).mockResolvedValue(
         mockCheckedOutSession,
@@ -2963,51 +3070,25 @@ describe("TimeTrackingPage", () => {
       expect(statusSelect).toHaveTextContent("Unterwegs");
     });
 
-    it("shows compliance warning when work > 10h", async () => {
-      await openEditModal(makePastSession({ breaks: [] }));
-      const startInput = screen.getByLabelText("Start");
-      const endInput = screen.getByLabelText("Ende");
-      // Set break to 0 first
-      const breakSelect = screen.getByLabelText("Pause (Min)");
-      chooseSelectOption(breakSelect, "0 min");
-      fireEvent.change(startInput, { target: { value: "06:00" } });
-      fireEvent.change(endInput, { target: { value: "17:00" } });
-      // 11h work, > 10h
-      await waitFor(() => {
-        expect(screen.getByText(/Arbeitszeit > 10h/)).toBeInTheDocument();
+    // #4804: the dialog shows the server's verdict on the saved day instead
+    // of applying thresholds of its own to the edited times.
+    it("shows the server's hints for the saved day", async () => {
+      await openEditModal(makePastSession(), {
+        laborDays: [
+          makeLaborDay({
+            netMinutes: 615,
+            countedBreakMinutes: 15,
+            requiredBreakMinutes: 45,
+            isBreakTooShort: true,
+            isOverDailyMax: true,
+          }),
+        ],
       });
-    });
-
-    it("shows compliance warning when break < 30min for > 6h work", async () => {
-      await openEditModal(makePastSession({ breaks: [], breakMinutes: 0 }));
-      const startInput = screen.getByLabelText("Start");
-      const endInput = screen.getByLabelText("Ende");
-      const breakSelect = screen.getByLabelText("Pause (Min)");
-      chooseSelectOption(breakSelect, "15 min");
-      fireEvent.change(startInput, { target: { value: "08:00" } });
-      fireEvent.change(endInput, { target: { value: "15:30" } });
-      // 7.5h gross - 15min break = 7h15m net > 6h, break < 30
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Pausenzeit < 30 Min bei > 6h/),
-        ).toBeInTheDocument();
-      });
-    });
-
-    it("shows compliance warning when break < 45min for > 9h work", async () => {
-      await openEditModal(makePastSession({ breaks: [], breakMinutes: 0 }));
-      const startInput = screen.getByLabelText("Start");
-      const endInput = screen.getByLabelText("Ende");
-      const breakSelect = screen.getByLabelText("Pause (Min)");
-      chooseSelectOption(breakSelect, "30 min");
-      fireEvent.change(startInput, { target: { value: "06:00" } });
-      fireEvent.change(endInput, { target: { value: "16:30" } });
-      // 10.5h gross - 30min = 10h net > 9h, break 30 < 45
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Pausenzeit < 45 Min bei > 9h/),
-        ).toBeInTheDocument();
-      });
+      await expectInDialog("Pause zu kurz: 45 Min. nötig, 15 Min. gemacht");
+      await expectInDialog("Mehr als 10 Std. gearbeitet");
+      await expectInDialog(
+        "So ist der Tag bisher gespeichert. Nach dem Speichern wird er neu geprüft.",
+      );
     });
 
     it("save button is disabled when notes are empty", async () => {
@@ -3368,17 +3449,21 @@ describe("TimeTrackingPage", () => {
       });
     });
 
-    it("shows no compliance warnings when work is under 6h", async () => {
-      await openEditModal(makePastSession({ breaks: [] }));
+    it("applies no thresholds of its own to the edited times", async () => {
+      await openEditModal(makePastSession({ breaks: [] }), {
+        laborDays: [makeLaborDay()],
+      });
       const startInput = screen.getByLabelText("Start");
       const endInput = screen.getByLabelText("Ende");
       const breakSelect = screen.getByLabelText("Pause (Min)");
       chooseSelectOption(breakSelect, "0 min");
-      fireEvent.change(startInput, { target: { value: "08:00" } });
-      fireEvent.change(endInput, { target: { value: "13:00" } });
-      // 5h work, no warnings expected
-      expect(screen.queryByText(/Arbeitszeit > 10h/)).not.toBeInTheDocument();
-      expect(screen.queryByText(/Pausenzeit < 30 Min/)).not.toBeInTheDocument();
+      fireEvent.change(startInput, { target: { value: "06:00" } });
+      fireEvent.change(endInput, { target: { value: "17:00" } });
+      // 11 h without a break, but the saved day carries no hint.
+      const dialog = within(screen.getByTestId("modal"));
+      expect(dialog.getByLabelText("Ende")).toHaveValue("17:00");
+      expect(dialog.queryByText(/Pause zu kurz/)).not.toBeInTheDocument();
+      expect(dialog.queryByText(/Mehr als 10 Std/)).not.toBeInTheDocument();
     });
 
     it("shows absence note textarea in absence tab", async () => {

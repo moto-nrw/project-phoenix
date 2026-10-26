@@ -79,56 +79,6 @@ func splitRoleNames(aggregated string) []string {
 	return names
 }
 
-type permissionGrantRow struct {
-	ID           int64 `bun:"id"`
-	PermissionID int64 `bun:"permission_id"`
-	Granted      bool  `bun:"granted"`
-}
-
-func (s *Store) ListAccountPermissionGrants(ctx context.Context, accountID, tenantID int64) ([]domain.PermissionGrant, domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return nil, domain.OperationStats{}, err
-	}
-	var rows []permissionGrantRow
-	started := time.Now()
-	err = db.NewSelect().
-		TableExpr(`auth.account_permissions AS "account_permission"`).
-		ColumnExpr(`"account_permission".id, "account_permission".permission_id, "account_permission".granted`).
-		Where(`"account_permission".account_id = ?`, accountID).
-		Where(`"account_permission".tenant_id = ?`, tenantID).
-		OrderExpr(`"account_permission".id ASC`).
-		Scan(ctx, &rows)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
-	if err != nil {
-		return nil, stats, fmt.Errorf("identity access postgres: list account permission grants: %w", err)
-	}
-	grants := make([]domain.PermissionGrant, 0, len(rows))
-	for _, row := range rows {
-		grants = append(grants, domain.PermissionGrant(row))
-	}
-	return grants, stats, nil
-}
-
-func (s *Store) DeleteAccountPermissionGrants(ctx context.Context, accountID, tenantID int64) (int64, domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return 0, domain.OperationStats{}, err
-	}
-	started := time.Now()
-	result, err := db.NewDelete().
-		TableExpr(`auth.account_permissions AS "account_permission"`).
-		Where(`"account_permission".account_id = ?`, accountID).
-		Where(`"account_permission".tenant_id = ?`, tenantID).
-		Exec(ctx)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
-	if err != nil {
-		return 0, stats, fmt.Errorf("identity access postgres: delete account permission grants: %w", err)
-	}
-	stats.Rows, _ = result.RowsAffected()
-	return stats.Rows, stats, nil
-}
-
 func (s *Store) ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, domain.OperationStats, error) {
 	if len(accountIDs) == 0 {
 		return map[int64]string{}, domain.OperationStats{}, nil

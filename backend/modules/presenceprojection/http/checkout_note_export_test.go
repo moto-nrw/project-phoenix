@@ -77,12 +77,12 @@ func TestAttendanceExportRows_CarryCheckOutNote(t *testing.T) {
 	}
 	noted := checkoutNoteStay(checkIn, checkOut, "Arzttermin")
 
-	rows := attendanceExportRows([]*studentpresence.HistorySlot{slot}, []*studentpresence.Attendance{noted})
+	rows := attendanceExportRows([]*studentpresence.HistorySlot{slot}, []*studentpresence.Attendance{noted}, studentpresence.NewAttendanceRecorders(nil))
 	require.Len(t, rows, 1, "the stay is covered by its slot")
 	assert.Equal(t, "Arzttermin", rows[0].Values[attendanceColumnNote])
 
 	// A stay no slot claims carries its own note.
-	unassigned := attendanceExportRows(nil, []*studentpresence.Attendance{noted})
+	unassigned := attendanceExportRows(nil, []*studentpresence.Attendance{noted}, studentpresence.NewAttendanceRecorders(nil))
 	require.Len(t, unassigned, 1)
 	assert.Equal(t, "Arzttermin", unassigned[0].Values[attendanceColumnNote])
 

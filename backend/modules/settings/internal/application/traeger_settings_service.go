@@ -117,6 +117,39 @@ func (t *TraegerSettings) Schema(ctx context.Context, organizationID int64, righ
 	return groupSettingsSchema(t.deps.Registry, resolved), nil
 }
 
+// TraegerTexts reads the effective values of Träger-level text settings
+// of a Träger: its own value or the registry default. Documents of the
+// Träger print them (ADR 0112, #4669). It joins the caller's Träger
+// transaction; a key without a Träger level is an error.
+func (t *TraegerSettings) TraegerTexts(ctx context.Context, organizationID int64, keys []string) (map[string]string, error) {
+	definitions := t.traegerKeys()
+	for _, key := range keys {
+		if definitions[key] == nil {
+			return nil, fmt.Errorf("traeger settings: %q has no Träger level", key)
+		}
+	}
+	var stored []*config.TraegerSettingValue
+	err := t.deps.Runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
+		var findErr error
+		stored, findErr = t.deps.Values.FindByOrganization(txCtx, organizationID, keys)
+		return findErr
+	})
+	if err != nil {
+		return nil, &config.SettingsError{Op: "traeger_texts", Err: err}
+	}
+	snapshot, err := config.NewLayeredSettingsSnapshot(t.deps.Registry, 0, keys, nil, stored)
+	if err != nil {
+		return nil, err
+	}
+	texts := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if texts[key], err = snapshot.String(key); err != nil {
+			return nil, err
+		}
+	}
+	return texts, nil
+}
+
 func (t *TraegerSettings) resolve(key string, definition *config.Definition, snapshot *config.SettingsSnapshot, rights []string) (*config.ResolvedSetting, error) {
 	value, err := snapshot.Value(key)
 	if err != nil {

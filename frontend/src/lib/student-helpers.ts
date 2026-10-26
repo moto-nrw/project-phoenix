@@ -3,6 +3,10 @@
 
 import { schoolClassLabel } from "./school-class-label";
 import type { ClassHandover } from "~/lib/class-handover";
+import {
+  parseAttendanceActor,
+  type AttendanceActor,
+} from "~/lib/attendance-actor";
 import type {
   CompanionExtensionConfirmation,
   StudentCompanion,
@@ -513,6 +517,8 @@ export interface BackendStudent {
   actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
   actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
   actual_pickup_note?: string; // Why the child went home early today (#3324)
+  actual_arrival_by?: AttendanceActor | null; // Who recorded today's arrival (#4761)
+  actual_pickup_by?: AttendanceActor | null; // Who recorded today's pickup (#4761)
   has_full_access?: boolean;
   // Photo (gated by operations.student_photos_enabled). Empty string or
   // undefined when no photo / feature off / no consent — the <Avatar>
@@ -772,6 +778,8 @@ export interface Student {
   actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
   actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
   actual_pickup_note?: string; // Why the child went home early today (#3324)
+  actual_arrival_by?: AttendanceActor | null; // Who recorded today's arrival (#4761)
+  actual_pickup_by?: AttendanceActor | null; // Who recorded today's pickup (#4761)
   // Photo + consent (gated server-side by operations.student_photos_enabled
   // setting). photo_url empty/missing is the universal "no photo to show"
   // signal; consumers do NOT need to read the setting separately — when the
@@ -873,6 +881,8 @@ export function mapStudentResponse(
     actual_arrival_time: backendStudent.actual_arrival_time,
     actual_pickup_time: backendStudent.actual_pickup_time,
     actual_pickup_note: backendStudent.actual_pickup_note,
+    actual_arrival_by: parseAttendanceActor(backendStudent.actual_arrival_by),
+    actual_pickup_by: parseAttendanceActor(backendStudent.actual_pickup_by),
     has_full_access: backendStudent.has_full_access,
     photo_url: backendStudent.photo_url,
     photo_consent_given: backendStudent.photo_consent_given,

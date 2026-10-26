@@ -12,6 +12,7 @@ import (
 func TestMealCombinedRolesKeepKitchenAccess(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := t.Context()
 	school := testpkg.Tenant(t)
 	other := testpkg.UniqueTestTenantID(t)
@@ -63,6 +64,7 @@ func TestMealCombinedRolesKeepKitchenAccess(t *testing.T) {
 func TestMealCombinedRolesPreservePortalScopeAndRollBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := t.Context()
 	school := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, school)
@@ -108,6 +110,7 @@ func TestMealCombinedRolesPreservePortalScopeAndRollBack(t *testing.T) {
 func TestMealCombinedRolesRejectIncompatibleExistingRole(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := t.Context()
 	role := createRoleWith(t, db, "migration-role-collision", "config:update")
 	_, err := db.ExecContext(ctx, `UPDATE auth.roles SET name = 'meal-orders-migrated' WHERE id = ?`, role)

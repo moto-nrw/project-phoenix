@@ -246,7 +246,6 @@ const offboardedAccount int64 = 30
 
 func (f *lifecycleFixture) seedOffboarding(roles ...domain.RoleAssignment) {
 	f.seedAccount(offboardedAccount, roles...)
-	f.store.grants[mappingKey{offboardedAccount, lifecycleTenant}] = []domain.PermissionGrant{{ID: 2, PermissionID: 8, Granted: true}}
 	f.sessions.sessions[70] = domain.AccountSession{ID: 70, AccountID: offboardedAccount, TenantID: lifecycleTenant, Token: "t70", FamilyID: "f70", PortalScope: "tenant"}
 	f.sessions.nextSessionID = 70
 }
@@ -277,7 +276,6 @@ func TestStaffOffboardingSnapshotAndExecution(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, preview.ActiveMembership)
 	assert.Equal(t, []int64{101, 104}, preview.RoleIDs, "role ids are sorted for the revision")
-	assert.EqualValues(t, 1, preview.Permissions)
 	assert.EqualValues(t, 1, preview.Tokens)
 	assert.False(t, preview.PreserveGuardian)
 	assert.True(t, preview.DeactivateAccount, "the account's only school deactivates it")
@@ -291,13 +289,12 @@ func TestStaffOffboardingSnapshotAndExecution(t *testing.T) {
 	err = f.inTenantTx(t, func(ctx context.Context) error {
 		result, executeErr := f.lifecycle.ExecuteStaffOffboarding(ctx, offboardedAccount, preview.Revision)
 		require.NoError(t, executeErr)
-		assert.Equal(t, identityaccess.StaffOffboardingResult{RolesRevoked: 2, PermissionsRevoked: 1, TokensRevoked: 1, AccountDeactivated: true}, result)
+		assert.Equal(t, identityaccess.StaffOffboardingResult{RolesRevoked: 2, TokensRevoked: 1, AccountDeactivated: true}, result)
 		return nil
 	})
 	require.NoError(t, err)
 	assert.Equal(t, []int64{101, 104}, f.admin.removed)
 	assert.Equal(t, []int64{offboardedAccount}, f.admin.deactivated)
-	assert.Empty(t, f.store.grants[mappingKey{offboardedAccount, lifecycleTenant}])
 	assert.Empty(t, f.sessions.sessionsOf(offboardedAccount))
 	assert.True(t, f.store.inactive[mappingKey{offboardedAccount, lifecycleTenant}])
 
@@ -317,8 +314,7 @@ func TestStaffOffboardingRefusesAChangedSnapshot(t *testing.T) {
 
 	preview, err := f.lifecycle.PreviewStaffOffboarding(tenantContext(), offboardedAccount)
 	require.NoError(t, err)
-	f.store.grants[mappingKey{offboardedAccount, lifecycleTenant}] = append(f.store.grants[mappingKey{offboardedAccount, lifecycleTenant}],
-		domain.PermissionGrant{ID: 3, PermissionID: 9, Granted: true})
+	f.store.roles[mappingKey{offboardedAccount, lifecycleTenant}] = append(f.store.roles[mappingKey{offboardedAccount, lifecycleTenant}], domain.RoleAssignment{RoleID: 105, Name: "changed-role"})
 
 	err = f.inTenantTx(t, func(ctx context.Context) error {
 		_, executeErr := f.lifecycle.ExecuteStaffOffboarding(ctx, offboardedAccount, preview.Revision)

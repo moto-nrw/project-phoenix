@@ -14,7 +14,12 @@ func installMealOrderErasureDelete(ctx context.Context, tx bun.Tx) error {
 	return err
 }
 
-const mealOrderErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_delete(p_school_id BIGINT)
+const mealOrderErasureDeleteSQL = mealOrderErasureDeleteSQLPrefix + `   SELECT count(*) INTO v_count FROM auth.account_permissions AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM auth.account_permissions AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('auth.account_permissions', v_count);
+` + mealOrderErasureDeleteSQLSuffix
+
+const mealOrderErasureDeleteSQLPrefix = `CREATE OR REPLACE FUNCTION platform.school_erasure_delete(p_school_id BIGINT)
  RETURNS JSONB LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
  AS $body$
  DECLARE
@@ -204,10 +209,9 @@ const mealOrderErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_er
    SELECT count(*) INTO v_count FROM active.work_sessions AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.work_sessions AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.work_sessions', v_count);
-   SELECT count(*) INTO v_count FROM auth.account_permissions AS r WHERE r.tenant_id = p_school_id;
-   DELETE FROM auth.account_permissions AS r WHERE r.tenant_id = p_school_id;
-   v_counts := v_counts || jsonb_build_object('auth.account_permissions', v_count);
-   SELECT count(*) INTO v_count FROM auth.account_roles AS r WHERE r.tenant_id = p_school_id;
+`
+
+const mealOrderErasureDeleteSQLSuffix = `   SELECT count(*) INTO v_count FROM auth.account_roles AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM auth.account_roles AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('auth.account_roles', v_count);
    SELECT count(*) INTO v_count FROM auth.account_tenants AS r WHERE r.tenant_id = p_school_id;
@@ -779,3 +783,9 @@ const mealOrderErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school_er
  END $body$;
  REVOKE ALL ON FUNCTION platform.school_erasure_delete(BIGINT) FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin, phoenix_demo, phoenix_school_erasure;
 `
+
+// 1.15.646 removes only direct grants; the 1.15.605 SQL above stays unchanged.
+func installRetiredDirectPermissionsDelete(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, mealOrderErasureDeleteSQLPrefix+mealOrderErasureDeleteSQLSuffix)
+	return err
+}

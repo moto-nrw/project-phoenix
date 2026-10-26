@@ -90,6 +90,36 @@ type DocumentRenderer interface {
 
 var _ DocumentRenderer = (*renderer.RendererService)(nil)
 
+// Letters are a single document in the layout of its sender rather than
+// in the list design: letterhead, address field, body and footer (#4669).
+type (
+	// Letter is one letter.
+	Letter = records.Letter
+	// LetterFact is a label with its value, beside the address field or in
+	// a table of the body.
+	LetterFact = records.LetterFact
+	// LetterBlock is a part of the body.
+	LetterBlock = records.LetterBlock
+)
+
+// ErrLetterheadTooLong reports a letterhead or footer that leaves too
+// little room on a page for the body of the letter; the letter is not
+// rendered.
+var ErrLetterheadTooLong = records.ErrLetterheadTooLong
+
+// LetterRenderer renders a letter as a PDF. Like Renderer it neither stores
+// the file nor decides who may read it.
+type LetterRenderer interface {
+	RenderLetter(letter Letter, filenameBase string) (File, error)
+}
+
+var _ LetterRenderer = (*renderer.RendererService)(nil)
+
+// NewLetterRenderer returns the Document Rendering letter renderer.
+func NewLetterRenderer() LetterRenderer {
+	return renderer.NewService()
+}
+
 const (
 	FormatPDF  = records.FormatPDF
 	FormatDOCX = records.FormatDOCX

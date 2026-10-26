@@ -1244,6 +1244,24 @@ describe("staff-session-table.edit", () => {
     return within(row).queryByRole("button", { name: /^Aktionen für/ });
   }
 
+  // Die Tabelle ist mindestens 1040 px breit. Das Zeilenmenü steht in einer
+  // eigenen Spalte am rechten Rand, die beim Querscrollen stehen bleibt
+  // (#4975); sonst lag es auf Tablet und Handy außerhalb des Bildes.
+  it("pins the row menu in its own column to the right edge", () => {
+    renderTable({ sessions: [mondaySession] });
+
+    const row = screen.getByText("05.01.").closest("tr")!;
+    const menuCell = within(row)
+      .getByRole("button", { name: /^Aktionen für/ })
+      .closest("td");
+    expect(menuCell).toHaveClass("sticky", "right-0", "bg-white");
+    expect(menuCell).toBe(row.lastElementChild);
+    expect(screen.getByRole("columnheader", { name: "Aktionen" })).toHaveClass(
+      "sticky",
+      "right-0",
+    );
+  });
+
   // Der Stift darf auf Tagen mit Abwesenheit nicht fehlen (#2361): eine halbe
   // Krankmeldung schließt Arbeitszeit am selben Tag nicht aus, und Nachtragen
   // muss auch dort erreichbar sein.

@@ -67,23 +67,41 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 		CheckOutNote: attendance.CheckOutNote,
 	}
 
-	if attendance.CheckedInBy > 0 {
-		result.CheckedInBy = s.getStaffNameByID(ctx, attendance.CheckedInBy)
-	}
-
-	if attendance.CheckedOutBy != nil && *attendance.CheckedOutBy > 0 {
-		result.CheckedOutBy = s.getStaffNameByID(ctx, *attendance.CheckedOutBy)
+	if attendance.CheckInTime != nil {
+		s.applyAttendanceActors(ctx, result, studentpresence.Attendance{
+			CheckedInBy: attendance.CheckedInBy, CheckedOutBy: attendance.CheckedOutBy,
+			CheckedOutDeviceID: attendance.CheckedOutDeviceID, CheckOutTime: attendance.CheckOutTime,
+		})
 	}
 	return result, nil
 }
 
-// getStaffNameByID retrieves staff member's full name by ID
-func (s *service) getStaffNameByID(ctx context.Context, staffID int64) string {
-	name, err := s.StaffNames.StaffName(ctx, staffID)
-	if err != nil {
-		return ""
+// applyAttendanceActors names who recorded today's arrival and pickup (#4761).
+// A failed name read leaves the actors unset, so a caller shows no name
+// rather than a wrong one; the status itself still answers.
+func (s *service) applyAttendanceActors(ctx context.Context, result *AttendanceStatus, row studentpresence.Attendance) {
+	names := map[int64]string{}
+	if ids := studentpresence.AttendanceStaffIDs([]studentpresence.Attendance{row}); len(ids) > 0 {
+		if s.StaffNames == nil {
+			return
+		}
+		var err error
+		if names, err = s.StaffNames.StaffNames(ctx, ids); err != nil {
+			s.getLogger().Warn("failed to resolve attendance staff names",
+				"student_id", result.StudentID,
+				"error", err.Error(),
+			)
+			return
+		}
 	}
-	return name
+	recorders := studentpresence.NewAttendanceRecorders(names)
+	checkIn := recorders.CheckIn(row)
+	result.CheckedInActor = &checkIn
+	result.CheckedOutActor = recorders.CheckOut(row)
+	result.CheckedInBy = checkIn.Name
+	if result.CheckedOutActor != nil {
+		result.CheckedOutBy = result.CheckedOutActor.Name
+	}
 }
 
 // ToggleStudentAttendance toggles the attendance state (check-in or check-out)
@@ -125,10 +143,11 @@ func (s *service) toggleStudentAttendance(ctx context.Context, studentID, staffI
 	// from either should perform a checkout. Only "not_checked_in" and
 	// "checked_out" start a fresh check-in.
 	var result *AttendanceResult
+	recorderStaffID := s.attendanceRecorderStaffID(ctx, authorizedStaffID)
 	if currentStatus.Status == "not_checked_in" || currentStatus.Status == "checked_out" {
-		result, err = s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeToggle)
+		result, err = s.performCheckIn(ctx, studentID, recorderStaffID, deviceID, now, today, checkinTypeToggle)
 	} else {
-		result, err = s.performCheckOut(ctx, studentID, authorizedStaffID, deviceID, now, today, checkoutTypeToggle, "")
+		result, err = s.performCheckOut(ctx, studentID, recorderStaffID, deviceID, now, today, checkoutTypeToggle, "")
 	}
 	if err != nil {
 		return nil, err
@@ -215,7 +234,7 @@ func (s *service) checkInStudent(ctx context.Context, studentID, staffID, device
 	}
 	now := s.now()
 	today := calendar.DateFromTime(now)
-	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeWeb)
+	result, err := s.performCheckIn(ctx, studentID, s.attendanceRecorderStaffID(ctx, authorizedStaffID), deviceID, now, today, checkinTypeWeb)
 	if err != nil {
 		return nil, err
 	}
@@ -281,10 +300,11 @@ func (s *service) checkOutStudent(ctx context.Context, studentID, staffID int64,
 // when neither exists, the authenticated device remains the audit principal.
 func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error) {
 	staffID := int64(0)
-	if principal := s.attendancePrincipal(ctx); principal.HasStaff {
+	principal := s.attendancePrincipal(ctx)
+	if principal.HasStaff {
 		staffID = principal.StaffID
 	} else {
-		resolvedStaffID, err := s.getDeviceSupervisorID(ctx, deviceID)
+		_, err := s.getDeviceSupervisorID(ctx, deviceID)
 		if err != nil {
 			var unavailable *deviceSupervisorUnavailableError
 			if !errors.As(err, &unavailable) {
@@ -297,8 +317,6 @@ func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, devi
 				slog.Int64("device_id", deviceID),
 				slog.String("reason", unavailable.Error()),
 			)
-		} else {
-			staffID = resolvedStaffID
 		}
 	}
 	var result *AttendanceResult
@@ -347,6 +365,21 @@ func (s *service) authorizeIoTDeviceToggle(ctx context.Context, deviceID int64) 
 		}
 	}
 	return supervisorStaffID, nil
+}
+
+// attendanceRecorderStaffID separates a kiosk's session supervisor from the
+// actor recorded on attendance. The supervisor authorizes the device and is
+// still auto-stamped as working, but an unstaffed kiosk scan belongs to the
+// authenticated device. A confirmed staff identity remains the actor.
+func (s *service) attendanceRecorderStaffID(ctx context.Context, staffID int64) int64 {
+	principal := s.attendancePrincipal(ctx)
+	if principal.IsIoT {
+		if principal.HasStaff {
+			return principal.StaffID
+		}
+		return 0
+	}
+	return staffID
 }
 
 // performCheckIn creates a new attendance record for check-in.

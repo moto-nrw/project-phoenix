@@ -23,9 +23,16 @@ import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
   berlinTodayISO,
   endOfBerlinDayISO,
+  isoWeekNumber,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import {
+  dayLaborHints,
+  indexLaborDays,
+  weekLaborHints,
+  type LaborHint,
+} from "~/lib/labor-time-hints";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type {
@@ -43,6 +50,8 @@ import {
   toIsoDayOfWeek,
 } from "~/lib/staff-metrics-helpers";
 import type {
+  WeeklySummary,
+  WorkDayLaborHint,
   WorkSessionEdit,
   WorkSessionHistory,
 } from "~/lib/time-tracking-helpers";
@@ -62,8 +71,40 @@ import { formatSignedDuration } from "./staff-time-views";
 const logger = createLogger({ component: "StaffSessionTable" });
 
 // Number of columns in the table — the inline edit-history row spans all
-// of them. Keep in sync with the <thead> below.
+// of them. Keep in sync with the <thead> below. Plan and action columns are
+// added on top where shown.
 const COLUMN_COUNT = 12;
+
+// Die Aktionsspalte haftet am rechten Rand der Tabelle (#4975): Die Tabelle
+// ist mindestens 1040 px breit, auf Tablet und Handy lag das Menü sonst
+// außerhalb des Bildes. Die Zelle braucht einen deckenden Hintergrund, der
+// die Tönung der Zeile nachbildet; ein Verlauf in der Zeilenfarbe über Weiß
+// ergibt dieselbe Farbe wie die durchscheinende Zeile.
+type RowTint = "expanded" | "today" | "weekend" | "none" | "block";
+
+const ROW_TINT_CLASS: Record<RowTint, string> = {
+  expanded: "bg-gray-50",
+  today: "bg-moto-orange/5",
+  weekend: "bg-gray-50/60",
+  none: "",
+  block: "bg-gray-50/40",
+};
+
+const PINNED_TINT_CLASS: Record<RowTint, string> = {
+  expanded: "bg-linear-to-r from-gray-50 to-gray-50",
+  today: "bg-linear-to-r from-moto-orange/5 to-moto-orange/5",
+  weekend: "bg-linear-to-r from-gray-50/60 to-gray-50/60",
+  none: "",
+  block: "bg-linear-to-r from-gray-50/40 to-gray-50/40",
+};
+
+function pinnedCellClass(tint: RowTint): string {
+  const hover =
+    tint === "block"
+      ? ""
+      : "group-hover:from-gray-50 group-hover:to-gray-50 group-hover:bg-linear-to-r";
+  return `sticky right-0 bg-white px-3 ${tint === "block" ? "py-2" : "py-3"} ${PINNED_TINT_CLASS[tint]} ${hover}`;
+}
 
 const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
@@ -227,7 +268,8 @@ function splitSessionByBerlinDate(
 //
 // MVP Limitation tracker:
 //   - admin edit-in-place (SquarePen action column) — Tranche 1b
-//   - ArbZG warning chips - Tranche 3 (#896)
+//   - ArbZG-Hinweise (#4804): Pause zu kurz und mehr als 10 Std. je Tag,
+//     mehr als 48 Std. je Woche — vom Server bewertet, nur Hinweise
 export function StaffSessionTable({
   staffId,
   from,
@@ -252,6 +294,8 @@ export function StaffSessionTable({
   onEditDay,
   onBackfillAbsence,
   fetchEdits,
+  laborDays,
+  weeklySummaries,
 }: {
   readonly staffId: string;
   readonly from: Date;
@@ -338,6 +382,13 @@ export function StaffSessionTable({
     staffId: string,
     sessionId: string,
   ) => Promise<WorkSessionEdit[]>;
+  // ArbZG-Sicht je Arbeitstag vom Server (#4804), nach Tag des Einstempelns.
+  // Ein Nachtblock trägt seinen Hinweis deshalb am Tag, an dem er begann.
+  readonly laborDays?: readonly WorkDayLaborHint[];
+  // Wochensummen vom Server. Nur wenn gesetzt, schließt jede Woche mit einer
+  // Summenzeile ab, die mehr als 48 Std. markiert. Der Aufrufer lädt dafür
+  // ganze Kalenderwochen, auch über den Rand des sichtbaren Monats hinaus.
+  readonly weeklySummaries?: readonly WeeklySummary[];
 }) {
   // Die Segmentierung unten liest die Uhr: ein offener Block wird an ihr
   // gekappt, und ein Nachtblock bekommt sein zweites Segment erst, wenn der
@@ -396,7 +447,20 @@ export function StaffSessionTable({
     }
     return map;
   }, [plannedShifts]);
-  const columnCount = COLUMN_COUNT + (showPlan ? 1 : 0);
+  const columnCount = COLUMN_COUNT + (showPlan ? 1 : 0) + (isAdminView ? 1 : 0);
+  const laborDaysByDate = useMemo(() => indexLaborDays(laborDays), [laborDays]);
+  const weeklySummaryByKey = useMemo(
+    () =>
+      weeklySummaries
+        ? new Map(
+            weeklySummaries.map((week) => [
+              `${week.year}-${week.weekNumber}`,
+              week,
+            ]),
+          )
+        : null,
+    [weeklySummaries],
+  );
 
   // Absences arrive as date ranges; expand to a per-day lookup so each row in
   // the table can ask "is this date covered by Krank/Urlaub/etc?". Mirrors the
@@ -611,11 +675,22 @@ export function StaffSessionTable({
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3">Quelle</th>
                 <th className="px-3 py-3">Hinweis</th>
+                {isAdminView && (
+                  <th className="sticky right-0 bg-gray-50 px-3 py-3">
+                    <span className="sr-only">Aktionen</span>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {days.map((day) => {
+              {days.map((day, dayIndex) => {
                 const key = toDateKey(day);
+                const weekKey = isoWeekKey(day);
+                const nextDay = days[dayIndex + 1];
+                const weeklySummary = weeklySummaryByKey?.get(weekKey);
+                const closesWeek =
+                  weeklySummary !== undefined &&
+                  (nextDay === undefined || isoWeekKey(nextDay) !== weekKey);
                 const dow = toIsoDayOfWeek(day);
                 const daySessions = sessionsByDate.get(key) ?? [];
                 // Single-block days keep their familiar row; multi-block days
@@ -714,6 +789,13 @@ export function StaffSessionTable({
                 // nur sichtbar, wenn dort real gearbeitet oder geplant wurde,
                 // und genau die muss korrigierbar sein.
                 const isWeekend = dow >= 5;
+                const rowTint: RowTint = isExpanded
+                  ? "expanded"
+                  : isToday
+                    ? "today"
+                    : isWeekend
+                      ? "weekend"
+                      : "none";
                 const absenceIsHalfDay = absence
                   ? isHalfAbsenceBoundary(
                       absence,
@@ -755,15 +837,7 @@ export function StaffSessionTable({
                           ? `${formatShortDate(day)}: Änderungshistorie ${isExpanded ? "schließen" : "öffnen"}`
                           : undefined
                       }
-                      className={`${canExpand ? "cursor-pointer" : ""} transition-colors hover:bg-gray-50 ${
-                        isExpanded
-                          ? "bg-gray-50"
-                          : isToday
-                            ? "bg-moto-orange/5"
-                            : isWeekend
-                              ? "bg-gray-50/60"
-                              : ""
-                      } ${isFuture ? "opacity-40" : ""}`}
+                      className={`group ${canExpand ? "cursor-pointer" : ""} transition-colors hover:bg-gray-50 ${ROW_TINT_CLASS[rowTint]} ${isFuture ? "opacity-40" : ""}`}
                     >
                       <td className="px-3 py-3 text-gray-700 tabular-nums">
                         <div className="flex items-center gap-1.5">
@@ -910,7 +984,12 @@ export function StaffSessionTable({
                           <HintBadges
                             sessions={daySessions}
                             holidayName={holidayName}
+                            laborHints={dayLaborHints(laborDaysByDate.get(key))}
                           />
+                        </div>
+                      </td>
+                      {isAdminView && (
+                        <td className={pinnedCellClass(rowTint)}>
                           {canEdit && (
                             // Zeilenaktion nur im Kebab der Zeile (BAUARTEN-
                             // SPEC Bauart 1 Regel 4). stopPropagation hält
@@ -1001,14 +1080,14 @@ export function StaffSessionTable({
                               />
                             </div>
                           )}
-                        </div>
-                      </td>
+                        </td>
+                      )}
                     </tr>
                     {hasMultipleBlocks &&
                       daySessions.map((block, blockIndex) => (
                         <tr
                           key={`${key}-block-${block.id ?? blockIndex}`}
-                          className="bg-gray-50/40 text-xs"
+                          className={`${ROW_TINT_CLASS.block} text-xs`}
                         >
                           <td className="py-2 pr-3 pl-8 text-gray-400">
                             Block {blockIndex + 1}
@@ -1060,6 +1139,10 @@ export function StaffSessionTable({
                                 sessions={[block]}
                                 holidayName={undefined}
                               />
+                            </div>
+                          </td>
+                          {isAdminView && (
+                            <td className={pinnedCellClass("block")}>
                               {canEdit && (
                                 <div
                                   className="flex shrink-0 items-center"
@@ -1106,8 +1189,8 @@ export function StaffSessionTable({
                                   />
                                 </div>
                               )}
-                            </div>
-                          </td>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     {isExpanded &&
@@ -1167,6 +1250,16 @@ export function StaffSessionTable({
                             </td>
                           </tr>
                         ))}
+                    {closesWeek && (
+                      <WeekSummaryRow
+                        day={day}
+                        from={from}
+                        to={to}
+                        summary={weeklySummary}
+                        leadingColumns={showPlan ? 7 : 6}
+                        actionColumn={isAdminView}
+                      />
+                    )}
                   </Fragment>
                 );
               })}
@@ -1439,15 +1532,19 @@ function SourceBadges({
   return <StatusBadge label="App" tone="gray" />;
 }
 
+const NO_LABOR_HINTS: readonly LaborHint[] = [];
+
 // Hinweis-Spalte für orthogonale System- und Korrektur-Hinweise. Mehrere
 // Pills können gleichzeitig sichtbar sein (z.B. NFC-Session mit Auto-Checkout
 // UND nachträglicher Korrektur).
 function HintBadges({
   sessions,
   holidayName,
+  laborHints = NO_LABOR_HINTS,
 }: {
   readonly sessions: readonly StaffHistorySession[];
   readonly holidayName?: string;
+  readonly laborHints?: readonly LaborHint[];
 }) {
   if (sessions.length === 0) {
     return <span className="text-xs text-gray-300">–</span>;
@@ -1479,7 +1576,7 @@ function HintBadges({
       tone: "orange",
     });
   }
-  if (pills.length === 0) {
+  if (pills.length === 0 && laborHints.length === 0) {
     return <span className="text-xs text-gray-300">–</span>;
   }
   return (
@@ -1492,6 +1589,7 @@ function HintBadges({
           title={pill.title}
         />
       ))}
+      <LaborHintList hints={laborHints} />
     </div>
   );
 }
@@ -1518,6 +1616,89 @@ function deltaClass(delta: number): string {
   if (delta < -15) return "text-moto-red-strong font-medium";
   if (delta < 0) return "font-medium text-gray-500";
   return "text-moto-green-strong font-medium";
+}
+
+// Wochensumme am Ende jeder Kalenderwoche (#4804). Die Summe kommt vom
+// Server und gilt für die GANZE Woche: im Monatsblick reicht die erste oder
+// letzte Woche über den Monatsrand, und die 48-Std.-Grenze gilt je Woche,
+// nicht je sichtbarem Ausschnitt.
+function WeekSummaryRow({
+  day,
+  from,
+  to,
+  summary,
+  leadingColumns,
+  actionColumn,
+}: {
+  readonly day: Date;
+  readonly from: Date;
+  readonly to: Date;
+  readonly summary: WeeklySummary | undefined;
+  readonly leadingColumns: number;
+  readonly actionColumn: boolean;
+}) {
+  const monday = new Date(day);
+  monday.setDate(monday.getDate() - toIsoDayOfWeek(day));
+  const sunday = new Date(monday);
+  sunday.setDate(sunday.getDate() + 6);
+  const reachesBeyond =
+    toDateKey(monday) < toDateKey(from) || toDateKey(sunday) > toDateKey(to);
+  const hints = weekLaborHints(summary);
+  return (
+    <tr className="bg-gray-50 text-xs font-medium text-gray-600">
+      <td colSpan={leadingColumns} className="px-3 py-2">
+        <span
+          title={
+            reachesBeyond
+              ? "Summe der ganzen Kalenderwoche, auch der Tage außerhalb dieser Ansicht"
+              : undefined
+          }
+        >
+          {`Summe KW ${isoWeekNumber(toDateKey(day))}`}
+          {reachesBeyond ? " (ganze Woche)" : ""}
+        </span>
+      </td>
+      <td className="px-3 py-2 text-right whitespace-nowrap text-gray-700 tabular-nums">
+        {summary ? formatDuration(summary.totalNetMinutes) : "–"}
+      </td>
+      {/* Der Wochenhinweis steht direkt neben der Summe, über die freien
+          Tagesspalten, damit er nicht in der schmalen Hinweis-Spalte am
+          Rand abgeschnitten wird. */}
+      <td colSpan={5} className="px-3 py-2">
+        <LaborHintList hints={hints} />
+      </td>
+      {actionColumn && <td className="sticky right-0 bg-gray-50" />}
+    </tr>
+  );
+}
+
+// Hinweise zu Pausen und Höchstarbeitszeit (#4804): ein kurzes Badge und die
+// Zahlen als umbrechende Zeile darunter. Als ein langes Badge liefe der Text
+// in der letzten Tabellenspalte aus dem sichtbaren Bereich.
+function LaborHintList({ hints }: { readonly hints: readonly LaborHint[] }) {
+  if (hints.length === 0) return null;
+  return (
+    <>
+      {hints.map((hint) => (
+        <span key={hint.key} className="flex flex-col items-start gap-0.5">
+          <StatusBadge label={hint.label} tone="orange" title={hint.title} />
+          {hint.detail ? (
+            <span className="text-moto-amber-strong text-xs">
+              {hint.detail}
+            </span>
+          ) : null}
+        </span>
+      ))}
+    </>
+  );
+}
+
+// ISO-Jahr und -Woche eines Tags, im Format der Server-Wochensummen. Das Jahr
+// ist das des Donnerstags der Woche, nicht das Kalenderjahr des Tags.
+function isoWeekKey(d: Date): string {
+  const thursday = new Date(d);
+  thursday.setDate(thursday.getDate() + 3 - toIsoDayOfWeek(d));
+  return `${thursday.getFullYear()}-${isoWeekNumber(toDateKey(d))}`;
 }
 
 function toDateKey(d: Date): string {

@@ -69,6 +69,8 @@ var schedulerPollingSettingKeys = []string{
 	settingRemindersPickupOverdueEnabled,
 	settingRemindersActivityStartEnabled,
 	settingRemindersActivityOverdueEnabled,
+	settingRemindersActivityRunningOverEnabled,
+	settingRemindersActivityRunningOverMinutes,
 	settingRemindersPickupUpcomingLeadMinutes,
 	settingRemindersActivityStartLeadMinutes,
 	settingCalendarAppointmentReminderEnabled,

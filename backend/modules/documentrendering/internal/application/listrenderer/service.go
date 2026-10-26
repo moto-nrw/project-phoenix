@@ -50,6 +50,20 @@ func (s *RendererService) Render(doc listrecords.Document, format listrecords.Fo
 	}
 }
 
+// RenderLetter renders one letter in the layout of its sender as a PDF
+// (#4669).
+func (s *RendererService) RenderLetter(letter listrecords.Letter, filenameBase string) (listrecords.File, error) {
+	base := safeFilename(filenameBase)
+	if base == "" {
+		base = "schreiben"
+	}
+	data, err := renderLetterPDF(letter)
+	if err != nil {
+		return listrecords.File{}, err
+	}
+	return listrecords.File{Data: data, ContentType: "application/pdf", Filename: base + ".pdf"}, nil
+}
+
 func safeFilename(input string) string {
 	input = strings.TrimSpace(strings.ToLower(input))
 	replacer := strings.NewReplacer(

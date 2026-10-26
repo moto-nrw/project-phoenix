@@ -20,6 +20,8 @@ describe("mapAttendanceHistoryResponse", () => {
           duration_minutes: 450,
           checked_in_by: 11,
           checked_out_by: 11,
+          checked_in_actor: { kind: "staff", name: "Anna Muster" },
+          checked_out_actor: { kind: "device" },
           device_id: 3,
           sessions: [
             {
@@ -144,6 +146,18 @@ describe("mapAttendanceHistoryResponse", () => {
     expect(day2.visits).toEqual([]);
     expect(day2.attendance!.checkOutTime).toBeNull();
     expect(day2.attendance!.durationMinutes).toBeNull();
+    // Without the actors (older answer), nobody is named.
+    expect(day2.attendance!.checkedInActor).toBeNull();
+    expect(day2.attendance!.checkedOutActor).toBeNull();
+  });
+
+  it("maps who recorded the arrival and the pickup (#4761)", () => {
+    const day1 = mapAttendanceHistoryResponse(raw).days[0]!;
+    expect(day1.attendance!.checkedInActor).toEqual({
+      kind: "staff",
+      name: "Anna Muster",
+    });
+    expect(day1.attendance!.checkedOutActor).toEqual({ kind: "device" });
   });
 
   it("maps status-only days", () => {

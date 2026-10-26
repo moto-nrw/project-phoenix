@@ -575,6 +575,27 @@ func TestTimeTrackingOverview_ExplicitMonth(t *testing.T) {
 	assert.Equal(t, int(f.today.Month()), current.Month)
 }
 
+// TestTimeTrackingOverview_CountsLaborHintDays — each row counts the days of
+// the month with a break too short or more than 10 hours of work (#4804).
+func TestTimeTrackingOverview_CountsLaborHintDays(t *testing.T) {
+	t.Parallel()
+
+	f := newOverviewFixture(t, 1)
+	staffID := f.staff[0]
+	month := calendar.NewDate(2026, time.September, 1)
+	f.addSession(t, staffID, month.AddDays(1), 5*time.Hour)  // no break needed
+	f.addSession(t, staffID, month.AddDays(2), 7*time.Hour)  // 30 min missing
+	f.addSession(t, staffID, month.AddDays(3), 11*time.Hour) // over 10 h, 45 min missing
+	f.addSession(t, staffID, month.AddDays(40), 7*time.Hour) // next month
+
+	overview, err := testpkg.TenantQuery1(t, f.ctx, f.db, f.svc.GetTimeTrackingOverview, timetracking.OverviewFilters{
+		Year: month.Year(), Month: int(month.Month()),
+	})
+	require.NoError(t, err)
+	require.Len(t, overview.Rows, 1)
+	assert.Equal(t, 2, overview.Rows[0].LaborHintDays)
+}
+
 // TestTimeTrackingOverview_RejectsFutureMonth — a future month would report the
 // full month Soll against zero Ist, i.e. a large minus for work nobody has
 // missed yet.
