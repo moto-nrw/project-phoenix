@@ -14,6 +14,32 @@ import {
   type BackendStudentEnrollment,
 } from "~/lib/activity-helpers";
 
+interface StudentListPage {
+  data?: Array<{
+    id: number;
+    first_name: string;
+    last_name: string;
+    school_class?: string;
+  }>;
+  pagination?: { total_pages: number };
+}
+
+async function fetchAllStudents(params: URLSearchParams, token: string) {
+  const students: NonNullable<StudentListPage["data"]> = [];
+  let page = 1;
+  let response: StudentListPage;
+  do {
+    if (page > 1) params.set("page", String(page));
+    response = await apiGet<StudentListPage>(
+      `/api/students?${params.toString()}`,
+      token,
+    );
+    students.push(...(response.data ?? []));
+    page++;
+  } while (page <= (response.pagination?.total_pages ?? 1));
+  return students;
+}
+
 /**
  * Handler for GET /api/activities/[id]/students
  * Returns a list of students enrolled in a specific activity
@@ -36,31 +62,24 @@ export const GET = createGetHandler(
 
       // Get available students by fetching all students and filtering out enrolled ones
       try {
-        // First, get enrolled students in this activity
-        const enrolledResponse = await apiGet<{
-          data: BackendStudentEnrollment[];
-        }>(`/api/activities/${id}/students`, token);
-        const enrolledStudentIds = new Set(
-          (enrolledResponse.data ?? []).map((e) => e.id),
-        );
-
-        // Then, get all students
         const allStudentsParams = new URLSearchParams();
         if (search) allStudentsParams.append("search", search);
         if (groupId) allStudentsParams.append("group_id", groupId);
 
-        const allStudentsUrl = `/api/students?${allStudentsParams.toString()}`;
-        const allStudentsResponse = await apiGet<{
-          data: Array<{
-            id: number;
-            first_name: string;
-            last_name: string;
-            school_class?: string;
-          }>;
-        }>(allStudentsUrl, token);
+        // The roster and paginated candidate list are independent reads.
+        const [enrolledResponse, allStudents] = await Promise.all([
+          apiGet<{ data: BackendStudentEnrollment[] }>(
+            `/api/activities/${id}/students`,
+            token,
+          ),
+          fetchAllStudents(allStudentsParams, token),
+        ]);
+        const enrolledStudentIds = new Set(
+          (enrolledResponse.data ?? []).map((e) => e.id),
+        );
 
         // Filter out enrolled students and format for frontend
-        const availableStudents = (allStudentsResponse.data ?? [])
+        const availableStudents = allStudents
           .filter((student) => !enrolledStudentIds.has(student.id))
           .map((student) => ({
             id: String(student.id),
