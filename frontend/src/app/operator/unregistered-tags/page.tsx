@@ -284,7 +284,7 @@ function UnregisteredTagsTable({
         sortValue: (row) => (row.resolvedAt ? 1 : 0),
       },
       {
-        key: "action",
+        key: "actions",
         header: "Aktion",
         align: "right",
         render: (row) =>

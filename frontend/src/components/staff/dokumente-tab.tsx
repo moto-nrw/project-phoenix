@@ -13,10 +13,6 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
-import {
-  SegmentedControl,
-  type SegmentedControlItem,
-} from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
@@ -47,12 +43,21 @@ type CategoryFilter = StaffDocumentCategory | "alle";
 
 function documentIcon(contentType: string) {
   if (contentType.startsWith("image/")) {
-    return <FileImage className="h-4 w-4 text-gray-400" aria-hidden="true" />;
+    return (
+      <FileImage
+        className="h-4 w-4 shrink-0 text-gray-400"
+        aria-hidden="true"
+      />
+    );
   }
   if (contentType === "application/pdf") {
-    return <FileText className="h-4 w-4 text-gray-400" aria-hidden="true" />;
+    return (
+      <FileText className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+    );
   }
-  return <FileIcon className="h-4 w-4 text-gray-400" aria-hidden="true" />;
+  return (
+    <FileIcon className="h-4 w-4 shrink-0 text-gray-400" aria-hidden="true" />
+  );
 }
 
 // Retention column (#1424): advisory only — nothing auto-deletes, deletes
@@ -114,8 +119,8 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
   const effectiveUploadCategory =
     uploadCategory ?? visibleCategories[0] ?? null;
 
-  const filterItems: readonly SegmentedControlItem<CategoryFilter>[] = [
-    { value: "alle", label: "Alle" },
+  const filterItems: readonly { value: string; label: string }[] = [
+    { value: "alle", label: "Alle Kategorien" },
     ...visibleCategories.map((category) => ({
       value: category,
       label: staffDocumentCategoryLabels[category],
@@ -193,10 +198,17 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
     {
       key: "filename",
       header: "Dokument",
+      // Die Spalte nimmt den freien Platz und kürzt einen langen Namen,
+      // statt die Tabelle über die Karte hinaus zu verbreitern (#4975).
+      // min-w-40 hält auf dem Handy Platz für den Anfang des Namens.
+      className: "w-full max-w-0 min-w-40",
       render: (doc) => (
         <span className="flex min-w-0 items-center gap-2">
           {documentIcon(doc.contentType)}
-          <span className="truncate text-sm font-medium text-gray-900">
+          <span
+            title={doc.filename}
+            className="truncate text-sm font-medium text-gray-900"
+          >
             {doc.filename}
           </span>
         </span>
@@ -217,6 +229,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
     {
       key: "size",
       header: "Größe",
+      className: "whitespace-nowrap",
       render: (doc) => (
         <span className="text-xs text-gray-500">
           {formatFileSize(doc.sizeBytes)}
@@ -227,6 +240,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
     {
       key: "uploaded",
       header: "Hochgeladen",
+      className: "whitespace-nowrap",
       render: (doc) => (
         <span className="text-xs text-gray-500">
           {formatDate(doc.uploadedAt)}
@@ -356,13 +370,22 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
 
         {/* Category filter */}
         {documents.length > 0 && filterItems.length > 2 && (
-          <div className="mb-4">
-            <SegmentedControl
-              variant="pills"
-              items={filterItems}
+          // Eine Auswahlliste statt Pillen: alle Kategorien nebeneinander
+          // passten auf Handy und Tablet nicht in die Karte, die Pillen
+          // überlagerten sich und die letzten waren nicht erreichbar (#4975).
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <label
+              htmlFor="dokument-filter"
+              className="text-xs font-medium text-gray-600"
+            >
+              Anzeigen
+            </label>
+            <CustomSelect
+              id="dokument-filter"
               value={filter}
-              onChange={setFilter}
-              ariaLabel="Nach Kategorie filtern"
+              options={filterItems}
+              onChange={(value) => setFilter(value as CategoryFilter)}
+              triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
             />
           </div>
         )}

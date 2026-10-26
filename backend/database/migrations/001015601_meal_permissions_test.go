@@ -18,6 +18,7 @@ func TestMealPermissionsKeepEveryRoleWhereItWas(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 	require.NoError(t, mealPermissionsDown(ctx, db))
 
@@ -106,6 +107,7 @@ func mealPermissionsOfRole(t *testing.T, db *bun.DB, roleID int64) []string {
 func TestMealPermissionsMoveStoredLeadDaysWithoutReplacingExplicitValues(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 	legacyTenant, _ := testpkg.CreateTestTenant(t, db)
 	explicitTenant, _ := testpkg.CreateTestTenant(t, db)
@@ -151,6 +153,7 @@ func TestMealPermissionsMoveStoredLeadDaysWithoutReplacingExplicitValues(t *test
 func TestMealPermissionsAdoptTheCutoffSettingsOfDevelopment(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 	weekly, _ := testpkg.CreateTestTenant(t, db)
 	separate, _ := testpkg.CreateTestTenant(t, db)
@@ -211,6 +214,7 @@ func TestMealPermissionsAdoptTheCutoffSettingsOfDevelopment(t *testing.T) {
 func TestMealPermissionsConvertWorkingLeadDaysToCalendarDays(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 	conversions := map[string]string{"0": "0", "1": "3", "2": "4", "5": "7", "6": "10"}
 	tenants := make(map[int64]string, len(conversions))

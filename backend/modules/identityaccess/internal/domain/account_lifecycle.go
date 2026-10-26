@@ -102,13 +102,6 @@ type StaffPreviewEvent struct {
 
 // --- staff offboarding -----------------------------------------------------
 
-// PermissionGrant is one direct account permission row.
-type PermissionGrant struct {
-	ID           int64
-	PermissionID int64
-	Granted      bool
-}
-
 // --- school identity -------------------------------------------------------
 
 var (

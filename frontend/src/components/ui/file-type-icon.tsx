@@ -16,7 +16,7 @@ import {
  */
 export function FileTypeIcon({
   contentType,
-  className = "h-4 w-4 text-gray-400",
+  className = "h-4 w-4 shrink-0 text-gray-400",
 }: {
   contentType: string;
   className?: string;

@@ -81,6 +81,8 @@ func (r ReminderSettings) Snapshot(ctx context.Context) (context.Context, error)
 		configModel.KeyRemindersPickupOverdueEnabled,
 		configModel.KeyRemindersActivityStartEnabled,
 		configModel.KeyRemindersActivityOverdueEnabled,
+		configModel.KeyRemindersActivityRunningOverEnabled,
+		configModel.KeyRemindersActivityRunningOverMinutes,
 		configModel.KeyRemindersPickupUpcomingLeadMinutes,
 		configModel.KeyRemindersActivityStartLeadMinutes,
 		configModel.KeyTimetableOverdueThresholdMinutes,
@@ -106,6 +108,14 @@ func (r ReminderSettings) ActivityStartEnabled(ctx context.Context) (bool, error
 
 func (r ReminderSettings) ActivityOverdueEnabled(ctx context.Context) (bool, error) {
 	return reminderSettingValue(ctx, configModel.KeyRemindersActivityOverdueEnabled, r.ResolveBool)
+}
+
+func (r ReminderSettings) ActivityRunningOverEnabled(ctx context.Context) (bool, error) {
+	return reminderSettingValue(ctx, configModel.KeyRemindersActivityRunningOverEnabled, r.ResolveBool)
+}
+
+func (r ReminderSettings) ActivityRunningOverMinutes(ctx context.Context) (int, error) {
+	return reminderSettingValue(ctx, configModel.KeyRemindersActivityRunningOverMinutes, r.ResolveInt)
 }
 
 func (r ReminderSettings) PickupLeadMinutes(ctx context.Context) (int, error) {

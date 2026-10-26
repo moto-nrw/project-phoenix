@@ -455,7 +455,7 @@ func composeServeRoot(
 		},
 		func() error {
 			reminders = owners.BuildReminders(db, env, caller, settings.Service, schedules, active, supervisions, timetableOwner, rooms, people,
-				calendarApp, announcements, delivery)
+				calendarApp, announcements, delivery, timetableRows.Repositories.NativeRecords())
 			return nil
 		},
 		func() (err error) {

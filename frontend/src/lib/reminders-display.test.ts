@@ -5,6 +5,7 @@ import {
   isReminderOverdue,
   reminderKey,
   reminderRelativeLabel,
+  reminderSubtitle,
   reminderToneClass,
 } from "~/lib/reminders-display";
 
@@ -16,6 +17,58 @@ function makeReminder(
 }
 
 describe("reminders-display", () => {
+  describe("activity_running_over (#4765)", () => {
+    const running: Reminder = {
+      type: "activity_running_over",
+      activity_instance_id: "7",
+      title: "Fußball-AG",
+      subtitle: "Turnhalle",
+      due_time: "16:00",
+      minutes_away: -30,
+      pickup_due_count: 2,
+    };
+
+    it("says how much longer the block runs instead of 'überfällig'", () => {
+      expect(reminderRelativeLabel(running)).toBe("30 Min länger");
+    });
+
+    it("stays neutral and out of the overdue count", () => {
+      expect(isReminderOverdue(running)).toBe(false);
+      expect(reminderToneClass(running)).toBe("text-gray-500");
+      expect(
+        [running, makeReminder(-1)].filter(isReminderOverdue),
+      ).toHaveLength(1);
+    });
+
+    it("names the room and the children whose pickup time is reached", () => {
+      expect(reminderSubtitle(running)).toBe(
+        "Turnhalle · 2 Kinder zur Abholung",
+      );
+      expect(reminderSubtitle({ ...running, pickup_due_count: 1 })).toBe(
+        "Turnhalle · 1 Kind zur Abholung",
+      );
+    });
+
+    it("shows only the room when no pickup time is reached", () => {
+      expect(reminderSubtitle({ ...running, pickup_due_count: 0 })).toBe(
+        "Turnhalle",
+      );
+    });
+
+    it("leaves other subtitles untouched", () => {
+      expect(reminderSubtitle({ ...makeReminder(5), subtitle: "3b" })).toBe(
+        "3b",
+      );
+    });
+
+    it("has its own section and a stable key", () => {
+      expect(REMINDER_SECTIONS.map((s) => s.type)).toContain(
+        "activity_running_over",
+      );
+      expect(reminderKey(running)).toBe("activity_running_over-activity-7");
+    });
+  });
+
   describe("reminderRelativeLabel", () => {
     it("renders overdue minutes as '… Min überfällig'", () => {
       expect(reminderRelativeLabel(makeReminder(-26))).toBe(
@@ -33,7 +86,7 @@ describe("reminders-display", () => {
   });
 
   describe("isReminderOverdue", () => {
-    it("is true only for negative minutes_away", () => {
+    it("is true for negative minutes_away except running activities", () => {
       expect(isReminderOverdue(makeReminder(-1))).toBe(true);
       expect(isReminderOverdue(makeReminder(0))).toBe(false);
       expect(isReminderOverdue(makeReminder(5))).toBe(false);
@@ -85,10 +138,11 @@ describe("reminders-display", () => {
   });
 
   describe("REMINDER_SECTIONS", () => {
-    it("lists the four types most-urgent-first with German titles", () => {
+    it("lists the five types most-urgent-first with German titles", () => {
       expect(REMINDER_SECTIONS.map((s) => s.type)).toEqual([
         "pickup_overdue",
         "activity_overdue",
+        "activity_running_over",
         "pickup_upcoming",
         "activity_start",
       ]);

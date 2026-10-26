@@ -5,16 +5,13 @@ import { useMemo } from "react";
 import { QuestionIcon } from "@phosphor-icons/react";
 import { ButtonLink } from "~/components/ui/button";
 import { Tooltip } from "~/components/ui/tooltip";
-import {
-  getHelpTopics,
-  helpTopicMatchesRole,
-} from "~/components/help/help-content";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
 } from "~/lib/tenant-context";
+import { isHelpTopicAvailable } from "~/lib/help-topic-availability";
 import {
   buildHelpHref,
   type HelpRole,
@@ -76,9 +73,7 @@ export function ContextHelpLink({
   // Lieber kein Fragezeichen als eines, das in die falsche Anleitung fuehrt.
   const hasArticleForRole = useMemo(
     () =>
-      getHelpTopics(presenceMode, groupMode, nfcEnabled).some(
-        (item) => item.id === topic && helpTopicMatchesRole(item, role),
-      ),
+      isHelpTopicAvailable(topic, role, presenceMode, groupMode, nfcEnabled),
     [groupMode, nfcEnabled, presenceMode, role, topic],
   );
 

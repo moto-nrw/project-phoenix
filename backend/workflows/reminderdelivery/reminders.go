@@ -48,6 +48,9 @@ const (
 	TypePickupOverdue   = "pickup_overdue"
 	TypeActivityStart   = "activity_start"
 	TypeActivityOverdue = "activity_overdue"
+	// TypeActivityRunningOver is a started block still running a configured
+	// number of minutes after its planned end (#4765).
+	TypeActivityRunningOver = "activity_running_over"
 )
 
 // Reminder is a single visual reminder shown to staff.
@@ -62,6 +65,9 @@ type Reminder struct {
 	Subtitle           string  `json:"subtitle,omitempty"` // school class or room — optional
 	DueTime            string  `json:"due_time"`           // "HH:MM" of the relevant time
 	MinutesAway        int     `json:"minutes_away"`       // negative when overdue
+	// PickupDueCount is set on activity_running_over only: how many children
+	// still in the block's room have reached their pickup time.
+	PickupDueCount *int `json:"pickup_due_count,omitempty"`
 }
 
 // Result is the computed reminder list plus a convenience count for the badge.
@@ -72,13 +78,13 @@ type Result struct {
 	Reminders []Reminder `json:"reminders"`
 	Count     int        `json:"count"`
 	Enabled   bool       `json:"enabled"`
-	// NextChangeAt is the wall-clock "HH:MM" of the soonest future moment at
-	// which this list would change purely by time passing — the next pickup or
-	// activity entering/leaving its window. The frontend schedules a timer to
-	// exactly this time to refetch, so a reminder appears on its threshold
-	// instead of only on the next fixed poll. Omitted when nothing time-based is
-	// pending (the poll then remains the only cadence). Data-driven changes
-	// (check-ins, edits) are still delivered via the SSE-stale event, not this.
+	// NextChangeAt is the wall-clock "HH:MM" of the soonest same-day future
+	// moment at which this list changes purely by time passing. A boundary on
+	// the following calendar day is an RFC 3339 instant, including its Berlin
+	// offset, so the frontend can schedule it precisely. Omitted when nothing
+	// time-based is pending (the poll then remains the only cadence).
+	// Data-driven changes (check-ins, edits) still arrive via the SSE-stale
+	// event, not this.
 	NextChangeAt string `json:"next_change_at,omitempty"`
 	// AssignedActivityInstanceIDs names the activity instances this person is
 	// personally planned on, keyed exactly like Reminder.ActivityInstanceID.

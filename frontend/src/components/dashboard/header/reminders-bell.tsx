@@ -15,6 +15,7 @@ import type { Reminder } from "~/lib/reminders-api";
 import {
   reminderKey,
   reminderRelativeLabel,
+  reminderSubtitle,
   reminderToneClass,
 } from "~/lib/reminders-display";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -23,14 +24,15 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 const PREVIEW_LIMIT = 5;
 
 function BellRow({ reminder }: { readonly reminder: Reminder }) {
+  const subtitle = reminderSubtitle(reminder);
   return (
     <li className="flex items-center justify-between gap-3 px-4 py-2.5">
       <div className="min-w-0">
         <p className="truncate text-sm font-medium text-gray-900">
           {reminder.title}
         </p>
-        {reminder.subtitle && (
-          <p className="truncate text-xs text-gray-500">{reminder.subtitle}</p>
+        {subtitle && (
+          <p className="truncate text-xs text-gray-500">{subtitle}</p>
         )}
       </div>
       <div className="flex flex-shrink-0 flex-col items-end">

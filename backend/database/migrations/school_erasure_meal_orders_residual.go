@@ -13,7 +13,11 @@ func installMealOrderErasureResidual(ctx context.Context, tx bun.Tx) error {
 	return err
 }
 
-const mealOrderErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_assert_empty(p_school_id BIGINT,v_child_keys JSONB)
+const mealOrderErasureResidualSQL = mealOrderErasureResidualSQLPrefix + `    SELECT 1 FROM auth.account_permissions AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+` + mealOrderErasureResidualSQLSuffix
+
+const mealOrderErasureResidualSQLPrefix = `CREATE OR REPLACE FUNCTION platform.school_erasure_assert_empty(p_school_id BIGINT,v_child_keys JSONB)
  RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
  AS $body$
  BEGIN
@@ -139,9 +143,9 @@ const mealOrderErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_
     UNION ALL
     SELECT 1 FROM audit.work_session_edits AS r WHERE r.tenant_id = p_school_id
     UNION ALL
-    SELECT 1 FROM auth.account_permissions AS r WHERE r.tenant_id = p_school_id
-    UNION ALL
-    SELECT 1 FROM auth.account_roles AS r WHERE r.tenant_id = p_school_id
+`
+
+const mealOrderErasureResidualSQLSuffix = `    SELECT 1 FROM auth.account_roles AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM auth.account_tenants AS r WHERE r.tenant_id = p_school_id
     UNION ALL
@@ -518,3 +522,9 @@ const mealOrderErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.school_
  END $body$;
  REVOKE ALL ON FUNCTION platform.school_erasure_assert_empty(BIGINT,JSONB) FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin, phoenix_demo, phoenix_school_erasure;
 `
+
+// 1.15.646 removes only direct grants; the 1.15.605 SQL above stays unchanged.
+func installRetiredDirectPermissionsResidual(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, mealOrderErasureResidualSQLPrefix+mealOrderErasureResidualSQLSuffix)
+	return err
+}

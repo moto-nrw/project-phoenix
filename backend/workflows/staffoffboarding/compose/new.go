@@ -17,7 +17,6 @@ type StaffOffboardingPreview struct {
 	AccountID         int64
 	ActiveMembership  bool
 	RoleIDs           []int64
-	Permissions       int64
 	Tokens            int64
 	PreserveGuardian  bool
 	DeactivateAccount bool
@@ -27,14 +26,13 @@ type StaffOffboardingPreview struct {
 // StaffOffboardingResult is what the revocation actually removed.
 type StaffOffboardingResult struct {
 	RolesRevoked            int64
-	PermissionsRevoked      int64
 	TokensRevoked           int64
 	GuardianAccessPreserved bool
 	AccountDeactivated      bool
 }
 
 // Access is the consumer-owned port over the Identity & Access offboarding
-// capability: the preview snapshots roles, permissions, sessions and
+// capability: the preview snapshots roles, sessions and
 // membership at the school in context, the execution revokes them against
 // that snapshot on the workflow's transaction. The composition root binds it
 // (#3364).

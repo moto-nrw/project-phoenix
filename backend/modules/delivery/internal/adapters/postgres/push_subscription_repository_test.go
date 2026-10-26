@@ -633,14 +633,12 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 
 	repo := &deliveryRepo.PushSubscriptionRepository{DB: db}
 	ctx := testpkg.Ctx(t)
-	directAdmin := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-direct-admin-%d@example.com", time.Now().UnixNano()))
 	roleAdmin := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-role-admin-%d@example.com", time.Now().UnixNano()))
 	ordinary := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-ordinary-%d@example.com", time.Now().UnixNano()))
 
 	for accountID, suffix := range map[int64]string{
-		directAdmin.ID: "direct-admin",
-		roleAdmin.ID:   "role-admin",
-		ordinary.ID:    "ordinary",
+		roleAdmin.ID: "role-admin",
+		ordinary.ID:  "ordinary",
 	} {
 		createAccountTenantMapping(t, db, accountID, testpkg.Tenant(t))
 		assignSystemRole(t, db, accountID, testpkg.Tenant(t), "user")
@@ -651,25 +649,15 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		)))
 	}
 
-	var adminWildcardID, fullAccessID int64
-	require.NoError(t, db.NewSelect().
-		ColumnExpr("id").
-		TableExpr("auth.permissions").
-		Where("resource = 'admin' AND action = '*'").
-		Scan(context.Background(), &adminWildcardID))
+	var fullAccessID int64
 	require.NoError(t, db.NewSelect().
 		ColumnExpr("id").
 		TableExpr("auth.permissions").
 		Where("resource = '*' AND action = '*'").
 		Scan(context.Background(), &fullAccessID))
 
-	_, err := db.ExecContext(context.Background(),
-		"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)",
-		directAdmin.ID, adminWildcardID, testpkg.Tenant(t))
-	require.NoError(t, err)
-
 	wildcardRole := testpkg.CreateTestRole(t, db, "Push Full Access")
-	_, err = db.ExecContext(context.Background(),
+	_, err := db.ExecContext(context.Background(),
 		"INSERT INTO auth.role_permissions (role_id, permission_id) VALUES (?, ?)",
 		wildcardRole.ID, fullAccessID)
 	require.NoError(t, err)
@@ -679,7 +667,6 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 
 	subs, err := testpkg.TenantQuery0(t, ctx, db, repo.FindForTenantAdmins)
 	require.NoError(t, err)
-	assert.Empty(t, subscriptionsForAccount(subs, directAdmin.ID), "a retired direct admin:* grant no longer grants admin push (#4485)")
 	assert.NotEmpty(t, subscriptionsForAccount(subs, roleAdmin.ID), "role-based *:* permission must grant admin push")
 	assert.Empty(t, subscriptionsForAccount(subs, ordinary.ID), "ordinary staff must not receive admin push")
 
@@ -689,6 +676,5 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
-	assert.Empty(t, subscriptionsForAccount(tenantRoleSubs, directAdmin.ID))
 	assert.NotEmpty(t, subscriptionsForAccount(tenantRoleSubs, roleAdmin.ID))
 }
