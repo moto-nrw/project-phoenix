@@ -41,6 +41,14 @@ describe("traegerHelpHref", () => {
     }
   });
 
+  it("opens the article of the billing runs on the page Abrechnung (#4668)", () => {
+    for (const path of ["/abrechnung", "/traeger/abrechnung/5"]) {
+      const href = new URL(traegerHelpHref(path), "http://localhost");
+      expect(href.pathname).toBe(`/help/${HELP_TOPICS.traegerBillingRun}`);
+      expect(href.searchParams.get("return_to")).toBe("/abrechnung");
+    }
+  });
+
   it("keeps the settings article and the sign-in article for the other pages", () => {
     expect(traegerHelpHref("/einstellungen")).toContain(
       `/help/${HELP_TOPICS.traegerSettings}`,
