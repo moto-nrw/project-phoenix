@@ -1,3 +1,4 @@
+import type { Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import { getToken } from "next-auth/jwt";
 import { headers } from "next/headers";
@@ -6,7 +7,7 @@ import { ACCESS_TOKEN_REFRESH_BUFFER_MS } from "~/server/auth/shared";
 
 /**
  * A decoded, fresh portal JWT. It still holds the access and refresh tokens:
- * each portal reader maps it to a Session without any token before it
+ * each portal reader maps it through portalSessionSnapshot() before it
  * becomes a client prop (#5005).
  */
 export type FreshPortalToken = JWT & {
@@ -61,4 +62,32 @@ export async function readFreshPortalToken(
   }
 
   return token as FreshPortalToken;
+}
+
+/**
+ * Maps a fresh portal token to the Session a portal layout hands its
+ * SessionProvider. The result is serialized into the HTML and RSC payload,
+ * so it carries only what the portal renders from: no access token, refresh
+ * token or recovery proof, and no part of one (#5005). API calls go through
+ * BFF routes that read the cookie themselves; code that needs the token
+ * calls getSession(). The poll after four minutes replaces the snapshot with
+ * the session route's answer as before.
+ */
+export function portalSessionSnapshot(token: FreshPortalToken): Session {
+  return {
+    expires: new Date((token.exp ?? 0) * 1000).toISOString(),
+    user: {
+      id: token.id,
+      name: token.name,
+      email: token.email ?? "",
+      roles: Array.isArray(token.roles) ? token.roles : [],
+      permissions: Array.isArray(token.permissions) ? token.permissions : [],
+      firstName:
+        typeof token.firstName === "string" ? token.firstName : undefined,
+      isAdmin: token.isAdmin === true,
+      tenantId: typeof token.tenantId === "number" ? token.tenantId : undefined,
+      orgId: typeof token.orgId === "number" ? token.orgId : undefined,
+      scope: token.scope,
+    },
+  };
 }

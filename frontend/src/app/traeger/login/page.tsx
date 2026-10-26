@@ -30,6 +30,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Loading } from "~/components/ui/loading";
 import { Radio } from "~/components/ui/radio";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { hasSessionAccess } from "~/lib/session-access";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import type { MFATokenResponse } from "~/lib/mfa-api";
@@ -104,7 +105,9 @@ function LoginForm() {
       });
       return;
     }
-    if (session?.user?.token && session.user.scope === "org") {
+    // The layout's server snapshot carries no token (#4991) and redirects
+    // too; a stripped session (empty token) stays on the form.
+    if (hasSessionAccess(session) && session.user.scope === "org") {
       window.location.href = traegerPath("/traeger");
     }
   }, [status, session]);

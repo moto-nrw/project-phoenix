@@ -24,6 +24,7 @@ import { PasswordToggleButton } from "~/components/shared/password-toggle-button
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { hasSessionAccess } from "~/lib/session-access";
 import { requestCatererPasswordReset } from "~/lib/auth-api";
 import { loginCaterer } from "~/lib/caterer-api";
 import { catererPath } from "~/lib/caterer-url";
@@ -94,7 +95,9 @@ function LoginForm() {
         setCheckingAuth(false);
         return;
       }
-      if (status === "authenticated" && session?.user?.token) {
+      // The layout's server snapshot carries no token (#4991) and redirects
+      // too; a stripped session (empty token) stays on the form.
+      if (status === "authenticated" && hasSessionAccess(session)) {
         window.location.href = catererPath("/caterer");
         return;
       }

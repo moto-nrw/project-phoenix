@@ -51,8 +51,17 @@ const createLoadingSession = () => ({
   update: vi.fn(),
 });
 
+// The session callback strips a session whose refresh failed down to an
+// empty token. A missing token field is the portal layouts' server snapshot
+// (#4990, #4991), which still grants access.
 const createSessionWithoutToken = () => ({
-  data: { user: { id: "user-1" }, expires: "2099-01-01" },
+  data: { user: { id: "user-1", token: "" }, expires: "2099-01-01" },
+  status: "authenticated" as const,
+  update: vi.fn(),
+});
+
+const createSnapshotSession = (user: Record<string, unknown> = {}) => ({
+  data: { user: { id: "user-1", ...user }, expires: "2099-01-01" },
   status: "authenticated" as const,
   update: vi.fn(),
 });
@@ -180,6 +189,40 @@ describe("SWR Hooks", () => {
       );
     });
 
+    it("fetches from a portal layout's server snapshot without a token", () => {
+      vi.mocked(useSession).mockReturnValue(
+        createSnapshotSession() as ReturnType<typeof useSession>,
+      );
+
+      renderHook(() => useSWRAuth("test-key", mockFetcher));
+
+      expect(useSWR).toHaveBeenCalledWith(
+        "test-key",
+        mockFetcher,
+        expect.any(Object),
+      );
+    });
+
+    it("scopes a school snapshot to the school and account", () => {
+      vi.mocked(useSession).mockReturnValue(
+        createSnapshotSession({
+          id: "teacher-1",
+          scope: "school",
+          tenantId: 42,
+        }) as ReturnType<typeof useSession>,
+      );
+
+      renderHook(() =>
+        useSWRAuth("school-supervisions-2026-08-24", mockFetcher),
+      );
+
+      expect(useSWR).toHaveBeenCalledWith(
+        "school:42:teacher-1:school-supervisions-2026-08-24",
+        mockFetcher,
+        expect.any(Object),
+      );
+    });
+
     it("does not fetch when key is null", () => {
       vi.mocked(useSession).mockReturnValue(
         createMockSession("test-token") as ReturnType<typeof useSession>,
@@ -246,6 +289,34 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         "entity-123",
+        expect.any(Function),
+        expect.any(Object),
+      );
+    });
+
+    it("fetches from a portal layout's server snapshot without a token", () => {
+      vi.mocked(useSession).mockReturnValue(
+        createSnapshotSession() as ReturnType<typeof useSession>,
+      );
+
+      renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
+
+      expect(useSWR).toHaveBeenCalledWith(
+        "entity-123",
+        expect.any(Function),
+        expect.any(Object),
+      );
+    });
+
+    it("does not fetch for a session whose token was stripped", () => {
+      vi.mocked(useSession).mockReturnValue(
+        createSessionWithoutToken() as ReturnType<typeof useSession>,
+      );
+
+      renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
+
+      expect(useSWR).toHaveBeenCalledWith(
+        null,
         expect.any(Function),
         expect.any(Object),
       );

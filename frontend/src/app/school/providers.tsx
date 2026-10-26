@@ -1,5 +1,6 @@
 "use client";
 
+import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-session";
 import { SCHOOL_ANALYTICS_CONSENT_COPY } from "~/components/analytics/analytics-consent-copy";
@@ -16,13 +17,19 @@ import { ModulePortalProvider } from "~/lib/module-portal-context";
  *
  * No TenantProvider — the school portal has exactly one surface (the
  * Klassenansicht) and its tenant binding lives in the JWT, not in the URL.
+ *
+ * `session` is the layout's read-only cookie snapshot (#4991). Without one
+ * the provider receives undefined and fetches the session as before; null
+ * would mean "signed out" and skip that fetch.
  */
 export function SchoolProviders({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+  session,
+}: Readonly<{ children: React.ReactNode; session?: Session | null }>) {
   return (
     <SessionProvider
       basePath="/api/school/auth"
+      session={session ?? undefined}
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
