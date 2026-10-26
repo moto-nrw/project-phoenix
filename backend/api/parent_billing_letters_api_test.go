@@ -7,8 +7,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"testing"
@@ -176,12 +174,11 @@ func TestBillingLettersConfirmEveryFamilyOnceInTheLayoutOfTheTraeger(t *testing.
 			rec.Header().Get("Content-Disposition"))
 		assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
 		var stored []byte
-		var checksum string
-		require.NoError(t, f.db.NewRaw(`SELECT pdf, sha256 FROM parent_billing.document_letters WHERE document_id = ?`, document.ID).
-			Scan(context.Background(), &stored, &checksum))
+		var checksumMatches bool
+		require.NoError(t, f.db.NewRaw(`SELECT pdf, sha256 = encode(sha256(pdf), 'hex') FROM parent_billing.document_letters WHERE document_id = ?`, document.ID).
+			Scan(context.Background(), &stored, &checksumMatches))
 		assert.Equal(t, stored, rec.Body.Bytes(), "the download is the stored letter")
-		sum := sha256.Sum256(stored)
-		assert.Equal(t, hex.EncodeToString(sum[:]), checksum, "the letter keeps its SHA-256")
+		assert.True(t, checksumMatches, "the letter keeps its SHA-256")
 	}
 
 	// Every read of a letter and the creation stand in the trail; the read

@@ -2,9 +2,7 @@ package migrations
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
 	"testing"
 
@@ -72,8 +70,9 @@ func TestConfirmationLettersNeverChange(t *testing.T) {
 
 	var checksum string
 	require.NoError(t, db.NewRaw(`SELECT sha256 FROM parent_billing.document_letters WHERE document_id = ?`, document).Scan(ctx, &checksum))
-	sum := sha256.Sum256(pdf)
-	assert.Equal(t, hex.EncodeToString(sum[:]), checksum, "the database keeps the SHA-256 of the PDF")
+	// sha256sum of the bytes above.
+	assert.Equal(t, "a952f05b50daaed0d6aefc67f71dd9ca4e1c409f27b6a369a95e02a48824a678", checksum,
+		"the database keeps the SHA-256 of the PDF")
 
 	_, err := db.ExecContext(ctx, `INSERT INTO parent_billing.run_letters (organization_id, run_id, payment_due_on) VALUES (?, ?, '2027-06-20')`, own, run)
 	assert.ErrorContains(t, err, "run_letters_pkey", "a run has its letters once")

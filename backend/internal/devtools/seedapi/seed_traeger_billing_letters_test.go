@@ -38,10 +38,10 @@ func TestSeedBillingLettersConfirmTheReleasedRun(t *testing.T) {
 	runtime := &Runtime{
 		Client:    newTestClient(srv.URL, false),
 		Bootstrap: &bootstrapSeedState{AdminEmail: "admin@example.test", AdminPassword: testpkg.NewTestPassword()},
-		Values:    map[string]any{seedBillingRunKey: int64(9)},
+		Values:    map[string]any{seedBillingRunKey: int64(41)},
 	}
 	require.NoError(t, (seedTraegerBillingLettersStep{}).Run(context.Background(), runtime))
-	assert.Equal(t, []string{"POST /traeger/auth/login", "POST /traeger/billing-runs/9/letters"}, calls)
+	assert.Equal(t, []string{"POST /traeger/auth/login", "POST /traeger/billing-runs/41/letters"}, calls)
 	assert.NotEmpty(t, body["payment_due_on"])
 	assert.Contains(t, body["notes"], "Hausschuhe")
 	assert.Len(t, body["emergency_contacts"], 1)
