@@ -10,7 +10,11 @@
 let _isOperator: boolean | undefined;
 
 export function isOperatorSubdomain(): boolean {
-  if (typeof window === "undefined") return false;
+  // Server rendering of this portal only happens on its own host: the
+  // proxy redirects /operator/* on every other host. Answering "own host"
+  // keeps server HTML and hydration on the same paths, now that the
+  // layout renders the signed-in portal on the server (#4991).
+  if (typeof window === "undefined") return true;
   if (_isOperator !== undefined) return _isOperator;
 
   const operatorHostname = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME;

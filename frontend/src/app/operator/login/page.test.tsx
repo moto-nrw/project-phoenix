@@ -226,6 +226,30 @@ describe("OperatorLoginPage", () => {
     expect(mockRedirect).toHaveBeenCalledWith("/operator/organizations");
   });
 
+  // The layout's server snapshot carries no token (#4991).
+  it("redirects an operator whose session came from the server snapshot", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { id: "1", scope: "platform" } },
+    });
+
+    render(<OperatorLoginPage />);
+
+    expect(mockRedirect).toHaveBeenCalledWith("/operator/organizations");
+  });
+
+  it("keeps the form for a session without a usable access token", () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { id: "1", scope: "platform", token: "" } },
+    });
+
+    render(<OperatorLoginPage />);
+
+    expect(mockRedirect).not.toHaveBeenCalled();
+    expect(screen.getByText("Operator Console")).toBeInTheDocument();
+  });
+
   it("clears an errored operator session before redirecting", async () => {
     mockSignOut.mockResolvedValue(undefined);
     mockUseSession.mockReturnValue({

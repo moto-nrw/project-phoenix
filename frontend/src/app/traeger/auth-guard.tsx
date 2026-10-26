@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { Loading } from "~/components/ui/loading";
 import { TraegerShell } from "~/components/traeger/traeger-shell";
 import { traegerPath } from "~/lib/traeger-url";
+import { hasSessionAccess } from "~/lib/session-access";
 
 const TRAEGER_PUBLIC_PAGES = [
   "/traeger/login",
@@ -37,12 +38,13 @@ export function TraegerAuthGuard({
 
   // A session of another scope, or one whose refresh ended for good (expired
   // or revoked refresh token, membership gone), goes back to the login page,
-  // which clears the failed session.
+  // which clears the failed session. The layout's server snapshot carries no
+  // token and stays (#4991).
   if (
     status === "authenticated" &&
     (session?.user?.scope !== "org" ||
       session.error === "RefreshTokenExpired" ||
-      !session.user.token)
+      !hasSessionAccess(session))
   ) {
     redirect(traegerPath("/traeger/login"));
   }
