@@ -27,6 +27,26 @@ func (s *service) ensureStudentHasNoActiveVisit(ctx context.Context, studentID i
 	return nil
 }
 
+// resolveStaffIDForAttendance validates the device's session supervision for
+// attendance tracking. The supervisor authorizes an unstaffed kiosk visit but
+// is not the attendance actor.
+func (s *service) resolveStaffIDForAttendance(ctx context.Context, staffID, deviceID int64) (int64, error) {
+	if staffID > 0 {
+		return staffID, nil
+	}
+	if deviceID > 0 {
+		supervisorID, err := s.getDeviceSupervisorID(ctx, deviceID)
+		if err == nil {
+			return supervisorID, nil
+		}
+		var unavailable *deviceSupervisorUnavailableError
+		if !errors.As(err, &unavailable) {
+			return 0, fmt.Errorf("resolve check-in staff attribution: %w", err)
+		}
+	}
+	return 0, nil
+}
+
 // ensureOrUpdateAttendance handles attendance creation or re-entry update
 func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *studentpresence.Visit, staffID, deviceID int64) error {
 	visitDate := calendar.DateFromTime(visit.EntryTime)
@@ -54,6 +74,9 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *studentpr
 // two timestamps being identical. Never replace either side with an
 // independent time.Now().
 func (s *service) createAttendanceRecord(ctx context.Context, visit *studentpresence.Visit, staffID, deviceID int64, visitDate calendar.Date) error {
+	if _, err := s.resolveStaffIDForAttendance(ctx, staffID, deviceID); err != nil {
+		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
 	resolvedDeviceID, err := s.resolveDeviceIDForAttendance(ctx, deviceID)
 	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
