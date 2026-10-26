@@ -10,6 +10,7 @@ import (
 func TestBlockFilterMatches(t *testing.T) {
 	t.Parallel()
 	group, otherGroup, staff, otherStaff := int64(71), int64(81), int64(11), int64(12)
+	room, otherRoom := int64(51), int64(61)
 	rows := []timetable.InstanceStaff{{StaffID: staff, IsAbsent: true}, {StaffID: 13, IsSubstitute: true}}
 	groups := []int64{group}
 
@@ -25,12 +26,15 @@ func TestBlockFilterMatches(t *testing.T) {
 		{"staff not on the block", timetable.BlockFilter{StaffID: &otherStaff}, false},
 		{"both must match", timetable.BlockFilter{EducationGroupID: &group, StaffID: &otherStaff}, false},
 		{"both match", timetable.BlockFilter{EducationGroupID: &group, StaffID: &staff}, true},
+		{"room of the block", timetable.BlockFilter{RoomID: &room}, true},
+		{"other room", timetable.BlockFilter{RoomID: &otherRoom}, false},
+		{"room and person must both match", timetable.BlockFilter{RoomID: &room, StaffID: &otherStaff}, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tt.want, tt.filter.Matches(rows, groups))
-			assert.Equal(t, tt.filter.EducationGroupID != nil || tt.filter.StaffID != nil, tt.filter.Active())
+			assert.Equal(t, tt.want, tt.filter.Matches(room, rows, groups))
+			assert.Equal(t, tt.filter.EducationGroupID != nil || tt.filter.StaffID != nil || tt.filter.RoomID != nil, tt.filter.Active())
 		})
 	}
 }

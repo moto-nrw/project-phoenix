@@ -338,11 +338,18 @@ const SchoolPlanReadView = dynamic(
  * Ein Deeplink in den Betreuungsplan (`?view=tag&d=…&block=…`) muss auch den
  * richtigen Tab öffnen — sonst landet ein geteilter Link (#2621) auf "Meine
  * Termine" und der Zustand ist verloren. Der Betreuungsplan verwaltet seine
- * Parameter über eine Allowlist (d/view/block, Filter group/staff) und
+ * Parameter über eine Allowlist (d/view/block, Filter group/staff/room) und
  * würde einen eigenen Tab-Parameter beim nächsten Wechsel wieder abräumen;
  * deshalb entscheidet die Anwesenheit dieser Parameter über den Starttab.
  */
-const SCHOOL_PLAN_PARAMS = ["d", "view", "block", "group", "staff"] as const;
+const SCHOOL_PLAN_PARAMS = [
+  "d",
+  "view",
+  "block",
+  "group",
+  "staff",
+  "room",
+] as const;
 
 function hasSchoolPlanParams(params: URLSearchParams | null): boolean {
   return SCHOOL_PLAN_PARAMS.some((key) => params?.has(key) === true);

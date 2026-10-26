@@ -5,9 +5,10 @@ import (
 	"slices"
 )
 
-// BlockFilter narrows the Betreuungsplan to one OGS group and/or one staff
-// member (#4766). A nil field does not filter; both set means both must
-// match. The filter only narrows what the caller may already see.
+// BlockFilter narrows the Betreuungsplan to one OGS group, one staff member
+// (#4766) and/or one room (#4768). A nil field does not filter; several set
+// means all must match. The filter only narrows what the caller may already
+// see.
 type BlockFilter struct {
 	// EducationGroupID keeps the blocks of the group, as BlockGroupQuery
 	// reports them.
@@ -16,16 +17,22 @@ type BlockFilter struct {
 	// staff or as substitute, absent rows included: the block still shows
 	// the person.
 	StaffID *int64
+	// RoomID keeps the blocks planned in the room: the block's own room, the
+	// one the planner and the room's plan show.
+	RoomID *int64
 }
 
 // Active reports whether the filter narrows anything.
 func (f BlockFilter) Active() bool {
-	return f.EducationGroupID != nil || f.StaffID != nil
+	return f.EducationGroupID != nil || f.StaffID != nil || f.RoomID != nil
 }
 
-// Matches reports whether a block with the given staff rows and OGS groups
-// passes the filter.
-func (f BlockFilter) Matches(staff []InstanceStaff, educationGroupIDs []int64) bool {
+// Matches reports whether a block in the given room, with the given staff
+// rows and OGS groups, passes the filter.
+func (f BlockFilter) Matches(roomID int64, staff []InstanceStaff, educationGroupIDs []int64) bool {
+	if f.RoomID != nil && roomID != *f.RoomID {
+		return false
+	}
 	if f.EducationGroupID != nil && !slices.Contains(educationGroupIDs, *f.EducationGroupID) {
 		return false
 	}

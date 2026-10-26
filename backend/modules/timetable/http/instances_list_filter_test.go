@@ -66,6 +66,48 @@ func TestListInstances_FiltersByGroupAndStaff(t *testing.T) {
 	assert.Equal(t, []int64{}, ids(fmt.Sprintf("%s&group_id=%d&staff_id=%d", window, group.ID, substitute.ID)))
 }
 
+// #4768: room_id keeps the blocks planned in the room, cancelled ones
+// included with their status, so the room's plan can show them as
+// cancelled instead of dropping them silently.
+func TestListInstances_FiltersByRoom(t *testing.T) {
+	t.Parallel()
+
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+	router := listRouter(s.ctx, s.res)
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+	otherRoom := testpkg.CreateTestRoom(t, s.db, "Raumplan-Andere")
+
+	planned := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "12:00", EndHHMM: "13:00", Title: "Mittagessen",
+	})
+	cancelled := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Kunst-AG", Status: timetable.InstanceStatusCancelled,
+	})
+	elsewhere := testpkg.CreateTestActivityInstance(t, s.db, fromDate, otherRoom.ID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "12:00", EndHHMM: "13:00", Title: "Anderer Raum",
+	})
+
+	list := func(roomID int64) map[int64]string {
+		t.Helper()
+		w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s&room_id=%d", from, to, roomID))
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		out := map[int64]string{}
+		for _, item := range decodeList(t, w).Instances {
+			out[item.ID] = item.Status
+		}
+		return out
+	}
+
+	assert.Equal(t, map[int64]string{
+		planned.ID:   timetable.InstanceStatusPlanned,
+		cancelled.ID: timetable.InstanceStatusCancelled,
+	}, list(s.roomID))
+	assert.Equal(t, map[int64]string{elsewhere.ID: timetable.InstanceStatusPlanned}, list(otherRoom.ID))
+}
+
 func TestListInstances_RejectsInvalidFilterIDs(t *testing.T) {
 	t.Parallel()
 
@@ -75,7 +117,7 @@ func TestListInstances_RejectsInvalidFilterIDs(t *testing.T) {
 	from, _ := listFutureDate(1)
 	to, _ := listFutureDate(7)
 
-	for _, query := range []string{"group_id=abc", "group_id=0", "staff_id=-3"} {
+	for _, query := range []string{"group_id=abc", "group_id=0", "staff_id=-3", "room_id=x", "room_id=0"} {
 		t.Run(query, func(t *testing.T) {
 			w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s&%s", from, to, query))
 			assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())

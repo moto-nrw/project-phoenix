@@ -1,15 +1,20 @@
-// Gruppen- und Personenfilter des Betreuungsplans (#4766). Beide Werte reisen
-// als URL-Parameter `group` und `staff` (wie `staff` im Dienstplan), damit
-// eine gefilterte Ansicht teilbar ist. Der Backend-Endpunkt filtert; diese
+// Gruppen- und Personenfilter (#4766) und Raumfilter (#4768) des
+// Betreuungsplans. Die Werte reisen als URL-Parameter `group`, `staff` (wie
+// `staff` im Dienstplan) und `room`, damit eine gefilterte Ansicht teilbar ist. Der Backend-Endpunkt filtert; diese
 // Datei übersetzt nur zwischen URL, Anfrage und Cache-Schlüssel.
 
 /** Aktiver Filter; `null` heißt: nicht gefiltert. */
 export interface PlanFilter {
   readonly groupId: string | null;
   readonly staffId: string | null;
+  readonly roomId: string | null;
 }
 
-export const NO_PLAN_FILTER: PlanFilter = { groupId: null, staffId: null };
+export const NO_PLAN_FILTER: PlanFilter = {
+  groupId: null,
+  staffId: null,
+  roomId: null,
+};
 
 const maxInt64 = "9223372036854775807";
 
@@ -32,7 +37,9 @@ export function parsePlanFilterId(
 }
 
 export function isPlanFilterActive(filter: PlanFilter): boolean {
-  return filter.groupId !== null || filter.staffId !== null;
+  return (
+    filter.groupId !== null || filter.staffId !== null || filter.roomId !== null
+  );
 }
 
 /** Query-Parameter für GET /api/timetable/instances. */
@@ -40,6 +47,7 @@ export function planFilterQuery(filter: PlanFilter): Record<string, string> {
   return {
     ...(filter.groupId ? { group_id: filter.groupId } : {}),
     ...(filter.staffId ? { staff_id: filter.staffId } : {}),
+    ...(filter.roomId ? { room_id: filter.roomId } : {}),
   };
 }
 
@@ -49,5 +57,6 @@ export function planFilterQuery(filter: PlanFilter): Record<string, string> {
  */
 export function planFilterKey(filter: PlanFilter): string {
   if (!isPlanFilterActive(filter)) return "";
-  return `-g${filter.groupId ?? ""}-p${filter.staffId ?? ""}`;
+  const room = filter.roomId ? `-r${filter.roomId}` : "";
+  return `-g${filter.groupId ?? ""}-p${filter.staffId ?? ""}${room}`;
 }

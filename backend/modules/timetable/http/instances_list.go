@@ -1,10 +1,10 @@
 // Package timetablehttp — WP-F2 backend prerequisite: weekly instance list.
 //
-//	GET /api/timetable/instances?from=YYYY-MM-DD&to=YYYY-MM-DD[&group_id=&staff_id=]
+//	GET /api/timetable/instances?from=YYYY-MM-DD&to=YYYY-MM-DD[&group_id=&staff_id=&room_id=]
 //
 // Lists all materialized activity instances in the requested window for the
-// current tenant, optionally narrowed to one OGS group and/or one staff
-// member (#4766), enriched with room name, activity-group type, staffing
+// current tenant, optionally narrowed to one OGS group, one staff member
+// (#4766) and/or one room (#4768), enriched with room name, activity-group type, staffing
 // counts, and expected/present student counts. Powers the admin weekly
 // planner UI (database/timetables). Permission: SchedulesRead.
 //
@@ -283,8 +283,8 @@ func parseDateWindow(w http.ResponseWriter, r *http.Request, maxDays int) (from,
 	return from, to, true
 }
 
-// parseBlockFilter reads the optional group_id and staff_id of GET
-// /instances (#4766). It returns ok=false after rendering the 400 for a
+// parseBlockFilter reads the optional group_id, staff_id (#4766) and room_id
+// (#4768) of GET /instances. It returns ok=false after rendering the 400 for a
 // value that is not a positive id.
 func parseBlockFilter(w http.ResponseWriter, r *http.Request) (timetable.BlockFilter, bool) {
 	var filter timetable.BlockFilter
@@ -292,7 +292,7 @@ func parseBlockFilter(w http.ResponseWriter, r *http.Request) (timetable.BlockFi
 	for _, param := range []struct {
 		name   string
 		target **int64
-	}{{"group_id", &filter.EducationGroupID}, {"staff_id", &filter.StaffID}} {
+	}{{"group_id", &filter.EducationGroupID}, {"staff_id", &filter.StaffID}, {"room_id", &filter.RoomID}} {
 		raw := q.Get(param.name)
 		if raw == "" {
 			continue
@@ -308,7 +308,7 @@ func parseBlockFilter(w http.ResponseWriter, r *http.Request) (timetable.BlockFi
 	return filter, true
 }
 
-// blockSelection is an active group and person filter with the OGS groups
+// blockSelection is an active group, person or room filter with the OGS groups
 // of the window's blocks (#4766).
 type blockSelection struct {
 	filter timetable.BlockFilter
@@ -441,7 +441,7 @@ func (rs *Resource) enrichInstances(
 		enriched = append(enriched, item)
 		conflictInputs = append(conflictInputs, windowConflictBlock(inst, staffRows, studentRows))
 		if matches != nil {
-			matches = append(matches, selection.filter.Matches(staffRows, selection.groups[inst.ID]))
+			matches = append(matches, selection.filter.Matches(inst.RoomID, staffRows, selection.groups[inst.ID]))
 		}
 	}
 	return enriched, conflictInputs, matches, nil
