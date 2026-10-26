@@ -11,6 +11,7 @@ import {
   isPersonalStorageKey,
   KEPT_STORAGE_KEYS,
   PERSONAL_STORAGE_PREFIXES,
+  personalStorageLease,
   personalStorageOwner,
 } from "./personal-storage";
 import { SIDEBAR_MEMORY_ENTRIES, sidebarMemoryKey } from "./sidebar-memory";
@@ -176,6 +177,33 @@ describe("bindPersonalStorage", () => {
     bindPersonalStorage(OWNER);
 
     expect(keys(localStorage)).toEqual(["moto:personal-storage-owner"]);
+  });
+});
+
+describe("personalStorageLease", () => {
+  it("holds while the same account keeps the entries", () => {
+    bindPersonalStorage(OWNER);
+    const stillOwned = personalStorageLease();
+
+    bindPersonalStorage(OWNER);
+
+    expect(stillOwned()).toBe(true);
+  });
+
+  it.each([
+    ["a logout", () => clearPersonalStorage()],
+    ["an account switch", () => bindPersonalStorage("1:8")],
+    [
+      "another tab binding the entries to its account",
+      () => localStorage.setItem("moto:personal-storage-owner", "1:8"),
+    ],
+  ])("ends with %s", (_change, change) => {
+    bindPersonalStorage(OWNER);
+    const stillOwned = personalStorageLease();
+
+    change();
+
+    expect(stillOwned()).toBe(false);
   });
 });
 

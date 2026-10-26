@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearPersonalStorage } from "~/lib/personal-storage";
+import {
+  bindPersonalStorage,
+  clearPersonalStorage,
+} from "~/lib/personal-storage";
 import { reportStandaloneUsage } from "~/lib/pwa-usage-api";
 import * as pushApi from "~/lib/push-api";
 
@@ -72,6 +75,45 @@ describe("reportStandaloneUsage", () => {
     await reportStandaloneUsage("tenant", accountID, 1);
     await reportStandaloneUsage("tenant", accountID, 1);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  // The report starts for account 7, the tab then switches to account 8 or
+  // logs out, and only then the answer arrives (#5000).
+  it.each([
+    ["an account switch", () => bindPersonalStorage("1:8")],
+    ["a logout", () => clearPersonalStorage()],
+  ])(
+    "does not bring the mark back after %s during the report",
+    async (_change, change) => {
+      bindPersonalStorage("1:7");
+      let answer!: (response: { ok: boolean; status: number }) => void;
+      fetchMock.mockReturnValueOnce(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+
+      const report = reportStandaloneUsage("tenant", accountID, 1);
+      change();
+      answer({ ok: true, status: 204 });
+      await report;
+
+      expect(
+        sessionStorage.getItem("moto-pwa-usage-reported.tenant.account-1.1"),
+      ).toBeNull();
+      localStorage.clear();
+    },
+  );
+
+  it("marks the session when the account stayed during the report", async () => {
+    bindPersonalStorage("1:7");
+
+    await reportStandaloneUsage("tenant", accountID, 1);
+
+    expect(
+      sessionStorage.getItem("moto-pwa-usage-reported.tenant.account-1.1"),
+    ).toBe("1");
+    localStorage.clear();
   });
 
   it("does not mark the session on a rejected report", async () => {

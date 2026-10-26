@@ -26,6 +26,7 @@ import { useLatest } from "~/lib/hooks/use-latest";
 import { isTimetableOperationForbidden } from "~/lib/timetable-operation-access";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
+import { personalStorageLease } from "~/lib/personal-storage";
 import {
   clearOwnAttendanceMutation,
   markOwnAttendanceMutation,
@@ -283,6 +284,7 @@ export function useTimetableActions(
     async (instance: PlannedTimetableInstance) => {
       try {
         setIsStartingInstance(instance.id);
+        const stillOwned = personalStorageLease();
         const result = await timetableOperationsApi.start(instance.id);
         const startedRoom = allRooms.find(
           (room) => room.room_id === instance.roomId,
@@ -290,12 +292,14 @@ export function useTimetableActions(
         router.push(
           adoptSession(result.activeGroupId, instance.id, instance.roomId),
         );
-        memory.write("supervision-last-session", result.activeGroupId);
-        memory.write("sidebar-last-room", instance.roomId);
-        if (startedRoom?.room_name) {
-          memory.write("sidebar-last-room-name", startedRoom.room_name);
-        } else {
-          memory.remove("sidebar-last-room-name");
+        if (stillOwned()) {
+          memory.write("supervision-last-session", result.activeGroupId);
+          memory.write("sidebar-last-room", instance.roomId);
+          if (startedRoom?.room_name) {
+            memory.write("sidebar-last-room-name", startedRoom.room_name);
+          } else {
+            memory.remove("sidebar-last-room-name");
+          }
         }
         await reloadAfterLifecycleChange();
       } catch (err) {
@@ -344,6 +348,7 @@ export function useTimetableActions(
 
       try {
         setIsStartingSpontaneous(true);
+        const stillOwned = personalStorageLease();
         const result = await timetableOperationsApi.createAndStartSpontaneous({
           title: payload.title,
           room_id: Number(payload.roomId),
@@ -356,8 +361,10 @@ export function useTimetableActions(
         router.push(
           adoptSession(result.activeGroupId, result.instanceId, payload.roomId),
         );
-        memory.write("supervision-last-session", result.activeGroupId);
-        memory.write("sidebar-last-room", payload.roomId);
+        if (stillOwned()) {
+          memory.write("supervision-last-session", result.activeGroupId);
+          memory.write("sidebar-last-room", payload.roomId);
+        }
         await reloadAfterLifecycleChange();
       } catch (err) {
         const context = {
@@ -527,20 +534,25 @@ export function useTimetableActions(
     clearCompleteError();
     try {
       setIsCompletingInstance(true);
+      const stillOwned = personalStorageLease();
       const completed = await timetableOperationsApi.complete(
         activeTimetableInstanceId,
         currentTimetableRoster?.rows
           .filter((row) => row.currentlyPresent)
           .map((row) => row.studentId) ?? [],
       );
-      rememberReopenable(
-        {
-          instanceId: activeTimetableInstanceId,
-          title: currentTimetableRoster?.instance.title ?? null,
-          roomId: currentTimetableRoster?.instance.roomId ?? null,
-        },
-        completed.reopenUntil,
-      );
+      // The undo names the activity; after a logout or account switch in
+      // between it would show it to the next person (#5000).
+      if (stillOwned()) {
+        rememberReopenable(
+          {
+            instanceId: activeTimetableInstanceId,
+            title: currentTimetableRoster?.instance.title ?? null,
+            roomId: currentTimetableRoster?.instance.roomId ?? null,
+          },
+          completed.reopenUntil,
+        );
+      }
       // The dialog stays open with its pending button until both lists no
       // longer carry the ended block; closing first would show it as still
       // running for the length of the reload (#3888).
@@ -582,6 +594,7 @@ export function useTimetableActions(
     if (!reopenable) return;
     try {
       setIsReopeningInstance(true);
+      const stillOwned = personalStorageLease();
       const result = await timetableOperationsApi.reopen(reopenable.instanceId);
       clearReopenable();
       // Undo opens the restored block, wherever the page went after the end.
@@ -595,8 +608,10 @@ export function useTimetableActions(
             reopenable.roomId,
           ),
         );
-        memory.write("supervision-last-session", result.activeGroupId);
-        memory.write("sidebar-last-room", reopenable.roomId);
+        if (stillOwned()) {
+          memory.write("supervision-last-session", result.activeGroupId);
+          memory.write("sidebar-last-room", reopenable.roomId);
+        }
       } else {
         setSelectedTimetableInstanceId(result.instanceId);
       }

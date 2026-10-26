@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
+import {
+  bindPersonalStorage,
+  clearPersonalStorage,
+} from "~/lib/personal-storage";
 import { useUnreadCount } from "./use-unread-count";
 
 // ---------------------------------------------------------------------------
@@ -148,6 +152,37 @@ describe("useUnreadCount — cache", () => {
       expect(data.count).toBe(15);
     });
   });
+
+  // The count starts loading for this account; a logout or account switch
+  // clears the cache before the answer arrives (#5000).
+  it.each([
+    ["a logout", () => clearPersonalStorage()],
+    ["an account switch", () => bindPersonalStorage("1:8")],
+  ])(
+    "does not cache a count that arrives after %s",
+    async (_change, change) => {
+      bindPersonalStorage("1:7");
+      let answer!: (count: number) => void;
+      const fetcher = vi.fn(
+        () =>
+          new Promise<number>((resolve) => {
+            answer = resolve;
+          }),
+      );
+      const { result } = renderHook(() =>
+        useUnreadCount({ enabled: true, fetcher, cacheKey: CACHE_KEY }),
+      );
+      await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1));
+
+      change();
+      await act(async () => {
+        answer(15);
+      });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(localStorage.getItem(CACHE_KEY)).toBeNull();
+    },
+  );
 
   it("does not write to localStorage when no cacheKey is given", async () => {
     const fetcher = vi.fn().mockResolvedValue(3);

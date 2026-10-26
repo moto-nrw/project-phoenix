@@ -6,6 +6,10 @@
 // räumt sie ab, wenn das Konto geht (Logout) oder wechselt (anderes Konto,
 // andere Schule, Vorschau als andere Person).
 //
+// Wer einen solchen Eintrag erst nach einer Anfrage schreibt, holt vorher
+// personalStorageLease() und schreibt nur, solange sie gilt; sonst brächte
+// eine späte Antwort den Eintrag des vorigen Kontos zurück.
+//
 // Jeder Schlüssel, den das Frontend in localStorage oder sessionStorage
 // schreibt, steht entweder in PERSONAL_STORAGE_PREFIXES (wird geräumt) oder
 // in KEPT_STORAGE_KEYS (bleibt, mit Grund). personal-storage.test.ts sucht
@@ -121,7 +125,11 @@ export function personalStorageOwner(
   return `${user.tenantId ?? user.orgId ?? "-"}:${user.id}`;
 }
 
+// Zählt jedes Räumen in diesem Tab; personalStorageLease vergleicht ihn.
+let clearings = 0;
+
 function clearStorage(storage: Storage | undefined): void {
+  clearings += 1;
   if (!storage) return;
   try {
     const keys: string[] = [];
@@ -142,6 +150,28 @@ function webStorage(name: "localStorage" | "sessionStorage") {
     // Der Zugriff selbst kann werfen, wenn Websitedaten gesperrt sind.
     return undefined;
   }
+}
+
+function boundOwner(): string | null {
+  try {
+    return webStorage("localStorage")?.getItem(OWNER_KEY) ?? null;
+  } catch {
+    // Unlesbarer Speicher: es gibt keinen gebundenen Besitzer.
+    return null;
+  }
+}
+
+/**
+ * Schreiberlaubnis für einen personenbezogenen Eintrag, der erst nach einer
+ * Anfrage entsteht. Vor der Anfrage holen, vor dem Schreiben fragen: Kam
+ * dazwischen ein Logout oder ein Konto-, Schul- oder Vorschauwechsel, ist
+ * schon geräumt, und ein später Eintrag des vorigen Kontos bliebe stehen,
+ * weil niemand ein zweites Mal räumt.
+ */
+export function personalStorageLease(): () => boolean {
+  const clearingsAtStart = clearings;
+  const ownerAtStart = boundOwner();
+  return () => clearings === clearingsAtStart && boundOwner() === ownerAtStart;
 }
 
 /** Entfernt alle personenbezogenen Einträge dieses Browsers für diesen Host. */

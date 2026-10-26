@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { personalStorageLease } from "~/lib/personal-storage";
 
 /**
  * Shared unread-badge hook: a single localStorage-cache + concurrent-fetch +
@@ -205,6 +206,9 @@ export function useUnreadCount({
           // changes cacheKeyRef; the resolved count then belongs to the previous
           // tenant and must not be shown or cached under the new key.
           fetchKey = cacheKeyRef.current;
+          // The count belongs to this account: a logout or account switch
+          // while it loads already cleared the cache (#5000).
+          const stillOwned = personalStorageLease();
           const count = await fetcherRef.current();
           // The gate may have flipped off while this fetch was in flight; the
           // layout effect already reset the count to 0, so a stale non-zero count
@@ -220,7 +224,7 @@ export function useUnreadCount({
           }
           setUnreadCount(count);
           displayedKeyRef.current = fetchKey;
-          if (fetchKey) writeCache(fetchKey, count);
+          if (fetchKey && stillOwned()) writeCache(fetchKey, count);
         } while (pendingForceRef.current);
       } catch (error) {
         // Do not report an error from a request that no longer belongs to the
