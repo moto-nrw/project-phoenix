@@ -207,12 +207,23 @@ export function BillingLettersModal({
       size="lg"
       error={formErrors.error}
       footer={
-        <EditActions
-          onCancel={onClose}
-          onSave={() => formRef.current?.requestSubmit()}
-          saving={saving}
-          saveLabel="Schreiben erstellen"
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            disabled={previewing || saving}
+            onClick={() => void preview()}
+          >
+            {previewing ? "Vorschau wird erstellt …" : "Vorschau ansehen"}
+          </Button>
+          <EditActions
+            onCancel={onClose}
+            onSave={() => formRef.current?.requestSubmit()}
+            saving={saving}
+            saveLabel="Schreiben erstellen"
+          />
+        </div>
       }
     >
       <form
@@ -293,15 +304,6 @@ export function BillingLettersModal({
             </Button>
           ) : null}
         </fieldset>
-        <Button
-          type="button"
-          variant="secondary"
-          size="md"
-          disabled={previewing || saving}
-          onClick={() => void preview()}
-        >
-          {previewing ? "Vorschau wird erstellt …" : "Vorschau ansehen"}
-        </Button>
       </form>
     </FormModal>
   );
