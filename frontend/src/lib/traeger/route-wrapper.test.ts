@@ -334,6 +334,96 @@ describe("Träger file proxy (#4655)", () => {
   });
 });
 
+describe("Träger POST file proxy (#4669)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTraegerAuth.mockResolvedValue({ user: { token: "org-token" } });
+  });
+
+  function previewRequest(body: string) {
+    return new NextRequest(
+      "http://localhost:3000/api/traeger/billing-runs/7/letters/preview",
+      { method: "POST", body, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  it("forwards the JSON body and streams the PDF back", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response("%PDF-1.4", {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": 'inline; filename="bestaetigung-fe-0001.pdf"',
+        },
+      }),
+    );
+
+    const response = await proxyFile(
+      "/traeger/billing-runs/7/letters/preview",
+      {
+        method: "POST",
+      },
+    )(previewRequest('{"payment_due_on":"2026-12-15"}'), context);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    expect(await response.text()).toBe("%PDF-1.4");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/traeger/billing-runs/7/letters/preview",
+      expect.objectContaining({
+        method: "POST",
+        body: '{"payment_due_on":"2026-12-15"}',
+        headers: expect.objectContaining({
+          Authorization: "Bearer org-token",
+          "Content-Type": "application/json",
+        }),
+      }),
+    );
+  });
+
+  it("sends the same body again after a refreshed session", async () => {
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+    mockFetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(
+        new Response("%PDF", {
+          status: 200,
+          headers: { "Content-Type": "application/pdf" },
+        }),
+      );
+
+    const response = await proxyFile(
+      "/traeger/billing-runs/7/letters/preview",
+      {
+        method: "POST",
+      },
+    )(previewRequest('{"notes":"Hausschuhe"}'), context);
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: '{"notes":"Hausschuhe"}',
+        headers: expect.objectContaining({
+          Authorization: "Bearer fresh-token",
+        }),
+      }),
+    );
+  });
+
+  it("refuses a body over the limit before calling the backend", async () => {
+    const response = await proxyFile(
+      "/traeger/billing-runs/7/letters/preview",
+      {
+        method: "POST",
+      },
+    )(previewRequest("x".repeat(64 * 1024 + 1)), context);
+
+    expect(response.status).toBe(400);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
 describe("Träger upload proxy (#4653)", () => {
   beforeEach(() => {
     vi.clearAllMocks();

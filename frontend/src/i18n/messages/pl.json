@@ -2831,11 +2831,27 @@
         "supply_active": "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie."
       },
       "parent_billing": {
+        "bank_account_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "benefits_exemption_unavailable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "billing_correction_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "billing_family_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "billing_letter_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "billing_letters_exist": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "billing_letters_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "billing_run_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "billing_run_empty": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "billing_run_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "billing_run_not_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "billing_run_open": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "billing_run_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "contribution_rule_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "contribution_rule_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "contribution_rule_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "holiday_quote_invalid": "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę."
+        "holiday_quote_invalid": "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
+        "invoice_number_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "letterhead_too_long": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "number_range_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "number_range_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

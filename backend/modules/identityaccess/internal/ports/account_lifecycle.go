@@ -9,15 +9,12 @@ import (
 
 // AccountLifecycleStore is the persistence port over the identity-owned rows
 // the lifecycle flows (#3225) read and write beyond the login store: the
-// school's account listing, the direct permission grants, the school mapping
-// deactivation and account e-mails. Every statement
-// runs on the connection the caller's context carries.
+// school's account listing, school mapping deactivation and account e-mails.
+// Every statement runs on the connection the caller's context carries.
 type AccountLifecycleStore interface {
 	// ListTenantAccounts returns every account mapped to the school with its
 	// role names at that school, ascending by account id.
 	ListTenantAccounts(ctx context.Context, tenantID int64) ([]domain.TenantAccount, domain.OperationStats, error)
-	ListAccountPermissionGrants(ctx context.Context, accountID, tenantID int64) ([]domain.PermissionGrant, domain.OperationStats, error)
-	DeleteAccountPermissionGrants(ctx context.Context, accountID, tenantID int64) (int64, domain.OperationStats, error)
 	// DeactivateTenantMapping keeps the row (with deactivated_at) so a later
 	// re-invitation can reactivate it.
 	DeactivateTenantMapping(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)

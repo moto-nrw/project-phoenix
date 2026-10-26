@@ -448,6 +448,7 @@ GET /api/surveys/{surveyId}/form
 GET /api/surveys/{surveyId}/respondents
 GET /api/surveys/{surveyId}/results
 GET /api/surveys/{surveyId}/results/export
+GET /api/time-tracking/absence-allowances
 GET /api/time-tracking/absences
 GET /api/time-tracking/assignments
 GET /api/time-tracking/breaks/{sessionId}
@@ -640,6 +641,10 @@ GET /traeger/access-log/
 GET /traeger/access-log/export
 GET /traeger/access-log/people
 GET /traeger/accounts/
+GET /traeger/billing-runs/
+GET /traeger/billing-runs/periods
+GET /traeger/billing-runs/{id}
+GET /traeger/billing-runs/{id}/documents/{documentID}/letter
 GET /traeger/contribution-rules/
 GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 GET /traeger/holiday-periods/
@@ -651,6 +656,7 @@ GET /traeger/holiday-registrations/{token}
 GET /traeger/invitations/{token}
 GET /traeger/master-data/
 GET /traeger/master-data/logo
+GET /traeger/number-ranges/
 GET /traeger/organization/
 GET /traeger/schools/
 GET /traeger/settings/schema
@@ -1063,6 +1069,11 @@ POST /traeger/auth/mfa/enroll/confirm
 POST /traeger/auth/mfa/enroll/start
 POST /traeger/auth/mfa/resend
 POST /traeger/auth/mfa/verify
+POST /traeger/billing-runs/
+POST /traeger/billing-runs/{id}/corrections
+POST /traeger/billing-runs/{id}/letters
+POST /traeger/billing-runs/{id}/letters/preview
+POST /traeger/billing-runs/{id}/release
 POST /traeger/contribution-rules/
 POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm
 POST /traeger/holiday-periods/
@@ -1217,6 +1228,7 @@ PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{child
 PUT /traeger/master-data/bank-accounts/{id}
 PUT /traeger/master-data/contact
 PUT /traeger/master-data/logo
+PUT /traeger/number-ranges/{service}
 PUT /traeger/settings/values/{key}
 QUERY /.well-known/caldav
 QUERY /api/caldav

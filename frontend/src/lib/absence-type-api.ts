@@ -203,7 +203,7 @@ class AbsenceTypeService {
   }
 }
 
-interface BackendAbsenceTypeAllowanceSummary {
+export interface BackendAbsenceTypeAllowanceSummary {
   staff_id: string;
   absence_type_id: string;
   year: number;
@@ -252,7 +252,7 @@ export interface AbsenceTypeAllowanceSummary {
   readonly carriedIn: AbsenceTypeAllowanceCarry | null;
 }
 
-function mapAllowance(
+export function mapAllowance(
   data: BackendAbsenceTypeAllowanceSummary,
 ): AbsenceTypeAllowanceSummary {
   return {

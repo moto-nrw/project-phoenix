@@ -230,7 +230,9 @@ export function SectionCard({
                       "flex shrink-0 items-center gap-2",
                       !description && !kicker && "h-10",
                     )
-                  : "order-last flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0"
+                  : // max-w-full: viele Aktionen brechen in der Karte um,
+                    // statt über ihren Rand zu ragen (#4975).
+                    "order-last flex w-full max-w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0"
               }
             >
               {headerActions}

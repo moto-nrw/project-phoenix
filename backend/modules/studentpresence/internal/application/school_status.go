@@ -48,7 +48,7 @@ func appendSchoolStatuses(result []studentpresence.SchoolStatus, ids []int64, da
 	for _, id := range ids {
 		status := studentpresence.SchoolStatus{StudentID: id, Date: date, Status: "not_checked_in"}
 		if row := latest[id]; row != nil {
-			status.CheckedInBy, status.CheckedOutBy = row.CheckedInBy, row.CheckedOutBy
+			status.CheckedInBy, status.CheckedOutBy, status.CheckedOutDeviceID = row.CheckedInBy, row.CheckedOutBy, row.CheckedOutDeviceID
 			status.CheckInTime, status.CheckOutTime, status.YardSince = &row.CheckInTime, row.CheckOutTime, row.YardSince
 			status.CheckOutNote = row.CheckOutNote
 			switch {

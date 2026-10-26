@@ -44,8 +44,7 @@ func (s *Service) findAllowanceType(ctx context.Context, absenceTypeID int64) (d
 }
 
 // loadAllowanceAccounts reads the claims and bookings behind the accounts of
-// firstYear..lastYear. With a carryover the chain starts at the oldest claim,
-// because an older rest decides how much of each later year is still open.
+// firstYear..lastYear.
 func (s *Service) loadAllowanceAccounts(ctx context.Context, staffID int64, absenceType domain.StaffAbsenceType, firstYear, lastYear int) (allowanceAccounts, error) {
 	accounts := allowanceAccounts{absenceType: absenceType}
 	err := s.run(ctx, "staff_absence_type_entitlements", func(ctx context.Context, stats *domain.OperationStats) error {
@@ -58,24 +57,52 @@ func (s *Service) loadAllowanceAccounts(ctx context.Context, staffID int64, abse
 	if err != nil {
 		return allowanceAccounts{}, fmt.Errorf("load absence type allowance: database error during list with options: %w", err)
 	}
+	from, to := allowanceWindow(absenceType, accounts.entitlements, firstYear, lastYear)
+	absences, err := s.listAllowanceAbsences(ctx, staffID, from, to)
+	if err != nil {
+		return allowanceAccounts{}, err
+	}
+	if err := s.addAllowanceUses(&accounts, absences, from, to); err != nil {
+		return allowanceAccounts{}, err
+	}
+	return accounts, nil
+}
+
+// allowanceWindow is the span of days whose bookings feed the accounts of
+// firstYear..lastYear. With a carryover the chain starts at the oldest claim,
+// because an older rest decides how much of each later year is still open.
+func allowanceWindow(absenceType domain.StaffAbsenceType, entitlements map[int]float64, firstYear, lastYear int) (string, string) {
 	from := firstYear
 	if absenceType.CarryoverUntil != "" {
 		from = firstYear - 1
-		for year := range accounts.entitlements {
+		for year := range entitlements {
 			from = min(from, year)
 		}
 	}
+	return fmt.Sprintf("%04d-01-01", from), domain.AllowanceExpiresOn(lastYear, absenceType.CarryoverUntil)
+}
+
+func (s *Service) listAllowanceAbsences(ctx context.Context, staffID int64, from, to string) ([]workforce.StaffAbsence, error) {
 	absences, err := s.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{
 		StaffID:     staffID,
-		OverlapFrom: fmt.Sprintf("%04d-01-01", from),
-		OverlapTo:   domain.AllowanceExpiresOn(lastYear, absenceType.CarryoverUntil),
+		OverlapFrom: from,
+		OverlapTo:   to,
 		Order:       []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}},
 	})
 	if err != nil {
-		return allowanceAccounts{}, fmt.Errorf("load absences for allowance: database error during get absences by staff and date range: %w", err)
+		return nil, fmt.Errorf("load absences for allowance: database error during get absences by staff and date range: %w", err)
 	}
+	return absences, nil
+}
+
+// addAllowanceUses books the absences of the accounts' type that overlap
+// [from, to] and still count: reported, approved or awaiting a decision.
+func (s *Service) addAllowanceUses(accounts *allowanceAccounts, absences []workforce.StaffAbsence, from, to string) error {
 	for _, absence := range absences {
-		if absence.AbsenceTypeID == nil || *absence.AbsenceTypeID != absenceType.ID {
+		if absence.AbsenceTypeID == nil || *absence.AbsenceTypeID != accounts.absenceType.ID {
+			continue
+		}
+		if absence.DateEnd < from || absence.DateStart > to {
 			continue
 		}
 		switch absence.Status {
@@ -85,11 +112,11 @@ func (s *Service) loadAllowanceAccounts(ctx context.Context, staffID int64, abse
 		}
 		uses, err := s.allowanceUses(absenceToDomain(absence))
 		if err != nil {
-			return allowanceAccounts{}, err
+			return err
 		}
 		accounts.uses = append(accounts.uses, uses...)
 	}
-	return accounts, nil
+	return nil
 }
 
 func (s *Service) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]workforce.AbsenceTypeAllowanceSummary, error) {
@@ -267,6 +294,66 @@ func (s *Service) AllowanceSummary(ctx context.Context, staffID, absenceTypeID i
 		return allowanceSummaryToPublic(domain.AbsenceTypeAllowanceSummary{}), MapError(err)
 	}
 	return allowanceSummaryToPublic(accounts.ledger(s.clock.Today()).Summary(staffID, absenceTypeID, year)), MapError(nil)
+}
+
+// AllowanceAccounts is AllowanceSummary for every active type with an
+// allowance (#4971). The types, the person's claims and their absences are
+// read once each; every type then books only its own share of them.
+func (s *Service) AllowanceAccounts(ctx context.Context, staffID int64, year int) ([]workforce.AbsenceTypeAllowanceAccount, error) {
+	if staffID <= 0 || year < 2000 || year > 2100 {
+		return nil, MapError(domain.ErrAbsenceTypeAllowanceInvalid)
+	}
+	types, err := s.ListStaffAbsenceTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	types = slices.DeleteFunc(types, func(t workforce.StaffAbsenceType) bool { return !t.IsActive || !t.AllowanceEnabled })
+	if len(types) == 0 {
+		return []workforce.AbsenceTypeAllowanceAccount{}, nil
+	}
+	var entitlements map[int64]map[int]float64
+	err = s.run(ctx, "staff_entitlements_by_absence_type", func(ctx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var err error
+		entitlements, queryStats, err = s.store.StaffEntitlementsByAbsenceType(ctx, staffID)
+		stats.Add(queryStats)
+		return err
+	})
+	if err != nil {
+		return nil, MapError(fmt.Errorf("load absence type allowances: %w", err))
+	}
+	return s.allowanceAccountsFor(ctx, staffID, year, types, entitlements)
+}
+
+func (s *Service) allowanceAccountsFor(
+	ctx context.Context, staffID int64, year int, types []workforce.StaffAbsenceType, entitlements map[int64]map[int]float64,
+) ([]workforce.AbsenceTypeAllowanceAccount, error) {
+	windows := make([][2]string, len(types))
+	from, to := "", ""
+	for i, absenceType := range types {
+		windows[i][0], windows[i][1] = allowanceWindow(domain.StaffAbsenceType(absenceType), entitlements[absenceType.ID], year, year)
+		if from == "" || windows[i][0] < from {
+			from = windows[i][0]
+		}
+		to = max(to, windows[i][1])
+	}
+	absences, err := s.listAllowanceAbsences(ctx, staffID, from, to)
+	if err != nil {
+		return nil, MapError(err)
+	}
+	today := s.clock.Today()
+	result := make([]workforce.AbsenceTypeAllowanceAccount, 0, len(types))
+	for i, absenceType := range types {
+		accounts := allowanceAccounts{absenceType: domain.StaffAbsenceType(absenceType), entitlements: entitlements[absenceType.ID]}
+		if err := s.addAllowanceUses(&accounts, absences, windows[i][0], windows[i][1]); err != nil {
+			return nil, MapError(err)
+		}
+		result = append(result, workforce.AbsenceTypeAllowanceAccount{
+			AbsenceType: absenceType,
+			Summary:     allowanceSummaryToPublic(accounts.ledger(today).Summary(staffID, absenceType.ID, year)),
+		})
+	}
+	return result, nil
 }
 
 func formatAllowanceDays(days float64) string {

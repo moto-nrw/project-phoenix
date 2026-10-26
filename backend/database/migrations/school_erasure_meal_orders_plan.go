@@ -13,7 +13,10 @@ func installMealOrderErasurePlan(ctx context.Context, tx bun.Tx) error {
 	return err
 }
 
-const mealOrderErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_erasure_plan()
+const mealOrderErasurePlanSQL = mealOrderErasurePlanSQLPrefix + `  {"name": "auth.account_permissions","predicate": "r.tenant_id = $1"},
+` + mealOrderErasurePlanSQLSuffix
+
+const mealOrderErasurePlanSQLPrefix = `CREATE OR REPLACE FUNCTION platform.school_erasure_plan()
  RETURNS JSONB LANGUAGE sql IMMUTABLE SET search_path = pg_catalog
  AS $plan$ SELECT $manifest$[
   {"name": "active.activity_session_attendance","predicate": "r.tenant_id = $1"},
@@ -76,8 +79,9 @@ const mealOrderErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_eras
   {"name": "audit.unregistered_tag_scans","predicate": "r.tenant_id = $1"},
   {"name": "audit.wc_alias_migration_backup","predicate": "r.tenant_id = $1"},
   {"name": "audit.work_session_edits","predicate": "r.tenant_id = $1"},
-  {"name": "auth.account_permissions","predicate": "r.tenant_id = $1"},
-  {"name": "auth.account_roles","predicate": "r.tenant_id = $1"},
+`
+
+const mealOrderErasurePlanSQLSuffix = `  {"name": "auth.account_roles","predicate": "r.tenant_id = $1"},
   {"name": "auth.account_tenants","predicate": "r.tenant_id = $1"},
   {"name": "auth.guardian_invitations","predicate": "r.tenant_id = $1"},
   {"name": "auth.guardian_student_access","predicate": "r.tenant_id = $1"},
@@ -266,3 +270,9 @@ const mealOrderErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_eras
 ]$manifest$::jsonb $plan$;
  REVOKE ALL ON FUNCTION platform.school_erasure_plan() FROM PUBLIC, phoenix_auth, phoenix_tenant, phoenix_admin;
 `
+
+// 1.15.646 removes only direct grants; the 1.15.605 SQL above stays unchanged.
+func installRetiredDirectPermissionsPlan(ctx context.Context, tx bun.Tx) error {
+	_, err := tx.ExecContext(ctx, mealOrderErasurePlanSQLPrefix+mealOrderErasurePlanSQLSuffix)
+	return err
+}

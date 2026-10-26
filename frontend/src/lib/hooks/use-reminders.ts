@@ -115,11 +115,26 @@ interface NextChangeDelay {
 // skew, or the timer resolving at the exact minute) it returns a short delay
 // (inFuture: false) so we refetch promptly rather than a whole day later.
 //
-// "24:00" is accepted: the backend emits it from formatMinutes(1440) for a
-// boundary at end-of-day (e.g. a 23:59 pickup flipping overdue at minute 1440).
-// It maps to 86400 seconds — one full day of Berlin seconds ahead of midnight —
-// so the timer fires at the next midnight instead of being dropped.
+// Same-day boundaries are HH:MM. A boundary on the following day is an RFC 3339
+// instant, which carries its date and Berlin offset. Keep accepting the legacy
+// 24:00 spelling while clients and servers roll out independently.
 function nextChangeDelay(hhmm: string): NextChangeDelay | null {
+  if (
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/.test(
+      hhmm,
+    )
+  ) {
+    const targetMs = Date.parse(hhmm);
+    if (Number.isNaN(targetMs)) return null;
+    const realDeltaMs = targetMs - Date.now();
+    if (realDeltaMs <= 0) {
+      return { delayMs: PAST_BOUNDARY_REFETCH_MS, inFuture: false };
+    }
+    return {
+      delayMs: realDeltaMs + NEXT_CHANGE_BUFFER_MS,
+      inFuture: true,
+    };
+  }
   const match = /^(\d{2}):(\d{2})$/.exec(hhmm);
   if (!match) return null;
   const hours = Number(match[1]);

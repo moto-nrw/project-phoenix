@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -77,9 +78,11 @@ describe("PayrollPage autosave", () => {
 
     render(<PayrollPage />);
 
-    const input = screen.getByRole("textbox", {
-      name: "Lohnartnummer Regelarbeit",
-    });
+    // Die Handyansicht trägt dieselben Felder ein zweites Mal (#4975).
+    const input = within(screen.getByTestId("data-table-table")).getByRole(
+      "textbox",
+      { name: "Lohnartnummer Regelarbeit" },
+    );
     fireEvent.change(input, { target: { value: "1001" } });
     fireEvent.blur(input);
 
@@ -124,9 +127,11 @@ describe("PayrollPage autosave", () => {
 
     render(<PayrollPage />);
 
-    const input = screen.getByRole("textbox", {
-      name: "Lohnartnummer Regelarbeit",
-    });
+    // Die Handyansicht trägt dieselben Felder ein zweites Mal (#4975).
+    const input = within(screen.getByTestId("data-table-table")).getByRole(
+      "textbox",
+      { name: "Lohnartnummer Regelarbeit" },
+    );
     fireEvent.change(input, { target: { value: "1001" } });
     fireEvent.blur(input);
 

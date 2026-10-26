@@ -27,10 +27,10 @@ var mealOrderWeekdays = [][]int{{1, 2, 3, 4, 5}, {1, 2, 3, 4}, {2, 3, 4, 5}, {1,
 
 // seedMealOrdersStep fills the order week through the school's API the way
 // a busy school does (#3873). The families registered about twenty children
-// before; the school registers more until the first open weekday has
+// before; the school registers more until the first weekday after today has
 // mealOrderChildren, spread over the classes. Every other day of the week
 // keeps its own deadline and shows its current count. A past day is never
-// ordered after the fact, so the first open weekday is the one fixed: the
+// ordered after the fact, so the first weekday after today is the one fixed: the
 // school moves the deadline back until it is due, its first late change
 // fixes the order, and two late registrations and a cancellation follow as
 // Nachmeldungen. The deadline is restored even when a write fails. Then the
@@ -72,10 +72,13 @@ func seedMealOrders(ctx context.Context, rt *Runtime, readMailLink MailLinkReade
 	return seedMealCaterer(ctx, rt, readMailLink, day)
 }
 
-// mealOrderSeedDay is the first weekday from today on and the number of
-// lead days that put its deadline before today, whatever the time of day.
+// mealOrderSeedDay is the first weekday after today and the number of lead
+// days that put its deadline before today, whatever the time of day. Today
+// itself never is the order day: past the day's cutoff (09:00 by default)
+// the scheduler has already fixed its order before the school registers
+// anyone, and that order stays without lines.
 func mealOrderSeedDay(today seedDate) (seedDate, int) {
-	day := seedWeekdayOnOrAfter(today)
+	day := seedWeekdayOnOrAfter(today.AddDays(1))
 	return day, int(day.Sub(today.Time).Hours()/24) + 1
 }
 

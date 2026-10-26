@@ -272,7 +272,6 @@ func (s *raStore) RemoveRolePermission(_ context.Context, roleID, permissionID i
 }
 
 func (s *raStore) DeletePermissionAssignments(context.Context, int64) error { return nil }
-func (s *raStore) DeletePermissionGrants(context.Context, int64) error      { return nil }
 
 func (s *raStore) FindManageableAccount(_ context.Context, accountID int64) (identityaccess.ManagedAccount, error) {
 	s.record("find manageable account")

@@ -37,6 +37,10 @@ import {
   mapAttendanceHistoryResponse,
 } from "~/lib/attendance-history-helpers";
 import {
+  attendanceActorLabel,
+  type AttendanceActor,
+} from "~/lib/attendance-actor";
+import {
   AttendanceCorrectionModal,
   type CorrectableSlot,
 } from "~/components/students/attendance-correction-modal";
@@ -117,6 +121,27 @@ function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
   return <LazyHistoryCharts data={chartData} />;
 }
 
+// ─── Wer gebucht hat (#4761) ─────────────────────────────────────────────────
+
+function AttendanceActorSummary({
+  checkedIn,
+  checkedOut,
+}: {
+  readonly checkedIn: AttendanceActor | null;
+  readonly checkedOut: AttendanceActor | null;
+}) {
+  const parts = [
+    checkedIn ? `Angemeldet: ${attendanceActorLabel(checkedIn)}` : null,
+    checkedOut ? `Abgemeldet: ${attendanceActorLabel(checkedOut)}` : null,
+  ].filter((part): part is string => Boolean(part));
+  if (parts.length === 0) return null;
+  return (
+    <span className="mt-0.5 block text-xs text-gray-600">
+      {parts.join(" · ")}
+    </span>
+  );
+}
+
 // ─── DayCard (mobile) ────────────────────────────────────────────────────────
 
 function DayCard({
@@ -160,6 +185,12 @@ function DayCard({
               <span className="text-moto-amber-strong ml-2 text-xs font-medium">
                 {statusLabel}
               </span>
+            )}
+            {day.attendance && (
+              <AttendanceActorSummary
+                checkedIn={day.attendance.checkedInActor}
+                checkedOut={day.attendance.checkedOutActor}
+              />
             )}
             {day.attendance?.checkOutNote && (
               <span className="mt-0.5 block text-xs text-gray-600">
@@ -395,6 +426,14 @@ function HistoryTable({
                             {day.attendance
                               ? formatTime(day.attendance.checkInTime)
                               : "–"}
+                            {day.attendance?.checkedInActor && (
+                              <span className="mt-0.5 block text-xs text-gray-500">
+                                Angemeldet:{" "}
+                                {attendanceActorLabel(
+                                  day.attendance.checkedInActor,
+                                )}
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-3 text-gray-600 tabular-nums">
                             {day.attendance
@@ -402,6 +441,15 @@ function HistoryTable({
                                 ? formatTime(day.attendance.checkOutTime)
                                 : "Noch anwesend"
                               : "–"}
+                            {day.attendance?.checkOutTime &&
+                              day.attendance.checkedOutActor && (
+                                <span className="mt-0.5 block text-xs text-gray-500">
+                                  Abgemeldet:{" "}
+                                  {attendanceActorLabel(
+                                    day.attendance.checkedOutActor,
+                                  )}
+                                </span>
+                              )}
                             {day.attendance?.checkOutNote && (
                               <span className="mt-0.5 block text-xs text-gray-500">
                                 Grund für das frühe Gehen:{" "}

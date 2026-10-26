@@ -59,7 +59,8 @@ func BuildPresenceReports(
 		ActiveCleanup:   BuildPresenceCleanup(env, presence, audit, settings),
 		AbsenceOverview: presenceservice.NewStatusDayOverviews(carePlanRows.StatusDays, StatusDayOverviewPeople(users)),
 		StudentHistory: presenceservice.NewStudentHistory(presence.Presence, historyRoomNames(rooms),
-			NewDataAccessAudit(audit.Persistence.DataAccessLog), NewHistorySlots(owner.Repositories.InstanceStudent.Reads)),
+			NewDataAccessAudit(audit.Persistence.DataAccessLog), NewHistorySlots(owner.Repositories.InstanceStudent.Reads),
+			NewAttendanceStaffNames(people.Staff)),
 		Statistics: newStatisticsReports(db, carePlan, calendar, people.Students, rooms, env.Logger, env.Now)(audit.Persistence.DataAccessLog, settings),
 	}
 }
@@ -109,7 +110,7 @@ func BuildReminders(
 	db transactionruntime.Database, env RootEnvironment, caller CareRequestStaff, settings settingsCompose.SettingsService,
 	schedules CarePlanSchedules, active studentpresence.Presence, supervisions studentpresence.SupervisionRecords,
 	timetableOwner timetable.Capability, rooms facilitiesModule.Catalog, people PeopleRows, calendarApp calendarCompose.Application,
-	announcements communication.ParentAnnouncementReminders, delivery DeliveryRuntime,
+	announcements communication.ParentAnnouncementReminders, delivery DeliveryRuntime, sessions timetable.SessionRecords,
 ) reminder.Module {
 	presence := NewLoggedStudentPresence(db, env.Logger)
 	return reminder.Module{
@@ -119,7 +120,7 @@ func BuildReminders(
 			Settings:     ReminderSettings{settings},
 			Attendance:   presence,
 			Pickup:       ReminderPickupReader{Source: schedules.Pickups},
-			Instance:     ReminderTimetableReader{Source: timetableOwner},
+			Instance:     ReminderTimetableReader{Source: timetableOwner, Sessions: sessions},
 			Room:         ReminderRoomReader{Source: rooms},
 			Student:      ReminderStudentReader{Source: people.Students},
 			Person:       ReminderPersonReader{Source: people.Persons},
@@ -131,7 +132,7 @@ func BuildReminders(
 			// per-person facts for the whole tenant in one query each, which is what
 			// keeps the per-minute cost flat in the number of staff.
 			BulkSupervision:   ReminderBulkSupervisionReader{Source: supervisions},
-			BulkInstanceStaff: ReminderTimetableReader{Source: timetableOwner},
+			BulkInstanceStaff: ReminderTimetableReader{Source: timetableOwner, Sessions: sessions},
 		}),
 		Command:                   reminderCompose.NewCommand(ReminderCommandRuntime(db), ReminderDeliveryDependencies(db, delivery.Runtime, calendarApp)),
 		ParentAnnouncementCommand: announcements,

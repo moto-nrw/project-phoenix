@@ -30,7 +30,6 @@ type Actor struct {
 type AccessPreview struct {
 	Revision          string
 	Roles             int64
-	Permissions       int64
 	Tokens            int64
 	PreserveGuardian  bool
 	DeactivateAccount bool
@@ -38,7 +37,6 @@ type AccessPreview struct {
 
 type AccessResult struct {
 	RolesRevoked            int64
-	PermissionsRevoked      int64
 	TokensRevoked           int64
 	GuardianAccessPreserved bool
 	AccountDeactivated      bool

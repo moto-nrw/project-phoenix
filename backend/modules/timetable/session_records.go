@@ -10,6 +10,7 @@ import (
 type SessionRecords interface {
 	FindSessionInstance(context.Context, int64) (*ScheduledInstance, error)
 	ListSessionInstances(context.Context, calendar.Date) ([]ScheduledInstance, error)
+	ListActiveSessionInstances(context.Context) ([]ScheduledInstance, error)
 	// CreateMirroredSessionInstance records an already-running kiosk session and its plan.
 	// Timetable owns the mirrored-session defaults: the instance is spontaneous
 	// and active. The existing joined adapter also owns the tenant identity.

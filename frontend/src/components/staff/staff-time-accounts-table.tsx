@@ -11,7 +11,7 @@
 // Diese Ansicht wird nur mit time_tracking:manage gerendert; ohne die
 // Berechtigung feuert der Request gar nicht erst.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Lock } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -20,6 +20,7 @@ import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
@@ -137,6 +138,13 @@ export function StaffTimeAccountsTable({
   onShowCustomSaldoChange,
   paginationResetKey,
 }: Props) {
+  // Filtert die geladenen Zeilen: die Zahl der markierten Tage steckt schon
+  // in jeder Zeile, eine neue Abfrage braucht es dafür nicht (#4804).
+  const [onlyWithHints, setOnlyWithHints] = useState(false);
+  const visibleRows = useMemo(
+    () => (onlyWithHints ? rows.filter((row) => row.laborHintDays > 0) : rows),
+    [rows, onlyWithHints],
+  );
   const columns = useMemo<DataTableColumn<TimeAccountRow>[]>(
     () => [
       {
@@ -195,6 +203,24 @@ export function StaffTimeAccountsTable({
         ),
       },
       {
+        key: "laborHints",
+        header: "Hinweise",
+        align: "right",
+        sortValue: (row) => row.laborHintDays,
+        render: (row) =>
+          row.laborHintDays > 0 ? (
+            <StatusBadge
+              label={
+                row.laborHintDays === 1 ? "1 Tag" : `${row.laborHintDays} Tage`
+              }
+              tone="orange"
+              title="Tage mit zu kurzer Pause oder mehr als 10 Std. Arbeit. Die Tage stehen in der Zeiterfassung der Person."
+            />
+          ) : (
+            <span className="text-gray-400">–</span>
+          ),
+      },
+      {
         key: "vacation",
         header: "Resturlaub",
         align: "right",
@@ -218,7 +244,7 @@ export function StaffTimeAccountsTable({
   // Monatspfeilen — ohne Mini-Überschrift über dem Titel.
   const description =
     `${formatOverviewMonth(year, month)} · ` +
-    "Soll bis heute, Ist und Saldo aus dem Stundenkonto. Krankheit und Urlaub sind mit dem Tagessoll gutgeschrieben." +
+    "Soll bis heute, Ist und Saldo aus dem Stundenkonto. Krankheit und Urlaub sind mit dem Tagessoll gutgeschrieben. Hinweise zählen Tage mit zu kurzer Pause oder mehr als 10 Std. Arbeit." +
     (monthClose !== null && !monthClose.closed && !monthIsOver
       ? " Der Abschluss friert den Stand zum Monatsende ein. Für den laufenden Monat gibt es diesen Stand noch nicht; abschließen geht ab dem 1. des Folgemonats."
       : "");
@@ -298,6 +324,16 @@ export function StaffTimeAccountsTable({
             aria-expanded={showCustomSaldo}
           >
             {showCustomSaldo ? "Grenze ausblenden" : "Eigene Grenze"}
+          </Button>
+          <Button
+            type="button"
+            size="compact"
+            variant={onlyWithHints ? "primary" : "outline"}
+            onClick={() => setOnlyWithHints((value) => !value)}
+            aria-pressed={onlyWithHints}
+            title="Nur Personen mit zu kurzer Pause oder mehr als 10 Std. Arbeit an einem Tag"
+          >
+            Mit Hinweisen
           </Button>
           {onExport && (
             <Button
@@ -401,7 +437,7 @@ export function StaffTimeAccountsTable({
       {error && rows.length === 0 ? null : (
         <DataTable
           columns={columns}
-          rows={rows}
+          rows={visibleRows}
           getRowKey={(row) => row.staffId}
           onRowClick={onRowClick}
           isLoading={isLoading}
@@ -410,7 +446,7 @@ export function StaffTimeAccountsTable({
           // rendert nur die ersten 50 Zeilen und lädt auf Klick nach. Sortiert
           // wird trotzdem über den vollen Datensatz, nicht über die Seite.
           pageSize={50}
-          paginationResetKey={paginationResetKey}
+          paginationResetKey={`${paginationResetKey ?? ""}|${onlyWithHints}`}
           emptyState={
             <div className="py-10 text-center">
               <p className="font-medium text-gray-900">

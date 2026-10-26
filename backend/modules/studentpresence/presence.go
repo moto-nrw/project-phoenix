@@ -218,6 +218,9 @@ type StudentHistory interface {
 	HasPlannedSlotsInRange(ctx context.Context, startDate, endDate calendar.Date) (bool, error)
 	// RecordDataAccess writes a GDPR data-access log entry.
 	RecordDataAccess(ctx context.Context, entry *DataAccessEvent) error
+	// AttendanceRecorders names who recorded the arrivals and pickups of
+	// rows in one read, within the school in context (#4761).
+	AttendanceRecorders(ctx context.Context, rows []*Attendance) (AttendanceRecorders, error)
 }
 
 // StatusDayReads reads the reported status days (sick / excused / class

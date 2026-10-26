@@ -451,7 +451,6 @@ type AccountAccessStore interface {
 	// every school with their role facts.
 	ListAccountRoleAssignments(ctx context.Context, accountID int64) ([]domain.AccountRoleAssignment, domain.OperationStats, error)
 	RemoveAccountRole(ctx context.Context, accountID, roleID, tenantID int64) (domain.OperationStats, error)
-	DeleteAccountPermissionsAtTenant(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
 	FindRole(ctx context.Context, roleID int64) (domain.RoleFact, bool, domain.OperationStats, error)
 	ListRoles(ctx context.Context) ([]domain.RoleFact, domain.OperationStats, error)
 }

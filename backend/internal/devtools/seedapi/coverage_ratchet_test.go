@@ -74,7 +74,6 @@ var seedCoverageExemptions = map[string]string{
 	"audit.room_color_migration_backup": "one-time migration snapshot; only installations with legacy reserved room colors can contain rows",
 	"audit.wc_alias_migration_backup":   "empty in prod too",
 
-	"auth.account_permissions":                  "direct account grants are retired (#4485); nothing writes the table and it is dropped in a follow-up migration",
 	"auth.demo_accesses":                        "prospect contact data of the public demo; its routes exist under APP_ENV=demo only and the seeder must not invent prospects",
 	"auth.mfa_overrides":                        "empty in prod too",
 	"auth.mfa_trusted_devices":                  "empty in prod too",

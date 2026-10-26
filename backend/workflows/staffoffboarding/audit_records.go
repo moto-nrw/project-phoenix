@@ -20,7 +20,6 @@ func NewStaffDeletion(actor Actor, result Result) StaffDeletion {
 		"activity_supervisors": result.Timetable.PlannedSupervisors, "timetable_instance_staff": result.Timetable.InstanceAssignments,
 		"group_substitutions": result.Workforce.Substitutions, "staff_shifts": result.Workforce.Shifts,
 		"staff_shift_series": result.Workforce.Series, "staff_absences": result.Workforce.Absences,
-		"account_permissions": result.Access.PermissionsRevoked,
 	}
 	records := 1
 	for _, count := range counts {

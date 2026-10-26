@@ -610,6 +610,16 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/contribution-rules/{id}"}:                                               notCaptured,
 	{http.MethodPost, "/traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm"}: notCaptured,
 	{http.MethodPost, "/traeger/holiday-quotes/{token}"}:                                                  notCaptured,
+	// The billing run of a holiday period (#4668, ADR 0119) belongs to the
+	// Träger: no school to count it for.
+	{http.MethodPost, "/traeger/billing-runs/"}:                 notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/corrections"}: notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/release"}:     notCaptured,
+	{http.MethodPut, "/traeger/number-ranges/{service}"}:        notCaptured,
+	// The confirmation letters of a released run (#4669, ADR 0121) belong
+	// to the Träger as well.
+	{http.MethodPost, "/traeger/billing-runs/{id}/letters"}:         notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/letters/preview"}: notCaptured,
 
 	// School portal (Lehrkräfte).
 	{http.MethodPost, "/school/auth/login"}:                                                      session("login_success"),

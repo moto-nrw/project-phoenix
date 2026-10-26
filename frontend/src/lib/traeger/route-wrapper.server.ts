@@ -179,14 +179,17 @@ export const { proxyGet, proxyPost, proxyPut, proxyDelete } =
 async function traegerServerFile(
   endpoint: string,
   token: string,
+  body?: string,
 ): Promise<Response> {
   const { getServerApiUrl } = await import("~/lib/server-api-url");
   return fetch(`${getServerApiUrl()}${endpoint}`, {
-    method: "GET",
+    method: body === undefined ? "GET" : "POST",
     headers: {
       Authorization: `Bearer ${token}`,
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(await incomingAnalyticsSessionHeaders()),
     },
+    body,
     cache: "no-store",
   });
 }
@@ -210,14 +213,20 @@ function fileResponse(backend: Response, request: NextRequest): Response {
   return new Response(backend.body, { status: backend.status, headers });
 }
 
+/** The largest JSON body a POST file proxy forwards. */
+const FILE_POST_MAX_BYTES = 64 * 1024;
+
 /**
  * GET proxy for a Träger file export (#4655): forwards the query and streams
  * the file back. A backend error keeps its problem body, so the client shows
  * the catalog text for its code. The endpoint may depend on the route's path
  * parameters, like the export of a holiday period's registrations (#4663).
+ * With `method: "POST"` it forwards the JSON body instead, read once so it
+ * can be sent again after a refresh, like the preview of a letter (#4669).
  */
 export function proxyFile(
   endpoint: string | ((params: Record<string, unknown>) => string),
+  options: { readonly method?: "GET" | "POST" } = {},
 ) {
   return withTraegerAuth(async (request: NextRequest, context) => {
     try {
@@ -230,7 +239,13 @@ export function proxyFile(
           ? endpoint
           : endpoint(await extractParams(request, context));
       const target = `${path}${buildQueryString(request)}`;
-      const first = await traegerServerFile(target, token);
+      let body: string | undefined;
+      if (options.method === "POST") {
+        const bytes = await readBounded(request, FILE_POST_MAX_BYTES);
+        if (bytes === null) throw bffError(400, "Request body too large");
+        body = new TextDecoder().decode(bytes);
+      }
+      const first = await traegerServerFile(target, token, body);
       if (first.status !== 401) return fileResponse(first, request);
 
       const { uncachedTraegerAuth } = await import("~/server/auth/traeger");
@@ -238,7 +253,7 @@ export function proxyFile(
       if (!updated?.user?.token || updated.user.token === token) {
         return createTokenExpiredResponse(request);
       }
-      const retried = await traegerServerFile(target, updated.user.token);
+      const retried = await traegerServerFile(target, updated.user.token, body);
       if (retried.status === 401) return createTokenExpiredResponse(request);
       return fileResponse(retried, request);
     } catch (error) {

@@ -20,6 +20,10 @@ import {
   getStudentPresenceBadgePlanning,
 } from "~/lib/day-planning-helper";
 import type { SupervisorContact } from "~/lib/student-helpers";
+import {
+  attendanceActorLabel,
+  type AttendanceActor,
+} from "~/lib/attendance-actor";
 import type { StudentEnrollmentExtraFieldGroup } from "~/lib/student-api";
 import {
   allowedDepartureModesFromDeparture,
@@ -325,6 +329,9 @@ interface StudentHeaderProps {
   todayArrivalNote?: string;
   /** Optional reason for today's sick status, shown next to the badge. */
   sickReason?: string;
+  /** Who recorded today's arrival and pickup (#4761). */
+  todayArrivalBy?: AttendanceActor | null;
+  todayPickupBy?: AttendanceActor | null;
 }
 
 /**
@@ -434,6 +441,8 @@ export function StudentHeaderStats({
   isArrivalAbsent,
   todayArrivalNote,
   sickReason,
+  todayArrivalBy,
+  todayPickupBy,
 }: Readonly<
   Omit<StudentHeaderProps, "myGroups" | "myGroupRooms" | "mySupervisedRooms">
 >) {
@@ -508,6 +517,13 @@ export function StudentHeaderStats({
             isAbsent={isArrivalAbsent}
             absentReason={todayArrivalNote}
           />
+          {todayArrivalActualTime ? (
+            <TodayAttendanceActorLine
+              testId="today-arrival-by"
+              label="Angemeldet"
+              actor={todayArrivalBy}
+            />
+          ) : null}
           <TodayTimeStatusInlineRow
             day={todayDay}
             kind="pickup"
@@ -517,6 +533,13 @@ export function StudentHeaderStats({
             isException={isPickupException}
             note={todayPickupNote}
           />
+          {todayPickupActualTime ? (
+            <TodayAttendanceActorLine
+              testId="today-pickup-by"
+              label="Abgemeldet"
+              actor={todayPickupBy}
+            />
+          ) : null}
           {todayPickupActualTime && todayCheckoutNote ? (
             <span
               data-testid="today-checkout-note"
@@ -533,6 +556,34 @@ export function StudentHeaderStats({
           ) : null}
         </>
       )}
+    </span>
+  );
+}
+
+/**
+ * Wer die heutige Ankunft oder Abholung gebucht hat (#4761), eingerückt unter
+ * der Zeitzeile wie der Grund für das frühe Gehen. Nur Anzeige.
+ */
+function TodayAttendanceActorLine({
+  testId,
+  label,
+  actor,
+}: Readonly<{
+  testId: string;
+  label: string;
+  actor?: AttendanceActor | null;
+}>) {
+  const value = attendanceActorLabel(actor ?? null);
+  if (!value) return null;
+  return (
+    <span
+      data-testid={testId}
+      className="mt-1 flex items-start gap-2 text-sm text-gray-600"
+    >
+      <span className="w-4 shrink-0" aria-hidden="true" />
+      <span>
+        {label}: <span className="font-medium text-gray-900">{value}</span>
+      </span>
     </span>
   );
 }
