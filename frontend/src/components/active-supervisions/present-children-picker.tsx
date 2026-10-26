@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -44,8 +45,17 @@ const SCOPE_ITEMS_WITH_OFFERING = [
 /** The list a scope reads: every present child, or one offering's. */
 const PRESENT_SOURCE = "present";
 
-function offeringStorageKey(tenantSlug: string | null): string | null {
-  return tenantSlug ? `moto:present-children-offering:${tenantSlug}` : null;
+/**
+ * Per school and account (#5000): another account on the same device opens
+ * the dialog without this account's offering preselected.
+ */
+function offeringStorageKey(
+  tenantSlug: string | null,
+  accountId: string | undefined,
+): string | null {
+  return tenantSlug && accountId
+    ? `moto:present-children-offering:${tenantSlug}:${accountId}`
+    : null;
 }
 
 function storeOffering(key: string | null, offeringId: string | null) {
@@ -152,7 +162,8 @@ export function PresentChildrenPicker({
     null,
   );
   const [offeringChoice, setOfferingChoice] = useState<string | null>(null);
-  const storageKey = offeringStorageKey(useTenantSlugSafe());
+  const { data: session } = useSession();
+  const storageKey = offeringStorageKey(useTenantSlugSafe(), session?.user?.id);
   const storedOfferingId = useLocalStorageValue(
     storageKey ?? "",
     storageKey !== null,

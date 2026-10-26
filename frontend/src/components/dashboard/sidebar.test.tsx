@@ -155,6 +155,11 @@ import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pend
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { MODULE_KEYS } from "~/lib/modules";
+import { personalStorageOwner } from "~/lib/personal-storage";
+import {
+  type SidebarMemoryEntry,
+  sidebarMemoryKey,
+} from "~/lib/sidebar-memory";
 import {
   useBookedModules,
   useChildSearchOnlyNavigation,
@@ -238,6 +243,11 @@ function createMockSearchParams(
     size: params.size,
   } as unknown as ReturnType<typeof useSearchParams>;
 }
+
+// The sidebar memory is bound to the school and account of the session
+// (#5000); createMockSession signs in account "1" without a school.
+const memoryKey = (entry: SidebarMemoryEntry) =>
+  sidebarMemoryKey(entry, personalStorageOwner({ id: "1" })!);
 
 // Helper to create mock session
 function createMockSession(isAdminUser: boolean) {
@@ -1473,7 +1483,7 @@ describe("Sidebar", () => {
   describe("child page highlight persistence", () => {
     it("highlights group sub-item on student detail from ogs-groups", () => {
       vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
-        if (key === "sidebar-last-group") return "1";
+        if (key === memoryKey("sidebar-last-group")) return "1";
         return null;
       });
       mockUsePathname.mockReturnValue("/students/123");
@@ -1533,7 +1543,7 @@ describe("Sidebar", () => {
 
     it("highlights room sub-item on student detail from active-supervisions", () => {
       vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
-        if (key === "sidebar-last-room") return "10";
+        if (key === memoryKey("sidebar-last-room")) return "10";
         return null;
       });
       mockUsePathname.mockReturnValue("/students/456");
@@ -1594,9 +1604,12 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(mockSetItem).toHaveBeenCalledWith("sidebar-last-group", "2");
       expect(mockSetItem).toHaveBeenCalledWith(
-        "sidebar-last-group-name",
+        memoryKey("sidebar-last-group"),
+        "2",
+      );
+      expect(mockSetItem).toHaveBeenCalledWith(
+        memoryKey("sidebar-last-group-name"),
         "Adler",
       );
     });
@@ -1622,9 +1635,12 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(mockSetItem).toHaveBeenCalledWith("sidebar-last-room", "20");
       expect(mockSetItem).toHaveBeenCalledWith(
-        "sidebar-last-room-name",
+        memoryKey("sidebar-last-room"),
+        "20",
+      );
+      expect(mockSetItem).toHaveBeenCalledWith(
+        memoryKey("sidebar-last-room-name"),
         "Raum B",
       );
     });
@@ -1637,7 +1653,7 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       expect(mockSetItem).toHaveBeenCalledWith(
-        "sidebar-last-database",
+        memoryKey("sidebar-last-database"),
         "/database/students",
       );
     });
@@ -1662,9 +1678,12 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(mockSetItem).toHaveBeenCalledWith("sidebar-last-group", "999");
+      expect(mockSetItem).toHaveBeenCalledWith(
+        memoryKey("sidebar-last-group"),
+        "999",
+      );
       expect(mockSetItem).not.toHaveBeenCalledWith(
-        "sidebar-last-group-name",
+        memoryKey("sidebar-last-group-name"),
         expect.any(String),
       );
     });
@@ -1689,9 +1708,12 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
-      expect(mockSetItem).toHaveBeenCalledWith("sidebar-last-room", "999");
+      expect(mockSetItem).toHaveBeenCalledWith(
+        memoryKey("sidebar-last-room"),
+        "999",
+      );
       expect(mockSetItem).not.toHaveBeenCalledWith(
-        "sidebar-last-room-name",
+        memoryKey("sidebar-last-room-name"),
         expect.any(String),
       );
     });
@@ -1734,7 +1756,7 @@ describe("Sidebar", () => {
 
     it("navigates to saved room from localStorage when toggling supervisions", () => {
       const mockGetItem = vi.fn((key: string) => {
-        if (key === "sidebar-last-room") return "20";
+        if (key === memoryKey("sidebar-last-room")) return "20";
         return null;
       });
       vi.spyOn(localStorage, "getItem").mockImplementation(mockGetItem);
@@ -1763,9 +1785,48 @@ describe("Sidebar", () => {
       );
     });
 
+    it("takes over no room another account saved on this device (#5000)", () => {
+      // The previous person at this tablet, same school, worked in Raum B.
+      const otherAccount = personalStorageOwner({ id: "2" })!;
+      vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
+        if (key === sidebarMemoryKey("sidebar-last-room", otherAccount)) {
+          return "20";
+        }
+        if (
+          key === sidebarMemoryKey("supervision-last-session", otherAccount)
+        ) {
+          return "2";
+        }
+        return null;
+      });
+      mockUsePathname.mockReturnValue("/activities");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [
+          { id: "10", name: "Raum A", groupId: "1" },
+          { id: "20", name: "Raum B", groupId: "2" },
+        ],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      fireEvent.click(screen.getByText("Aktuelle Aufsichten"));
+
+      // Account "1" opens its own default, the first room.
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        "/test-tenant/active-supervisions?session=1",
+      );
+    });
+
     it("navigates to the shared view for a saved session in an own released room", () => {
       vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
-        if (key === "supervision-last-session") return "active-open";
+        if (key === memoryKey("supervision-last-session")) return "active-open";
         return null;
       });
       mockUsePathname.mockReturnValue("/activities");
@@ -1800,7 +1861,7 @@ describe("Sidebar", () => {
 
     it("does not open a released room without an own supervision (#4372)", () => {
       vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
-        if (key === "sidebar-last-room") return "sporthalle";
+        if (key === memoryKey("sidebar-last-room")) return "sporthalle";
         return null;
       });
       mockUsePathname.mockReturnValue("/activities");
@@ -1833,7 +1894,7 @@ describe("Sidebar", () => {
 
     it("does not mistake a released room id for a saved session", () => {
       vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
-        if (key === "supervision-last-session") return "7";
+        if (key === memoryKey("supervision-last-session")) return "7";
         return null;
       });
       mockUsePathname.mockReturnValue("/activities");
@@ -1917,7 +1978,7 @@ describe("Sidebar", () => {
 
     it("falls back to first room when saved room not found", () => {
       const mockGetItem = vi.fn((key: string) => {
-        if (key === "sidebar-last-room") return "999";
+        if (key === memoryKey("sidebar-last-room")) return "999";
         return null;
       });
       vi.spyOn(localStorage, "getItem").mockImplementation(mockGetItem);

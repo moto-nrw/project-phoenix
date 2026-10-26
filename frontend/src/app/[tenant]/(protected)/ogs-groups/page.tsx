@@ -120,6 +120,7 @@ import {
 } from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
+import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -344,9 +345,9 @@ function buildGroupTabItems(groups: readonly OGSGroup[]) {
   return groups.map(toItem);
 }
 
-function persistGroupSelection(group: OGSGroup): void {
-  localStorage.setItem("sidebar-last-group", group.id);
-  localStorage.setItem("sidebar-last-group-name", group.name);
+function persistGroupSelection(memory: SidebarMemory, group: OGSGroup): void {
+  memory.write("sidebar-last-group", group.id);
+  memory.write("sidebar-last-group-name", group.name);
 }
 
 function OGSGroupPageContent() {
@@ -358,6 +359,7 @@ function OGSGroupPageContent() {
       router.push("/");
     },
   });
+  const memory = useSidebarMemory();
 
   const { setGroupAttendanceCount } = useGroupAttendanceCounts();
   const canAdministerGroups = hasEffectiveAdminScope(session);
@@ -410,7 +412,7 @@ function OGSGroupPageContent() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(() => {
     if (groupParam) return groupParam;
     if (typeof window !== "undefined") {
-      return localStorage.getItem("sidebar-last-group");
+      return memory.read("sidebar-last-group");
     }
     return null;
   });
@@ -574,9 +576,9 @@ function OGSGroupPageContent() {
           (group) => group.id === dataGroupId,
         );
         if (resolvedGroup) {
-          persistGroupSelection(resolvedGroup);
+          persistGroupSelection(memory, resolvedGroup);
         } else {
-          localStorage.setItem("sidebar-last-group", dataGroupId);
+          memory.write("sidebar-last-group", dataGroupId);
         }
       }
     }
@@ -588,13 +590,19 @@ function OGSGroupPageContent() {
       setPickupTimes(liveData.pickupTimes);
       setIsLoading(false);
     }
-  }, [liveData, selectedGroupId, setGroupAttendanceCount, tenantMutate]);
+  }, [
+    liveData,
+    memory,
+    selectedGroupId,
+    setGroupAttendanceCount,
+    tenantMutate,
+  ]);
 
   // Sync selected group with URL param.
   // The sidebar navigates with the correct ?group= param at click-time,
   // so this effect only needs to react to URL changes.
   // When no param is present (e.g. fresh login), persist the default (first group)
-  // so localStorage stays in sync and the sidebar picks it up on next click.
+  // so the sidebar memory stays in sync and the sidebar picks it up on next click.
   useEffect(() => {
     if (allGroups.length === 0) return;
 
@@ -607,13 +615,13 @@ function OGSGroupPageContent() {
       }
     } else {
       // No ?group= param (e.g. after login or browser back) — restore from
-      // localStorage so the user returns to their previously selected group.
-      const savedGroupId = localStorage.getItem("sidebar-last-group");
+      // the sidebar memory so the user returns to their previously selected group.
+      const savedGroupId = memory.read("sidebar-last-group");
       const savedGroup = savedGroupId
         ? allGroups.find((g) => g.id === savedGroupId)
         : undefined;
       if (savedGroup) {
-        persistGroupSelection(savedGroup);
+        persistGroupSelection(memory, savedGroup);
         if (savedGroup.id !== selectedGroupId) {
           switchToGroup(savedGroup.id);
         }
@@ -621,7 +629,7 @@ function OGSGroupPageContent() {
         // Nothing saved or saved group no longer exists — persist first group
         const firstGroup = allGroups[0];
         if (firstGroup) {
-          persistGroupSelection(firstGroup);
+          persistGroupSelection(memory, firstGroup);
         }
       }
       // When savedGroup.id === selectedGroupId, do nothing — already in sync
@@ -1402,7 +1410,7 @@ function OGSGroupPageContent() {
                 onChange: (tabId) => {
                   const group = allGroups.find((g) => g.id === tabId);
                   if (group) {
-                    persistGroupSelection(group);
+                    persistGroupSelection(memory, group);
                     switchToGroup(tabId);
                   }
                 },

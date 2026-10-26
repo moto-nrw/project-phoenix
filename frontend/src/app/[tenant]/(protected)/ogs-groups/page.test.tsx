@@ -58,7 +58,7 @@ vi.mock("~/lib/auth-utils", () => ({
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { token: "test-token", id: "7", tenantId: 1 } },
     status: "authenticated",
   })),
 }));
@@ -562,7 +562,7 @@ beforeEach(() => {
   vi.mocked(useSession)
     .mockReset()
     .mockReturnValue({
-      data: { user: { token: "test-token" } },
+      data: { user: { token: "test-token", id: "7", tenantId: 1 } },
       status: "authenticated",
     } as never);
   vi.mocked(useSWRAuth)
@@ -2037,6 +2037,14 @@ import {
   matchesAttendanceFilter as actualMatchesAttendanceFilter,
   matchesForeignRoomFilter as actualMatchesForeignRoomFilter,
 } from "./ogs-group-helpers";
+import {
+  type SidebarMemoryEntry,
+  sidebarMemoryKey,
+} from "~/lib/sidebar-memory";
+
+// The sidebar memory is bound to the school and account of the session
+// (#5000); the mocked session signs in account "7" at school 1.
+const memoryKey = (entry: SidebarMemoryEntry) => sidebarMemoryKey(entry, "1:7");
 
 // Helper to build a minimal Student for direct function tests
 function makeTestStudent(
@@ -2235,7 +2243,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
-    localStorage.removeItem("sidebar-last-group");
+    localStorage.removeItem(memoryKey("sidebar-last-group"));
     mockSearchParamsGet.mockReturnValue(null);
   });
 
@@ -2326,7 +2334,7 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
     // (matches the URL/localStorage-restore effect so it stays a no-op),
     // isolating the behavior under test — an unrelated refresh resolving a
     // different group must not clobber the currently viewed group's data.
-    localStorage.setItem("sidebar-last-group", "1");
+    localStorage.setItem(memoryKey("sidebar-last-group"), "1");
 
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({
@@ -2396,7 +2404,7 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
-    localStorage.removeItem("sidebar-last-group");
+    localStorage.removeItem(memoryKey("sidebar-last-group"));
     mockSearchParamsGet.mockReturnValue(null);
   });
 
@@ -2470,8 +2478,8 @@ describe("OGSGroupPage ID-based selection: First load initialization", () => {
     // Verify first group's students are shown
     expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
     expect(localStorageMock).toMatchObject({
-      "sidebar-last-group": "1",
-      "sidebar-last-group-name": "Mondgruppe",
+      [memoryKey("sidebar-last-group")]: "1",
+      [memoryKey("sidebar-last-group-name")]: "Mondgruppe",
     });
   });
 
@@ -2548,7 +2556,7 @@ describe("OGSGroupPage ID-based selection: URL param matching", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.removeItem("sidebar-last-group");
+    localStorage.removeItem(memoryKey("sidebar-last-group"));
     mockSearchParamsGet.mockReturnValue(null);
     global.fetch = vi.fn();
   });
@@ -2738,8 +2746,8 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
     // Setup: localStorage has group ID "2", no URL param. selectedGroupId
     // is seeded synchronously from localStorage, so the very first SWR
     // call already targets group 2.
-    localStorageMock["sidebar-last-group"] = "2";
-    localStorageMock["sidebar-last-group-name"] = "Veraltete Gruppe";
+    localStorageMock[memoryKey("sidebar-last-group")] = "2";
+    localStorageMock[memoryKey("sidebar-last-group-name")] = "Veraltete Gruppe";
 
     vi.mocked(useSWRAuth).mockReturnValue({
       data: liveData({
@@ -2786,14 +2794,14 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
       expect(screen.getByText(/Erika Schmidt/)).toBeInTheDocument();
     });
     expect(localStorageMock).toMatchObject({
-      "sidebar-last-group": "2",
-      "sidebar-last-group-name": "Mondgruppe",
+      [memoryKey("sidebar-last-group")]: "2",
+      [memoryKey("sidebar-last-group-name")]: "Mondgruppe",
     });
   });
 
   it("persists first group to localStorage when saved group no longer exists", async () => {
     // Setup: localStorage has group ID "999" (doesn't exist), no URL param
-    localStorageMock["sidebar-last-group"] = "999";
+    localStorageMock[memoryKey("sidebar-last-group")] = "999";
     mockSearchParamsGet.mockReturnValue(null);
 
     vi.mocked(useSWRAuth).mockReturnValue({
@@ -2823,15 +2831,15 @@ describe("OGSGroupPage ID-based selection: localStorage restore", () => {
     // Should persist first group to localStorage
     await waitFor(() => {
       expect(localStorageMock).toMatchObject({
-        "sidebar-last-group": "1",
-        "sidebar-last-group-name": "OGS Gruppe A",
+        [memoryKey("sidebar-last-group")]: "1",
+        [memoryKey("sidebar-last-group-name")]: "OGS Gruppe A",
       });
     });
   });
 
   it("does not switch when saved group ID matches currently selected group", async () => {
     // Setup: localStorage has group ID "1", Group A (id=1) already selected
-    localStorageMock["sidebar-last-group"] = "1";
+    localStorageMock[memoryKey("sidebar-last-group")] = "1";
     mockSearchParamsGet.mockReturnValue(null);
 
     vi.mocked(useSWRAuth).mockReturnValue({
@@ -2873,7 +2881,7 @@ describe("OGSGroupPage ID-based selection: switchToGroup behavior", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
-    localStorage.removeItem("sidebar-last-group");
+    localStorage.removeItem(memoryKey("sidebar-last-group"));
     mockSearchParamsGet.mockReturnValue(null);
   });
 
@@ -2946,7 +2954,7 @@ describe("OGSGroupPage ID-based selection: student count update", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.removeItem("sidebar-last-group");
+    localStorage.removeItem(memoryKey("sidebar-last-group"));
     mockSearchParamsGet.mockReturnValue(null);
     global.fetch = vi.fn();
   });
@@ -3096,7 +3104,7 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
       tabButton.click();
 
       await waitFor(() => {
-        expect(localStorage.getItem("sidebar-last-group")).toBe("2");
+        expect(localStorage.getItem(memoryKey("sidebar-last-group"))).toBe("2");
       });
     }
   });
@@ -3108,7 +3116,7 @@ describe("OGSGroupPage ID-based selection: currentGroup useMemo", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
-    localStorage.removeItem("sidebar-last-group");
+    localStorage.removeItem(memoryKey("sidebar-last-group"));
     mockSearchParamsGet.mockReturnValue(null);
   });
 

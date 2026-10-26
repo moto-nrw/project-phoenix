@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import type { PhaseResponseOverview as Overview } from "~/lib/enrollment-phase-api";
+import { takeAnnouncementStudents } from "~/lib/announcement-prefill";
 
 const mocks = vi.hoisted(() => ({
   push: vi.fn(),
@@ -190,18 +191,12 @@ describe("PhaseResponseOverview", () => {
       "vorbelegung",
     );
     expect(token).not.toBeNull();
-    expect(
-      JSON.parse(
-        window.sessionStorage.getItem(`moto:announcement-prefill:${token}`) ??
-          "{}",
-      ),
-    ).toEqual({
-      tenantSlug: "testschule",
-      students: [
-        { id: "1", name: "Mia Arslan" },
-        { id: "3", name: "Ida Fuchs" },
-      ],
-    });
+    // The names stay in the tab's memory, never in the browser storage (#5000).
+    expect(window.sessionStorage.length).toBe(0);
+    expect(takeAnnouncementStudents("testschule", token!)).toEqual([
+      { id: "1", name: "Mia Arslan" },
+      { id: "3", name: "Ida Fuchs" },
+    ]);
   });
 
   it("offers the reminder only next to the children still missing", () => {

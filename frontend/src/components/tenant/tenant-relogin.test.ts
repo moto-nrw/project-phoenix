@@ -130,6 +130,30 @@ describe("target-school reauthentication", () => {
     expect(window.location.href).toBe("http://school-b.mfa.localhost:13845/");
   });
 
+  it("removes the source account's personal entries before the cookie goes (#5000)", async () => {
+    localStorage.setItem("sidebar-last-room-name:1:7", "Raum Sonne");
+    localStorage.setItem("messages_unread_count:school-a:7", '{"count":3}');
+    localStorage.setItem("sidebar-collapsed", "true");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
+    let leftAtSignOut: (string | null)[] = [];
+    signOut.mockImplementation(
+      async ({ callbackUrl }: { callbackUrl: string }) => {
+        leftAtSignOut = [
+          localStorage.getItem("sidebar-last-room-name:1:7"),
+          localStorage.getItem("messages_unread_count:school-a:7"),
+        ];
+        window.location.href = callbackUrl;
+      },
+    );
+
+    await reloginAtTenant("school-b");
+
+    expect(window.location.href).toBe("http://school-b.mfa.localhost:13845/");
+    expect(leftAtSignOut).toEqual([null, null]);
+    expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
+    localStorage.clear();
+  });
+
   it("still deletes a revoked cookie when SWR cleanup fails", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
     mutate.mockRejectedValueOnce(new Error("cache cleanup failed"));

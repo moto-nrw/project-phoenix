@@ -72,7 +72,11 @@ export interface UseUnreadCountOptions {
   enabled: boolean;
   /** Returns the current unread count. May be a fresh closure each render. */
   fetcher: () => Promise<number>;
-  /** localStorage cache key; omit to skip the 1-minute cache layer entirely. */
+  /**
+   * localStorage cache key; omit to skip the 1-minute cache layer entirely.
+   * Its prefix belongs in PERSONAL_STORAGE_PREFIXES (personal-storage.ts) so
+   * logout and account switch remove the count (#5000).
+   */
   cacheKey?: string;
   /** Custom window events that trigger a cache-busting refetch. */
   eventNames?: readonly string[];

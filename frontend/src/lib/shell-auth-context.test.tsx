@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 
@@ -72,12 +72,20 @@ vi.mock("~/lib/parent-url", () => ({
   parentPath: (path: string) => path,
 }));
 
+vi.mock("~/lib/caterer-url", () => ({
+  catererAbsoluteUrl: (path: string) => path,
+  catererPath: (path: string) => path,
+}));
+
 import {
   TeacherShellProvider,
   OperatorShellProvider,
   ParentShellProvider,
+  SchoolShellProvider,
+  CatererShellProvider,
   useShellAuth,
 } from "./shell-auth-context";
+import { sidebarMemoryKey } from "./sidebar-memory";
 
 describe("TeacherShellProvider", () => {
   beforeEach(() => {
@@ -777,5 +785,77 @@ describe("useShellAuth hook", () => {
     expect(() => {
       renderHook(() => useShellAuth());
     }).toThrow("useShellAuth must be used within a ShellAuthProvider");
+  });
+});
+
+describe("logout leaves no personal entries behind (#5000)", () => {
+  const LAST_ROOM_NAME = sidebarMemoryKey("sidebar-last-room-name", "1:7");
+  const PERSONAL_LOCAL = [
+    LAST_ROOM_NAME,
+    "messages_unread_count:schule:7",
+    "student-search:last-filters:tenant-1:7",
+    "moto:personal-storage-owner",
+  ];
+  const PERSONAL_SESSION = [
+    "timetable-reopenable-instance",
+    "parent-first-steps-opened:7",
+  ];
+  let leftAtSignOut: string[] = [];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    sessionStorage.clear();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null)));
+    // The check runs when the cookie goes: nothing may outlive the session.
+    mockSignOut.mockImplementation(() => {
+      leftAtSignOut = [
+        ...PERSONAL_LOCAL.filter((key) => localStorage.getItem(key) !== null),
+        ...PERSONAL_SESSION.filter(
+          (key) => sessionStorage.getItem(key) !== null,
+        ),
+      ];
+      return Promise.resolve(undefined);
+    });
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          tenantId: 1,
+          name: "Mia Lehrerin",
+          email: "mia@example.com",
+          roles: [],
+        },
+      },
+      status: "authenticated",
+    });
+    for (const key of PERSONAL_LOCAL) localStorage.setItem(key, "x");
+    for (const key of PERSONAL_SESSION) sessionStorage.setItem(key, "x");
+    localStorage.setItem("sidebar-collapsed", "true");
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ["OGS", TeacherShellProvider],
+    ["Betreiber", OperatorShellProvider],
+    ["Schule", SchoolShellProvider],
+    ["Caterer", CatererShellProvider],
+    ["Eltern", ParentShellProvider],
+  ] as const)("in the %s portal", async (_portal, Provider) => {
+    leftAtSignOut = ["signOut was not called"];
+    const { result } = renderHook(() => useShellAuth(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <Provider>{children}</Provider>
+      ),
+    });
+
+    await result.current.logout();
+
+    expect(leftAtSignOut).toEqual([]);
+    // Device settings without data of a person stay.
+    expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
   });
 });

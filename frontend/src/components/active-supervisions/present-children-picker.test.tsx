@@ -10,6 +10,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PresentChildrenPicker } from "./present-children-picker";
 
+// The sidebar memory and the offering choice belong to the signed-in account
+// (#5000), so the hooks read the session.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "7", tenantId: 1 } },
+    status: "authenticated",
+  }),
+}));
+
 const mocks = vi.hoisted(() => ({
   fetchStudents: vi.fn(),
   fetchCareOfferingOptions: vi.fn(),
@@ -24,7 +33,7 @@ vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "schule-am-berg",
 }));
 
-const OFFERING_STORAGE_KEY = "moto:present-children-offering:schule-am-berg";
+const OFFERING_STORAGE_KEY = "moto:present-children-offering:schule-am-berg:7";
 
 vi.mock("~/components/ui/form-modal", () => ({
   FormModal: ({

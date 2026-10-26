@@ -7,6 +7,7 @@ import { SessionProvider, useSession } from "next-auth/react";
 import { SWRConfig } from "swr";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
+import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { ModuleBookingAudienceProvider } from "~/contexts/ToastContext";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
@@ -131,6 +132,7 @@ export function TenantProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <PersonalStorageGuard />
       <SessionCachePrimer />
       <ModuleBookingAudienceBridge>
         <PushSubscriptionSync portal="tenant" />

@@ -3,6 +3,7 @@
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { TraegerAnalyticsSession } from "~/components/analytics/traeger-analytics-session";
+import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 
 /**
@@ -27,6 +28,7 @@ export function TraegerProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <PersonalStorageGuard />
       <TraegerAnalyticsSession />
       <SentrySessionContext portal="traeger" />
       {children}

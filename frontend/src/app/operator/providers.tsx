@@ -2,6 +2,7 @@
 
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
+import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 
 /**
@@ -28,6 +29,7 @@ export function OperatorProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <PersonalStorageGuard />
       <SentrySessionContext portal="operator" />
       {children}
     </SessionProvider>
