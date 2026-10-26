@@ -27,6 +27,7 @@ type reviewBooking struct {
 	HostSchoolID  int64  `json:"host_school_id"`
 	TimeModelID   int64  `json:"time_model_id"`
 	TimeModelName string `json:"time_model_name"`
+	PriceCents    int64  `json:"price_cents"`
 }
 
 type reviewChild struct {
@@ -118,8 +119,14 @@ func (f reviewFixture) list(t *testing.T, query string) reviewList {
 	return decodeSchoolPortalData[reviewList](t, rec.Body.Bytes())
 }
 
+// act changes a registration. A confirmation freezes the contribution, so
+// the Elternabrechnung serves it (#4664, ADR 0115); its answer names the
+// registration and its status like the other changes.
 func (f reviewFixture) act(t *testing.T, id int64, action string) *httptest.ResponseRecorder {
 	t.Helper()
+	if action == "confirm" {
+		return traegerJSON(t, f.traeger, f.office.token, http.MethodPost, holidayConfirmPath(f.period.ID, id), nil)
+	}
 	return traegerJSON(t, f.traeger, f.office.token, http.MethodPost, f.registrationPath(id, "/"+action), nil)
 }
 
@@ -393,7 +400,7 @@ func TestTraegerHolidayRegistrationReviewNeedsTheRightAndStaysWithItsTraeger(t *
 		{http.MethodGet, f.path("")},
 		{http.MethodGet, f.path("/export?format=csv")},
 		{http.MethodGet, f.registrationPath(f.siblings, "")},
-		{http.MethodPost, f.registrationPath(f.siblings, "/confirm")},
+		{http.MethodPost, holidayConfirmPath(f.period.ID, f.siblings)},
 		{http.MethodPost, f.registrationPath(f.siblings, "/freeze")},
 	} {
 		rec := traegerJSON(t, f.traeger, readOnly.token, request.method, request.path, nil)

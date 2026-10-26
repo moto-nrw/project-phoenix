@@ -213,6 +213,7 @@ export const HELP_TOPICS = {
   traegerHolidayPeriod: "traeger-ferienzeitraum",
   traegerHolidayRegistration: "traeger-ferienanmeldung-teilen",
   traegerHolidayRegistrationReview: "traeger-ferienanmeldungen-pruefen",
+  traegerHolidayContribution: "traeger-ferienbeitrag",
   traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   traegerSettings: "traeger-einstellungen",
   traegerBriefkopf: "briefkopf-des-traegers",

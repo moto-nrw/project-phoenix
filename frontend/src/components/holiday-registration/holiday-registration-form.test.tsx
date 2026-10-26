@@ -9,12 +9,59 @@ import type {
   HolidayRegistrationOffer,
 } from "~/lib/holiday-registration-api";
 
-const { mockSubmit } = vi.hoisted(() => ({ mockSubmit: vi.fn() }));
+const { mockSubmit, mockQuote } = vi.hoisted(() => ({
+  mockSubmit: vi.fn(),
+  mockQuote: vi.fn(),
+}));
 
 vi.mock("~/lib/holiday-registration-api", () => ({
   submitHolidayRegistration: (token: string, payload: unknown) =>
     mockSubmit(token, payload),
+  quoteHolidayContribution: (
+    token: string,
+    children: unknown,
+    benefitsDeclared: boolean,
+  ) => mockQuote(token, children, benefitsDeclared),
 }));
+
+/** The contribution of Ben's one week, with or without the exemption. */
+function quoted(benefitsDeclared: boolean) {
+  const base = {
+    kind: "base",
+    amountCents: 4500,
+    weekStartsOn: "2027-01-04",
+    weekEndsOn: "2027-01-08",
+    timeModelName: "bis 13 Uhr",
+    childRank: null,
+    discountBasisPoints: null,
+    discountCents: null,
+    note: "",
+  };
+  const exemption = {
+    ...base,
+    kind: "benefits_exemption",
+    amountCents: -4500,
+    weekStartsOn: null,
+    weekEndsOn: null,
+    timeModelName: "",
+    note: "Beitragsfrei mit BuT-Nachweis",
+  };
+  return {
+    children: [
+      {
+        childId: "",
+        position: 1,
+        lines: benefitsDeclared ? [base, exemption] : [base],
+        totalCents: benefitsDeclared ? 0 : 4500,
+      },
+    ],
+    totalCents: benefitsDeclared ? 0 : 4500,
+    exemptionAvailable: true,
+    benefitsExemption: benefitsDeclared,
+    frozen: false,
+    confirmedAt: null,
+  };
+}
 
 vi.mock("@marsidev/react-turnstile", () => ({
   Turnstile: ({ onSuccess }: { onSuccess: (token: string) => void }) => (
@@ -161,6 +208,8 @@ describe("HolidayRegistrationForm", () => {
 
   beforeEach(() => {
     mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
     window.scrollTo = vi.fn();
   });
 
@@ -249,6 +298,76 @@ describe("HolidayRegistrationForm", () => {
         "Wir schicken Ihnen eine Bestätigung an eva@example.org.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("shows the contribution in the summary and sends the statement on benefits", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    mockQuote.mockImplementation((_token, _children, declared: boolean) =>
+      Promise.resolve(quoted(declared)),
+    );
+    renderForm();
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+
+    expect(
+      await screen.findByText("04.01.2027 bis 08.01.2027 · bis 13 Uhr"),
+    ).toBeInTheDocument();
+    expect(mockQuote).toHaveBeenLastCalledWith(
+      "link-key",
+      [[{ week_id: 11, time_model_id: 21 }]],
+      false,
+    );
+    expect(screen.getAllByText("45,00 €").length).toBeGreaterThan(0);
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Wir bekommen Leistungen, zum Beispiel Bürgergeld/,
+      }),
+    );
+    // The old amount goes at once; the new one follows.
+    expect(
+      screen.getByText("Der Beitrag wird berechnet …"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Befreit wegen Leistungsbezug: Beitragsfrei mit BuT-Nachweis",
+      ),
+    ).toBeInTheDocument();
+    expect(mockQuote).toHaveBeenLastCalledWith(
+      "link-key",
+      [[{ week_id: 11, time_model_id: 21 }]],
+      true,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    expect(mockSubmit).toHaveBeenCalledWith(
+      "link-key",
+      expect.objectContaining({ benefits_declared: true }),
+    );
+  });
+
+  it("lets parents send the registration when the contribution cannot be shown", async () => {
+    mockQuote.mockRejectedValue(new Error("offline"));
+    renderForm();
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Der Beitrag lässt sich gerade nicht anzeigen. Sie können trotzdem absenden. Der Träger nennt Ihnen dann den Beitrag.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    expect(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    ).toBeEnabled();
   });
 
   it("prefills a known child that the parent corrects for this registration only", async () => {

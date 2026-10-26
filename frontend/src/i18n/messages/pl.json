@@ -1727,7 +1727,17 @@
     "checkFields": "Sprawdź zaznaczone pola.",
     "summaryTitle": "Sprawdź swoje dane",
     "summaryText": "Zgłoszenie jest ważne dopiero po wysłaniu.",
-    "summaryFee": "Opłatę poda Ci organizator.",
+    "contributionTitle": "Opłata",
+    "contributionText": "Tyle kosztuje opieka w ferie. Opłata obowiązuje, gdy organizator potwierdzi zgłoszenie.",
+    "contributionLoading": "Obliczanie opłaty …",
+    "contributionError": "Nie można teraz pokazać opłaty. Mimo to można wysłać zgłoszenie. Organizator poda wtedy opłatę.",
+    "contributionRetry": "Spróbuj ponownie",
+    "contributionSibling": "Rodzeństwo: {rank}. dziecko, {discount} mniej",
+    "contributionExemption": "Zwolnienie z powodu świadczeń: {note}",
+    "contributionChildTotal": "Suma",
+    "contributionTotal": "Razem",
+    "benefitsLabel": "Otrzymujemy świadczenia, na przykład Bürgergeld, dodatek mieszkaniowy (Wohngeld) lub dodatek na dziecko (Kinderzuschlag).",
+    "benefitsHint": "Wtedy opieka w ferie jest bezpłatna. Organizator potrzebuje na to dowodu.",
     "guest": "Gość na ferie",
     "none": "Brak danych",
     "back": "Wróć i zmień",
@@ -2818,6 +2828,13 @@
         "not_supplied": "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
         "order_not_found": "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
         "supply_active": "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie."
+      },
+      "parent_billing": {
+        "benefits_exemption_unavailable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "contribution_rule_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "contribution_rule_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "contribution_rule_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "holiday_quote_invalid": "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

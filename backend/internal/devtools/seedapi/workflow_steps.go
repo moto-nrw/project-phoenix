@@ -243,10 +243,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, seedStaffPersonMergeStep{})
-	if !seeder.options.SkipTraegerSetup {
-		steps = append(steps, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTestTraegerStep{})
-	}
+	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTestTraegerStep{})
 	if !seeder.options.DeferHistory {
 		steps = append(steps, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 	}

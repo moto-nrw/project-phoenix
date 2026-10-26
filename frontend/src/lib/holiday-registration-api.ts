@@ -3,6 +3,11 @@
 
 import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
+import {
+  type BackendContribution,
+  contributionFromBackend,
+  type HolidayContribution,
+} from "~/lib/holiday-contribution";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "HolidayRegistrationApi" });
@@ -91,6 +96,7 @@ export interface HolidayRegistrationPayload {
   readonly privacy_consent: boolean;
   readonly health_consent: boolean;
   readonly binding_confirmed: boolean;
+  readonly benefits_declared: boolean;
   readonly captcha_token: string;
 }
 
@@ -181,6 +187,39 @@ export async function submitHolidayRegistration(
       "Ferienanmeldung konnte nicht gesendet werden",
     );
   }
+}
+
+/** The bookings of one child of the form, for its contribution (#4664). */
+export type HolidayQuoteChild = readonly {
+  readonly week_id: number;
+  readonly time_model_id: number;
+}[];
+
+/**
+ * The contribution of the form before it is sent (#4664): computed by the
+ * Träger's rules from the bookings alone, stored nowhere.
+ */
+export async function quoteHolidayContribution(
+  token: string,
+  children: readonly HolidayQuoteChild[],
+  benefitsDeclared: boolean,
+): Promise<HolidayContribution> {
+  const response = await request(`${registrationPath(token)}/contribution`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      children: children.map((bookings) => ({ bookings })),
+      benefits_declared: benefitsDeclared,
+    }),
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Beitrag der Ferienanmeldung konnte nicht berechnet werden",
+    );
+  }
+  const body = (await response.json()) as { data: BackendContribution };
+  return contributionFromBackend(body.data);
 }
 
 /** A child of the parent's account the registration can start from (#4662). */

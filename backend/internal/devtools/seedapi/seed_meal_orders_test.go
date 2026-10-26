@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The order day is the next weekday, so its regular registrations are made
-// before the deadline is moved back behind today (#3873).
+// The order day is the first weekday after today, and its lead days
+// always put the deadline before today, at any time of day (#3873).
 func TestMealOrderSeedDayIsDueAtAnyTime(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -146,7 +146,7 @@ func mealOrderRuntime(url string) *Runtime {
 // accepts the mailed link and confirms that order (#3873, ADR 0077).
 func TestSeedMealOrdersFixesABusyDayAndConnectsTheCaterer(t *testing.T) {
 	t.Parallel()
-	server := &mealOrderServer{t: t, date: "2026-09-09"}
+	server := &mealOrderServer{t: t, date: "2026-09-08"}
 	srv := newSeedHTTPTestServer(server.handle)
 	defer srv.Close()
 	var mailed []string
@@ -155,7 +155,7 @@ func TestSeedMealOrdersFixesABusyDayAndConnectsTheCaterer(t *testing.T) {
 		mailed, mailedSince = append(mailed, recipient, marker), notBefore
 		return "http://caterer.localhost:3000/einladung/7/tok123", nil
 	}
-	today, err := parseSeedDate("2026-09-08")
+	today, err := parseSeedDate("2026-09-07")
 	require.NoError(t, err)
 	invitedAt := time.Date(2026, time.September, 8, 7, 21, 0, 0, time.UTC)
 	rt := mealOrderRuntime(srv.URL)
@@ -168,16 +168,16 @@ func TestSeedMealOrdersFixesABusyDayAndConnectsTheCaterer(t *testing.T) {
 	require.Len(t, server.events, registered+1+1+2+1+2)
 	for _, event := range server.events[:registered] {
 		assert.True(t, strings.HasPrefix(event, "schedule "), event)
-		assert.True(t, strings.HasSuffix(event, " 2026-09-09"), event)
+		assert.True(t, strings.HasSuffix(event, " 2026-09-08"), event)
 	}
 	// One child of each class first: 101 is in 3a, 102 in 1a, 103 in 2a.
 	assert.True(t, strings.HasPrefix(server.events[0], "schedule 101 "), server.events[0])
 	assert.True(t, strings.HasPrefix(server.events[1], "schedule 102 "), server.events[1])
 	assert.Equal(t, []string{
 		"lead 2",
-		"day 2/days/2026-09-09 false", // never the first parent's child 1
-		fmt.Sprintf("day %d/days/2026-09-09 true", 100+registered+1),
-		fmt.Sprintf("day %d/days/2026-09-09 true", 100+registered+2),
+		"day 2/days/2026-09-08 false", // never the first parent's child 1
+		fmt.Sprintf("day %d/days/2026-09-08 true", 100+registered+1),
+		fmt.Sprintf("day %d/days/2026-09-08 true", 100+registered+2),
 		"lead 0",
 		"accept",
 		"confirm",
@@ -189,10 +189,10 @@ func TestSeedMealOrdersFixesABusyDayAndConnectsTheCaterer(t *testing.T) {
 // A failed late change still restores the school's deadline.
 func TestSeedMealOrdersRestoresTheDeadlineAfterAFailure(t *testing.T) {
 	t.Parallel()
-	server := &mealOrderServer{t: t, date: "2026-09-09", failDayFor: fmt.Sprintf("/%d/", 100+mealOrderChildren-18+1)}
+	server := &mealOrderServer{t: t, date: "2026-09-08", failDayFor: fmt.Sprintf("/%d/", 100+mealOrderChildren-18+1)}
 	srv := newSeedHTTPTestServer(server.handle)
 	defer srv.Close()
-	today, err := parseSeedDate("2026-09-08")
+	today, err := parseSeedDate("2026-09-07")
 	require.NoError(t, err)
 
 	require.Error(t, seedMealOrders(context.Background(), mealOrderRuntime(srv.URL), nil, today))
@@ -225,7 +225,7 @@ func TestSeedMealCatererInvitationStepNeedsAMailbox(t *testing.T) {
 // Without a mailbox the order week is still fixed, and no caterer accepts.
 func TestSeedMealOrdersWithoutMailboxConnectsNoCaterer(t *testing.T) {
 	t.Parallel()
-	// Sunday: the next order day is Monday.
+	// Sunday: the order day is the Monday after it.
 	server := &mealOrderServer{t: t, date: "2026-09-14"}
 	srv := newSeedHTTPTestServer(server.handle)
 	defer srv.Close()
@@ -241,13 +241,13 @@ func TestSeedMealOrdersWithoutMailboxConnectsNoCaterer(t *testing.T) {
 // invitation open; the order week is seeded all the same.
 func TestSeedMealOrdersLeavesTheInvitationOpenWithoutItsMail(t *testing.T) {
 	t.Parallel()
-	server := &mealOrderServer{t: t, date: "2026-09-09"}
+	server := &mealOrderServer{t: t, date: "2026-09-08"}
 	srv := newSeedHTTPTestServer(server.handle)
 	defer srv.Close()
 	readMailLink := func(context.Context, string, string, time.Time) (string, error) {
 		return "", errors.New("timed out waiting for mail with a link")
 	}
-	today, err := parseSeedDate("2026-09-08")
+	today, err := parseSeedDate("2026-09-07")
 	require.NoError(t, err)
 	rt := mealOrderRuntime(srv.URL)
 	rt.Values[seedCatererInvitedAt] = time.Date(2026, time.September, 8, 7, 21, 0, 0, time.UTC)

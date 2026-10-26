@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -23,7 +24,9 @@ var seedTraegerInvitees = []struct {
 // seedTraegerBueroStep makes the bootstrap school admin the first person of
 // the Träger-Büro (ADR 0084, #4649) through the operator route, so every dev
 // and demo database can sign in to the Träger-Portal with the admin's
-// credentials and sees the Träger's schools. Signed in to the Träger-Portal,
+// credentials and sees the Träger's schools. The admin also holds the role
+// Abrechnung, so the dev database shows the contribution rules (#4664).
+// Signed in to the Träger-Portal,
 // the admin then invites a colleague for the Abrechnung and one for the
 // Personal (#4650), so the page "Personen" shows a person and open
 // invitations.
@@ -39,10 +42,12 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 	rt.Client.BindAuth(rt.OperatorAuth)
 	defer rt.Client.BindAuth(previousAuth)
 	path := fmt.Sprintf("/operator/organizations/%d/traeger-members", rt.Bootstrap.OrganizationID)
-	if _, err := rt.Client.Post(path, map[string]string{"email": rt.Bootstrap.AdminEmail, "role": "administration"}); err != nil {
-		return fmt.Errorf("assign the Träger-Büro: %w", err)
+	for _, role := range []string{"administration", "billing"} {
+		if _, err := rt.Client.Post(path, map[string]string{"email": rt.Bootstrap.AdminEmail, "role": role}); err != nil {
+			return fmt.Errorf("assign the Träger-Büro: %w", err)
+		}
 	}
-	fmt.Println("  Träger-Büro: school admin assigned with role Verwaltung")
+	fmt.Println("  Träger-Büro: school admin assigned with roles Verwaltung and Abrechnung")
 	return seedTraegerInvitation(rt)
 }
 
@@ -73,8 +78,10 @@ func seedTraegerInvitation(rt *Runtime) error {
 // opens registration today and closes it a week before the Ferien.
 // A family then registers two siblings through the period's public link
 // (#4661): one child of the Träger's first school and a holiday guest; the
-// Träger-Büro reviews the registrations (#4663). Last, the first seeded
-// parent reads the link's prefill of known children (#4662).
+// Träger-Büro reviews the registrations (#4663). The Abrechnung keeps a
+// sibling rule and an exemption, the form shows the contribution, and the
+// confirmation freezes it (#4664). Last, the first seeded parent reads the
+// link's prefill of known children (#4662).
 type seedTraegerHolidayPeriodStep struct{}
 
 func (seedTraegerHolidayPeriodStep) Name() string { return "Seeding a Träger holiday period" }
@@ -107,6 +114,9 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 		return fmt.Errorf("publish the holiday period: %w", err)
 	}
 	fmt.Println("  Träger-Büro: holiday period with two weeks published")
+	if err := seedContributionRules(rt.Client, auth, calendar.TodayDate()); err != nil {
+		return err
+	}
 	token, err := seedHolidayRegistrations(rt, auth, periodID, published, schools[0])
 	if err != nil {
 		return err
@@ -117,12 +127,16 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 // seedHolidayRegistrations registers two siblings through the public link
 // (#4661), then a second parent registers the first sibling once more for
 // the second week, a possible duplicate. The Träger-Büro reviews the list
-// and confirms the siblings' registration (#4663); the duplicate stays
-// received.
+// and confirms the siblings' registration (#4663), which freezes its
+// contribution (#4664); the duplicate stays received. The form shows the
+// siblings' contribution before it is sent.
 func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) (string, error) {
 	token, registration, err := seedHolidayRegistration(published, homeSchool)
 	if err != nil {
 		return "", err
+	}
+	if _, err := rt.Client.PostPublic("/traeger/holiday-quotes/"+token, seedHolidayQuote(registration)); err != nil {
+		return "", fmt.Errorf("show the holiday contribution: %w", err)
 	}
 	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, registration)
 	if err != nil {
@@ -140,10 +154,11 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if _, err := rt.Client.GetWithAuth(auth, registrations); err != nil {
 		return "", fmt.Errorf("list the holiday registrations: %w", err)
 	}
-	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("%s/%d/confirm", registrations, siblings), map[string]any{}); err != nil {
+	confirm := fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, siblings)
+	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false}); err != nil {
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
-	fmt.Println("  Träger-Büro: siblings confirmed, a possible duplicate waits for review")
+	fmt.Println("  Träger-Büro: siblings confirmed with their contribution, a possible duplicate waits for review")
 	return token, nil
 }
 
@@ -180,6 +195,45 @@ func seedHolidayRegistrationPrefill(ctx context.Context, rt *Runtime, token stri
 	}
 	fmt.Printf("  Ferienanmeldung: prefill offers %d known child(ren) of a parent account\n", len(envelope.Data.Children))
 	return nil
+}
+
+// seedContributionRules keeps the contribution rules of the Abrechnung
+// (#4664) from today on: half the base price from the second child on, and
+// no contribution for families receiving benefits. A Träger keeps one rule
+// of each kind at a time; when another demo school of the same Träger
+// already kept one, the backend refuses the second as an overlap and the
+// Träger keeps the first.
+func seedContributionRules(client *Client, auth AuthRef, today calendar.Date) error {
+	for _, rule := range []map[string]any{
+		{"kind": "sibling", "valid_from": today.String(), "sibling_from_child": 2, "discount_basis_points": 5000},
+		{"kind": "benefits_exemption", "valid_from": today.String(), "note": "Die Familie bezieht Leistungen für Bildung und Teilhabe."},
+	} {
+		_, err := client.PostWithAuth(auth, "/traeger/contribution-rules/", rule)
+		var refused *APIError
+		if errors.As(err, &refused) && refused.Code == seedContributionRuleOverlap {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("keep the contribution rules: %w", err)
+		}
+	}
+	fmt.Println("  Abrechnung: sibling rule and exemption for families receiving benefits")
+	return nil
+}
+
+// seedContributionRuleOverlap is the registered code of a second rule of one
+// kind valid at the same time.
+const seedContributionRuleOverlap = "parent_billing.contribution_rule_overlap"
+
+// seedHolidayQuote is the body of the form's contribution: the bookings of
+// every child, without personal data.
+func seedHolidayQuote(registration map[string]any) map[string]any {
+	children := registration["children"].([]map[string]any)
+	quoted := make([]map[string]any, len(children))
+	for i, child := range children {
+		quoted[i] = map[string]any{"bookings": child["bookings"]}
+	}
+	return map[string]any{"children": quoted, "benefits_declared": false}
 }
 
 // seedHolidayDuplicate is a second parent's registration of the first

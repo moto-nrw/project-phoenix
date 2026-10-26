@@ -42,16 +42,28 @@ type demoScheduler struct {
 	seeds           chan struct{}
 
 	failedRequeues *demoDeferredRequeues
-	// All demo schools share one Demo-Träger. Only the first provisioner builds
-	// its shared data; later schools can seed their own data concurrently.
-	sharedTraegerSetup sync.Mutex
-	traegerSetupDone   bool
 }
 
 func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbeat string, once bool) error {
-	scheduler, err := newDemoScheduler(ctx, schools, baseURL, heartbeat)
-	if err != nil {
+	// Every order is seeded with this configuration. A broken one stops the
+	// process here instead of failing each visitor's order in turn.
+	if err := checkDemoProvisioning(demoProvisioningCredentials()); err != nil {
 		return err
+	}
+	adapter := schools.seedAdapter(baseURL, false)
+	if err := waitDemoServer(ctx, adapter); err != nil {
+		return err
+	}
+	if err := schools.ReleaseDemoSchoolOrders(ctx); err != nil {
+		return err
+	}
+	if err := schools.RequeueDeferredDemoSchoolOrders(ctx); err != nil {
+		return err
+	}
+	scheduler := &demoScheduler{
+		schools: schools, baseURL: baseURL, heartbeat: heartbeat, adapter: newSharedOperatorSession(adapter),
+		tickers: newDemoTickers(), expiry: newDemoExpiry(schools, time.Now), seeds: make(chan struct{}, demoSeedWorkers),
+		failedRequeues: newDemoDeferredRequeues(),
 	}
 	defer scheduler.work.Wait()
 	if once {
@@ -79,45 +91,6 @@ func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbea
 			return nil
 		}
 	}
-}
-
-func newDemoScheduler(ctx context.Context, schools *DemoRuntime, baseURL, heartbeat string) (*demoScheduler, error) {
-	// Every order is seeded with this configuration. A broken one stops the
-	// process here instead of failing each visitor's order in turn.
-	if err := checkDemoProvisioning(demoProvisioningCredentials()); err != nil {
-		return nil, err
-	}
-	adapter := schools.seedAdapter(baseURL, false)
-	if err := waitDemoServer(ctx, adapter); err != nil {
-		return nil, err
-	}
-	if err := schools.ReleaseDemoSchoolOrders(ctx); err != nil {
-		return nil, err
-	}
-	if err := schools.RequeueDeferredDemoSchoolOrders(ctx); err != nil {
-		return nil, err
-	}
-	traegerSetupDone, err := hasDemoTraegerSetup(ctx, schools)
-	if err != nil {
-		return nil, err
-	}
-	return &demoScheduler{
-		schools: schools, baseURL: baseURL, heartbeat: heartbeat, adapter: newSharedOperatorSession(adapter),
-		tickers: newDemoTickers(), expiry: newDemoExpiry(schools, time.Now), seeds: make(chan struct{}, demoSeedWorkers),
-		failedRequeues: newDemoDeferredRequeues(), traegerSetupDone: traegerSetupDone,
-	}, nil
-}
-
-func hasDemoTraegerSetup(ctx context.Context, schools *DemoRuntime) (bool, error) {
-	standing, err := schools.LoadDemoSchool(ctx, standingDemoSlug)
-	if err != nil || standing != nil {
-		return standing != nil, err
-	}
-	ready, err := schools.ReadyDemoSchools(ctx)
-	if err != nil {
-		return false, err
-	}
-	return len(ready) > 0, nil
 }
 
 // startOrders claims waiting orders while a seed worker is free.
@@ -295,7 +268,6 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order DemoSchoolOrder) 
 		return nil, fmt.Errorf("demo school order used its attempts")
 	}
 	var deferred func(context.Context) error
-	var err error
 	if !order.Seeded {
 		options := seedapi.SeedOptions{
 			TenantSlug: order.Slug, SchoolName: order.SchoolName,
@@ -305,19 +277,8 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order DemoSchoolOrder) 
 			ReplaceAbandoned: order.Attempts > 1,
 			DeferHistory:     true,
 		}
-		s.sharedTraegerSetup.Lock()
-		options.SkipTraegerSetup = s.traegerSetupDone
-		if options.SkipTraegerSetup {
-			s.sharedTraegerSetup.Unlock()
-			deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options)
-		} else {
-			deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options)
-			if err == nil {
-				s.traegerSetupDone = true
-			}
-			s.sharedTraegerSetup.Unlock()
-		}
-		if err != nil {
+		var err error
+		if deferred, err = provisionDemoSchool(ctx, s.schools, s.adapter, options); err != nil {
 			return nil, err
 		}
 	}

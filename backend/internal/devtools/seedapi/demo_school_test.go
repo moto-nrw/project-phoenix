@@ -71,18 +71,6 @@ func TestFullDemoWorkflowOnlyProfileSkipsFurtherSchools(t *testing.T) {
 	assert.True(t, writesState, "a restricted run still writes its seed state")
 }
 
-func TestFullDemoWorkflowSkipsSharedTraegerSetup(t *testing.T) {
-	t.Parallel()
-
-	steps := fullDemoWorkflow(&Seeder{options: SeedOptions{SkipTraegerSetup: true}}).Steps
-	for _, step := range steps {
-		switch step.(type) {
-		case seedTraegerBueroStep, seedTraegerHolidayPeriodStep, seedTraegerSettingsStep, seedTraegerMasterDataStep, seedTestTraegerStep:
-			t.Fatalf("queued demo workflow contains shared Träger step %T", step)
-		}
-	}
-}
-
 func TestSeedRejectsUnknownOnlyProfile(t *testing.T) {
 	t.Parallel()
 

@@ -68,3 +68,46 @@ func TestSeedTraegerMasterDataStepKeepsTheBrandingThroughTheTraegerPortal(t *tes
 	_, err := png.Decode(bytes.NewReader(logo))
 	assert.NoError(t, err, "the logo is a real PNG")
 }
+
+// The demo process seeds several schools of one Demo-Träger at once: another
+// school adds the bank accounts between the read and the write. The label
+// refusal leaves the Träger with that school's accounts.
+func TestSeedTraegerBankAccountsKeepAnotherSchoolsAccounts(t *testing.T) {
+	t.Parallel()
+
+	posts := 0
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`{"status":"success","data":{"bank_accounts":[]}}`))
+			return
+		}
+		posts++
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"status":400,"code":"traeger.bank_account_label_taken","detail":"the Träger already has a bank account with this label"}`))
+	})
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	require.NoError(t, seedTraegerBankAccountsOnce(client, AuthRef{Kind: AuthBearer, Token: "traeger-token"}))
+	assert.Equal(t, 2, posts, "both accounts were offered once")
+}
+
+// Any other refusal still fails the step.
+func TestSeedTraegerBankAccountsFailOnOtherRefusals(t *testing.T) {
+	t.Parallel()
+
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			_, _ = w.Write([]byte(`{"status":"success","data":{"bank_accounts":[]}}`))
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"status":400,"code":"traeger.bank_account_iban_invalid","detail":"invalid IBAN"}`))
+	})
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	require.ErrorContains(t, seedTraegerBankAccountsOnce(client, AuthRef{Kind: AuthBearer, Token: "traeger-token"}), "add the Träger bank account Elternbeiträge")
+}

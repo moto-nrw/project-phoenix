@@ -2,14 +2,20 @@
 
 // Status einer Ferienanmeldung und was das Träger-Büro damit tun kann
 // (#4663): bestätigen, stornieren, einfrieren und wieder öffnen. Die Karte
-// sagt, warum eine Aktion gerade fehlt.
+// sagt, warum eine Aktion gerade fehlt. Das Bestätigen hält den Ferienbeitrag
+// fest, auf Wunsch mit der Befreiung bei Leistungsbezug (#4664).
 
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import {
+  confirmHolidayRegistration,
+  type HolidayContribution,
+} from "~/lib/traeger-contributions-api";
 import {
   changeHolidayRegistration,
   type HolidayRegistrationAction,
@@ -32,20 +38,66 @@ function statusText(registration: HolidayRegistrationDetail): string {
   return confirmed + frozen;
 }
 
+/** What the card says about the parents' statement on benefits. */
+function benefitsText(
+  registration: HolidayRegistrationDetail,
+  contribution: HolidayContribution | null,
+): string | null {
+  if (!registration.benefitsDeclared) return null;
+  if (contribution?.exemptionAvailable) {
+    return "Die Eltern geben an, dass sie Leistungen beziehen. Bitte prüfen Sie den Nachweis.";
+  }
+  return "Die Eltern geben an, dass sie Leistungen beziehen. Für eine Befreiung braucht es eine Regel unter „Beiträge“.";
+}
+
 export function HolidayRegistrationStatusCard({
   periodId,
   registration,
+  contribution,
+  previewPending = false,
+  exemption,
+  onExemptionChange,
   onChanged,
+  onConfirmed,
 }: Readonly<{
   periodId: string;
   registration: HolidayRegistrationDetail;
+  /** The contribution a confirmation freezes; null while it loads. */
+  contribution: HolidayContribution | null;
+  /** The preview is computed again; the confirmation waits for it. */
+  previewPending?: boolean;
+  /** The exemption the confirmation applies; the page shows its preview. */
+  exemption: boolean;
+  onExemptionChange: (exemption: boolean) => void;
   onChanged: (registration: HolidayRegistrationDetail) => void;
+  /** After a confirmation; the page reads the registration again. */
+  onConfirmed: () => Promise<void>;
 }>) {
-  const [running, setRunning] = useState<HolidayRegistrationAction | null>(
-    null,
-  );
+  const [running, setRunning] = useState<
+    HolidayRegistrationAction | "confirm" | null
+  >(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const errorDisplay = useApiErrorDisplay();
+  const exemptionAvailable = contribution?.exemptionAvailable ?? false;
+
+  const confirm = async () => {
+    setRunning("confirm");
+    try {
+      await confirmHolidayRegistration(
+        periodId,
+        registration.id,
+        exemptionAvailable && exemption,
+      );
+      await onConfirmed();
+    } catch (err) {
+      logger.error("holiday_registration_confirm_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void errorDisplay.show(err, { object: "die Anmeldung" });
+    } finally {
+      setRunning(null);
+    }
+  };
 
   const run = async (action: HolidayRegistrationAction) => {
     setRunning(action);
@@ -73,6 +125,26 @@ export function HolidayRegistrationStatusCard({
         {registration.status === "received" ? (
           <p>Eltern bekommen beim Bestätigen noch keine Nachricht von moto.</p>
         ) : null}
+        {registration.status === "received" &&
+        benefitsText(registration, contribution) ? (
+          <p>{benefitsText(registration, contribution)}</p>
+        ) : null}
+        {registration.status === "received" && exemptionAvailable ? (
+          <label
+            htmlFor="holiday-registration-exemption"
+            className="flex items-start gap-3"
+          >
+            <Checkbox
+              id="holiday-registration-exemption"
+              name="benefits_exemption"
+              checked={exemption}
+              onChange={(event) => onExemptionChange(event.target.checked)}
+            />
+            <span>
+              Beim Bestätigen von der Zahlung befreien (Leistungsbezug)
+            </span>
+          </label>
+        ) : null}
         {open ? (
           <div className="flex flex-wrap gap-2">
             {registration.status === "received" ? (
@@ -82,8 +154,10 @@ export function HolidayRegistrationStatusCard({
                 size="md"
                 isLoading={running === "confirm"}
                 loadingText="Bestätigt …"
-                disabled={running !== null}
-                onClick={() => void run("confirm")}
+                disabled={
+                  running !== null || contribution === null || previewPending
+                }
+                onClick={() => void confirm()}
               >
                 Bestätigen
               </Button>

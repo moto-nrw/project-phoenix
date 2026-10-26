@@ -79,6 +79,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"cmd/devtools/demo.go:provisionDemoSchool":                                                                18,
 	"cmd/devtools/demo_runtime.go:NewDemoRuntime":                                                             16,
 	"cmd/devtools/demo_scheduler.go:(*demoScheduler).drain":                                                   20,
+	"cmd/devtools/demo_scheduler.go:runDemoSchools":                                                           16,
 	"cmd/serve.go:scrubSentryEvent":                                                                           20,
 	"cmd/serve.go:validateServeConfig":                                                                        18,
 	// ADR 0087.
@@ -261,7 +262,7 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 23,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 53,
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 18,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 25,
 	// ADR 0087.
