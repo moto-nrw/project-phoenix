@@ -87,9 +87,10 @@ func passwordResetRetryAfter(err error) (int, bool) {
 }
 
 // enrollmentGuardianInvitations hands the enrollment decision routes the one
-// call they make: approving the first child of a family fires one
-// invitation, fire-and-forget. A nil capability yields the zero runtime,
-// which the routes report as not configured.
+// call they make: approving the first child of a family creates one
+// invitation in the decision's transaction, so a failed invitation or mail
+// rolls the decision back with it (#4602). A nil capability yields the zero
+// runtime, which the routes report as not configured.
 func enrollmentGuardianInvitations(invitations identityaccess.GuardianInvitations) enrollmentAPI.GuardianInvitationRuntime {
 	if invitations == nil {
 		return enrollmentAPI.GuardianInvitationRuntime{}

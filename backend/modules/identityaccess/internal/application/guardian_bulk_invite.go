@@ -146,7 +146,8 @@ func (l *AccountLifecycle) bulkInviteGuardian(ctx context.Context, run *bulkInvi
 	err := runInSavepoint(ctx, func(savepointCtx context.Context) error {
 		return l.bulkInviteOne(savepointCtx, run, candidate, profile, open)
 	})
-	if err == nil || errors.Is(err, domain.ErrTransactionUnusable) || !errors.Is(err, domain.ErrGuardianAccessMailNotQueued) {
+	mailNotQueued := errors.Is(err, domain.ErrGuardianAccessMailNotQueued) && !errors.Is(err, domain.ErrTransactionUnusable)
+	if !mailNotQueued {
 		return err
 	}
 	l.logger.Error("guardian bulk invitation: mail not queued, guardian rolled back",

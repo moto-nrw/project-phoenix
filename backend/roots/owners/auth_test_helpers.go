@@ -11,7 +11,8 @@ import (
 )
 
 // UnsentGuardianMail serves a root composed without the guardian mail — a
-// CLI or a fixture that only reads. The flows still run; nothing is sent.
+// CLI or a fixture that only reads. The flows still run and every mail
+// reports success with outbox ID 0; nothing is sent.
 type UnsentGuardianMail struct{}
 
 func (UnsentGuardianMail) InvitationExpiry(context.Context) (time.Duration, error) {

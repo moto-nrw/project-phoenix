@@ -114,3 +114,22 @@ func TestBulkInviteToStudents_MailFailureListsOnlyThatGuardian(t *testing.T) {
 	assert.Empty(t, testpkg.GuardianInvitationsByProfile(t, env.db, unreached.ID), "the failed guardian is rolled back")
 	assert.Len(t, testpkg.GuardianInvitationsByProfile(t, env.db, reached.ID), 1, "the other guardian is invited")
 }
+
+// Inviting a further guardian to a child rolls back with its mail too.
+func TestInviteToStudent_MailFailureRollsBackTheInvitation(t *testing.T) {
+	t.Parallel()
+	outbox := api.NewFailingCapturingOutbox(emailKindGuardianInvitation, failingEnqueueStatement)
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *api.GuardianInvitationTestConfig) { cfg.Outbox = outbox })
+	student := testpkg.CreateTestStudent(t, env.db, "Invite", "Failure", "3c")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "invite-failure")
+	testpkg.CreateTestStudentGuardianLink(t, env.db, student.ID, profile.ID, guardianRoleLegalGuardian)
+	require.NotNil(t, profile.Email)
+
+	_, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db, env.service.InviteToStudent, identityaccess.InviteToStudentRequest{
+		StudentID: student.ID, Email: *profile.Email, CreatedBy: env.inviterAccountID(t),
+	})
+
+	require.ErrorIs(t, err, identityaccess.ErrGuardianAccessMailNotQueued)
+	assert.Empty(t, testpkg.GuardianInvitationsByProfile(t, env.db, profile.ID), "the invitation rolls back with its mail")
+	assert.Empty(t, outbox.Requests())
+}
