@@ -322,15 +322,6 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		return state, err
 	}
 
-	type enrollmentSubmission struct {
-		source string
-		key    string
-		body   map[string]any
-		auth   AuthRef
-		path   string
-		status string
-		reason string
-	}
 	seedSubmission := func(source, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, seedSource string, offeringKeys []string, selectedDays map[string][]string, status, reason string) enrollmentSubmission {
 		offeringIDs := make([]int64, 0, len(offeringKeys))
 		selectedDaysByID := make(map[int64][]string, len(selectedDays))
@@ -534,62 +525,8 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		source: "late_invite", path: "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit", body: lateInviteBody,
 	})
 
-	immediateSeeded, withdrawnSeeded := false, false
-	for index, submission := range submissions {
-		if submission.source == "parent" {
-			if _, err := rt.Client.GetWithAuth(submission.auth, "/parent/enrollments/"+rt.Bootstrap.TenantSlug+"/profile"); err != nil {
-				return state, fmt.Errorf("load parent enrollment profile before submit: %w", err)
-			}
-		}
-
-		var respBody []byte
-		var submitErr error
-		if submission.source == "parent" {
-			respBody, submitErr = rt.Client.PostWithAuth(submission.auth, submission.path, submission.body)
-		} else {
-			respBody, submitErr = rt.Client.PostPublicWithHeaders(
-				submission.path,
-				submission.body,
-				publicEnrollmentSeedHeaders(index),
-			)
-		}
-		if submitErr != nil {
-			return state, fmt.Errorf("submit %s enrollment: %w", submission.source, submitErr)
-		}
-		request, err := parseEnrollmentSubmitResponse(respBody, submission.source)
-		if err != nil {
-			return state, err
-		}
-		detail, err := s.loadEnrollmentRequestDetail(rt, adminAuth, request.RequestID)
-		if err != nil {
-			return state, err
-		}
-		request.StatusToken = detail.StatusToken
-		request.ChildIDs = detail.ChildIDs
-		request.Key = submission.key
-		state.Requests = append(state.Requests, request)
-		if submission.status != "" {
-			if err := s.decideSeedSubmission(rt, adminAuth, request, submission.status, submission.reason, &immediateSeeded); err != nil {
-				return state, err
-			}
-			state.Requests[len(state.Requests)-1].Status = submission.status
-		} else if !withdrawnSeeded && submission.source == "public" {
-			if _, err := rt.Client.PostPublic(fmt.Sprintf("/api/enrollment/requests/%s/withdraw", request.StatusToken), map[string]any{}); err != nil {
-				return state, fmt.Errorf("withdraw demo enrollment request: %w", err)
-			}
-			state.Requests[len(state.Requests)-1].Status = "withdrawn"
-			withdrawnSeeded = true
-		}
-		if submission.source == "parent" && submission.status == "approved" {
-			if err := s.seedOfferingChange(rt, adminAuth, submission.auth, request.RequestID, offerings); err != nil {
-				return state, err
-			}
-		}
-		if submission.status == "rejected" {
-			if err := seedEnrollmentChangeConversation(rt, adminAuth, submission.body, request); err != nil {
-				return state, err
-			}
-		}
+	if err := s.submitSeedEnrollments(rt, adminAuth, offerings, submissions, &state); err != nil {
+		return state, err
 	}
 	if err := s.seedEnrollmentDeletion(rt, adminAuth, phaseID, offerings, len(submissions)); err != nil {
 		return state, err
