@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.678 (#4666, ADR 0120): the count projection of the preview with the three holiday guest tables. A static copy of the 1.15.646
+// 1.15.681 (#4666, ADR 0120): the count projection of the preview with the three holiday guest tables. A static copy of the 1.15.646
 // function, the tables inserted at the seam where 1.15.646 removed the
 // retired direct permissions.
 func installHolidayGuestErasurePreview(ctx context.Context, tx bun.Tx) error {

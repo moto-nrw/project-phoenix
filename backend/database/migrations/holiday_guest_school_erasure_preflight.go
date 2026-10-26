@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.678 (#4666, ADR 0120): the 1.15.646 preflight with the three holiday
+// 1.15.681 (#4666, ADR 0120): the 1.15.646 preflight with the three holiday
 // guest tables in its static lock set and the FK fingerprint that their keys
 // (guest to child, contact to guest, group choice to group) change. Their
 // keys carry the school, so no foreign-scope check is added.

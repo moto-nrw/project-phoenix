@@ -107,7 +107,7 @@ die `tenant_id` der ausrichtenden Schule (D4).
      ADR 0067) und an `ResolveStaffIDByAccountID` (query), das
      Zugriffsprotokoll (platform, ADR 0098).
    - Datenkatalog (`data_lifecycle_catalog.json`, Scope `tenant`),
-     Löschfristen und Schul-Löschung: Migration `1.15.678` installiert Plan,
+     Löschfristen und Schul-Löschung: Migration `1.15.681` installiert Plan,
      Sperrliste mit neuem FK-Fingerabdruck, Restprüfung, Löschung und
      Probelauf mit den drei Tabellen (ADR 0092).
    - Compose-LOC `modules/enrollment/compose` 585 → 591, Summe 12654 → 12660.

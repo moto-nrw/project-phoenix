@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayGuestErasureVersion = "1.15.678"
+const holidayGuestErasureVersion = "1.15.681"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -36,7 +36,7 @@ func holidayGuestErasureUp(ctx context.Context, db *bun.DB) error {
 }
 
 // holidayGuestErasureDown reinstalls the 1.15.646 functions. With the holiday
-// guest tables still present they fail closed until 1.15.677 is rolled back.
+// guest tables still present they fail closed until 1.15.680 is rolled back.
 func holidayGuestErasureDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		for _, step := range []func(context.Context, bun.Tx) error{
