@@ -72,11 +72,10 @@ func seedMealOrders(ctx context.Context, rt *Runtime, readMailLink MailLinkReade
 	return seedMealCaterer(ctx, rt, readMailLink, day)
 }
 
-// mealOrderSeedDay is the next weekday and the number of lead days that put
-// its deadline before today. Its regular registrations are thus written while
-// the day is still open, before the seed moves the deadline back.
+// mealOrderSeedDay is the first weekday from today on and the number of
+// lead days that put its deadline before today, whatever the time of day.
 func mealOrderSeedDay(today seedDate) (seedDate, int) {
-	day := seedWeekdayOnOrAfter(today.AddDays(1))
+	day := seedWeekdayOnOrAfter(today)
 	return day, int(day.Sub(today.Time).Hours()/24) + 1
 }
 
