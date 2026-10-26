@@ -104,15 +104,19 @@ func newPlanExport(sources planExportSources) planexport.Service {
 }
 
 // planExportInstanceFilter applies the Timetable owner's block filter rule
-// (#4766) to the export's blocks, with the same block groups the planner
+// (#4766, #4768) to the export's blocks, with the same block groups the planner
 // filters by.
 type planExportInstanceFilter struct {
 	blockGroups planExportBlockGroupReader
 	groupNames  planExportGroupNameReader
 }
 
-func (a planExportInstanceFilter) MatchingInstances(ctx context.Context, filter planexport.BlockFilter, instanceIDs []int64, staff []*planexport.InstanceStaff) (planexport.FilteredInstances, error) {
+func (a planExportInstanceFilter) MatchingInstances(ctx context.Context, filter planexport.BlockFilter, instances []*planexport.Instance, staff []*planexport.InstanceStaff) (planexport.FilteredInstances, error) {
 	var result planexport.FilteredInstances
+	instanceIDs := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		instanceIDs = append(instanceIDs, instance.ID)
+	}
 	var groups map[int64][]int64
 	if filter.EducationGroupID != nil {
 		if a.blockGroups == nil || a.groupNames == nil {
@@ -137,10 +141,10 @@ func (a planExportInstanceFilter) MatchingInstances(ctx context.Context, filter 
 			})
 		}
 	}
-	rule := timetable.BlockFilter{EducationGroupID: filter.EducationGroupID, StaffID: filter.StaffID}
-	result.Matches = make(map[int64]bool, len(instanceIDs))
-	for _, id := range instanceIDs {
-		result.Matches[id] = rule.Matches(staffByInstance[id], groups[id])
+	rule := timetable.BlockFilter{EducationGroupID: filter.EducationGroupID, StaffID: filter.StaffID, RoomID: filter.RoomID}
+	result.Matches = make(map[int64]bool, len(instances))
+	for _, instance := range instances {
+		result.Matches[instance.ID] = rule.Matches(instance.RoomID, staffByInstance[instance.ID], groups[instance.ID])
 	}
 	return result, nil
 }

@@ -24,8 +24,8 @@ func (n planExportFakeGroupNames) EducationGroupNames(_ context.Context, ids []i
 	return out, nil
 }
 
-// #4766: the root binds the export's filter to the planner's display
-// projection, so a group or person filter prints the same blocks the
+// #4766, #4768: the root binds the export's filter to the planner's display
+// projection, so a group, person or room filter prints the same blocks the
 // Betreuungsplan shows.
 func TestPlanExportFiltersBetreuungsplanByGroupAndPerson(t *testing.T) {
 	t.Parallel()
@@ -33,7 +33,8 @@ func TestPlanExportFiltersBetreuungsplanByGroupAndPerson(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	room := testpkg.CreateTestRoom(t, db, "PlanFilter")
 	groupBlock := testpkg.CreateTestActivityInstance(t, db, planExportMonday, room.ID, testpkg.ActivityInstanceOpts{Title: "Gruppenblock", StartHHMM: "12:00", EndHHMM: "13:00"})
-	staffBlock := testpkg.CreateTestActivityInstance(t, db, planExportMonday, room.ID, testpkg.ActivityInstanceOpts{Title: "Personalblock", StartHHMM: "14:00", EndHHMM: "15:00"})
+	otherRoom := testpkg.CreateTestRoom(t, db, "PlanFilterRaum")
+	staffBlock := testpkg.CreateTestActivityInstance(t, db, planExportMonday, otherRoom.ID, testpkg.ActivityInstanceOpts{Title: "Personalblock", StartHHMM: "14:00", EndHHMM: "15:00"})
 	group := testpkg.CreateTestEducationGroup(t, db, "Sonnen")
 	child := testpkg.CreateTestStudent(t, db, "Mia", "Filter", "2a")
 	testpkg.AssignStudentToGroup(t, db, child.ID, group.ID)
@@ -75,4 +76,7 @@ func TestPlanExportFiltersBetreuungsplanByGroupAndPerson(t *testing.T) {
 	titles, filters = export(planexport.BlockFilter{StaffID: &staff.ID})
 	require.Equal(t, []string{"Personalblock"}, titles)
 	require.Contains(t, filters, "Person: Vertretung, S.")
+	titles, filters = export(planexport.BlockFilter{RoomID: &otherRoom.ID})
+	require.Equal(t, []string{"Personalblock"}, titles)
+	require.Contains(t, filters, "Raum: "+otherRoom.Name)
 }
