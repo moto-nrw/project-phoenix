@@ -433,10 +433,7 @@ func (l *letterLayout) writeBlock(block listrecords.LetterBlock) error {
 // wrap in their column: the value takes at most letterValueShare of the
 // width, the label the rest, and the row is as high as the longer one.
 func (l *letterLayout) writeFactRow(fact listrecords.LetterFact) error {
-	style := styleNormal
-	if fact.Bold {
-		style = styleBold
-	}
+	style := factStyle(fact)
 	if err := l.style(style, letterBodySize, colorBody); err != nil {
 		return err
 	}
@@ -445,26 +442,16 @@ func (l *letterLayout) writeFactRow(fact listrecords.LetterFact) error {
 		return err
 	}
 	rows := max(len(labels), len(values))
-	// A row that fits a page stays together; a longer one, such as a
-	// reason of many lines, continues line by line on the next page.
-	together := float64(rows)*letterBodyLine <= l.pageRoom()
-	if together {
-		if err := l.ensure(float64(rows) * letterBodyLine); err != nil {
-			return err
-		}
+	together, err := l.keepRowTogether(rows)
+	if err != nil {
+		return err
 	}
 	for i := range rows {
-		if !together {
-			if err := l.ensure(letterBodyLine); err != nil {
-				return err
-			}
-		}
-		if err := l.style(style, letterBodySize, colorBody); err != nil {
+		if err := l.startRowLine(together, style); err != nil {
 			return err
 		}
-		if i == 0 && fact.Bold && l.draw {
-			l.setStroke(colorBorder)
-			l.pdf.Line(letterMarginLeft, l.y, l.w-letterMarginRight, l.y)
+		if i == 0 && fact.Bold {
+			l.drawRule()
 		}
 		if err := l.writeFactLine(labels, values, i); err != nil {
 			return err
@@ -472,6 +459,44 @@ func (l *letterLayout) writeFactRow(fact listrecords.LetterFact) error {
 		l.y += letterBodyLine
 	}
 	return nil
+}
+
+func factStyle(fact listrecords.LetterFact) string {
+	if fact.Bold {
+		return styleBold
+	}
+	return styleNormal
+}
+
+// startRowLine makes room for the next line of a row that does not stay
+// together and sets the row's style again, also after a page break.
+func (l *letterLayout) startRowLine(together bool, style string) error {
+	if !together {
+		if err := l.ensure(letterBodyLine); err != nil {
+			return err
+		}
+	}
+	return l.style(style, letterBodySize, colorBody)
+}
+
+// drawRule draws the hairline above a total.
+func (l *letterLayout) drawRule() {
+	if !l.draw {
+		return
+	}
+	l.setStroke(colorBorder)
+	l.pdf.Line(letterMarginLeft, l.y, l.w-letterMarginRight, l.y)
+}
+
+// keepRowTogether moves a row that fits a page to the next page when it
+// does not fit this one. A longer row, such as a reason of many lines,
+// continues line by line instead; then it reports false.
+func (l *letterLayout) keepRowTogether(rows int) (bool, error) {
+	height := float64(rows) * letterBodyLine
+	if height > l.pageRoom() {
+		return false, nil
+	}
+	return true, l.ensure(height)
 }
 
 // writeFactLine prints the i-th line of the label and of the value.
