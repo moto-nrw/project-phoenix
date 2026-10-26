@@ -155,7 +155,7 @@ func TestSeedMealOrdersFixesABusyDayAndConnectsTheCaterer(t *testing.T) {
 		mailed, mailedSince = append(mailed, recipient, marker), notBefore
 		return "http://caterer.localhost:3000/einladung/7/tok123", nil
 	}
-	today, err := parseSeedDate("2026-09-08")
+	today, err := parseSeedDate("2026-09-07")
 	require.NoError(t, err)
 	invitedAt := time.Date(2026, time.September, 8, 7, 21, 0, 0, time.UTC)
 	rt := mealOrderRuntime(srv.URL)
@@ -174,7 +174,7 @@ func TestSeedMealOrdersFixesABusyDayAndConnectsTheCaterer(t *testing.T) {
 	assert.True(t, strings.HasPrefix(server.events[0], "schedule 101 "), server.events[0])
 	assert.True(t, strings.HasPrefix(server.events[1], "schedule 102 "), server.events[1])
 	assert.Equal(t, []string{
-		"lead 1",
+		"lead 2",
 		"day 2/days/2026-09-08 false", // never the first parent's child 1
 		fmt.Sprintf("day %d/days/2026-09-08 true", 100+registered+1),
 		fmt.Sprintf("day %d/days/2026-09-08 true", 100+registered+2),
@@ -192,12 +192,12 @@ func TestSeedMealOrdersRestoresTheDeadlineAfterAFailure(t *testing.T) {
 	server := &mealOrderServer{t: t, date: "2026-09-08", failDayFor: fmt.Sprintf("/%d/", 100+mealOrderChildren-18+1)}
 	srv := newSeedHTTPTestServer(server.handle)
 	defer srv.Close()
-	today, err := parseSeedDate("2026-09-08")
+	today, err := parseSeedDate("2026-09-07")
 	require.NoError(t, err)
 
 	require.Error(t, seedMealOrders(context.Background(), mealOrderRuntime(srv.URL), nil, today))
 	assert.Equal(t, "lead 0", server.events[len(server.events)-1])
-	assert.Contains(t, server.events, "lead 1")
+	assert.Contains(t, server.events, "lead 2")
 }
 
 // The school invites its caterer once meal registration is on, and only
@@ -247,7 +247,7 @@ func TestSeedMealOrdersLeavesTheInvitationOpenWithoutItsMail(t *testing.T) {
 	readMailLink := func(context.Context, string, string, time.Time) (string, error) {
 		return "", errors.New("timed out waiting for mail with a link")
 	}
-	today, err := parseSeedDate("2026-09-08")
+	today, err := parseSeedDate("2026-09-07")
 	require.NoError(t, err)
 	rt := mealOrderRuntime(srv.URL)
 	rt.Values[seedCatererInvitedAt] = time.Date(2026, time.September, 8, 7, 21, 0, 0, time.UTC)
