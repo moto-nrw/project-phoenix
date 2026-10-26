@@ -170,6 +170,8 @@
     "/school/tagesinformationen": 849908,
     "/start": 494853,
     "/traeger": 529030,
+    "/traeger/abrechnung": 568817,
+    "/traeger/abrechnung/[id]": 564757,
     "/traeger/access-log": 576870,
     "/traeger/accounts": 550403,
     "/traeger/beitraege": 602890,

@@ -1054,6 +1054,20 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites /abrechnung/{id} to /traeger/abrechnung/{id} (#4668)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}/abrechnung/7`,
+          TRAEGER_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/abrechnung/7",
+      );
+    });
+
     it("passes through /api/traeger/* without rewriting", () => {
       for (const path of [
         "/api/traeger/auth/session",

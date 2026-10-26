@@ -902,6 +902,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET tenant /api/time-tracking/closing-days",
   ],
   "api/time-tracking/config": ["GET tenant /api/time-tracking/config"],
+  "api/time-tracking/absence-allowances": [
+    "GET tenant /api/time-tracking/absence-allowances",
+  ],
   "api/time-tracking/current": ["GET tenant /api/time-tracking/current"],
   "api/time-tracking/history": ["GET tenant /api/time-tracking/history"],
   "api/time-tracking/holidays": ["GET tenant /api/time-tracking/holidays"],
@@ -1099,6 +1102,20 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/traeger/accounts/invitations/[invitationId]": [
     "DELETE traeger /traeger/accounts/invitations/invitationId%2F1",
   ],
+  "api/traeger/billing-runs": [
+    "GET traeger /traeger/billing-runs",
+    "POST traeger /traeger/billing-runs",
+  ],
+  "api/traeger/billing-runs/[id]": ["GET traeger /traeger/billing-runs/id%2F1"],
+  "api/traeger/billing-runs/[id]/corrections": [
+    "POST traeger /traeger/billing-runs/id%2F1/corrections",
+  ],
+  "api/traeger/billing-runs/[id]/release": [
+    "POST traeger /traeger/billing-runs/id%2F1/release",
+  ],
+  "api/traeger/billing-runs/periods": [
+    "GET traeger /traeger/billing-runs/periods",
+  ],
   "api/traeger/contribution-rules": [
     "GET traeger /traeger/contribution-rules",
     "POST traeger /traeger/contribution-rules",
@@ -1146,6 +1163,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/traeger/master-data/contact": [
     "PUT traeger /traeger/master-data/contact",
+  ],
+  "api/traeger/number-ranges": ["GET traeger /traeger/number-ranges"],
+  "api/traeger/number-ranges/[service]": [
+    "PUT traeger /traeger/number-ranges/service%2F1",
   ],
   "api/traeger/organization": ["GET traeger /traeger/organization"],
   "api/traeger/school-sessions": ["POST traeger /traeger/school-sessions"],

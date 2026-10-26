@@ -17,6 +17,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	absencetypesHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/absencetypes"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -81,21 +82,23 @@ func newTimeTrackingResource(
 	users peoplePorts.PersonDirectory, documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking,
 	absenceWrites timeTrackingHTTP.OwnAbsenceWrites,
 	shifts workforceModule.StaffShiftPlanning, assignments workforceModule.StaffAssignmentQuery,
-	calendar schoolcalendar.Calendar, settings settingsCompose.SettingsService,
+	allowances workforceModule.OwnAbsenceAllowances, calendar schoolcalendar.Calendar, settings settingsCompose.SettingsService,
 ) *timeTrackingHTTP.Resource {
 	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
-		WorkSessions:     capabilities.WorkSessions,
-		StaffAbsences:    capabilities.StaffAbsences,
-		AbsenceWrites:    absenceWrites,
-		Staff:            capabilities.Staff,
-		WorkTimeMonth:    capabilities.WorkTimeMonth,
-		StaffShifts:      shifts,
-		ShiftResponses:   timeTrackingShiftResponses,
-		Assignments:      assignments,
-		Calendar:         PlanningCalendarCapability(calendar),
-		AccountStartDate: timeTrackingAccountStartDate(settings),
-		Identity:         timeTrackingIdentity,
+		WorkSessions:       capabilities.WorkSessions,
+		StaffAbsences:      capabilities.StaffAbsences,
+		AbsenceWrites:      absenceWrites,
+		Staff:              capabilities.Staff,
+		WorkTimeMonth:      capabilities.WorkTimeMonth,
+		StaffShifts:        shifts,
+		ShiftResponses:     timeTrackingShiftResponses,
+		Assignments:        assignments,
+		Calendar:           PlanningCalendarCapability(calendar),
+		Allowances:         allowances,
+		AllowanceResponses: timeTrackingAllowanceResponses,
+		AccountStartDate:   timeTrackingAccountStartDate(settings),
+		Identity:           timeTrackingIdentity,
 		WithinTenant: func(ctx context.Context, tenantID int64, run func(context.Context) error) error {
 			id, err := tenant.NewTenantID(tenantID)
 			if err != nil {
@@ -141,6 +144,10 @@ func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, absen
 		Identity:           timeTrackingIdentity,
 		Logger:             logger,
 	})
+}
+
+func timeTrackingAllowanceResponses(accounts []workforceModule.AbsenceTypeAllowanceAccount) any {
+	return absencetypesHTTP.ToOwnAllowanceResponses(accounts)
 }
 
 func timeTrackingShiftResponses(shifts []workforceModule.PlannedShift) any {

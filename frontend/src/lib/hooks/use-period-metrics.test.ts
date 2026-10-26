@@ -37,7 +37,7 @@ vi.mock("~/lib/staff-api", () => ({
     getMonthSummary: vi.fn(),
     getDailyProjection: vi.fn(),
   },
-  staffHistoryService: { getHistory: vi.fn() },
+  staffHistoryService: { getHistory: vi.fn(), getHistoryDetails: vi.fn() },
   staffAbsenceService: { getAbsences: vi.fn() },
 }));
 
@@ -130,18 +130,15 @@ function mockSWR(
           mutate,
         };
       }
-      // The own history key is SHARED with the Zeiterfassung table and carries
-      // that table's shape; the admin key carries a flat session array.
-      if (typeof key === "string" && key.startsWith("time-tracking-table-")) {
-        return {
-          data: data.sessions
-            ? { sessions: data.sessions, weeklySummaries: [] }
-            : undefined,
-          isLoading: false,
-          mutate,
-        };
-      }
-      return { data: data.sessions, isLoading: false, mutate };
+      // Both history keys are SHARED with the Zeiterfassung tables and carry
+      // their shape: sessions plus weekly sums and ArbZG hints (#4804).
+      return {
+        data: data.sessions
+          ? { sessions: data.sessions, weeklySummaries: [], laborDays: [] }
+          : undefined,
+        isLoading: false,
+        mutate,
+      };
     },
   );
   return { keys, configs, mutates };
@@ -255,8 +252,10 @@ describe("usePeriodMetrics", () => {
     const refresh = swr.configs.get(
       "staff-history-42-2026-08-02-2026-08-09",
     )?.refreshInterval;
-    expect(refresh?.([{ check_out_time: null }])).toBe(60_000);
-    expect(refresh?.([{ check_out_time: "2026-08-03T16:00:00Z" }])).toBe(0);
+    expect(refresh?.({ sessions: [{ check_out_time: null }] })).toBe(60_000);
+    expect(
+      refresh?.({ sessions: [{ check_out_time: "2026-08-03T16:00:00Z" }] }),
+    ).toBe(0);
     expect(refresh?.(undefined)).toBe(0);
   });
 

@@ -17,6 +17,11 @@ Inventory base: `a52dccfc01e977e18c112d164949b819eda552f3` (development, includi
 
 ## Retained dissolution blocker
 
+> **Resolved.** The eight interface checks later moved to People Directory's
+> private rows (`internal/rows/entity_interfaces_test.go`, since removed).
+> #4956 deleted the then empty `backend/models` package and the
+> `legacy-model` role.
+
 `backend/models/entity_interfaces_test.go` is retained unchanged. Its eight `base.Entity` compile-time checks use Guest, GuardianProfile, Person, PrivacyConsent, Staff, Student, StudentGuardian and Teacher. The `models` internal-test scope is legacy-composition and cannot import People Directory public. Rehosting in People Directory postgres would require its forbidden dependency on `models/base`. Neither route has an existing predecessor rule permitting a same-or-narrower successor; a legacy exception is not a grant. No rule or exception was added.
 
 Per the agreed fallback, only dissolution is deferred: `models/users` remains, with the original `models` → `models/users` and `models` → `models/base` keys. The SQL adapter and owner-local model tests retain private row usage. All foreign consumer changes remain. The sole remaining foreign importer of `models/users` is this unchanged test. The package was not relabelled as a port.
