@@ -60,6 +60,7 @@ var personalReminderTypes = []string{
 	TypePickupOverdue,
 	TypeActivityStart,
 	TypeActivityOverdue,
+	TypeActivityRunningOver,
 	TypeMyActivityStarting,
 }
 
@@ -553,6 +554,12 @@ var reminderCopyByType = map[string]personalReminderCopy{
 		title:    "Aktivität nicht gestartet",
 		singular: "Eine geplante Aktivität ist überfällig und wurde noch nicht gestartet.",
 		plural:   "%d geplante Aktivitäten sind überfällig und wurden noch nicht gestartet.",
+		urgent:   true,
+	},
+	TypeActivityRunningOver: {
+		title:    "AG dauert länger",
+		singular: "Eine Aktivität läuft länger als geplant.",
+		plural:   "%d Aktivitäten laufen länger als geplant.",
 		urgent:   true,
 	},
 	TypeMyActivityStarting: {

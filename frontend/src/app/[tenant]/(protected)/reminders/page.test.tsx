@@ -139,6 +139,31 @@ describe("RemindersPage", () => {
     expect(screen.getByText("0 anstehend · 0 überfällig")).toBeInTheDocument();
   });
 
+  // #4765: an activity that runs over is neither upcoming nor overdue.
+  it("counts a running-over activity on its own, not as upcoming", () => {
+    const running = {
+      type: "activity_running_over" as const,
+      activity_instance_id: "7",
+      title: "Fußball-AG",
+      subtitle: "Turnhalle",
+      due_time: "16:00",
+      minutes_away: -20,
+      pickup_due_count: 2,
+    };
+    set({
+      count: 1,
+      reminders: [running],
+      data: { reminders: [running], count: 1, enabled: true },
+    });
+    renderWithToast(<RemindersPage />);
+    expect(
+      screen.getByText("0 anstehend · 0 überfällig · 1 AG dauert länger"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Turnhalle · 2 Kinder zur Abholung"),
+    ).toBeInTheDocument();
+  });
+
   it("shows a loading indicator before the first data arrives", () => {
     set({ reminders: [], count: 0, isLoading: true });
     // Der Ladezustand kommt aus dem Seitengerüst (TenantPage).

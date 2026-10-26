@@ -57,6 +57,8 @@ const (
 	settingRemindersPickupOverdueEnabled         = "reminders.pickup_overdue_enabled"
 	settingRemindersActivityStartEnabled         = "reminders.activity_start_enabled"
 	settingRemindersActivityOverdueEnabled       = "reminders.activity_overdue_enabled"
+	settingRemindersActivityRunningOverEnabled   = "reminders.activity_running_over_enabled"
+	settingRemindersActivityRunningOverMinutes   = "reminders.activity_running_over_minutes"
 	settingRemindersPickupUpcomingLeadMinutes    = "reminders.pickup_upcoming_lead_minutes"
 	settingRemindersActivityStartLeadMinutes     = "reminders.activity_start_lead_minutes"
 	settingCalendarAppointmentReminderEnabled    = "calendar.appointment_reminder_enabled"
