@@ -117,21 +117,21 @@ export function clearPersonalStorage(): void {
 /**
  * Bindet die Einträge an den Besitzer der Sitzung. Gehören sie jemand
  * anderem (anderes Konto, andere Schule, Vorschau) oder niemandem
- * Bekanntem, werden sie vorher geräumt.
+ * Bekanntem, werden sie vorher geräumt. Beide Speicher führen ihren eigenen
+ * Besitzer: Ein anderer Tab kann localStorage bereits neu gebunden haben,
+ * während dieser Tab noch sessionStorage des vorigen Kontos enthält.
  */
 export function bindPersonalStorage(owner: string): void {
-  const storage = webStorage("localStorage");
-  if (!storage) return;
-  try {
-    if (storage.getItem(OWNER_KEY) === owner) return;
-  } catch {
-    // Unlesbarer Speicher hält auch nichts von jemand anderem.
-    return;
-  }
-  clearPersonalStorage();
-  try {
-    storage.setItem(OWNER_KEY, owner);
-  } catch {
-    // Ohne Speicher gibt es nichts zu binden.
+  for (const name of ["localStorage", "sessionStorage"] as const) {
+    const storage = webStorage(name);
+    if (!storage) continue;
+    try {
+      if (storage.getItem(OWNER_KEY) === owner) continue;
+      clearStorage(storage);
+      clearAnnouncementStudents();
+      storage.setItem(OWNER_KEY, owner);
+    } catch {
+      // Gesperrter Speicher hindert nicht das Binden des anderen Speichers.
+    }
   }
 }

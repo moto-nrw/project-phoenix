@@ -48,6 +48,7 @@ const PERSONAL_LOCAL = {
 };
 
 const PERSONAL_SESSION = {
+  "moto:personal-storage-owner": OWNER,
   "moto:announcement-prefill:legacy-token":
     '{"tenantSlug":"schule","students":[{"id":"5","name":"Mia Arslan"}]}',
   "timetable-reopenable-instance":
@@ -133,10 +134,15 @@ describe("clearPersonalStorage", () => {
 describe("bindPersonalStorage", () => {
   it("keeps the entries of the same account at the same school", () => {
     seed(localStorage, PERSONAL_LOCAL);
+    seed(sessionStorage, PERSONAL_SESSION);
 
     bindPersonalStorage(OWNER);
 
     expect(keys(localStorage)).toEqual(Object.keys(PERSONAL_LOCAL).sort());
+    expect(keys(sessionStorage)).toEqual(Object.keys(PERSONAL_SESSION).sort());
+    expect(sessionStorage.getItem("timetable-reopenable-instance")).toBe(
+      PERSONAL_SESSION["timetable-reopenable-instance"],
+    );
   });
 
   it("removes the entries when another account signs in", () => {
@@ -149,7 +155,8 @@ describe("bindPersonalStorage", () => {
       [...Object.keys(KEPT_LOCAL), "moto:personal-storage-owner"].sort(),
     );
     expect(localStorage.getItem("moto:personal-storage-owner")).toBe("1:8");
-    expect(keys(sessionStorage)).toEqual([]);
+    expect(keys(sessionStorage)).toEqual(["moto:personal-storage-owner"]);
+    expect(sessionStorage.getItem("moto:personal-storage-owner")).toBe("1:8");
   });
 
   it("removes the entries when the same account switches school", () => {

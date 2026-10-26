@@ -1,5 +1,6 @@
-import { render } from "@testing-library/react";
+import { render, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useReopenBanner } from "~/components/active-supervisions/use-reopen-banner";
 import { sidebarMemoryKey } from "~/lib/sidebar-memory";
 
 const mocks = vi.hoisted(() => ({ useSession: vi.fn() }));
@@ -16,6 +17,7 @@ function signedIn(id: string, tenantId: number) {
 
 function seedPreviousAccount() {
   localStorage.setItem("moto:personal-storage-owner", "1:7");
+  sessionStorage.setItem("moto:personal-storage-owner", "1:7");
   localStorage.setItem(LAST_ROOM_NAME, "Raum Sonne");
   localStorage.setItem("messages_unread_count:schule:7", '{"count":3}');
   sessionStorage.setItem("timetable-reopenable-instance", '{"title":"AG"}');
@@ -28,6 +30,45 @@ beforeEach(() => {
 });
 
 describe("PersonalStorageGuard (#5000)", () => {
+  it.each(["1:7", null])(
+    "clears a previous tab's undo offer when the shared owner already matches (tab owner: %s)",
+    (tabOwner) => {
+      localStorage.setItem("moto:personal-storage-owner", "1:8");
+      localStorage.setItem("messages_unread_count:schule:8", '{"count":2}');
+      if (tabOwner !== null) {
+        sessionStorage.setItem("moto:personal-storage-owner", tabOwner);
+      }
+      sessionStorage.setItem(
+        "timetable-reopenable-instance",
+        JSON.stringify({
+          instanceId: "9",
+          title: "Fußball",
+          roomId: "4",
+          expiresAt: Date.now() + 5 * 60 * 1000,
+        }),
+      );
+      mocks.useSession.mockReturnValue(signedIn("8", 1));
+
+      const { result } = renderHook(() => useReopenBanner(), {
+        wrapper: ({ children }) => (
+          <>
+            <PersonalStorageGuard />
+            {children}
+          </>
+        ),
+      });
+
+      expect(result.current.reopenable).toBeNull();
+      expect(
+        sessionStorage.getItem("timetable-reopenable-instance"),
+      ).toBeNull();
+      expect(sessionStorage.getItem("moto:personal-storage-owner")).toBe("1:8");
+      expect(localStorage.getItem("messages_unread_count:schule:8")).toBe(
+        '{"count":2}',
+      );
+    },
+  );
+
   it("keeps the entries when the same account comes back", () => {
     seedPreviousAccount();
     mocks.useSession.mockReturnValue(signedIn("7", 1));
