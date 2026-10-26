@@ -14,7 +14,7 @@
 
 "use client";
 
-// eslint-disable-next-line no-restricted-imports -- this IS the tenant-aware wrapper
+// swr/no-direct-import permits package imports inside this shared wrapper only.
 import useSWR, {
   mutate as swrMutate,
   type SWRConfiguration,
