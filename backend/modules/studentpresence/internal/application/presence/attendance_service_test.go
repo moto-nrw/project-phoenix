@@ -834,7 +834,7 @@ func TestCheckOutStudent_ClosesOpenRow(t *testing.T) {
 	assert.NotNil(t, status.CheckOutTime)
 }
 
-func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
+func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisorAsDevice(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -873,8 +873,7 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	require.NotNil(t, row.CheckOutTime)
-	require.NotNil(t, row.CheckedOutBy)
-	assert.Equal(t, staff.ID, *row.CheckedOutBy)
+	assert.Nil(t, row.CheckedOutBy, "the supervisor authorizes the device but did not record this checkout")
 	require.NotNil(t, row.CheckedOutDeviceID)
 	assert.Equal(t, device.ID, *row.CheckedOutDeviceID)
 }

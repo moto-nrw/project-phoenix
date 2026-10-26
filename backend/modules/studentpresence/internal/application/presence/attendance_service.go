@@ -300,10 +300,11 @@ func (s *service) checkOutStudent(ctx context.Context, studentID, staffID int64,
 // when neither exists, the authenticated device remains the audit principal.
 func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error) {
 	staffID := int64(0)
-	if principal := s.attendancePrincipal(ctx); principal.HasStaff {
+	principal := s.attendancePrincipal(ctx)
+	if principal.HasStaff {
 		staffID = principal.StaffID
 	} else {
-		resolvedStaffID, err := s.getDeviceSupervisorID(ctx, deviceID)
+		_, err := s.getDeviceSupervisorID(ctx, deviceID)
 		if err != nil {
 			var unavailable *deviceSupervisorUnavailableError
 			if !errors.As(err, &unavailable) {
@@ -316,8 +317,6 @@ func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, devi
 				slog.Int64("device_id", deviceID),
 				slog.String("reason", unavailable.Error()),
 			)
-		} else {
-			staffID = resolvedStaffID
 		}
 	}
 	var result *AttendanceResult
@@ -374,7 +373,10 @@ func (s *service) authorizeIoTDeviceToggle(ctx context.Context, deviceID int64) 
 // authenticated device. A confirmed staff identity remains the actor.
 func (s *service) attendanceRecorderStaffID(ctx context.Context, staffID int64) int64 {
 	principal := s.attendancePrincipal(ctx)
-	if principal.IsIoT && !principal.HasStaff {
+	if principal.IsIoT {
+		if principal.HasStaff {
+			return principal.StaffID
+		}
 		return 0
 	}
 	return staffID
