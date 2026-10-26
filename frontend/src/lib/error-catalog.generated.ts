@@ -1400,6 +1400,18 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
       "parent_billing.number_range_missing":
         "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
+      "parent_billing.bank_account_missing":
+        "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Briefkopf“ ein Konto ein.",
+      "parent_billing.billing_letter_not_found":
+        "Dieses Schreiben gibt es noch nicht. Bitte erstellen Sie zuerst die Schreiben des Laufs.",
+      "parent_billing.billing_letters_exist":
+        "Die Schreiben dieses Laufs sind schon erstellt. Sie lassen sich nicht ändern.",
+      "parent_billing.billing_letters_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.billing_run_not_released":
+        "Schreiben gibt es erst nach der Freigabe. Bitte geben Sie den Lauf zuerst frei.",
+      "parent_billing.letterhead_too_long":
+        "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
     },
   },
   en: {

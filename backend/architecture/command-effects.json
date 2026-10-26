@@ -44900,6 +44900,62 @@
     },
     {
       "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter",
+      "target_owner": "document-rendering",
+      "binding_digest": "7177b243029649c01ef5bc9d3c6fc639",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter: lays out the confirmation letter the Elternabrechnung wrote as PDF bytes; it stores nothing and decides no access (#4669, ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
+      "target_owner": "document-rendering",
+      "binding_digest": "e449cab5019738db1dd0311e6f8fe5a5",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.LetterRenderer.RenderLetter: the letter contract of Document Rendering returns the PDF bytes of one letter; it stores nothing and decides no access (#4669, ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform",
+      "binding_digest": "10cb33104f1f0cd4899303225a8f1c5c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the colour, letterhead and footer of the session's Träger (its value or the registry default), read in its Träger transaction for the confirmation letters (ADR 0112, ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.LogoImage",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "14eefa6f4a411c2a15a7f33e8ba95d27",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.LogoImage: the stored logo of the session's Träger, read in its Träger transaction for the confirmation letters; the logo carries no person and is read without a log entry (ADR 0112 point 6, ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.Letterhead",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
+      "target_owner": "organization-tenancy",
+      "binding_digest": "bab78935d2088b585c5225f58bceb9a0",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/organizationtenancy.TraegerMasterData.Profile: Organisation \u0026 Tenancy reads the contact person and the bank accounts of the session's Träger and appends the read to platform.traeger_master_data_audit (ADR 0112 point 6) in the caller's Träger transaction before the Elternabrechnung renders the confirmation letters; the route rolls back on any later refusal (ADR 0121)."
+    },
+    {
+      "source_owner": "parent-billing",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.HolidayBillingRegistrations.ConfirmedHolidayRegistrations",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingBillingRegistrations.ConfirmedHolidayRegistrations",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationReview.ListHolidayRegistrations",

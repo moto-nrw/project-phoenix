@@ -9239,7 +9239,7 @@ function traegerBillingRunTopic(): HelpTopic {
     title: "Ferien abrechnen",
     question: "Wie stelle ich die Rechnungen für die Ferien aus?",
     summary:
-      "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge und geben den Lauf frei.",
+      "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "FileText",
@@ -9283,13 +9283,28 @@ function traegerBillingRunTopic(): HelpTopic {
           "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
         ],
       },
+      {
+        title: "Bestätigungsschreiben erstellen",
+        description:
+          "Jede Familie bekommt ein Schreiben im Briefkopf des Trägers. Es bestätigt die Anmeldung und ist zugleich die Rechnung.",
+        steps: [
+          "Wählen Sie im freigegebenen Lauf bei `Bestätigungsschreiben` den Knopf `Schreiben erstellen`.",
+          "Tragen Sie bei `Zahlen bis` das Datum ein, bis wann die Familien zahlen sollen.",
+          "Schreiben Sie bei `Hinweise für die Eltern` zum Beispiel die Packliste und was bei Krankheit gilt.",
+          "Tragen Sie bei `Notfallnummern der Betreuung` je Betreuung den Namen und die Telefonnummer ein.",
+          "Wählen Sie `Vorschau ansehen`. Sie sehen das Schreiben der ersten Familie.",
+          "Wählen Sie `Schreiben erstellen`.",
+          "Das Schreiben einer Familie laden Sie über das Menü mit den drei Punkten bei ihrer Rechnung herunter: `Schreiben herunterladen`.",
+        ],
+      },
     ],
     result:
-      "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen lassen sich nicht mehr ändern.",
+      "Jede Rechnung hat ihre Nummer. Die Nummern sind lückenlos. Ausgestellte Rechnungen und ihre Schreiben lassen sich nicht mehr ändern.",
     notes: [
       "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
       "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
       "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
+      "Logo, Farbe, Absender, Fußzeile, Ansprechperson und Bankverbindung im Schreiben kommen aus dem `Briefkopf`. Als Verwendungszweck steht die Rechnungsnummer im Schreiben.",
     ],
     differences: [
       "Sie sehen oben kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
@@ -9298,6 +9313,7 @@ function traegerBillingRunTopic(): HelpTopic {
     troubleshootingDetails: [
       "Die Freigabe meldet, dass sich der Lauf geändert hat? Inzwischen wurde eine Anmeldung bestätigt. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
       "Eine bestätigte Anmeldung fehlt in der Vorschau? Sie hat schon eine Rechnung, oder beim Bestätigen wurde kein Beitrag festgehalten.",
+      "Die Schreiben lassen sich nicht erstellen, weil eine Bankverbindung fehlt? Die Verwaltung trägt sie unter `Briefkopf` ein. Danach erstellen Sie die Schreiben.",
     ],
     related: [
       HELP_TOPICS.traegerHolidayContribution,

@@ -146,11 +146,14 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /traeger/billing-runs/
 	GET /traeger/billing-runs/periods
 	GET /traeger/billing-runs/{id}
+	GET /traeger/billing-runs/{id}/documents/{documentID}/letter
 	GET /traeger/contribution-rules/
 	GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 	GET /traeger/number-ranges/
 	POST /traeger/billing-runs/
 	POST /traeger/billing-runs/{id}/corrections
+	POST /traeger/billing-runs/{id}/letters
+	POST /traeger/billing-runs/{id}/letters/preview
 	POST /traeger/billing-runs/{id}/release
 	POST /traeger/contribution-rules/
 	POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm

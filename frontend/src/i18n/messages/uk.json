@@ -2830,12 +2830,17 @@
         "supply_active": "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання."
       },
       "parent_billing": {
+        "bank_account_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "benefits_exemption_unavailable": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_correction_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "billing_family_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "billing_letter_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "billing_letters_exist": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "billing_letters_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "billing_run_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_empty": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "billing_run_not_released": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_open": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_released": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "contribution_rule_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
@@ -2843,6 +2848,7 @@
         "contribution_rule_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "holiday_quote_invalid": "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
         "invoice_number_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "letterhead_too_long": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "number_range_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "number_range_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
