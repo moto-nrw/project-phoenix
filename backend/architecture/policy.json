@@ -4337,6 +4337,10 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_registration_deletions",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.holiday_registration_bookings",
       "write_owner": "enrollment"
     },

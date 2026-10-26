@@ -479,6 +479,9 @@ type HolidayRegistrationRetentionStore interface {
 	// periods whose last week ended before cutoff, with their children,
 	// bookings and contacts, and the expired abuse counters.
 	DeleteHolidayRegistrationsEndedBefore(ctx context.Context, cutoff calendar.Date) (int, error)
+	// DeleteExpiredHolidayRegistrationDeletions deletes the rows of the
+	// deletion log older than years.
+	DeleteExpiredHolidayRegistrationDeletions(ctx context.Context, years int) (int, error)
 }
 
 // HolidayRegistrationRetention serves enrollment.HolidayRegistrationRetention.
@@ -500,12 +503,18 @@ func NewHolidayRegistrationRetention(store HolidayRegistrationRetentionStore, to
 }
 
 // DeleteExpiredHolidayRegistrations deletes the registrations of every
-// period whose last week ended more than the retention window ago.
+// period whose last week ended more than the retention window ago, with an
+// entry in the deletion log of its Träger, and the expired entries of that
+// log.
 func (r *HolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error) {
 	cutoff := r.today().AddDays(-enrollment.HolidayRegistrationRetentionDays)
 	deleted, err := r.store.DeleteHolidayRegistrationsEndedBefore(ctx, cutoff)
 	if err != nil {
 		return 0, fmt.Errorf("enrollment: delete ended holiday registrations: %w", err)
 	}
-	return deleted, nil
+	logged, err := r.store.DeleteExpiredHolidayRegistrationDeletions(ctx, enrollment.HolidayRegistrationDeletionLogRetentionYears)
+	if err != nil {
+		return 0, fmt.Errorf("enrollment: delete expired holiday registration deletion log: %w", err)
+	}
+	return deleted + logged, nil
 }
