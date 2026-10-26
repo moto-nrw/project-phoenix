@@ -48,6 +48,7 @@ func TestMealOrderErasureRemovesTheSchoolsOrdersAndKeepsTheCaterer(t *testing.T)
 func TestMealOrderErasureRoundTrip(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	planNames := func() []string {
 		t.Helper()
 		names := make([]string, 0)

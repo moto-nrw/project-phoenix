@@ -468,7 +468,8 @@ func TestEveryTenantTableHasASchoolErasureWriteFence(t *testing.T) {
 
 func TestSchoolErasureMigrationRoundTripPreservesEvidence(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	schoolID := testpkg.Tenant(t)
 	require.NoError(t, schoolErasureDown(t.Context(), db))
 	require.NoError(t, schoolErasureUp(t.Context(), db))

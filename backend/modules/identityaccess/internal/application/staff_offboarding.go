@@ -18,7 +18,7 @@ import (
 // through the retained role and account management (#2721) so their session
 // revocation invariants hold.
 
-// PreviewStaffOffboarding locks the account before roles, permissions, tokens
+// PreviewStaffOffboarding locks the account before roles, tokens
 // or membership are touched, matching the login/refresh lock order.
 func (l *AccountLifecycle) PreviewStaffOffboarding(ctx context.Context, accountID int64) (result identityaccess.StaffOffboardingPreview, err error) {
 	if l == nil {
@@ -112,11 +112,6 @@ func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, account
 		}
 	}
 	slices.Sort(preview.RoleIDs)
-	permissions, _, err := l.store.ListAccountPermissionGrants(ctx, accountID, tenantID)
-	if err != nil {
-		return preview, err
-	}
-	preview.Permissions = int64(len(permissions))
 	tokenIDs, err := l.auth.ListSessionIDs(ctx, accountID)
 	if err != nil {
 		return preview, err
@@ -127,7 +122,7 @@ func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, account
 		return preview, err
 	}
 	preview.DeactivateAccount = !preview.PreserveGuardian && len(activeTenants) == 1 && activeTenants[0] == tenantID
-	preview.Revision, err = staffOffboardingRevision(accountID, tenantID, account.UpdatedAt, preview, permissions, tokenIDs, activeTenants)
+	preview.Revision, err = staffOffboardingRevision(accountID, tenantID, account.UpdatedAt, preview, tokenIDs, activeTenants)
 	return preview, err
 }
 
@@ -137,16 +132,6 @@ func (l *AccountLifecycle) revokeStaffGrants(txCtx context.Context, accountID in
 			return result, err
 		}
 	}
-	tenantID := l.runtime.TenantID(txCtx)
-	result.PermissionsRevoked, _, err = l.store.DeleteAccountPermissionGrants(txCtx, accountID, tenantID)
-	if err != nil {
-		return result, err
-	}
-	if result.PermissionsRevoked != preview.Permissions {
-		return result, identityaccess.ErrStaffOffboardingConflict
-	}
-	// Revoke even when direct permissions were the only staff grants. Role
-	// removal already revoked any tokens it encountered in this transaction.
 	if err := l.auth.RevokeAllTokensWithReason(txCtx, accountID, "role_changed"); err != nil {
 		return result, err
 	}
@@ -155,30 +140,13 @@ func (l *AccountLifecycle) revokeStaffGrants(txCtx context.Context, accountID in
 	return result, nil
 }
 
-func staffOffboardingRevision(accountID, tenantID int64, updatedAt time.Time, preview identityaccess.StaffOffboardingPreview, permissions []domain.PermissionGrant, tokenIDs, activeTenants []int64) (string, error) {
-	type permissionVersion struct {
-		ID, PermissionID int64
-		Granted          bool
-	}
+func staffOffboardingRevision(accountID, tenantID int64, updatedAt time.Time, preview identityaccess.StaffOffboardingPreview, tokenIDs, activeTenants []int64) (string, error) {
 	versions := struct {
 		AccountID, TenantID          int64
 		AccountUpdatedAt             time.Time
 		Roles, Tokens, ActiveTenants []int64
-		Permissions                  []permissionVersion
 		Guardian                     bool
 	}{AccountID: accountID, TenantID: tenantID, AccountUpdatedAt: updatedAt, Roles: preview.RoleIDs, Guardian: preview.PreserveGuardian}
-	for _, permission := range permissions {
-		versions.Permissions = append(versions.Permissions, permissionVersion{permission.ID, permission.PermissionID, permission.Granted})
-	}
-	slices.SortFunc(versions.Permissions, func(a, b permissionVersion) int {
-		if a.ID < b.ID {
-			return -1
-		}
-		if a.ID > b.ID {
-			return 1
-		}
-		return 0
-	})
 	versions.Tokens = append(versions.Tokens, tokenIDs...)
 	versions.ActiveTenants = append(versions.ActiveTenants, activeTenants...)
 	slices.Sort(versions.Tokens)
@@ -198,7 +166,7 @@ func (l *AccountLifecycle) requireStaffOffboarding(txCtx context.Context, accoun
 	if !preview.ActiveMembership {
 		return preview, false, nil
 	}
-	if preview.PreserveGuardian && len(preview.RoleIDs) == 0 && preview.Permissions == 0 && preview.Tokens == 0 {
+	if preview.PreserveGuardian && len(preview.RoleIDs) == 0 && preview.Tokens == 0 {
 		result.GuardianAccessPreserved = true
 		return preview, false, nil
 	}

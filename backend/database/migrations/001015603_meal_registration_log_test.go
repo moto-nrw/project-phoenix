@@ -16,6 +16,7 @@ func TestMealRegistrationLogGrantsNoRoleAndOnlyGrows(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 	kitchen := createRoleWith(t, db, "meal-log-kitchen", "meals:orders", "meals:read")
 	require.NoError(t, mealRegistrationLogDown(ctx, db))
