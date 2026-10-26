@@ -97,12 +97,17 @@ const (
 	CodeMealsSupplyActive                             = "meals.supply_active"
 	CodeModuleNotBooked                               = "module.not_booked"
 	CodeOperatorAuditUnavailable                      = "operator.audit_unavailable"
+	CodeParentBillingBankAccountMissing               = "parent_billing.bank_account_missing"
 	CodeParentBillingBenefitsExemptionUnavailable     = "parent_billing.benefits_exemption_unavailable"
 	CodeParentBillingBillingCorrectionInvalid         = "parent_billing.billing_correction_invalid"
 	CodeParentBillingBillingFamilyNotFound            = "parent_billing.billing_family_not_found"
+	CodeParentBillingBillingLetterNotFound            = "parent_billing.billing_letter_not_found"
+	CodeParentBillingBillingLettersExist              = "parent_billing.billing_letters_exist"
+	CodeParentBillingBillingLettersInvalid            = "parent_billing.billing_letters_invalid"
 	CodeParentBillingBillingRunChanged                = "parent_billing.billing_run_changed"
 	CodeParentBillingBillingRunEmpty                  = "parent_billing.billing_run_empty"
 	CodeParentBillingBillingRunNotFound               = "parent_billing.billing_run_not_found"
+	CodeParentBillingBillingRunNotReleased            = "parent_billing.billing_run_not_released"
 	CodeParentBillingBillingRunOpen                   = "parent_billing.billing_run_open"
 	CodeParentBillingBillingRunReleased               = "parent_billing.billing_run_released"
 	CodeParentBillingContributionRuleInvalid          = "parent_billing.contribution_rule_invalid"
@@ -297,11 +302,6 @@ const (
 	CodeTimetableCorrectionReasonTooLong              = "timetable.correction_reason_too_long"
 	CodeTimetableDateInPast                           = "timetable.date_in_past"
 	CodeTimetableDatesInPast                          = "timetable.dates_in_past"
-	CodeTimetableDatesRequired                        = "timetable.dates_required"
-	CodeTimetableDeviationNoteTooLong                 = "timetable.deviation_note_too_long"
-	CodeTimetableDeviationSelectionInvalid            = "timetable.deviation_selection_invalid"
-	CodeTimetableDuplicateInstance                    = "timetable.duplicate_instance"
-	CodeTimetableExportEndBeforeStart                 = "timetable.export_end_before_start"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -400,12 +400,17 @@ var errorCodeClasses1 = map[string]string{
 	"meals.supply_active":                                 "business_rejection",
 	"module.not_booked":                                   "permission",
 	"operator.audit_unavailable":                          "unavailable",
+	"parent_billing.bank_account_missing":                 "business_rejection",
 	"parent_billing.benefits_exemption_unavailable":       "business_rejection",
 	"parent_billing.billing_correction_invalid":           "input",
 	"parent_billing.billing_family_not_found":             "business_rejection",
+	"parent_billing.billing_letter_not_found":             "business_rejection",
+	"parent_billing.billing_letters_exist":                "business_rejection",
+	"parent_billing.billing_letters_invalid":              "input",
 	"parent_billing.billing_run_changed":                  "business_rejection",
 	"parent_billing.billing_run_empty":                    "business_rejection",
 	"parent_billing.billing_run_not_found":                "business_rejection",
+	"parent_billing.billing_run_not_released":             "business_rejection",
 	"parent_billing.billing_run_open":                     "business_rejection",
 	"parent_billing.billing_run_released":                 "business_rejection",
 	"parent_billing.contribution_rule_invalid":            "input",
@@ -600,11 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.correction_reason_too_long":                "input",
 	"timetable.date_in_past":                              "input",
 	"timetable.dates_in_past":                             "input",
-	"timetable.dates_required":                            "input",
-	"timetable.deviation_note_too_long":                   "input",
-	"timetable.deviation_selection_invalid":               "input",
-	"timetable.duplicate_instance":                        "business_rejection",
-	"timetable.export_end_before_start":                   "input",
 }
 
 func init() {

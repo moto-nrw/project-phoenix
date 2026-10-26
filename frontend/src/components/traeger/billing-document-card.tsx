@@ -39,10 +39,13 @@ function CorrectionHistory({ child }: Readonly<{ child: BillingChild }>) {
 export function BillingDocumentCard({
   document,
   onCorrect,
+  onDownloadLetter,
 }: Readonly<{
   document: BillingDocument;
   /** Set while the run is a preview; corrects one child. */
   onCorrect?: (child: BillingChild) => void;
+  /** Set once the letters of the released run exist (#4669). */
+  onDownloadLetter?: () => void;
 }>) {
   const recipient = `${document.recipientFirstName} ${document.recipientLastName}`;
   const issued = document.number
@@ -53,14 +56,26 @@ export function BillingDocumentCard({
       title={recipient}
       description={`${issued} · ${document.recipientEmail} · Betreuung ${formatDateRange(document.serviceFrom, document.serviceUntil)}`}
       actions={
-        onCorrect ? (
+        onCorrect || onDownloadLetter ? (
           <OverflowMenu
             ariaLabel={`Aktionen für die Rechnung an ${recipient}`}
             triggerSize="sm"
-            items={document.children.map((child) => ({
-              label: `Betrag für ${child.firstName} korrigieren`,
-              onClick: () => onCorrect(child),
-            }))}
+            items={[
+              ...(onCorrect
+                ? document.children.map((child) => ({
+                    label: `Betrag für ${child.firstName} korrigieren`,
+                    onClick: () => onCorrect(child),
+                  }))
+                : []),
+              ...(onDownloadLetter
+                ? [
+                    {
+                      label: "Schreiben herunterladen",
+                      onClick: onDownloadLetter,
+                    },
+                  ]
+                : []),
+            ]}
           />
         ) : null
       }

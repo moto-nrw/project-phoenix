@@ -2830,12 +2830,17 @@
         "supply_active": "{object} is not possible right now. A caterer still supplies the school. Please end that supply first."
       },
       "parent_billing": {
+        "bank_account_missing": "{object} could not be changed. Please check its current status.",
         "benefits_exemption_unavailable": "{object} could not be changed. Please check its current status.",
         "billing_correction_invalid": "{object} could not be saved. Please check your entries.",
         "billing_family_not_found": "{object} could not be changed. Please check its current status.",
+        "billing_letter_not_found": "{object} could not be changed. Please check its current status.",
+        "billing_letters_exist": "{object} could not be changed. Please check its current status.",
+        "billing_letters_invalid": "{object} could not be saved. Please check your entries.",
         "billing_run_changed": "{object} could not be changed. Please check its current status.",
         "billing_run_empty": "{object} could not be changed. Please check its current status.",
         "billing_run_not_found": "{object} could not be changed. Please check its current status.",
+        "billing_run_not_released": "{object} could not be changed. Please check its current status.",
         "billing_run_open": "{object} could not be changed. Please check its current status.",
         "billing_run_released": "{object} could not be changed. Please check its current status.",
         "contribution_rule_invalid": "{object} could not be saved. Please check your entries.",
