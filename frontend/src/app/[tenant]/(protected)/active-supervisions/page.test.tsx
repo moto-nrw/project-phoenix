@@ -5927,6 +5927,30 @@ describe("overview caller and foreign sessions (#5035)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the children of a session that is not first in the list", async () => {
+    // The aggregate resolved the requested session; its visits belong under
+    // it even though another session stands first.
+    navigationMockState.sessionParam = "foreign-1";
+    mockDashboard({
+      selectedGroupId: "foreign-1",
+      firstRoomVisits: [
+        {
+          studentId: "s1",
+          studentName: "Lena Fremd",
+          schoolClass: "2a",
+          groupName: "G1",
+          activeGroupId: "foreign-1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Lena Fremd")).toBeInTheDocument();
+  });
+
   it("keeps the room moves on a foreign session for callers who may assign", async () => {
     navigationMockState.sessionParam = "foreign-1";
     mockDashboard({
