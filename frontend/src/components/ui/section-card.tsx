@@ -72,9 +72,9 @@ const OWN_CONTROL_SELECTOR = [
 function toggleFromHeadClick(event: MouseEvent<HTMLDivElement>) {
   const head = event.currentTarget;
   const target = event.target;
+  if (event.defaultPrevented || !(target instanceof Element)) return;
   // React reicht Klicks aus Portalen (Menüs, Dialoge einer Kopf-Aktion) durch
   // den Komponentenbaum hoch; sie liegen nicht im Kopf und zählen nicht.
-  if (event.defaultPrevented || !(target instanceof Element)) return;
   if (!head.contains(target)) return;
   const ownControl = target.closest(OWN_CONTROL_SELECTOR);
   if (ownControl && head.contains(ownControl)) return;
