@@ -17,7 +17,7 @@ import (
 // lives on the operator surface; a school admin can only pull an existing
 // account into their own school through the invitation flow.
 //
-// The mapping, role and permission writes are the module's own; the schools
+// The mapping and role writes are the module's own; the schools
 // and organisations, the person and staff identity chain, the retained role
 // rules and the ledgers arrive through consumer-owned ports. Every command
 // runs in one administrative transaction and revokes the affected sessions
@@ -200,8 +200,8 @@ func (s *OperatorAccountAccess) UpdateAccountTenantRole(ctx context.Context, acc
 }
 
 // RevokeAccountTenantAccess withdraws an account's access to one school:
-// the mapping goes inactive, the tenant-scoped role assignments and direct
-// permissions are removed, the school's sessions are revoked and the
+// the mapping goes inactive, tenant-scoped role assignments are removed,
+// the school's sessions are revoked and the
 // account itself is deactivated once no active mapping remains.
 //
 // Person and staff records at that school are deliberately left untouched;
@@ -232,9 +232,6 @@ func (s *OperatorAccountAccess) revokeTenantAccessInAdmin(adminCtx context.Conte
 		return nil, err
 	}
 	account, school := facts.account, facts.school
-	if _, err := s.access.DeleteAccountPermissionsAtTenant(adminCtx, accountID, schoolID); err != nil {
-		return nil, fmt.Errorf("delete direct account permissions: %w", err)
-	}
 	tenantCtx := s.runtime.WithTenantID(adminCtx, schoolID)
 	if err := s.sessions.RevokeAllTokensWithReason(tenantCtx, accountID, domain.RevocationReasonTenantAccessRevoked); err != nil {
 		return nil, fmt.Errorf("revoke tokens after access revocation: %w", err)

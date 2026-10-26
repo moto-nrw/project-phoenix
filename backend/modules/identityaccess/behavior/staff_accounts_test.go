@@ -73,17 +73,12 @@ func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 	}))
 
 	roleGrant := testpkg.CreateTestPermission(t, db, "staff-query-role", "staff-role", "read")
-	directGrant := testpkg.CreateTestPermission(t, db, "staff-query-direct", "staff-direct", "read")
-	foreignGrant := testpkg.CreateTestPermission(t, db, "staff-query-foreign", "staff-foreign", "read")
 	_, err = db.NewRaw("INSERT INTO auth.role_permissions (role_id, permission_id) VALUES (?, ?)", role.ID, roleGrant.ID).Exec(ctx)
-	require.NoError(t, err)
-	_, err = db.NewRaw("INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id, granted) VALUES (?, ?, ?, FALSE), (?, ?, ?, TRUE), (?, ?, ?, TRUE)",
-		account.ID, roleGrant.ID, school, account.ID, directGrant.ID, school, account.ID, foreignGrant.ID, other).Exec(ctx)
 	require.NoError(t, err)
 	names, err := identity.FindEffectivePermissionNamesByAccountIDsForTenant(ctx, []int64{account.ID}, school)
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{roleGrant.Resource + ":read"}, names[account.ID],
-		"staff projection keeps role grants despite a direct denial and ignores retired direct grants (#4485)")
+		"staff projection returns role permissions")
 
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, school, func(txCtx context.Context, _ bun.Tx) error {
 		counts, queryErr := identity.CountRoleNameMatchesByAccountIDs(txCtx, ids, []string{role.Name})
@@ -121,7 +116,7 @@ func TestStaffAccountQueriesScopeAndTransaction(t *testing.T) {
 		require.Empty(t, accounts)
 		names, queryErr := identity.FindEffectivePermissionNamesByAccountIDsForTenant(txCtx, []int64{account.ID}, school)
 		require.NoError(t, queryErr)
-		require.Empty(t, names[account.ID], "without roles a retired direct grant leaves no permission (#4485)")
+		require.Empty(t, names[account.ID], "without roles the account has no permission")
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)

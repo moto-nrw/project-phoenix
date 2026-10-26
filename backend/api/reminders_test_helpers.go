@@ -84,9 +84,9 @@ func NewRemindersTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		Clock:        owners.ReminderClock(clocks...),
 		CurrentStaff: owners.ReminderStaffIdentity(groupCaller),
 		Settings:     owners.ReminderSettings{SettingsService: settings.Settings}, Attendance: owners.NewLoggedStudentPresence(db, slog.Default()), Pickup: owners.ReminderPickupReader{Source: pickup},
-		Instance: owners.ReminderTimetableReader{Source: r.Timetable}, Room: owners.ReminderRoomReader{Source: rooms},
+		Instance: owners.ReminderTimetableReader{Source: r.Timetable, Sessions: r.NativeRecords()}, Room: owners.ReminderRoomReader{Source: rooms},
 		Student: owners.ReminderStudentReader{Source: members.Student}, Person: owners.ReminderPersonReader{Source: members.Person}, Supervision: owners.ReminderSupervisionReader{Source: groupPresence.Active, Presence: owners.NewLoggedStudentPresence(db, slog.Default())},
-		Visits: owners.ReminderVisitReader{Source: owners.NewLoggedStudentPresence(db, slog.Default())}, Logger: slog.Default(), BulkSupervision: owners.ReminderBulkSupervisionReader{Source: presence.GroupSupervisor}, BulkInstanceStaff: owners.ReminderTimetableReader{Source: r.Timetable},
+		Visits: owners.ReminderVisitReader{Source: owners.NewLoggedStudentPresence(db, slog.Default())}, Logger: slog.Default(), BulkSupervision: owners.ReminderBulkSupervisionReader{Source: presence.GroupSupervisor}, BulkInstanceStaff: owners.ReminderTimetableReader{Source: r.Timetable, Sessions: r.NativeRecords()},
 	})
 	return RemindersTestModule{Reminders: service}, settings, nil
 }

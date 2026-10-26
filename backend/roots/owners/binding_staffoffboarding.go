@@ -47,7 +47,7 @@ func NewStaffOffboarding(deps staffoffboardingcompose.Dependencies, work staffof
 		LockSupervision: deps.LockSupervision,
 		PreviewAccess: func(ctx context.Context, id int64) (staffoffboarding.AccessPreview, error) {
 			p, err := deps.Access.PreviewStaffOffboarding(ctx, id)
-			return staffoffboarding.AccessPreview{Revision: p.Revision, Roles: int64(len(p.RoleIDs)), Permissions: p.Permissions, Tokens: p.Tokens, PreserveGuardian: p.PreserveGuardian, DeactivateAccount: p.DeactivateAccount}, err
+			return staffoffboarding.AccessPreview{Revision: p.Revision, Roles: int64(len(p.RoleIDs)), Tokens: p.Tokens, PreserveGuardian: p.PreserveGuardian, DeactivateAccount: p.DeactivateAccount}, err
 		},
 		ExecuteAccess: func(ctx context.Context, id int64, revision string) (staffoffboarding.AccessResult, error) {
 			r, err := deps.Access.ExecuteStaffOffboarding(ctx, id, revision)

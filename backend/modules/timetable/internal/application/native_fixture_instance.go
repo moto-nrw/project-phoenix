@@ -161,7 +161,7 @@ func oldestInstanceBefore(ctx context.Context, plans timetable.ActivityInstanceQ
 	if value == nil {
 		return nil, nil
 	}
-	result, err := ParseActivityInstanceDate(*value)
+	result, err := ParseActivityExceptionDate(*value)
 	if err != nil {
 		return nil, WrapDatabaseError("oldest before", err)
 	}

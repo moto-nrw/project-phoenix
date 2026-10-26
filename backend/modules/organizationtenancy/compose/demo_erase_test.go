@@ -384,22 +384,18 @@ func TestDemoSchoolQueueRevokesSharedVisitorAccessOnlyInRetiredSchools(t *testin
 	ctx := t.Context()
 	accountIDs := []int64{accounts.caregiver, accounts.parent}
 	for _, accountID := range accountIDs {
-		for _, table := range []string{"auth.account_tenants", "auth.account_roles", "auth.account_permissions", "auth.tokens"} {
+		for _, table := range []string{"auth.account_tenants", "auth.account_roles", "auth.tokens"} {
 			_, err = db.NewRaw(`DELETE FROM `+table+` WHERE account_id = ?`, accountID).Exec(ctx)
 			require.NoError(t, err, table)
 		}
 		testpkg.MapAccountToTenant(t, db, accountID, schoolID)
 		testpkg.MapAccountToTenant(t, db, accountID, outsideID)
 	}
-	var roleID, permissionID int64
+	var roleID int64
 	require.NoError(t, db.NewRaw(`SELECT id FROM auth.roles ORDER BY id LIMIT 1`).Scan(ctx, &roleID))
-	require.NoError(t, db.NewRaw(`SELECT id FROM auth.permissions ORDER BY id LIMIT 1`).Scan(ctx, &permissionID))
 	for _, accountID := range accountIDs {
 		_, err = db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?), (?, ?, ?)`,
 			accountID, roleID, schoolID, accountID, roleID, outsideID).Exec(ctx)
-		require.NoError(t, err)
-		_, err = db.NewRaw(`INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id) VALUES (?, ?, ?), (?, ?, ?)`,
-			accountID, permissionID, schoolID, accountID, permissionID, outsideID).Exec(ctx)
 		require.NoError(t, err)
 		_, err = db.NewRaw(`INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope) VALUES
 			(?, encode(sha256(convert_to('hidden-' || ?::text || '-' || ?::text, 'UTF8')), 'hex'), NOW() + INTERVAL '1 day', ?, 'tenant'),
@@ -419,7 +415,7 @@ func TestDemoSchoolQueueRevokesSharedVisitorAccessOnlyInRetiredSchools(t *testin
 	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
 	require.NoError(t, err)
 	assert.Equal(t, 1, erased)
-	for _, table := range []string{"auth.account_tenants", "auth.account_roles", "auth.account_permissions", "auth.tokens"} {
+	for _, table := range []string{"auth.account_tenants", "auth.account_roles", "auth.tokens"} {
 		var hidden, outside int
 		require.NoError(t, db.NewRaw(`SELECT count(*) FROM `+table+` WHERE account_id IN (?, ?) AND tenant_id = ?`,
 			accounts.caregiver, accounts.parent, schoolID).Scan(ctx, &hidden), table)

@@ -18,6 +18,7 @@ func TestMealCaterersKeepCaterersAwayFromSchools(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 	require.NoError(t, mealCaterersDown(ctx, db))
 	require.NoError(t, mealCaterersUp(ctx, db))
@@ -115,6 +116,7 @@ func TestCatererCreationNeedsAnOpenInvitationOfTheSchool(t *testing.T) {
 func TestAccountErasureKeepsAWorkingCaterer(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)

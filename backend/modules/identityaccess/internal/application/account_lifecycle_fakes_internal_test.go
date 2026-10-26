@@ -33,7 +33,6 @@ type lifecycleStore struct {
 	*fakeStore
 
 	cards                     map[string]bool
-	grants                    map[mappingKey][]domain.PermissionGrant
 	granted                   []int64
 	findAccountsByEmailsCalls int
 }
@@ -41,7 +40,7 @@ type lifecycleStore struct {
 func newLifecycleStore() *lifecycleStore {
 	return &lifecycleStore{
 		fakeStore: newFakeStore(),
-		cards:     map[string]bool{}, grants: map[mappingKey][]domain.PermissionGrant{},
+		cards:     map[string]bool{},
 	}
 }
 
@@ -62,17 +61,6 @@ func (s *lifecycleStore) ListTenantAccounts(_ context.Context, tenantID int64) (
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].AccountID < result[j].AccountID })
 	return result, stats(), nil
-}
-
-func (s *lifecycleStore) ListAccountPermissionGrants(_ context.Context, accountID, tenantID int64) ([]domain.PermissionGrant, domain.OperationStats, error) {
-	return append([]domain.PermissionGrant(nil), s.grants[mappingKey{accountID, tenantID}]...), stats(), nil
-}
-
-func (s *lifecycleStore) DeleteAccountPermissionGrants(_ context.Context, accountID, tenantID int64) (int64, domain.OperationStats, error) {
-	key := mappingKey{accountID, tenantID}
-	deleted := int64(len(s.grants[key]))
-	delete(s.grants, key)
-	return deleted, stats(), nil
 }
 
 func (s *lifecycleStore) DeactivateTenantMapping(_ context.Context, accountID, tenantID int64) (domain.OperationStats, error) {

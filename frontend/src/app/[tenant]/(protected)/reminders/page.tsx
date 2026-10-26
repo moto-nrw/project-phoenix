@@ -11,16 +11,19 @@ import {
   isReminderOverdue,
   reminderKey,
   reminderRelativeLabel,
+  reminderSubtitle,
   reminderToneClass,
 } from "~/lib/reminders-display";
 
 function ReminderRow({ reminder }: { reminder: Reminder }) {
+  const subtitle = reminderSubtitle(reminder);
   return (
     <li className="flex items-center justify-between gap-4 px-4 py-3">
       <div className="min-w-0">
         <p className="truncate font-medium text-gray-900">{reminder.title}</p>
-        {reminder.subtitle && (
-          <p className="truncate text-sm text-gray-500">{reminder.subtitle}</p>
+        {subtitle && (
+          // Umbrechen statt kürzen: die Zahl der Kinder steht am Ende.
+          <p className="text-sm break-words text-gray-500">{subtitle}</p>
         )}
       </div>
       <div className="flex flex-shrink-0 flex-col items-end">
@@ -44,8 +47,17 @@ export default function RemindersPage() {
   );
 
   // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste.
+  // Eine AG, die länger dauert, ist weder anstehend noch überfällig; sie
+  // bekommt einen eigenen Zähler, sonst stünde sie als "anstehend" da.
   const overdue = reminders.filter(isReminderOverdue).length;
-  const upcoming = count - overdue;
+  const runningOver = reminders.filter(
+    (r) => r.type === "activity_running_over",
+  ).length;
+  const upcoming = count - overdue - runningOver;
+  const runningOverStat =
+    runningOver === 0
+      ? ""
+      : ` · ${runningOver} ${runningOver === 1 ? "AG dauert" : "AGs dauern"} länger`;
   // Bis der Text eines Ladefehlers da ist, bleibt der Ladezustand stehen:
   // keine leere Seite ohne Daten.
   const loading =
@@ -58,7 +70,7 @@ export default function RemindersPage() {
       stats={
         data === undefined
           ? null
-          : `${upcoming} anstehend · ${overdue} überfällig`
+          : `${upcoming} anstehend · ${overdue} überfällig${runningOverStat}`
       }
       statsLoading={loading}
       loading={loading}
