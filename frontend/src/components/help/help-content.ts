@@ -1294,13 +1294,15 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     notes: [
       // #4766: Filter Gruppe und Person, auch in der Leseansicht.
       "Nur eine Gruppe oder eine Person sehen? Wählen Sie oben bei `Alle Gruppen` eine Gruppe oder bei `Alle Personen` eine Person. Die Person sieht auch ihre Vertretungen.",
+      // #4768: Raumfilter.
+      "Nur einen Raum sehen? Wählen Sie oben bei `Alle Räume` einen Raum.",
       "Die Adresse der Seite behält Ihre Auswahl. So können Sie den gefilterten Plan teilen.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
     troubleshootingDetails: [
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
       "Steht dort `Noch kein Planungszeitraum`? Dann hat Ihre Leitung den Zeitraum noch nicht angelegt.",
-      "Steht dort `Für diese Auswahl ist nichts geplant`? Wählen Sie `Alle Gruppen` und `Alle Personen`.",
+      "Steht dort `Für diese Auswahl ist nichts geplant`? Stellen Sie die Filter wieder auf `Alle Gruppen`, `Alle Personen` und `Alle Räume`.",
     ],
     related: [HELP_TOPICS.mySchedule, HELP_TOPICS.activeSupervision],
   };
@@ -1435,6 +1437,22 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Wählen Sie bei Bedarf ein Kind, um seine Angaben zu öffnen.",
         ],
       },
+      // #4768: Reiter `Plan` mit den Terminen des Raums laut Betreuungsplan.
+      {
+        title: "Sehen, wann ein Raum laut Plan frei ist",
+        description:
+          "Der Reiter `Plan` zeigt die Termine des Betreuungsplans in diesem Raum. Ändern können Sie den Plan dort nicht.",
+        steps: [
+          "Öffnen Sie `Räume` und wählen Sie einen Raum aus.",
+          "Wählen Sie den Reiter `Plan`.",
+          "Wählen Sie oben `Tag` oder `Woche`. Mit den Pfeilen wechseln Sie den Zeitraum.",
+          "`Frei` heißt: In dieser Zeit ist im Raum nichts geplant.",
+          "Ein durchgestrichener Termin mit `Abgesagt` belegt den Raum nicht.",
+          "Wählen Sie `Im Betreuungsplan ansehen`, um den Plan dieses Raums dort zu öffnen. Planende sehen dort `Im Betreuungsplan bearbeiten`.",
+          "Für den PDF-Aushang brauchen Sie auch das Recht, die Kinderliste zu sehen.",
+          "Für einen Aushang öffnen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie `Raumplan als PDF`. Sie erhalten die angezeigte Woche als PDF.",
+        ],
+      },
       {
         title: "Kinder ohne Raum in einen Raum setzen",
         description:
@@ -1452,6 +1470,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
     troubleshootingDetails: [
       "Steht unter `Zielraum` `Keine aktiven Räume`? Dann läuft gerade keine Aufsicht, in die Sie Kinder setzen können.",
       "Fehlt unter `Unterwegs` die Auswahl der Kinder? Dann erfasst Ihre OGS die Anwesenheit nicht über die App. Fragen Sie Ihre Leitung.",
+      "Fehlt der Reiter `Plan` oder `Raumplan als PDF`? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
     ],
     related: [HELP_TOPICS.activeSupervision, HELP_TOPICS.changeLocation],
   };
@@ -5595,6 +5614,8 @@ function leadCarePlanTopic(): HelpTopic {
       "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       // #4766: Filter Gruppe und Person in Tag, Woche und Monat.
       "Nur eine Gruppe oder eine Person planen? Wählen Sie oben bei `Alle Gruppen` eine OGS-Gruppe oder bei `Alle Personen` eine Person. Die Gruppe zeigt Termine mit Kindern der Gruppe oder mit der Gruppe als Teilnehmer. Die Person zeigt auch ihre Vertretungen.",
+      // #4768: Raumfilter.
+      "Einen Raum für eine neue AG suchen? Wählen Sie oben bei `Alle Räume` den Raum. Dann sehen Sie, wann er belegt ist.",
       "Ist ein Filter gewählt, druckt `Drucken oder exportieren` nur die gefilterten Termine.",
       "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],

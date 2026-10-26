@@ -81,7 +81,8 @@ type betreuungsplanData struct {
 	blockColors map[int64]string
 	closedDays  map[Date]string
 	variant     Variant
-	// filterLabels name the active group and person filter (#4766).
+	// filterLabels name the active group, person (#4766) and room (#4768)
+	// filter.
 	filterLabels []string
 }
 
@@ -153,7 +154,7 @@ func (s *service) filterBlocks(
 	if s.deps.Filter == nil {
 		return nil, nil, nil, errors.New("plan export service is not wired for filters")
 	}
-	filtered, err := s.deps.Filter.MatchingInstances(ctx, filter, instanceIDsOf(instances), staffRows)
+	filtered, err := s.deps.Filter.MatchingInstances(ctx, filter, instances, staffRows)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("filter activity instances: %w", err)
 	}
@@ -165,6 +166,9 @@ func (s *service) filterBlocks(
 	}
 	if filter.StaffID != nil {
 		labels = append(labels, "Person: "+orUnknown(s.staffNames(ctx, []int64{*filter.StaffID})[*filter.StaffID]))
+	}
+	if filter.RoomID != nil {
+		labels = append(labels, "Raum: "+orUnknown(s.roomNames(ctx, []int64{*filter.RoomID})[*filter.RoomID]))
 	}
 	return instances, staffRows, labels, nil
 }

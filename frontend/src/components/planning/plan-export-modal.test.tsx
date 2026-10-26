@@ -195,7 +195,7 @@ describe("PlanExportModal", () => {
   it("prints only the filtered care plan and names the selection", async () => {
     renderModal({
       plan: "betreuungsplan",
-      filter: { groupId: "5", staffId: null },
+      filter: { groupId: "5", staffId: null, roomId: null },
       filterLabel: "„Sonnen“",
     });
 
@@ -209,7 +209,9 @@ describe("PlanExportModal", () => {
     await waitFor(() => expect(mockExportPlan).toHaveBeenCalled());
     expect(mockExportPlan).toHaveBeenCalledWith(
       "betreuungsplan",
-      expect.objectContaining({ filter: { groupId: "5", staffId: null } }),
+      expect.objectContaining({
+        filter: { groupId: "5", staffId: null, roomId: null },
+      }),
       "pdf",
       "download",
       null,
@@ -219,7 +221,7 @@ describe("PlanExportModal", () => {
   it("sends no filter and no selection line for the unfiltered plan", async () => {
     renderModal({
       plan: "betreuungsplan",
-      filter: { groupId: null, staffId: null },
+      filter: { groupId: null, staffId: null, roomId: null },
       filterLabel: "",
     });
 

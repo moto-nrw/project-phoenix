@@ -15,6 +15,7 @@ export interface PlannerGroupReference {
 
 interface ReferenceEnvelope<T> {
   readonly data?: T[];
+  readonly pagination?: { readonly total_pages?: number };
 }
 
 function unwrapReferences<T>(body: ReferenceEnvelope<T> | T[]): T[] {
@@ -32,13 +33,25 @@ async function readReferenceResponse<T>(response: Response): Promise<T> {
 }
 
 export async function fetchPlannerRooms(): Promise<PlannerRoomReference[]> {
-  const response = await transportFetch("/api/rooms", {
-    credentials: "include",
-  });
-  const body = await readReferenceResponse<
-    ReferenceEnvelope<PlannerRoomReference> | PlannerRoomReference[]
-  >(response);
-  return unwrapReferences(body);
+  const pageSize = 1000;
+  const rooms: PlannerRoomReference[] = [];
+  let totalPages = 1;
+
+  for (let page = 1; page <= totalPages; page += 1) {
+    const response = await transportFetch(
+      `/api/rooms?page=${page}&page_size=${pageSize}`,
+      { credentials: "include" },
+    );
+    const body = await readReferenceResponse<
+      ReferenceEnvelope<PlannerRoomReference> | PlannerRoomReference[]
+    >(response);
+    rooms.push(...unwrapReferences(body));
+    if (Array.isArray(body) === false) {
+      totalPages = body.pagination?.total_pages ?? 1;
+    }
+  }
+
+  return rooms;
 }
 
 export async function fetchPlannerActivityCategories(): Promise<
