@@ -4,7 +4,11 @@ import { headers } from "next/headers";
 import { env } from "~/env";
 import { ACCESS_TOKEN_REFRESH_BUFFER_MS } from "~/server/auth/shared";
 
-/** A decoded portal JWT that a layout may hand to SessionProvider as is. */
+/**
+ * A decoded, fresh portal JWT. It still holds the access and refresh tokens:
+ * each portal reader maps it to a Session without any token before it
+ * becomes a client prop (#5005).
+ */
 export type FreshPortalToken = JWT & {
   id: string;
   token: string;

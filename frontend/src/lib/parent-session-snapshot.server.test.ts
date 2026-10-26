@@ -16,11 +16,14 @@ const SECRET = "test-secret";
 const PARENT_COOKIE = "parent.session-token";
 const TENANT_COOKIE = "authjs.session-token";
 
+// Three dot-separated parts like a backend JWT; none may reach the snapshot.
+const ACCESS_TOKEN_PARTS = ["access-header", "access-payload", "access-sig"];
+
 const parentClaims = () => ({
   id: "41",
   name: "Paula Parent",
   email: "paula@example.com",
-  token: "backend-access",
+  token: ACCESS_TOKEN_PARTS.join("."),
   refreshToken: "must-stay-in-the-cookie",
   refreshRecoveryProof: "must-stay-in-the-cookie-too",
   roles: [],
@@ -52,7 +55,7 @@ beforeEach(() => {
 });
 
 describe("readParentSessionSnapshot", () => {
-  it("returns the parent session from a valid cookie without refresh secrets", async () => {
+  it("returns the parent session from a valid cookie", async () => {
     sendCookies({
       [PARENT_COOKIE]: await cookieValue(parentClaims(), PARENT_COOKIE),
     });
@@ -63,14 +66,31 @@ describe("readParentSessionSnapshot", () => {
       id: "41",
       name: "Paula Parent",
       email: "paula@example.com",
-      token: "backend-access",
       firstName: "Paula",
       scope: "parent",
     });
     expect(session?.user.tenantId).toBeUndefined();
+  });
+
+  // The snapshot becomes a client prop and is serialized into the HTML and
+  // RSC payload (#5005): no token, no part of one, no refresh secret.
+  it("carries no token or token part into the client props", async () => {
+    sendCookies({
+      [PARENT_COOKIE]: await cookieValue(parentClaims(), PARENT_COOKIE),
+    });
+
+    const session = await readParentSessionSnapshot();
+
+    expect(session?.user.id).toBe("41");
     const serialized = JSON.stringify(session);
-    expect(serialized).toContain("backend-access");
-    expect(serialized).not.toContain("must-stay-in-the-cookie");
+    expect(serialized).not.toMatch(/token|recovery/i);
+    for (const part of [
+      ...ACCESS_TOKEN_PARTS,
+      "must-stay-in-the-cookie",
+      "must-stay-in-the-cookie-too",
+    ]) {
+      expect(serialized).not.toContain(part);
+    }
   });
 
   it("returns nothing once the access token has expired", async () => {

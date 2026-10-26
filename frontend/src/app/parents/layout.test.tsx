@@ -38,7 +38,7 @@ describe("ParentLayout", () => {
   it("hands the read-only session snapshot to the parent providers", async () => {
     const session: Session = {
       expires: "2026-09-10T12:00:00.000Z",
-      user: { id: "41", token: "backend-access", scope: "parent" },
+      user: { id: "41", scope: "parent" },
     };
     readParentSessionSnapshotMock.mockResolvedValue(session);
 
