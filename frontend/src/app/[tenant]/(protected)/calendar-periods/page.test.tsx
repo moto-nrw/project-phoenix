@@ -24,6 +24,10 @@ vi.mock("~/components/planning/closing-days-editor", () => ({
   ClosingDaysEditor: () => <div data-testid="closing-days-editor" />,
 }));
 
+vi.mock("~/components/planning/school-holidays-list", () => ({
+  SchoolHolidaysList: () => <div data-testid="school-holidays-list" />,
+}));
+
 vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));
@@ -55,6 +59,10 @@ describe("CalendarPeriodsPage", () => {
     expect(editor.closest(".hidden")).toBeNull();
     expect(
       screen.getByTestId("closing-days-editor").closest(".hidden"),
+    ).toBeNull();
+    // #4775: die gesetzlichen Feiertage stehen unter den Schließtagen.
+    expect(
+      screen.getByTestId("school-holidays-list").closest(".hidden"),
     ).toBeNull();
     expect(
       screen.queryByText(/Bitte am Computer öffnen/),

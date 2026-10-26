@@ -15,9 +15,15 @@ interface ApiEnvelope<T> {
 
 // "closing_day" und "holiday" liefert das Backend nicht als Termin: moto
 // schule baut sie aus closing_days/holidays, damit Schließtage und Ferien im
-// selben Raster stehen (#4798).
+// selben Raster stehen (#4798). "public_holiday" sind die gesetzlichen
+// Feiertage aus /api/timetable/holidays in „Mein Kalender“ (#4775).
 type CalendarSource =
-  "appointment" | "timetable" | "shift" | "closing_day" | "holiday";
+  | "appointment"
+  | "timetable"
+  | "shift"
+  | "closing_day"
+  | "holiday"
+  | "public_holiday";
 export type CalendarDeliveryMode = "rsvp_required" | "informational";
 export type CalendarOverviewVisibility = "organizer" | "staff" | "all";
 export type CalendarResponseStatus =

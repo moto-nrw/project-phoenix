@@ -191,6 +191,21 @@ func newTestPeriod() schoolcalendar.CalendarPeriod {
 	}
 }
 
+func TestListHolidaysReturnsServerErrorWhenHolidayServiceIsNotConfigured(t *testing.T) {
+	t.Parallel()
+	resource := newResourceForTest(Dependencies{})
+	response := executeRequest(
+		setupTestRouter(resource.listHolidays, http.MethodGet, false),
+		http.MethodGet,
+		"/?from=2026-08-01&to=2027-07-31",
+		nil,
+	)
+
+	require.Equal(t, http.StatusInternalServerError, response.Code)
+	assert.Contains(t, response.Body.String(), `"code":"general.server"`)
+	assert.Contains(t, response.Body.String(), "holiday service is not configured")
+}
+
 // =============================================================================
 // Bind Validation Tests
 // =============================================================================

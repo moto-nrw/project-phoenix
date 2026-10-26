@@ -235,6 +235,9 @@ var queryBudgets = map[string]queryBudget{
 	// the number of periods. Pinned exact so an owner-boundary move fails
 	// here instead of at a runtime checkpoint (#3020).
 	"api.timetable.periods.list": {max: 7, exact: true},
+	// modules/timetable/http — GET /holidays (#4775): tenant transaction plus
+	// the federal-state setting read; holiday calculation itself is local.
+	"api.timetable.holidays.list": {max: 5, exact: true},
 	// modules/timetable/compose operational day (#3551) — GET /planned-now backing list, 8 eligible instances:
 	// instance list + staff batch + student batch (#2941) + block display
 	// batch, which names the room and the planning track (#4413).
