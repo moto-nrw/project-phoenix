@@ -41,6 +41,8 @@ type TimeTrackingOverviewRow struct {
 	IstMinutes            int     `json:"ist_minutes"`
 	BalanceMinutes        int     `json:"balance_minutes"`
 	RemainingVacationDays float64 `json:"remaining_vacation_days"`
+	// LaborHintDays counts the workdays of the month with an ArbZG hint.
+	LaborHintDays int `json:"labor_hint_days"`
 }
 
 // TimeTrackingOverview is the cross-staff list; Rows is never nil.

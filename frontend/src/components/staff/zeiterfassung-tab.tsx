@@ -34,7 +34,7 @@ import {
 import { isStaleAfterSessionSave } from "~/components/staff/staff-session-table";
 import { absenceTypeService } from "~/lib/absence-type-api";
 import { useSWRConfig } from "swr";
-import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
+import type { StaffAbsenceRow, StaffHistoryDetails } from "~/lib/staff-api";
 import { Monatskarte } from "~/components/time-tracking/monatskarte";
 import type { DayProjection, MonthSummary } from "~/lib/time-tracking-helpers";
 import {
@@ -177,22 +177,31 @@ export function ZeiterfassungTab({
 
   const visibleFromKey = toDateKey(visibleFrom);
   const visibleToKey = toDateKey(visibleTo);
+  // Im Monatsblick lädt die Tabelle die ganzen Kalenderwochen am Monatsrand
+  // mit: die 48-Std.-Grenze gilt je Woche, und die Wochensumme der ersten und
+  // letzten Woche wäre sonst nur ein Ausschnitt (#4804). Die Wochenansicht
+  // bleibt beim Vortag als Startpunkt, damit SWR sie mit usePeriodMetrics
+  // zusammenlegt.
   const historyFrom = useMemo(() => {
-    const previousDay = new Date(visibleFrom);
+    const previousDay =
+      viewMode === "month" ? startOfWeek(visibleFrom) : new Date(visibleFrom);
     previousDay.setDate(previousDay.getDate() - 1);
     return toDateKey(previousDay);
-  }, [visibleFrom]);
+  }, [viewMode, visibleFrom]);
+  const historyTo =
+    viewMode === "month" ? toDateKey(endOfWeek(visibleTo)) : visibleToKey;
   // Keyed by range only (no "visible" qualifier): usePeriodMetrics asks for the
   // current week under the same scheme, so while the table shows that week SWR
   // dedupes both into one request instead of fetching it twice.
   const {
-    data: visibleSessions,
+    data: visibleHistory,
     isLoading: visibleLoading,
     error: visibleSessionsError,
     mutate: mutateVisibleSessions,
-  } = useSWRAuth<readonly StaffHistorySession[]>(
-    `staff-history-${staffId}-${historyFrom}-${visibleToKey}`,
-    () => staffHistoryService.getHistory(staffId, historyFrom, visibleToKey),
+  } = useSWRAuth<StaffHistoryDetails>(
+    `staff-history-${staffId}-${historyFrom}-${historyTo}`,
+    () =>
+      staffHistoryService.getHistoryDetails(staffId, historyFrom, historyTo),
   );
   // Absences are loaded in parallel with sessions so the table can show Krank/
   // Urlaub badges next to "Vor Ort"/"Homeoffice" (matches the MA-Sicht).
@@ -507,7 +516,9 @@ export function ZeiterfassungTab({
                 staffId={staffId}
                 from={visibleFrom}
                 to={visibleTo}
-                sessions={visibleSessions ?? []}
+                sessions={visibleHistory?.sessions ?? []}
+                laborDays={visibleHistory?.laborDays}
+                weeklySummaries={visibleHistory?.weeklySummaries}
                 absences={visibleAbsences ?? []}
                 absencesUnresolved={
                   visibleAbsencesLoading ||

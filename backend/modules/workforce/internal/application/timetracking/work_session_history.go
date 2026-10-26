@@ -98,7 +98,8 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 		return nil, fmt.Errorf("failed to get breaks: %w", err)
 	}
 
-	responses := sessionHistoryResponses(sessions, breaksBySession, editCounts, auditCounts, s.now())
+	now := s.now()
+	responses := sessionHistoryResponses(sessions, breaksBySession, editCounts, auditCounts, now)
 
 	targetsByWeek := s.withTargetOverrides(ctx, staffID, responses, s.getWeeklyTargetsForSummaries(ctx, staffID, responses))
 
@@ -108,6 +109,7 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 	return &HistoryResponse{
 		Sessions:        responses,
 		WeeklySummaries: weeklySummaries,
+		LaborDays:       WorkDayLaborHints(sessions, breaksBySession, now, from, to),
 	}, nil
 }
 

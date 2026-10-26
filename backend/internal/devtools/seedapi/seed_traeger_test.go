@@ -89,6 +89,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	var calls []string
 	var period map[string]any
 	var registrations []map[string]any
+	var correction, release map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		calls = append(calls, r.Method+" "+r.URL.Path+" "+r.Header.Get("Authorization"))
 		w.Header().Set("Content-Type", "application/json")
@@ -114,6 +115,20 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 			registrations = append(registrations, registration)
 			w.WriteHeader(http.StatusCreated)
 			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":%d}}`, 8+len(registrations))
+		case "/traeger/billing-runs/9", "/traeger/billing-runs/9/corrections":
+			if r.Method == http.MethodPost {
+				raw, err := io.ReadAll(r.Body)
+				assert.NoError(t, err)
+				assert.NoError(t, json.Unmarshal(raw, &correction))
+				w.WriteHeader(http.StatusCreated)
+			}
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9,"preview_count":1,"preview_cents":11250,` +
+				`"documents":[{"registration_id":9,"children":[{"child_id":91,"total_cents":4500}]}]}}`))
+		case "/traeger/billing-runs/9/release":
+			raw, err := io.ReadAll(r.Body)
+			assert.NoError(t, err)
+			assert.NoError(t, json.Unmarshal(raw, &release))
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9,"status":"released"}}`))
 		default:
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
 		}
@@ -137,7 +152,16 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/holiday-registrations/link-key ",
 		"GET /traeger/holiday-periods/5/registrations Bearer traeger-token",
 		"POST /traeger/holiday-contributions/5/registrations/9/confirm Bearer traeger-token",
+		"PUT /traeger/number-ranges/holiday Bearer traeger-token",
+		"POST /traeger/billing-runs/ Bearer traeger-token",
+		"GET /traeger/billing-runs/9 Bearer traeger-token",
+		"POST /traeger/billing-runs/9/corrections Bearer traeger-token",
+		"POST /traeger/billing-runs/9/release Bearer traeger-token",
 	}, calls, "the registrations go through the public link without a session; the Träger-Büro reviews them with its session")
+	assert.Equal(t, map[string]any{"registration_id": float64(9), "child_id": float64(91), "total_cents": float64(3500),
+		"reason": "Am ersten Ferientag krank, Tag wird erstattet."}, correction, "the Abrechnung lowers one child with a reason")
+	assert.Equal(t, map[string]any{"document_count": float64(1), "total_cents": float64(11250)}, release,
+		"the release names the preview it checked")
 	weeks, ok := period["weeks"].([]any)
 	require.True(t, ok)
 	require.Len(t, weeks, 2)
@@ -248,6 +272,8 @@ func TestSeedTraegerHolidayPeriodStepReadsTheParentPrefill(t *testing.T) {
 				case "/parent/holiday-registrations/link-key/family":
 					prefill = r.Method + " " + r.Header.Get("Authorization")
 					_, _ = w.Write([]byte(`{"status":"success","data":{"guardian":{},"children":` + tc.children + `}}`))
+				case "/traeger/billing-runs/9", "/traeger/billing-runs/9/corrections":
+					_, _ = w.Write([]byte(`{"status":"success","data":{"id":9,"documents":[{"registration_id":9,"children":[{"child_id":91}]}]}}`))
 				default:
 					w.WriteHeader(http.StatusCreated)
 					_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
@@ -337,6 +363,9 @@ func TestSeedTraegerStepsShareOneTraegerSession(t *testing.T) {
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
 			return
+		case "/traeger/billing-runs/5", "/traeger/billing-runs/5/corrections":
+			// The billing run of the holiday step (#4668) checks one invoice.
+			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"documents":[{"registration_id":9,"children":[{"child_id":91}]}]}}`))
 		default:
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
 		}
