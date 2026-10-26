@@ -26,6 +26,7 @@ func NewIoTHTTPRuntime() iotCompose.RouterRuntime {
 			ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) { register(r, withTx) })
 		},
 		Required: deviceauth.Required, Metrics: iotMetricsMiddleware, TenantTx: common.TenantTxMiddleware,
+		AuthTiming: iotAuthTiming, TxTiming: iotTxTiming,
 		Info: func(cfg devicescan.ConfigurationQuery, school devicescan.SchoolNameQuery) iotCompose.RouteResource {
 			return iotCore.NewResource(cfg, school, iotInfoRuntime())
 		},

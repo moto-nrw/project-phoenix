@@ -554,19 +554,26 @@ func (s *Service) roomNameForResponse(ctx context.Context, currentVisit *ports.C
 	return ""
 }
 
-// resolveActiveStudentCount refreshes the heartbeat of the session tied to
-// the scan and returns the count the kiosk shows: scoped to the scanning
-// device's session where possible, otherwise the whole room.
-func (s *Service) resolveActiveStudentCount(ctx context.Context, checkin *checkinResult, roomID, deviceID int64) *int {
+// resolveActiveStudentCount refreshes the heartbeat of the device session
+// and returns the count the kiosk shows: scoped to the scanning device's
+// session where possible, otherwise the whole room, and none without a room.
+// The device session gets its heartbeat whichever room the scan named, so
+// the kiosk needs no POST /session/activity after it (#5004).
+func (s *Service) resolveActiveStudentCount(ctx context.Context, checkin *checkinResult, roomID *int64, deviceID int64) *int {
+	if roomID == nil {
+		s.touchDeviceSession(ctx, deviceID)
+		return nil
+	}
 	if checkin.SessionID != nil && checkin.DeviceScopedRoom {
 		s.touchSession(ctx, *checkin.SessionID)
 		return s.activeStudentCountForSession(ctx, *checkin.SessionID)
 	}
-	if session := s.deviceSessionInRoom(ctx, roomID, deviceID); session != nil {
+	if session := s.deviceSessionInRoom(ctx, *roomID, deviceID); session != nil {
 		s.touchSession(ctx, session.ID)
 		return s.activeStudentCountForSession(ctx, session.ID)
 	}
-	return s.activeStudentCountForRoom(ctx, roomID)
+	s.touchDeviceSession(ctx, deviceID)
+	return s.activeStudentCountForRoom(ctx, *roomID)
 }
 
 func (s *Service) deviceSessionInRoom(ctx context.Context, roomID, deviceID int64) *devicescan.Session {
@@ -604,6 +611,24 @@ func (s *Service) activeStudentCountForSession(ctx context.Context, sessionID in
 		return nil
 	}
 	return &count
+}
+
+// touchDeviceSession refreshes the heartbeat of the device's running
+// session, the one POST /session/activity refreshes, so a scan keeps the
+// kiosk session alive by itself (#5004). A device without a running session
+// has nothing to refresh; failures only log.
+func (s *Service) touchDeviceSession(ctx context.Context, deviceID int64) {
+	session, err := s.sessions.Current(ctx, deviceID)
+	if err != nil {
+		s.logger.WarnContext(ctx, "failed to find device session for heartbeat",
+			slog.Int64("device_id", deviceID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if session != nil {
+		s.touchSession(ctx, session.ID)
+	}
 }
 
 // touchSession refreshes the session heartbeat; failures only log.
