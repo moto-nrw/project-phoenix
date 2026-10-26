@@ -187,6 +187,72 @@ describe("FerienwochenPage", () => {
     expect(participantsMock).toHaveBeenCalledWith("52");
   });
 
+  it("hides the previous week's children while the chosen week loads", async () => {
+    weeksMock.mockResolvedValue([firstWeek, secondWeek]);
+    participantsMock.mockImplementation((id: string) =>
+      id === "52"
+        ? new Promise(() => undefined)
+        : Promise.resolve(listOf(firstWeek)),
+    );
+
+    renderPage();
+
+    await screen.findByText("Muster, Lia", { selector: "td, td *" });
+    fireEvent.click(screen.getByRole("tab", { name: "21.09. bis 25.09.2026" }));
+
+    // Anker: die Überschrift nennt schon die gewählte Woche.
+    expect(
+      await screen.findByText(
+        "Sommerferien 2026 · 21.09. bis 25.09.2026 · 1 Kind",
+      ),
+    ).toBeInTheDocument();
+    expect(participantsMock).toHaveBeenCalledWith("52");
+    expect(
+      screen.queryByText("Muster, Lia", { selector: "td, td *" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("refreshes on focus and drops a week after its last day by itself", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    weeksMock.mockResolvedValue([firstWeek]);
+    participantsMock.mockResolvedValue(listOf(firstWeek));
+
+    renderPage();
+
+    await screen.findByText("Muster, Lia", { selector: "td, td *" });
+
+    const full = listOf(firstWeek);
+    participantsMock.mockResolvedValue({
+      ...full,
+      participants: full.participants.filter((child) => child.childId !== "2"),
+    });
+    // SWR ignores focus for five seconds after the mount.
+    await vi.advanceTimersByTimeAsync(6_000);
+    fireEvent.focus(window);
+
+    // Anker: das verbliebene Kind steht noch in der Liste.
+    await waitFor(() =>
+      expect(
+        screen.getByText("Sommerferien 2026 · 14.09. bis 18.09.2026 · 1 Kind"),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByText("Muster, Ben", { selector: "td, td *" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Muster, Lia", { selector: "td, td *" }),
+    ).not.toBeInTheDocument();
+
+    weeksMock.mockResolvedValue([]);
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(
+      await screen.findByText(
+        "Ihre OGS richtet gerade keine Ferienwoche aus. Die Ferienwochen plant der Träger.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("says who plans the weeks when the school hosts none", async () => {
     weeksMock.mockResolvedValue([]);
 

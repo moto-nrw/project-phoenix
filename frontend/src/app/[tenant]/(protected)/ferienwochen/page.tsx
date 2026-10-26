@@ -25,6 +25,11 @@ import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "FerienwochenPage" });
 
+// No SSE event covers holiday bookings, so the page reconciles on focus and
+// once a minute: cancellations and rebookings show up, and a week drops out
+// after its last day without a reload.
+const REFRESH = { revalidateOnFocus: true, refreshInterval: 60_000 };
+
 // Ferienwochen (#4665): die ausrichtende OGS sieht vor und während ihrer
 // Woche die Kinder, deren Anmeldung der Träger bestätigt hat, mit Zahlen je
 // Zeitmodell und Heimatschule. Nach dem letzten Tag der Woche ist die Liste
@@ -118,6 +123,7 @@ export default function FerienwochenPage() {
   const weeks = useSWRAuth(
     isReady ? "holiday-weeks" : null,
     fetchHostedHolidayWeeks,
+    REFRESH,
   );
   const [chosenWeek, setChosenWeek] = useState<string | null>(null);
   const selectedWeek =
@@ -125,6 +131,9 @@ export default function FerienwochenPage() {
   const participants = useSWRAuth(
     selectedWeek ? `holiday-participants:${selectedWeek.id}` : null,
     () => fetchHolidayParticipants(selectedWeek?.id ?? ""),
+    // A week switch must not show the previous week's children under the new
+    // week's heading while its list loads.
+    { ...REFRESH, keepPreviousData: false },
   );
 
   const weeksError = useSwrLoadError(weeks.error, "die Ferienwochen", () =>
