@@ -110,6 +110,71 @@ vi.mock("~/components/rooms/room-stammdaten-tab", () => ({
   ),
 }));
 
+// Der Reiter „Plan“ (#4768) hat seine eigenen Tests (room-plan-tab.test.tsx);
+// hier zählt, wann die Seite ihn zeigt und was sie ihm übergibt.
+vi.mock("~/components/rooms/room-plan-tab", () => ({
+  parseRoomPlanView: (raw: string | null) => (raw === "tag" ? "tag" : "woche"),
+  useRoomPlanHref: (
+    roomId: string,
+    view: string,
+    day: string,
+    canManage: boolean,
+  ) =>
+    `${canManage ? "/betreuungsplan" : "/calendar"}?room=${roomId}&d=${day}&view=${view}`,
+  RoomPlanControls: ({
+    planHref,
+    planLinkLabel,
+    onChange,
+  }: {
+    planHref: string;
+    planLinkLabel: string;
+    onChange: (next: { view?: string; d?: string }) => void;
+  }) => (
+    <div data-testid="room-plan-controls">
+      <a href={planHref}>{planLinkLabel}</a>
+      <button type="button" onClick={() => onChange({ view: "tag" })}>
+        Tag
+      </button>
+    </div>
+  ),
+  RoomPlanTab: ({
+    roomId,
+    view,
+    anchorISO,
+  }: {
+    roomId: string;
+    view: string;
+    anchorISO: string;
+  }) => (
+    <div
+      data-testid="room-plan"
+      data-room={roomId}
+      data-view={view}
+      data-day={anchorISO}
+    />
+  ),
+}));
+
+vi.mock("~/components/planning/plan-export-modal", () => ({
+  PlanExportModal: ({
+    filter,
+    filterLabel,
+    isWeekOnScreen,
+  }: {
+    filter: { roomId: string | null };
+    filterLabel: string;
+    isWeekOnScreen: boolean;
+  }) => (
+    <div
+      data-testid="plan-export"
+      data-room={filter.roomId}
+      data-week={String(isWeekOnScreen)}
+    >
+      {filterLabel}
+    </div>
+  ),
+}));
+
 vi.mock("~/components/ui/confirm-delete-modal", () => ({
   ConfirmDeleteModal: ({
     isOpen,
@@ -159,6 +224,8 @@ describe("RoomDetailPage", () => {
     vi.clearAllMocks();
     searchParams.delete("from");
     searchParams.delete("tab");
+    searchParams.delete("d");
+    searchParams.delete("view");
     presenceModeState.mode = "detailed";
     supervisionState.overviewEnabled = false;
     useRoomDetailMock.mockReturnValue({
@@ -426,5 +493,101 @@ describe("RoomDetailPage", () => {
     expect(
       screen.getByText("Fehler beim Laden der Raumdaten."),
     ).toBeInTheDocument();
+  });
+  // --- Reiter „Plan“ (#4768) ---
+
+  it("offers the Plan tab with the read permission of the Betreuungsplan", () => {
+    mockSession(["rooms:read", "schedules:read"]);
+    render(<RoomDetailPage />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Plan" }));
+    expect(replaceMock).toHaveBeenCalledWith("/rooms/7?tab=plan", {
+      scroll: false,
+    });
+  });
+
+  it("hides the Plan tab without schedules:read", () => {
+    mockSession(["rooms:read", "rooms:update"]);
+    render(<RoomDetailPage />);
+
+    expect(screen.getByRole("tab", { name: "Stammdaten" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Plan" })).not.toBeInTheDocument();
+  });
+
+  it("opens the room's plan from a deep link and links to the read-only plan", () => {
+    mockSession(["rooms:read", "schedules:read"]);
+    searchParams.set("tab", "plan");
+    searchParams.set("d", "2026-09-09");
+    searchParams.set("view", "tag");
+    render(<RoomDetailPage />);
+
+    const plan = screen.getByTestId("room-plan");
+    expect(plan).toHaveAttribute("data-room", "7");
+    expect(plan).toHaveAttribute("data-view", "tag");
+    expect(plan).toHaveAttribute("data-day", "2026-09-09");
+    expect(screen.queryByTestId("room-overview")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Im Betreuungsplan ansehen" }),
+    ).toHaveAttribute("href", "/calendar?room=7&d=2026-09-09&view=tag");
+  });
+
+  it("sends planners to the editable Betreuungsplan of the room", () => {
+    mockSession(["rooms:read", "schedules:read", "schedules:manage"]);
+    searchParams.set("tab", "plan");
+    render(<RoomDetailPage />);
+
+    expect(
+      screen.getByRole("link", { name: "Im Betreuungsplan bearbeiten" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^\/betreuungsplan\?room=7&/),
+    );
+  });
+
+  it("keeps the tab when the plan changes its day or view", () => {
+    mockSession(["rooms:read", "schedules:read"]);
+    searchParams.set("tab", "plan");
+    render(<RoomDetailPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Tag" }));
+    expect(replaceMock).toHaveBeenCalledWith("/rooms/7?tab=plan&view=tag", {
+      scroll: false,
+    });
+  });
+
+  it("drops the plan parameters when leaving the Plan tab", () => {
+    mockSession(["rooms:read", "rooms:update", "schedules:read"]);
+    searchParams.set("tab", "plan");
+    searchParams.set("d", "2026-09-09");
+    searchParams.set("view", "tag");
+    render(<RoomDetailPage />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Stammdaten" }));
+    expect(replaceMock).toHaveBeenCalledWith("/rooms/7?tab=stammdaten", {
+      scroll: false,
+    });
+  });
+
+  it("prints the room's plan filtered to the room", () => {
+    mockSession(["rooms:read", "schedules:read", "users:read"]);
+    searchParams.set("tab", "plan");
+    render(<RoomDetailPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Raumplan drucken" }));
+    const exportDialog = screen.getByTestId("plan-export");
+    expect(exportDialog).toHaveAttribute("data-room", "7");
+    expect(exportDialog).toHaveAttribute("data-week", "true");
+    expect(exportDialog).toHaveTextContent("Raum „Gruppenraum Sonne“");
+  });
+
+  it("shows the plan beside the room information in binary presence mode", () => {
+    presenceModeState.mode = "binary";
+    mockSession(["rooms:read", "schedules:read"]);
+    render(<RoomDetailPage />);
+
+    expect(screen.getByTestId("room-overview")).toBeInTheDocument();
+    expect(screen.getByTestId("room-plan")).toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 });

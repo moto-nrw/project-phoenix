@@ -15,7 +15,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Trash2 } from "lucide-react";
+import { Printer, Trash2 } from "lucide-react";
 import { ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -30,6 +30,14 @@ import {
   useRoomDetail,
 } from "~/components/rooms/room-detail-content";
 import { RoomStammdatenTab } from "~/components/rooms/room-stammdaten-tab";
+import {
+  parseRoomPlanView,
+  RoomPlanControls,
+  RoomPlanTab,
+  useRoomPlanHref,
+  type RoomPlanView,
+} from "~/components/rooms/room-plan-tab";
+import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { roomsConfig } from "~/components/database/configs/rooms.config";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { roomService } from "~/lib/api";
@@ -37,7 +45,9 @@ import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { createCrudService } from "~/lib/database/service-factory";
+import { berlinTodayISO, isValidISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { NO_PLAN_FILTER } from "~/lib/plan-filter";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { formatFloor, isSystemRoom, type Room } from "~/lib/room-helpers";
 import { useTenantMutate, useTenantMutateMatching } from "~/lib/swr";
@@ -52,7 +62,10 @@ import { RoomDetailLoadingPage } from "./page-skeleton";
 
 const logger = createLogger({ component: "RoomDetailPage" });
 
-type RoomTab = "uebersicht" | "stammdaten";
+type RoomTab = "uebersicht" | "plan" | "stammdaten";
+
+/** Parameter des Reiters „Plan“ (#4768); andere Reiter tragen sie nicht. */
+const PLAN_TAB_PARAMS = ["d", "view"] as const;
 
 /** Rückweg-Beschriftung: die Sammlung, aus der man kam (`?from=`). */
 function backLabelFor(referrer: string): string {
@@ -78,8 +91,12 @@ export default function RoomDetailPage() {
  * „Übersicht" ist der laufende Betrieb (Belegung, Kinder im Raum,
  * Historie); „Stammdaten" ist der Datensatz (Name, Gebäude, Farbe, offener
  * Raum) für alle, die Räume bearbeiten dürfen. Erfasst die Schule nur, ob ein
- * Kind da ist (binärer Modus), gibt es keine Belegung und damit nur den
- * Reiter „Stammdaten".
+ * Kind da ist (binärer Modus), gibt es keine Belegung und damit keinen
+ * Reiter „Übersicht".
+ *
+ * „Plan" (#4768) zeigt, wann der Raum laut Betreuungsplan belegt und wann er
+ * frei ist, für alle, die den Betreuungsplan lesen dürfen, auch im binären
+ * Modus. URL: `tab=plan`, `d` (Tag) und `view` (`tag` | `woche`).
  */
 function RoomDetailPageContent() {
   const params = useParams();
@@ -115,6 +132,11 @@ function RoomDetailPageContent() {
   // Spiegel der Backend-Gates auf PUT/DELETE /api/rooms/{id}.
   const canUpdate = hasPermission(session, "rooms:update");
   const canDelete = hasPermission(session, "rooms:delete");
+  // Plan des Raums (#4768): dasselbe Recht wie die Leseansicht des
+  // Betreuungsplans; der Druck braucht dazu die Namen (wie dort).
+  const canReadPlan = hasPermission(session, "schedules:read");
+  const canManageSchedules = hasPermission(session, "schedules:manage");
+  const canExportPlan = canReadPlan && hasPermission(session, "users:read");
   // Im binären Modus führt die Schule keine Belegung; die Raumseite ist dann
   // der reine Datensatz.
   const hasOccupancy = presenceMode !== "binary";
@@ -126,15 +148,20 @@ function RoomDetailPageContent() {
 
   const tabItems: TenantPageTab[] = [
     ...(hasOccupancy ? [{ value: "uebersicht", label: "Übersicht" }] : []),
+    ...(canReadPlan ? [{ value: "plan", label: "Plan" }] : []),
     ...(canUpdate ? [{ value: "stammdaten", label: "Stammdaten" }] : []),
   ];
   const requestedTab = searchParams.get("tab");
   const defaultTab: RoomTab =
     requestedTab === "stammdaten" && canUpdate
       ? "stammdaten"
-      : hasOccupancy
-        ? "uebersicht"
-        : "stammdaten";
+      : requestedTab === "plan" && canReadPlan
+        ? "plan"
+        : hasOccupancy
+          ? "uebersicht"
+          : canUpdate || !canReadPlan
+            ? "stammdaten"
+            : "plan";
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
   const activeTab =
     selectedTab && tabItems.some((tab) => tab.value === selectedTab)
@@ -150,6 +177,9 @@ function RoomDetailPageContent() {
       } else {
         query.set("tab", nextTab);
       }
+      if (nextTab !== "plan") {
+        for (const key of PLAN_TAB_PARAMS) query.delete(key);
+      }
       const queryString = query.toString();
       navRouter.replace(queryString ? `${pathname}?${queryString}` : pathname, {
         scroll: false,
@@ -157,6 +187,31 @@ function RoomDetailPageContent() {
     },
     [navRouter, pathname, searchParams],
   );
+
+  // Zeitraum des Reiters „Plan“: ein ungültiges `d` fällt still auf heute.
+  const rawPlanDay = searchParams.get("d");
+  const planAnchorISO =
+    rawPlanDay !== null && isValidISODate(rawPlanDay)
+      ? rawPlanDay
+      : berlinTodayISO();
+  const planView = parseRoomPlanView(searchParams.get("view"));
+  const planHref = useRoomPlanHref(
+    roomId,
+    planView,
+    planAnchorISO,
+    canManageSchedules,
+  );
+  const setPlanParams = useCallback(
+    (next: { view?: RoomPlanView; d?: string }) => {
+      const query = new URLSearchParams(searchParams.toString());
+      query.set("tab", "plan");
+      if (next.d) query.set("d", next.d);
+      if (next.view) query.set("view", next.view);
+      navRouter.replace(`${pathname}?${query.toString()}`, { scroll: false });
+    },
+    [navRouter, pathname, searchParams],
+  );
+  const [exportOpen, setExportOpen] = useState(false);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -260,8 +315,18 @@ function RoomDetailPageContent() {
     );
   }
 
-  const menuItems: OverflowMenuItem[] =
-    canDelete && !isSystemRoom(room)
+  const showsPlan = activeTab === "plan" && canReadPlan;
+  const menuItems: OverflowMenuItem[] = [
+    ...(showsPlan && canExportPlan
+      ? [
+          {
+            label: "Raumplan drucken",
+            icon: <Printer className="size-4" aria-hidden />,
+            onClick: () => setExportOpen(true),
+          },
+        ]
+      : []),
+    ...(canDelete && !isSystemRoom(room)
       ? [
           {
             label: "Löschen",
@@ -270,7 +335,8 @@ function RoomDetailPageContent() {
             onClick: () => setShowDeleteModal(true),
           },
         ]
-      : [];
+      : []),
+  ];
 
   // Statuszeile: Ort und Art des Raums, wie sie die Sammlung auch zeigt.
   const statusLine = [
@@ -327,28 +393,59 @@ function RoomDetailPageContent() {
             }
           : undefined
       }
+      searchSlot={
+        showsPlan ? (
+          <RoomPlanControls
+            view={planView}
+            anchorISO={planAnchorISO}
+            onChange={setPlanParams}
+            planHref={planHref}
+            planLinkLabel={
+              canManageSchedules
+                ? "Im Betreuungsplan bearbeiten"
+                : "Im Betreuungsplan ansehen"
+            }
+          />
+        ) : undefined
+      }
       overlays={
-        <ConfirmDeleteModal
-          isOpen={showDeleteModal}
-          onClose={() => {
-            clearDeleteErrors();
-            setShowDeleteModal(false);
-          }}
-          onConfirm={() => void handleDeleteRoom()}
-          title="Raum löschen?"
-          description={
-            <>
-              Möchten Sie den Raum{" "}
-              <span className="font-medium">{room.name}</span> wirklich löschen?
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </>
-          }
-          gate={{ mode: "twoStep" }}
-          loading={deleting}
-          error={deleteErrors.error}
-        />
+        <>
+          {exportOpen && canExportPlan ? (
+            <PlanExportModal
+              isOpen
+              plan="betreuungsplan"
+              weekDay={planAnchorISO}
+              isWeekOnScreen={planView === "woche"}
+              canExportInternal={canManageSchedules}
+              filter={{ ...NO_PLAN_FILTER, roomId: room.id }}
+              filterLabel={`Raum „${room.name}“`}
+              onClose={() => setExportOpen(false)}
+            />
+          ) : null}
+          <ConfirmDeleteModal
+            isOpen={showDeleteModal}
+            onClose={() => {
+              clearDeleteErrors();
+              setShowDeleteModal(false);
+            }}
+            onConfirm={() => void handleDeleteRoom()}
+            title="Raum löschen?"
+            description={
+              <>
+                Möchten Sie den Raum{" "}
+                <span className="font-medium">{room.name}</span> wirklich
+                löschen? Diese Aktion kann nicht rückgängig gemacht werden.
+              </>
+            }
+            gate={{ mode: "twoStep" }}
+            loading={deleting}
+            error={deleteErrors.error}
+          />
+        </>
       }
     >
+      {/* Ohne Übersicht und Stammdaten bleiben die Rauminformationen stehen;
+          ein Plan steht dann darunter, ohne Reiterleiste. */}
       {!hasOccupancy && !canUpdate ? (
         <RoomDetailContent
           room={room}
@@ -369,6 +466,13 @@ function RoomDetailPageContent() {
             historyError={historyError}
           />
         )
+      ) : null}
+      {showsPlan ? (
+        <RoomPlanTab
+          roomId={room.id}
+          view={planView}
+          anchorISO={planAnchorISO}
+        />
       ) : null}
       {activeTab === "stammdaten" && canUpdate ? (
         <RoomStammdatenTab

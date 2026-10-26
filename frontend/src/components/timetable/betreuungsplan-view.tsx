@@ -10,7 +10,8 @@
  * URL-Vokabular: `d` (Berlin-Kalendertag; die angezeigte Woche/der Monat
  * ist die Woche/der Monat, die/den `d` enthält), `view` ("woche" | "monat" |
  * "serien"), `block` (Instanz-ID des geöffneten InstanceDetailModal) und die
- * Filter `group` (OGS-Gruppe) und `staff` (Person) aus #4766.
+ * Filter `group` (OGS-Gruppe) und `staff` (Person) aus #4766 sowie `room`
+ * (Raum) aus #4768.
  * Ungültige Werte fallen still auf die Defaults zurück (heute, "woche"). Die
  * sieben Alt-Parameter (week/month/year/instance/day/period/Alt-view) entfallen
  * ersatzlos; die Jahresansicht ist nicht mehr verlinkbar. Der Dichte-Umschalter
@@ -96,7 +97,10 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { getSettingValue } from "~/lib/settings-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
-import { fetchPlannerGroups } from "~/lib/planner-reference-api";
+import {
+  fetchPlannerGroups,
+  fetchPlannerRooms,
+} from "~/lib/planner-reference-api";
 import {
   isPlanFilterActive,
   parsePlanFilterId,
@@ -172,7 +176,14 @@ const LIFECYCLE_SUCCESS: Record<Exclude<LifecycleAction, "cancel">, string> = {
 // Das verbindliche Drei-Parameter-Vokabular (06 §2.1). updateUrlParams baut die
 // URL aus dieser Allowlist neu auf, damit fremde Params (?utm_source=…) nicht
 // jeden Wochen-/Ansichts-/Block-Wechsel überleben.
-const ALLOWED_URL_PARAMS = ["d", "view", "block", "group", "staff"] as const;
+const ALLOWED_URL_PARAMS = [
+  "d",
+  "view",
+  "block",
+  "group",
+  "staff",
+  "room",
+] as const;
 
 type ViewParam = "tag" | "woche" | "monat" | "serien";
 
@@ -181,7 +192,7 @@ type ViewParam = "tag" | "woche" | "monat" | "serien";
 const FILTERED_EMPTY_STATE = {
   title: "Für diese Auswahl ist nichts geplant",
   description:
-    "Wählen Sie „Alle Gruppen“ und „Alle Personen“, um wieder den ganzen Plan zu sehen.",
+    "Stellen Sie die Filter wieder auf „Alle“, um den ganzen Plan zu sehen.",
 };
 type PeriodCoverage = "none" | "partial" | "full";
 
@@ -261,6 +272,9 @@ function TimetablesContent() {
   // Gruppenfilter (#4766): die Auswahl braucht die Gruppenliste
   // (GET /api/groups, groups:read).
   const canFilterByGroup = hasPermission(session, "groups:read");
+  // Raumfilter (#4768): die Auswahl braucht die Raumliste
+  // (GET /api/rooms, rooms:read).
+  const canFilterByRoom = hasPermission(session, "rooms:read");
   const canBootstrapPeriods = hasPermission(session, "schedules:create");
   // Externe Person im Schritt „Personal“ eintragen (#4573): dasselbe Recht
   // wie POST /api/staff/externals.
@@ -305,9 +319,16 @@ function TimetablesContent() {
     ? parsePlanFilterId(params.group)
     : null;
   const staffFilterId = parsePlanFilterId(params.staff);
+  // Raumfilter (#4768): ein Link von der Raumseite öffnet den Plan des
+  // Raums. Ohne Raumliste gilt dasselbe wie beim Gruppenfilter.
+  const roomFilterId = canFilterByRoom ? parsePlanFilterId(params.room) : null;
   const planFilter = useMemo<PlanFilter>(
-    () => ({ groupId: groupFilterId, staffId: staffFilterId }),
-    [groupFilterId, staffFilterId],
+    () => ({
+      groupId: groupFilterId,
+      staffId: staffFilterId,
+      roomId: roomFilterId,
+    }),
+    [groupFilterId, staffFilterId, roomFilterId],
   );
   const planFilterActive = isPlanFilterActive(planFilter);
 
@@ -470,6 +491,12 @@ function TimetablesContent() {
     },
     [requestedDayISO, updateUrlParams],
   );
+  const setRoomFilter = useCallback(
+    (roomId: string | null) => {
+      updateUrlParams({ room: roomId, block: null, d: requestedDayISO });
+    },
+    [requestedDayISO, updateUrlParams],
+  );
 
   // Fetch-Fenster. Woche/Monat leiten ihr Fenster aus `d` ab; die Serienansicht
   // lädt keine Instanzen. Die Jahresansicht ist ersatzlos entfallen.
@@ -565,9 +592,7 @@ function TimetablesContent() {
   // kommen dann aus der Vertretungsübersicht, die nur schedules:read braucht.
   // Auch die Monatsansicht braucht sie für die Personenauswahl.
   const { data: planStaffOverview, error: planStaffOverviewError } = useSWRAuth(
-    status === "authenticated" &&
-      !canReadTenantRosters &&
-      view !== "series"
+    status === "authenticated" && !canReadTenantRosters && view !== "series"
       ? `timetable-plan-staff-names-${fetchFromISO}-${fetchToISO}`
       : null,
     () => substitutionService.fetchScheduleOverview(fetchFromISO, fetchToISO),
@@ -584,6 +609,14 @@ function TimetablesContent() {
       ? "timetable-filter-groups"
       : null,
     () => fetchPlannerGroups(),
+    { revalidateOnFocus: false },
+  );
+  // Auswahl des Raumfilters (#4768).
+  const { data: filterRooms } = useSWRAuth(
+    status === "authenticated" && canFilterByRoom && view !== "series"
+      ? "timetable-filter-rooms"
+      : null,
+    () => fetchPlannerRooms(),
     { revalidateOnFocus: false },
   );
   // Bedarfsquellen-Chip (06 §3.2): die Anmeldephasen für die clientseitige
@@ -778,6 +811,20 @@ function TimetablesContent() {
         : null,
     [canFilterByGroup, filterGroups],
   );
+  const roomFilterOptions = useMemo(
+    () =>
+      canFilterByRoom
+        ? sortedFilterOptions(
+            new Map(
+              (filterRooms ?? []).map((room) => [
+                String(room.id),
+                room.name ?? room.room_name ?? "",
+              ]),
+            ),
+          )
+        : null,
+    [canFilterByRoom, filterRooms],
+  );
   // Was der Filter zeigt, in Worten: für den Druckdialog.
   const planFilterLabel = useMemo(() => {
     const parts: string[] = [];
@@ -791,8 +838,14 @@ function TimetablesContent() {
       const name = blockStaffNames.get(planFilter.staffId);
       parts.push(name ? `„${name}“` : "die gewählte Person");
     }
+    if (planFilter.roomId) {
+      const name = roomFilterOptions?.find(
+        (room) => room.id === planFilter.roomId,
+      )?.name;
+      parts.push(name ? `Raum „${name}“` : "den gewählten Raum");
+    }
     return parts.join(" und ");
-  }, [blockStaffNames, groupFilterOptions, planFilter]);
+  }, [blockStaffNames, groupFilterOptions, planFilter, roomFilterOptions]);
   const periodsReady =
     status === "authenticated" &&
     !periodsLoading &&
@@ -2030,10 +2083,13 @@ function TimetablesContent() {
             <PlanFilterSelects
               groups={groupFilterOptions}
               persons={personFilterOptions}
+              rooms={roomFilterOptions}
               groupId={planFilter.groupId}
               staffId={planFilter.staffId}
+              roomId={planFilter.roomId}
               onGroupChange={setGroupFilter}
               onStaffChange={setStaffFilter}
+              onRoomChange={setRoomFilter}
             />
           )}
           {periodsReady && calendarPeriods.length > 0 && (
