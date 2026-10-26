@@ -11,6 +11,7 @@ import {
   assignHolidayGuestGroup,
   type HostedHolidayWeek,
 } from "~/lib/holiday-host-api";
+import { formatDate, todayISO } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
@@ -85,7 +86,13 @@ export function HolidayGuestGroupCard({
       ? "Noch keine Gruppe gewählt. Erst mit einer Gruppe sehen die Betreuungskräfte die Feriengäste in der Gruppe und im Check-in."
       : "Noch keine Gruppe gewählt. Die Gruppe wählt die Leitung.";
   } else {
-    status = `${guestCount(week.guests)} in der Gruppe ${groupName ?? "der Woche"}. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.`;
+    const group = `der Gruppe ${groupName ?? "der Woche"}`;
+    // Before the week the guests wait outside the group, like children
+    // before their first care day.
+    status =
+      week.startsOn > todayISO()
+        ? `Ab ${formatDate(week.startsOn)} ${week.guests === 1 ? "steht" : "stehen"} ${guestCount(week.guests)} in ${group}. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.`
+        : `${guestCount(week.guests)} in ${group}. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.`;
   }
 
   return (

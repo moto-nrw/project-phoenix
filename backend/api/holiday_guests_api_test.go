@@ -63,7 +63,7 @@ type holidayGuestFixture struct {
 	group     int64
 	roster    func(t *testing.T, day calendar.Date) map[string]int64
 	reconcile func(t *testing.T)
-	child     func(t *testing.T, student int64) (class, from, until string, health *string)
+	child     func(t *testing.T, student int64) (class, status, from, until string, health *string)
 }
 
 // careDays lists the planned days of a child as "date arrival-pickup", the
@@ -126,16 +126,16 @@ func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 			t.Helper()
 			inNord(t, func(ctx context.Context) error { return guests.ReconcileHolidayGuests(ctx, nord) })
 		},
-		child: func(t *testing.T, student int64) (string, string, string, *string) {
+		child: func(t *testing.T, student int64) (string, string, string, string, *string) {
 			t.Helper()
-			var class, from, until string
+			var class, status, from, until string
 			var health *string
 			inNord(t, func(ctx context.Context) error {
 				record, err := persons.ReadEnrollmentStudent(ctx, student, "")
-				class, from, until, health = record.SchoolClass, record.EnrolledFrom, record.EnrolledUntil, record.HealthInfo
+				class, status, from, until, health = record.SchoolClass, record.Status, record.EnrolledFrom, record.EnrolledUntil, record.HealthInfo
 				return err
 			})
-			return class, from, until, health
+			return class, status, from, until, health
 		},
 	}
 }
@@ -215,6 +215,14 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 
 	f.confirm(t, f.siblings, "confirm")
 	f.reconcile(t)
+	assert.Empty(t, f.roster(t, weekDay), "before its week the guest is in no group yet")
+	var waiting int64
+	require.NoError(t, f.db.NewRaw(`SELECT student_id FROM enrollment.holiday_guests WHERE tenant_id = ?`, f.nord).Scan(t.Context(), &waiting))
+	_, status, _, _, _ := f.child(t, waiting)
+	assert.Equal(t, "pending", status, "before its week the guest waits like a child before its first care day")
+
+	f.today.Store(calendar.NewDate(2099, 7, 6))
+	f.reconcile(t)
 	children := f.roster(t, weekDay)
 	assert.Equal(t, []string{"Ben Muster"}, names(children),
 		"the confirmed holiday guest joins the group; Lia is a child of the OGS Nord already, Tom is not confirmed")
@@ -231,8 +239,10 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 	assert.Equal(t, []string{
 		"2099-07-06 08:00-13:00", "2099-07-07 08:00-13:00", "2099-07-08 08:00-13:00", "2099-07-09 08:00-13:00", "2099-07-10 08:00-13:00",
 	}, f.careDays(t, ben), "each day of the week expects the guest with the times of its time model")
-	class, from, until, health := f.child(t, ben)
+	assert.Equal(t, waiting, ben, "the first day of the week moves the waiting copy into the group")
+	class, status, from, until, health := f.child(t, ben)
 	assert.Equal(t, enrollment.HolidayGuestSchoolClass, class)
+	assert.Equal(t, "active", status)
 	assert.Equal(t, "2099-07-06", from)
 	assert.Equal(t, "2099-07-10", until)
 	assert.Nil(t, health, "no health information leaves the Träger")
@@ -308,7 +318,7 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 	// A cancellation ends the guest at the next reconciliation.
 	f.confirm(t, f.siblings, "cancel")
 	f.reconcile(t)
-	assert.Equal(t, []string{"Tom Beispiel"}, names(f.roster(t, calendar.NewDate(2099, 7, 1))), "the cancelled guest leaves the group")
+	assert.Equal(t, []string{"Tom Beispiel"}, names(f.roster(t, calendar.NewDate(2099, 7, 6))), "from today the cancelled guest is no longer in the group")
 	assert.Empty(t, f.careDays(t, ben), "the cancelled guest has no planned day left")
 	rec = f.sheet(t, lead, ben)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
@@ -319,6 +329,7 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 func TestHolidayGuestRoutesNeedTheSchoolPermissionAndTheHostingSchool(t *testing.T) {
 	t.Parallel()
 	f := newHolidayGuestFixture(t, "Träger Feriengäste Rechte")
+	f.today.Store(calendar.NewDate(2099, 7, 6)) // the first day of the week
 	week := f.offer.Weeks[0].ID
 	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
 	f.confirm(t, f.siblings, "confirm")
@@ -352,6 +363,7 @@ func TestHolidayGuestRoutesNeedTheSchoolPermissionAndTheHostingSchool(t *testing
 func TestHolidayGuestsLeaveGroupAndCheckInAfterTheWeek(t *testing.T) {
 	t.Parallel()
 	f := newHolidayGuestFixture(t, "Träger Feriengäste Ende")
+	f.today.Store(calendar.NewDate(2099, 7, 6)) // the first day of the week
 	week := f.offer.Weeks[0].ID
 	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
 	f.confirm(t, f.siblings, "confirm")
@@ -382,6 +394,7 @@ func TestHolidayGuestsLeaveGroupAndCheckInAfterTheWeek(t *testing.T) {
 func TestHolidayGuestReconciliationSurvivesAMissingAuthorAndReplansOnTheNextGroupChoice(t *testing.T) {
 	t.Parallel()
 	f := newHolidayGuestFixture(t, "Träger Feriengäste Abgleich")
+	f.today.Store(calendar.NewDate(2099, 7, 6)) // the first day of the week
 	week := f.offer.Weeks[0].ID
 	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
 	weekDay := calendar.NewDate(2099, 7, 8)

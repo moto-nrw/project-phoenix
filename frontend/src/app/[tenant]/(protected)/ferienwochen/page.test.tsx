@@ -16,6 +16,7 @@ import type {
   HostedHolidayWeek,
 } from "~/lib/holiday-host-api";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { setTestClock } from "~/test/clock";
 
 vi.unmock("swr");
 
@@ -359,7 +360,7 @@ describe("FerienwochenPage", () => {
     await waitFor(() => expect(assignMock).toHaveBeenCalledWith("51", "7"));
     expect(
       await screen.findByText(
-        "1 Feriengast in der Gruppe Feriengruppe. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.",
+        "Ab 14.09.2026 steht 1 Feriengast in der Gruppe Feriengruppe. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -377,7 +378,7 @@ describe("FerienwochenPage", () => {
 
     expect(
       await screen.findByText(
-        "2 Feriengäste in der Gruppe Feriengruppe. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.",
+        "Ab 14.09.2026 stehen 2 Feriengäste in der Gruppe Feriengruppe. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -428,5 +429,21 @@ describe("FerienwochenPage", () => {
     renderPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/Gruppen/);
+  });
+
+  it("counts the guests in the group once the week has begun", async () => {
+    setTestClock("2026-09-15T10:00:00+02:00");
+    weeksMock.mockResolvedValue([
+      { ...firstWeek, guestGroupId: "7", guests: 2 },
+    ]);
+    participantsMock.mockResolvedValue(listOf(firstWeek));
+
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "2 Feriengäste in der Gruppe Feriengruppe. Neu bestätigte Kinder kommen innerhalb einer Stunde dazu.",
+      ),
+    ).toBeInTheDocument();
   });
 });

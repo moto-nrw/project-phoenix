@@ -669,6 +669,7 @@ function holidayGuestsTopic(): HelpTopic {
     requirements: [
       "Ihre OGS richtet eine Ferienwoche für den Träger aus.",
       "Die Leitung hat unter `Ferienwochen` eine Feriengruppe gewählt.",
+      "Die Ferienwoche hat begonnen. Vorher stehen Feriengäste noch nicht in der Gruppe.",
     ],
     steps: [
       "Öffnen Sie die Feriengruppe. Unter dem Namen jedes Feriengasts steht `Feriengast`.",
@@ -6060,7 +6061,7 @@ function holidayGuestGroupTopic(): HelpTopic {
       "Wählen Sie `Feriengäste übernehmen`.",
     ],
     result:
-      "Die Feriengäste stehen in der Gruppe und im Check-in. Ihr Team sieht bei jedem Feriengast Betreuung, Notfall und Abholung.",
+      "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe und im Check-in. Ihr Team sieht bei jedem Feriengast Betreuung, Notfall und Abholung.",
     notes: [
       "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
       "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",

@@ -36,9 +36,12 @@ die `tenant_id` der ausrichtenden Schule (D4).
 2. **Befristete Kopie als Kind der Schule.** Wie ADR 0084 Abschnitt 6 es
    vorsieht, wird der Feriengast in der ausrichtenden OGS angelegt: als Kind
    der Klasse `Feriengast` (People Directory verlangt eine Klasse; Listen und
-   Karten zeigen so auf einen Blick, wer Gast ist), aktiv, mit
-   `enrolled_from` und `enrolled_until` gleich dem ersten und letzten Tag der
-   Woche, in der Gruppe, die die Schule für die Woche gewählt hat. Enrollment
+   Karten zeigen so auf einen Blick, wer Gast ist), mit `enrolled_from` und
+   `enrolled_until` gleich dem ersten und letzten Tag der Woche. Vor der Woche
+   wartet das Kind wie ein neu aufgenommenes Kind vor seinem ersten
+   Betreuungstag (`pending`, in keiner Gruppe); ab dem ersten Tag setzt der
+   Abgleich es aktiv in die Gruppe, die die Schule für die Woche gewählt hat.
+   So steht ein Kind mit zwei Wochen derselben OGS nie doppelt in der Gruppe. Enrollment
    schreibt das Kind über die vorhandenen Befehle des People Directory
    (`CreateChildPerson`, `CreateEnrollmentStudent`, `SetPersonDetails`,
    `RenewEnrollmentStudent`, `ApplyEnrollmentProfile`) in der

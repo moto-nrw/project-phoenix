@@ -83,7 +83,9 @@ type HolidayGuestTransfer struct {
 }
 
 // HolidayGuestChild is the child People Directory keeps for a guest: its
-// names and date of birth, the group, and the care interval.
+// names and date of birth, the group, and the care interval. Before its week
+// the child is Pending and in no group, like a newly admitted child before
+// its first care day, so neither the group nor the check-in shows it yet.
 type HolidayGuestChild struct {
 	FirstName     string
 	LastName      string
@@ -91,6 +93,7 @@ type HolidayGuestChild struct {
 	GroupID       *int64
 	EnrolledFrom  calendar.Date
 	EnrolledUntil calendar.Date
+	Pending       bool
 }
 
 // HolidayGuestPeople creates, reads and updates the child behind a guest in

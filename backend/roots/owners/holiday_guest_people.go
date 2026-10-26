@@ -48,8 +48,9 @@ func schedulerHolidayGuests(people HolidayGuestDirectory, care HolidayGuestCareP
 
 // NewHolidayGuestPeople binds the child of a holiday guest (#4666, ADR 0120)
 // to the People Directory: a person with names and date of birth and an
-// active student of the class "Feriengast" whose care covers the booked
-// week, in the group the school picked.
+// student of the class "Feriengast" whose care covers the booked week:
+// pending and in no group before the week, active in the group the school
+// picked from its first day.
 func NewHolidayGuestPeople(directory HolidayGuestDirectory) enrollmentOwner.HolidayGuestPeople {
 	if directory == nil {
 		return nil
@@ -100,7 +101,7 @@ func (p holidayGuestPeople) ReadHolidayGuestChild(ctx context.Context, studentID
 	}
 	return enrollmentOwner.HolidayGuestChild{
 		FirstName: person.FirstName, LastName: person.LastName, BirthDate: birthDate, GroupID: record.GroupID,
-		EnrolledFrom: from, EnrolledUntil: until,
+		EnrolledFrom: from, EnrolledUntil: until, Pending: record.Status == peopledirectory.StudentStatusPending,
 	}, nil
 }
 
@@ -121,8 +122,12 @@ func (p holidayGuestPeople) UpdateHolidayGuestChild(ctx context.Context, student
 }
 
 func holidayGuestStudent(personID int64, child enrollmentOwner.HolidayGuestChild) peopledirectory.EnrollmentStudent {
+	status := peopledirectory.StudentStatusActive
+	if child.Pending {
+		status = peopledirectory.StudentStatusPending
+	}
 	return peopledirectory.EnrollmentStudent{
-		PersonID: personID, SchoolClass: enrollmentOwner.HolidayGuestSchoolClass, Status: peopledirectory.StudentStatusActive,
+		PersonID: personID, SchoolClass: enrollmentOwner.HolidayGuestSchoolClass, Status: status,
 		EnrolledFrom: child.EnrolledFrom.String(), EnrolledUntil: child.EnrolledUntil.String(),
 	}
 }

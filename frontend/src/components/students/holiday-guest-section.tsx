@@ -68,8 +68,12 @@ export function HolidayGuestSection({
   studentId,
   canRead,
 }: Readonly<{ studentId: string; canRead: boolean }>) {
-  const sheet = useSWRAuth(canRead ? `holiday-guest:${studentId}` : null, () =>
-    fetchHolidayGuestSheet(studentId),
+  // Reloads on focus and once a minute: a cancellation, changed contacts or
+  // the end of the read-only days reach an open sheet without a reload.
+  const sheet = useSWRAuth(
+    canRead ? `holiday-guest:${studentId}` : null,
+    () => fetchHolidayGuestSheet(studentId),
+    { revalidateOnFocus: true, refreshInterval: 60_000 },
   );
   const loadError = useSwrLoadError(
     sheet.error,
