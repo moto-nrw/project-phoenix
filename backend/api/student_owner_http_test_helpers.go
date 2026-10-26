@@ -175,17 +175,9 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			SchoolService:          studentSchoolDirectory{schools: schools},
 			SettingsService:        liveSettings.Settings,
 			StudentConsents:        NewStudentHTTPTestConsents(store),
-			StudentHistoryService: presenceservice.NewStudentHistory(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
-				rooms, err := repoFactoryRooms.Room.FindByIDs(ctx, ids)
-				if err != nil {
-					return nil, err
-				}
-				names := make(map[int64]string, len(rooms))
-				for _, room := range rooms {
-					names[room.ID] = room.Name
-				}
-				return names, nil
-			}, StudentTestDataAccessAudit(audit), svc.HistorySlots(repoFactoryTimetable.InstanceStudent.Reads)),
+			StudentHistoryService: presenceservice.NewStudentHistory(presence, studentHTTPTestRoomNames(repoFactoryRooms),
+				StudentTestDataAccessAudit(audit), svc.HistorySlots(repoFactoryTimetable.InstanceStudent.Reads),
+				owners.NewAttendanceStaffNames(owners.MustNewMembershipTestRepositories(store).Staff)),
 			StudentStatusDayService: presenceservice.NewStatusDays(repoFactoryCare.StudentStatusDay, svc.ManualPartialAbsences(students.CarePlan), store.Pool(), students.CarePlan.LockExceptionDay),
 			UserContextService:      caller,
 		},
@@ -330,4 +322,19 @@ func newStudentHTTPTestReviews(store transactionruntime.Database, svc StudentTes
 	}
 
 	return requestReview, careReviews, nil
+}
+
+// studentHTTPTestRoomNames names the rooms of the student history's visits.
+func studentHTTPTestRoomNames(rows owners.TimetableRoomRows) func(context.Context, []int64) (map[int64]string, error) {
+	return func(ctx context.Context, ids []int64) (map[int64]string, error) {
+		rooms, err := rows.Room.FindByIDs(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		names := make(map[int64]string, len(rooms))
+		for _, room := range rooms {
+			names[room.ID] = room.Name
+		}
+		return names, nil
+	}
 }

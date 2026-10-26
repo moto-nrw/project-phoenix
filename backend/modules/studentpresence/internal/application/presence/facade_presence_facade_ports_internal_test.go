@@ -104,7 +104,7 @@ func TestPresenceFacadePortReads(t *testing.T) {
 func TestStudentHistory_HasPlannedSlotsInRange_NilSlotRepo(t *testing.T) {
 	t.Parallel()
 
-	history := NewStudentHistory(nil, nil, nil, nil)
+	history := NewStudentHistory(nil, nil, nil, nil, nil)
 
 	has, err := history.HasPlannedSlotsInRange(context.Background(), calendar.NewDate(2032, 3, 2), calendar.NewDate(2032, 3, 6))
 	require.NoError(t, err)

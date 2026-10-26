@@ -264,7 +264,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		StudentStatusRepo: rCare.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: owners.NewActiveSchoolQuery(organizations),
 		StudentRepo: owners.PresenceStudents(db, members.Student), StaffRepo: owners.NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesCompose.NewAttendanceRooms(rRooms.Room),
 		ActivityGroupRepo: owners.NewSessionActivities(rt.GroupReads()), ActivityCatRepo: arrivalTimetable.NewCategoryCount(rt.ActivityCategory), EducationGroupRepo: owners.NewAttendanceEducationGroups(owners.NewSchoolStructureSuiteRepositories(db).Group, members.Student), DeviceRepo: owners.NewSessionDeviceDirectory(devices, settings.Settings, logger),
-		StaffNames: owners.NewAttendanceStaffNames(members.Staff, dataUsers), DB: db.Pool(), Broadcaster: owners.NewPresenceEvents(hub, logger), WorkSessionService: owners.PresenceAutoCheckIn{CheckIn: work.AutoCheckIn},
+		StaffNames: owners.NewAttendanceStaffNames(members.Staff), DB: db.Pool(), Broadcaster: owners.NewPresenceEvents(hub, logger), WorkSessionService: owners.PresenceAutoCheckIn{CheckIn: work.AutoCheckIn},
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: OptionalClock(clocks),
 	}

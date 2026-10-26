@@ -73,7 +73,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"api/auth_test_helpers.go:NewAuthTestModule":                                                              25,
 	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).InsertRequestChildOffering": 18,
 	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).bookingCommandValues":       22,
-	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources":                                      19,
 	"api/student_test_helpers.go:newStudentTestModule":                                                        32,
 	"api/timetable_test_helpers.go:NewTimetableTestModule":                                                    27,
 	"cmd/devtools/demo.go:provisionDemoSchool":                                                                18,

@@ -74,7 +74,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	presence := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		YardRoomColor:   facilitiesModule.YardRoomColor(rooms),
-		StaffNames:      owners.NewAttendanceStaffNames(members.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
+		StaffNames:      owners.NewAttendanceStaffNames(members.Staff), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: owners.PresenceStudents(db, members.Student), StaffRepo: owners.NewAttendanceStaffDirectory(members.Staff), RoomRepo: facilitiesCompose.NewAttendanceRooms(ttRooms.Room),
 		EducationGroupRepo: owners.NewAttendanceEducationGroups(owners.NewSchoolStructureSuiteRepositories(db).Group, members.Student),
 		ActivityGroupRepo:  owners.NewSessionActivities(tt.GroupReads()), DB: db.Pool(), Logger: slog.Default(),

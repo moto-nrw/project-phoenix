@@ -87,7 +87,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/serve_mounts_students.go:mountStudentRoutes":                    120,
 	"api/serve_mounts_students.go:requestReviewDependencies":             100,
 	"api/settings_composition.go:newSettingsResource":                    61,
-	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources": 176,
+	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources": 168,
 	"api/student_owner_http_test_helpers.go:newStudentHTTPTestReviews":   103,
 	"api/student_test_helpers.go:newStudentTestModule":                   315,
 	"api/timetable_http_test_helpers.go:NewTimetableHTTPTestModule":      85,

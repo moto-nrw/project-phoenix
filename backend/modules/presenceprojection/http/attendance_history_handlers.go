@@ -53,13 +53,18 @@ type attendanceHistoryDay struct {
 }
 
 type attendanceDayRecord struct {
-	CheckInTime     time.Time                 `json:"check_in_time"`
-	CheckOutTime    *time.Time                `json:"check_out_time,omitempty"`
-	DurationMinutes *int                      `json:"duration_minutes,omitempty"`
-	CheckedInBy     int64                     `json:"checked_in_by"`
-	CheckedOutBy    *int64                    `json:"checked_out_by,omitempty"`
-	DeviceID        int64                     `json:"device_id"`
+	CheckInTime     time.Time  `json:"check_in_time"`
+	CheckOutTime    *time.Time `json:"check_out_time,omitempty"`
+	DurationMinutes *int       `json:"duration_minutes,omitempty"`
+	CheckedInBy     int64      `json:"checked_in_by"`
+	CheckedOutBy    *int64     `json:"checked_out_by,omitempty"`
+	DeviceID        int64      `json:"device_id"`
+	// CheckedInActor and CheckedOutActor name who recorded the day's arrival
+	// and pickup (#4761); inRow and outRow are the stays they come from.
+	CheckedInActor  *AttendanceActorResponse  `json:"checked_in_actor,omitempty"`
+	CheckedOutActor *AttendanceActorResponse  `json:"checked_out_actor,omitempty"`
 	Sessions        []attendanceSessionRecord `json:"sessions"`
+	inRow, outRow   *studentpresence.Attendance
 }
 
 type attendanceSessionRecord struct {
@@ -206,6 +211,11 @@ func (rs *Resource) buildAttendanceHistory(ctx context.Context, logger *slog.Log
 	days := buildAttendanceHistoryDays(sources.Attendance, sources.Statuses, visitsByDate, roomCutoff)
 	days = attachSlotAttendance(days, sources.Slots, visitsByDate, roomCutoff)
 	days = attachUnassignedAttendance(days, sources.SlotExpectation)
+	recorders, err := rs.StudentHistoryService.AttendanceRecorders(ctx, sources.Attendance)
+	if err != nil {
+		return attendanceHistoryResponse{}, common.ErrorInternalServerWrap("failed to load attendance history", err)
+	}
+	attachAttendanceActors(days, recorders)
 
 	resp := attendanceHistoryResponse{
 		StudentID: strconv.FormatInt(studentID, 10),
@@ -457,6 +467,7 @@ func newAttendanceHistoryDay(dateKey string, row *studentpresence.Attendance) *a
 		CheckedOutBy: row.CheckedOutBy,
 		DeviceID:     row.DeviceID,
 		Sessions:     []attendanceSessionRecord{newAttendanceSession(row)},
+		inRow:        row, outRow: row,
 	}
 	return day
 }
@@ -479,6 +490,7 @@ func mergeAttendanceRow(rec *attendanceDayRecord, row *studentpresence.Attendanc
 		rec.CheckInTime = row.CheckInTime
 		rec.CheckedInBy = row.CheckedInBy
 		rec.DeviceID = row.DeviceID
+		rec.inRow = row
 	}
 	if rec.CheckOutTime == nil {
 		return
@@ -486,11 +498,13 @@ func mergeAttendanceRow(rec *attendanceDayRecord, row *studentpresence.Attendanc
 	if row.CheckOutTime == nil {
 		rec.CheckOutTime = nil
 		rec.CheckedOutBy = nil
+		rec.outRow = row
 		return
 	}
 	if row.CheckOutTime.After(*rec.CheckOutTime) {
 		rec.CheckOutTime = row.CheckOutTime
 		rec.CheckedOutBy = row.CheckedOutBy
+		rec.outRow = row
 	}
 }
 

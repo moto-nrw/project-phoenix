@@ -67,23 +67,41 @@ func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int6
 		CheckOutNote: attendance.CheckOutNote,
 	}
 
-	if attendance.CheckedInBy > 0 {
-		result.CheckedInBy = s.getStaffNameByID(ctx, attendance.CheckedInBy)
-	}
-
-	if attendance.CheckedOutBy != nil && *attendance.CheckedOutBy > 0 {
-		result.CheckedOutBy = s.getStaffNameByID(ctx, *attendance.CheckedOutBy)
+	if attendance.CheckInTime != nil {
+		s.applyAttendanceActors(ctx, result, studentpresence.Attendance{
+			CheckedInBy: attendance.CheckedInBy, CheckedOutBy: attendance.CheckedOutBy,
+			CheckedOutDeviceID: attendance.CheckedOutDeviceID, CheckOutTime: attendance.CheckOutTime,
+		})
 	}
 	return result, nil
 }
 
-// getStaffNameByID retrieves staff member's full name by ID
-func (s *service) getStaffNameByID(ctx context.Context, staffID int64) string {
-	name, err := s.StaffNames.StaffName(ctx, staffID)
-	if err != nil {
-		return ""
+// applyAttendanceActors names who recorded today's arrival and pickup (#4761).
+// A failed name read leaves the actors unset, so a caller shows no name
+// rather than a wrong one; the status itself still answers.
+func (s *service) applyAttendanceActors(ctx context.Context, result *AttendanceStatus, row studentpresence.Attendance) {
+	names := map[int64]string{}
+	if ids := studentpresence.AttendanceStaffIDs([]studentpresence.Attendance{row}); len(ids) > 0 {
+		if s.StaffNames == nil {
+			return
+		}
+		var err error
+		if names, err = s.StaffNames.StaffNames(ctx, ids); err != nil {
+			s.getLogger().Warn("failed to resolve attendance staff names",
+				"student_id", result.StudentID,
+				"error", err.Error(),
+			)
+			return
+		}
 	}
-	return name
+	recorders := studentpresence.NewAttendanceRecorders(names)
+	checkIn := recorders.CheckIn(row)
+	result.CheckedInActor = &checkIn
+	result.CheckedOutActor = recorders.CheckOut(row)
+	result.CheckedInBy = checkIn.Name
+	if result.CheckedOutActor != nil {
+		result.CheckedOutBy = result.CheckedOutActor.Name
+	}
 }
 
 // ToggleStudentAttendance toggles the attendance state (check-in or check-out)

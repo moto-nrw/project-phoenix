@@ -20,6 +20,6 @@ func NewStatusDays(repo StudentStatusDayRepository, pickupExceptions ManualParti
 func NewStatusDayOverviews(repo StudentStatusDayOverviewRepository, people StatusDayOverviewPeople) studentpresence.StatusDayOverviews {
 	return presence.NewStatusDayOverviews(repo, people)
 }
-func NewStudentHistory(attendance AttendanceHistoryReader, rooms HistoryRoomReader, accessLog DataAccessAudit, slots HistorySlotReader) studentpresence.StudentHistory {
-	return presence.NewStudentHistory(attendance, rooms, accessLog, slots)
+func NewStudentHistory(attendance AttendanceHistoryReader, rooms HistoryRoomReader, accessLog DataAccessAudit, slots HistorySlotReader, staff AttendanceStaffNames) studentpresence.StudentHistory {
+	return presence.NewStudentHistory(attendance, rooms, accessLog, slots, staff)
 }
