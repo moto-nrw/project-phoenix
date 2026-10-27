@@ -4,6 +4,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { NotebookPen } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -27,6 +29,8 @@ import {
   NOTE_KIND_PERMANENT,
   NOTE_ORIGIN_MASTER_DATA,
   NOTE_ORIGIN_SCHOOL,
+  NOTE_SHARED_WITH_SCHOOL_ACCESSIBLE_LABEL,
+  NOTE_SHARED_WITH_SCHOOL_LABEL,
   NOTE_VISIBILITY_ALL_STAFF,
   NOTE_VISIBILITY_CARE_TEAM,
   NOTE_VISIBILITY_GROUP_LEADS,
@@ -285,6 +289,15 @@ function NoteMeta({
           accessibleLabel={`Sichtbar für: ${visibilityLabel(note)}`}
         />
       ) : null}
+      {/* Die Lehrkraft der Klasse liest diese Notiz (#4797). */}
+      {note.sharedWithSchool ? (
+        <StatusBadge
+          compact
+          tone="green"
+          label={NOTE_SHARED_WITH_SCHOOL_LABEL}
+          accessibleLabel={NOTE_SHARED_WITH_SCHOOL_ACCESSIBLE_LABEL}
+        />
+      ) : null}
     </div>
   );
 }
@@ -407,6 +420,28 @@ function NoteForm({
           />
         </div>
       </div>
+      {/* Freigabe für die Schule (#4797): standardmäßig aus. */}
+      <ChoiceTile
+        selected={draft.sharedWithSchool ?? false}
+        className="items-start p-3"
+      >
+        <Checkbox
+          id={`${idPrefix}-shared-with-school`}
+          checked={draft.sharedWithSchool ?? false}
+          onChange={(event) =>
+            onChange({ ...draft, sharedWithSchool: event.target.checked })
+          }
+        />
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-gray-900">
+            Für die Schule freigeben
+          </span>
+          <span className="block text-xs text-gray-500">
+            Die Lehrkraft der Klasse liest die Notiz in moto schule. Sie kann
+            sie nicht ändern.
+          </span>
+        </span>
+      </ChoiceTile>
       <EditActions
         onCancel={onCancel}
         onSave={onSave}
@@ -540,6 +575,7 @@ export function StudentNotizenTab({
       category: note.category,
       body: note.body,
       subjectDate: note.subjectDate === "" ? undefined : note.subjectDate,
+      sharedWithSchool: note.sharedWithSchool,
     });
   };
 

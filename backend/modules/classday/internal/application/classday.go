@@ -63,6 +63,7 @@ type classDayService struct {
 	morningAttendance
 	homework
 	classHandover
+	sharedNotes
 }
 
 // NewClassDay creates the school-portal capability. Caller and Rosters are
@@ -90,6 +91,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		morningAttendance: newMorningAttendance(deps),
 		homework:          newHomework(deps),
 		classHandover:     newClassHandover(deps),
+		sharedNotes:       newSharedNotes(deps),
 	}
 }
 

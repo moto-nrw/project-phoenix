@@ -17,9 +17,16 @@ import (
 // DayHints the day-hint capabilities answer classday.ErrDayHintsNotConfigured
 // and the day report carries no hints. Today defaults to the Berlin calendar
 // day.
+//
+// The seam also carries the second note read of moto schule, the notes the
+// OGS released for the school (#4797): People Directory's SharedNotes and
+// School Structure's ClassTeachers. Without both the shared-notes capability
+// answers classday.ErrSharedNotesNotConfigured and no class offers the view.
 type DayHintDependencies struct {
-	DayHints DayHints
-	Today    func() calendar.Date
+	DayHints      DayHints
+	Today         func() calendar.Date
+	SharedNotes   SharedNoteReader
+	ClassTeachers ClassTeacherAssignments
 }
 
 // dayHints is the Lehrkraft's day hint for the OGS (#4795): a short message

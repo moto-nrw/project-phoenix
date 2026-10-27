@@ -82,6 +82,11 @@ const (
 	// gets its own resource type — and, unlike the class day view, no
 	// deduplication: the sheet opens only on a deliberate tap.
 	ResourceTypeSupervisionStudentSheet = "supervision_student_sheet"
+	// ResourceTypeSchoolSharedNotes records a Lehrkraft opening the notes
+	// the OGS released for the school about one child of her class (#4797).
+	// StudentID is SET; metadata carries school_class and note_count. Every
+	// read writes its own row, without deduplication.
+	ResourceTypeSchoolSharedNotes = "school_shared_notes"
 	// ResourceTypeStudentHealthListExport records an export of the
 	// Gesundheitsliste (#3323): the stored health notes (Art. 9 data) of
 	// many children at once. StudentID stays NULL; metadata carries the

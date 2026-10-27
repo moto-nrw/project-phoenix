@@ -192,6 +192,9 @@ type (
 		SchoolDayViewSeenSince(ctx context.Context, actorAccountID int64, date string, since time.Time) (bool, error)
 		RecordSchoolDayView(ctx context.Context, entry AccessRecord) error
 		RecordSupervisionSheet(ctx context.Context, entry AccessRecord) error
+		// RecordSharedNotes records one read of a child's notes the OGS
+		// released for the school (#4797).
+		RecordSharedNotes(ctx context.Context, entry AccessRecord) error
 	}
 	// ArrivalWriteScope applies operations.school_portal_write_scope.
 	ArrivalWriteScope interface {

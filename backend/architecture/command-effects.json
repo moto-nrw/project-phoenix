@@ -20135,6 +20135,50 @@
     },
     {
       "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListSchoolSharedNotes",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "1efd9a29b9418accdd6170a7c1682c40",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/compose.Directory.ListSchoolSharedNotes; modules/peopledirectory/internal/application/capability_student_notes.go:94. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "076e959c1f41f44d60eef8b4c4adaaaa",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.ListSchoolSharedNotes; modules/peopledirectory.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "411524003a6acc3b746cc7ae30fe004f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolSharedNotes; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "411524003a6acc3b746cc7ae30fe004f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolSharedNotes; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentCareEnds",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentCareEnds",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentCareEnds",
@@ -72368,6 +72412,50 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolDayHints; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListSchoolSharedNotes",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "1efd9a29b9418accdd6170a7c1682c40",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/compose.Directory.ListSchoolSharedNotes; modules/peopledirectory/internal/application/capability_student_notes.go:94. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "076e959c1f41f44d60eef8b4c4adaaaa",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.ListSchoolSharedNotes; modules/peopledirectory.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "411524003a6acc3b746cc7ae30fe004f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolSharedNotes; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "411524003a6acc3b746cc7ae30fe004f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolSharedNotes; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
     },
     {
       "source_owner": "student-presence",

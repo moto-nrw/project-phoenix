@@ -31,7 +31,11 @@ type Resource struct {
 	// SchoolDay serves the school-wide day overview (#4802); the capability
 	// serves both facades. Without it the route answers "not configured".
 	SchoolDay classday.SchoolDay
-	logger    *slog.Logger
+	// SharedNotes serves the notes the OGS released for the school (#4797);
+	// the capability serves this facade too. Without it the route answers
+	// "not configured" and no class offers the view.
+	SharedNotes classday.SharedNotes
+	logger      *slog.Logger
 }
 
 // NewResource creates the class-day resource over the projection's
@@ -42,7 +46,8 @@ func NewResource(capability classday.ClassDay, logger *slog.Logger) *Resource {
 	}
 	hints, _ := capability.(classday.DayHints)
 	schoolDay, _ := capability.(classday.SchoolDay)
-	return &Resource{ClassDay: capability, DayHints: hints, SchoolDay: schoolDay, logger: logger}
+	sharedNotes, _ := capability.(classday.SharedNotes)
+	return &Resource{ClassDay: capability, DayHints: hints, SchoolDay: schoolDay, SharedNotes: sharedNotes, logger: logger}
 }
 
 // SchoolRouter returns the class-day surface gated to school-scope tokens.
@@ -69,6 +74,9 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	// School-wide day overview (#4802): every class at once, only for the
 	// holders of class_day:all_classes (Schulverwaltung).
 	r.With(read, common.RequiresPermission(permissions.ClassDayAllClasses), withTx).Get("/school-day", rs.getSchoolDay)
+	// Notes the OGS released for the school (#4797): read-only, only for the
+	// Lehrkraft assigned to the child's class; every read is logged.
+	r.With(read, withTx).Get("/shared-notes/{schoolClass}/students/{studentId}", rs.getSharedNotes)
 
 	// Class-wide arrival day exceptions (#2970): the list is readable with
 	// class_day:read, the writes and the preset lookup need the write
@@ -209,6 +217,12 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 	report.CanHandOver = report.CanHandOver && common.HasPermission(permissions.ClassDayHandoverWrite, granted)
 	// Homework needs only the permission: the class is assigned.
 	report.CanWriteHomework = common.HasPermission(permissions.ClassDayHomeworkWrite, granted)
+	// The shared notes of the OGS go to the Lehrkraft of the class only
+	// (#4797); class_day:all_classes does not open them.
+	if report.CanReadSharedNotes, err = rs.mayReadSharedNotes(r, class); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 
 	common.Respond(w, r, http.StatusOK, report, "Class day retrieved successfully")
 }

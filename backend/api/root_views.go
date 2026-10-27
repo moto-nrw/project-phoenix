@@ -170,7 +170,7 @@ func buildClassDayViews(
 	settings settingsCompose.BatchSettingsService, operations timetable.OperationCapability, presence owners.PresenceOwner,
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
 	homework timetable.HomeworkBook,
-	emitter presenceStudentsHTTP.GuardianWake,
+	emitter presenceStudentsHTTP.GuardianWake, classTeachers schoolstructure.StaffGroupQuery,
 ) (ClassDayViews, error) {
 	classDayReads, err := arrivalTimetable.NewPresenceReads(owners.NewTimetablePresenceProjection(db))
 	if err != nil {
@@ -183,8 +183,13 @@ func buildClassDayViews(
 			Broadcaster: hub, Logger: env.Logger.With("service", "class-day-class-trips"), ParentEventEmitter: emitter,
 			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
 		})),
-		BlockStarts:                   operations,
-		DayHintDependencies:           classdayCompose.DayHintDependencies{DayHints: persons, Today: calendar.CalendarDateClock(env.Now)},
+		BlockStarts: operations,
+		// The day hints (#4795) and the notes the OGS released for the
+		// school (#4797), read only by the staff member School Structure
+		// assigns to the child's class.
+		DayHintDependencies: classdayCompose.DayHintDependencies{
+			DayHints: persons, Today: calendar.CalendarDateClock(env.Now), SharedNotes: persons, ClassTeachers: classTeachers,
+		},
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
 		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{

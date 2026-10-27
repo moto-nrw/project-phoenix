@@ -131,6 +131,10 @@ export interface ClassDayReport {
   // der Tag ist heute und ein Schultag, die OGS hat es freigegeben und die
   // Berechtigung liegt vor.
   can_hand_over?: boolean;
+  // Die Lehrkraft ist der Klasse zugewiesen und darf die Notizen lesen, die
+  // die OGS für die Schule freigegeben hat (#4797). Die Schulverwaltung
+  // bekommt hier nie true.
+  can_read_shared_notes?: boolean;
 }
 
 export interface ClassDayHandover {

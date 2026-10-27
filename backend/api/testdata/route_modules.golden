@@ -1105,6 +1105,7 @@ unterricht_vormittag
 	GET /school/class-day/arrival-exceptions/block-start
 	GET /school/class-day/classes
 	GET /school/class-day/school-day
+	GET /school/class-day/shared-notes/{schoolClass}/students/{studentId}
 	GET /school/notifications/preferences/
 	GET /school/notifications/push/public-key
 	GET /school/parent-letters/

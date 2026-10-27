@@ -401,3 +401,43 @@ export async function withdrawClassHandoverSchool(
     method: "DELETE",
   });
 }
+
+/**
+ * Eine Notiz, die die OGS für die Schule freigegeben hat (#4797). Die
+ * Lehrkraft liest sie nur; Sichtbarkeit und Bezug bleiben Sache der OGS.
+ */
+export interface SharedNote {
+  id: string;
+  kind: string;
+  category?: string;
+  body: string;
+  /** Tag, den ein Eintrag beschreibt; fehlt bei einem dauerhaften Hinweis. */
+  subject_date?: string;
+  author_name?: string;
+  edited: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Die freigegebenen Notizen zu einem Kind der Klasse, neueste zuerst. */
+export interface StudentSharedNotes {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  notes: SharedNote[];
+}
+
+/**
+ * Freigegebene Notizen der OGS zu einem Kind (#4797). Nur die Lehrkraft der
+ * Klasse bekommt eine Antwort; jeder Abruf wird protokolliert.
+ */
+export async function fetchSharedNotesSchool(
+  schoolClass: string,
+  studentId: string,
+): Promise<StudentSharedNotes> {
+  const response = await authFetch<ProxyResponse<StudentSharedNotes>>(
+    `/api/school/class-day/shared-notes/${encodeURIComponent(schoolClass)}/students/${encodeURIComponent(studentId)}`,
+  );
+  return { ...response.data, notes: response.data.notes ?? [] };
+}
