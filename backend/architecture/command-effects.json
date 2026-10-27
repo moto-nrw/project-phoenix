@@ -23839,6 +23839,28 @@
     },
     {
       "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements.ClassLetterCaller.MySchoolClasses",
+      "binding": "github.com/moto-nrw/project-phoenix/api.classLetterCaller.MySchoolClasses",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerReach.MySchoolClasses",
+      "target_owner": "identity-access",
+      "binding_digest": "242712fe8db76f01a2523302c26d4737",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.CallerReach.MySchoolClasses; the class reach of a class letter (#4800) from the request-memoized caller context. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements.ClassLetterCaller.SenderName",
+      "binding": "github.com/moto-nrw/project-phoenix/api.classLetterCaller.SenderName",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerIdentities.Person",
+      "target_owner": "identity-access",
+      "binding_digest": "b77c71880981e23c8ce11af649e45083",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.CallerIdentities.Person; the sender name of a class letter (#4800) from the request-memoized caller context. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements.ReportRenderer.RenderReport",
       "binding": "github.com/moto-nrw/project-phoenix/api.declarationReports.RenderReport",
       "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
@@ -24962,10 +24984,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationAnnouncementAudience.HistoricalDeclarationFeed",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.HistoricalDeclarationFeed",
       "target_owner": "parent-announcement-audience",
-      "binding_digest": "5ea3094ecc80acd7ac7767209f8f91fa",
+      "binding_digest": "8bb456dbc77e7d6bcc0a524ffa1a553e",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.HistoricalDeclarationFeed; modules/parentannouncementaudience/internal/adapters/postgres/declarations.go:397. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.HistoricalDeclarationFeed; modules/parentannouncementaudience/internal/adapters/postgres/declarations.go:398. Re-reviewed for #4800: the binding also maps the class-letter sender. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "communication",
@@ -25020,10 +25042,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationAnnouncementAudience.ListFeedForAccount",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.ListFeedForAccount",
       "target_owner": "parent-announcement-audience",
-      "binding_digest": "6f3647ebb8559412d78700c202b992c7",
+      "binding_digest": "1dbe6f81112e21fdeb3d4ccf467e0be9",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.ListFeedForAccount; modules/parentannouncementaudience/internal/adapters/postgres/feed.go:33. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.ListFeedForAccount; modules/parentannouncementaudience/internal/adapters/postgres/feed.go:48. Re-reviewed for #4800: the binding also maps the class-letter sender. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "communication",
@@ -42789,6 +42811,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/classday/http.Resource.SchoolRouter; modules/classday/http/api.go:44. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolportal.SchoolRouter.SchoolRouter",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements.Resource.SchoolRouter",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements.Resource.SchoolRouter",
+      "target_owner": "communication",
+      "binding_digest": "ff8f360aac7d7a935b8375e4dd072575",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/communication/http/parentannouncements.Resource.SchoolRouter; modules/communication/http/parentannouncements/class_letters.go:38. Builds the class-letter router of moto schule (#4800). May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "identity-access",

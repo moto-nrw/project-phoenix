@@ -268,6 +268,7 @@ func mapParentAnnouncementInput(input communication.ParentAnnouncementInput) Inp
 		DeliveryMode: input.DeliveryMode, EmailAudience: input.EmailAudience,
 		ReminderAt: input.ReminderAt, ReminderText: input.ReminderText,
 		Declaration: StaffAnnouncementDeclarationSettings(input.Declaration),
+		Sender:      (*ClassLetterSender)(input.Sender),
 	}
 }
 
@@ -294,7 +295,19 @@ func mapParentAnnouncement(row *StaffParentAnnouncement) *communication.ParentAn
 		DeliveryMode: row.DeliveryMode, EmailAudience: row.EmailAudience, SystemKind: row.SystemKind,
 		ReminderAt: row.ReminderAt, ReminderText: row.ReminderText, ReminderSentAt: row.ReminderSentAt,
 		Declaration: communication.ParentDeclarationSettings(row.Declaration),
+		CreatedBy:   row.CreatedBy, Sender: classLetterSender(row),
 	}
+}
+
+func classLetterSender(row *StaffParentAnnouncement) *communication.ParentLetterSender {
+	if row.SenderSchoolClass == nil {
+		return nil
+	}
+	sender := &communication.ParentLetterSender{SchoolClass: *row.SenderSchoolClass}
+	if row.SenderName != nil {
+		sender.Name = *row.SenderName
+	}
+	return sender
 }
 
 var _ communication.ParentAnnouncementCapability = (*parentAnnouncements)(nil)
@@ -324,6 +337,7 @@ func mapParentAnnouncementError(err error) error {
 		{ErrReminderAlreadySent, communication.ErrParentAnnouncementReminderSent},
 		{ErrDeclarationHasSubmissions, communication.ErrDeclarationHasSubmissions},
 		{ErrNotDeclaration, communication.ErrNotDeclaration},
+		{ErrClassLetterReadOnly, communication.ErrClassLetterReadOnly},
 	} {
 		if errors.Is(err, pair.internal) {
 			return &mappedParentAnnouncementError{public: pair.public, original: err}

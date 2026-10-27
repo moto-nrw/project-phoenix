@@ -2545,7 +2545,9 @@
         "survey_not_open": "Ta ankieta nie przyjmuje już odpowiedzi.",
         "survey_already_answered": "Ta ankieta ma już Twoją odpowiedź. Nie można jej zmienić.",
         "survey_not_draft": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "survey_anonymous": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "survey_anonymous": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "class_letter_class_not_reachable": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "class_letter_read_only": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "enrollment": {
         "form_attachment_invalid": "Sprawdź nazwę i plik PDF.",

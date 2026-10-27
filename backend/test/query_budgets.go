@@ -386,6 +386,10 @@ var queryBudgets = map[string]queryBudget{
 	"modules.communication.surveys.list":      {max: 1, exact: true},
 	"modules.communication.surveys.to_answer": {max: 1, exact: true},
 	"modules.communication.surveys.results":   {max: 6},
+	// GET /school/parent-letters (#4800): the Lehrkraft's class letters are
+	// the school's list narrowed in the handler: the rows and their targets
+	// in one batch each, for any number.
+	"modules.communication.school_parent_letters.list": {max: 2, exact: true},
 	// database/repositories/users — due announcement reminders read their rows
 	// and targets in two batches, regardless of the number due in one tick.
 	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},

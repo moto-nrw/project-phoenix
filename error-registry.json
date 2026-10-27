@@ -733,6 +733,18 @@
       "legacy": "communication.staff_notice_outdated"
     },
     {
+      "code": "communication.class_letter_class_not_reachable",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "communication.class_letter_class_not_reachable"
+    },
+    {
+      "code": "communication.class_letter_read_only",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.class_letter_read_only"
+    },
+    {
       "code": "communication.system_announcement_immutable",
       "class": "business_rejection",
       "parameters": [],

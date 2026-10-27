@@ -25,6 +25,9 @@ type Resource struct {
 	Service announcementService.ParentAnnouncementCapability
 	// Reports renders the Erklärung proof report (#3430).
 	Reports ReportRenderer
+	// Classes answers the class reach and sender name of the class-letter
+	// routes in moto schule (#4800); without it they refuse to write.
+	Classes ClassLetterCaller
 }
 
 // NewResource wires the staff announcement resource.
@@ -691,6 +694,8 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrDeclarationHasSubmissions):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationDeclarationHasSubmissions))
+	case errors.Is(err, announcementService.ErrClassLetterReadOnly):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationClassLetterReadOnly))
 	case errors.Is(err, announcementService.ErrNotDeclaration):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	default:

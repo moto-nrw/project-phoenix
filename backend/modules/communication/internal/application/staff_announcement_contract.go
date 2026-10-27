@@ -63,6 +63,9 @@ var (
 	// are forbidden. Correcting means unpublish (retract) → edit → republish,
 	// which is visible to parents and re-triggers the opted-in e-mail.
 	ErrPublishedImmutable = errors.New("announcement: published announcements cannot be edited")
+	// ErrClassLetterReadOnly: only the Lehrkraft who wrote a class letter
+	// changes it (#4800).
+	ErrClassLetterReadOnly = errors.New("announcement: a class letter belongs to the teacher who wrote it")
 	// ErrNotPublished: reminders and resends need a live announcement.
 	ErrNotPublished = errors.New("announcement: announcement is not published")
 	// ErrNothingOutstanding: the announcement never asked for anything, so there
@@ -114,6 +117,14 @@ type Input struct {
 	ReminderText *string    `json:"reminder_text,omitempty"`
 	// Declaration configures an Erklärung (#3430); zero for other modes.
 	Declaration StaffAnnouncementDeclarationSettings `json:"-"`
+	// Sender makes the input a class letter of a Lehrkraft (#4800).
+	Sender *ClassLetterSender `json:"-"`
+}
+
+// ClassLetterSender is the Lehrkraft a class letter comes from (#4800).
+type ClassLetterSender struct {
+	Name        string
+	SchoolClass string
 }
 
 // StaffService is the staff-facing parent-announcement contract.

@@ -55,6 +55,8 @@ type parentAnnouncementRow struct {
 	DeliveryMode            string     `bun:"delivery_mode,notnull,nullzero,default:'standard'"`
 	EmailAudience           string     `bun:"email_audience,notnull,nullzero,default:'portal_only'"`
 	SystemKind              *string    `bun:"system_kind"`
+	SenderName              *string    `bun:"sender_name"`
+	SenderSchoolClass       *string    `bun:"sender_school_class"`
 	ReminderAt              *time.Time `bun:"reminder_at"`
 	ReminderText            *string    `bun:"reminder_text"`
 	ReminderSentAt          *time.Time `bun:"reminder_sent_at"`
@@ -71,6 +73,7 @@ func (r *parentAnnouncementRow) value() *domain.ParentAnnouncement {
 		PublishedAt: r.PublishedAt, ExpiresAt: r.ExpiresAt, Active: r.Active, CreatedBy: r.CreatedBy,
 		ResponseType: r.ResponseType, ResponseDeadline: r.ResponseDeadline,
 		DeliveryMode: r.DeliveryMode, EmailAudience: r.EmailAudience, SystemKind: r.SystemKind,
+		SenderName: r.SenderName, SenderSchoolClass: r.SenderSchoolClass,
 		ReminderAt: r.ReminderAt, ReminderText: r.ReminderText, ReminderSentAt: r.ReminderSentAt,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, Declaration: r.declarationColumns.value(),
 	}
@@ -84,6 +87,7 @@ func announcementRow(value *domain.ParentAnnouncement) *parentAnnouncementRow {
 		PublishedAt: value.PublishedAt, ExpiresAt: value.ExpiresAt, Active: value.Active,
 		CreatedBy: value.CreatedBy, ResponseType: value.ResponseType, ResponseDeadline: value.ResponseDeadline,
 		DeliveryMode: value.DeliveryMode, EmailAudience: value.EmailAudience, SystemKind: value.SystemKind,
+		SenderName: value.SenderName, SenderSchoolClass: value.SenderSchoolClass,
 		ReminderAt: value.ReminderAt, ReminderText: value.ReminderText, ReminderSentAt: value.ReminderSentAt,
 		declarationColumns: declarationRow(value.Declaration),
 	}

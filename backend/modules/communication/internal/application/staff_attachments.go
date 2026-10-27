@@ -127,7 +127,9 @@ func (s *service) LockAnnouncementForAttachmentChange(ctx context.Context, annou
 // these files by digest, and the proof for those versions must still be able
 // to produce them. A changed document needs a new Erklärung.
 func (s *service) attachmentsEditable(ctx context.Context, a *StaffParentAnnouncement) (bool, error) {
-	if a.IsPublished() || a.IsSystem() {
+	// A class letter (#4800) carries no attachments: moto schule offers
+	// none, and the OGS only reads the letter.
+	if a.IsPublished() || a.IsSystem() || a.SenderSchoolClass != nil {
 		return false, nil
 	}
 	if !a.IsDeclaration() {

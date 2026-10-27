@@ -31,10 +31,14 @@ type ParentAnnouncementFeedItem struct {
 	ResponseDeadline        *time.Time
 	DeliveryMode            string
 	SystemKind              *string
-	ReadAt                  *time.Time
-	AcknowledgedAt          *time.Time
-	ReminderSentAt          *time.Time
-	ReminderText            *string
+	// SenderName and SenderSchoolClass name the Lehrkraft of a class letter
+	// (#4800); nil for a letter of the OGS.
+	SenderName        *string
+	SenderSchoolClass *string
+	ReadAt            *time.Time
+	AcknowledgedAt    *time.Time
+	ReminderSentAt    *time.Time
+	ReminderText      *string
 }
 
 // ParentAnnouncementPollChild is one child a guardian may answer a poll for,

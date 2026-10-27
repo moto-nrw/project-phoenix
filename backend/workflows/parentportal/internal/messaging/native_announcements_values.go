@@ -18,6 +18,8 @@ type AnnouncementFeedItem struct {
 	ResponseDeadline        *time.Time                   `json:"response_deadline,omitempty"`
 	SystemKind              *string                      `json:"system_kind,omitempty"`
 	SchoolName              string                       `json:"school_name"`
+	SenderName              *string                      `json:"sender_name,omitempty"`
+	SenderSchoolClass       *string                      `json:"sender_school_class,omitempty"`
 	ReadAt                  *time.Time                   `json:"read_at,omitempty"`
 	AcknowledgedAt          *time.Time                   `json:"acknowledged_at,omitempty"`
 	ReminderSentAt          *time.Time                   `json:"reminder_sent_at,omitempty"`
