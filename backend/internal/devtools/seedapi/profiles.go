@@ -32,6 +32,7 @@ const (
 	profileSettingStudentPhotos         = "operations.student_photos_enabled"
 	profileSettingWeekendFollowsFriday  = "operations.weekend_follows_friday"
 	profileSettingBirthdayIncludeStaff  = "operations.birthday_display_include_staff"
+	profileSettingAttendanceLog         = "gdpr.attendance_log_enabled"
 	profilePresenceDetailed             = "detailed"
 	profilePresenceBinary               = "binary"
 	profileGroupModeFixed               = "fixed_groups"
@@ -138,6 +139,9 @@ func fullOperationFeatureSettings() map[string]SeedSetting {
 		profileSettingWeekendFollowsFriday: {
 			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByOperator,
 		},
+		// The Statistik's rooms and a child's room history show the seeded
+		// past (#5031); without the log the nightly cleanup deletes it.
+		profileSettingAttendanceLog: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
 		// The birthday card shows a colleague next to the children (#3922);
 		// the seed gives one a birthday on the seed day.
 		profileSettingBirthdayIncludeStaff: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
