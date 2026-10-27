@@ -81,6 +81,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { useOwnStaffSchedule } from "~/lib/hooks/use-own-staff-schedule";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   useApiErrorDisplay,
@@ -101,7 +102,6 @@ import {
   useTenantMutate,
   useTenantMutateMatching,
 } from "~/lib/swr";
-import { staffScheduleService } from "~/lib/staff-api";
 import {
   adaptAbsenceForMetrics,
   adaptHistorySessionForMetrics,
@@ -120,7 +120,6 @@ import {
   PLANNED_START_NOT_REACHED_CODE,
   timeTrackingService,
 } from "~/lib/time-tracking-api";
-import { userContextService } from "~/lib/usercontext-api";
 import { ApiError } from "~/lib/api-error";
 import {
   type MonthSummary,
@@ -3418,29 +3417,15 @@ function TimeTrackingContent() {
   // which re-priced historical days at today's hours and contradicted the
   // Monatskarte further down this very page.
   const {
-    data: ownStaff,
-    error: ownStaffError,
-    mutate: mutateOwnStaff,
-  } = useSWRAuth(
-    "time-tracking-own-staff",
-    () => userContextService.getCurrentStaff(),
-    { revalidateOnFocus: false },
-  );
-  const ownStaffId = ownStaff?.id ?? null;
+    ownStaffId,
+    schedule: ownSchedule,
+    error: profileError,
+    retry: retryProfile,
+  } = useOwnStaffSchedule();
   // Der eigene Dienstplan (#3821) folgt dem Modul Dienstplan, nicht dem
   // Betreuungsplan-Schalter. Ohne Buchung erklärt die Zielseite das Modul.
   const dienstplanBooked = useModuleBooked("dienstplan");
   const tenantPath = useTenantAwarePath();
-
-  const {
-    data: ownSchedule,
-    error: ownScheduleError,
-    mutate: mutateOwnSchedule,
-  } = useSWRAuth(
-    ownStaffId ? `time-tracking-own-schedule-${ownStaffId}` : null,
-    () => staffScheduleService.getSchedule(ownStaffId as string),
-    { revalidateOnFocus: false },
-  );
 
   const ownMetrics = usePeriodMetrics();
 
@@ -3524,28 +3509,18 @@ function TimeTrackingContent() {
 
   // Without the own staff record or work schedule the export, the plan
   // column and the Soll are missing; one notice covers both.
-  const profileError: unknown = ownStaffError ?? ownScheduleError;
   const showProfileLoadError = profileLoad.show;
   const clearProfileLoadError = profileLoad.clear;
   useEffect(() => {
     if (profileError) {
       void showProfileLoadError(profileError, {
         object: "die Arbeitszeitregelung",
-        retry: () => {
-          void mutateOwnStaff();
-          void mutateOwnSchedule();
-        },
+        retry: retryProfile,
       });
     } else {
       clearProfileLoadError();
     }
-  }, [
-    profileError,
-    mutateOwnStaff,
-    mutateOwnSchedule,
-    showProfileLoadError,
-    clearProfileLoadError,
-  ]);
+  }, [profileError, retryProfile, showProfileLoadError, clearProfileLoadError]);
 
   // Fetch breaks for current session
   const showBreaksLoadError = breaksLoad.show;
