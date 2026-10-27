@@ -130,7 +130,7 @@ export function CarePlanImpact({
             Hier steht das Kind weiter im Plan. Prüfen Sie, ob das so bleiben
             soll.
           </p>
-          <ul className="mt-2 flex flex-col gap-2">
+          <ul className="mt-2 flex flex-col divide-y divide-gray-100">
             {impact.notAdjusted.map((template) => (
               <ManualTemplateEntry
                 key={template.templateId}
@@ -167,7 +167,7 @@ export function CarePlanImpact({
           target?.viaTarget ? (
             <Alert
               type="warning"
-              message="Neue Termine nehmen das Kind wieder auf. Der Regeltermin plant alle Kinder der Klasse, des Jahrgangs oder der Gruppe. Ändern Sie dafür die Kinder im Regeltermin."
+              message="Bei einer neuen Planung kommt das Kind wieder dazu. Der Regeltermin plant alle Kinder der Klasse, des Jahrgangs oder der Gruppe. Soll es dauerhaft fehlen, ändern Sie die Kinder im Regeltermin."
             />
           ) : undefined
         }
@@ -197,13 +197,13 @@ function ManualTemplateEntry({
   planLink: string;
 }>) {
   return (
-    <li className="flex flex-col gap-2 text-sm text-gray-700 sm:flex-row sm:items-center sm:justify-between">
+    <li className="flex flex-col gap-1.5 py-2 text-sm text-gray-700 first:pt-0 last:pb-0">
       <span>
         <span className="font-medium text-gray-900">{template.name}</span>,{" "}
         {formatWeekdayAdverbs(template.weekdays)}:{" "}
         {removed ? "Kind entfernt." : "Kind bleibt eingeplant."}
       </span>
-      <span className="flex flex-wrap items-center gap-3">
+      <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {removed ? (
           <StatusBadge tone="green" label="Entfernt" />
         ) : canRemove ? (

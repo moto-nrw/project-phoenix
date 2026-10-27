@@ -93,7 +93,9 @@ describe("CarePlanImpact", () => {
     );
     const dialog = await screen.findByRole("dialog");
     expect(
-      within(dialog).getByText(/Neue Termine nehmen das Kind wieder auf/),
+      within(dialog).getByText(
+        /Bei einer neuen Planung kommt das Kind wieder dazu/,
+      ),
     ).toBeInTheDocument();
     expect(mocks.removeStudentTemplateDays).not.toHaveBeenCalled();
 
