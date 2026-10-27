@@ -2971,6 +2971,59 @@ describe("EnrollmentFormEditor", () => {
     }
   });
 
+  // #5027: the label placeholder no longer suggests a question about the
+  // child for a question asked once per enrollment; the per-child switch
+  // names those questions, and stays off until the school switches it on.
+  it("points questions about the child to the per-child switch", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.createSchema.mockResolvedValue(
+      schema({ id: "schema-new", name: "Kontaktformular" }),
+    );
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.change(
+      screen.getByPlaceholderText("z. B. Ferienbetreuung Sommer 2026"),
+      { target: { value: "Kontaktformular" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Freie Zusatzfrage" }));
+
+    expect(screen.getByLabelText("Frage im Elternformular")).toHaveAttribute(
+      "placeholder",
+      "z. B. Wie sind Sie auf uns aufmerksam geworden?",
+    );
+    expect(
+      screen.getByText(
+        "Für Fragen zum Kind, etwa zu Allergien oder zum Schwimmen. Die Frage erscheint dann für jedes angemeldete Kind.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Frage im Elternformular"), {
+      target: { value: "Wie sind Sie auf uns aufmerksam geworden?" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Formularvorlage erstellen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.createSchema).toHaveBeenCalledWith(
+        "Kontaktformular",
+        expect.arrayContaining([
+          expect.objectContaining({
+            label: "Wie sind Sie auf uns aufmerksam geworden?",
+            applies_to_child: false,
+          }),
+        ]),
+        {},
+        defaultLegalBlocksForSave,
+      );
+    });
+  });
+
   it("creates, previews, updates, and deletes schemas", async () => {
     const initialSchema = schema();
     mocks.listSchemas.mockResolvedValue([initialSchema]);
