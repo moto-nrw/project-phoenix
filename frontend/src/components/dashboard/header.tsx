@@ -80,8 +80,14 @@ function schoolTitleForPath(pathname: string): string | null {
   if (pathname === "/" || pathname === "/school") return "Klassenansicht";
   // Die Klassenseite (#2294) ist eine Ebene der Klassenansicht, kein eigener
   // Bereich: der Kopf behält den Namen des Bereichs, den Klassennamen trägt
-  // die Seite selbst.
-  if (pathname === "/klasse" || pathname === "/school/klasse") {
+  // die Seite selbst. Die Beobachtungen der OGS zu einem Kind (#4797)
+  // liegen eine Ebene darunter und bleiben ebenfalls im Bereich.
+  if (
+    pathname === "/klasse" ||
+    pathname === "/school/klasse" ||
+    pathname.startsWith("/klasse/") ||
+    pathname.startsWith("/school/klasse/")
+  ) {
     return "Klassenansicht";
   }
   if (pathname === "/aufsichten" || pathname === "/school/aufsichten") {
