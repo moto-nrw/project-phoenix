@@ -394,37 +394,23 @@ function buildStudentQueryParams(filters?: {
 }
 
 /**
- * Current session token via the deduplicating session cache.
+ * Headers for the raw fetch() call sites in the services below. The BFF
+ * routes authenticate through the session cookie; the browser holds no
+ * token (#5005).
  */
-async function getSessionToken(): Promise<string | undefined> {
-  const session = await getCachedSession();
-  return session?.user?.token;
-}
+const JSON_HEADERS: Record<string, string> = {
+  "Content-Type": "application/json",
+};
 
 /**
- * Auth headers for the raw fetch() call sites in the services below.
- * Undefined when unauthenticated, so the request goes out without an
- * Authorization header.
+ * Re-read the session after a 401 → refresh (helper for fetchWithRetry).
+ * The cached session is stale by definition — drop it first, or this (and
+ * every concurrent caller for up to 10s) would skip the lookup that persists
+ * the rotated cookie before the retry.
  */
-async function getAuthHeaders(): Promise<Record<string, string> | undefined> {
-  const token = await getSessionToken();
-  return token
-    ? {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      }
-    : undefined;
-}
-
-/**
- * Get new token from session (helper for fetchWithRetry).
- * Called after a 401 → token refresh, so the cached session is stale by
- * definition — drop it first, or this (and every concurrent caller for up to
- * 10s) would retry with the dead token.
- */
-async function getNewTokenFromSession(): Promise<string | undefined> {
+async function reloadSession(): Promise<void> {
   clearSessionCache();
-  return getSessionToken();
+  await getCachedSession();
 }
 
 function accessDeniedApiError(status?: 401 | 403): ApiError {
@@ -923,7 +909,6 @@ function parseConflictMessage(body: string): string {
 
 export const studentService = {
   // Get all students
-  // Pass token to skip redundant getSession() call (saves ~600ms per request)
   getStudents: async (filters?: {
     search?: string;
     inHouse?: boolean;
@@ -945,7 +930,6 @@ export const studentService = {
     includeCompanions?: boolean;
     /** Wire projection (#2097) — see buildStudentQueryParams. */
     view?: "slim";
-    token?: string; // Optional: pass token to skip getSession()
   }): Promise<StudentsResult> => {
     const params = buildStudentQueryParams(filters);
     const useProxyApi = globalThis.window !== undefined;
@@ -955,18 +939,11 @@ export const studentService = {
 
     try {
       if (useProxyApi) {
-        // Use provided token or fall back to getSession()
-        let authToken = filters?.token;
-        if (!authToken) {
-          authToken = await getSessionToken();
-        }
-
         const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
           url,
-          authToken,
           {
             onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
+            beforeRetry: reloadSession,
           },
         );
 
@@ -990,23 +967,17 @@ export const studentService = {
     }
   },
 
-  getSchoolClasses: async (filters?: { token?: string }): Promise<string[]> => {
+  getSchoolClasses: async (): Promise<string[]> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = await resolveApiUrl("/api/students/school-classes");
 
     try {
       if (useProxyApi) {
-        let authToken = filters?.token;
-        if (!authToken) {
-          authToken = await getSessionToken();
-        }
-
         const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
           url,
-          authToken,
           {
             onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
+            beforeRetry: reloadSession,
           },
         );
 
@@ -1034,13 +1005,11 @@ export const studentService = {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         // Route handler already maps response, so applyMapping=false
-        const token = await getSessionToken();
         const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
           url,
-          token,
           {
             onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
+            beforeRetry: reloadSession,
           },
         );
 
@@ -1072,7 +1041,7 @@ export const studentService = {
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(student),
         });
 
@@ -1124,7 +1093,7 @@ export const studentService = {
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(student),
         });
 
@@ -1231,10 +1200,9 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const token = await getSessionToken();
-        const { response, data } = await fetchWithRetry<unknown>(url, token, {
+        const { response, data } = await fetchWithRetry<unknown>(url, {
           onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
+          beforeRetry: reloadSession,
         });
 
         // Handle errors: null response means auth failed or permission denied
@@ -1267,11 +1235,10 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const token = await getSessionToken();
         const { response, data, accessDeniedStatus } =
-          await fetchWithRetry<unknown>(url, token, {
+          await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
+            beforeRetry: reloadSession,
           });
 
         if (response === null) {
@@ -1313,7 +1280,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(backendGroup),
         });
 
@@ -1355,7 +1322,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(backendUpdates),
         });
 
@@ -1398,7 +1365,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -1433,7 +1400,7 @@ export const groupService = {
         // Browser environment: use fetch with our Next.js API route
         const response = await fetch(url, {
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -1490,7 +1457,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify({
             supervisor_id: Number.parseInt(supervisorId, 10),
           }),
@@ -1539,7 +1506,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -1581,7 +1548,7 @@ export const groupService = {
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify({
             representative_id: Number.parseInt(representativeId, 10),
           }),
@@ -1637,10 +1604,9 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const token = await getSessionToken();
-        const { data } = await fetchWithRetry<unknown>(url, token, {
+        const { data } = await fetchWithRetry<unknown>(url, {
           onAuthFailure: handleAuthFailure,
-          getNewToken: getNewTokenFromSession,
+          beforeRetry: reloadSession,
         });
 
         const rooms = parseRoomsResponse(data);
@@ -1667,11 +1633,10 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const token = await getSessionToken();
         const { response, data, accessDeniedStatus } =
-          await fetchWithRetry<unknown>(url, token, {
+          await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
-            getNewToken: getNewTokenFromSession,
+            beforeRetry: reloadSession,
           });
 
         if (response === null) {
@@ -1711,7 +1676,7 @@ export const roomService = {
         const response = await fetch(url, {
           method: "POST",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(backendRoom),
         });
 
@@ -1753,7 +1718,7 @@ export const roomService = {
         const response = await fetch(url, {
           method: "PUT",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
           body: JSON.stringify(backendUpdates),
         });
 
@@ -1796,7 +1761,7 @@ export const roomService = {
         const response = await transportFetch(url, {
           method: "DELETE",
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -1838,7 +1803,7 @@ export const roomService = {
         // Browser environment: use fetch with our Next.js API route
         const response = await fetch(url, {
           credentials: "include",
-          headers: await getAuthHeaders(),
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {

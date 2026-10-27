@@ -313,6 +313,10 @@ export async function enrollConfirm(
 }
 
 // ----- Self-service trusted devices (Tenant-only) -----
+//
+// These and the admin calls below act for the signed-in account: their BFF
+// routes read the session cookie, so no bearer token leaves the browser
+// (#5005). Only enrollment above sends the login's enrollment token.
 
 export interface TrustedDeviceDTO {
   id: number;
@@ -331,30 +335,26 @@ function trustedDevicesUrl(scope: LoginScope, suffix = ""): string {
 
 export async function listTrustedDevices(
   scope: LoginScope,
-  bearerToken: string,
 ): Promise<TrustedDeviceDTO[]> {
   const url = trustedDevicesUrl(scope);
   if (isOperator(scope)) {
     const envelope = await postJson<OperatorEnvelope<TrustedDeviceDTO[]>>(
       url,
       undefined,
-      { bearerToken, method: "GET" },
+      { method: "GET" },
     );
     return envelope.data;
   }
   return postJson<TrustedDeviceDTO[]>(url, undefined, {
-    bearerToken,
     method: "GET",
   });
 }
 
 export async function revokeTrustedDevice(
   scope: LoginScope,
-  bearerToken: string,
   deviceId: number,
 ): Promise<void> {
   await postJson<unknown>(trustedDevicesUrl(scope, `/${deviceId}`), undefined, {
-    bearerToken,
     method: "DELETE",
     allowEmptyBody: true,
   });
@@ -374,29 +374,25 @@ function adminMFAUrl(accountId: string, suffix: string): string {
 }
 
 export async function adminResetMFA(
-  bearerToken: string,
   accountId: string,
   reason: string,
 ): Promise<void> {
   await postJson<unknown>(
     adminMFAUrl(accountId, ""),
     { reason },
-    { bearerToken, method: "DELETE", allowEmptyBody: true },
+    { method: "DELETE", allowEmptyBody: true },
   );
 }
 
 export async function adminGetMFAState(
-  bearerToken: string,
   accountId: string,
 ): Promise<MFAAdminState> {
   return postJson<MFAAdminState>(adminMFAUrl(accountId, ""), undefined, {
-    bearerToken,
     method: "GET",
   });
 }
 
 export async function adminSetMFAOverride(
-  bearerToken: string,
   accountId: string,
   override: MFAAdminOverride,
   reason: string,
@@ -404,7 +400,7 @@ export async function adminSetMFAOverride(
   await postJson<unknown>(
     adminMFAUrl(accountId, "/override"),
     { override, reason },
-    { bearerToken, method: "PUT", allowEmptyBody: true },
+    { method: "PUT", allowEmptyBody: true },
   );
 }
 
@@ -419,7 +415,6 @@ function operatorAdminMFAUrl(
 }
 
 export async function operatorAdminResetMFA(
-  bearerToken: string,
   schoolId: string,
   accountId: string,
   reason: string,
@@ -427,7 +422,7 @@ export async function operatorAdminResetMFA(
   await postJson<unknown>(
     operatorAdminMFAUrl(schoolId, accountId, ""),
     { reason },
-    { bearerToken, method: "DELETE", allowEmptyBody: true },
+    { method: "DELETE", allowEmptyBody: true },
   );
 }
 
@@ -437,7 +432,6 @@ export async function operatorAdminResetMFA(
  * again at the next sign-in.
  */
 export async function operatorAdminResetTraegerMFA(
-  bearerToken: string,
   organizationId: string,
   accountId: string,
   reason: string,
@@ -445,12 +439,11 @@ export async function operatorAdminResetTraegerMFA(
   await postJson<unknown>(
     `/api/operator/provisioning/organizations/${encodeURIComponent(organizationId)}/traeger-members/${encodeURIComponent(accountId)}/mfa`,
     { reason },
-    { bearerToken, method: "DELETE", allowEmptyBody: true },
+    { method: "DELETE", allowEmptyBody: true },
   );
 }
 
 export async function operatorAdminSetMFAOverride(
-  bearerToken: string,
   schoolId: string,
   accountId: string,
   override: MFAAdminOverride,
@@ -459,7 +452,7 @@ export async function operatorAdminSetMFAOverride(
   await postJson<unknown>(
     operatorAdminMFAUrl(schoolId, accountId, "/override"),
     { override, reason },
-    { bearerToken, method: "PUT", allowEmptyBody: true },
+    { method: "PUT", allowEmptyBody: true },
   );
 }
 
@@ -476,19 +469,17 @@ function operatorGlobalMFAUrl(accountId: string): string {
 }
 
 export async function operatorAdminGetGlobalMFAOverride(
-  bearerToken: string,
   accountId: string,
 ): Promise<MFAAdminState> {
   const envelope = await postJson<OperatorEnvelope<MFAAdminState>>(
     operatorGlobalMFAUrl(accountId),
     undefined,
-    { bearerToken, method: "GET" },
+    { method: "GET" },
   );
   return envelope.data;
 }
 
 export async function operatorAdminSetGlobalMFAOverride(
-  bearerToken: string,
   accountId: string,
   override: MFAAdminOverride,
   reason: string,
@@ -496,6 +487,6 @@ export async function operatorAdminSetGlobalMFAOverride(
   await postJson<unknown>(
     operatorGlobalMFAUrl(accountId),
     { override, reason },
-    { bearerToken, method: "PUT", allowEmptyBody: true },
+    { method: "PUT", allowEmptyBody: true },
   );
 }

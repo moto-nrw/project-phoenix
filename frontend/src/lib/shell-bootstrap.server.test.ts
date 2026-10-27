@@ -31,7 +31,6 @@ function session(overrides: Partial<Session["user"]> = {}): Session {
       id: "7",
       name: "Admin",
       email: "admin@example.com",
-      token: "access-token",
       roles: ["admin"],
       permissions: ["admin:*"],
       tenantId: 1,
@@ -40,6 +39,10 @@ function session(overrides: Partial<Session["user"]> = {}): Session {
     expires: "2099-01-01",
   };
 }
+
+// The browser session carries no token (#5005); the layout hands the
+// session's access token to the preload separately.
+const ACCESS_TOKEN = "access-token";
 
 const tenant = {
   tenantId: 1,
@@ -122,7 +125,7 @@ describe("loadShellBootstrap", () => {
       "/api/platform/announcements/unread": { data: [{ id: 1 }] },
     });
 
-    const shell = await loadShellBootstrap(session(), tenant);
+    const shell = await loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
 
     expect(shell.accountId).toBe("7");
     expect(shell.reminders).toEqual({
@@ -184,6 +187,7 @@ describe("loadShellBootstrap", () => {
         permissions: ["groups:read", "users:read"],
       }),
       tenant,
+      ACCESS_TOKEN,
     );
 
     expect(shell.settingsSchema).toBeUndefined();
@@ -222,6 +226,7 @@ describe("loadShellBootstrap", () => {
     const shell = await loadShellBootstrap(
       session({ roles: ["extern"], permissions: ["schedules:read"] }),
       tenant,
+      ACCESS_TOKEN,
     );
 
     expect(shell.counts?.messagesUnread).toBeUndefined();
@@ -252,7 +257,7 @@ describe("loadShellBootstrap", () => {
     });
     vi.mocked(loadUserContext).mockRejectedValueOnce(new Error("500"));
 
-    const shell = await loadShellBootstrap(session(), tenant);
+    const shell = await loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
 
     expect(shell.userContext).toBeUndefined();
     expect(shell.profile).toBeUndefined();
@@ -278,7 +283,7 @@ describe("loadShellBootstrap", () => {
       "/api/rooms?is_open_room=true": { data: [] },
     });
 
-    const shell = await loadShellBootstrap(session(), tenant);
+    const shell = await loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
 
     expect(shell.supervision).toEqual({
       groups: [],
@@ -304,7 +309,7 @@ describe("loadShellBootstrap", () => {
       unavailableSections: ["supervised_groups"],
     });
 
-    const shell = await loadShellBootstrap(session(), tenant);
+    const shell = await loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
 
     expect(shell.userContext).toBeUndefined();
   });
@@ -331,7 +336,7 @@ describe("loadShellBootstrap", () => {
     );
 
     try {
-      const shellPromise = loadShellBootstrap(session(), tenant);
+      const shellPromise = loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
       await vi.advanceTimersByTimeAsync(1500);
       const shell = await shellPromise;
 

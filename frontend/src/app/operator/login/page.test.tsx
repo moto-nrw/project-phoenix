@@ -238,16 +238,24 @@ describe("OperatorLoginPage", () => {
     expect(mockRedirect).toHaveBeenCalledWith("/operator/organizations");
   });
 
-  it("keeps the form for a session without a usable access token", () => {
+  // The browser session carries no token (#5005): a session without a
+  // usable access token is marked with an error and never enters the portal.
+  it("does not redirect a session without a usable access token", async () => {
+    mockSignOut.mockResolvedValue(undefined);
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { id: "1", scope: "platform", token: "" } },
+      data: {
+        error: "RefreshTokenError",
+        user: { id: "1", scope: "platform" },
+      },
     });
 
     render(<OperatorLoginPage />);
 
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    });
     expect(mockRedirect).not.toHaveBeenCalled();
-    expect(screen.getByText("Operator Console")).toBeInTheDocument();
   });
 
   it("clears an errored operator session before redirecting", async () => {
@@ -256,7 +264,7 @@ describe("OperatorLoginPage", () => {
       status: "authenticated",
       data: {
         error: "RefreshTokenExpired",
-        user: { scope: "platform", token: "stale-token" },
+        user: { scope: "platform" },
       },
     });
 

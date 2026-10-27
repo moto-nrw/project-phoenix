@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET, PUT, DELETE } from "./route";
-import { mockSessionData } from "~/test/mocks/next-auth";
+import { mockServerSessionData } from "~/test/mocks/next-auth";
 import {
   type ExtendedSession,
   createMockContext,
@@ -38,7 +38,7 @@ vi.mock("~/lib/api-helpers.server", async () => {
 // Test Helpers
 // ============================================================================
 
-const defaultSession = mockSessionData() as ExtendedSession;
+const defaultSession = mockServerSessionData() as ExtendedSession;
 
 interface ApiResponse<T> {
   success: boolean;

@@ -111,14 +111,18 @@ function respond(input: RequestInfo | URL): Promise<Response> {
 
 vi.mock("~/lib/session-cache", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/session-cache")>()),
-  getCachedSession: () => Promise.resolve({ user: { token: "test-token" } }),
+  getCachedSession: () =>
+    Promise.resolve({
+      user: { id: "7" },
+      expires: "2099-01-01T00:00:00.000Z",
+    }),
   sessionFetch: (input: string) => respond(input),
 }));
 
 function signIn(permissions: string[]) {
   vi.mocked(useSession).mockReturnValue({
     data: {
-      user: { id: "7", token: "test-token", roles: ["teacher"], permissions },
+      user: { id: "7", roles: ["teacher"], permissions },
       expires: "2099-01-01T00:00:00.000Z",
     },
     status: "authenticated",

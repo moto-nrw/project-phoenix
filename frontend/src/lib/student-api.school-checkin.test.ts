@@ -32,7 +32,7 @@ import {
 describe("schoolCheckinStudent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetCachedSession.mockResolvedValue({ user: { token: "tok-1" } });
+    mockGetCachedSession.mockResolvedValue({ user: { id: "1" } });
   });
 
   afterEach(() => {
@@ -69,14 +69,14 @@ describe("schoolCheckinStudent", () => {
       changed: true,
     });
 
-    // Verify the proxy was called with the expected URL, method, body, and token.
+    // Verify the proxy was called with the expected URL, method and body;
+    // the route reads the session cookie, no token travels (#5005).
     expect(mockAuthFetch).toHaveBeenCalledWith(
       "/api/students/42/school-checkin",
-      expect.objectContaining({
+      {
         method: "POST",
         body: { action: "in" },
-        token: "tok-1",
-      }),
+      },
     );
   });
 
@@ -154,10 +154,9 @@ describe("schoolCheckinStudent", () => {
     );
   });
 
-  it("passes an undefined token when no session exists", async () => {
-    // Logged-out caller shouldn't crash — authFetch handles the missing
-    // token downstream (401 from the proxy). We just make sure we don't
-    // blow up trying to read `.token` off a null session.
+  it("leaves a logged-out caller to the proxy's 401", async () => {
+    // Logged-out caller shouldn't crash — the proxy answers 401 for the
+    // missing session cookie. No token is read or sent (#5005).
     mockGetCachedSession.mockResolvedValueOnce(null);
     mockAuthFetch.mockResolvedValueOnce({
       data: {
@@ -172,7 +171,7 @@ describe("schoolCheckinStudent", () => {
 
     expect(mockAuthFetch).toHaveBeenCalledWith(
       "/api/students/1/school-checkin",
-      expect.objectContaining({ token: undefined }),
+      expect.not.objectContaining({ token: expect.anything() }),
     );
   });
 });
@@ -180,7 +179,7 @@ describe("schoolCheckinStudent", () => {
 describe("schoolCheckinStudentsBatch", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetCachedSession.mockResolvedValue({ user: { token: "tok-1" } });
+    mockGetCachedSession.mockResolvedValue({ user: { id: "1" } });
   });
 
   afterEach(() => {
@@ -246,11 +245,10 @@ describe("schoolCheckinStudentsBatch", () => {
     // corrupt int64 IDs above 2^53-1 (review #2372).
     expect(mockAuthFetch).toHaveBeenCalledWith(
       "/api/students/school-checkin/batch",
-      expect.objectContaining({
+      {
         method: "POST",
         body: { action: "out", student_ids: ["42", "43", "99"] },
-        token: "tok-1",
-      }),
+      },
     );
   });
 
@@ -348,7 +346,7 @@ describe("schoolCheckinStudentsBatch", () => {
     });
   });
 
-  it("passes an undefined token when no session exists", async () => {
+  it("leaves a logged-out caller to the proxy's 401", async () => {
     mockGetCachedSession.mockResolvedValueOnce(null);
     mockAuthFetch.mockResolvedValueOnce({
       data: { action: "in", succeeded: 0, failed: 0, results: [] },
@@ -358,7 +356,7 @@ describe("schoolCheckinStudentsBatch", () => {
 
     expect(mockAuthFetch).toHaveBeenCalledWith(
       "/api/students/school-checkin/batch",
-      expect.objectContaining({ token: undefined }),
+      expect.not.objectContaining({ token: expect.anything() }),
     );
   });
 });

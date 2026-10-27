@@ -102,8 +102,7 @@ export default function OperatorOrganizationDetailPage({ params }: PageProps) {
 
 function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   const { slug } = use(params);
-  const { status, data: session } = useSession();
-  const operatorBearerToken = session?.user?.token ?? "";
+  const { status } = useSession();
   const isAuthenticated = status === "authenticated";
   const router = useRouter();
   const pathname = usePathname();
@@ -783,7 +782,6 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           onClose={() => setMfaResetMember(null)}
           scope="traeger"
           organizationId={organization.id}
-          bearerToken={operatorBearerToken}
           accountId={mfaResetMember.accountId}
           accountLabel={mfaResetMember.email}
         />

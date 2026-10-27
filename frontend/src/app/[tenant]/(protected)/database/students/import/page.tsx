@@ -213,7 +213,7 @@ export default function StudentImportPage() {
     try {
       await downloadImportTemplate(
         `/api/import/students/template?format=${templateFormat}`,
-        session?.user?.token,
+        session,
         templateFormat === "xlsx"
           ? "schueler-import-vorlage.xlsx"
           : "schueler-import-vorlage.csv",
@@ -250,7 +250,7 @@ export default function StudentImportPage() {
 
         const response = await postImportFile(
           "/api/import/students/preview",
-          session?.user?.token,
+          session,
           formData,
         );
         const result = response.body;
@@ -368,7 +368,7 @@ export default function StudentImportPage() {
 
       const response = await postImportFile(
         "/api/import/students/import",
-        session?.user?.token,
+        session,
         formData,
       );
       const result = response.body;

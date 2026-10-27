@@ -5,6 +5,7 @@ import { ApiError, apiErrorFromResponse, transportFetch } from "./api-error";
 // the caller may do via can_manage / can_upload / can_delete — the page
 // renders exactly that, no client-side authority.
 
+import { hasSessionAccess } from "./session-access";
 import { getCachedSession, sessionFetch } from "./session-cache";
 
 export type FolderVisibility = "all_staff" | "admins" | "selected";
@@ -256,9 +257,7 @@ class FilesService {
     const formData = new FormData();
     formData.append("file", file);
 
-    const session = await getCachedSession();
-    const token = session?.user?.token;
-    if (!token) {
+    if (!hasSessionAccess(await getCachedSession())) {
       throw new ApiError("Authentication required", 401, {
         code: "general.permission",
       });
@@ -271,7 +270,6 @@ class FilesService {
       {
         method: "POST",
         body: formData,
-        headers: { Authorization: `Bearer ${token}` },
       },
     );
     if (!response.ok) {

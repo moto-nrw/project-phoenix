@@ -36,7 +36,7 @@ function ActivePreviewBanner({
 }: {
   readonly previewTargetName?: string;
 }) {
-  const { data: session, update } = useSession();
+  const { update } = useSession();
   const tenantPath = useTenantAwarePath();
   const [isEnding, setIsEnding] = useState(false);
 
@@ -44,9 +44,10 @@ function ActivePreviewBanner({
     if (isEnding) return;
     setIsEnding(true);
     try {
-      // Das aktive Token IST das Vorschau-Token — vor dem Zurückschalten
-      // gelesen, weil der Server damit prüft, welche Vorschau endet.
-      await performEndStaffPreview(session?.user?.token, update, mutate);
+      // Das Ende geht vor dem Zurückschalten ins Protokoll: der Server liest
+      // das Vorschau-Token aus dem Sitzungs-Cookie und prüft damit, welche
+      // Vorschau endet.
+      await performEndStaffPreview(update, mutate);
     } catch (err) {
       // Bewusst ohne Meldung: scheitert das Zurückschalten, meldet
       // performEndStaffPreview die Sitzung ab. Die Neuladung unten führt dann
