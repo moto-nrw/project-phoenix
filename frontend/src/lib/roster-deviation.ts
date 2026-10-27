@@ -32,14 +32,14 @@ export interface OfferingPreviewChild {
   name: string;
 }
 
-export interface OfferingPreviewWeekday {
+interface OfferingPreviewWeekday {
   weekday: number;
   added: OfferingPreviewChild[];
   removed: OfferingPreviewChild[];
   keptCount: number;
 }
 
-export interface OfferingPreviewSegment {
+interface OfferingPreviewSegment {
   templateId: string;
   validFrom: string;
   /** Exclusive end; undefined for the open segment. */
@@ -58,7 +58,7 @@ interface BackendOfferingRef {
   name: string;
 }
 
-export interface BackendRosterDeviation {
+interface BackendRosterDeviation {
   template_id: number;
   offering: BackendOfferingRef;
   grade_levels?: number[] | null;
@@ -168,16 +168,6 @@ export function describeRosterDeviation(deviation: RosterDeviation): string {
   }
   parts.push(`passt zu „${deviation.offering.name}“`);
   return `Weicht von Anmeldungen ab: ${parts.join(" · ")}`;
-}
-
-export function deviationSelection(
-  deviation: RosterDeviation,
-): OfferingSelection {
-  return {
-    offeringIds: [deviation.offering.id],
-    gradeLevels: deviation.gradeLevels,
-    schoolClasses: deviation.schoolClasses,
-  };
 }
 
 /** One line naming which children of the offering the series takes. */

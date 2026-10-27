@@ -12,7 +12,7 @@ import { OfferingPreviewList } from "../offering-preview-list";
 import type { EventFormState } from "./form-model";
 
 /** The source rule as the editor would save it. */
-export function formOfferingSelection(form: EventFormState): OfferingSelection {
+function formOfferingSelection(form: EventFormState): OfferingSelection {
   return {
     offeringIds: form.sourceCareOfferingIds,
     gradeLevels:
