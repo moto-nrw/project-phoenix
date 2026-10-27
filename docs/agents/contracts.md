@@ -244,6 +244,8 @@ that IP. The IP crosses four hops:
 1. Cloudflare sets `CF-Connecting-IP`.
 2. Caddy trusts only the Cloudflare ranges (`trusted_proxies`) and sends
    exactly one `X-Forwarded-For {client_ip}` to frontend and backend.
+   Config: `deploy/caddy/Caddyfile`; checks and rollout:
+   [operations](operations.md#caddy-reverse-proxy).
 3. Every server-side backend call of the frontend forwards
    `canonicalForwardedFor` (rightmost valid `X-Forwarded-For`, `X-Real-IP`
    fallback) through `frontend/src/lib/client-headers.server.ts`:
