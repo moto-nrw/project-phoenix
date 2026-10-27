@@ -215,4 +215,39 @@ describe("MFAAdminOverrideModal", () => {
       await screen.findByText(/Beim nächsten Login im Träger-Portal/),
     ).toBeInTheDocument();
   });
+
+  it("resets a caterer's second factor by the caterer (#4497)", async () => {
+    global.fetch = ok({ status: "success", data: null });
+    render(
+      <MFAAdminOverrideModal
+        {...props}
+        scope="caterer"
+        catererId="5"
+        accountLabel="Küche (kueche@example.test)"
+      />,
+    );
+
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.getByText(/seine Passkeys bleiben/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/Grund/), {
+      target: { value: "Kein Zugriff mehr auf das Postfach" },
+    });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: /2FA endgültig zurücksetzen/ }),
+      );
+    });
+
+    const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(1);
+    const [url, init] = calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/operator/caterers/5/mfa");
+    expect(init.method).toBe("DELETE");
+    expect(JSON.parse(init.body as string)).toEqual({
+      reason: "Kein Zugriff mehr auf das Postfach",
+    });
+    expect(
+      await screen.findByText(/Er hat eine E-Mail bekommen/),
+    ).toBeInTheDocument();
+  });
 });

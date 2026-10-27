@@ -63,6 +63,7 @@ describe("CatererInvitationPage", () => {
     mocks.fetchCatererInvitation.mockResolvedValue(invitation);
     mocks.acceptCatererInvitation.mockResolvedValue(undefined);
     mocks.loginCaterer.mockResolvedValue({
+      status: "authenticated",
       accessToken: "access",
       refreshToken: "refresh",
     });
@@ -167,6 +168,26 @@ describe("CatererInvitationPage", () => {
     await waitFor(() => expect(mocks.signIn).toHaveBeenCalled());
     await vi.advanceTimersByTimeAsync(1600);
     expect(window.location.href).toBe("/caterer/login");
+  });
+
+  it("leaves the code of two-factor sign-in to the login page (#4497)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mocks.loginCaterer.mockResolvedValue({
+      status: "mfa_required",
+      challengeToken: "challenge",
+      maskedEmail: "k***@example.test",
+      trustedDeviceEnabled: true,
+    });
+    const submit = await renderPage();
+    fillPasswords(acceptedCredential());
+
+    fireEvent.click(submit);
+
+    expect(await screen.findByText("Konto erstellt")).toBeInTheDocument();
+    await waitFor(() => expect(mocks.loginCaterer).toHaveBeenCalled());
+    await vi.advanceTimersByTimeAsync(1600);
+    expect(window.location.href).toBe("/caterer/login");
+    expect(mocks.signIn).not.toHaveBeenCalled();
   });
 
   it("asks a caterer with an account only for the password", async () => {

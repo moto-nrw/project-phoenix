@@ -222,25 +222,114 @@ export async function acceptCatererInvitation(
  * Signs a caterer in at the backend. The token pair then seeds the caterer
  * NextAuth session; a refusal comes back as an ApiError with its code.
  */
+/** The answer of the caterer login (#4497): a session, or the second step. */
+export type CatererLoginResult =
+  | { status: "authenticated"; accessToken: string; refreshToken: string }
+  | {
+      status: "mfa_required";
+      challengeToken: string;
+      maskedEmail: string;
+      trustedDeviceEnabled: boolean;
+      trustedDeviceDays?: number;
+    };
+
+interface BackendCatererLogin {
+  status?: "authenticated" | "mfa_required";
+  access_token?: string;
+  refresh_token?: string;
+  challenge_token?: string;
+  masked_email?: string;
+  trusted_device_enabled?: boolean;
+  trusted_device_days?: number;
+}
+
 export async function loginCaterer(
   email: string,
   password: string,
-): Promise<{ accessToken: string; refreshToken: string }> {
+): Promise<CatererLoginResult> {
+  // The trusted-device cookie of this browser travels along (same origin),
+  // so a remembered device skips the code.
   const response = await transportFetch("/api/caterer/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ email, password }),
   });
   if (!response.ok) {
     throw await apiErrorFromResponse(response, "caterer login failed");
   }
-  const body = (await response.json()) as {
-    data: { access_token: string; refresh_token: string };
-  };
+  const { data } = (await response.json()) as { data: BackendCatererLogin };
+  if (data.status === "mfa_required") {
+    return {
+      status: "mfa_required",
+      challengeToken: data.challenge_token ?? "",
+      maskedEmail: data.masked_email ?? "",
+      trustedDeviceEnabled: data.trusted_device_enabled ?? false,
+      trustedDeviceDays: data.trusted_device_days,
+    };
+  }
   return {
-    accessToken: body.data.access_token,
-    refreshToken: body.data.refresh_token,
+    status: "authenticated",
+    accessToken: data.access_token ?? "",
+    refreshToken: data.refresh_token ?? "",
   };
+}
+
+/** The caterer's two-factor sign-in as the account page shows it (#4497). */
+export interface CatererMFAStatus {
+  enabled: boolean;
+  maskedEmail: string;
+}
+
+export async function fetchCatererMFAStatus(): Promise<CatererMFAStatus> {
+  const data = await authFetch<{ enabled: boolean; masked_email?: string }>(
+    "/api/caterer/account/mfa",
+  );
+  return { enabled: data.enabled, maskedEmail: data.masked_email ?? "" };
+}
+
+/** Mails the code that switches two-factor sign-in on. */
+export async function startCatererMFA(): Promise<{
+  challengeToken: string;
+  maskedEmail: string;
+}> {
+  const data = await authFetch<{
+    challenge_token: string;
+    masked_email?: string;
+  }>("/api/caterer/account/mfa/start", { method: "POST", body: {} });
+  return {
+    challengeToken: data.challenge_token,
+    maskedEmail: data.masked_email ?? "",
+  };
+}
+
+/**
+ * Switches two-factor sign-in on with the mailed code. The answer is a new
+ * session with the second factor proven; the caller seeds it, because the
+ * older sessions of the account lose access at their next renewal.
+ */
+export async function confirmCatererMFA(
+  challengeToken: string,
+  code: string,
+): Promise<{ accessToken: string; refreshToken: string }> {
+  const data = await authFetch<{
+    access_token: string;
+    refresh_token: string;
+  }>("/api/caterer/account/mfa/confirm", {
+    method: "POST",
+    body: { challenge_token: challengeToken, code },
+  });
+  return { accessToken: data.access_token, refreshToken: data.refresh_token };
+}
+
+/** Switches two-factor sign-in off after checking the current password. */
+export async function disableCatererMFA(
+  currentPassword: string,
+): Promise<void> {
+  await authFetch<unknown>("/api/caterer/account/mfa/disable", {
+    method: "POST",
+    body: { currentPassword },
+  });
 }
 
 export type DeliveryExportFormat = "pdf" | "xlsx" | "csv";

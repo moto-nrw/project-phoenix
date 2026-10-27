@@ -222,6 +222,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET operator /operator/billing/key-day",
     "PUT operator /operator/billing/key-day",
   ],
+  "api/operator/caterers": ["GET operator /operator/caterers"],
   "api/operator/profile": [
     "GET operator /operator/profile",
     "PUT operator /operator/profile",

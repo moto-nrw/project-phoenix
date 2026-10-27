@@ -279,6 +279,7 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
       "/operator/organizations",
       "/operator/schools",
       "/operator/accounts",
+      "/operator/caterers",
       "/operator/devices",
       "/operator/persons",
       "/operator/unregistered-tags",
@@ -343,6 +344,13 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
     label: "Konten",
     iconKey: "profile",
     concept: "accounts",
+    alwaysShow: true,
+  },
+  {
+    href: "/operator/caterers",
+    label: "Caterer",
+    iconKey: "profile",
+    concept: "mealPlan",
     alwaysShow: true,
   },
   {

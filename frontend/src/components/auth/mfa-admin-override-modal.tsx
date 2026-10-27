@@ -25,6 +25,7 @@ import {
   adminSetMFAOverride,
   operatorAdminGetGlobalMFAOverride,
   operatorAdminResetMFA,
+  operatorAdminResetCatererMFA,
   operatorAdminResetTraegerMFA,
   operatorAdminSetGlobalMFAOverride,
   operatorAdminSetMFAOverride,
@@ -62,10 +63,14 @@ interface Props {
    * reset only, scoped by the Träger membership. The Träger-Portal
    * requires the second factor without exception, so no override is
    * offered and no override state is loaded.
+   * "caterer" is the operator's reset of a caterer (#4497): reset only,
+   * scoped by the caterer. A caterer switches the second factor on
+   * voluntarily, so there is no override either.
    */
-  readonly scope?: "tenant" | "operator" | "traeger";
+  readonly scope?: "tenant" | "operator" | "traeger" | "caterer";
   readonly schoolId?: string;
   readonly organizationId?: string;
+  readonly catererId?: string;
 }
 
 function overrideLabel(override: MFAAdminOverride): string {
@@ -87,6 +92,7 @@ export function MFAAdminOverrideModal({
   scope = "tenant",
   schoolId,
   organizationId,
+  catererId,
 }: Props) {
   const toast = useToast();
   const [view, setView] = useState<View>({ kind: "form" });
@@ -252,7 +258,12 @@ export function MFAAdminOverrideModal({
     setIsWorking(true);
     resetErrors.clear();
     try {
-      if (scope === "traeger") {
+      if (scope === "caterer") {
+        if (!catererId) {
+          throw new Error("catererId is required for caterer scope");
+        }
+        await operatorAdminResetCatererMFA(catererId, trimmed);
+      } else if (scope === "traeger") {
         if (!organizationId) {
           throw new Error("organizationId is required for traeger scope");
         }
@@ -415,10 +426,9 @@ export function MFAAdminOverrideModal({
             >
               <FormErrorAlert message={resetErrors.error} />
               <p className="text-sm text-gray-600">
-                Die bestehende 2FA-Einrichtung und alle vertrauenswürdigen
-                Geräte werden entfernt. Beim nächsten Login wird der Account neu
-                durch das 2FA-Setup geführt. Die Aktion wird im Audit-Log mit
-                Ihrem Konto und dem angegebenen Grund erfasst.
+                {scope === "caterer"
+                  ? "Die 2FA-Einrichtung und alle vertrauenswürdigen Geräte des Caterers werden entfernt; seine Passkeys bleiben. Danach meldet er sich mit seinem Passwort an und kann die 2FA im Konto wieder einschalten. Er bekommt eine E-Mail. Die Aktion wird im Audit-Log mit Ihrem Konto und dem angegebenen Grund erfasst."
+                  : "Die bestehende 2FA-Einrichtung und alle vertrauenswürdigen Geräte werden entfernt. Beim nächsten Login wird der Account neu durch das 2FA-Setup geführt. Die Aktion wird im Audit-Log mit Ihrem Konto und dem angegebenen Grund erfasst."}
               </p>
               <div className="space-y-2">
                 <label
@@ -719,9 +729,11 @@ export function MFAAdminOverrideModal({
             Das 2FA-Setup für{" "}
             <span className="font-semibold">{accountLabel}</span> wurde
             vollständig entfernt.{" "}
-            {scope === "traeger"
-              ? "Beim nächsten Login im Träger-Portal wird der Account durch die 2FA-Einrichtung geführt; die laufende Träger-Sitzung endet. Die Änderung gilt für alle Portale dieses Accounts."
-              : "Beim nächsten Login kann sich der Account ohne 2FA-Code anmelden — oder wird, wenn 2FA für die Schule Pflicht ist, durch die 2FA-Einrichtung geführt."}
+            {scope === "caterer"
+              ? "Der Caterer meldet sich jetzt mit seinem Passwort an und kann die 2FA im Konto wieder einschalten. Er hat eine E-Mail bekommen."
+              : scope === "traeger"
+                ? "Beim nächsten Login im Träger-Portal wird der Account durch die 2FA-Einrichtung geführt; die laufende Träger-Sitzung endet. Die Änderung gilt für alle Portale dieses Accounts."
+                : "Beim nächsten Login kann sich der Account ohne 2FA-Code anmelden — oder wird, wenn 2FA für die Schule Pflicht ist, durch die 2FA-Einrichtung geführt."}
           </p>
           <div className="flex justify-end">
             <button

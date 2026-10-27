@@ -652,6 +652,7 @@ describe("proxy", () => {
       "/devices",
       "/persons",
       "/unregistered-tags",
+      "/caterers",
     ])("rewrites %s to /operator%s", (path) => {
       const res = proxy(
         makeRequest(`http://${OPERATOR_HOSTNAME}${path}`, OPERATOR_HOSTNAME),

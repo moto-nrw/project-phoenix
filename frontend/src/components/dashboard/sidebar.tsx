@@ -386,6 +386,14 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         alwaysShow: true,
       },
       {
+        href: "/operator/caterers",
+        label: "Caterer",
+        icon: navigationIcons.profile,
+        concept: "mealPlan",
+        activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
+        alwaysShow: true,
+      },
+      {
         href: "/operator/devices",
         label: "Geräte",
         icon: navigationIcons.device,

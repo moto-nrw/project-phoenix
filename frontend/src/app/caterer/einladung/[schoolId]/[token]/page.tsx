@@ -223,13 +223,19 @@ function AcceptForm({
     let target = catererPath("/caterer");
     try {
       const tokens = await loginCaterer(invitation.email, password);
-      const result = await signIn("caterer-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      });
-      if (result?.error) throw new Error(result.error);
+      if (tokens.status === "authenticated") {
+        const result = await signIn("caterer-credentials", {
+          redirect: false,
+          internalRefresh: "true",
+          token: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+        });
+        if (result?.error) throw new Error(result.error);
+      } else {
+        // Two-factor sign-in is on (#4497): the code is asked on the login
+        // page, which also sends it.
+        target = catererPath("/caterer/login");
+      }
     } catch (cause) {
       // Accepted, only the automatic sign-in failed: the login page works.
       logger.warn("caterer_signin_after_accept_failed", {
