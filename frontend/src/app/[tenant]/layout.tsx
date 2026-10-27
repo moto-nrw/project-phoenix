@@ -14,6 +14,7 @@ import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import {
   bookedModuleFields,
   normalizeAttendanceEditScope,
+  normalizeReasonPolicy,
   normalizeEarlyCheckoutTolerance,
   normalizeOverviewScope,
   normalizePresenceMode,
@@ -48,6 +49,7 @@ interface TenantResolveResponse {
   group_mode?: string;
   operational_overview_scope?: string;
   attendance_edit_scope?: string;
+  parent_request_reason_policy?: string;
   timetable_enabled?: boolean;
   show_timetable_counts?: boolean;
   meal_plan_enabled?: boolean;
@@ -185,6 +187,11 @@ async function fetchTenantInfo(
     ),
     attendanceEditScope: normalizeAttendanceEditScope(
       data.attendance_edit_scope,
+    ),
+    // „Anfragen“ reads it on the first render; without it the strict
+    // fallback asked for a reason on every approval (#5024).
+    parentRequestReasonPolicy: normalizeReasonPolicy(
+      data.parent_request_reason_policy,
     ),
     timetableEnabled: data.timetable_enabled !== false,
     showTimetableCounts: data.show_timetable_counts !== false,
