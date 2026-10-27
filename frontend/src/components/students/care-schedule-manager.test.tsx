@@ -744,6 +744,50 @@ describe("CareScheduleManager", () => {
     );
   });
 
+  it("updates an open week and its fetch range after Berlin midnight", async () => {
+    setTestClock("2026-05-29T23:59:00+02:00"); // Friday
+    const onVisibleDateRangeChange = vi.fn();
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        weekendFollowsFriday
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+
+    expect(mockFetchArrivalData).toHaveBeenCalledWith(
+      "42",
+      "2026-05-25",
+      "2026-05-29",
+    );
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-05-25",
+      "2026-05-29",
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    expect(mockFetchArrivalData).toHaveBeenCalledWith(
+      "42",
+      "2026-05-25",
+      "2026-05-31",
+    );
+    expect(mockFetchStudentPickupData).toHaveBeenCalledWith("42", {
+      from: "2026-05-25",
+      to: "2026-05-31",
+    });
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-05-25",
+      "2026-05-31",
+    );
+    expect(screen.getAllByText("Sa").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("So").length).toBeGreaterThan(0);
+  });
+
   it("uses the visible week's start date for weekly changes", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");

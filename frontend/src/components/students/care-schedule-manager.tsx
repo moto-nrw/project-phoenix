@@ -57,6 +57,7 @@ import {
   mergeSchedulesWithTemplate as mergeArrivalSchedulesWithTemplate,
   arrivalScheduleSourceLabel,
 } from "~/lib/arrival-schedule-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   createStudentPickupException,
   createStudentPickupNote,
@@ -312,10 +313,11 @@ export function CareScheduleManager({
   const [deletingStatusDayId, setDeletingStatusDayId] = useState<string | null>(
     null,
   );
+  const todayISO = useBerlinToday();
 
   const weekDays = useMemo(
-    () => getWeekDays(weekOffset, weekendFollowsFriday),
-    [weekOffset, weekendFollowsFriday],
+    () => getWeekDays(weekOffset, weekendFollowsFriday, todayISO),
+    [todayISO, weekOffset, weekendFollowsFriday],
   );
   const weekRange = useMemo(
     () =>
@@ -330,13 +332,15 @@ export function CareScheduleManager({
   const isEditingWeeklyView =
     isEditingWeekly && careDaysSource !== null && !readOnly;
 
-  function showWeek(offset: number): void {
-    setWeekOffset(offset);
-    const visibleDays = getWeekDays(offset, weekendFollowsFriday);
-    const firstDay = visibleDays[0];
-    const lastDay = visibleDays[visibleDays.length - 1];
+  useEffect(() => {
+    const firstDay = weekDays[0];
+    const lastDay = weekDays[weekDays.length - 1];
     if (!firstDay || !lastDay) return;
     onVisibleDateRangeChange?.(formatDateISO(firstDay), formatDateISO(lastDay));
+  }, [onVisibleDateRangeChange, weekDays]);
+
+  function showWeek(offset: number): void {
+    setWeekOffset(offset);
   }
 
   const statusDayByDate = useMemo(() => {

@@ -45,8 +45,8 @@ export function arrivalScheduleSourceLabel(
   return null;
 }
 
-function getWeekStart(weekOffset = 0): Date {
-  const today = parseISODate(berlinTodayISO());
+function getWeekStart(weekOffset = 0, todayISO = berlinTodayISO()): Date {
+  const today = parseISODate(todayISO);
   const dayOfWeek = today.getDay();
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const monday = new Date(today);
@@ -58,12 +58,14 @@ function getWeekStart(weekOffset = 0): Date {
 export function getWeekDays(
   weekOffset = 0,
   weekendFollowsFriday = false,
+  todayISO = berlinTodayISO(),
 ): Date[] {
-  const monday = getWeekStart(weekOffset);
+  const monday = getWeekStart(weekOffset, todayISO);
   const days: Date[] = [];
   const dayCount = careWeekDayCount(
     formatDateISO(monday),
     weekendFollowsFriday,
+    todayISO,
   );
   for (let i = 0; i < dayCount; i++) {
     const day = new Date(monday);
