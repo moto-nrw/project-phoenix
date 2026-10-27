@@ -116,6 +116,10 @@ func (seedTraegerBillingLettersStep) Run(ctx context.Context, rt *Runtime) error
 	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" || rt.Bootstrap.AdminPassword == "" {
 		return fmt.Errorf("the confirmation letter seed prerequisites are not available")
 	}
+	if skipped, _ := rt.Values[seedHolidayRegistrationsSkippedKey].(bool); skipped {
+		fmt.Println("  Abrechnung: no holiday run without registrations; no confirmation letters")
+		return nil
+	}
 	runID, ok := rt.Values[seedBillingRunKey].(int64)
 	if !ok || runID <= 0 {
 		return fmt.Errorf("the confirmation letters need the released holiday run")

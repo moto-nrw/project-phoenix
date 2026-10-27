@@ -70,8 +70,11 @@ jobs:
             if [[ "${{ github.event.inputs.environment }}" == "staging" ]]; then
               echo "environment=staging" >> "$GITHUB_OUTPUT"
             else
-              if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
-                echo "❌ Production and demo manual deploys must run from main (current ref: ${{ github.ref }})"
+              # Production runs from main only. The demo also runs from
+              # development, so a demo fix ships without a production release.
+              if [[ "${{ github.ref }}" != "refs/heads/main" ]] && \
+                 [[ "${{ inputs.environment }}" != "demo" || "${{ github.ref }}" != "refs/heads/development" ]]; then
+                echo "❌ Production manual deploys must run from main, demo deploys from main or development (current ref: ${{ github.ref }})"
                 exit 1
               fi
               case "${{ inputs.environment }}" in
@@ -648,7 +651,7 @@ jobs:
   # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-demo:
     needs: [check-environment, build-backend, build-frontend]
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.check-environment.outputs.environment == 'demo'
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development') && needs.check-environment.outputs.environment == 'demo'
     concurrency:
       group: deploy-demo
       cancel-in-progress: false
@@ -669,8 +672,8 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref }}
         run: |
-          if [[ "$REF_NAME" != "refs/heads/main" ]]; then
-            echo "Demo deploys must run from refs/heads/main, got $REF_NAME"
+          if [[ "$REF_NAME" != "refs/heads/main" && "$REF_NAME" != "refs/heads/development" ]]; then
+            echo "Demo deploys must run from refs/heads/main or refs/heads/development, got $REF_NAME"
             exit 1
           fi
           if [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
@@ -722,9 +725,36 @@ jobs:
             exit 1
           fi
 
+      # Health checks stayed green on 2026-10-27 while every visitor's demo
+      # order failed. One order proves the order path of the new release. A
+      # failure alarms in Slack; it rolls nothing back, the demo runtime
+      # cannot roll back by design (deploy-remote.sh).
+      - name: Order a demo school
+        id: smoke
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          SSH_HOST: ${{ secrets.DEMO_HOST }}
+        run: |
+          scp -i ~/.ssh/deploy_key scripts/demo-order-smoke.sh "root@$SSH_HOST:~/scripts/demo/demo-order-smoke.sh"
+          ssh -i ~/.ssh/deploy_key "root@$SSH_HOST" "DEMO_SMOKE_TIMEOUT_SECONDS=900 bash ~/scripts/demo/demo-order-smoke.sh"
+
       - name: Cleanup secrets
         if: always()
         run: rm -f ~/.ssh/deploy_key /tmp/demo.env
+
+      - name: Notify Slack about the failed demo order
+        if: steps.smoke.outcome == 'failure'
+        env:
+          WEBHOOK: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo '::warning::SLACK_DEPLOY_WEBHOOK secret not set, skipping Slack notification'
+            exit 0
+          fi
+          jq -n --arg run "$RUN_URL" '{text: ":rotating_light: Demo deployed, aber die Test-Bestellung einer Demo-Schule ist gescheitert. Interessenten bekommen keine Demo. \($run)"}' \
+            | curl -sS -X POST -H 'Content-Type: application/json' --data @- "$WEBHOOK" > /dev/null
 
       # Finalizes the release and records the deploy in Sentry (#3642).
       # A Sentry outage only warns; it never fails a finished deploy.
