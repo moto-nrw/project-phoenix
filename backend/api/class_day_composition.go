@@ -16,10 +16,10 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -44,6 +44,13 @@ func NewClassDay(
 	accessLog owners.AccessLogLedger, settings classDayWriteScopeSettings, broadcaster realtime.Broadcaster, logger *slog.Logger,
 ) classday.ClassDay {
 	deps.WriteScope = newClassDayWriteScope(settings)
+	deps.MorningChanged = func(ctx context.Context) {
+		if broadcaster != nil {
+			deliveryCompose.QueueArrivalScheduleChanged(ctx, classDayMorningBroadcaster{
+				broadcaster: broadcaster, tenantID: tenant.FromContext(ctx),
+			}, logger)
+		}
+	}
 	if settings != nil {
 		// operations.school_portal_morning_attendance (#4790): on unless the
 		// school switched it off.
@@ -99,10 +106,7 @@ func NewClassDayTripStatusDays(recorder classDayTripRecorder) classdayCompose.Cl
 type classDayTripStatusDays struct{ recorder classDayTripRecorder }
 
 func (b classDayTripStatusDays) RecordClassTrip(ctx context.Context, schoolClass string, studentIDs []int64, dates []timezone.Date, reason string) error {
-	want := schoolstructure.NormalizeClass(schoolClass)
-	err := b.recorder.RecordClassTrip(ctx, studentIDs, dates, reason, func(class string) bool {
-		return schoolstructure.NormalizeClass(class) == want
-	})
+	err := b.recorder.RecordClassTrip(ctx, studentIDs, dates, reason, sameClass(schoolClass))
 	var conflict *studentpresence.StudentStatusDayConflictError
 	switch {
 	case err == nil:
@@ -192,7 +196,10 @@ func (b classDayStatusDays) ActiveStatusDays(ctx context.Context, studentIDs []i
 	out := make([]classdayCompose.StatusDayEntry, 0, len(entries))
 	for _, entry := range entries {
 		if entry != nil {
-			out = append(out, classdayCompose.StatusDayEntry{StudentID: entry.StudentID, Status: entry.Status, ReportedAt: entry.ReportedAt})
+			out = append(out, classdayCompose.StatusDayEntry{
+				StudentID: entry.StudentID, Status: entry.Status, ReportedAt: entry.ReportedAt,
+				BySchool: entry.Source == absencerecords.StudentStatusSourceSchool,
+			})
 		}
 	}
 	return out, nil
@@ -354,4 +361,17 @@ func classHandoverStaffNames(staff classHandoverStaffRows) func(context.Context,
 		}
 		return names, nil
 	}
+}
+
+// classDayMorningBroadcaster reuses Delivery's queued school invalidation,
+// routing the notice to this school's student-update channel. The hub derives
+// class_day_changed for school clients; no notification preferences or child
+// data participate. The existing queue owns the after-commit boundary.
+type classDayMorningBroadcaster struct {
+	broadcaster realtime.Broadcaster
+	tenantID    int64
+}
+
+func (b classDayMorningBroadcaster) BroadcastToAll(event realtime.Event) error {
+	return b.broadcaster.BroadcastToTenant(b.tenantID, realtime.NewEvent(realtime.EventStudentUpdated, "", event.Data))
 }

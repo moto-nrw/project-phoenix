@@ -40,6 +40,7 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 				Departure: "Keine Angabe", Status: "sick", ReportedAt: &reportedAt,
 				MorningAttendance: &classday.DayMorningAttendance{Status: "absent", Source: "report"},
 				HandoverAbsent:    true,
+				StatusBySchool:    true,
 			},
 			{
 				FirstName: "Lisa", LastName: "NurListe", ListEntry: true, ListEntryID: 9007199254740993, Offerings: []string{},
@@ -54,6 +55,7 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 		},
 		CanHandOver:        true,
 		CanReadSharedNotes: true,
+		CanReportAbsences:  true,
 	}
 
 	got, err := json.Marshal(report)
@@ -70,7 +72,8 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 			 "day_hints": [{"body": "Hat Bauchweh", "author_name": "Frau Kurz", "own": true, "updated_at": "2026-08-05T05:00:00Z"}]},
 			{"student_id": 12, "first_name": "Nico", "last_name": "Krank", "registered": true, "stays_today": false,
 			 "offerings": [], "departure": "Keine Angabe", "status": "sick", "reported_at": "2026-08-05T05:00:00Z",
-			 "morning_attendance": {"status": "absent", "source": "report"}, "handover_absent": true},
+			 "morning_attendance": {"status": "absent", "source": "report"}, "handover_absent": true,
+			 "status_by_school": true},
 			{"student_id": 0, "first_name": "Lisa", "last_name": "NurListe", "list_entry": true,
 			 "list_entry_id": "9007199254740993", "registered": false, "stays_today": false, "offerings": []}
 		],
@@ -81,7 +84,8 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 		"can_write_homework": false,
 		"handover": {"handed_over_at": "2026-08-05T11:45:00Z", "handed_over_by": "Petra Lehrkraft", "absent_count": 1},
 		"can_hand_over": true,
-		"can_read_shared_notes": true
+		"can_read_shared_notes": true,
+		"can_report_absences": true
 	}`, string(got))
 
 	// The optionals stay omitted.
@@ -96,6 +100,9 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 	assert.NotContains(t, string(bare), `"handover"`)
 	assert.NotContains(t, string(bare), "handover_absent")
 	assert.Contains(t, string(bare), `"can_hand_over":false`, "the handover verdict is always on the wire")
+	assert.Contains(t, string(bare), `"can_report_absences":false`, "the report verdict is always on the wire (#4791)")
+	assert.NotContains(t, string(bare), "unreported")
+	assert.NotContains(t, string(bare), "status_by_school")
 }
 
 // TestArrivalExceptionErrorsKeepTheirMessages pins the error contract of the

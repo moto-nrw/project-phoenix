@@ -82,6 +82,12 @@ const (
 	CodeCareRequestSharingInvalid                        = "care.request_sharing_invalid"
 	CodeCareSickNoteDisabled                             = "care.sick_note_disabled"
 	CodeCareStaffManagedGuardianProtected                = "care.staff_managed_guardian_protected"
+	CodeClassdayAbsenceReportConflict                    = "classday.absence_report_conflict"
+	CodeClassdayAbsenceReportNoSchoolDay                 = "classday.absence_report_no_school_day"
+	CodeClassdayAbsenceReportNotFound                    = "classday.absence_report_not_found"
+	CodeClassdayAbsenceReportNotMissing                  = "classday.absence_report_not_missing"
+	CodeClassdayAbsenceReportNotToday                    = "classday.absence_report_not_today"
+	CodeClassdayAbsenceReportUnknownChild                = "classday.absence_report_unknown_child"
 	CodeClassdayArrivalExceptionClassNotFound            = "classday.arrival_exception_class_not_found"
 	CodeClassdayArrivalExceptionEditorRequired           = "classday.arrival_exception_editor_required"
 	CodeClassdayArrivalExceptionPastDate                 = "classday.arrival_exception_past_date"
@@ -296,12 +302,6 @@ const (
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
 	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
-	CodeIdentityDemoAccessRateLimited                    = "identity.demo_access_rate_limited"
-	CodeIdentityDemoAccessUnknown                        = "identity.demo_access_unknown"
-	CodeIdentityDemoCapacityReached                      = "identity.demo_capacity_reached"
-	CodeIdentityDemoSchoolPreparing                      = "identity.demo_school_preparing"
-	CodeIdentityDemoSession                              = "identity.demo_session"
-	CodeIdentityEmailAlreadyExists                       = "identity.email_already_exists"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -385,6 +385,12 @@ var errorCodeClasses0 = map[string]string{
 	"care.request_sharing_invalid":                         "input",
 	"care.sick_note_disabled":                              "permission",
 	"care.staff_managed_guardian_protected":                "permission",
+	"classday.absence_report_conflict":                     "business_rejection",
+	"classday.absence_report_no_school_day":                "input",
+	"classday.absence_report_not_found":                    "business_rejection",
+	"classday.absence_report_not_missing":                  "business_rejection",
+	"classday.absence_report_not_today":                    "input",
+	"classday.absence_report_unknown_child":                "business_rejection",
 	"classday.arrival_exception_class_not_found":           "business_rejection",
 	"classday.arrival_exception_editor_required":           "permission",
 	"classday.arrival_exception_past_date":                 "input",
@@ -599,12 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
 	"identity.demo_access_invalid":                         "input",
-	"identity.demo_access_rate_limited":                    "unavailable",
-	"identity.demo_access_unknown":                         "input",
-	"identity.demo_capacity_reached":                       "unavailable",
-	"identity.demo_school_preparing":                       "unavailable",
-	"identity.demo_session":                                "permission",
-	"identity.email_already_exists":                        "business_rejection",
 }
 
 func init() {

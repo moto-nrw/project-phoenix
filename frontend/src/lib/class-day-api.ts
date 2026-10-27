@@ -48,6 +48,11 @@ export interface ClassDayRow {
   // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind bei der
   // heutigen Übergabe als „nicht da“ markiert.
   handover_absent?: boolean;
+  // Fehlt ohne Meldung (#4791): von der Lehrkraft als fehlend markiert, ohne
+  // Krankmeldung, Entschuldigung oder Klassenfahrt.
+  unreported?: boolean;
+  // Den Status hat die Schulverwaltung nachgetragen (#4791).
+  status_by_school?: boolean;
 }
 
 interface ClassDayHomeworkFeedback {

@@ -627,9 +627,10 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    // 25 seit #4797: die Beobachtungen der OGS (24 seit #4800, 23 seit
-    // #4795, 22 seit #4901).
-    expect(teacherTopics).toHaveLength(25);
+    // 26 seit #4797: die Beobachtungen der OGS (25 seit #4791: die
+    // nachgetragene Meldung der Schulverwaltung, 24 seit #4800: der
+    // Elternbrief an die eigene Klasse, 23 seit #4795, 22 seit #4901).
+    expect(teacherTopics).toHaveLength(26);
     expect([...visible]).toEqual(
       expect.arrayContaining([
         HELP_TOPICS.teacherHomework,
@@ -639,6 +640,7 @@ describe("getParentHelpTopicForPath", () => {
     );
     expect(visible.has(HELP_TOPICS.teacherCalendar)).toBe(true);
     expect(visible.has(HELP_TOPICS.teacherParentLetters)).toBe(true);
+    expect(visible.has(HELP_TOPICS.teacherAbsenceReport)).toBe(true);
     expect(
       teacherTopics.every(
         (topic) =>

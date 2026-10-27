@@ -36,7 +36,7 @@ func QueueInstanceStarted(ctx context.Context, broadcaster realtime.Broadcaster,
 // QueueArrivalScheduleChanged announces an arrival schedule change after the
 // surrounding transaction commits. The root binds it to the class day's
 // announcer.
-func QueueArrivalScheduleChanged(ctx context.Context, broadcaster realtime.Broadcaster, logger *slog.Logger) {
+func QueueArrivalScheduleChanged(ctx context.Context, broadcaster interface{ BroadcastToAll(realtime.Event) error }, logger *slog.Logger) {
 	realtimeevents.QueueArrivalScheduleChanged(ctx, broadcaster, logger)
 }
 

@@ -2,6 +2,12 @@
 package common
 
 const (
+	CodeTimetableCalendarPeriodNameTaken               = "timetable.calendar_period_name_taken"
+	CodeTimetableCalendarPeriodNotFound                = "timetable.calendar_period_not_found"
+	CodeTimetableCalendarPeriodOverlapConflict         = "timetable.calendar_period_overlap_conflict"
+	CodeTimetableCalendarPeriodRosterConflict          = "timetable.calendar_period_roster_conflict"
+	CodeTimetableCalendarPeriodWeekCycleAnchorMissing  = "timetable.calendar_period_week_cycle_anchor_missing"
+	CodeTimetableClosingDayEndBeforeStart              = "timetable.closing_day_end_before_start"
 	CodeTimetableClosingDayInvalid                     = "timetable.closing_day_invalid"
 	CodeTimetableClosingDayNotFound                    = "timetable.closing_day_not_found"
 	CodeTimetableCompleteTooEarly                      = "timetable.complete_too_early"
@@ -206,6 +212,12 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.calendar_period_name_taken":                 "business_rejection",
+	"timetable.calendar_period_not_found":                  "business_rejection",
+	"timetable.calendar_period_overlap_conflict":           "business_rejection",
+	"timetable.calendar_period_roster_conflict":            "business_rejection",
+	"timetable.calendar_period_week_cycle_anchor_missing":  "input",
+	"timetable.closing_day_end_before_start":               "input",
 	"timetable.closing_day_invalid":                        "input",
 	"timetable.closing_day_not_found":                      "business_rejection",
 	"timetable.complete_too_early":                         "business_rejection",

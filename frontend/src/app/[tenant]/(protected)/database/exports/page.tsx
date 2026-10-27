@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { useModuleBooked } from "~/lib/tenant-context";
+import { useModuleBooked, useTimetableEnabled } from "~/lib/tenant-context";
 import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
 import {
@@ -19,8 +19,6 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StudentExportModal } from "~/components/students/student-export-modal";
 import { StaffBirthdayExportModal } from "~/components/staff/staff-birthday-export-modal";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { getSettingValue } from "~/lib/settings-api";
 import { Button } from "~/components/ui/button";
 import {
   ExportMenu,
@@ -88,17 +86,12 @@ export default function DatabaseExportsPage() {
   // Ein Export ist eine Aktion ohne Formular: Fehler als Toast mit
   // Wiederholen (#2517).
   const { show: showExportError } = useApiErrorDisplay();
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
   // Slot lists are part of the timetable feature; hide the entry when a tenant
   // has explicitly disabled it (#1565 review), mirroring the sidebar and the
-  // Betreuungsplan/Vertretung route guards. getSettingValue returns undefined
-  // when the user cannot read settings, so the card stays visible by default.
-  const { data: settingsSchema } = useSettingsSchema(
-    status === "authenticated",
-    { revalidateOnFocus: false, revalidateOnReconnect: false },
-  );
-  const timetableDisabled =
-    getSettingValue(settingsSchema, "timetable.enabled") === false;
+  // Betreuungsplan/Vertretung route guards; the flag comes from the tenant
+  // resolve (#4996).
+  const timetableDisabled = !useTimetableEnabled();
   // "Wer ist wo" hits POST /api/rooms/export, which requires rooms:read on top
   // of the users:read that gates this page. Without rooms:read the export 403s,
   // so hide the card rather than offer a button that always fails.

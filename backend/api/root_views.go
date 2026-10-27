@@ -171,6 +171,7 @@ func buildClassDayViews(
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
 	homework timetable.HomeworkBook,
 	emitter presenceStudentsHTTP.GuardianWake, classTeachers schoolstructure.StaffGroupQuery,
+	notifications owners.DeliveryNotifications,
 ) (ClassDayViews, error) {
 	classDayReads, err := arrivalTimetable.NewPresenceReads(owners.NewTimetablePresenceProjection(db))
 	if err != nil {
@@ -190,8 +191,13 @@ func buildClassDayViews(
 		StudentNoteDependencies: classdayCompose.StudentNoteDependencies{
 			DayHints: persons, Today: calendar.CalendarDateClock(env.Now), SharedNotes: persons, ClassTeachers: classTeachers,
 		},
-		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
-		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
+		MorningAttendanceDependencies: withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
+			presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
+				AbsenceNotifier: studentAbsenceNotifier{notifier: notifications.AbsenceNotifier},
+				Broadcaster:     hub, Logger: env.Logger.With("service", "class-day-absence-reports"), ParentEventEmitter: emitter,
+				PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
+			}, presence.Presence), audit.Persistence.StudentFieldEdit, notifications.UnreportedAbsences),
+		HomeworkDependencies: classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence.Presence, HandoverStaffNames: classHandoverStaffNames(people.Staff),
 		},

@@ -64,8 +64,12 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	pagination := common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}
 	// Projection happens last, after every filter, sort and pagination step has
 	// run on the full responses — the two views differ on the wire only (#2097).
-	if params.slimView {
+	switch params.view {
+	case StudentListViewSlim:
 		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses, plan.departureDate), pagination, "Students retrieved successfully")
+		return
+	case StudentListViewNames:
+		common.RespondPaginated(w, r, http.StatusOK, nameStudentResponses(responses), pagination, "Students retrieved successfully")
 		return
 	}
 	common.RespondPaginated(w, r, http.StatusOK, responses, pagination, "Students retrieved successfully")
@@ -88,11 +92,11 @@ type studentListPlan struct {
 // before that query runs, not after it (#1939).
 func (rs *Resource) parseStudentListPlan(r *http.Request) (studentListPlan, render.Renderer) {
 	params := parseStudentListParams(r)
-	slimView, viewErr := parseStudentListView(r.URL.Query().Get("view"))
+	view, viewErr := parseStudentListView(r.URL.Query().Get("view"))
 	if viewErr != nil {
 		return studentListPlan{}, common.ErrorInvalidRequest(viewErr)
 	}
-	params.slimView = slimView
+	params.view = view
 	careStatus, careErr := careStatusFromRequest(r)
 	if careErr != nil {
 		return studentListPlan{}, careErr

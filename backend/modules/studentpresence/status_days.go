@@ -142,6 +142,13 @@ type StatusDayWriteContext struct {
 	// AfterCommit so bulk writes can emit one aggregate absence notification
 	// while retaining the per-student SSE fan-out.
 	AfterCreate func(context.Context, []int64) error
+	// ValidateLocked rechecks a caller-specific precondition after acquiring
+	// the student and day locks, before any status or live flags change.
+	ValidateLocked func(context.Context) error
+	// Source is the source the written rows carry; empty writes the planned
+	// source of the OGS's own status-day write. The Schulverwaltung's report
+	// in moto schule writes the school source (#4791).
+	Source string
 }
 
 // ApplyLiveStatusForToday mutates a student's live sick/excused flags to reflect
@@ -240,3 +247,6 @@ type StatusDayWindow struct {
 type DatabaseHandle interface {
 	PingContext(context.Context) error
 }
+
+// ErrSchoolAbsenceReportNotFound refuses withdrawal of a replaced school report.
+var ErrSchoolAbsenceReportNotFound = errors.New("no school absence report to withdraw")

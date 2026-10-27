@@ -38506,6 +38506,50 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me.SchoolSettings.ResolveBool",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform",
+      "binding_digest": "117b8ae7b0ccf9cc7f2d9194166334a5",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only settings lookup: identity-access reads the school switches of the signed-in navigation context (#4996) through modules/identityaccess/inbound/me.SchoolSettings.ResolveBool inside the request tenant transaction. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me.SchoolSettings.ResolveBool",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform",
+      "binding_digest": "487db5ae7aba1ac5f9a2ed3ae533d6ed",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only settings lookup: identity-access reads the school switches of the signed-in navigation context (#4996) through modules/identityaccess/inbound/me.SchoolSettings.ResolveBool inside the request tenant transaction. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me.SchoolSettings.ResolveString",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "1b8779220b9eeeb82b51a5f08ab2a5c9",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only settings lookup: identity-access reads the school switches of the signed-in navigation context (#4996) through modules/identityaccess/inbound/me.SchoolSettings.ResolveString inside the request tenant transaction. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me.SchoolSettings.ResolveString",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "9240d8f903f3c242c1811ef88e6398b1",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only settings lookup: identity-access reads the school switches of the signed-in navigation context (#4996) through modules/identityaccess/inbound/me.SchoolSettings.ResolveString inside the request tenant transaction. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.CallerActivities.SupervisedActivityGroupIDs",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerActivities.SupervisedActivityGroupIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.CallerActivityGroups.SupervisedActivityGroupIDs",
@@ -79540,6 +79584,30 @@
       "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.DeleteStatusDay",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.DeleteStatusDay",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
+      "target_owner": "care-plan",
+      "binding_digest": "ce82531371064e2e4b794a26283c0ae0",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Care Plan provides the existing per-student/day lock inside the caller tenant transaction. Withdrawal acquires it after the student lock and rechecks the current source before clearing; no additional unit or durable side effect is introduced."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.DeleteStatusDay",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.DeleteStatusDay",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
+      "target_owner": "care-plan",
+      "binding_digest": "f7d6d125aae954138994a69891a73211",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Care Plan provides the existing per-student/day lock inside the caller tenant transaction. Withdrawal acquires it after the student lock and rechecks the current source before clearing; no additional unit or durable side effect is introduced."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.DeleteStatusDay",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.DeleteStatusDay",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayService.now",
       "target_owner": "",
       "binding_digest": "d60b031c35cbb437bc8237250849a17e",
@@ -85267,6 +85335,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.LockGroup. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.LockMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.LockMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Retrieves the existing tenant transaction handle only; the morning-row lock is owned by Student Presence and is not performed by this Tenant Runtime target."
     },
     {
       "source_owner": "student-presence",
@@ -94752,6 +94831,30 @@
       "classification": "leaf",
       "adr": "0067",
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.ReopenActivitySession; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RequireAbsentMorningAttendance",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RequireAbsentMorningAttendance",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RequireAbsentMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "edce5aa8dcd3bec320f40bab8ee617ec",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Student Presence locks its morning-attendance row and requires the latest mark to remain absent. The caller already holds student/day locks; this target-local guard joins that tenant transaction and writes no records. Exposed Owner method surface does not assert production liveness from Timetable."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RequireAbsentMorningAttendance",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RequireAbsentMorningAttendance",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.RequireAbsentMorningAttendance",
+      "target_owner": "student-presence",
+      "binding_digest": "c58a23fce032ceba6350057ba0d38bf8",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Student Presence locks its morning-attendance row and requires the latest mark to remain absent. The caller already holds student/day locks; this target-local guard joins that tenant transaction and writes no records. Exposed Owner method surface does not assert production liveness from Timetable."
     },
     {
       "source_owner": "timetable-activities",

@@ -411,7 +411,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			classDay, err = buildClassDayViews(db, env, hub, caller, flows.Reports, carePlanRows, schedules, carePlan, people, audit,
-				settings.Service, lifecycle.Operations, presence, persons, groups, rooms, renderer, timetableOwner, emitter, staffGroups)
+				settings.Service, lifecycle.Operations, presence, persons, groups, rooms, renderer, timetableOwner, emitter, staffGroups, notifications)
 			return
 		},
 		func() error {
@@ -552,7 +552,7 @@ func composeServeRoot(
 				structureViews.Education, renderer, activities, timetableOwner, iot, settingsWrites, organizations, carePlan, audit.Persistence.DataAccessLog,
 				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource)
 			mountPeopleRoutes(tenant, db, logger, reports, renderer, persons, services.Guardian, identity, caller, feedback, mealPlan,
-				birthdays, emergency)
+				birthdays, emergency, settings.Service)
 			mountCalendarRoutes(router, tenant, logger, calendarApp)
 			return errors.Join(mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication),
 				mountDeliveryRoutes(router, tenant, logger, fileStore, parent, hub, caller, identity))

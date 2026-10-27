@@ -231,6 +231,7 @@ export const HELP_TOPICS = {
   teacherChildDetails: "als-lehrkraft-angaben-zu-einem-kind-ansehen",
   teacherArrivalChange: "ankunftszeit-meiner-klasse-aendern",
   teacherClassTrip: "ausflug-oder-klassenfahrt-melden",
+  teacherAbsenceReport: "meldung-fuer-ein-fehlendes-kind-nachtragen",
   teacherDayHint: "der-ogs-einen-hinweis-fuer-heute-geben",
   teacherSharedNotes: "beobachtungen-der-ogs-lesen",
   teacherSupervision: "meine-aufsichten-ansehen",
