@@ -52,7 +52,8 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 		Handover: &classday.DayHandover{
 			HandedOverAt: time.Date(2026, 8, 5, 11, 45, 0, 0, time.UTC), HandedOverBy: "Petra Lehrkraft", AbsentCount: 1,
 		},
-		CanHandOver: true,
+		CanHandOver:        true,
+		CanReadSharedNotes: true,
 	}
 
 	got, err := json.Marshal(report)
@@ -79,7 +80,8 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 		"can_record_morning_attendance": true,
 		"can_write_homework": false,
 		"handover": {"handed_over_at": "2026-08-05T11:45:00Z", "handed_over_by": "Petra Lehrkraft", "absent_count": 1},
-		"can_hand_over": true
+		"can_hand_over": true,
+		"can_read_shared_notes": true
 	}`, string(got))
 
 	// The optionals stay omitted.
@@ -88,6 +90,7 @@ func TestDayReportKeepsTheWireShape(t *testing.T) {
 	assert.NotContains(t, string(bare), "class_arrival_exception")
 	assert.NotContains(t, string(bare), "phase_name")
 	assert.Contains(t, string(bare), `"can_record_morning_attendance":false`, "the verdict is always on the wire")
+	assert.Contains(t, string(bare), `"can_read_shared_notes":false`, "the shared-notes verdict is always on the wire (#4797)")
 	assert.Contains(t, string(bare), `"can_write_homework":false`, "the homework verdict is always on the wire")
 	assert.NotContains(t, string(bare), `"homework"`, "a day without homework carries no list")
 	assert.NotContains(t, string(bare), `"handover"`)
