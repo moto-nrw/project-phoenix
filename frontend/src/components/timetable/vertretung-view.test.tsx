@@ -446,6 +446,40 @@ describe("VertretungView", () => {
     expect(props.instances.map((i: EnrichedInstance) => i.id)).toEqual(["44"]);
   });
 
+  it("adds the weekend to an open week after Berlin midnight", () => {
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    setTestClock("2026-07-17T23:59:00+02:00"); // Friday
+    vi.useFakeTimers();
+    mockSearch.value = "view=woche&d=2026-07-17";
+    render(<VertretungView />);
+
+    expect(
+      screen.getByRole("button", {
+        name: "Fr 17.07. als Tagesansicht öffnen",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Sa 18.07. als Tagesansicht öffnen",
+      }),
+    ).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: "Sa 18.07. als Tagesansicht öffnen",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "So 19.07. als Tagesansicht öffnen",
+      }),
+    ).toBeInTheDocument();
+  });
+
   it("defaults to next Monday on a weekend and disables the Heute button", () => {
     // Samstag 2026-07-18, Berlin (Sommerzeit UTC+2).
     vi.setSystemTime(new Date("2026-07-18T12:00:00Z"));

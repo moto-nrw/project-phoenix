@@ -147,10 +147,14 @@ export function roomPlanStepWeek(mondayISO: string, direction: 1 | -1): string {
  * Montag bis Freitag der Woche von `iso`; bis Sonntag nur in der Woche mit
  * dem heutigen Wochenende (`careWeekDayCount`, #5028).
  */
-export function roomPlanWeekDays(iso: string, weekendOpen: boolean): string[] {
+export function roomPlanWeekDays(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO?: string,
+): string[] {
   const monday = shiftDays(iso, -((parseISODate(iso).getDay() + 6) % 7));
   return Array.from(
-    { length: careWeekDayCount(iso, weekendOpen) },
+    { length: careWeekDayCount(iso, weekendOpen, todayISO) },
     (_, index) => shiftDays(monday, index),
   );
 }

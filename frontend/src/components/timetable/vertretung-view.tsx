@@ -72,12 +72,12 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
-  berlinTodayISO,
   careWeekDayCount,
   isValidISODate,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
@@ -179,6 +179,7 @@ function VertretungContent() {
   const tenantMutate = useTenantMutate();
   const { dayStartHour, dayEndHour } = useTimetableDayHours();
   const weekendOpen = useWeekendFollowsFriday();
+  const today = useBerlinToday();
 
   // Lesen braucht `schedules:read` (die Listen-Endpunkte), jeder Save braucht
   // `schedules:manage`. Ohne canManage werden alle Editier-Kontrollen
@@ -211,7 +212,7 @@ function VertretungContent() {
   // in die Fetch-Fenster zu speisen.
   const rawDay = params.d;
   const dayISO = careDayISO(
-    rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO(),
+    rawDay !== null && isValidISODate(rawDay) ? rawDay : today,
     weekendOpen,
   );
   const selectedInstanceId = params.block;
@@ -222,7 +223,6 @@ function VertretungContent() {
   const view: VertretungViewMode = params.view === "woche" ? "woche" : "tag";
   const isWeekView = view === "woche";
 
-  const today = berlinTodayISO();
   // Ziel des Heute-Buttons: am Wochenende der nächste Montag, außer die
   // Schule betreut dort nach dem Freitagsplan. `today` selbst bleibt überall
   // sonst der echte Kalendertag (isPast, Gaps-Klemmung).
@@ -237,8 +237,11 @@ function VertretungContent() {
   // Sa/So nur in der Woche mit dem heutigen Wochenende (#5028).
   const weekDays = useMemo(
     () =>
-      getWeekdays(range.from).slice(0, careWeekDayCount(fromISO, weekendOpen)),
-    [range.from, fromISO, weekendOpen],
+      getWeekdays(range.from).slice(
+        0,
+        careWeekDayCount(fromISO, weekendOpen, today),
+      ),
+    [range.from, fromISO, today, weekendOpen],
   );
   // Das Label endet am letzten sichtbaren Betreuungstag.
   const weekLabel = useMemo(

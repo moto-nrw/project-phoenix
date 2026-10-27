@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
@@ -254,15 +260,16 @@ describe("CarePlanView", () => {
     expect(screen.getAllByText("So")).not.toHaveLength(0);
   });
 
-  it("updates an open week to include the weekend after Berlin midnight", async () => {
+  it("updates an open week to include the weekend after Berlin midnight", () => {
     vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
     setTestClock(new Date("2026-09-11T23:59:00+02:00")); // Friday
+    vi.useFakeTimers();
     setSWR(
       { data: mockDay, isLoading: false, error: null },
       { data: mockWeek, isLoading: false, error: null },
     );
     const onVisibleDateRangeChange = vi.fn();
-    const view = render(
+    render(
       <CarePlanView
         studentId="1"
         statusDays={[]}
@@ -276,23 +283,15 @@ describe("CarePlanView", () => {
       "2026-09-11",
     );
 
-    setTestClock(new Date("2026-09-12T00:01:00+02:00")); // Saturday
-    view.rerender(
-      <CarePlanView
-        studentId="1"
-        statusDays={[]}
-        onVisibleDateRangeChange={onVisibleDateRangeChange}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
-        "2026-09-07",
-        "2026-09-13",
-      );
-      expect(screen.getAllByText("Sa")).not.toHaveLength(0);
-      expect(screen.getAllByText("So")).not.toHaveLength(0);
+    act(() => {
+      vi.advanceTimersByTime(60_000);
     });
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-09-07",
+      "2026-09-13",
+    );
+    expect(screen.getAllByText("Sa")).not.toHaveLength(0);
+    expect(screen.getAllByText("So")).not.toHaveLength(0);
     expect(
       vi
         .mocked(useSWRAuth)

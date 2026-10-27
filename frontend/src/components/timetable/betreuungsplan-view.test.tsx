@@ -1440,6 +1440,21 @@ describe("BetreuungsplanView", () => {
       expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
     });
 
+    it("erweitert eine offene Wochenansicht nach Berliner Mitternacht", () => {
+      setTestClock(new Date("2026-09-11T23:59:00+02:00")); // Freitag
+      vi.useFakeTimers();
+      setUrl("d=2026-09-11");
+      render(<BetreuungsplanView />);
+
+      expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
+
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+
+      expect(screen.getByTestId("grid-week-days")).toHaveTextContent("7");
+    });
+
     it("navigiert am Wochenende in der Tagesansicht auch über Samstag und Sonntag", () => {
       setTestClock(new Date("2026-05-09T12:00:00+02:00")); // Samstag
       setUrl("view=tag&d=2026-05-08");

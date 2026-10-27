@@ -50,7 +50,8 @@ import { canReadSupervisionData, hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { createCrudService } from "~/lib/database/service-factory";
-import { berlinTodayISO, isValidISODate } from "~/lib/date-helpers";
+import { isValidISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import { exportPlan } from "~/lib/plan-export-api";
 import { NO_PLAN_FILTER } from "~/lib/plan-filter";
@@ -197,11 +198,10 @@ function RoomDetailPageContent() {
   );
 
   // Zeitraum des Reiters „Plan“: ein ungültiges `d` fällt still auf heute.
+  const todayISO = useBerlinToday();
   const rawPlanDay = searchParams.get("d");
   const planAnchorISO =
-    rawPlanDay !== null && isValidISODate(rawPlanDay)
-      ? rawPlanDay
-      : berlinTodayISO();
+    rawPlanDay !== null && isValidISODate(rawPlanDay) ? rawPlanDay : todayISO;
   // Der Reiter zeigt Wochenend-Deeplinks ohne Wochenendbetreuung ab Montag.
   // Der Druck muss dieselbe angezeigte Woche verwenden.
   const planExportDayISO = roomPlanCareDay(planAnchorISO, weekendOpen);

@@ -18,11 +18,8 @@ import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
-import {
-  berlinTodayISO,
-  formatWeekLabel,
-  parseISODate,
-} from "~/lib/date-helpers";
+import { formatWeekLabel, parseISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import {
@@ -45,11 +42,19 @@ export type { RoomPlanView } from "./room-plan-navigation";
 /** Die angezeigten Tage: ein Betreuungstag oder dessen Woche. */
 function useRoomPlanDays(view: RoomPlanView, anchorISO: string) {
   const weekendOpen = useWeekendFollowsFriday();
+  const todayISO = useBerlinToday();
   const dayISO = roomPlanCareDay(anchorISO, weekendOpen);
   return useMemo(() => {
-    if (view === "tag") return { dayISO, days: [dayISO], weekendOpen };
-    return { dayISO, days: roomPlanWeekDays(dayISO, weekendOpen), weekendOpen };
-  }, [dayISO, view, weekendOpen]);
+    if (view === "tag") {
+      return { dayISO, days: [dayISO], todayISO, weekendOpen };
+    }
+    return {
+      dayISO,
+      days: roomPlanWeekDays(dayISO, weekendOpen, todayISO),
+      todayISO,
+      weekendOpen,
+    };
+  }, [dayISO, todayISO, view, weekendOpen]);
 }
 /** SWR-Schlüssel der Blöcke eines Raums im angezeigten Zeitraum. */
 function roomPlanKey(roomId: string, from: string, to: string): string {
@@ -76,8 +81,11 @@ export function RoomPlanControls({
   planHref,
   planLinkLabel,
 }: RoomPlanControlsProps) {
-  const { dayISO, days, weekendOpen } = useRoomPlanDays(view, anchorISO);
-  const todayTarget = roomPlanCareDay(berlinTodayISO(), weekendOpen);
+  const { dayISO, days, todayISO, weekendOpen } = useRoomPlanDays(
+    view,
+    anchorISO,
+  );
+  const todayTarget = roomPlanCareDay(todayISO, weekendOpen);
   const showsToday = days.includes(todayTarget);
   const label =
     view === "tag"

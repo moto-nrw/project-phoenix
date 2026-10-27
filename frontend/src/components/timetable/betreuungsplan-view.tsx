@@ -118,6 +118,7 @@ import {
   isValidISODate,
   parseISODate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   findPeriodForDate,
   mapPeriodsForDates,
@@ -293,6 +294,7 @@ function TimetablesContent() {
   const { show: showActionError } = useApiErrorDisplay();
   const tenantMutate = useTenantMutate();
   const tenantPath = useTenantAwarePath();
+  const todayISO = useBerlinToday();
 
   // Sichtbares Datum, Ansicht und geöffneter Block werden bei jedem Render aus
   // den Search-Params abgeleitet (keine Offset-Arithmetik, kein weekOffset-State
@@ -300,7 +302,7 @@ function TimetablesContent() {
   // `view` auf die Woche.
   const rawDay = params.d;
   const requestedDayISO =
-    rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
+    rawDay !== null && isValidISODate(rawDay) ? rawDay : todayISO;
   // Leseansicht (#2283, #2621): Nicht-Planende sehen Tag und Woche — ein
   // ?view=monat/serien-Deeplink fällt still auf die Woche zurück.
   const requestedView = parseViewParam(params.view);
@@ -335,7 +337,6 @@ function TimetablesContent() {
   const planFilterActive = isPlanFilterActive(planFilter);
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
-  const todayISO = useMemo(() => berlinTodayISO(), []);
   const todayTargetISO = useMemo(
     () => careDayISO(todayISO, weekendOpen),
     [todayISO, weekendOpen],
@@ -514,9 +515,9 @@ function TimetablesContent() {
     () =>
       getWeekdays(weekRange.from).slice(
         0,
-        careWeekDayCount(fromISO, weekendOpen),
+        careWeekDayCount(fromISO, weekendOpen, todayISO),
       ),
-    [weekRange.from, fromISO, weekendOpen],
+    [weekRange.from, fromISO, todayISO, weekendOpen],
   );
   const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
   const workweekToISO = weekDayISOs[weekDayISOs.length - 1]!;

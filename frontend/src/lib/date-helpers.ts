@@ -132,9 +132,12 @@ export function formatWeekLabel(from: Date, to: Date): string {
  * stays Mo–Fr, so the demo looks like a normal school week; on a weekend only
  * the current week opens up, which the demo weekend notice explains.
  */
-export function careWeekDayCount(dayISO: string, weekendOpen: boolean): 5 | 7 {
+export function careWeekDayCount(
+  dayISO: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): 5 | 7 {
   if (!weekendOpen) return 5;
-  const todayISO = berlinTodayISO();
   const todayWeekday = parseISODate(todayISO).getDay(); // 0 = So, 6 = Sa
   if (todayWeekday !== 0 && todayWeekday !== 6) return 5;
   return mondayOfWeekISO(dayISO) === mondayOfWeekISO(todayISO) ? 7 : 5;

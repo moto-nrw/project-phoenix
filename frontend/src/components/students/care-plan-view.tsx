@@ -31,13 +31,13 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { resolveDayDeviation } from "~/lib/care-plan-helpers";
 import {
-  berlinTodayISO,
   careWeekDayCount,
   formatDate,
   isCareWeekendDay,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   fetchStudentCarePlanDay,
   fetchStudentCarePlanWeek,
@@ -110,7 +110,7 @@ function berlinWeekDays(
   const monday = new Date(anchor);
   monday.setDate(anchor.getDate() - daysToMonday + weekOffset * 7);
   const days: Date[] = [];
-  const dayCount = careWeekDayCount(toISODate(monday), weekendOpen);
+  const dayCount = careWeekDayCount(toISODate(monday), weekendOpen, todayISO);
   for (let i = 0; i < dayCount; i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
@@ -119,8 +119,11 @@ function berlinWeekDays(
   return days;
 }
 
-function mobileDayIndexForToday(weekendOpen: boolean): number {
-  const weekday = parseISODate(berlinTodayISO()).getDay(); // 0=Sun … 6=Sat
+function mobileDayIndexForToday(
+  weekendOpen: boolean,
+  todayISO: string,
+): number {
+  const weekday = parseISODate(todayISO).getDay(); // 0=Sun … 6=Sat
   if (weekendOpen) return (weekday + 6) % 7;
   return weekday >= 1 && weekday <= 5 ? weekday - 1 : 0;
 }
@@ -161,22 +164,31 @@ export function CarePlanView({
   onVisibleDateRangeChange,
   active = true,
 }: CarePlanViewProps) {
-  const today = berlinTodayISO();
+  const today = useBerlinToday();
   const weekendOpen = useWeekendFollowsFriday();
   const [viewMode, setViewMode] = useState<ViewMode>("day");
-  const [selectedDate, setSelectedDate] = useState<string>(() =>
-    berlinTodayISO(),
-  );
+  const [selectedDate, setSelectedDate] = useState<string>(today);
   const [weekOffset, setWeekOffset] = useState(0);
   const [mobileDayIndex, setMobileDayIndex] = useState(() =>
-    mobileDayIndexForToday(weekendOpen),
+    mobileDayIndexForToday(weekendOpen, today),
   );
+  const previousTodayRef = useRef(today);
+
+  // Keep an open day view on today, but leave a deliberately selected past or
+  // future day alone when Berlin crosses midnight.
+  useEffect(() => {
+    const previousToday = previousTodayRef.current;
+    previousTodayRef.current = today;
+    setSelectedDate((selected) =>
+      selected === previousToday ? today : selected,
+    );
+  }, [today]);
 
   // The tenant arrives after the first render. On a weekend, the initial
   // closed-weekend state points at Monday; select today's newly available day
   // once the school's Friday-plan setting is known or Berlin reaches Saturday.
   useEffect(() => {
-    setMobileDayIndex(mobileDayIndexForToday(weekendOpen));
+    setMobileDayIndex(mobileDayIndexForToday(weekendOpen, today));
   }, [today, weekendOpen]);
 
   // --- Day mode fetch (only when the tab is active and in day mode) ---
