@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 
+	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -12,6 +14,7 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
@@ -55,7 +58,7 @@ func NewWorker(
 	notices EnrollmentNotices, flows EnrollmentFlows, studentDeletion *studentdeletion.Workflow, feedback feedbackModule.Capability,
 	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
-	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, schoolNames SchoolNamesPublisher,
+	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, mealPlan mealplanModule.Capability, schoolNames SchoolNamesPublisher,
 ) (schedulerPorts.Worker, error) {
 	billing, err := NewOperatorBilling(logger)
 	if err != nil {
@@ -68,9 +71,6 @@ func NewWorker(
 	runtime, err := schedulerRuntimeCompose.NewTenantRuntime(db.UnitOfWork())
 	if err != nil {
 		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
-	}
-	if err := verifySchedulerSettingKeys(); err != nil {
-		return nil, err
 	}
 	resolver, err := schedulerSettings(settings)
 	if err != nil {
@@ -93,57 +93,59 @@ func NewWorker(
 		return nil, err
 	}
 	return schedulerRuntimeCompose.NewWorker(schedulerPorts.WorkerDependencies{
-		Logger:                    logger.With("service", "scheduler"),
-		Getenv:                    os.Getenv,
-		SchoolRepo:                schedulerTenantDirectory{schools: organizations, billing: billing, schoolNames: schoolNames},
-		TenantRuntime:             runtime,
-		TenantRuntimeObserver:     observability.RecordTenantRuntimeEvent,
-		UnitOfWorkObserver:        observability.RecordUnitOfWorkEvent,
-		Tracer:                    workerTracer(tracer),
-		Settings:                  resolver,
-		Lease:                     lease,
-		RetentionSteps:            retention.steps,
-		RetentionLog:              retention.log,
-		CleanupRuns:               retention.runs,
-		StaffDocumentCleaner:      staffDocuments,
-		StudentDocumentCleaner:    studentDocuments,
-		FileStoreCleaner:          newFileStoreCleaner(db, fileStore, logger),
-		Active:                    newSchedulerSessionMaintenance(active),
-		ActiveCleanup:             newSchedulerPresenceCleanup(reports.ActiveCleanup),
-		AuthCleanup:               &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity},
-		InvitationCleanup:         identity,
-		EmailChangeCleanup:        identity,
-		OperatorInvitationCleanup: identity,
-		OperatorRetention:         schedulerPorts.OperatorRetention{Ledger: audit, Accounts: identity},
-		AccountRetention:          identity,
-		WorkSessionCleanup:        workforce.TimeTracking.Jobs,
-		BreakAutoEnder:            workforce.TimeTracking.Jobs,
-		AutoCheckouter:            workforce.TimeTracking.Jobs,
-		FeedbackCleaner:           feedback,
-		Materializer:              newSchedulerMaterializer(materialization),
-		TimetableCleanup:          newSchedulerTimetableCleanup(lifecycle.Cleanup),
-		CalendarFeedCleanup:       calendarApp,
-		TimeTrackingCleanup:       schedulerTimeTrackingCleanupPort(workforce.TimeTrackingCleanup),
-		StudentChangeLogCleanup:   schedulerStudentChangeLogCleanup(services.StudentChangeLogCleanup),
-		PWAUsageCleanup:           pwaUsageCleanup(usage),
-		StaffMessageCleanup:       staffMessageCleanup(staffMessaging),
-		EnrollmentRejectedCleanup: enrollmentRejectedCleanup{cleaner: notices.RejectedCleanup},
-		AutoStart:                 newSchedulerAutoStart(lifecycle.AutoStart),
-		AutoEnd:                   newSchedulerAutoEnd(lifecycle.AutoEnd),
-		TimetableBridge:           days.Bridge,
-		StudentLifecycleAudit:     schedulerStudentAudit(studentAudit),
-		CareExitEffector:          schedules.Lifecycle,
-		OutboxWorker:              outbox,
-		SettleExpiredTransfers:    exportTransferCompose.NewDispatchRecovery(),
-		AppointmentReminders:      reminders,
-		RolloverDeadlineRunner:    rolloverDeadlines{rollovers: flows.Rollovers},
-		BookingConsistency:        bookings,
-		InstanceRepo:              schedulerDayInstances(timetableRepos),
-		InstanceRoomRepo:          schedulerExistingRooms(rooms),
-		InstanceStudentRepo:       timetableRepos.ParticipantCheckouts(),
-		StudentStatusDayRepo:      NewStudentStatusDayRepository(carePlan),
-		OverdueBroadcaster:        newSchedulerOverdueBroadcaster(hub),
-		StudentLifecycleRepo:      schedulerStudentLifecycle(NewStudentRootReads(people.Students)),
-		ReminderNotifications:     reminderNotifications,
+		Logger:                       logger.With("service", "scheduler"),
+		Getenv:                       os.Getenv,
+		SchoolRepo:                   schedulerTenantDirectory{schools: organizations, billing: billing, schoolNames: schoolNames},
+		TenantRuntime:                runtime,
+		TenantRuntimeObserver:        observability.RecordTenantRuntimeEvent,
+		UnitOfWorkObserver:           observability.RecordUnitOfWorkEvent,
+		Tracer:                       workerTracer(tracer),
+		Settings:                     resolver,
+		Lease:                        lease,
+		RetentionSteps:               retention.steps,
+		RetentionLog:                 retention.log,
+		CleanupRuns:                  retention.runs,
+		StaffDocumentCleaner:         staffDocuments,
+		StudentDocumentCleaner:       studentDocuments,
+		FileStoreCleaner:             newFileStoreCleaner(db, fileStore, logger),
+		Active:                       newSchedulerSessionMaintenance(active),
+		ActiveCleanup:                newSchedulerPresenceCleanup(reports.ActiveCleanup),
+		AuthCleanup:                  &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity},
+		InvitationCleanup:            identity,
+		EmailChangeCleanup:           identity,
+		OperatorInvitationCleanup:    identity,
+		OperatorRetention:            schedulerPorts.OperatorRetention{Ledger: audit, Accounts: identity},
+		AccountRetention:             identity,
+		HolidayRegistrationRetention: enrollmentCompose.NewHolidayRegistrationRetention(nil),
+		WorkSessionCleanup:           workforce.TimeTracking.Jobs,
+		BreakAutoEnder:               workforce.TimeTracking.Jobs,
+		AutoCheckouter:               workforce.TimeTracking.Jobs,
+		FeedbackCleaner:              feedback,
+		Materializer:                 newSchedulerMaterializer(materialization),
+		TimetableCleanup:             newSchedulerTimetableCleanup(lifecycle.Cleanup),
+		CalendarFeedCleanup:          calendarApp,
+		TimeTrackingCleanup:          schedulerTimeTrackingCleanupPort(workforce.TimeTrackingCleanup),
+		StudentChangeLogCleanup:      schedulerStudentChangeLogCleanup(services.StudentChangeLogCleanup),
+		PWAUsageCleanup:              pwaUsageCleanup(usage),
+		StaffMessageCleanup:          staffMessageCleanup(staffMessaging),
+		EnrollmentRejectedCleanup:    enrollmentRejectedCleanup{cleaner: notices.RejectedCleanup},
+		AutoStart:                    newSchedulerAutoStart(lifecycle.AutoStart),
+		AutoEnd:                      newSchedulerAutoEnd(lifecycle.AutoEnd),
+		TimetableBridge:              days.Bridge,
+		StudentLifecycleAudit:        schedulerStudentAudit(studentAudit),
+		CareExitEffector:             schedules.Lifecycle,
+		OutboxWorker:                 outbox,
+		SettleExpiredTransfers:       exportTransferCompose.NewDispatchRecovery(),
+		AppointmentReminders:         reminders,
+		RolloverDeadlineRunner:       rolloverDeadlines{rollovers: flows.Rollovers},
+		BookingConsistency:           bookings,
+		MealOrders:                   mealPlan.SettleOrders,
+		InstanceRepo:                 schedulerDayInstances(timetableRepos),
+		InstanceRoomRepo:             schedulerExistingRooms(rooms),
+		InstanceStudentRepo:          timetableRepos.ParticipantCheckouts(),
+		StudentStatusDayRepo:         NewStudentStatusDayRepository(carePlan),
+		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
+		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)),
+		ReminderNotifications:        reminderNotifications,
 	})
 }

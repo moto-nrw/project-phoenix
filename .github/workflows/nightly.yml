@@ -40,3 +40,37 @@ jobs:
       full-backend: true
       run-frontend: true
       run-error-codes: true
+
+  # License and vulnerability scans depend on dependency changes and on new
+  # advisories, not on each pull request's code, so they run once a night.
+  dependency-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup Go with cache
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
+      - name: Install govulncheck (Devbox pin)
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+      - name: Backend licenses and vulnerabilities
+        run: bash scripts/check-quality.sh backend-dependencies
+      - name: Enable corepack
+        run: corepack enable
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+          cache: "pnpm"
+          cache-dependency-path: "frontend/pnpm-lock.yaml"
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Frontend licenses
+        run: bash scripts/check-quality.sh frontend-dependencies

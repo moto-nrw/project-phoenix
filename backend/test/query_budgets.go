@@ -56,6 +56,51 @@ var queryBudgets = map[string]queryBudget{
 	// their weeks and their time models. Flat in the number of periods and
 	// weeks.
 	"api.traeger.holiday_periods": {max: 4, exact: true},
+	// modules/enrollment — GET /traeger/holiday-periods/{id}/registrations
+	// (#4663, ADR 0114): the Träger binding of the Träger transaction, the
+	// period with its weeks and time models, then the registrations, their
+	// children with the duplicate hint and their bookings; the audit entry
+	// writes but selects nothing. Flat in the number of registrations.
+	"api.traeger.holiday_registrations": {max: 7, exact: true},
+	// modules/parentbilling — GET /traeger/contribution-rules (#4664, ADR
+	// 0115): the Träger binding of the Träger transaction, then the rules of
+	// the Träger. Flat in the number of rules.
+	"api.traeger.contribution_rules": {max: 2, exact: true},
+	// modules/enrollment — GET /api/holiday-weeks (#4665, ADR 0116): the
+	// tenant binding of the school's transaction, then the weeks the school
+	// hosts with their confirmed children counted. Flat in the number of
+	// weeks and children.
+	"api.holiday_weeks.list": {max: 2, exact: true},
+	// modules/enrollment — GET /api/holiday-weeks/{weekId}/participants
+	// (#4665, ADR 0116): the school and the schools of its Träger for the
+	// home school names, read before the tenant transaction opens; then the
+	// tenant binding, the hosted week, its time models and its confirmed
+	// children. The access log entry writes but selects nothing. Flat in the
+	// number of children.
+	"api.holiday_weeks.participants": {max: 6, exact: true},
+	// modules/parentbilling — GET /traeger/billing-runs (#4668, ADR 0119):
+	// the Träger binding of the Träger transaction, then the runs of the
+	// Träger. Flat in the number of runs.
+	"api.traeger.billing_runs": {max: 2, exact: true},
+	// modules/parentbilling — GET /traeger/billing-runs/periods (#4668, ADR
+	// 0119): the Träger binding of the Träger transaction, then Enrollment's
+	// list of the periods with their weeks and time models. Flat in the number
+	// of periods.
+	"api.traeger.billing_run_periods": {max: 4, exact: true},
+	// modules/organizationtenancy — GET /traeger/master-data (#4653): the
+	// Träger binding of the Träger transaction, then the profile row and the
+	// bank accounts of the Träger; the read log writes but selects nothing.
+	// Flat in the number of bank accounts.
+	"api.traeger.master_data": {max: 3, exact: true},
+	// modules/traegerview — GET /traeger/access-log (#4655, ADR 0109): the
+	// Träger row, the school IDs of the Träger, one access trail read of the
+	// Audit Platform, the school rows, the staff members behind staff IDs and
+	// their persons, the persons of the accounts and one Träger-Büro address
+	// read, in one administrative transaction; then the tenant binding of
+	// each shown school's transaction, which writes the read to that
+	// school's access log (two schools in the scenario). Flat in the number
+	// of entries.
+	"api.traeger.access_log": {max: 10, exact: true},
 	// organizationtenancy Provisioning.ListTraegerMembers (#4649): the Träger
 	// row, its memberships and one read of address and Träger roles for all
 	// members. Flat in the number of members.
@@ -75,6 +120,10 @@ var queryBudgets = map[string]queryBudget{
 	// workflows/parentportal/http — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},
+	// workflows/parentportal — the pickup permission request list resolves the
+	// caller's child, then reads all requests once. The test uses three requests
+	// to prevent a per-row request lookup.
+	"workflows.parentportal.pickup_permission_requests.list": {max: 12},
 	// modules/enrollment/http — GET /phases/{id}/responses: phase plus four batched
 	// response sources inside the tenant transaction. The matching test proves
 	// the total stays flat from three to eight children.
@@ -185,6 +234,16 @@ var queryBudgets = map[string]queryBudget{
 	"api.activities.available_supervisors.specialization.reads": {max: 5},
 	"api.iot.teacher_students.reads":                            {max: 5},
 	"api.rooms.snapshot_export.reads":                           {max: 4},
+	// modules/devicescan/http/checkin — POST /api/iot/checkin (#5004): one
+	// kiosk scan inside its request transaction (BEGIN to COMMIT), with the
+	// device session's heartbeat; device authentication runs before it and
+	// shows as Server-Timing "auth". The route-sized test router has no
+	// request settings cache, so each settings read counts. Flat from three
+	// to eight children present.
+	// ADR 0124: +2 statements for SAVEPOINT and RELEASE around the heartbeat.
+	"api.iot.checkin.check_in":    {max: 38},
+	"api.iot.checkin.check_out":   {max: 26},
+	"api.iot.checkin.room_change": {max: 44},
 	// modules/timetable/http — 14-day /week: FindByID + 7 preloads + class-exception
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},
@@ -192,6 +251,10 @@ var queryBudgets = map[string]queryBudget{
 	// from one template with an education group: instances + one display-metadata
 	// projection + staff batch + student batch + one cutoff read per day.
 	"api.timetable.instances.list": {max: 7},
+	// Group filters use one Timetable-owned candidate read and one existing
+	// People Directory read for the planned children's current OGS groups.
+	// The scenario stays flat from three to eight planned blocks.
+	"api.timetable.instances.list.group_filter": {max: 9},
 	// modules/timetable/http — GET /templates: template rows, retained list enrichments,
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
@@ -207,6 +270,9 @@ var queryBudgets = map[string]queryBudget{
 	// the number of periods. Pinned exact so an owner-boundary move fails
 	// here instead of at a runtime checkpoint (#3020).
 	"api.timetable.periods.list": {max: 7, exact: true},
+	// modules/timetable/http — GET /holidays (#4775): tenant transaction plus
+	// the federal-state setting read; holiday calculation itself is local.
+	"api.timetable.holidays.list": {max: 5, exact: true},
 	// modules/timetable/compose operational day (#3551) — GET /planned-now backing list, 8 eligible instances:
 	// instance list + staff batch + student batch (#2941) + block display
 	// batch, which names the room and the planning track (#4413).
@@ -229,11 +295,21 @@ var queryBudgets = map[string]queryBudget{
 	"services.auth.pending_guardian_approvals.reads":       {max: 6},
 	"services.auth.pending_invitations.reads":              {max: 1, exact: true},
 	"services.platform.pending_operator_invitations.reads": {max: 1, exact: true},
-	"services.education.suggest_mappings.reads":            {max: 4},
-	"services.reminders.present_students_in_rooms.reads":   {max: 6},
-	"services.users.list_guardians.reads":                  {max: 2},
-	"services.users.student_guardians.reads":               {max: 4},
-	"api.active.combination_groups.reads":                  {max: 3, exact: true},
+	// ADR 0077: the school's caterer invitations and the caterer's schools,
+	// including one bulk school-directory read to exclude deleted schools.
+	"modules.identityaccess.caterer_invitations.reads": {max: 1, exact: true},
+	"modules.identityaccess.caterer_schools.reads":     {max: 3, exact: true},
+	// ADR 0077: the caterer's delivery list of a week over three schools
+	// through the production router. Each school runs in its own
+	// transaction with the supply check and the order read of
+	// modules.mealplan.orders.read_week, so it grows by a fixed number per
+	// school and never with the children; the window is at most a week.
+	"workflows.catererportal.delivery_export":            {max: 112, exact: true},
+	"services.education.suggest_mappings.reads":          {max: 4},
+	"services.reminders.present_students_in_rooms.reads": {max: 6},
+	"services.users.list_guardians.reads":                {max: 2},
+	"services.users.student_guardians.reads":             {max: 4},
+	"api.active.combination_groups.reads":                {max: 3, exact: true},
 	// Enrollment decision and Care Plan offering source reads (formerly
 	// services/enrollment) stay flat as rows grow (#2941).
 	"services.enrollment.list_child_offerings.reads":    {max: 5},
@@ -268,6 +344,10 @@ var queryBudgets = map[string]queryBudget{
 	// Every read is a bulk load by ID set; the count must not move with the
 	// roster.
 	"modules.classday.slot_list.build": {max: 16},
+	// modules/mealplan — a week of orders reads each weekday in bulk (#3873),
+	// without a lock or a write; a due order not stored yet shares its day's
+	// reads with the current registration (ADR 0077).
+	"modules.mealplan.orders.read_week": {max: 27},
 	// modules/timetable — group and target lookups stay one bulk query as IDs grow.
 	"modules.timetable.groups.list":              {max: 1, exact: true},
 	"modules.timetable.group_targets.list":       {max: 1, exact: true},
@@ -300,6 +380,12 @@ var queryBudgets = map[string]queryBudget{
 	// statement each, however many threads exist.
 	"modules.communication.parent_group_threads.list":              {max: 1, exact: true},
 	"modules.communication.parent_group_threads.list_for_guardian": {max: 1, exact: true},
+	// The surveys (#4781): the school's list with the participant counts and
+	// a staff member's open surveys in one statement each; the evaluation
+	// reads the survey, its questions, its options and three grouped counts.
+	"modules.communication.surveys.list":      {max: 1, exact: true},
+	"modules.communication.surveys.to_answer": {max: 1, exact: true},
+	"modules.communication.surveys.results":   {max: 6},
 	// database/repositories/users — due announcement reminders read their rows
 	// and targets in two batches, regardless of the number due in one tick.
 	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},
@@ -316,6 +402,12 @@ var queryBudgets = map[string]queryBudget{
 	// ONE read of the staff member's
 	// Sonderarbeitszeiten. Flat in the number of ranges.
 	"workforce.staff_target_overrides.list": {max: 7, exact: true},
+	// modules/workforce/http/timetracking — GET
+	// /api/time-tracking/absence-allowances (#4971): the tenant-transaction
+	// statements, the three staff lookups behind the session, and ONE read each
+	// of the school's absence types, the caller's claims and the caller's
+	// absences. Flat in the number of types with an allowance.
+	"workforce.own_absence_allowances.list": {max: 10, exact: true},
 	"modules.careplan.request_feed.list":    {max: 1, exact: true},
 	// modules/identityaccess caller context (behavior/caller_request_cache_test.go) —
 	// the #2099 request cache dedups the identity chain.

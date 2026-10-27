@@ -88,11 +88,12 @@ func (c *SessionCodec) IssueAccessToken(claims identityaccess.SessionClaims) (st
 	put(wire, "read_only", claims.ReadOnly, claims.ReadOnly)
 	put(wire, "acting_admin_id", claims.ActingAdminID, claims.ActingAdminID != 0)
 	put(wire, "preview_id", claims.PreviewID, claims.PreviewID != "")
+	put(wire, "via_traeger", claims.ViaTraeger, claims.ViaTraeger)
 	return c.sign(wire)
 }
 
 func (c *SessionCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
-	if scope != "school" && scope != "platform" {
+	if scope != "school" && scope != "platform" && scope != "org" {
 		scope = "tenant"
 	}
 	now := time.Now()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -23,6 +24,9 @@ func (s *service) ExportBetreuungsplan(ctx context.Context, params Params) (list
 	if err != nil {
 		return listexport.File{}, err
 	}
+	if !params.Filter.valid() {
+		return listexport.File{}, fmt.Errorf("%w: filter ids must be positive", ErrInvalidParams)
+	}
 	if s.deps.Instances == nil || s.deps.InstanceStaff == nil || s.deps.Renderer == nil {
 		return listexport.File{}, errors.New("plan export service is not fully wired")
 	}
@@ -33,7 +37,7 @@ func (s *service) ExportBetreuungsplan(ctx context.Context, params Params) (list
 	}
 	from, to := weeks[0].days[0], weeks[len(weeks)-1].last()
 
-	data, err := s.loadBetreuungsplanData(ctx, from, to, params.Variant)
+	data, err := s.loadBetreuungsplanData(ctx, from, to, params.Variant, params.Filter)
 	if err != nil {
 		return listexport.File{}, err
 	}
@@ -46,6 +50,9 @@ func (s *service) ExportBetreuungsplan(ctx context.Context, params Params) (list
 		"Fett: Zeit und Raum · darunter das Personal",
 		params, weeks, data.rows, data.emptyWeekRows,
 	)
+	// The sheet names the filter, so a filtered printout cannot pass for the
+	// whole plan (#4766).
+	doc.Filters = append(doc.Filters, data.filterLabels...)
 
 	s.getLogger().Info("betreuungsplan export rendered",
 		"from", from.String(),
@@ -74,31 +81,41 @@ type betreuungsplanData struct {
 	blockColors map[int64]string
 	closedDays  map[Date]string
 	variant     Variant
+	// filterLabels name the active group, person (#4766) and room (#4768)
+	// filter.
+	filterLabels []string
 }
 
 func (s *service) loadBetreuungsplanData(
-	ctx context.Context, from, to calendar.Date, variant Variant,
+	ctx context.Context, from, to calendar.Date, variant Variant, filter BlockFilter,
 ) (*betreuungsplanData, error) {
 	instances, err := s.deps.Instances.InstancesInRange(ctx, dayKey(from), dayKey(to))
 	if err != nil {
 		return nil, fmt.Errorf("load activity instances: %w", err)
 	}
 
-	instanceIDs := make([]int64, 0, len(instances))
-	roomIDs := make([]int64, 0, len(instances))
 	kept := make([]*Instance, 0, len(instances))
 	for _, instance := range instances {
-		if instance == nil {
-			continue
+		if instance != nil {
+			kept = append(kept, instance)
 		}
-		kept = append(kept, instance)
-		instanceIDs = append(instanceIDs, instance.ID)
-		roomIDs = append(roomIDs, instance.RoomID)
 	}
+	instanceIDs := instanceIDsOf(kept)
 
 	staffRows, err := s.deps.InstanceStaff.InstanceStaffByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load instance staff: %w", err)
+	}
+	var filterLabels []string
+	if filter.active() {
+		if kept, staffRows, filterLabels, err = s.filterBlocks(ctx, filter, kept, staffRows); err != nil {
+			return nil, err
+		}
+		instanceIDs = instanceIDsOf(kept)
+	}
+	roomIDs := make([]int64, 0, len(kept))
+	for _, instance := range kept {
+		roomIDs = append(roomIDs, instance.RoomID)
 	}
 	staffByInst := make(map[int64][]*InstanceStaff, len(kept))
 	staffIDs := make([]int64, 0, len(staffRows))
@@ -124,8 +141,52 @@ func (s *service) loadBetreuungsplanData(
 		blockColors:  s.blockColors(ctx, kept),
 		closedDays:   s.nonWorkingDays(ctx, from, to),
 		variant:      variant,
+		filterLabels: filterLabels,
 	}
 	return data, nil
+}
+
+// filterBlocks keeps the blocks and staff rows that pass the active filter
+// and names the filter for the sheet.
+func (s *service) filterBlocks(
+	ctx context.Context, filter BlockFilter, instances []*Instance, staffRows []*InstanceStaff,
+) ([]*Instance, []*InstanceStaff, []string, error) {
+	if s.deps.Filter == nil {
+		return nil, nil, nil, errors.New("plan export service is not wired for filters")
+	}
+	filtered, err := s.deps.Filter.MatchingInstances(ctx, filter, instances, staffRows)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("filter activity instances: %w", err)
+	}
+	instances = slices.DeleteFunc(slices.Clone(instances), func(instance *Instance) bool { return !filtered.Matches[instance.ID] })
+	staffRows = slices.DeleteFunc(slices.Clone(staffRows), func(row *InstanceStaff) bool { return row == nil || !filtered.Matches[row.InstanceID] })
+	var labels []string
+	if filter.EducationGroupID != nil {
+		labels = append(labels, "Gruppe: "+orUnknown(filtered.GroupName))
+	}
+	if filter.StaffID != nil {
+		labels = append(labels, "Person: "+orUnknown(s.staffNames(ctx, []int64{*filter.StaffID})[*filter.StaffID]))
+	}
+	if filter.RoomID != nil {
+		labels = append(labels, "Raum: "+orUnknown(s.roomNames(ctx, []int64{*filter.RoomID})[*filter.RoomID]))
+	}
+	return instances, staffRows, labels, nil
+}
+
+// orUnknown prints a missing name the way the sheet prints unknown staff.
+func orUnknown(name string) string {
+	if name == "" {
+		return "Unbekannt"
+	}
+	return name
+}
+
+func instanceIDsOf(instances []*Instance) []int64 {
+	ids := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		ids = append(ids, instance.ID)
+	}
+	return ids
 }
 
 // blockColors resolves each block's Planungsspur colour via its template. Both

@@ -45,7 +45,11 @@ case "${1:-quality}" in
     quality_step migration-validation go run main.go migrate validate
     quality_step deadcode-regressions bash "$root/scripts/check-deadcode_test.sh"
     quality_step deadcode bash "$root/scripts/check-deadcode.sh"
+    ;;
+  # Dependency scans run nightly, not per pull request (nightly.yml).
+  dependencies)
     quality_step go-licenses go tool go-licenses check ./... --ignore github.com/moto-nrw/project-phoenix --disallowed_types=restricted,reciprocal
+    quality_step vulnerabilities vulnerabilities
     ;;
   lint)
     base=${2:?base revision is required}

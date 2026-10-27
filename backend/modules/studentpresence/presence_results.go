@@ -79,6 +79,13 @@ type DailyAttendanceStatus struct {
 	YardSince    *time.Time `json:"yard_since,omitempty"`
 	CheckedInBy  string     `json:"checked_in_by"`  // Formatted as "FirstName LastName"
 	CheckedOutBy string     `json:"checked_out_by"` // Formatted as "FirstName LastName"
+	// CheckedInActor and CheckedOutActor say who recorded the arrival and
+	// the pickup (#4761): a staff member of the school, a device or a former
+	// staff member. They stay nil when the names could not be read, and
+	// CheckedOutActor while the child is still checked in. Responses map
+	// them explicitly, so the parents and school portals never carry them.
+	CheckedInActor  *AttendanceActor `json:"-"`
+	CheckedOutActor *AttendanceActor `json:"-"`
 	// CheckOutNote is the optional reason recorded when the child went home
 	// earlier than planned (#3324). Only set on a checked-out status.
 	CheckOutNote *string `json:"check_out_note,omitempty"`

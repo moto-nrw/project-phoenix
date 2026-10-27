@@ -33,7 +33,6 @@ type lifecycleStore struct {
 	*fakeStore
 
 	cards                     map[string]bool
-	grants                    map[mappingKey][]domain.PermissionGrant
 	granted                   []int64
 	findAccountsByEmailsCalls int
 }
@@ -41,7 +40,7 @@ type lifecycleStore struct {
 func newLifecycleStore() *lifecycleStore {
 	return &lifecycleStore{
 		fakeStore: newFakeStore(),
-		cards:     map[string]bool{}, grants: map[mappingKey][]domain.PermissionGrant{},
+		cards:     map[string]bool{},
 	}
 }
 
@@ -62,17 +61,6 @@ func (s *lifecycleStore) ListTenantAccounts(_ context.Context, tenantID int64) (
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].AccountID < result[j].AccountID })
 	return result, stats(), nil
-}
-
-func (s *lifecycleStore) ListAccountPermissionGrants(_ context.Context, accountID, tenantID int64) ([]domain.PermissionGrant, domain.OperationStats, error) {
-	return append([]domain.PermissionGrant(nil), s.grants[mappingKey{accountID, tenantID}]...), stats(), nil
-}
-
-func (s *lifecycleStore) DeleteAccountPermissionGrants(_ context.Context, accountID, tenantID int64) (int64, domain.OperationStats, error) {
-	key := mappingKey{accountID, tenantID}
-	deleted := int64(len(s.grants[key]))
-	delete(s.grants, key)
-	return deleted, stats(), nil
 }
 
 func (s *lifecycleStore) DeactivateTenantMapping(_ context.Context, accountID, tenantID int64) (domain.OperationStats, error) {
@@ -850,10 +838,13 @@ func (e *lifecycleEnrollments) ClaimGuardianEnrollments(_ context.Context, accou
 }
 
 type lifecycleDelivery struct {
-	emails                []domain.GuardianInvitation
-	accessEmails          []domain.GuardianProfile
-	welcomeEmails         []domain.GuardianProfile
-	invitationMailQueued  bool
+	emails        []domain.GuardianInvitation
+	accessEmails  []domain.GuardianProfile
+	welcomeEmails []domain.GuardianProfile
+	// invitationMailErr and existingAccountErr fail the enqueue; the
+	// attempt is still recorded.
+	invitationMailErr     error
+	existingAccountErr    error
 	existingAccountQueued bool
 }
 
@@ -861,13 +852,19 @@ func (lifecycleDelivery) InvitationExpiry(context.Context) (time.Duration, error
 	return 48 * time.Hour, nil
 }
 func (lifecycleDelivery) SchoolName(context.Context, int64) string { return "OGS Musterschule" }
-func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) (int64, bool) {
+func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) (int64, error) {
 	d.emails = append(d.emails, invitation)
-	return int64(len(d.emails)), d.invitationMailQueued
+	if d.invitationMailErr != nil {
+		return 0, d.invitationMailErr
+	}
+	return int64(len(d.emails)), nil
 }
-func (d *lifecycleDelivery) EnqueueExistingAccountEmail(_ context.Context, profile domain.GuardianProfile, _ string) (int64, bool) {
+func (d *lifecycleDelivery) EnqueueExistingAccountEmail(_ context.Context, profile domain.GuardianProfile, _ string) (int64, bool, error) {
 	d.accessEmails = append(d.accessEmails, profile)
-	return int64(len(d.accessEmails)), d.existingAccountQueued
+	if d.existingAccountErr != nil {
+		return 0, false, d.existingAccountErr
+	}
+	return int64(len(d.accessEmails)), d.existingAccountQueued, nil
 }
 func (d *lifecycleDelivery) EnqueueWelcomeEmail(_ context.Context, profile domain.GuardianProfile, _ int64, _ string, _ int64) {
 	d.welcomeEmails = append(d.welcomeEmails, profile)
@@ -923,7 +920,7 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 	f := &lifecycleFixture{
 		store: store, staff: newLifecycleStaff(), audit: &lifecyclePreviewAudit{},
 		guardians: newLifecycleGuardians(), invitations: newLifecycleInvitations(),
-		delivery:    &lifecycleDelivery{invitationMailQueued: true, existingAccountQueued: true},
+		delivery:    &lifecycleDelivery{existingAccountQueued: true},
 		enrollments: newLifecycleEnrollments(), schools: schools,
 		financial: &lifecycleFinancial{}, runtime: runtime, sessions: store.fakeStore, persons: persons,
 	}

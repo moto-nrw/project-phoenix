@@ -61,6 +61,41 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 		assert.Equal(t, rfidDevice.ID, attendance.DeviceID, "Attendance should use RFID device")
 		assert.Equal(t, staff.ID, attendance.CheckedInBy, "Attendance should have correct staff ID")
 	})
+
+	t.Run("keeps an unstaffed kiosk visit attributed to its device", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "rfid-device-only-visit")
+		room := testpkg.CreateTestRoom(t, db, "RFID Device Only Visit Room")
+		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+		student := testpkg.CreateTestStudent(t, db, "RFID", "DeviceOnly", "2a")
+		supervisor := testpkg.CreateTestStaff(t, db, "RFID", "Supervisor")
+		rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-DEVICE-ONLY-001")
+		testpkg.LinkDeviceToActiveGroup(t, db, activeGroup.ID, rfidDevice.ID)
+		testpkg.CreateTestGroupSupervisor(t, db, supervisor.ID, activeGroup.ID, "supervisor")
+
+		deviceCtx := api.WithIoTAttendanceRequest(testpkg.Ctx(t))
+		deviceCtx = api.WithAttendanceDevice(deviceCtx, rfidDevice.ID, rfidDevice.TenantID)
+		entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+		exitTime := entryTime.Add(time.Hour)
+		visit := &studentpresence.Visit{
+			StudentID: student.ID, ActiveGroupID: activeGroup.ID,
+			EntryTime: entryTime, ExitTime: &exitTime,
+		}
+
+		require.NoError(t, service.CreateVisit(deviceCtx, visit))
+
+		attendance := getAttendanceForStudent(t, db, student.ID, calendar.DateFromTime(visit.EntryTime))
+		require.NotNil(t, attendance)
+		assert.Zero(t, attendance.CheckedInBy, "the session supervisor did not perform the kiosk scan")
+		require.NotNil(t, attendance.CheckOutTime)
+		assert.Nil(t, attendance.CheckedOutBy, "the session supervisor did not perform the kiosk checkout")
+		require.NotNil(t, attendance.CheckedOutDeviceID)
+		assert.Equal(t, rfidDevice.ID, *attendance.CheckedOutDeviceID)
+		recorders := studentpresence.NewAttendanceRecorders(nil)
+		assert.Equal(t, studentpresence.AttendanceActorDevice, recorders.CheckIn(*attendance).Kind)
+		checkOutActor := recorders.CheckOut(*attendance)
+		require.NotNil(t, checkOutActor)
+		assert.Equal(t, studentpresence.AttendanceActorDevice, checkOutActor.Kind)
+	})
 }
 
 func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {

@@ -35,9 +35,10 @@ type world struct {
 	visitsByRoom  map[int64][]int64
 	roomsByStaff  map[int64][]int64
 
-	instances     []*ports.ActivityInstance
-	instanceStaff []*ports.InstanceStaff
-	roomNames     map[int64]string
+	instances       []*ports.ActivityInstance
+	instanceStaff   []*ports.InstanceStaff
+	roomNames       map[int64]string
+	unresolvedRooms map[int64]struct{}
 
 	mu    sync.Mutex
 	calls map[string]int
@@ -229,6 +230,11 @@ func (w *world) FindByTenantAndDate(_ context.Context, _ string) ([]*ports.Activ
 	return w.instances, nil
 }
 
+func (w *world) FindActiveByTenant(_ context.Context) ([]*ports.ActivityInstance, error) {
+	w.hit("FindActiveByTenant")
+	return w.instances, nil
+}
+
 // --- studentReader ------------------------------------------------------------
 
 func (w *world) FindReadScopeByIDs(_ context.Context, ids []int64) (map[int64]*ports.Student, error) {
@@ -296,6 +302,9 @@ func (r worldRooms) FindByIDs(_ context.Context, ids []int64) ([]*ports.Room, er
 	r.w.hit("Room.FindByIDs")
 	out := make([]*ports.Room, 0, len(ids))
 	for _, id := range ids {
+		if _, unresolved := r.w.unresolvedRooms[id]; unresolved {
+			continue
+		}
 		name, ok := r.w.roomNames[id]
 		if !ok {
 			name = "Lernraum"
@@ -838,4 +847,12 @@ func (w *world) OverdueThresholdMinutes(ctx context.Context) (int, error) {
 func (w *world) BinaryPresence(ctx context.Context) (bool, error) {
 	v, err := testSettingValue(ctx, "operations.presence_mode", w.ResolveString)
 	return v == "binary", err
+}
+
+func (w *world) ActivityRunningOverEnabled(ctx context.Context) (bool, error) {
+	return testSettingValue(ctx, "reminders.activity_running_over_enabled", w.ResolveBool)
+}
+
+func (w *world) ActivityRunningOverMinutes(ctx context.Context) (int, error) {
+	return testSettingValue(ctx, "reminders.activity_running_over_minutes", w.ResolveInt)
 }

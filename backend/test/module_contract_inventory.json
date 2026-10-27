@@ -96,6 +96,12 @@
     "test": "TestErrorCodeIsStable"
   },
   {
+    "module": "parent-billing",
+    "contract_package": "modules/parentbilling",
+    "test_file": "modules/parentbilling/compose/public_contract_test.go",
+    "test": "TestPublicParentBillingContractFreezesTheHolidayContribution"
+  },
+  {
     "module": "people-directory",
     "contract_package": "modules/peopledirectory",
     "test_file": "modules/peopledirectory/peopledirectory_test.go",

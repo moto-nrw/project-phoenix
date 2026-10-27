@@ -51,6 +51,7 @@ import {
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useMealPlanEnabled,
   useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { getSettingValue } from "~/lib/settings-api";
@@ -511,6 +512,12 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     requiresAllPermissions: ["config:read", "users:read"],
   },
   {
+    ...STAFF_FLAT_PAGES.holidayWeeks,
+    iconKey: "calendar",
+    concept: "holidayWeeks",
+    requiresPermission: "config:read",
+  },
+  {
     // Dateiablage (#2596): jeder mit Tenant-Zugang; welche Ordner sichtbar
     // sind, entscheidet das Backend pro Ordner.
     ...STAFF_FLAT_PAGES.dateien,
@@ -852,8 +859,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
   // Schulschalter aus dem Settings-Schema, mit demselben Lesemuster wie die
-  // Desktop-Sidebar: für Admins und config:read-Halter (der Essensplan-
-  // Eintrag hängt für sie an operations.meal_plan_enabled). `!== false` für
+  // Desktop-Sidebar: für Admins und config:read-Halter. `!== false` für
   // timetable.enabled, damit die Planungs-Einträge während des Schema-Ladens
   // nicht kurz verschwinden.
   const canReadConfig =
@@ -868,8 +874,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     getSettingValue(settingsSchema, "timetable.enabled") !== false;
   const parentNewsEnabled =
     getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
-  const mealPlanEnabled =
-    getSettingValue(settingsSchema, "operations.meal_plan_enabled") === true;
+  // Vom Tenant-Resolve (#3873): eine Küchenrolle hält meals:*, aber kein
+  // config:read und liest das Settings-Schema nicht.
+  const mealPlanEnabled = useMealPlanEnabled();
   // Die Leitung landet auf dem Hub; wer nur einzelne Kataloge hält, startet
   // beim ersten erreichbaren Unterpunkt statt auf einer fast leeren Hub-Seite.
   const databaseLandingHref =
@@ -1014,7 +1021,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return hasPermission(session, "guardians:financial");
     }
     if (href === "/meal-plan") {
-      return locked || (mealPlanEnabled && canReadConfig);
+      return (
+        locked ||
+        (mealPlanEnabled &&
+          (userIsAdmin ||
+            hasPermission(session, "meals:read") ||
+            hasPermission(session, "meals:register")))
+      );
     }
     return true;
   };
@@ -1403,7 +1416,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       >
         {/* Pill container with margins */}
         <div className="px-4 pb-4">
-          <div className="rounded-full border border-gray-200/50 bg-white/95 px-3 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
+          <div className="rounded-full border border-gray-200/50 bg-white/95 px-2 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
             <div className="relative flex items-center justify-around gap-1">
               {/* Sliding background indicator */}
               {indicatorVisible && (
@@ -1457,10 +1470,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     aria-label={item.label}
                     // Ziel der geführten Touren auf dem Handy (#3748).
                     data-setup-tour={`mobile-nav-${item.href}`}
+                    // Nur der aktive Reiter mit Namen darf schrumpfen: Ein
+                    // langer Name schob sonst `Mehr` aus dem Bild (#4975).
                     className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                       isActive
-                        ? "bg-gray-100 text-gray-900"
-                        : "text-gray-400 hover:text-gray-600"
+                        ? "min-w-0 bg-gray-100 text-gray-900"
+                        : "shrink-0 text-gray-400 hover:text-gray-600"
                     } `}
                   >
                     {/* Icon */}
@@ -1471,7 +1486,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     />
 
                     {isActive && (
-                      <span className="text-sm font-semibold whitespace-nowrap">
+                      <span className="truncate text-sm font-semibold">
                         {item.label}
                       </span>
                     )}
@@ -1489,8 +1504,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   data-setup-tour="nav-more"
                   className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                     isOverflowMenuOpen || isAnyAdditionalNavActive
-                      ? "bg-gray-100 text-gray-900"
-                      : "text-gray-400 hover:text-gray-600"
+                      ? "min-w-0 bg-gray-100 text-gray-900"
+                      : "shrink-0 text-gray-400 hover:text-gray-600"
                   } `}
                 >
                   {/* Icon */}
@@ -1500,7 +1515,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   />
 
                   {(isOverflowMenuOpen || isAnyAdditionalNavActive) && (
-                    <span className="text-sm font-semibold whitespace-nowrap">
+                    <span className="truncate text-sm font-semibold">
                       {moreLabel}
                     </span>
                   )}

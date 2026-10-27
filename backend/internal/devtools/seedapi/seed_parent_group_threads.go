@@ -17,18 +17,18 @@ func seedParentGroupThreads(rt *Runtime, auth AuthRef, studentID int64) error {
 	if err != nil {
 		return err
 	}
-	open, err := seedGroupThread(rt, groupID, label, "Sommerfest am Freitag",
-		"Am Freitag feiern wir ab 14 Uhr unser Sommerfest. Wer kann einen Kuchen mitbringen?")
+	open, err := seedGroupThread(rt, groupID, label, "Laternen basteln",
+		"Für das Laternenfest basteln wir in den nächsten Wochen Laternen. Wer kann leere Marmeladengläser oder Transparentpapier mitbringen?")
 	if err != nil {
 		return err
 	}
 	if _, err := rt.Client.PostWithAuth(rt.TenantAuth, fmt.Sprintf("/api/messages/group-threads/%d/messages", open), map[string]any{
-		"body": "Bitte geben Sie Ihrem Kind auch eine Kopfbedeckung mit.",
+		"body": "Bitte geben Sie Ihrem Kind an den Basteltagen alte Kleidung mit. Es wird bunt.",
 	}); err != nil {
 		return fmt.Errorf("seed second group message: %w", err)
 	}
-	closed, err := seedGroupThread(rt, groupID, label, "Elternabend verschoben",
-		"Der Elternabend findet erst am Dienstag statt. Die Uhrzeit bleibt gleich.")
+	closed, err := seedGroupThread(rt, groupID, label, "Fundsachen-Kiste ist voll",
+		"Bitte schauen Sie bis Ende der Woche in die Fundsachen-Kiste am Eingang. Was dann noch übrig ist, spenden wir.")
 	if err != nil {
 		return err
 	}
@@ -39,7 +39,7 @@ func seedParentGroupThreads(rt *Runtime, auth AuthRef, studentID int64) error {
 		return fmt.Errorf("read seeded group thread: %w", err)
 	}
 	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/parent/me/messages/children/%d", studentID), map[string]any{
-		"body": "Wir bringen gerne einen Apfelkuchen mit.", "group_thread_id": strconv.FormatInt(open, 10),
+		"body": "Wir bringen gerne zwei Gläser und Transparentpapier mit.", "group_thread_id": strconv.FormatInt(open, 10),
 	}); err != nil {
 		return fmt.Errorf("seed group thread answer: %w", err)
 	}

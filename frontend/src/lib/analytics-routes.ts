@@ -58,6 +58,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/day-log",
   "/dienstplan",
   "/eltern/bankverbindungen",
+  "/ferienwochen",
   "/emergency",
   "/enrollment-form",
   "/enrollment-phases",
@@ -106,6 +107,9 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/tagesplan",
   "/time-tracking",
   "/timetables",
+  // Umfragen (#4781): nur die Route, nie ein Titel oder eine Antwort.
+  "/umfragen",
+  "/umfragen/:id",
   "/vertretung",
   "/vertretungsplan",
 ] as const;
@@ -124,6 +128,7 @@ export const TRACKED_TENANT_PUBLIC_ROUTE_TEMPLATES = [
   "/display",
   "/invite",
   "/reset-password",
+  "/traeger-uebergabe",
 ] as const;
 
 /** Parents portal pages under `app/parents`, as the parents host shows them. */
@@ -139,6 +144,8 @@ export const TRACKED_PARENT_ROUTE_TEMPLATES = [
   "/children",
   "/children/:id",
   "/demo",
+  // Öffentliche Ferienanmeldung eines Trägers (#4661), ohne Konto.
+  "/ferienanmeldung/:token",
   "/invite",
   "/login",
   "/meal-plan",
@@ -167,12 +174,27 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
   "/tagesinformationen",
 ] as const;
 
+/** Pages of the caterer portal (ADR 0077), as its host shows them. */
+export const TRACKED_CATERER_ROUTE_TEMPLATES = [
+  "/",
+  "/einladung/:schoolId/:token",
+  "/login",
+  "/reset-password",
+] as const;
 /** Träger portal pages under `app/traeger`, as the Träger host shows them. */
 export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/",
+  "/abrechnung",
+  "/abrechnung/:id",
+  "/access-log",
   "/accounts",
+  "/beitraege",
+  "/briefkopf",
+  "/einstellungen",
   "/ferien",
   "/ferien/:id",
+  "/ferien/:id/anmeldungen",
+  "/ferien/:id/anmeldungen/:registrationId",
   "/ferien/neu",
   "/invite",
   "/login",
@@ -193,7 +215,7 @@ export const TRACKED_PUBLIC_ROUTE_TEMPLATES = [
 ] as const;
 
 export type AnalyticsRouteSurface =
-  "ogs" | "parents" | "school" | "traeger" | "public";
+  "ogs" | "parents" | "school" | "caterer" | "traeger" | "public";
 
 /** Path of every page without a template; never the raw browser path. */
 export const UNKNOWN_ANALYTICS_PATH = "/unknown";
@@ -231,6 +253,7 @@ const matchersBySurface: Readonly<
   ]),
   parents: buildMatchers(TRACKED_PARENT_ROUTE_TEMPLATES),
   school: buildMatchers(TRACKED_SCHOOL_ROUTE_TEMPLATES),
+  caterer: buildMatchers(TRACKED_CATERER_ROUTE_TEMPLATES),
   traeger: buildMatchers(TRACKED_TRAEGER_ROUTE_TEMPLATES),
   public: buildMatchers(TRACKED_PUBLIC_ROUTE_TEMPLATES),
 };
@@ -267,6 +290,11 @@ function resolveOnSurface(
         "school",
         withoutPrefix(pathname, "/school") ?? pathname,
       );
+    case "caterer":
+      return matchTemplate(
+        "caterer",
+        withoutPrefix(pathname, "/caterer") ?? pathname,
+      );
     case "traeger":
       return matchTemplate(
         "traeger",
@@ -290,6 +318,8 @@ function resolveOnSurface(
       if (parentsPath) return matchTemplate("parents", parentsPath);
       const schoolPath = withoutPrefix(pathname, "/school");
       if (schoolPath) return matchTemplate("school", schoolPath);
+      const catererPath = withoutPrefix(pathname, "/caterer");
+      if (catererPath) return matchTemplate("caterer", catererPath);
       const traegerPath = withoutPrefix(pathname, "/traeger");
       if (traegerPath) return matchTemplate("traeger", traegerPath);
       return (

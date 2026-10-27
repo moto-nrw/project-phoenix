@@ -86,6 +86,9 @@ The product screenshots photograph vollbetrieb after simulate full-day.
   --staff-password 'Test1234%' Shared password for all 20 staff accounts
   --admin-email admin@test.com Override the bootstrap school admin email
   --randomize                  Create a unique ad-hoc school instead
+  --product-screenshots        Prepare the school for the product screenshots:
+                               no weekend care plan, no statistics session at
+                               the seed time (simulate full-day fills it)
 
 DEMO SCHOOLS:
 A --tenant-slug other than the profile's own makes the run repeatable in one
@@ -99,7 +102,7 @@ further schools, --school-name for the name, and --state for its own state file.
 
 Usage:
   docker compose run server go run ./cmd/devtools seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080
-  docker compose run server go run ./cmd/devtools seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 --tenant-slug vollbetrieb --staff-password 'Test1234%' --admin-email vollbetrieb-admin@example.test`,
+  docker compose run server go run ./cmd/devtools seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 --tenant-slug vollbetrieb --staff-password 'Test1234%' --admin-email ines.lindner@ganztag-nord.example`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		email, _ := cmd.Flags().GetString("email")
 		password, _ := cmd.Flags().GetString("password")
@@ -122,15 +125,18 @@ Usage:
 		schoolName, _ := cmd.Flags().GetString("school-name")
 		profile, _ := cmd.Flags().GetString("profile")
 		statePath, _ := cmd.Flags().GetString("state")
+		productScreenshots, _ := cmd.Flags().GetBool("product-screenshots")
 
 		options := seedapi.SeedOptions{
-			TenantSlug:    tenantSlug,
-			StaffPassword: staffPassword,
-			AdminEmail:    adminEmail,
-			Randomize:     randomize,
-			SchoolName:    schoolName,
-			OnlyProfile:   profile,
-			StatePath:     statePath,
+			TenantSlug:         tenantSlug,
+			StaffPassword:      staffPassword,
+			AdminEmail:         adminEmail,
+			Randomize:          randomize,
+			SchoolName:         schoolName,
+			OnlyProfile:        profile,
+			StatePath:          statePath,
+			ReadMailLink:       FetchLatestMailLink,
+			ProductScreenshots: productScreenshots,
 		}
 
 		return defaultSeedRoot.run(cmd.Context(), url, verbose, options, email, password, pin)
@@ -151,4 +157,5 @@ func init() {
 	seedCmd.Flags().String("profile", "", "Seed only this profile (vollbetrieb); empty seeds all four")
 	seedCmd.Flags().String("state", "", "Output path for the seed state (default .seed-state.json)")
 	seedCmd.Flags().Bool("randomize", false, "Create a unique ad-hoc school with generated admin credentials")
+	seedCmd.Flags().Bool("product-screenshots", false, "Prepare vollbetrieb for the product screenshots (no weekend care plan, no seed-time statistics session)")
 }

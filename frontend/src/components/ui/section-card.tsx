@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -29,7 +29,10 @@ export function SectionCollapseToggle({
       type="button"
       variant="ghost"
       size="icon"
-      className="shrink-0"
+      data-section-collapse-toggle=""
+      // Zeigt die Rückmeldung auch, wenn die Maus über dem übrigen Kopf liegt:
+      // der ganze Kopf schaltet (#5021).
+      className="shrink-0 group-hover/collapse-head:bg-gray-100 group-hover/collapse-head:text-gray-900"
       aria-label={
         collapsed
           ? `${title ?? "Abschnitt"} ausklappen`
@@ -44,6 +47,70 @@ export function SectionCollapseToggle({
         aria-hidden="true"
       />
     </Button>
+  );
+}
+
+// Eigene Bedienelemente im Kopf (Aktionen, Links, Felder) behalten ihren
+// Klick und schalten die Karte nicht um.
+const OWN_CONTROL_SELECTOR = [
+  "a[href]",
+  "button",
+  "input",
+  "select",
+  "textarea",
+  "label",
+  "summary",
+  "[contenteditable='true']",
+  "[role='button']",
+  "[role='link']",
+  "[role='checkbox']",
+  "[role='switch']",
+  "[role='menuitem']",
+  "[role='tab']",
+].join(",");
+
+function toggleFromHeadClick(event: MouseEvent<HTMLDivElement>) {
+  const head = event.currentTarget;
+  const target = event.target;
+  if (event.defaultPrevented || !(target instanceof Element)) return;
+  // React reicht Klicks aus Portalen (Menüs, Dialoge einer Kopf-Aktion) durch
+  // den Komponentenbaum hoch; sie liegen nicht im Kopf und zählen nicht.
+  if (!head.contains(target)) return;
+  const ownControl = target.closest(OWN_CONTROL_SELECTOR);
+  if (ownControl && head.contains(ownControl)) return;
+  // Wer Text im Kopf markiert, will ihn kopieren, nicht umschalten.
+  const selection = globalThis.getSelection?.();
+  if (selection && !selection.isCollapsed && selection.toString() !== "") {
+    return;
+  }
+  head
+    .querySelector<HTMLButtonElement>("[data-section-collapse-toggle]")
+    ?.click();
+}
+
+/**
+ * The head row of a collapsible section: a click anywhere on it (icon, title,
+ * badge, description) works the `SectionCollapseToggle` inside, so the small
+ * chevron is not the only target (#5021). The toggle stays the one button —
+ * one tab stop, Enter and Space, the accessible name — and the heading stays a
+ * heading. Header actions keep their own click. Without a toggle inside the
+ * head is a plain container: no pointer, no click.
+ */
+export function SectionCollapseHead({
+  className,
+  children,
+}: Readonly<{ className?: string; children: ReactNode }>) {
+  return (
+    // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Mausfläche um den SectionCollapseToggle; Tastatur und Screenreader bedienen den Knopf selbst
+    <div
+      className={cn(
+        "group/collapse-head has-[[data-section-collapse-toggle]]:cursor-pointer",
+        className,
+      )}
+      onClick={toggleFromHeadClick}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -167,7 +234,7 @@ export function SectionCard({
         // dem Telefon in der Titelzeile, nur die Aktionen brechen als volle
         // Zeile um (dev-Fix "keep SectionCard collapse chevron on the title
         // row on mobile").
-        <div className="flex flex-wrap items-start gap-3">
+        <SectionCollapseHead className="flex flex-wrap items-start gap-3">
           {/* Ohne Kicker und Beschreibung ist der Titel eine Zeile neben einer
               40px-Symbolfläche: oben bündig liegen die beiden Mitten 8px
               auseinander und der Titel wirkt zu hoch. Mit Beschreibung bleibt
@@ -230,7 +297,9 @@ export function SectionCard({
                       "flex shrink-0 items-center gap-2",
                       !description && !kicker && "h-10",
                     )
-                  : "order-last flex w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0"
+                  : // max-w-full: viele Aktionen brechen in der Karte um,
+                    // statt über ihren Rand zu ragen (#4975).
+                    "order-last flex w-full max-w-full flex-wrap items-center gap-2 sm:order-none sm:w-auto sm:shrink-0"
               }
             >
               {headerActions}
@@ -248,7 +317,7 @@ export function SectionCard({
               }}
             />
           )}
-        </div>
+        </SectionCollapseHead>
       )}
       {showBody && (
         <div

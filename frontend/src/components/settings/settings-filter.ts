@@ -4,6 +4,27 @@ import type {
   SchemaTab,
 } from "~/lib/settings-api";
 
+// German names for the backend tab keys. Shared by the school settings page
+// and the Träger portal (#4652), which shows the same tabs.
+export const TAB_LABELS: Record<string, string> = {
+  operations: "Betrieb",
+  meals: "Mittagessen",
+  reminders: "Erinnerungen",
+  gdpr: "Datenschutz",
+  devices: "Geräte",
+  enrollment: "Anmeldung",
+  system: "Kalender und Export",
+  general: "Allgemein",
+  security: "Sicherheit",
+  modules: "Module",
+  // Briefkopf des Trägers (#4653); Schulen sehen ihn nur lesend.
+  branding: "Briefkopf",
+};
+
+export function displayTabLabel(tab: SchemaTab): string {
+  return TAB_LABELS[tab.key] ?? tab.label;
+}
+
 // German headings for the backend category keys. The schema sends the raw
 // key as label; a key without an entry here falls back to it and gets
 // capitalized via CSS.
@@ -14,6 +35,7 @@ export const categoryLabels: Record<string, string> = {
   aktivitaeten: "Aktivitäten",
   allgemein: "Allgemein",
   anmeldung: "Anmeldungen",
+  "anmeldung-essen": "Anmeldung der Eltern",
   anwesenheit: "Aktivitäten am Computer und Handy",
   "anwesenheit-erfassen": "Anwesenheit erfassen",
   aufsicht: "Klassen und moto schule",
@@ -22,7 +44,10 @@ export const categoryLabels: Record<string, string> = {
   betreuungsangebote: "Betreuungsangebote",
   betreuungstage: "Betreuungstage",
   betreuungszeiten: "Ankunfts- und Abholzeiten",
+  briefkopf: "Absender, Farbe und Fußzeile",
+  "bestellung-essen": "Bestellung",
   bewegungsdaten: "Anwesenheit und Aufbewahrung",
+  caterer: "Caterer",
   checkout: "Knöpfe beim Auschecken",
   dateien: "Dateien",
   datenbereinigung: "Automatisch löschen",
@@ -31,8 +56,10 @@ export const categoryLabels: Record<string, string> = {
   einladungen: "Einladungen",
   elternmeldungen: "Meldungen von Eltern",
   elternportal: "Elternportal",
+  essensplan: "Speiseplan",
   feedback: "Feedback der Kinder",
   formular: "Anmeldeformular",
+  "fristen-essen": "Fristen",
   "frueh-abgeholt": "Früh abgeholt",
   geburtstage: "Geburtstage",
   "gebuchte-module": "Gebuchte Module",

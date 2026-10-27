@@ -136,7 +136,7 @@ func TestNewRuntime(t *testing.T) {
 	assert.True(t, rt.Options.Verbose)
 	assert.NotNil(t, rt.RFIDTags)
 	assert.Empty(t, rt.RFIDTags)
-	assert.Nil(t, rt.ActiveRoomIDs)
+	assert.Empty(t, rt.Rooms.order)
 	assert.Nil(t, rt.DeviceKeys)
 }
 

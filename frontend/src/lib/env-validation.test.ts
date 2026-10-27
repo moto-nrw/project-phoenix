@@ -15,6 +15,7 @@ const validBuildEnv = {
   NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.moto-app.de",
   NEXT_PUBLIC_PARENTS_HOSTNAME: "eltern.moto-app.de",
   NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.moto-app.de",
+  NEXT_PUBLIC_CATERER_HOSTNAME: "caterer.moto-app.de",
   NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.moto-app.de",
   NEXT_PUBLIC_SENTRY_DSN: "",
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: "",

@@ -6,6 +6,9 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 case "${1:-}" in
   backend) exec bash "$root/scripts/check-backend-quality.sh" quality ;;
   frontend) exec bash "$root/scripts/check-frontend-quality.sh" quality ;;
+  backend-dependencies) exec bash "$root/scripts/check-backend-quality.sh" dependencies ;;
+  frontend-dependencies) exec bash "$root/scripts/check-frontend-quality.sh" dependencies ;;
+  frontend-fast) exec bash "$root/scripts/check-frontend-quality.sh" fast ;;
   react-doctor) exec bash "$root/scripts/check-frontend-quality.sh" react-doctor "${2:?base revision is required}" ;;
-  *) echo 'Usage: check-quality.sh backend|frontend|react-doctor [base]' >&2; exit 2 ;;
+  *) echo 'Usage: check-quality.sh backend|frontend|frontend-fast|backend-dependencies|frontend-dependencies|react-doctor [base]' >&2; exit 2 ;;
 esac

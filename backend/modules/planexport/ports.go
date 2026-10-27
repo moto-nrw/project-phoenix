@@ -209,6 +209,22 @@ type HolidayReader interface {
 	HolidaysInRange(ctx context.Context, from, to Date) ([]Holiday, error)
 }
 
+// InstanceFilter applies the Betreuungsplan's block filter (#4766, #4768) with the
+// planner's own rule, so the sheet keeps exactly the blocks the screen
+// shows under the same filter.
+type InstanceFilter interface {
+	// MatchingInstances reports which of the blocks pass the filter and names
+	// the filtered group; staff are the rows already loaded for the blocks.
+	MatchingInstances(ctx context.Context, filter BlockFilter, instances []*Instance, staff []*InstanceStaff) (FilteredInstances, error)
+}
+
+// FilteredInstances is the answer of InstanceFilter.
+type FilteredInstances struct {
+	Matches map[int64]bool
+	// GroupName names the filtered group, empty without a group filter.
+	GroupName string
+}
+
 // Renderer is the slice of listexport this capability needs.
 type Renderer interface {
 	Render(doc listexport.Document, format listexport.Format, filenameBase string) (listexport.File, error)
@@ -236,5 +252,8 @@ type Dependencies struct {
 	// which is a worse sheet but never a wrong one.
 	ClosingDays ClosingDayReader
 	Holidays    HolidayReader
-	Renderer    Renderer
+	// Filter is required only for a filtered Betreuungsplan; an unfiltered
+	// export never reaches it.
+	Filter   InstanceFilter
+	Renderer Renderer
 }

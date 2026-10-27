@@ -60,6 +60,13 @@ func CreateTestOrganization(tb testing.TB, db *bun.DB, organization *Organizatio
 			Where("organization_id = ?", organization.ID).
 			Scan(ctx, &tenantIDs)
 		require.NoError(tb, cleanupErr, "Failed to find test organization schools")
+		// The Träger's own rows (ADR 0086) carry no school; the tenant
+		// cleanup below deletes the organization with foreign-key triggers
+		// suspended, so they go first and by their Träger.
+		for _, table := range []string{"config.traeger_setting_audit", "config.traeger_setting_values"} {
+			_, cleanupErr = db.NewDelete().TableExpr(table).Where("organization_id = ?", organization.ID).Exec(ctx)
+			require.NoError(tb, cleanupErr, "Failed to clean up the Träger rows of %s", table)
+		}
 		cleanupTenantTestData(tb, db, tenantIDs...)
 		_, cleanupErr = db.NewDelete().
 			Model((*Organization)(nil)).
@@ -202,8 +209,48 @@ func cleanupTraegerMember(tb testing.TB, db *bun.DB, organizationID, accountID i
 func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
 	tb.Helper()
 	tb.Cleanup(func() {
+		// The periods take their registrations along (#4661); the abuse
+		// counters, the deletion log (#4667) and the Träger's mails belong
+		// to the Träger itself.
 		_, err := db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_periods WHERE organization_id = ?`, organizationID)
 		require.NoError(tb, err, "Failed to clean up test holiday periods")
+		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_registration_deletions WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up the test holiday registration deletion log")
+		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_registration_rate_limits WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test holiday registration counters")
+		_, err = db.ExecContext(context.Background(), `DELETE FROM platform.email_outbox WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger mails")
+	})
+}
+
+// OwnTraegerContributionRules removes the contribution rules, the billing
+// runs with their invoices and the number ranges a test creates for the
+// Träger (#4664, #4668) when the test ends. The frozen contributions go with
+// the children of their registrations.
+func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		for _, table := range []string{
+			"parent_billing.contribution_rules", "parent_billing.runs",
+			"parent_billing.number_range_counters", "parent_billing.number_ranges",
+		} {
+			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
+			require.NoError(tb, err, "Failed to clean up test Elternabrechnung rows")
+		}
+	})
+}
+
+// OwnTraegerMasterData removes the master data a test creates for the Träger
+// (#4653) when the test ends: profile, bank accounts and their log. The rows
+// carry no tenant, so they need their own exact-key teardown like the
+// holiday periods.
+func OwnTraegerMasterData(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		for _, table := range []string{"platform.traeger_master_data_audit", "platform.traeger_bank_accounts", "platform.traeger_profiles"} {
+			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
+			require.NoError(tb, err, "Failed to clean up test Träger master data")
+		}
 	})
 }
 

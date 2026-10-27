@@ -257,7 +257,7 @@ func TestFixedSeeder_SeedGroups(t *testing.T) {
 	fs := NewFixedSeeder(client, true, "")
 	// Pre-populate teacherIDs for group assignment
 	fs.teacherIDs["Julia Klein"] = 100
-	fs.teacherIDs["Markus Wolf"] = 200
+	fs.teacherIDs["Berken Hawleri"] = 200
 
 	result := &FixedResult{}
 	err := fs.seedGroups(context.TODO(), result)

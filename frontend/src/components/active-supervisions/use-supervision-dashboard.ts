@@ -17,6 +17,8 @@ import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { useSidebarMemory } from "~/lib/sidebar-memory";
+import { useArrivalOwner } from "~/lib/hooks/use-arrival-owner";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   buildGroupNameToIdMap,
@@ -24,7 +26,7 @@ import {
   mapVisitsToSupervisionStudents,
   resolveSupervisionSelection,
 } from "~/components/active-supervisions/view-model";
-import type { DepartureMode } from "~/lib/student-helpers";
+import type { DepartureMode, TeacherHint } from "~/lib/student-helpers";
 import type {
   ActiveSupervisionRoom,
   ActiveSupervisionStudent,
@@ -121,6 +123,8 @@ interface BFFDashboardResponse {
     notes: string;
     dayNotes: Array<{ id: string; content: string }>;
   }>;
+  // Hinweise der Lehrkraft für heute (#4795), je Kind.
+  teacherHints?: Array<{ studentId: string } & TeacherHint>;
   arrivalTimes?: Array<{
     studentId: string;
     date: string;
@@ -274,6 +278,7 @@ export function useSupervisionDashboard(
   const { sessionToken, sessionParam, roomParam } = options;
   const router = useTenantRouter();
   const { data: session } = useSession();
+  const memory = useSidebarMemory();
   const accountId = session?.user.id;
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -525,7 +530,7 @@ export function useSupervisionDashboard(
 
   // The session whose visits the aggregate carries. A payload without
   // selectedGroupId (older backend) keeps the former semantics: its visits
-  // belong to the first room.
+  // belong to the first room, which is the first own session (#5035).
   const resolvedRoom = useMemo(() => {
     if (!snapshot) return null;
     const firstRoom = allRoomsBase[0] ?? null;
@@ -536,9 +541,10 @@ export function useSupervisionDashboard(
 
   // A URL that names a different session/room than the aggregate resolved:
   // its visits must not flash under the wrong heading while the selection
-  // effect below is still switching (#2096).
+  // effect below is still switching (#2096). Compared with the resolved
+  // session, not the first in the list: otherwise every session after the
+  // first showed no children (#5035).
   const isUrlTargetingDifferentRoom = useMemo(() => {
-    const firstRoom = allRoomsBase[0];
     const releasedRoomId = releasedRoomTargetedByUrl({
       sessionParam,
       roomParam,
@@ -549,15 +555,22 @@ export function useSupervisionDashboard(
     if (sessionParam) {
       return (
         allRoomsBase.some((room) => room.id === sessionParam) &&
-        firstRoom?.id !== sessionParam
+        resolvedRoom?.id !== sessionParam
       );
     }
     if (!roomParam) return false;
     return (
       allRoomsBase.some((room) => room.room_id === roomParam) &&
-      firstRoom?.room_id !== roomParam
+      resolvedRoom?.room_id !== roomParam
     );
-  }, [allRoomsBase, sessionParam, roomParam, openRoomIds, selectedOpenRoomId]);
+  }, [
+    allRoomsBase,
+    resolvedRoom,
+    sessionParam,
+    roomParam,
+    openRoomIds,
+    selectedOpenRoomId,
+  ]);
 
   // The visits of the selected session, derived instead of copied: shown
   // only when the aggregate's resolved session IS the one the user is
@@ -571,6 +584,15 @@ export function useSupervisionDashboard(
     [openRooms, selectedOpenRoomId],
   );
 
+  // Hinweise der Lehrkraft (#4795) je Kind, für die Karten der Aufsicht.
+  const teacherHintsByStudent = useMemo(() => {
+    const byStudent = new Map<string, TeacherHint[]>();
+    for (const { studentId, ...hint } of snapshot?.teacherHints ?? []) {
+      byStudent.set(studentId, [...(byStudent.get(studentId) ?? []), hint]);
+    }
+    return byStudent;
+  }, [snapshot?.teacherHints]);
+
   const students = useMemo<ActiveSupervisionStudent[]>(() => {
     if (currentOpenRoom) {
       // Everyone the room currently holds, from every session running in it,
@@ -578,6 +600,7 @@ export function useSupervisionDashboard(
       return mapVisitsToSupervisionStudents(currentOpenRoom.students, {
         roomName: currentOpenRoom.name,
         groupNameToId: groupNameToIdMap,
+        teacherHints: teacherHintsByStudent,
       });
     }
     if (!snapshot) return [];
@@ -589,9 +612,11 @@ export function useSupervisionDashboard(
       roomName: resolvedRoom.room_name,
       roomColor: resolvedRoom.room_color,
       groupNameToId: groupNameToIdMap,
+      teacherHints: teacherHintsByStudent,
     });
   }, [
     snapshot,
+    teacherHintsByStudent,
     currentOpenRoom,
     selectedOpenRoomId,
     groupNameToIdMap,
@@ -666,7 +691,7 @@ export function useSupervisionDashboard(
   // ---- Selection adjustments (state follows the refreshed aggregate) ----
 
   // Lock in the resolved session when nothing is selected yet (so the URL
-  // sync below won't "switch" to it via localStorage), and reset a selection
+  // sync below won't "switch" to it via the sidebar memory), and reset a selection
   // whose session vanished from the refreshed list (supervision revoked,
   // session ended) so the visible data stays in sync with the UI.
   useEffect(() => {
@@ -698,6 +723,7 @@ export function useSupervisionDashboard(
   useEffect(() => {
     if (!selectedOpenRoomId || openRoomIds.has(selectedOpenRoomId)) return;
     setSelectedOpenRoomId(null);
+    // allRoomsBase lists own sessions first (#5035).
     setSelectedRoomId(allRoomsBase[0]?.id ?? null);
     setSelectedTimetableInstanceId(null);
   }, [allRoomsBase, selectedOpenRoomId, openRoomIds]);
@@ -721,7 +747,7 @@ export function useSupervisionDashboard(
 
   // Re-run the aggregate when the explicitly selected session changes and
   // the cached aggregate belongs to another one — the data-driven paths
-  // (a toggle materializing a session, localStorage restore) that
+  // (a toggle materializing a session, sidebar memory restore) that
   // never go through switchToRoom. Loop-safe without a comparison ref: the
   // effect fires on VALUE changes of desired/resolved only, so a response
   // that keeps resolving another session cannot re-trigger it.
@@ -803,18 +829,23 @@ export function useSupervisionDashboard(
     [openRoomIds, selectOpenRoom],
   );
 
-  // Sync the selected session with the URL / localStorage. The resolution
+  // Whose rooms the dashboard holds (#5000). After an account switch the
+  // previous account's rooms stay until the new account's arrive; a selection
+  // resolved from them is not remembered for the new account.
+  const roomsOwner = useArrivalOwner(allRoomsBase, memory.owner);
+
+  // Sync the selected session with the URL / sidebar memory. The resolution
   // order (session param > legacy room param > saved session > saved room)
   // lives in resolveSupervisionSelection; this effect only executes the
   // target it returns. A "none" target keeps the current selection — the
   // resolver never switches between parallel sessions in the same room
   // just because a refresh re-resolved a room-keyed URL (#2265).
   useEffect(() => {
-    const savedSessionId = localStorage.getItem("supervision-last-session");
+    const savedSessionId = memory.read("supervision-last-session");
     // A saved released room without an own supervision stays unopened: that
     // room belongs to „Räume“, and „Aktuelle Aufsicht“ must not reopen it as
     // the caller's supervision (#4372). Its URL still opens it.
-    const storedRoomId = localStorage.getItem("sidebar-last-room");
+    const storedRoomId = memory.read("sidebar-last-room");
     const savedRoomId = openRooms.some(
       (room) => room.roomId === storedRoomId && !room.isUserSupervising,
     )
@@ -831,6 +862,7 @@ export function useSupervisionDashboard(
       openRoomIds,
     });
 
+    const ownRooms = roomsOwner.current === memory.owner;
     if (target.kind === "open-room") {
       selectOpenRoom(target.roomId);
       // A released room without an own supervision is only visited from
@@ -839,10 +871,12 @@ export function useSupervisionDashboard(
       const isOwnOpenRoom = openRooms.some(
         (room) => room.roomId === target.roomId && room.isUserSupervising,
       );
-      if (isOwnOpenRoom) {
-        localStorage.removeItem("supervision-last-session");
+      if (ownRooms) {
+        if (isOwnOpenRoom) {
+          memory.remove("supervision-last-session");
+        }
+        memory.write("sidebar-last-room", target.roomId);
       }
-      localStorage.setItem("sidebar-last-room", target.roomId);
       if (!roomParam) {
         router.replace(`/active-supervisions?room=${target.roomId}`);
       }
@@ -853,18 +887,22 @@ export function useSupervisionDashboard(
       if (selectedOpenRoomId) {
         setSelectedOpenRoomId(null);
       }
-      localStorage.setItem("supervision-last-session", target.sessionId);
+      if (ownRooms) {
+        memory.write("supervision-last-session", target.sessionId);
+      }
       void switchToRoom(target.sessionId);
       return;
     }
     if (target.kind === "persist-first") {
       // Nothing saved (e.g. fresh login) — persist the default so the next
-      // sidebar click and reload land on the same session.
+      // sidebar click and reload land on the same session. allRoomsBase
+      // lists own sessions first, so a foreign one is never saved while an
+      // own one runs (#5035).
       const firstRoom = allRoomsBase[0];
-      if (firstRoom) {
-        localStorage.setItem("supervision-last-session", firstRoom.id);
+      if (firstRoom && ownRooms) {
+        memory.write("supervision-last-session", firstRoom.id);
         if (firstRoom.room_id) {
-          localStorage.setItem("sidebar-last-room", firstRoom.room_id);
+          memory.write("sidebar-last-room", firstRoom.room_id);
         }
       }
     }

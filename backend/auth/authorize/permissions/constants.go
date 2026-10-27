@@ -35,6 +35,7 @@ const (
 	ResourceSchedules     = "schedules"
 	ResourceCalendar      = "calendar"
 	ResourceDisplay       = "display"
+	ResourceMeals         = "meals"
 	ResourceStudents      = "students"
 )
 
@@ -139,6 +140,16 @@ const (
 	ConfigManage = ResourceConfig + ":" + ActionManage
 )
 
+// Meal permissions (#3873): the meal plan and its numbers, its upkeep and
+// the caterer, the lists with children's names, and a child's registration
+// changed by the school, also after the deadline.
+const (
+	MealsRead     = ResourceMeals + ":" + ActionRead
+	MealsManage   = ResourceMeals + ":" + ActionManage
+	MealsOrders   = ResourceMeals + ":orders"
+	MealsRegister = ResourceMeals + ":register"
+)
+
 // IOT permissions
 const (
 	IOTRead   = ResourceIOT + ":" + ActionRead
@@ -221,6 +232,15 @@ const (
 	// decision "nur Admins"). This constant is reserved for the future
 	// delegated/scoped announcer role that will enforce per-target limits.
 	CommunicationsAnnounce = ResourceCommunications + ":announce"
+)
+
+// Survey permissions (#4781). surveys:manage creates, publishes and
+// evaluates the school's surveys to parents or staff. Answering needs no
+// permission: the audience of the survey decides who may answer.
+const (
+	ResourceSurveys = "surveys"
+
+	SurveysManage = ResourceSurveys + ":" + ActionManage
 )
 
 // Staff permissions (#1423). staff:financial gates the bank & tax section
@@ -352,6 +372,12 @@ const (
 	// operations.school_portal_write_scope unlocks it, the
 	// education.class_teachers assignment decides for which class.
 	ClassDayClassTripWrite = ResourceClassDay + ":class_trip_write"
+	// ClassDayDayHintWrite lets a Lehrkraft leave today's hint for the OGS on
+	// one of her assigned classes or on one of its children (#4795). The
+	// school's setting operations.school_portal_write_scope decides whether it
+	// is unlocked, and the education.class_teachers assignment decides for
+	// which class.
+	ClassDayDayHintWrite = ResourceClassDay + ":day_hint_write"
 	// ClassDayMorningAttendanceWrite lets a Lehrkraft mark each child of her
 	// assigned classes present or absent for today's school morning (#4790).
 	// The school's setting operations.school_portal_morning_attendance

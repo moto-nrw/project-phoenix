@@ -4,7 +4,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 )
 
 // Ports the composition root binds for the school-portal capability.
@@ -25,6 +24,7 @@ type (
 	AccessLog                     = application.AccessLog
 	ArrivalScheduleAnnouncer      = application.ArrivalScheduleAnnouncer
 	MorningAttendanceDependencies = application.MorningAttendanceDependencies
+	DayHintDependencies           = application.DayHintDependencies
 	HomeworkDependencies          = application.HomeworkDependencies
 	HomeworkEntry                 = application.HomeworkEntry
 	HomeworkFeedbackEntry         = application.HomeworkFeedbackEntry
@@ -49,22 +49,20 @@ type ClassDayDependencies struct {
 	Announcer              ArrivalScheduleAnnouncer
 	TripStatusDays         ClassTripStatusDays
 	MorningAttendanceDependencies
+	DayHintDependencies
 	HomeworkDependencies
 	ClassHandoverDependencies
 }
 
 // NewClassDay composes the school-portal capability.
 func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
-	var caller ports.Caller
-	if deps.Caller != nil {
-		caller = application.CallerBinding{CallerReader: deps.Caller}
-	}
 	app := application.ClassDayDependencies{
-		Caller: caller, Rosters: deps.Rosters, StatusDays: deps.StatusDays,
+		Caller: application.NewCallerBinding(deps.Caller), Rosters: deps.Rosters, StatusDays: deps.StatusDays,
 		Companions: deps.Companions, Students: deps.Students, EmergencyContacts: deps.EmergencyContacts,
 		AccessLog: deps.AccessLog, WriteScope: deps.WriteScope, TripScope: deps.WriteScope, Announcer: deps.Announcer,
 		StudentArrivals: deps.ClassArrivalExceptions, TripStatusDays: deps.TripStatusDays, HomeworkDependencies: deps.HomeworkDependencies,
 		MorningAttendanceDependencies: deps.MorningAttendanceDependencies, ClassHandoverDependencies: deps.ClassHandoverDependencies,
+		DayHintDependencies: deps.DayHintDependencies, HintScope: deps.WriteScope,
 	}
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
 		app.Times = application.DayTimeBinding{ClassDayPickupReader: deps.PickupTimes, Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}

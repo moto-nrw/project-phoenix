@@ -19,7 +19,7 @@ import (
 // required; optional notifiers may be nil. Tests bind the ports their flows reach.
 type Dependencies struct {
 	GuardianChanges auditlog.GuardianChangeLog
-	Signatures      parentportal.SignatureLedger
+	Signatures      parentportal.Signatures
 	CarePlanPolicy  care.CarePlanPolicy
 	GuardianPolicy  care.GuardianPolicy
 	DeparturePolicy care.DeparturePolicy
@@ -70,18 +70,19 @@ type Dependencies struct {
 	StudentAudit        care.StudentChangeRecorder
 	StudentConsents     care.StudentConsentService
 	StudentPhotos       care.StudentPhotoUnlinker
+	ChildDataAccess     care.ChildDataAccessLog
 	ParentRequestEvents messaging.RequestEvents
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
 
-	// Messaging: the parent-OGS conversation, announcements, and the reads the
-	// request-sharing ledger joins.
+	// Messaging: conversation, announcements, surveys, request-sharing reads.
 	MessageThreadRepo         messaging.MessageThreadAccess
 	MessageRepo               messaging.MessageReads
 	MessageReadRepo           messaging.MessageInboxReads
 	Conversations             messaging.ConversationCore
 	MessagingEnabled          messaging.MessagingGate
 	GroupThreads              messaging.GroupThreads
+	Surveys                   messaging.Surveys
 	AnnouncementRepo          messaging.AnnouncementAccess
 	CareRequestRepo           messaging.CareRequestReads
 	ExcusedRequestRepo        messaging.ExcusedRequestReads
@@ -123,10 +124,10 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		ExcusedRequests: deps.ExcusedRequests, CarePlanPolicy: deps.CarePlanPolicy,
 		CarePeriods: deps.CarePeriods, OfferingHistory: deps.OfferingHistory,
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
-		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos,
+		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos, ChildDataAccess: deps.ChildDataAccess,
 		ParentRequestEvents: deps.ParentRequestEvents,
-		GuardianChanges:     newGuardianChanges(deps.GuardianChanges),
-		GuardianInvites:     deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
+		GuardianChanges:     newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
+		GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
 		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
 		SelfService:    messagingFlows,
@@ -144,7 +145,7 @@ func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messag
 		ChildRepo: deps.ChildRepo, EnrollmentRequestRepo: deps.EnrollmentRequestRepo, Settings: deps.Settings,
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo, AnnouncementRepo: deps.AnnouncementRepo,
 		MessageThreadRepo: deps.MessageThreadRepo, MessageRepo: deps.MessageRepo, MessageReadRepo: deps.MessageReadRepo,
-		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, GroupThreads: deps.GroupThreads, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
+		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, GroupThreads: deps.GroupThreads, Surveys: deps.Surveys, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
 		ChangeRequestRepo: deps.ChangeRequestRepo, CareRequestRepo: deps.CareRequestRepo,
 		ExcusedRequestRepo: deps.ExcusedRequestRepo, OfferingChangeRequestRepo: deps.OfferingChangeRequestRepo,
 		FamilyProtectionEvents: deps.FamilyProtectionEvents, ParentRequestShares: deps.ParentRequestShares,

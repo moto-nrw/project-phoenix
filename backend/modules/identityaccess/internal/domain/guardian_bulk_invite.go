@@ -9,4 +9,7 @@ const (
 	BulkInviteProblemMissingEmail   = "missing_email"
 	BulkInviteProblemInvalidEmail   = "invalid_email"
 	BulkInviteProblemDuplicateEmail = "duplicate_email"
+	// BulkInviteProblemEmailNotQueued: the outbox did not take the mail, so
+	// this guardian's writes rolled back and a later run can try again (#4602).
+	BulkInviteProblemEmailNotQueued = "email_not_queued"
 )

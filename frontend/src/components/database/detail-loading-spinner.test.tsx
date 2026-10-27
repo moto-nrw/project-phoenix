@@ -12,6 +12,13 @@ describe("DetailLoadingSpinner", () => {
     );
   });
 
+  // Die Produkt-Screenshots warten, solange ein Element aria-busy trägt
+  // (scripts/product-screenshots/capture.ts).
+  it("marks itself as busy", () => {
+    render(<DetailLoadingSpinner label="Rollendaten werden geladen..." />);
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+  });
+
   it("uses the brand-blue accent ring on the spinner element", () => {
     const { container } = render(<DetailLoadingSpinner label="…" />);
     // The spinner is the only animate-spin descendant; it MUST keep the blue

@@ -20,6 +20,14 @@ import (
 // statement here runs in the Träger transaction of the Träger it names, and
 // names it once more in its own filter.
 
+// holidayBookingConstraints are the foreign keys of
+// enrollment.holiday_registration_bookings that keep a booked week and a
+// booked time model from being removed (#4661).
+var holidayBookingConstraints = map[string]bool{
+	"fk_holiday_registration_bookings_week":       true,
+	"fk_holiday_registration_bookings_time_model": true,
+}
+
 // holidayHostSchoolConstraint is the name the host-school trigger of
 // enrollment.holiday_period_weeks raises when a host school is not an
 // undeleted school of the period's Träger.
@@ -52,6 +60,8 @@ type holidayPeriodRow struct {
 	Status               string        `bun:"status"`
 	PublishedAt          *time.Time    `bun:"published_at"`
 	UpdatedAt            time.Time     `bun:"updated_at"`
+	PublicToken          string        `bun:"public_token"`
+	RegistrationCount    int           `bun:"registration_count"`
 }
 
 type holidayWeekRow struct {
@@ -75,7 +85,10 @@ type holidayTimeModelRow struct {
 
 const (
 	holidayPeriodColumns = `id, name, registration_opens_on, registration_closes_on, binding, notes,
-		status, published_at, updated_at`
+		status, published_at, updated_at, public_token,
+		(SELECT count(*) FROM enrollment.holiday_registrations AS registration
+			WHERE registration.organization_id = holiday_periods.organization_id
+				AND registration.holiday_period_id = holiday_periods.id) AS registration_count`
 	listHolidayPeriodsQuery = `SELECT ` + holidayPeriodColumns + ` FROM enrollment.holiday_periods
 		WHERE organization_id = ?
 		ORDER BY registration_opens_on DESC, id DESC`
@@ -176,7 +189,8 @@ func (s *HolidayPeriodStore) withWeeks(ctx context.Context, db bun.IDB, organiza
 		periods = append(periods, enrollment.HolidayPeriod{
 			ID: row.ID, Name: row.Name, RegistrationOpensOn: row.RegistrationOpensOn,
 			RegistrationClosesOn: row.RegistrationClosesOn, Binding: row.Binding, Notes: row.Notes,
-			Status: row.Status, PublishedAt: row.PublishedAt, UpdatedAt: row.UpdatedAt, Weeks: periodWeeks,
+			Status: row.Status, PublishedAt: row.PublishedAt, UpdatedAt: row.UpdatedAt,
+			PublicToken: row.PublicToken, RegistrationCount: row.RegistrationCount, Weeks: periodWeeks,
 		})
 	}
 	return periods, nil
@@ -204,6 +218,12 @@ func (s *HolidayPeriodStore) InsertHolidayPeriod(ctx context.Context, organizati
 	return periodID, nil
 }
 
+// checkHolidayBookingsNowQuery makes the deferred keys of the bookings check
+// each removal of a week or time model at once, so the change names the
+// refusal instead of failing at commit (#4661).
+const checkHolidayBookingsNowQuery = `SET CONSTRAINTS enrollment.fk_holiday_registration_bookings_week,
+	enrollment.fk_holiday_registration_bookings_time_model IMMEDIATE`
+
 const updateHolidayPeriodQuery = `UPDATE enrollment.holiday_periods
 	SET name = ?, registration_opens_on = ?, registration_closes_on = ?, binding = ?, notes = ?
 	WHERE organization_id = ? AND id = ?`
@@ -217,6 +237,9 @@ func (s *HolidayPeriodStore) UpdateHolidayPeriod(ctx context.Context, organizati
 	if _, err := db.NewRaw(updateHolidayPeriodQuery, input.Name, input.RegistrationOpensOn, input.RegistrationClosesOn,
 		input.Binding, input.Notes, organizationID, periodID).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: update holiday period: %w", err)
+	}
+	if _, err := db.NewRaw(checkHolidayBookingsNowQuery).Exec(ctx); err != nil {
+		return fmt.Errorf("enrollment postgres: check holiday bookings: %w", err)
 	}
 	return writeHolidayWeeks(ctx, db, organizationID, periodID, input.Weeks)
 }
@@ -267,7 +290,7 @@ func writeHolidayWeeks(ctx context.Context, db bun.IDB, organizationID, periodID
 		}
 	}
 	if _, err := db.NewRaw(deleteHolidayWeeksQuery, organizationID, periodID, pgdialect.Array(keep)).Exec(ctx); err != nil {
-		return fmt.Errorf("enrollment postgres: remove holiday weeks: %w", err)
+		return bookedHolidayWeekError(fmt.Errorf("enrollment postgres: remove holiday weeks: %w", err))
 	}
 	for index, week := range weeks {
 		weekID, err := writeHolidayWeek(ctx, db, organizationID, periodID, week)
@@ -305,7 +328,7 @@ func writeHolidayTimeModels(ctx context.Context, db bun.IDB, organizationID, wee
 		}
 	}
 	if _, err := db.NewRaw(deleteHolidayTimeModelsQuery, organizationID, weekID, pgdialect.Array(keep)).Exec(ctx); err != nil {
-		return fmt.Errorf("enrollment postgres: remove holiday time models: %w", err)
+		return bookedHolidayWeekError(fmt.Errorf("enrollment postgres: remove holiday time models: %w", err))
 	}
 	for _, model := range models {
 		var err error
@@ -329,6 +352,16 @@ func markHolidayWeekError(index int, err error) error {
 	var postgresError pgdriver.Error
 	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() && postgresError.Field('n') == holidayHostSchoolConstraint {
 		return &enrollment.HolidayHostSchoolRefusal{Week: index, Err: err}
+	}
+	return err
+}
+
+// bookedHolidayWeekError names the removal of a booked week or time model;
+// the foreign keys of the bookings decide it, nothing is pre-checked.
+func bookedHolidayWeekError(err error) error {
+	var postgresError pgdriver.Error
+	if errors.As(err, &postgresError) && postgresError.IntegrityViolation() && holidayBookingConstraints[postgresError.Field('n')] {
+		return fmt.Errorf("%w: %w", enrollment.ErrHolidayWeekBooked, err)
 	}
 	return err
 }

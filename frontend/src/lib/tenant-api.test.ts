@@ -168,6 +168,10 @@ describe("tenant-api", () => {
         // Missing timetable_enabled reads as enabled — the registry default
         // (#2383): an older backend must not hide the Tagesplan entry.
         timetableEnabled: true,
+        // Missing meal switches read as off (#3873): an older backend must
+        // not show the meal pages to a role that cannot read the settings.
+        mealPlanEnabled: false,
+        mealRegistrationEnabled: false,
         waitlistEnabled: true,
         gradeLevelMax: 13,
         // Older backends omit the Analyse-Freigabe (#3603): off, and nothing
@@ -1027,7 +1031,27 @@ describe("tenant-api", () => {
       ]);
     });
 
+    it("removes the source school's personal entries after the switch (#5000)", async () => {
+      localStorage.setItem("sidebar-last-group-name:1:7", "Eulen");
+      localStorage.setItem("moto:personal-storage-owner", "1:7");
+      localStorage.setItem("sidebar-collapsed", "true");
+      mockSessionFetch.mockResolvedValueOnce(
+        new Response(JSON.stringify(tokens), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      await performTenantSwitch("school-b", mockSignIn, mockSwrMutate);
+
+      expect(localStorage.getItem("sidebar-last-group-name:1:7")).toBeNull();
+      expect(localStorage.getItem("moto:personal-storage-owner")).toBeNull();
+      expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
+      localStorage.clear();
+    });
+
     it("propagates the ApiError when backend rejects", async () => {
+      localStorage.setItem("sidebar-last-group-name:1:7", "Eulen");
       mockSessionFetch.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -1052,6 +1076,9 @@ describe("tenant-api", () => {
       expect(mockSignIn).not.toHaveBeenCalled();
       expect(mockSwrMutate).not.toHaveBeenCalled();
       expect(mockClearSessionCache).not.toHaveBeenCalled();
+      // A refused switch keeps the person at the source school.
+      expect(localStorage.getItem("sidebar-last-group-name:1:7")).toBe("Eulen");
+      localStorage.clear();
     });
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
 import { Loader2 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -16,6 +16,12 @@ import {
   type CareScheduleRequestInput,
   type ChildCareSchedule,
 } from "~/lib/parent-api";
+import type { SignatureValue } from "~/lib/signature";
+import {
+  PickupSignatureField,
+  PickupSignatureStatementLoadError,
+  usePickupSignatureStatement,
+} from "~/components/parent/pickup-permission-fields";
 
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
   1: "mon",
@@ -45,7 +51,21 @@ interface RequestedDayResult {
 
 type Capabilities = ChildCareSchedule["request_capabilities"];
 type Weekdays = ChildCareSchedule["weekdays"];
-type SubmitRequest = (payload: CareScheduleRequestInput) => Promise<void>;
+type SubmitRequest = (
+  payload: CareScheduleRequestInput,
+  /** Nur gesetzt, wenn die Anfrage das Kind allein gehen lässt (#4780). */
+  signature?: SignatureValue,
+  signatureStatement?: string,
+) => Promise<void>;
+
+const ALONE_SIGNATURE_FIELD = "care-schedule-alone-signature";
+
+/** Die Wochentage, an denen die Anfrage das Kind allein gehen lässt (#4780). */
+function aloneWeekdays(payload: CareScheduleRequestInput): number[] {
+  return payload.weekdays
+    .filter((day) => day.mode === "alone")
+    .map((day) => day.weekday);
+}
 
 /**
  * The OGS rules this form knows better than the shared catalog: each one
@@ -254,15 +274,36 @@ function ScheduleValues({
 }
 
 function useRequestForm(
+  studentId: string,
   weekdays: Weekdays,
   capabilities: Capabilities,
   onSubmit: SubmitRequest,
   onClose: () => void,
 ) {
   const t = useTranslations("parentMasterData.careSchedule");
+  const tPermission = useTranslations("parentPickupPermission");
   const [drafts, setDrafts] = useState(() => draftsFromWeekdays(weekdays));
+  const [signature, setSignature] = useState<SignatureValue | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const form = useApiFormError();
+  // Geht das Kind an Wochentagen allein nach Hause, unterschreiben die Eltern
+  // die Erlaubnis (#4780).
+  const alone = aloneWeekdays(
+    requestPayload(weekdays, drafts, capabilities).payload,
+  );
+  const aloneSignatureStatement = usePickupSignatureStatement(
+    studentId,
+    alone.length > 0 ? { kind: "weekly_alone", weekdays: alone } : null,
+  );
+  const aloneStatement = aloneSignatureStatement.statement;
+  const aloneKey = alone.join(",");
+
+  // Die Unterschrift gilt genau für die Wochentage im Wortlaut. Ändert sich
+  // einer davon, muss der Elternteil die neue Erklärung erneut bestätigen.
+  useEffect(() => {
+    setSignature(null);
+  }, [aloneKey]);
+
   const latestSubmitRef = useRef<() => void>(() => undefined);
   const submit = async () => {
     const { payload, missingPlan } = requestPayload(
@@ -274,10 +315,17 @@ function useRequestForm(
     if (payload.weekdays.length === 0) {
       return form.invalid(t("requestNoChange"));
     }
+    if (alone.length > 0 && (!aloneStatement || !signature)) {
+      return form.invalid(tPermission("signature.missing"), {
+        [ALONE_SIGNATURE_FIELD]: tPermission("signature.missing"),
+      });
+    }
     setSubmitting(true);
     form.clear();
     try {
-      await onSubmit(payload);
+      await (aloneStatement && signature
+        ? onSubmit(payload, signature, aloneStatement)
+        : onSubmit(payload));
       onClose();
     } catch (submitError) {
       const known = knownRequestErrorKey(submitError);
@@ -297,7 +345,18 @@ function useRequestForm(
   useLayoutEffect(() => {
     latestSubmitRef.current = () => void submit();
   });
-  return { drafts, setDrafts, submitting, error: form.error, submit };
+  return {
+    drafts,
+    setDrafts,
+    submitting,
+    error: form.error,
+    submit,
+    aloneStatement,
+    aloneSignatureStatement,
+    signature,
+    setSignature,
+    signatureError: form.fieldError(ALONE_SIGNATURE_FIELD),
+  };
 }
 
 function ScheduleFields({
@@ -328,18 +387,26 @@ function ScheduleFields({
 }
 
 export function CareScheduleRequestModal({
+  studentId,
   weekdays,
   capabilities,
   onClose,
   onSubmit,
 }: Readonly<{
+  studentId: string;
   weekdays: Weekdays;
   capabilities: Capabilities;
   onClose: () => void;
   onSubmit: SubmitRequest;
 }>) {
   const t = useTranslations("parentMasterData.careSchedule");
-  const form = useRequestForm(weekdays, capabilities, onSubmit, onClose);
+  const form = useRequestForm(
+    studentId,
+    weekdays,
+    capabilities,
+    onSubmit,
+    onClose,
+  );
 
   return (
     <Modal
@@ -369,6 +436,20 @@ export function CareScheduleRequestModal({
           capabilities={capabilities}
           drafts={form.drafts}
           setDrafts={form.setDrafts}
+        />
+        {form.aloneStatement && (
+          <PickupSignatureField
+            id={ALONE_SIGNATURE_FIELD}
+            statement={form.aloneStatement}
+            value={form.signature}
+            onChange={form.setSignature}
+            disabled={form.submitting}
+            error={form.signatureError}
+          />
+        )}
+        <PickupSignatureStatementLoadError
+          error={form.aloneSignatureStatement.error}
+          retry={form.aloneSignatureStatement.retry}
         />
         <FormErrorAlert message={form.error} />
       </div>

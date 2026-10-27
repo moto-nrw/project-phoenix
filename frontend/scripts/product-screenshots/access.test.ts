@@ -1,9 +1,9 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, expect, test } from "vitest";
 
-import { loadStackAccess } from "./access";
+import { accessForShot, loadStackAccess } from "./access";
 
 const directories: string[] = [];
 
@@ -18,6 +18,7 @@ afterEach(async () => {
 async function seedState(
   createdAt: string,
   tenantSlug = "vollbetrieb",
+  schoolAdmin?: { email: string; password: string },
 ): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "screenshot-seed-"));
   directories.push(root);
@@ -31,10 +32,11 @@ async function seedState(
         vollbetrieb: {
           school: { tenant_slug: tenantSlug },
           credentials: {
+            ...(schoolAdmin ? { school_admin: schoolAdmin } : {}),
             accounts: {
               admin: [
                 {
-                  key: "thomas-schmidt",
+                  key: "katarzyna-schmidt",
                   email: "admin@example.test",
                   password: "test",
                 },
@@ -114,4 +116,53 @@ test("weist einen URL-Benutzeranteil im Tenant-Slug zurück", async () => {
       now: new Date("2026-09-10T08:15:00Z"),
     }),
   ).toThrow(/Screenshot-Tenant/);
+});
+
+test("meldet den Träger mit dem Schul-Admin des Seeds am Träger-Host an", async () => {
+  const statePath = await seedState("2026-09-09T22:05:00Z", "vollbetrieb", {
+    email: "buero@example.test",
+    password: "test",
+  });
+  const access = loadStackAccess({
+    statePath,
+    env: { ...env, NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000" },
+    now: new Date("2026-09-10T08:15:00Z"),
+  });
+  expect(
+    accessForShot(access, { id: "a", portal: "traeger", rolle: "traeger" }),
+  ).toEqual({
+    origin: "http://traeger.localhost:3000",
+    credentials: { email: "buero@example.test", password: "test" },
+  });
+});
+
+test("weist einen Träger-Shot ohne Träger-Host ab", async () => {
+  const statePath = await seedState("2026-09-09T22:05:00Z", "vollbetrieb", {
+    email: "buero@example.test",
+    password: "test",
+  });
+  // Ohne frontend/.env.local, die den Träger-Host sonst liefern könnte.
+  const access = loadStackAccess({
+    statePath,
+    frontendDir: dirname(statePath),
+    env,
+    now: new Date("2026-09-10T08:15:00Z"),
+  });
+  expect(() =>
+    accessForShot(access, { id: "a", portal: "traeger", rolle: "traeger" }),
+  ).toThrow(/NEXT_PUBLIC_TRAEGER_HOSTNAME/);
+});
+
+test("weist einen Träger-Host außerhalb des lokalen Stacks zurück", async () => {
+  const statePath = await seedState("2026-09-09T22:05:00Z");
+  expect(() =>
+    loadStackAccess({
+      statePath,
+      env: {
+        ...env,
+        NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000@remote.example",
+      },
+      now: new Date("2026-09-10T08:15:00Z"),
+    }),
+  ).toThrow(/lokale Origin/);
 });

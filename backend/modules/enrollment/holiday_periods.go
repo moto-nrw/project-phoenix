@@ -81,11 +81,17 @@ type HolidayPeriod struct {
 	// Binding states that a registration is binding once submitted.
 	Binding bool `json:"binding"`
 	// Notes are the hints for parents, such as lunch or a packed lunch.
-	Notes       string        `json:"notes"`
-	Status      string        `json:"status"`
-	PublishedAt *time.Time    `json:"published_at"`
-	UpdatedAt   time.Time     `json:"updated_at"`
-	Weeks       []HolidayWeek `json:"weeks"`
+	Notes       string     `json:"notes"`
+	Status      string     `json:"status"`
+	PublishedAt *time.Time `json:"published_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+	// PublicToken is the key of the period's one public registration link
+	// for all its schools (#4661, ADR 0110). Only the Träger-Portal reads it.
+	PublicToken string `json:"public_token"`
+	// RegistrationCount is the number of registrations received, a summed
+	// figure without personal data.
+	RegistrationCount int           `json:"registration_count"`
+	Weeks             []HolidayWeek `json:"weeks"`
 }
 
 // HolidayTimeModelInput is a time model as the Träger-Büro writes it. A zero

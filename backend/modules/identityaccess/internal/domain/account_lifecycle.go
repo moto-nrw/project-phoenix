@@ -102,13 +102,6 @@ type StaffPreviewEvent struct {
 
 // --- staff offboarding -----------------------------------------------------
 
-// PermissionGrant is one direct account permission row.
-type PermissionGrant struct {
-	ID           int64
-	PermissionID int64
-	Granted      bool
-}
-
 // --- school identity -------------------------------------------------------
 
 var (
@@ -173,6 +166,9 @@ type SchoolIdentity struct {
 
 var (
 	ErrGuardianInvitationNotFound = errors.New("invitation not found")
+	// ErrGuardianAccessMailNotQueued reports an access mail the outbox did not
+	// take; the access it announces rolls back with it (#4602).
+	ErrGuardianAccessMailNotQueued = errors.New("guardian access email could not be queued")
 )
 
 // GuardianInvitationValidationError marks input rejected by the guardian

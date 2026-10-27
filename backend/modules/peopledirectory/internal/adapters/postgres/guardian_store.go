@@ -43,6 +43,7 @@ type guardianLinkRow struct {
 	IsEmergencyContact bool           `bun:"is_emergency_contact,notnull"`
 	CanPickup          bool           `bun:"can_pickup,notnull"`
 	PickupNotes        *string        `bun:"pickup_notes"`
+	PickupWeekdays     []int          `bun:"pickup_weekdays,array"`
 	EmergencyPriority  int            `bun:"emergency_priority"`
 	IsPayer            bool           `bun:"is_payer,notnull"`
 	Permissions        map[string]any `bun:"permissions,type:jsonb"`
@@ -264,7 +265,7 @@ func toDomainLink(row guardianLinkRow) peopledirectory.GuardianLink {
 		ID: row.ID, TenantID: row.TenantID, StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID,
 		RelationshipType: row.RelationshipType, GuardianRole: row.GuardianRole,
 		IsPrimary: row.IsPrimary, IsEmergencyContact: row.IsEmergencyContact, CanPickup: row.CanPickup,
-		PickupNotes: row.PickupNotes, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer,
+		PickupNotes: row.PickupNotes, PickupWeekdays: row.PickupWeekdays, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer,
 		Permissions: domain.GrantedPermissions(row.Permissions),
 	}
 }

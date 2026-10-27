@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api-error";
 import {
   acceptTraegerInvitation,
+  createTraegerBankAccount,
+  fetchTraegerMasterData,
+  uploadTraegerLogo,
   fetchHolidayPeriods,
   fetchTraegerBuero,
   fetchTraegerSchools,
@@ -72,6 +75,43 @@ describe("traeger-api", () => {
     expect(JSON.parse(init?.body as string)).not.toHaveProperty(
       "organization_id",
     );
+  });
+
+  it("maps the second factor the login asks for", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        status: "mfa_required",
+        challenge_token: "challenge",
+        masked_email: "a***@b.de",
+        organization_id: 7,
+      }),
+    );
+    await expect(
+      traegerLogin({ email: "a@b.de", password: "pw" }),
+    ).resolves.toEqual({
+      status: "mfa_required",
+      challengeToken: "challenge",
+      maskedEmail: "a***@b.de",
+      organizationId: "7",
+    });
+
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(200, {
+        status: "mfa_enrollment_required",
+        access_token: "enrollment",
+        masked_email: "a***@b.de",
+        mfa_enrollment_required: true,
+        organization_id: 7,
+      }),
+    );
+    await expect(
+      traegerLogin({ email: "a@b.de", password: "pw" }),
+    ).resolves.toEqual({
+      status: "mfa_enrollment_required",
+      enrollmentToken: "enrollment",
+      maskedEmail: "a***@b.de",
+      organizationId: "7",
+    });
   });
 
   it("throws the backend code of a refused login", async () => {
@@ -300,5 +340,115 @@ describe("traeger-api holiday periods", () => {
     expect(fetchMock.mock.calls[0]![0]).toBe(
       "/api/traeger/holiday-periods/5/publish",
     );
+  });
+
+  it("maps the master data with string IDs (#4653)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: {
+          contact: { name: "Petra Lindner", phone: "", email: "" },
+          logo: {
+            content_type: "image/png",
+            width: 240,
+            height: 80,
+            size_bytes: 512,
+            updated_at: "2026-09-09T10:00:00Z",
+          },
+          bank_accounts: [
+            {
+              id: 7,
+              label: "Elternbeiträge",
+              account_holder: "Träger e.V.",
+              iban: "DE89370400440532013000",
+              bic: "",
+              bank_name: "",
+              is_default: true,
+            },
+          ],
+        },
+      }),
+    );
+
+    const data = await fetchTraegerMasterData();
+
+    expect(data.contact.name).toBe("Petra Lindner");
+    expect(data.logo).toEqual({
+      contentType: "image/png",
+      width: 240,
+      height: 80,
+      sizeBytes: 512,
+      updatedAt: "2026-09-09T10:00:00Z",
+    });
+    expect(data.bankAccounts).toEqual([
+      {
+        id: "7",
+        label: "Elternbeiträge",
+        accountHolder: "Träger e.V.",
+        iban: "DE89370400440532013000",
+        bic: "",
+        bankName: "",
+        isDefault: true,
+      },
+    ]);
+  });
+
+  it("sends a bank account in the backend's field names", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(201, {
+        status: "success",
+        data: {
+          id: 9,
+          label: "Mensa",
+          account_holder: "Träger e.V.",
+          iban: "GB82WEST12345698765432",
+          bic: "",
+          bank_name: "",
+          is_default: false,
+        },
+      }),
+    );
+
+    const created = await createTraegerBankAccount({
+      label: "Mensa",
+      accountHolder: "Träger e.V.",
+      iban: "GB82 WEST 1234 5698 7654 32",
+      bic: "",
+      bankName: "",
+      isDefault: false,
+    });
+
+    expect(created.id).toBe("9");
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/traeger/master-data/bank-accounts");
+    expect(JSON.parse(init?.body as string)).toEqual({
+      label: "Mensa",
+      account_holder: "Träger e.V.",
+      iban: "GB82 WEST 1234 5698 7654 32",
+      bic: "",
+      bank_name: "",
+      is_default: false,
+    });
+  });
+
+  it("uploads the logo as the multipart field logo and keeps a refusal's code", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(400, {
+        status: 400,
+        code: "traeger.logo_invalid",
+        detail: "invalid",
+      }),
+    );
+    const file = new File(["x"], "logo.png", { type: "image/png" });
+
+    await expect(uploadTraegerLogo(file)).rejects.toMatchObject({
+      code: "traeger.logo_invalid",
+    });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("/api/traeger/master-data/logo");
+    expect(init?.method).toBe("PUT");
+    const body = init?.body;
+    expect(body).toBeInstanceOf(FormData);
+    expect((body as FormData).get("logo")).toBe(file);
   });
 });

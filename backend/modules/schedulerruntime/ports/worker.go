@@ -34,11 +34,14 @@ type WorkerDependencies struct {
 	// operator accounts after their window (#4047).
 	OperatorRetention OperatorRetention
 	// AccountRetention tombstones the accounts no school needs (#4043).
-	AccountRetention   AccountRetention
-	WorkSessionCleanup WorkSessionCleaner
-	BreakAutoEnder     BreakAutoEnder
-	AutoCheckouter     AutoCheckouter
-	FeedbackCleaner    FeedbackCleaner
+	AccountRetention AccountRetention
+	// HolidayRegistrationRetention deletes ended holiday registrations of
+	// every Träger (#4661).
+	HolidayRegistrationRetention HolidayRegistrationRetention
+	WorkSessionCleanup           WorkSessionCleaner
+	BreakAutoEnder               BreakAutoEnder
+	AutoCheckouter               AutoCheckouter
+	FeedbackCleaner              FeedbackCleaner
 	// RetentionSteps are the owners' deletions of a school's nightly cleanup
 	// (#3950), RetentionLog records each deletion; NewWorker builds the run
 	// over them. CleanupRuns keeps each school's last successful nightly run.
@@ -56,6 +59,7 @@ type WorkerDependencies struct {
 	PWAUsageCleanup           PWAUsageCleanup
 	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        BookingConsistencyAudit
+	MealOrders                MealOrderSettlement
 	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
 	AutoStart                 InstanceAutoStart
 	AutoEnd                   InstanceAutoEnd

@@ -38,6 +38,7 @@ Five optional URL parameters carry context; none of them is an access check:
 | `frontend/src/components/help/help-view.tsx` | The shell: sidebar, search, "Auf dieser Seite", article rendering, category order |
 | `frontend/src/components/help/help-entry.tsx` | The role question on a bare `/help` |
 | `frontend/src/lib/help-topics.ts` | `HELP_TOPICS` (the id registry) and the app-path → topic maps |
+| `frontend/src/lib/help-topic-availability.ts` | Audience per article and the settings filters, without article text (read by the `?` link) |
 | `frontend/src/components/help/context-help-link.tsx` | The `?` in the app header; builds the URL with role and settings |
 | `frontend/src/app/help/[[...topic]]/page.tsx` | The single route behind all three address shapes above |
 | `frontend/src/app/help/nfc/erste-schritte/page.tsx` | The printed onepager (+ `onepager-header.tsx`) |
@@ -84,7 +85,9 @@ Three more things that bite:
 - **`related` passes the same role filter as the sidebar.** A link to an article the reader's role cannot see disappears silently.
 - **Category order per role** lives in `GROUP_ORDER_BY_ROLE` (`help-view.tsx`), separately from the article list. A new category needs an entry there *and* in `HELP_GROUP_LABELS`.
 
-Settings-driven filtering uses three id sets in `help-content.ts`: `NFC_ONLY_TOPIC_IDS`, `DETAILED_ONLY_TOPIC_IDS`, `FIXED_GROUPS_ONLY_TOPIC_IDS`. An article listed there disappears for tenants the setting does not apply to — that is a hard filter, unlike the URL parameters above.
+Settings-driven filtering uses three id sets in `src/lib/help-topic-availability.ts`: `NFC_ONLY_TOPIC_IDS`, `DETAILED_ONLY_TOPIC_IDS`, `FIXED_GROUPS_ONLY_TOPIC_IDS`. An article listed there disappears for tenants the setting does not apply to — that is a hard filter, unlike the URL parameters above.
+
+The same file holds `HELP_TOPIC_AUDIENCE`, each article's `audience` without its text. The `?` in every page header decides from it whether the page has an article for the role, so the article texts stay out of every route's bundle. Never import `help-content.ts` from the app shell. `help-topic-availability.test.ts` fails when an `audience` and its table entry differ.
 
 All visible strings are **German** — the help UI is German-only.
 
@@ -109,7 +112,7 @@ When unsure: if a school admin or supervisor would *do something differently* af
 
 ## HOW To Update
 
-1. **Register the id** in `HELP_TOPICS` (`src/lib/help-topics.ts`): the key is the camelCase id, the value the URL slug. A typo is then a compile error, not a dead link.
+1. **Register the id** in `HELP_TOPICS` (`src/lib/help-topics.ts`): the key is the camelCase id, the value the URL slug. A typo is then a compile error, not a dead link. Add the id with the article's `audience` to `HELP_TOPIC_AUDIENCE` (`src/lib/help-topic-availability.ts`); the type demands the entry.
 2. **Write the article** in `help-content.ts` as a `function <name>Topic(): HelpTopic`, and add the call to the right role list in `getHelpTopics`, at a position its prerequisites allow.
 3. **Write German** per `moto-einfache-sprache` (Sie-Form, short sentences, no technical vocabulary). Put every label the reader clicks in backticks, spelled exactly as the screen spells it. **Open the real screen and read the labels off it** — a remembered label is a wrong label.
 4. **Check the reverse direction:** does an existing article now contradict your change? Search `help-content.ts` for the label you renamed.

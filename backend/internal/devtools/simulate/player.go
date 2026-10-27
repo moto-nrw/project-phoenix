@@ -3,6 +3,7 @@ package simulate
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 type Client interface {
@@ -38,14 +39,41 @@ type Runtime struct {
 	Client                  Client
 	Options                 FullDayOptions
 	RFIDTags                map[int64]string
-	ActiveRoomIDs           []int64
 	ActiveSessionDeviceKeys []string
 	DeviceKeys              []string
-	ActivityNames           []string
 	// OpenRoomBlockInstanceID is the block started in a released room (#3281),
 	// 0 when none runs.
 	OpenRoomBlockInstanceID int64
-	Counts                  RuntimeCounts
+	// SupervisorStaffIDs supervise the running kiosk sessions.
+	SupervisorStaffIDs []int64
+	// Today is what the school plans for the simulated day (fullday_today.go).
+	Today todayPlan
+	// Blocks are the planned blocks the run started, in start order.
+	Blocks []startedBlock
+	// Children are the children of the day: the seed state's, then the
+	// children only the API lists (enrollment admissions), with today's
+	// status and arrival.
+	Children []todayChild
+	// Rooms tracks where the children of the day were checked in.
+	Rooms roomPlan
+	// Arrivals is when the children come and what they do at midday.
+	Arrivals arrivalPlan
+	// messages remembers what the run wrote (fullday_messages.go).
+	messages messageLog
+	// Present holds the children whose attendance is recorded today.
+	Present map[int64]bool
+	// ClockedInStaff holds the staff members the run stamped in or found on
+	// leave, so a later shift check leaves them alone.
+	ClockedInStaff map[int64]bool
+	// StaffOnLeave remembers, per checked staff member, whether an approved
+	// absence covers today.
+	StaffOnLeave map[int64]bool
+	// staffLogins are the signed-in clients of the caregivers who run the
+	// started blocks (fullday_blocks.go).
+	staffLogins map[int64]staffLogin
+	// adminLoginAt is when the admin last signed in, on the shared clock.
+	adminLoginAt time.Time
+	Counts       RuntimeCounts
 }
 
 type RuntimeCounts struct {
@@ -64,6 +92,18 @@ type RuntimeCounts struct {
 	// OpenRoomBlockChildren counts children checked into the block running in
 	// a released room (#3281).
 	OpenRoomBlockChildren int
+	// EarlyCareChildren counts the children of the Frühbetreuung.
+	EarlyCareChildren int
+	// EarlyPickups counts the children sent home at midday.
+	EarlyPickups int
+	// StaffClockedIn and StaffAbsent count the shift clock-ins and the staff
+	// members skipped for approved leave.
+	StaffClockedIn int
+	StaffAbsent    int
+	// BlocksStarted counts the planned blocks the run started.
+	BlocksStarted int
+	// Messages counts the team-chat and parent messages the run wrote.
+	Messages int
 }
 
 type Action interface {
@@ -109,10 +149,16 @@ func (s Scenario) Run(ctx context.Context, rt *Runtime) error {
 
 func newRuntime(state *SeedState, client Client, opts FullDayOptions) *Runtime {
 	return &Runtime{
-		State:    state,
-		Client:   client,
-		Options:  opts,
-		RFIDTags: make(map[int64]string),
+		State:          state,
+		Client:         client,
+		Options:        opts,
+		RFIDTags:       make(map[int64]string),
+		Present:        make(map[int64]bool),
+		ClockedInStaff: make(map[int64]bool),
+		StaffOnLeave:   make(map[int64]bool),
+		staffLogins:    make(map[int64]staffLogin),
+		Rooms:          newRoomPlan(),
+		messages:       messageLog{threads: map[int]parentThread{}},
 	}
 }
 

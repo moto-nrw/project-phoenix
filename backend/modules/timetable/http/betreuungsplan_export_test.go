@@ -64,6 +64,22 @@ func TestBetreuungsplanExportDefaultsTheTemplateAndStreamsTheFile(t *testing.T) 
 	assert.Equal(t, "%PDF-1.7", body)
 }
 
+func TestBetreuungsplanExportKeepsStringFilterIDsLossless(t *testing.T) {
+	t.Parallel()
+
+	fake, code, _, _ := exportRequest(t, map[string]any{
+		"from": "2026-07-27", "to": "2026-07-31",
+		"group_id": "9007199254740993", "staff_id": "9223372036854775807", "room_id": "9007199254740995",
+	}, []string{permissions.SchedulesRead})
+	require.Equal(t, http.StatusOK, code)
+	require.NotNil(t, fake.params.Filter.EducationGroupID)
+	require.NotNil(t, fake.params.Filter.StaffID)
+	assert.Equal(t, int64(9007199254740993), *fake.params.Filter.EducationGroupID)
+	assert.Equal(t, int64(9223372036854775807), *fake.params.Filter.StaffID)
+	require.NotNil(t, fake.params.Filter.RoomID)
+	assert.Equal(t, int64(9007199254740995), *fake.params.Filter.RoomID)
+}
+
 func TestBetreuungsplanExportRefusesBadParameters(t *testing.T) {
 	t.Parallel()
 

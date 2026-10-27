@@ -7,7 +7,9 @@ import type { Shot } from "./shot-list";
 
 // Wohin die Pipeline fotografiert und womit sie sich anmeldet. Beides kommt aus
 // dem lokalen Stack: die Hostnamen aus der Frontend-Env, die Zugänge aus
-// backend/.seed-state.json (Profil `vollbetrieb`).
+// backend/.seed-state.json (Profil `vollbetrieb`). Ins Träger-Portal meldet
+// sich der Schul-Admin des Profils an: Der Seed macht ihn zur ersten Person
+// des Träger-Büros (seed_traeger.go).
 //
 // Die Pipeline fotografiert nur den eigenen Stack. Ein Host außerhalb von
 // *.localhost bricht ab (.claude/rules/no-production-requests.md).
@@ -15,9 +17,9 @@ import type { Shot } from "./shot-list";
 const PROFILE = "vollbetrieb";
 // Der Admin auf den Bildern. Der Bootstrap-Admin des Profils heißt „Seed
 // Admin“, und accounts.admin[0] ist der Entwickler-Admin, der zwischen allen
-// Schulen wechselt. Thomas Schmidt ist ein gewöhnlicher Schul-Admin mit
+// Schulen wechselt. Katarzyna Schmidt ist eine gewöhnliche Schul-Admin mit
 // Personennamen; der Seed vergibt die Schlüssel stabil.
-const ADMIN_KEY = "thomas-schmidt";
+const ADMIN_KEY = "katarzyna-schmidt";
 
 export interface Credentials {
   readonly email: string;
@@ -29,9 +31,12 @@ export interface StackAccess {
   readonly tenantOrigin: string;
   /** `http://eltern.localhost:<port>` */
   readonly parentsOrigin: string;
+  /** `http://traeger.localhost:<port>`, falls die Env den Host nennt. */
+  readonly traegerOrigin: string | null;
   readonly admin: Credentials;
   readonly betreuer: Credentials | null;
   readonly eltern: Credentials | null;
+  readonly traeger: Credentials | null;
 }
 
 interface SeedAccountJson extends Partial<Credentials> {
@@ -41,6 +46,7 @@ interface SeedAccountJson extends Partial<Credentials> {
 interface SeedProfileJson {
   school?: { tenant_slug?: string };
   credentials?: {
+    school_admin?: Partial<Credentials>;
     accounts?: {
       admin?: SeedAccountJson[];
       betreuer?: Array<Partial<Credentials>>;
@@ -135,6 +141,10 @@ export function loadStackAccess(options: LoadAccessOptions = {}): StackAccess {
     "NEXT_PUBLIC_PARENTS_HOSTNAME",
   );
   const domainUrl = localOrigin(`http://${tenantDomain}`, "TENANT_DOMAIN");
+  const traegerHost = env("NEXT_PUBLIC_TRAEGER_HOSTNAME");
+  const traegerUrl = traegerHost
+    ? localOrigin(`http://${traegerHost}`, "NEXT_PUBLIC_TRAEGER_HOSTNAME")
+    : null;
 
   if (!existsSync(statePath)) {
     throw new Error(
@@ -184,9 +194,11 @@ export function loadStackAccess(options: LoadAccessOptions = {}): StackAccess {
   return {
     tenantOrigin: tenantUrl.origin,
     parentsOrigin: parentsUrl.origin,
+    traegerOrigin: traegerUrl?.origin ?? null,
     admin,
     betreuer: credentialsOf(profile.credentials?.accounts?.betreuer?.[0]),
     eltern: credentialsOf(profile.credentials?.parents?.[0]),
+    traeger: credentialsOf(profile.credentials?.school_admin),
   };
 }
 
@@ -201,9 +213,15 @@ export function accessForShot(
       `Shot ${shot.id}: Das Seed-Profil ${PROFILE} hat keinen Zugang für die Rolle ${shot.rolle}.`,
     );
   }
-  return {
-    origin:
-      shot.portal === "eltern" ? access.parentsOrigin : access.tenantOrigin,
-    credentials,
-  };
+  const origin = {
+    tenant: access.tenantOrigin,
+    eltern: access.parentsOrigin,
+    traeger: access.traegerOrigin,
+  }[shot.portal];
+  if (!origin) {
+    throw new Error(
+      `Shot ${shot.id}: NEXT_PUBLIC_TRAEGER_HOSTNAME fehlt (frontend/.env.local).`,
+    );
+  }
+  return { origin, credentials };
 }

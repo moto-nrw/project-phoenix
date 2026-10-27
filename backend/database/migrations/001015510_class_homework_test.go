@@ -21,6 +21,7 @@ import (
 func TestClassHomeworkRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 	school := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, school)
@@ -153,11 +154,21 @@ func TestSchoolErasureDeletesHomework(t *testing.T) {
 func TestClassHomeworkRollbackPreservesSchoolErasure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	school := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, school)
 	student := testpkg.CreateTestStudentForTenant(t, db, school, "Haus", "Aufgabe", "3a")
 	operator := testpkg.CreateTestOperator(t, db)
 
+	// Roll back the later survey and meal migrations first: their foreign
+	// keys extend the erasure fingerprint restored by the homework rollback.
+	require.NoError(t, mealOrderErasureDown(t.Context(), db))
+	require.NoError(t, mealCaterersDown(t.Context(), db))
+	require.NoError(t, mealRegistrationLogDown(t.Context(), db))
+	require.NoError(t, mealOrdersDown(t.Context(), db))
+	require.NoError(t, mealPermissionsDown(t.Context(), db))
+	require.NoError(t, mealAbsenceHistoryDown(t.Context(), db))
+	require.NoError(t, surveysDown(t.Context(), db))
 	require.NoError(t, classHomeworkDown(t.Context(), db))
 	var data string
 	require.NoError(t, db.NewRaw(`SELECT platform.school_erasure_preview(?, ?)::text`, school, operator.ID).Scan(t.Context(), &data))

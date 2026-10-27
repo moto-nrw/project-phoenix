@@ -77,7 +77,7 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 	}, []*studentpresence.Attendance{
 		{Date: date.String(), CheckInTime: morningCheckIn},
 		{Date: date.String(), CheckInTime: unassignedCheckIn},
-	})
+	}, studentpresence.NewAttendanceRecorders(nil))
 
 	require.Len(t, rows, 3)
 	// Chronological within the day: 07:00 slot, 09:00 unassigned session, 12:00 slot.
@@ -115,7 +115,7 @@ func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
 	}, []*studentpresence.Attendance{
 		{Date: date.String(), CheckInTime: firstCheckIn},
 		{Date: date.String(), CheckInTime: reentryCheckIn},
-	})
+	}, studentpresence.NewAttendanceRecorders(nil))
 
 	require.Len(t, rows, 1, "both sessions belong to the booked slot — no unassigned rows")
 	assert.Equal(t, "Ganztagsbetreuung", rows[0].Values[attendanceColumnOffering])
@@ -157,7 +157,8 @@ func TestAttendanceSessionExportColumns_OmitsPlanColumns(t *testing.T) {
 	assert.NotContains(t, ids, attendanceColumnAssignment)
 	assert.Equal(t, []lists.ColumnID{
 		attendanceColumnDate, attendanceColumnWindow, attendanceColumnStatus,
-		attendanceColumnCheckIn, attendanceColumnCheckOut, attendanceColumnNote,
+		attendanceColumnCheckIn, attendanceColumnCheckOut,
+		attendanceColumnCheckedIn, attendanceColumnCheckedOut, attendanceColumnNote,
 	}, ids)
 }
 
@@ -173,7 +174,7 @@ func TestAttendanceExportRows_KeepsSessionsWithoutAnyPlan(t *testing.T) {
 
 	rows := attendanceExportRows(nil, []*studentpresence.Attendance{
 		{Date: date.String(), CheckInTime: checkIn, CheckOutTime: &checkOut},
-	})
+	}, studentpresence.NewAttendanceRecorders(nil))
 
 	require.Len(t, rows, 1)
 	assert.Equal(t, "09:00", rows[0].Values[attendanceColumnCheckIn])
@@ -209,7 +210,7 @@ func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 		},
 	}, []*studentpresence.Attendance{
 		{Date: day1.String(), CheckInTime: day1Unassigned},
-	})
+	}, studentpresence.NewAttendanceRecorders(nil))
 
 	require.Len(t, rows, 3)
 	assert.Equal(t, "14.07.2026", rows[0].Values[attendanceColumnDate])

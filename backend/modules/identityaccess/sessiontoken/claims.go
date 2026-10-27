@@ -51,6 +51,10 @@ type AppClaims struct {
 	// re-mint, so the audit trail can pair exactly one start with exactly one
 	// end no matter how often the token was renewed. Empty on regular tokens.
 	PreviewID string `json:"preview_id,omitempty"`
+	// ViaTraeger marks a school session the Träger-Büro opened through the
+	// Absprung (ADR 0084 section 5, #4654). The person acts as themselves
+	// with the school's admin role; the school access rests on the Träger.
+	ViaTraeger bool `json:"via_traeger,omitempty"`
 	CommonClaims
 }
 
@@ -73,6 +77,13 @@ func (c *AppClaims) IsOrgScope() bool {
 // IsParentScope returns true if this is a parent-portal token.
 func (c *AppClaims) IsParentScope() bool {
 	return c.Scope == claimScopeParent
+}
+
+// IsCatererScope returns true if this is a caterer-portal token (ADR 0077).
+// Caterer tokens carry no tenant; the caterer portal opens each school it
+// supplies in that school's own tenant transaction.
+func (c *AppClaims) IsCatererScope() bool {
+	return c.Scope == claimScopeCaterer
 }
 
 // IsSchoolScope returns true if this is a school-portal token ("moto schule",
@@ -267,6 +278,7 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 	c.ReadOnly = getOptionalBool(claims, "read_only")
 	c.ActingAdminID = getOptionalInt64(claims, "acting_admin_id")
 	c.PreviewID = getOptionalString(claims, "preview_id")
+	c.ViaTraeger = getOptionalBool(claims, "via_traeger")
 
 	return nil
 }

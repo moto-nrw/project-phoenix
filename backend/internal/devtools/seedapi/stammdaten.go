@@ -287,9 +287,9 @@ func (s *FixedSeeder) seedClassArrivalTimes(_ context.Context, result *FixedResu
 	return nil
 }
 
-// seedClassArrivalException gives the first class a class-wide arrival day
+// seedClassArrivalException gives the last class a class-wide arrival day
 // exception on the next school day (#2962), so the Klassen-Modal and the
-// roster show one on every dev machine.
+// roster show one on every dev machine; lists sorted by class keep the rest.
 func (s *FixedSeeder) seedClassArrivalException(_ context.Context, result *FixedResult) error {
 	classNames := make([]string, 0)
 	seen := make(map[string]struct{})
@@ -312,17 +312,17 @@ func (s *FixedSeeder) seedClassArrivalException(_ context.Context, result *Fixed
 	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 		date = date.AddDate(0, 0, 1)
 	}
-	isoDate := date.Format("2006-01-02")
-	path := fmt.Sprintf("/api/students/class-arrival-exceptions/%s/%s", url.PathEscape(classNames[0]), isoDate)
+	isoDate, className := date.Format("2006-01-02"), classNames[len(classNames)-1]
+	path := fmt.Sprintf("/api/students/class-arrival-exceptions/%s/%s", url.PathEscape(className), isoDate)
 	if _, err := s.client.Put(path, map[string]any{
 		"arrival_time": "11:00",
 		"reason":       "Unterricht fällt aus",
 	}); err != nil {
-		return fmt.Errorf("seed class arrival exception for %s: %w", classNames[0], err)
+		return fmt.Errorf("seed class arrival exception for %s: %w", className, err)
 	}
 	result.ClassArrivalExceptionCount++
 	if s.verbose {
-		fmt.Printf("  ✓ class arrival exception seeded for %s on %s\n", classNames[0], isoDate)
+		fmt.Printf("  ✓ class arrival exception seeded for %s on %s\n", className, isoDate)
 	}
 	return nil
 }
@@ -521,7 +521,7 @@ func (s *FixedSeeder) retireFormerStaff() error {
 	}
 	// Keep visible examples for the invitation's three carryover choices.
 	for section, data := range map[string]map[string]any{
-		"kontakt":         {"address_city": "Osnabrück", "phone": "+49 541 1234567", "note": "Frühere Kontaktdaten für die Wiederaufnahme"},
+		"kontakt":         {"address_city": "Köln", "phone": "+49 221 4605318", "note": "Frühere Kontaktdaten für die Wiederaufnahme"},
 		"qualifikationen": {"qualifikationen": []map[string]any{{"name": "Erste Hilfe"}}, "note": "Frühere Qualifikation für die Wiederaufnahme"},
 	} {
 		if _, err := s.client.Put(fmt.Sprintf("/api/staff/%d/stammdaten/%s", formerStaffID, section), data); err != nil {
@@ -548,14 +548,14 @@ func (s *FixedSeeder) seedGroups(_ context.Context, result *FixedResult) error {
 		teachers []string // teacher names (must match DemoStaff Pädagogische Fachkräfte)
 	}{
 		{key: "sternengruppe", name: "Sternengruppe", teachers: []string{"Julia Klein"}},
-		{key: "bärengruppe", name: "Bärengruppe", teachers: []string{"Markus Wolf"}},
-		{key: "sonnengruppe", name: "Sonnengruppe", teachers: []string{"Sandra Schröder"}},
+		{key: "bärengruppe", name: "Bärengruppe", teachers: []string{"Berken Hawleri"}},
+		{key: "sonnengruppe", name: "Sonnengruppe", teachers: []string{"Elif Arslan"}},
 		{key: "mondgruppe", name: "Mondgruppe", teachers: []string{"Christian Neumann"}},
-		{key: "regenbogengruppe", name: "Regenbogengruppe", teachers: []string{"Nicole Schwarz"}},
-		{key: "blumengruppe", name: "Blumengruppe", teachers: []string{"Frank Zimmermann"}},
-		{key: "schmetterlingsgruppe", name: "Schmetterlingsgruppe", teachers: []string{"Birgit Braun"}},
-		{key: "waldgruppe", name: "Waldgruppe", teachers: []string{"Jörg Krüger"}},
-		{key: "meeresgruppe", name: "Meeresgruppe", teachers: []string{"Heike Hartmann"}},
+		{key: "regenbogengruppe", name: "Regenbogengruppe", teachers: []string{"Amara Okafor"}},
+		{key: "blumengruppe", name: "Blumengruppe", teachers: []string{"Tarek Haddad"}},
+		{key: "schmetterlingsgruppe", name: "Schmetterlingsgruppe", teachers: []string{"Daria Nowak"}},
+		{key: "waldgruppe", name: "Waldgruppe", teachers: []string{"Jana Krüger"}},
+		{key: "meeresgruppe", name: "Meeresgruppe", teachers: []string{"Mai Pham"}},
 		{key: "wiesengruppe", name: "Wiesengruppe", teachers: []string{"Anna Müller"}},
 	}
 
@@ -663,9 +663,9 @@ func (s *FixedSeeder) seedStudents(_ context.Context, result *FixedResult) error
 			"birthday":     birthday,
 		}
 		if i%3 == 0 {
-			body["address_street"] = fmt.Sprintf("Schulstraße %d", i+1)
-			body["address_postal_code"] = "49074"
-			body["address_city"] = "Osnabrück"
+			street, postalCode, city := demoKoelnAddress(i)
+			body["address_street"], body["address_postal_code"] = street, postalCode
+			body["address_city"] = city
 		}
 		if i%4 == 0 {
 			body["photo_consent_given"] = true
@@ -806,92 +806,70 @@ func (s *FixedSeeder) getCheckedInStudentIDs() (map[int64]bool, error) {
 
 func (s *FixedSeeder) seedGuardians(_ context.Context, result *FixedResult) error {
 	for index, guardian := range DemoGuardians {
-		guardianKey := fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName)
-
-		// 1. Create guardian profile
-		body := map[string]any{
-			"preferred_contact_method": "email",
-			"language_preference":      "de",
-		}
-		body["first_name"], body["last_name"] = visitorDisplayName(s.visitor, index == visitorGuardianIndex,
-			guardian.FirstName, guardian.LastName, DemoGuardians[visitorGuardianIndex].FirstName, DemoGuardians[visitorGuardianIndex].LastName)
-
-		// Add contact methods
-		if guardian.Email != "" {
-			body["email"] = scopedEmail(guardian.Email, s.accountScope)
-		}
-		if guardian.Phone != "" {
-			body["phone"] = guardian.Phone
-		}
-		if guardian.MobilePhone != "" {
-			body["mobile_phone"] = guardian.MobilePhone
-		}
-		if index%3 == 0 {
-			body["address_street"] = fmt.Sprintf("Familienweg %d", index+1)
-			body["address_postal_code"] = "49074"
-			body["address_city"] = "Osnabrück"
+		guardianKey := demoGuardianKey(guardian)
+		// A sibling's entry repeats its guardian: link the existing profile.
+		guardianID, created := s.guardianIDs[guardianKey]
+		if !created {
+			id, err := s.createDemoGuardian(index, guardian)
+			if err != nil {
+				return err
+			}
+			guardianID = id
+			s.guardianIDs[guardianKey] = guardianID
 		}
 
-		respBody, err := s.client.Post("/api/guardians", body)
-		if err != nil {
-			return fmt.Errorf("failed to create guardian %s: %w", guardianKey, err)
-		}
-
-		// Parse response to extract guardian ID
-		var resp struct {
-			Status string `json:"status"`
-			Data   struct {
-				ID int64 `json:"id"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(respBody, &resp); err != nil {
-			return fmt.Errorf("failed to parse guardian response: %w", err)
-		}
-
-		guardianID := resp.Data.ID
-		s.guardianIDs[guardianKey] = guardianID
-
-		// 2. Link guardian to student
 		studentID, ok := s.studentIDByIndex[guardian.StudentIndex]
 		if !ok {
 			return fmt.Errorf("student index %d not found for guardian %s", guardian.StudentIndex, guardianKey)
 		}
-
 		linkPath := fmt.Sprintf("/api/guardians/students/%d/guardians", studentID)
-		linkBody := map[string]any{
-			"guardian_profile_id":  guardianID,
-			"relationship_type":    guardian.Relationship,
-			"is_primary":           guardian.IsPrimary,
-			"is_emergency_contact": true,
-			"can_pickup":           true,
-			"emergency_priority":   1,
-		}
-		if index >= 6 && index%10 == 0 {
-			linkBody["guardian_role"] = "pickup_only"
-			linkBody["relationship_type"] = "relative"
-			linkBody["is_emergency_contact"] = false
-		} else if index >= 6 && index%11 == 0 {
-			linkBody["guardian_role"] = "custom"
-			linkBody["relationship_type"] = "other"
-			linkBody["is_emergency_contact"] = false
-			linkBody["can_pickup"] = false
-		}
-		if !guardian.IsPrimary {
-			linkBody["emergency_priority"] = 2
-		}
-
-		_, err = s.client.Post(linkPath, linkBody)
-		if err != nil {
+		if _, err := s.client.Post(linkPath, demoGuardianLink(guardianID, guardian)); err != nil {
 			return fmt.Errorf("link guardian %s to student %d: %w", guardianKey, studentID, err)
 		}
-
 		result.GuardianCount++
 	}
 
 	if s.verbose {
-		fmt.Printf("  ✓ %d guardians created and linked to students\n", result.GuardianCount)
+		fmt.Printf("  ✓ %d guardian links created\n", result.GuardianCount)
 	}
 	return nil
+}
+
+// createDemoGuardian creates the guardian profile of DemoGuardians[index].
+func (s *FixedSeeder) createDemoGuardian(index int, guardian DemoGuardian) (int64, error) {
+	body := map[string]any{
+		"preferred_contact_method": "email",
+		"language_preference":      "de",
+	}
+	body["first_name"], body["last_name"] = visitorDisplayName(s.visitor, index == visitorGuardianIndex,
+		guardian.FirstName, guardian.LastName, DemoGuardians[visitorGuardianIndex].FirstName, DemoGuardians[visitorGuardianIndex].LastName)
+	if guardian.Email != "" {
+		body["email"] = scopedEmail(guardian.Email, s.accountScope)
+	}
+	if guardian.Phone != "" {
+		body["phone"] = guardian.Phone
+	}
+	if guardian.MobilePhone != "" {
+		body["mobile_phone"] = guardian.MobilePhone
+	}
+	if guardian.StudentIndex%3 == 0 {
+		street, postalCode, city := demoKoelnAddress(guardian.StudentIndex)
+		body["address_street"], body["address_postal_code"], body["address_city"] = street, postalCode, city
+	}
+
+	respBody, err := s.client.Post("/api/guardians", body)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create guardian %s: %w", demoGuardianKey(guardian), err)
+	}
+	var resp struct {
+		Data struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(respBody, &resp); err != nil {
+		return 0, fmt.Errorf("failed to parse guardian response: %w", err)
+	}
+	return resp.Data.ID, nil
 }
 
 // demoIBANBLZ is the Bundesbank test Bankleitzahl block used for the demo
@@ -926,11 +904,11 @@ func demoIBAN(index int) string {
 // complete never shows what the screen is for.
 func (s *FixedSeeder) seedGuardianPayments(_ context.Context, result *FixedResult) error {
 	ibanIndex := 0
-	for _, guardian := range DemoGuardians {
+	for index, guardian := range DemoGuardians {
 		if !guardian.IsPrimary {
 			continue
 		}
-		guardianKey := fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName)
+		guardianKey := demoGuardianKey(guardian)
 		guardianID, ok := s.guardianIDs[guardianKey]
 		if !ok {
 			return fmt.Errorf("guardian ID not found for payer %s", guardianKey)
@@ -955,28 +933,39 @@ func (s *FixedSeeder) seedGuardianPayments(_ context.Context, result *FixedResul
 		}
 		result.PayerCount++
 
-		if guardian.StudentIndex%4 == 3 {
-			// Payer known, bank details still missing.
-			continue
+		stored, err := s.storeDemoBankDetails(index, guardian, guardianID, ibanIndex)
+		if err != nil {
+			return err
 		}
-
-		body := map[string]any{"iban": demoIBAN(ibanIndex)}
-		if guardian.StudentIndex%5 == 2 {
-			// A Kontoinhaber that differs from the guardian: the account runs
-			// on the partner's name.
-			body["account_holder"] = fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName+"-Berger")
+		if stored {
+			result.GuardianIBANCount++
 		}
-		paymentPath := fmt.Sprintf("/api/guardians/%d/payment", guardianID)
-		if _, err := s.client.Put(paymentPath, body); err != nil {
-			return fmt.Errorf("store bank details for guardian %s: %w", guardianKey, err)
-		}
-		result.GuardianIBANCount++
 	}
 
 	if s.verbose {
 		fmt.Printf("  ✓ %d payers marked, %d bank details stored\n", result.PayerCount, result.GuardianIBANCount)
 	}
 	return nil
+}
+
+// storeDemoBankDetails stores the IBAN of the payer DemoGuardians[index]. A
+// guardian of several children stores it with the first child only.
+func (s *FixedSeeder) storeDemoBankDetails(index int, guardian DemoGuardian, guardianID int64, ibanIndex int) (bool, error) {
+	if guardian.StudentIndex%4 == 3 || demoGuardianFirstIndex(guardian) != index {
+		// Payer known, bank details still missing.
+		return false, nil
+	}
+	body := map[string]any{"iban": demoIBAN(ibanIndex)}
+	if guardian.StudentIndex%5 == 2 {
+		// A Kontoinhaber that differs from the guardian: the account runs
+		// on the partner's name.
+		body["account_holder"] = fmt.Sprintf("%s %s", guardian.FirstName, guardian.LastName+"-Berger")
+	}
+	paymentPath := fmt.Sprintf("/api/guardians/%d/payment", guardianID)
+	if _, err := s.client.Put(paymentPath, body); err != nil {
+		return false, fmt.Errorf("store bank details for guardian %s: %w", demoGuardianKey(guardian), err)
+	}
+	return true, nil
 }
 
 // seedPickupSchedules creates the weekly Gehzeiten. Children with "Wird abgeholt"

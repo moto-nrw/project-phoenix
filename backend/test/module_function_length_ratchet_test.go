@@ -75,20 +75,19 @@ const moduleFuncLenThreshold = 60
 // ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
 var moduleFuncLenAllowlist = map[string]int{
 	"api/active_test_helpers.go:buildActiveTestModule":                   185,
-	"api/auth_test_helpers.go:NewAuthTestModule":                         169,
+	"api/auth_test_helpers.go:NewAuthTestModule":                         164,
 	"api/calendar_test_helpers.go:NewCalendarTestModule":                 63,
 	"api/guardian_invitation_test_helpers.go:lifecycleTestModule":        61,
 	"api/guardians_composition.go:newGuardiansResource":                  108,
 	"api/import_test_helpers.go:NewImportTestModuleWithOwners":           82,
-	"api/iot/compose/compose.go:(*Resource).Router":                      110,
+	"api/iot/compose/compose.go:(*Resource).Router":                      105,
 	"api/reminders_test_helpers.go:NewRemindersTestModule":               64,
 	"api/root_serve.go:composeServeRoot":                                 511,
 	"api/root_test_root.go:composeTestRootWith":                          283,
-	"api/serve_mounts_portals.go:newOperatorRouter":                      65,
 	"api/serve_mounts_students.go:mountStudentRoutes":                    120,
 	"api/serve_mounts_students.go:requestReviewDependencies":             100,
 	"api/settings_composition.go:newSettingsResource":                    61,
-	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources": 176,
+	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources": 168,
 	"api/student_owner_http_test_helpers.go:newStudentHTTPTestReviews":   103,
 	"api/student_test_helpers.go:newStudentTestModule":                   315,
 	"api/timetable_http_test_helpers.go:NewTimetableHTTPTestModule":      85,
@@ -518,10 +517,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/student_owner_backfill_verify.go:(*studentOwnerTenantRun).verifySnapshot": 85,
 	// ADR 0087.
-	"database/migrations/student_owner_compatibility.go:ValidateStudentOwnerForeignKeys": 68,
-	// ADR 0087.
-	"database/migrations/student_owner_compatibility.go:repointStudentForeignKeys": 176,
-	// ADR 0087.
 	"database/migrations/student_owner_contract.go:studentOwnerContractDataPreflight": 65,
 	// ADR 0087.
 	"internal/architecture/composition_owners.go:rootStructInventoryWith": 89,
@@ -551,19 +546,13 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 62,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 320,
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 261,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 61,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_extras.go:(seedCareExitsStep).Run": 63,
 	// ADR 0087.
-	"internal/devtools/seedapi/seed_extras.go:(seedCourseParticipationStep).Run": 63,
-	// ADR 0087.
 	"internal/devtools/seedapi/seed_phase_periods.go:seedPhaseSchoolYear": 69,
-	// ADR 0087.
-	"internal/devtools/seedapi/seed_staff_messaging.go:(seedStaffMessagingStep).Run": 85,
-	// ADR 0087.
-	"internal/devtools/seedapi/seed_staff_notices.go:(seedStaffNoticesStep).Run": 65,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_student_notes.go:(seedStudentNotesStep).Run": 88,
 	// ADR 0087.
@@ -579,15 +568,11 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedGroups": 65,
 	// ADR 0087.
-	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedGuardians": 89,
-	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedPickupSchedules": 123,
 	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedStaffAccounts": 129,
 	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedStudents": 119,
-	// ADR 0087.
-	"internal/devtools/seedapi/workflow_steps.go:fullDemoWorkflow": 77,
 	// ADR 0087.
 	"internal/devtools/simulate/demo.go:(*DemoTicker).Tick": 84,
 	// ADR 0087.
@@ -610,8 +595,11 @@ var moduleFuncLenAllowlist = map[string]int{
 	"realtime/hub.go:(*Hub).Unregister": 67,
 	"roots/owners/parent_messaging_announcement_access_port.go:BindParentAnnouncementAccess": 125,
 	"roots/owners/root_identity.go:BuildIdentityAccess":                                      106,
-	"roots/owners/root_worker.go:ComposeWorker":                                              345,
-	"roots/owners/worker.go:NewWorker":                                                       91,
+	// ADR 0078: the worker composes the Meal Plan whose orders it settles.
+	"roots/owners/root_worker.go:ComposeWorker": 347,
+	// ADR 0110: the worker passes the retention of the public holiday
+	// registrations.
+	"roots/owners/worker.go:NewWorker": 90,
 	// ADR 0087.
 	"test/booking_consistency_audit_fixture.go:VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows": 72,
 	// ADR 0087.

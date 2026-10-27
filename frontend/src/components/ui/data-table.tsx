@@ -17,6 +17,8 @@ import { Skeleton } from "~/components/ui/skeleton";
 type SortDirection = "asc" | "desc";
 
 export interface DataTableColumn<T> {
+  // The key "actions" marks the row-action column (the row's OverflowMenu).
+  // It stays pinned to the right edge of the table, see PINNED_COLUMN_KEY.
   key: string;
   header: string;
   render: (row: T) => ReactNode;
@@ -27,6 +29,7 @@ export interface DataTableColumn<T> {
   // of direction.
   sortValue?: (row: T) => string | number | null;
   // Role this column plays in the stacked phone layout (`stackedOnMobile`).
+  // A "field" whose render returns null for a row has no line in that row.
   // "title" is the headline of a stacked row, "meta" the muted value beside
   // it, "field" a labelled line below, "hidden" is dropped on phones.
   // Defaults to "field".
@@ -139,6 +142,21 @@ const headRowClass =
 const headCellClass =
   "px-5 py-3 font-medium max-sm:px-3 compact:px-4 compact:py-2";
 const bodyRowClass = "border-b border-gray-50 last:border-0";
+
+// The row-action column stays at the right edge of the surface while wider
+// columns scroll beneath it (#4975): on a tablet or phone the menu with
+// „Herunterladen“ or „Löschen“ must not hide behind a sideways scroll. When
+// the table fits, sticky changes nothing. The cell needs its own background,
+// which follows the row's hover and selection.
+const PINNED_COLUMN_KEY = "actions";
+const pinnedCellClass = "sticky right-0";
+
+function pinnedBodyCellClass(selected: boolean, clickable: boolean): string {
+  if (selected) return `${pinnedCellClass} bg-gray-50`;
+  return clickable
+    ? `${pinnedCellClass} bg-white transition-colors group-hover:bg-gray-50`
+    : `${pinnedCellClass} bg-white`;
+}
 const bodyCellClass =
   "px-5 py-3 align-middle max-sm:px-3 compact:px-4 compact:py-2";
 
@@ -408,11 +426,16 @@ function StackedRows<T>({
                   </div>
                   {fields.length > 0 && (
                     <dl className="mt-2 space-y-1 text-sm">
-                      {fields.map((col) => (
-                        <StackedField key={col.key} label={col.header}>
-                          {col.render(row)}
-                        </StackedField>
-                      ))}
+                      {fields.map((col) => {
+                        // A cell without a value for this row (null) drops
+                        // its line instead of showing a bare label.
+                        const value = col.render(row);
+                        return value === null ? null : (
+                          <StackedField key={col.key} label={col.header}>
+                            {value}
+                          </StackedField>
+                        );
+                      })}
                     </dl>
                   )}
                 </>
@@ -676,12 +699,16 @@ export function DataTable<T>({
                   const align = alignClass[col.align ?? "left"];
                   const sortable = Boolean(col.sortValue);
                   const active = sort?.key === col.key;
+                  const pinned =
+                    col.key === PINNED_COLUMN_KEY
+                      ? `${pinnedCellClass} bg-white`
+                      : "";
                   if (!sortable) {
                     return (
                       <th
                         key={col.key}
                         scope="col"
-                        className={`${headCellClass} ${align} ${col.headerClassName ?? ""}`}
+                        className={`${headCellClass} ${align} ${pinned} ${col.headerClassName ?? ""}`}
                       >
                         {col.header}
                       </th>
@@ -715,7 +742,7 @@ export function DataTable<T>({
                       key={col.key}
                       scope="col"
                       aria-sort={ariaSort}
-                      className={`${headCellClass} ${align} ${col.headerClassName ?? ""}`}
+                      className={`${headCellClass} ${align} ${pinned} ${col.headerClassName ?? ""}`}
                     >
                       <button
                         type="button"
@@ -758,7 +785,7 @@ export function DataTable<T>({
                     selection?.selectedKeys.has(String(rowKey)) ?? false;
                   const rowClasses = [
                     `${bodyRowClass} transition-colors`,
-                    clickable ? "cursor-pointer hover:bg-gray-50" : "",
+                    clickable ? "group cursor-pointer hover:bg-gray-50" : "",
                     selected ? "bg-gray-50" : "",
                     rowClassName ? rowClassName(row) : "",
                   ]
@@ -808,10 +835,14 @@ export function DataTable<T>({
                       ) : null}
                       {shownColumns.map((col) => {
                         const align = alignClass[col.align ?? "left"];
+                        const pinned =
+                          col.key === PINNED_COLUMN_KEY
+                            ? pinnedBodyCellClass(selected, clickable)
+                            : "";
                         return (
                           <td
                             key={col.key}
-                            className={`${bodyCellClass} text-gray-900 ${align} ${col.className ?? ""}`}
+                            className={`${bodyCellClass} text-gray-900 ${align} ${pinned} ${col.className ?? ""}`}
                           >
                             {col.render(row)}
                           </td>
@@ -821,23 +852,24 @@ export function DataTable<T>({
                   );
                 })
               )}
-              {!isLoading && hasMore && (
-                <tr className="border-t border-gray-100">
-                  <td colSpan={cellCount} className="px-5 py-3 text-center">
-                    <Button
-                      type="button"
-                      variant="surface"
-                      size="md"
-                      onClick={loadMore}
-                    >
-                      {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
-                    </Button>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
+        {/* Unter dem Scrollbereich, nicht in der Tabelle: in einer Zeile
+            stünde der Knopf in der Mitte der ganzen Tabellenbreite und auf
+            dem Handy halb außerhalb der Karte (#4975). */}
+        {!isLoading && hasMore && (
+          <div className="border-t border-gray-100 px-5 py-3 text-center">
+            <Button
+              type="button"
+              variant="surface"
+              size="md"
+              onClick={loadMore}
+            >
+              {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

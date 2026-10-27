@@ -67,6 +67,8 @@ type SlimStudentResponse struct {
 	DayPlanningReason  string  `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel   string  `json:"day_planning_label,omitempty"`
 	PendingExcusedNote *string `json:"pending_excused_note,omitempty"`
+	// TeacherHints are today's hints of the Lehrkraft (#4795).
+	TeacherHints []TeacherHint `json:"teacher_hints,omitempty"`
 	// ClassHandover: today's handover of the child to the OGS (#4794).
 	ClassHandover *ClassHandover `json:"class_handover,omitempty"`
 
@@ -125,6 +127,7 @@ func slimStudentResponses(responses []StudentResponse, planningDate calendar.Dat
 			DayPlanningReason:    r.DayPlanningReason,
 			DayPlanningLabel:     r.DayPlanningLabel,
 			PendingExcusedNote:   r.PendingExcusedNote,
+			TeacherHints:         r.TeacherHints,
 			ClassHandover:        r.ClassHandover,
 			DepartureModes:       departure.Modes,
 			DepartureLabel:       departure.LegacyLabel,

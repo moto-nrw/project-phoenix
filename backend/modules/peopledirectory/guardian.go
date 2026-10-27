@@ -132,9 +132,12 @@ type GuardianLink struct {
 	IsEmergencyContact bool
 	CanPickup          bool
 	PickupNotes        *string
-	EmergencyPriority  int
-	IsPayer            bool
-	Permissions        []string
+	// PickupWeekdays limits CanPickup to these plan weekdays (1 = Monday …
+	// 5 = Friday); nil means every day (#4780).
+	PickupWeekdays    []int
+	EmergencyPriority int
+	IsPayer           bool
+	Permissions       []string
 }
 
 // HasPermission reports whether the link grants the named portal permission.

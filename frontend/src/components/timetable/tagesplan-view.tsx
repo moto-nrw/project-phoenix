@@ -19,11 +19,13 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   Fragment,
+  type CSSProperties,
   type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -41,6 +43,10 @@ import {
   blockRowStyle,
   blockStaffNames,
 } from "~/components/timetable/block-row-parts";
+import {
+  type TagesplanGroup,
+  groupParallelBlocks,
+} from "~/components/timetable/tagesplan-groups";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { blockChildrenLabel, blockEndLine } from "~/lib/block-children";
@@ -148,8 +154,14 @@ function NowDivider({ nowHHMM }: Readonly<{ nowHHMM: string }>) {
   );
 }
 
+const TIME_CLASS = "w-[4.25rem] shrink-0 sm:w-24";
+// Schmale Spalte: Start und Ende in einer Zeile, ab @xs wieder als Spalte.
+const TIME_PARALLEL_CLASS =
+  "flex items-baseline gap-2 @xs:block @xs:w-24 @xs:shrink-0";
+
 function TagesplanRow({
   instance,
+  effectiveEndTime,
   isToday,
   dayIsPast,
   nowHHMM,
@@ -157,8 +169,11 @@ function TagesplanRow({
   startBusy,
   onOpenSession,
   onStart,
+  placement,
 }: Readonly<{
   instance: PlannedTimetableInstance;
+  /** Normalisiertes Ende für die Statusanzeige; die angezeigte Zeit bleibt unverändert. */
+  effectiveEndTime: string;
   isToday: boolean;
   showMine: boolean;
   dayIsPast: boolean;
@@ -166,7 +181,10 @@ function TagesplanRow({
   startBusy: boolean;
   onOpenSession: (activeGroupId: string) => void;
   onStart: (instance: PlannedTimetableInstance) => void;
+  /** Platz im Raster einer Gruppe zeitgleicher Blöcke (#5020). */
+  placement?: CSSProperties;
 }>) {
+  const parallel = placement != null;
   // Ein Dienst (#3822) hat keine Kinder und wird nie gestartet; er kann
   // auch ohne Raum stattfinden.
   const isDuty = instance.isDuty === true;
@@ -183,14 +201,14 @@ function TagesplanRow({
     canStartPlannedInstance(instance, new Date());
   const ended =
     instance.status === "planned" &&
-    (dayIsPast || (isToday && instance.endTime <= nowHHMM));
+    (dayIsPast || (isToday && effectiveEndTime <= nowHHMM));
   const missed = ended && !isDuty;
   // Vorbei ist vorbei: gedimmte Zeilen lassen das Laufende und Kommende von
   // selbst hervortreten — statt eines Etiketts an jeder Zeile.
   const over =
     instance.status === "completed" ||
     ended ||
-    (cancelled && (dayIsPast || (isToday && instance.endTime <= nowHHMM)));
+    (cancelled && (dayIsPast || (isToday && effectiveEndTime <= nowHHMM)));
   const staff = blockStaffNames(instance);
   // Eigener Block (#4350): die Zeile ist in ihrer Blockfarbe hinterlegt, wie
   // ein PlanBlock im Raster; Vorleseprogramme hören "Mein Block". isAssigned
@@ -222,7 +240,7 @@ function TagesplanRow({
   const body = (
     <>
       <span
-        className={`w-[4.25rem] shrink-0 sm:w-24 ${over ? "opacity-50" : ""}`}
+        className={`${parallel ? TIME_PARALLEL_CLASS : TIME_CLASS} ${over ? "opacity-50" : ""}`}
       >
         <span className="block text-sm font-semibold text-gray-900 tabular-nums">
           {instance.startTime}
@@ -231,7 +249,9 @@ function TagesplanRow({
           {blockEndLine(instance)}
         </span>
       </span>
-      <span className={`min-w-0 flex-1 ${over ? "opacity-50" : ""}`}>
+      <span
+        className={`${parallel ? "w-full min-w-0 @xs:w-auto @xs:flex-1" : "min-w-0 flex-1"} ${over ? "opacity-50" : ""}`}
+      >
         <span
           className={`block truncate text-sm text-gray-900 ${running ? "font-semibold" : "font-medium"}`}
         >
@@ -269,18 +289,73 @@ function TagesplanRow({
           </span>
         ) : null}
       </span>
-      {running ? (
-        <span className="shrink-0">
-          <StatusColorBadge label="Läuft" color={LOCATION_COLORS.GROUP_ROOM} />
-        </span>
-      ) : null}
     </>
   );
+  const badge = running ? (
+    <span className="shrink-0">
+      <StatusColorBadge label="Läuft" color={LOCATION_COLORS.GROUP_ROOM} />
+    </span>
+  ) : null;
+  const chevron = (
+    <ChevronRight
+      className="h-4 w-4 shrink-0 text-gray-400"
+      aria-hidden="true"
+    />
+  );
+  const startButton = startable ? (
+    <Button
+      type="button"
+      size="md"
+      variant="success"
+      className="shrink-0"
+      disabled={startBusy}
+      onClick={() => onStart(instance)}
+    >
+      {startBusy ? "Startet..." : "Starten"}
+    </Button>
+  ) : null;
 
   const edgeStyle = {
     ...blockRowStyle(instance, mine),
     ...(over ? { opacity: 0.9 } : {}),
   };
+
+  // In einer schmalen Spalte stehen Zeit, Inhalt und Aktion untereinander;
+  // Badge, Chevron und Starten-Knopf rücken zusammen ans Ende.
+  if (parallel) {
+    const trailing =
+      badge || openable || startButton ? (
+        <span className="flex shrink-0 items-center gap-3">
+          {badge}
+          {openable ? chevron : null}
+          {startButton}
+        </span>
+      ) : null;
+    const inner =
+      "flex h-full w-full flex-col items-start gap-2 px-3 py-3 @xs:flex-row @xs:items-center @xs:gap-3 @xs:px-4 @xs:py-3.5";
+    return (
+      <li
+        className="@container border-b border-l-4 border-gray-100"
+        style={{ ...edgeStyle, ...placement }}
+      >
+        {openable ? (
+          <button
+            type="button"
+            onClick={() => onOpenSession(instance.activeGroupId as string)}
+            className={`${inner} text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset`}
+          >
+            {body}
+            {trailing}
+          </button>
+        ) : (
+          <div className={inner}>
+            {body}
+            {trailing}
+          </div>
+        )}
+      </li>
+    );
+  }
 
   if (openable) {
     return (
@@ -292,10 +367,8 @@ function TagesplanRow({
           style={edgeStyle}
         >
           {body}
-          <ChevronRight
-            className="h-4 w-4 shrink-0 text-gray-400"
-            aria-hidden="true"
-          />
+          {badge}
+          {chevron}
         </button>
       </li>
     );
@@ -307,18 +380,64 @@ function TagesplanRow({
       style={edgeStyle}
     >
       {body}
-      {startable ? (
-        <Button
-          type="button"
-          size="md"
-          variant="success"
-          className="shrink-0"
-          disabled={startBusy}
-          onClick={() => onStart(instance)}
+      {badge}
+      {startButton}
+    </li>
+  );
+}
+
+// Mehr als zwei Spalten werden auf dem Handy zu schmal: ab drei hat jede
+// Spalte eine Mindestbreite und die Gruppe scrollt seitlich (#5020).
+const PARALLEL_SCROLL_FROM = 3;
+
+function ParallelGroup({
+  group,
+  renderRow,
+}: Readonly<{
+  group: TagesplanGroup;
+  renderRow: (
+    instance: PlannedTimetableInstance,
+    placement: CSSProperties,
+    effectiveEndTime: string,
+  ) => ReactNode;
+}>) {
+  const captionId = useId();
+  const scrolls = group.laneCount >= PARALLEL_SCROLL_FROM;
+  const span = group.openEnd
+    ? `ab ${group.startTime} Uhr`
+    : `${group.startTime}–${group.endTime} Uhr`;
+  return (
+    <li className="border-b border-gray-100 last:border-b-0">
+      <p
+        id={captionId}
+        className="px-4 pt-2 pb-1 text-xs font-medium text-gray-500 tabular-nums"
+      >
+        Gleichzeitig · {span}
+      </p>
+      <div
+        className={scrolls ? "overflow-x-auto overflow-y-hidden" : undefined}
+      >
+        <ul
+          aria-labelledby={captionId}
+          className="-mb-px grid"
+          style={{
+            gridTemplateColumns: `repeat(${group.laneCount}, ${scrolls ? "minmax(11rem, 1fr)" : "minmax(0, 1fr)"})`,
+          }}
         >
-          {startBusy ? "Startet..." : "Starten"}
-        </Button>
-      ) : null}
+          {group.cells.map((cell) => (
+            <Fragment key={cell.instance.id}>
+              {renderRow(
+                cell.instance,
+                {
+                  gridColumn: `${cell.lane + 1} / span ${cell.laneSpan}`,
+                  gridRow: `${cell.row + 1}`,
+                },
+                cell.effectiveEndTime,
+              )}
+            </Fragment>
+          ))}
+        </ul>
+      </div>
     </li>
   );
 }
@@ -363,23 +482,19 @@ export function TagesplanView() {
     () => reloadList(),
   );
 
-  const sorted = useMemo(
-    () =>
-      [...(instances ?? [])].sort(
-        (a, b) =>
-          a.startTime.localeCompare(b.startTime) ||
-          a.endTime.localeCompare(b.endTime) ||
-          a.title.localeCompare(b.title),
-      ),
-    [instances],
+  // Zeitgleiche Blöcke bilden eine Gruppe und stehen nebeneinander (#5020);
+  // ein Block ohne Überschneidung ist eine Gruppe für sich in voller Breite.
+  const groups = useMemo(
+    () => groupParallelBlocks(instances ?? [], isToday ? nowHHMM : null),
+    [instances, isToday, nowHHMM],
   );
 
-  // "Jetzt"-Markierung: vor dem ersten Block, der noch nicht vorbei ist.
+  // "Jetzt"-Markierung: vor der ersten Gruppe, die noch nicht vorbei ist.
   const nowIndex = useMemo(() => {
-    if (!isToday || sorted.length === 0) return -1;
-    const index = sorted.findIndex((entry) => entry.endTime > nowHHMM);
-    return index === -1 ? sorted.length : index;
-  }, [isToday, sorted, nowHHMM]);
+    if (!isToday || groups.length === 0) return -1;
+    const index = groups.findIndex((group) => group.endTime > nowHHMM);
+    return index === -1 ? groups.length : index;
+  }, [isToday, groups, nowHHMM]);
 
   // Zurück aus einer Kinderliste: Scrollposition des angetippten Blocks
   // wiederherstellen, sobald die Liste da ist.
@@ -437,6 +552,26 @@ export function TagesplanView() {
   useLayoutEffect(() => {
     latestStartRef.current = (instance) => void handleStart(instance);
   });
+
+  const renderRow = (
+    instance: PlannedTimetableInstance,
+    placement?: CSSProperties,
+    effectiveEndTime: string = instance.endTime,
+  ) => (
+    <TagesplanRow
+      key={instance.id}
+      instance={instance}
+      effectiveEndTime={effectiveEndTime}
+      isToday={isToday}
+      dayIsPast={day < today}
+      nowHHMM={nowHHMM}
+      showMine={overviewScope === "all_staff"}
+      startBusy={startBusyId === instance.id}
+      onOpenSession={openSession}
+      onStart={(entry) => void handleStart(entry)}
+      placement={placement}
+    />
+  );
 
   if (!timetableEnabled) {
     return (
@@ -525,7 +660,7 @@ export function TagesplanView() {
         {!isLoading &&
         !listError &&
         instances != null &&
-        sorted.length === 0 ? (
+        groups.length === 0 ? (
           <EmptyState
             title={
               isToday
@@ -540,25 +675,24 @@ export function TagesplanView() {
           />
         ) : null}
 
-        {!isLoading && !listError && sorted.length > 0 ? (
+        {!isLoading && !listError && groups.length > 0 ? (
           <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
             <ul>
-              {sorted.map((instance, index) => (
-                <Fragment key={instance.id}>
+              {groups.map((group, index) => (
+                <Fragment key={group.key}>
                   {index === nowIndex ? <NowDivider nowHHMM={nowHHMM} /> : null}
-                  <TagesplanRow
-                    instance={instance}
-                    isToday={isToday}
-                    dayIsPast={day < today}
-                    nowHHMM={nowHHMM}
-                    showMine={overviewScope === "all_staff"}
-                    startBusy={startBusyId === instance.id}
-                    onOpenSession={openSession}
-                    onStart={(entry) => void handleStart(entry)}
-                  />
+                  {group.cells.length === 1 ? (
+                    renderRow(
+                      group.cells[0]!.instance,
+                      undefined,
+                      group.cells[0]!.effectiveEndTime,
+                    )
+                  ) : (
+                    <ParallelGroup group={group} renderRow={renderRow} />
+                  )}
                 </Fragment>
               ))}
-              {nowIndex === sorted.length ? (
+              {nowIndex === groups.length ? (
                 <NowDivider nowHHMM={nowHHMM} />
               ) : null}
             </ul>

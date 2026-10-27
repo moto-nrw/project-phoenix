@@ -7,6 +7,7 @@
     "./scripts/oxlint-plugin-date-safety.mjs",
     "./scripts/oxlint-plugin-error-path.mjs",
     "./scripts/oxlint-plugin-logging-safety.mjs",
+    "./scripts/oxlint-plugin-swr.mjs",
     "./scripts/oxlint-plugin-test-clock.mjs",
     "./scripts/oxlint-plugin-ui-kit.mjs"
   ],
@@ -37,6 +38,7 @@
     "error-path/no-raw-error-toast": "error",
     "error-path/no-error-text-match": "error",
     "logging-safety/no-serialized-context": "error",
+    "swr/no-direct-import": "error",
     "test-clock/no-real-clock": "error",
     "ui-kit/no-generic-brand-colors": "error",
     "ui-kit/no-hand-rolled-overlay": "error",

@@ -11,7 +11,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 
@@ -84,6 +84,11 @@ import {
   type CalendarTarget,
   type CalendarTargetType,
 } from "~/lib/personal-calendar-api";
+import {
+  getSchoolHolidays,
+  holidaysAsCalendarEvents,
+  type SchoolHolidays,
+} from "~/lib/school-holidays-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useCalDAVEnabled } from "~/lib/tenant-context";
 
@@ -333,11 +338,18 @@ const SchoolPlanReadView = dynamic(
  * Ein Deeplink in den Betreuungsplan (`?view=tag&d=…&block=…`) muss auch den
  * richtigen Tab öffnen — sonst landet ein geteilter Link (#2621) auf "Meine
  * Termine" und der Zustand ist verloren. Der Betreuungsplan verwaltet seine
- * Parameter über eine Allowlist (d/view/block) und würde einen eigenen
- * Tab-Parameter beim nächsten Wechsel wieder abräumen; deshalb entscheidet
- * die Anwesenheit genau dieser Parameter über den Starttab.
+ * Parameter über eine Allowlist (d/view/block, Filter group/staff/room) und
+ * würde einen eigenen Tab-Parameter beim nächsten Wechsel wieder abräumen;
+ * deshalb entscheidet die Anwesenheit dieser Parameter über den Starttab.
  */
-const SCHOOL_PLAN_PARAMS = ["d", "view", "block"] as const;
+const SCHOOL_PLAN_PARAMS = [
+  "d",
+  "view",
+  "block",
+  "group",
+  "staff",
+  "room",
+] as const;
 
 function hasSchoolPlanParams(params: URLSearchParams | null): boolean {
   return SCHOOL_PLAN_PARAMS.some((key) => params?.has(key) === true);
@@ -493,6 +505,21 @@ function StaffCalendarPageInner() {
     mutate,
   } = useSWRAuth<CalendarResponse>(calendarKey, () =>
     getStaffCalendar(range.from, range.to),
+  );
+
+  // Gesetzliche Feiertage des Bundeslands (#4775) als eigene Einträge neben
+  // den Terminen. Sie sind keine Termine und zählen nicht in der Statuszeile.
+  const fromISO = toISODate(range.from);
+  const toISO = toISODate(range.to);
+  const {
+    data: holidayData,
+    error: holidayError,
+    mutate: mutateHolidays,
+  } = useSWRAuth<SchoolHolidays>(`school-holidays-${fromISO}-${toISO}`, () =>
+    getSchoolHolidays(fromISO, toISO),
+  );
+  const holidayLoadError = useSwrLoadError(holidayError, "die Feiertage", () =>
+    mutateHolidays(),
   );
 
   const { data: recipientOptions = emptyRecipientOptions } =
@@ -849,7 +876,24 @@ function StaffCalendarPageInner() {
       void handleRespond(recipientId, status);
   });
 
-  const calendarEvents = calendarError ? [] : (data?.events ?? []);
+  const appointmentEvents = useMemo(
+    () => (calendarError ? [] : (data?.events ?? [])),
+    [calendarError, data],
+  );
+  const holidayEvents = useMemo(
+    () =>
+      holidayError || !holidayData
+        ? []
+        : holidaysAsCalendarEvents(
+            holidayData.holidays,
+            holidayData.federalStateName,
+          ),
+    [holidayData, holidayError],
+  );
+  const calendarEvents = useMemo(
+    () => (calendarError ? [] : [...appointmentEvents, ...holidayEvents]),
+    [calendarError, appointmentEvents, holidayEvents],
+  );
 
   const personalCalendar = (
     <PersonalCalendar
@@ -876,7 +920,13 @@ function StaffCalendarPageInner() {
   // selbst führt die Bedienzeile der Zeitnavigation als `dateLabel`, er steht
   // deshalb nicht ein zweites Mal in der Kopfkarte.
   const eventCount = visibleCalendarEvents(
-    calendarEvents,
+    appointmentEvents,
+    showWeekend,
+    viewMode,
+  ).length;
+  // Ein Feiertag allein hält das Raster offen, damit er sichtbar bleibt.
+  const holidayCount = visibleCalendarEvents(
+    holidayEvents,
     showWeekend,
     viewMode,
   ).length;
@@ -903,7 +953,13 @@ function StaffCalendarPageInner() {
       ? calendarLoadError
       : null;
   const calendarEmpty =
-    onCalendarTab && !isLoading && !calendarError && eventCount === 0
+    onCalendarTab &&
+    !isLoading &&
+    !calendarError &&
+    holidayData !== undefined &&
+    !holidayError &&
+    eventCount === 0 &&
+    holidayCount === 0
       ? {
           title: calendarEmptyLabel(viewMode),
           description: canManageCalendar
@@ -928,6 +984,7 @@ function StaffCalendarPageInner() {
     // Der Abo-Bereich (#2621) bleibt auch in einer leeren Woche erreichbar,
     // deshalb ersetzt der Leerzustand hier nur das Raster, nicht den Inhalt.
     <>
+      <LoadErrorAlert error={holidayLoadError} />
       {calendarError ? null : calendarEmpty ? (
         <SectionCard>
           <EmptyState
@@ -1012,7 +1069,7 @@ function StaffCalendarPageInner() {
               <SlideOverHeader className="flex-row items-start justify-between gap-3">
                 <div className="min-w-0">
                   <SlideOverTitle>
-                    {editingId ? "Termin bearbeiten" : "Termin erstellen"}
+                    {editingId ? "Termin ändern" : "Termin erstellen"}
                   </SlideOverTitle>
                 </div>
                 <SlideOverCloseButton disabled={submitting} />
@@ -1305,7 +1362,7 @@ function StaffCalendarPageInner() {
                               disabled={submitting}
                               aria-label={`${target.label} entfernen`}
                             >
-                              <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                              <X className="h-3.5 w-3.5" aria-hidden />
                             </button>
                           </span>
                         ))}

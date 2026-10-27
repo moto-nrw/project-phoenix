@@ -373,93 +373,109 @@ func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T)
 // supervised parallel sessions alone (#2161, sanctioned pattern per #2139).
 func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	t.Parallel()
+	testpkg.SetupTestDB(t)
 
-	const (
-		instanceID         int64 = 9
-		newGroupID         int64 = 10
-		studentID          int64 = 21
-		unplannedStudentID int64 = 22
-	)
+	for _, instant := range []string{
+		"2026-10-23T12:00:00Z", // Regular school day.
+		"2026-10-25T00:30:00Z", // First 02:30 in Berlin.
+		"2026-10-25T01:30:00Z", // Second 02:30 in Berlin.
+		"2026-10-25T22:30:00Z", // 23:30 on the 25-hour Berlin day.
+		"2026-10-25T23:30:00Z", // Monday in Berlin, Sunday in UTC.
+		"2026-03-28T23:30:00Z", // Sunday in Berlin, Saturday in UTC.
+		"2026-03-29T01:30:00Z", // After the spring-forward jump.
+	} {
+		t.Run(instant, func(t *testing.T) {
+			const (
+				instanceID         int64 = 9
+				newGroupID         int64 = 10
+				studentID          int64 = 21
+				unplannedStudentID int64 = 22
+			)
 
-	now := time.Now()
-	newGroup := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
-	newGroup.ID = newGroupID
-	unsupervised := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
-	unsupervised.ID = 11
-	supervised := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
-	supervised.ID = 12
-	bridged := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
-	bridged.ID = 13
-	staleFallback := &studentpresence.LiveGroup{StartTime: now.AddDate(0, 0, -1), RoomID: 42}
-	staleFallback.ID = 14
-	systemActivityID := int64(88)
-	independent := &studentpresence.LiveGroup{StartTime: now, RoomID: 42, ActivityGroupID: &systemActivityID}
-	independent.ID = 15
+			now, err := time.Parse(time.RFC3339, instant)
+			require.NoError(t, err)
+			newGroup := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
+			newGroup.ID = newGroupID
+			unsupervised := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
+			unsupervised.ID = 11
+			supervised := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
+			supervised.ID = 12
+			bridged := &studentpresence.LiveGroup{StartTime: now, RoomID: 42}
+			bridged.ID = 13
+			// Yesterday is a Berlin calendar day, not 24 hours before a UTC instant.
+			staleFallback := &studentpresence.LiveGroup{StartTime: calendar.DateFromTime(now).AddDays(-1).BerlinMidnight(), RoomID: 42}
+			staleFallback.ID = 14
+			systemActivityID := int64(88)
+			independent := &studentpresence.LiveGroup{StartTime: now, RoomID: 42, ActivityGroupID: &systemActivityID}
+			independent.ID = 15
 
-	groupRepo := &absorbGroupRepo{
-		newGroupID: newGroupID,
-		openGroups: []*studentpresence.LiveGroup{newGroup, unsupervised, supervised, bridged, staleFallback, independent},
+			groupRepo := &absorbGroupRepo{
+				newGroupID: newGroupID,
+				openGroups: []*studentpresence.LiveGroup{newGroup, unsupervised, supervised, bridged, staleFallback, independent},
+			}
+			supervisorRepo := &absorbSupervisorRepo{byGroup: map[int64][]*studentpresence.StaffedSupervision{
+				12: {{GroupSupervision: studentpresence.GroupSupervision{StaffID: 7, GroupID: 12}}},
+			}}
+			entryTime := now.Add(-15 * time.Minute)
+			visitRepo := &absorbVisitRepo{visits: []studentpresence.Visit{
+				{
+					StudentID:     studentID,
+					ActiveGroupID: unsupervised.ID,
+					EntryTime:     entryTime,
+				},
+				{
+					StudentID:     unplannedStudentID,
+					ActiveGroupID: unsupervised.ID,
+					EntryTime:     entryTime,
+				},
+			}}
+			instanceStudents := &absorbInstanceStudentRepo{unplannedStudentID: unplannedStudentID}
+			instanceRepo := &absorbInstanceRepo{planned: absorbPlannedInstance(instanceID, 42), byGroup: map[int64]*fixtures.ActivityInstance{
+				13: fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
+					fixtureRow.Date = calendar.DateFromTime(now)
+					fixtureRow.Status = fixtures.InstanceStatusActive()
+					fixtureRow.ActiveGroupID = &bridged.ID
+				}),
+			}}
+			systemActivity := &timetable.Group{ID: systemActivityID, IsSystem: true}
+
+			svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
+				Now:               func() time.Time { return now },
+				InstanceRepo:      lifecycleInstanceRows(instanceRepo),
+				InstanceStudents:  absorbParticipantRows(instanceStudents),
+				ActiveGroupRepo:   groupRepo,
+				ActivityGroupRepo: &absorbActivityGroupRepo{byID: map[int64]*timetable.Group{systemActivityID: systemActivity}},
+				SupervisorRepo:    supervisorRepo,
+				Presence:          visitRepo,
+			})
+
+			result, err := svc.Start(testpkg.Ctx(t), instanceID, 0)
+
+			require.NoError(t, err)
+			assert.Equal(t, newGroupID, result.ActiveGroupID)
+			assert.Equal(t, []int64{11, 12, 13}, groupRepo.lockedIDs, "only today's candidate sessions are locked")
+			assert.Equal(t, []int64{11}, visitRepo.endedIDs, "only the unbridged unsupervised session is ended")
+			assert.Equal(t, [][2]int64{{11, newGroupID}}, visitRepo.transfers, "open visits move through the conditional bulk update")
+			assert.Equal(t, []absorbedAttendanceUpdate{{
+				instanceID: instanceID,
+				studentID:  studentID,
+				checkedIn:  entryTime,
+			}, {
+				instanceID: instanceID,
+				studentID:  unplannedStudentID,
+				checkedIn:  entryTime,
+			}}, instanceStudents.updates, "absorbed visit is mirrored into the planned attendance row")
+			assert.Equal(t, []absorbedAttendanceUpdate{{
+				instanceID: instanceID,
+				studentID:  unplannedStudentID,
+			}}, instanceStudents.lookups, "missing planned attendance is confirmed before inserting")
+			assert.Equal(t, []absorbedAttendanceUpdate{{
+				instanceID: instanceID,
+				studentID:  unplannedStudentID,
+				checkedIn:  entryTime,
+			}}, instanceStudents.creates, "unplanned absorbed student gets a present attendance row")
+		})
 	}
-	supervisorRepo := &absorbSupervisorRepo{byGroup: map[int64][]*studentpresence.StaffedSupervision{
-		12: {{GroupSupervision: studentpresence.GroupSupervision{StaffID: 7, GroupID: 12}}},
-	}}
-	entryTime := now.Add(-15 * time.Minute)
-	visitRepo := &absorbVisitRepo{visits: []studentpresence.Visit{
-		{
-			StudentID:     studentID,
-			ActiveGroupID: unsupervised.ID,
-			EntryTime:     entryTime,
-		},
-		{
-			StudentID:     unplannedStudentID,
-			ActiveGroupID: unsupervised.ID,
-			EntryTime:     entryTime,
-		},
-	}}
-	instanceStudents := &absorbInstanceStudentRepo{unplannedStudentID: unplannedStudentID}
-	instanceRepo := &absorbInstanceRepo{planned: absorbPlannedInstance(instanceID, 42), byGroup: map[int64]*fixtures.ActivityInstance{
-		13: fixtures.NewActivityInstance(func(fixtureRow *fixtures.ActivityInstance) {
-			fixtureRow.Date = calendar.Date(calendar.TodayDate())
-			fixtureRow.Status = fixtures.InstanceStatusActive()
-			fixtureRow.ActiveGroupID = &bridged.ID
-		}),
-	}}
-	systemActivity := &timetable.Group{ID: systemActivityID, IsSystem: true}
-
-	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
-		InstanceRepo:      lifecycleInstanceRows(instanceRepo),
-		InstanceStudents:  absorbParticipantRows(instanceStudents),
-		ActiveGroupRepo:   groupRepo,
-		ActivityGroupRepo: &absorbActivityGroupRepo{byID: map[int64]*timetable.Group{systemActivityID: systemActivity}},
-		SupervisorRepo:    supervisorRepo,
-		Presence:          visitRepo,
-	})
-
-	result, err := svc.Start(testpkg.Ctx(t), instanceID, 0)
-
-	require.NoError(t, err)
-	assert.Equal(t, newGroupID, result.ActiveGroupID)
-	assert.Equal(t, []int64{11, 12, 13}, groupRepo.lockedIDs, "only today's candidate sessions are locked")
-	assert.Equal(t, []int64{11}, visitRepo.endedIDs, "only the unbridged unsupervised session is ended")
-	assert.Equal(t, [][2]int64{{11, newGroupID}}, visitRepo.transfers, "open visits move through the conditional bulk update")
-	assert.Equal(t, []absorbedAttendanceUpdate{{
-		instanceID: instanceID,
-		studentID:  studentID,
-		checkedIn:  entryTime,
-	}, {
-		instanceID: instanceID,
-		studentID:  unplannedStudentID,
-		checkedIn:  entryTime,
-	}}, instanceStudents.updates, "absorbed visit is mirrored into the planned attendance row")
-	assert.Equal(t, []absorbedAttendanceUpdate{{
-		instanceID: instanceID,
-		studentID:  unplannedStudentID,
-	}}, instanceStudents.lookups, "missing planned attendance is confirmed before inserting")
-	assert.Equal(t, []absorbedAttendanceUpdate{{
-		instanceID: instanceID,
-		studentID:  unplannedStudentID,
-		checkedIn:  entryTime,
-	}}, instanceStudents.creates, "unplanned absorbed student gets a present attendance row")
 }
 
 // --- reopen: lock the snapshot's children before the room --------------------

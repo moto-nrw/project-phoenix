@@ -6,6 +6,7 @@ import {
   useCalendarPeriods,
 } from "~/components/planning/calendar-periods-editor";
 import { ClosingDaysEditor } from "~/components/planning/closing-days-editor";
+import { SchoolHolidaysList } from "~/components/planning/school-holidays-list";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
@@ -56,6 +57,11 @@ function CalendarPeriodsPageContent() {
       {/* Abgesagte Termine ändern die Spalte „Verwendung“ (#3594). */}
       <ClosingDaysEditor
         onAppointmentsCancelled={() => void state.reload({ silent: true })}
+      />
+      {/* Feiertage berechnet moto aus dem Bundesland der Schule (#4775). */}
+      <SchoolHolidaysList
+        periods={state.periods}
+        periodsLoading={state.loading}
       />
     </TenantPage>
   );

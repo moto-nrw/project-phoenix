@@ -10,8 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The seeder gives the first class a class-wide arrival day exception on the
-// next school day (#2962) through the same endpoint the Klassen-Modal uses.
+// The seeder gives the last class a class-wide arrival day exception on the
+// next school day (#2962) through the same endpoint the Klassen-Modal uses:
+// lists sorted by class open on the first class, whose children keep their
+// own arrival times.
 func TestFixedSeeder_SeedClassArrivalException(t *testing.T) {
 	t.Parallel()
 
@@ -37,7 +39,7 @@ func TestFixedSeeder_SeedClassArrivalException(t *testing.T) {
 	assert.Equal(t, 1, result.ClassArrivalExceptionCount)
 	require.Len(t, paths, 1)
 	// r.URL.Path arrives decoded; the seeder escapes the class on the wire.
-	assert.True(t, strings.HasPrefix(paths[0], "/api/students/class-arrival-exceptions/Klasse 1a/"), paths[0])
+	assert.True(t, strings.HasPrefix(paths[0], "/api/students/class-arrival-exceptions/Klasse 4b/"), paths[0])
 	assert.Equal(t, "11:00", bodies[0]["arrival_time"])
 	assert.Equal(t, "Unterricht fällt aus", bodies[0]["reason"])
 }

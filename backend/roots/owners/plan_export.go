@@ -31,6 +31,16 @@ type planExportActivityGroupReader interface {
 	FindByIDs(ctx context.Context, ids []int64) ([]*timetable.Group, error)
 }
 
+// planExportBlockGroupReader is the Timetable read of the blocks' OGS groups.
+type planExportBlockGroupReader interface {
+	BlockEducationGroups(ctx context.Context, instanceIDs []int64) (map[int64][]int64, error)
+}
+
+// planExportGroupNameReader is the School Structure read of group names.
+type planExportGroupNameReader interface {
+	EducationGroupNames(ctx context.Context, ids []int64) (map[int64]string, error)
+}
+
 // planExportOverviewReader is the Workforce read of the staff week.
 type planExportOverviewReader interface {
 	Overview(ctx context.Context, from, to string) (workforce.StaffScheduleOverview, error)
@@ -65,8 +75,12 @@ type planExportSources struct {
 	PlanningTracks planExportPlanningTrackReader
 	ClosingDays    planexport.ClosingDayReader
 	Holidays       planexport.HolidayReader
-	Renderer       planexport.Renderer
-	Logger         *slog.Logger
+	// BlockGroups and EducationGroupNames serve the Betreuungsplan's group
+	// and person filter (#4766).
+	BlockGroups         planExportBlockGroupReader
+	EducationGroupNames planExportGroupNameReader
+	Renderer            planexport.Renderer
+	Logger              *slog.Logger
 }
 
 // newPlanExport binds the owner reads to the plan export ports and returns
@@ -84,8 +98,74 @@ func newPlanExport(sources planExportSources) planexport.Service {
 		PlanningTracks: planExportPlanningTracks{source: sources.PlanningTracks},
 		ClosingDays:    sources.ClosingDays,
 		Holidays:       sources.Holidays,
+		Filter:         planExportInstanceFilter{blockGroups: sources.BlockGroups, groupNames: sources.EducationGroupNames},
 		Renderer:       sources.Renderer,
 	}, sources.Logger)
+}
+
+// planExportInstanceFilter applies the Timetable owner's block filter rule
+// (#4766, #4768) to the export's blocks, with the same block groups the planner
+// filters by.
+type planExportInstanceFilter struct {
+	blockGroups planExportBlockGroupReader
+	groupNames  planExportGroupNameReader
+}
+
+func (a planExportInstanceFilter) MatchingInstances(ctx context.Context, filter planexport.BlockFilter, instances []*planexport.Instance, staff []*planexport.InstanceStaff) (planexport.FilteredInstances, error) {
+	var result planexport.FilteredInstances
+	groups, groupName, err := a.blockGroupsFor(ctx, filter, instances)
+	if err != nil {
+		return result, err
+	}
+	result.GroupName = groupName
+	staffByInstance := planExportStaffByInstance(staff)
+	rule := timetable.BlockFilter{EducationGroupID: filter.EducationGroupID, StaffID: filter.StaffID, RoomID: filter.RoomID}
+	result.Matches = make(map[int64]bool, len(instances))
+	for _, instance := range instances {
+		result.Matches[instance.ID] = rule.Matches(instance.RoomID, staffByInstance[instance.ID], groups[instance.ID])
+	}
+	return result, nil
+}
+
+// blockGroupsFor names the filtered group and loads the blocks' OGS groups;
+// without a group filter it reads nothing.
+func (a planExportInstanceFilter) blockGroupsFor(ctx context.Context, filter planexport.BlockFilter, instances []*planexport.Instance) (map[int64][]int64, string, error) {
+	if filter.EducationGroupID == nil {
+		return nil, "", nil
+	}
+	if a.blockGroups == nil || a.groupNames == nil {
+		return nil, "", fmt.Errorf("plan export filter: block groups are not wired")
+	}
+	names, err := a.groupNames.EducationGroupNames(ctx, []int64{*filter.EducationGroupID})
+	if err != nil {
+		return nil, "", err
+	}
+	if len(instances) == 0 {
+		return nil, names[*filter.EducationGroupID], nil
+	}
+	instanceIDs := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		instanceIDs = append(instanceIDs, instance.ID)
+	}
+	groups, err := a.blockGroups.BlockEducationGroups(ctx, instanceIDs)
+	if err != nil {
+		return nil, "", err
+	}
+	return groups, names[*filter.EducationGroupID], nil
+}
+
+// planExportStaffByInstance maps the export's staff rows onto the rows the
+// Timetable filter rule reads.
+func planExportStaffByInstance(staff []*planexport.InstanceStaff) map[int64][]timetable.InstanceStaff {
+	staffByInstance := make(map[int64][]timetable.InstanceStaff)
+	for _, row := range staff {
+		if row != nil {
+			staffByInstance[row.InstanceID] = append(staffByInstance[row.InstanceID], timetable.InstanceStaff{
+				InstanceID: row.InstanceID, StaffID: row.StaffID, IsSubstitute: row.IsSubstitute, IsAbsent: row.IsAbsent,
+			})
+		}
+	}
+	return staffByInstance
 }
 
 // planExportRange resolves the port's day strings. The capability only ever

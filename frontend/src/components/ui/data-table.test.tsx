@@ -334,6 +334,36 @@ describe("DataTable stacked phone layout", () => {
     expect(screen.getByTestId("data-table-table")).toBeInTheDocument();
   });
 
+  it("drops a field line whose cell has no value for that row", () => {
+    render(
+      <DataTable
+        columns={[
+          {
+            key: "name",
+            header: "Name",
+            stacked: "title",
+            render: (row) => row.name,
+          },
+          {
+            key: "iban",
+            header: "IBAN",
+            render: (row) => (row.id === "1" ? row.iban : null),
+          },
+        ]}
+        rows={people}
+        getRowKey={(row) => row.id}
+        stackedOnMobile
+      />,
+    );
+
+    const items = within(screen.getByTestId("data-table-stacked")).getAllByRole(
+      "listitem",
+    );
+    expect(items[0]).toHaveTextContent("IBAN");
+    expect(items[1]).toHaveTextContent("Lea");
+    expect(items[1]).not.toHaveTextContent("IBAN");
+  });
+
   it("shares paging with the table instead of counting its own rows", () => {
     render(
       <DataTable
@@ -576,5 +606,63 @@ describe("DataTable heading (#3834)", () => {
     const heading = screen.getByRole("heading", { name: "Kreativraum" });
     expect(heading.closest(".moto-content-surface")).not.toBeNull();
     expect(screen.getByText("2")).toBeInTheDocument();
+  });
+});
+
+describe("DataTable row-action column (#4975)", () => {
+  const withActions: DataTableColumn<Row>[] = [
+    ...columns,
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      render: (row) => (
+        <button type="button">{`Aktionen für ${row.name}`}</button>
+      ),
+    },
+  ];
+
+  it("pins the actions column to the right edge while the table scrolls sideways", () => {
+    render(
+      <DataTable columns={withActions} rows={rows} getRowKey={(r) => r.id} />,
+    );
+
+    const cell = screen
+      .getByRole("button", { name: "Aktionen für Alpha" })
+      .closest("td");
+    expect(cell).toHaveClass("sticky", "right-0");
+    expect(screen.getAllByRole("columnheader").at(-1)).toHaveClass(
+      "sticky",
+      "right-0",
+    );
+  });
+
+  it("keeps other columns in the scrolling flow", () => {
+    render(
+      <DataTable columns={withActions} rows={rows} getRowKey={(r) => r.id} />,
+    );
+
+    expect(screen.getByText("Alpha").closest("td")).not.toHaveClass("sticky");
+  });
+});
+
+describe("DataTable load-more button (#4975)", () => {
+  it("sits below the scrolling table, not in a table row", () => {
+    const many = Array.from({ length: 12 }, (_, i) => ({
+      id: String(i),
+      name: `Zeile ${i}`,
+    }));
+    render(
+      <DataTable
+        columns={columns}
+        rows={many}
+        getRowKey={(r) => r.id}
+        pageSize={5}
+      />,
+    );
+
+    const button = screen.getByRole("button", { name: /Mehr laden/ });
+    expect(button.closest("table")).toBeNull();
+    expect(screen.getByRole("table")).toBeInTheDocument();
   });
 });

@@ -18,6 +18,7 @@ type SessionFacts struct {
 	Platform        bool
 	Parent          bool
 	School          bool
+	Caterer         bool
 	TenantID        int64
 	ReadOnlyPreview bool
 	Admin           bool
@@ -37,6 +38,8 @@ func ActorOf(session SessionFacts) (Actor, bool) {
 		return Actor{}, false
 	case session.Parent:
 		return Actor{Surface: SurfaceParents, Role: RoleGuardian, AccountID: session.AccountID}, true
+	case session.Caterer:
+		return Actor{Surface: SurfaceCaterer, Role: RoleCaterer}, true
 	case session.School:
 		return Actor{Surface: SurfaceSchool, Role: RoleLehrkraft, SchoolID: session.TenantID, AccountID: session.AccountID}, true
 	case session.TenantID == 0:

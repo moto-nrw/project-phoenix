@@ -69,6 +69,8 @@ var schedulerPollingSettingKeys = []string{
 	settingRemindersPickupOverdueEnabled,
 	settingRemindersActivityStartEnabled,
 	settingRemindersActivityOverdueEnabled,
+	settingRemindersActivityRunningOverEnabled,
+	settingRemindersActivityRunningOverMinutes,
 	settingRemindersPickupUpcomingLeadMinutes,
 	settingRemindersActivityStartLeadMinutes,
 	settingCalendarAppointmentReminderEnabled,
@@ -83,6 +85,7 @@ var schedulerPollingSettingKeys = []string{
 	settingEnrollmentNotifyPerDecision,
 	// The module switches of the module jobs (#4895).
 	settingModuleElternApp,
+	settingModuleMittagessen,
 	settingModuleOnlineAnmeldung,
 	settingModuleZeiterfassung,
 }

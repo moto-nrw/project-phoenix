@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -77,6 +78,84 @@ func (p ParentDeclarationSignatures) DeclarationSignatures(ctx context.Context, 
 			ID: s.ID, IsDeclaration: s.Purpose == auditlog.SignaturePurposeDeclaration, StudentID: s.StudentID,
 			Method: s.Method, TypedName: s.TypedName, PNG: s.PNG, ImageSHA256: s.ImageSHA256,
 			DocumentSHA256: s.DocumentSHA256, SignedAt: s.SignedAt, IntegrityOK: s.IntegrityOK,
+		}
+	}
+	return out, nil
+}
+
+var _ parentportal.Signatures = ParentDeclarationSignatures{}
+
+// RecordPickupSignature stores the signature of a pickup permission, a
+// one-day collector or the way home alone (#4780). The document checksum is
+// the Security Runtime's SHA-256 of the exact wording signed.
+func (p ParentDeclarationSignatures) RecordPickupSignature(ctx context.Context, entry parentportal.PickupSignatureEntry) (int64, error) {
+	image, err := auditlog.ParseSignatureImage(entry.Input.Method, entry.Input.ImagePNG, entry.Input.TypedName)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", parentportal.ErrPickupSignatureInvalid, err)
+	}
+	studentID, accountID := entry.StudentID, entry.SignerAccountID
+	stored, err := p.Ledger.RecordSignature(ctx, auditlog.SignatureEntry{
+		Purpose: auditlog.SignaturePurposePickupPermission, StudentID: &studentID, SignerAccountID: &accountID,
+		SignerName: entry.SignerName, DocumentSHA256: securityruntime.Fingerprint([]byte(entry.Statement)),
+		SignedAt: entry.SignedAt, Image: image,
+	})
+	if errors.Is(err, auditlog.ErrSignatureInvalid) {
+		return 0, fmt.Errorf("%w: %v", parentportal.ErrPickupSignatureInvalid, err)
+	}
+	if err != nil {
+		return 0, err
+	}
+	return stored.ID, nil
+}
+
+// PickupSignatures reads pickup permission signatures of the child for the
+// wording each was given on.
+func (p ParentDeclarationSignatures) PickupSignatures(ctx context.Context, studentID int64, statements map[int64]string) (map[int64]*parentportal.PickupSignature, error) {
+	proofs, err := PickupSignatureProofs(ctx, p.Ledger, studentID, statements)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]*parentportal.PickupSignature, len(proofs))
+	for id, proof := range proofs {
+		value := parentportal.PickupSignature(proof)
+		out[id] = &value
+	}
+	return out, nil
+}
+
+// PickupSignatureProof is a stored pickup permission signature as both the
+// parent proof and the OGS proof show it (#4780).
+type PickupSignatureProof struct {
+	ID          int64
+	Method      string
+	TypedName   string
+	SignerName  string
+	PNG         []byte
+	ImageSHA256 string
+	SignedAt    time.Time
+	Intact      bool
+}
+
+// PickupSignatureProofs reads the signatures and checks each: the ledger's
+// own integrity, the pickup permission purpose, the child, and the SHA-256
+// of the wording the request keeps.
+func PickupSignatureProofs(ctx context.Context, ledger auditlog.SignatureLedger, studentID int64, statements map[int64]string) (map[int64]PickupSignatureProof, error) {
+	ids := make([]int64, 0, len(statements))
+	for id := range statements {
+		ids = append(ids, id)
+	}
+	stored, err := ledger.Signatures(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]PickupSignatureProof, len(stored))
+	for id, s := range stored {
+		intact := s.IntegrityOK && s.Purpose == auditlog.SignaturePurposePickupPermission &&
+			s.StudentID != nil && *s.StudentID == studentID &&
+			s.DocumentSHA256 == securityruntime.Fingerprint([]byte(statements[id]))
+		out[id] = PickupSignatureProof{
+			ID: s.ID, Method: s.Method, TypedName: s.TypedName, SignerName: s.SignerName, PNG: s.PNG,
+			ImageSHA256: s.ImageSHA256, SignedAt: s.SignedAt, Intact: intact,
 		}
 	}
 	return out, nil

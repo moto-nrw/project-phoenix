@@ -6,6 +6,7 @@
 
 import { apiErrorFromResponse } from "./api-error";
 import { clearSessionCache, sessionFetch } from "./session-cache";
+import { clearPersonalStorage } from "./personal-storage";
 import { mapAccountTenant, type AccountTenantBackend } from "./account-tenants";
 import { parseBookedModules, type ModuleKey } from "./modules";
 
@@ -143,6 +144,10 @@ export interface TenantInfo {
    * reads as enabled — the registry default.
    */
   timetableEnabled?: boolean;
+  // The meal switches reach staff without config:read (#3873): a kitchen
+  // role holds meals:* only.
+  mealPlanEnabled?: boolean;
+  mealRegistrationEnabled?: boolean;
   waitlistEnabled?: boolean;
   /** Highest grade offered by this tenant (enrollment.grade_level_max). */
   gradeLevelMax: number;
@@ -215,6 +220,8 @@ interface TenantResolveResponse {
   parent_request_reason_policy?: string;
   show_timetable_counts?: boolean;
   timetable_enabled?: boolean;
+  meal_plan_enabled?: boolean;
+  meal_registration_enabled?: boolean;
   waitlist_enabled?: boolean;
   grade_level_max: number;
   analytics_enabled?: boolean;
@@ -367,6 +374,8 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       ),
       showTimetableCounts: data.show_timetable_counts !== false,
       timetableEnabled: data.timetable_enabled !== false,
+      mealPlanEnabled: data.meal_plan_enabled === true,
+      mealRegistrationEnabled: data.meal_registration_enabled === true,
       waitlistEnabled: data.waitlist_enabled !== false,
       gradeLevelMax: data.grade_level_max,
       analyticsEnabled: data.analytics_enabled === true,
@@ -513,6 +522,9 @@ export async function performTenantSwitch(
   await swrMutate(() => true, undefined, { revalidate: false });
 
   clearSessionCache();
+  // The switcher navigates to the target school right away; the entries of
+  // the source school must not wait for the next session check (#5000).
+  clearPersonalStorage();
 
   return tokens;
 }

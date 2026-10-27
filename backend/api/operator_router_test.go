@@ -115,7 +115,7 @@ func TestRouter(t *testing.T) {
 			bookingAuthorityImpact: http.NotFoundHandler(),
 		}
 		router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-			provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler())
+			provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil)
 		require.NotNil(t, router)
 
 		// Walk the route tree and assert the settings subroute exists under /schools.
@@ -145,7 +145,7 @@ func TestRouter(t *testing.T) {
 		}
 		assert.Panics(t, func() {
 			operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-				provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler())
+				provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil)
 		})
 	})
 
@@ -165,7 +165,7 @@ func TestRouter(t *testing.T) {
 	t.Run("billing seed route is mounted with the billing report", func(t *testing.T) {
 		billing := provisioningoperator.NewBillingResource(stubBillingReport{}, nil, nil)
 		router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-			provisioningoperator.ProvisioningConfig{}, billing, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler())
+			provisioningoperator.ProvisioningConfig{}, billing, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil)
 
 		found := false
 		err := chiWalk(router, func(pattern string) {
@@ -198,7 +198,7 @@ func TestUnregisteredTagScanRoutesSitBehindOperatorAuth(t *testing.T) {
 	}
 	provisioning := &protectedRouteProvisioningService{}
 	router := operatorRouter(operatorIdentity{access: authService, sessions: operatorTestSessions(t, authService)},
-		provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, review, authRateLimiters{}, http.NotFoundHandler())
+		provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, review, authRateLimiters{}, http.NotFoundHandler(), nil)
 
 	anonymous := httptest.NewRecorder()
 	router.ServeHTTP(anonymous, httptest.NewRequest(http.MethodGet, "/unregistered-tag-scans/", nil))
@@ -290,7 +290,7 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 // Access inputs and provisioning service, without billing, school settings,
 // announcements, the tag scan review or rate limits.
 func testOperatorRouter(identity operatorIdentity, provisioning organizationtenancy.Provisioning) chi.Router {
-	return operatorRouter(identity, provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler())
+	return operatorRouter(identity, provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil)
 }
 
 // operatorTestSessions binds the operator session chains to the seeded test

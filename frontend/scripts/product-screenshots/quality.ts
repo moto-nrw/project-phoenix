@@ -173,3 +173,26 @@ export class BrokenShotError extends Error {
     this.reasons = reasons;
   }
 }
+
+/**
+ * Fasst die kaputten Shots eines Laufs zu einem Fehler zusammen. Der Lauf
+ * fotografiert nach einem kaputten Shot weiter, damit ein CI-Lauf alle
+ * Fehler auf einmal meldet; ausgegeben wird trotzdem nichts.
+ */
+export function brokenShotsError(
+  broken: readonly BrokenShotError[],
+): BrokenShotError {
+  const [first, ...rest] = broken;
+  if (!first) throw new Error("brokenShotsError braucht mindestens einen Shot");
+  if (rest.length === 0) return first;
+  const error = new BrokenShotError(first.shotId, first.device, first.reasons);
+  error.message = `${broken.length} Shots sind kaputt, der Lauf bricht ab:\n${broken
+    .map(
+      (shot) =>
+        `${shot.shotId} (${shot.device}):\n${shot.reasons
+          .map((reason) => `  - ${reason}`)
+          .join("\n")}`,
+    )
+    .join("\n")}`;
+  return error;
+}

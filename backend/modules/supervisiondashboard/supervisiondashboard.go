@@ -45,7 +45,8 @@ type Query interface {
 }
 
 // Dependencies are the consumer-owned ports the projection reads through.
-// Now defaults to time.Now; every other field is required.
+// Now defaults to time.Now; TeacherHints is optional (without it no hint of
+// the Lehrkraft is attached); every other field is required.
 type Dependencies struct {
 	Access   Access
 	Sessions SessionDirectory
@@ -58,7 +59,9 @@ type Dependencies struct {
 	Settings Settings
 	Staff    Staff
 	Calendar Calendar
-	Now      func() time.Time
+	// TeacherHints reads the Lehrkraft's day hints (#4795).
+	TeacherHints TeacherHintReader
+	Now          func() time.Time
 	// Handovers is optional (#4794): without it no child is marked.
 	Handovers HandoverReader
 }
@@ -280,31 +283,6 @@ type DayNote struct {
 	Content string `json:"content"`
 }
 
-// PickupTime / ArrivalTime keep the field names of the bulk endpoints they
-// replace so the frontend mapping stays identical.
-type PickupTime struct {
-	StudentID   int64     `json:"student_id,string"`
-	Date        string    `json:"date"`
-	WeekdayName string    `json:"weekday_name"`
-	PickupTime  *string   `json:"pickup_time,omitempty"`
-	IsException bool      `json:"is_exception"`
-	Notes       string    `json:"notes,omitempty"`
-	DayNotes    []DayNote `json:"day_notes,omitempty"`
-
-	// DayDepartureMode is the Abholart set for this day only (#3946).
-	DayDepartureMode string `json:"day_departure_mode,omitempty"`
-}
-
-type ArrivalTime struct {
-	StudentID       int64     `json:"student_id,string"`
-	Date            string    `json:"date"`
-	WeekdayName     string    `json:"weekday_name"`
-	ExpectedArrival *string   `json:"expected_arrival,omitempty"`
-	IsException     bool      `json:"is_exception"`
-	Notes           string    `json:"notes,omitempty"`
-	DayNotes        []DayNote `json:"day_notes,omitempty"`
-}
-
 type Capabilities struct {
 	WebSpontaneousActivitiesEnabled bool `json:"web_spontaneous_activities_enabled"`
 }
@@ -328,6 +306,9 @@ type Projection struct {
 	TrackingIndicators TrackingIndicators `json:"tracking_indicators"`
 	PickupTimes        []PickupTime       `json:"pickup_times"`
 	ArrivalTimes       []ArrivalTime      `json:"arrival_times"`
+	// TeacherHints are today's hints of the Lehrkraft (#4795) for the
+	// children in the projection, oldest first; with users:read only.
+	TeacherHints []TeacherHint `json:"teacher_hints"`
 }
 
 func emptyProjection() *Projection {
@@ -342,6 +323,7 @@ func emptyProjection() *Projection {
 		TrackingIndicators: TrackingIndicators{Labels: []string{}, Results: map[int64][]bool{}},
 		PickupTimes:        []PickupTime{},
 		ArrivalTimes:       []ArrivalTime{},
+		TeacherHints:       []TeacherHint{},
 	}
 }
 
@@ -518,12 +500,20 @@ func (s *service) ownedGroupIDs(ctx context.Context, broad bool, staffID *int64)
 }
 
 // selectGroup resolves the caller-requested session against the operational
-// scope. An unknown id is a hard 403 (ErrForbiddenGroup) — the caller retries
-// without group_id when its selection went stale.
+// scope. Without a request it picks the caller's own first session and falls
+// back to the first visible one, so an overview caller does not land on a
+// foreign session (#5035). An unknown id is a hard 403 (ErrForbiddenGroup) —
+// the caller retries without group_id when its selection went stale.
 func selectGroup(groups []Group, schulhof *SchulhofStatus, requestedGroupID int64) (*int64, error) {
 	if requestedGroupID <= 0 {
 		if len(groups) == 0 {
 			return nil, nil
+		}
+		for _, group := range groups {
+			if group.IsCurrentUserSupervising {
+				id := group.ID
+				return &id, nil
+			}
 		}
 		id := groups[0].ID
 		return &id, nil
@@ -647,6 +637,9 @@ func (s *service) loadPresenceSections(ctx context.Context, projection *Projecti
 	if err := s.loadPlanningTimes(ctx, projection, caller, studentIDs, fullAccess, businessDay); err != nil {
 		return err
 	}
+	if err := s.loadTeacherHints(ctx, projection, caller, studentIDs, fullAccess, businessDay); err != nil {
+		return err
+	}
 	return s.applyClassHandovers(ctx, projection, caller, businessDay)
 }
 
@@ -735,50 +728,6 @@ func (s *service) loadTracking(ctx context.Context, studentIDs []int64) (Trackin
 		return empty, err
 	}
 	return TrackingIndicators{Labels: labels, Results: results}, nil
-}
-
-// loadPlanningTimes mirrors the former bulk pickup/arrival endpoints, which
-// were gated on users:read; without it the sections stay deterministically
-// empty. Times are additionally scoped to full-access callers, matching the
-// actual arrival/pickup gate on the visit rows.
-func (s *service) loadPlanningTimes(ctx context.Context, projection *Projection, caller Caller, studentIDs []int64, fullAccess bool, businessDay Date) error {
-	if len(studentIDs) == 0 || !fullAccess || !caller.CanReadStudents {
-		return nil
-	}
-	pickups, err := s.deps.Planning.Pickups(ctx, studentIDs, businessDay)
-	if err != nil {
-		return fmt.Errorf("load pickup times: %w", err)
-	}
-	arrivals, err := s.deps.Planning.Arrivals(ctx, studentIDs, businessDay)
-	if err != nil {
-		return fmt.Errorf("load arrival times: %w", err)
-	}
-
-	for _, id := range studentIDs {
-		if effective, ok := pickups[id]; ok {
-			projection.PickupTimes = append(projection.PickupTimes, pickupTimeFromEffective(id, effective))
-		}
-		if effective, ok := arrivals[id]; ok {
-			projection.ArrivalTimes = append(projection.ArrivalTimes, arrivalTimeFromEffective(id, effective))
-		}
-	}
-	return nil
-}
-
-func pickupTimeFromEffective(studentID int64, effective Pickup) PickupTime {
-	return PickupTime{
-		StudentID: studentID, Date: string(effective.Date), WeekdayName: effective.WeekdayName,
-		PickupTime: effective.PickupTime, IsException: effective.IsException, Notes: effective.Notes,
-		DayNotes: effective.DayNotes, DayDepartureMode: effective.DayDepartureMode,
-	}
-}
-
-func arrivalTimeFromEffective(studentID int64, effective Arrival) ArrivalTime {
-	return ArrivalTime{
-		StudentID: studentID, Date: string(effective.Date), WeekdayName: effective.WeekdayName,
-		ExpectedArrival: effective.ArrivalTime, IsException: effective.IsException, Notes: effective.Notes,
-		DayNotes: effective.DayNotes,
-	}
 }
 
 func (s *service) selectedGroupVisits(ctx context.Context, selectedGroupID *int64) ([]VisitRecord, error) {

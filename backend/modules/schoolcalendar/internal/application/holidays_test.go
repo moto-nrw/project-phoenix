@@ -91,3 +91,24 @@ func TestHolidaysInRangeRejectsInvalidInputs(t *testing.T) {
 		assert.Error(t, err)
 	}
 }
+
+// Every supported region carries the German name the school reads next to
+// its holidays (#4775).
+func TestEveryHolidayRegionHasAGermanName(t *testing.T) {
+	t.Parallel()
+
+	require.Len(t, holidayRegions, 16)
+	for code := range holidayRegions {
+		assert.NotEmpty(t, HolidayRegionName(code), code)
+	}
+	assert.Equal(t, "Nordrhein-Westfalen", HolidayRegionName("DE-NW"))
+	assert.Equal(t, "Baden-Württemberg", HolidayRegionName("DE-BW"))
+	assert.Empty(t, HolidayRegionName("XX"))
+}
+
+func TestEpiphanyIsAHolidayInBavariaButNotInNorthRhineWestphalia(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "Heilige Drei Könige", holidayNames(t, "DE-BY", "2027-01-01", "2027-01-31")["2027-01-06"])
+	assert.NotContains(t, holidayNames(t, "DE-NW", "2027-01-01", "2027-01-31"), "2027-01-06")
+}

@@ -6,9 +6,15 @@ repository root unless the section says otherwise.
 
 ## Ecosystem and IoT
 
-The sibling `../PyrePortal/` repository runs the Raspberry Pi kiosk (Tauri +
-React). The Phoenix backend runs on the server, never on the Pi. PRs target
-`development`.
+The sibling `../PyrePortal/` repository runs the React web kiosk on GKT/GKTL
+devices and tablets with USB NFC readers in keyboard-emulation mode (Wedge).
+The production bundle selects GKT when the native `GKTKiosk` bridge exists
+and Wedge otherwise. GKT receives NFC scans through `system.js`; Wedge reads
+keyboard input. A browser mock supports local development. The Phoenix
+backend runs on the server, not on the kiosk. PRs target `development`.
+Platform selection and scan handling live in PyrePortal's
+`src/platform/kiosk/index.ts`, `src/platform/gkt/index.ts` and
+`src/platform/wedge/index.ts`.
 
 PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
 `../PyrePortal/src/services/apiErrors.ts` maps registry error codes (its
@@ -146,6 +152,34 @@ values default to `detailed` for older kiosks. This wire-compatibility rule is
 not permission to default missing infrastructure configuration.
 Backend check-in semantics adapt transparently; the kiosk UI branches per mode.
 
+### A scan keeps the session alive (#5004)
+
+A successful student scan refreshes `last_activity` of the device's running
+session, the session `POST /api/iot/session/activity` refreshes, in the same
+request transaction. The kiosk needs no activity call after it. This covers
+`POST /api/iot/checkin` with a student card in both presence modes (check-in,
+checkout with or without `room_id`, room change, a check-in into a room that
+is not the kiosk's own, such as WC) and `POST /api/iot/pickup-query`.
+Exempt, with the session left as it was: a supervisor card, a refused scan
+(every error status), and a device without a running session (nothing to keep
+alive; the scan still answers as before). Every statement of the refresh,
+including the lookups of the device's session in the scanned room and of its
+running session, runs in one savepoint: a failed lookup or update only logs
+and keeps the scan's writes; only a failed savepoint itself fails the scan
+(ADR 0124). `POST /api/iot/session/activity`
+itself is unchanged. Code: `touchDeviceSession` in
+`backend/modules/devicescan/internal/application/checkin.go`.
+
+### Request timing (#5004)
+
+`phoenix_iot_request_duration_seconds` starts before device authentication,
+so it also counts requests the authentication rejects (tenant and device type
+`unknown`). Every answer of a device-authenticated `/api/iot/*` route
+carries `Server-Timing` with millisecond durations only: `auth` (device key, school and PIN), `tx` (the
+request transaction up to its commit or rollback) and `after-commit` (the
+hooks after a commit). Sections that did not run are left out. Code:
+`backend/api/iot_http_metrics.go`.
+
 ### Destination choice into released rooms (#3067)
 
 `GET /api/iot/rooms/available` flags each room with `is_open_room` (released
@@ -179,7 +213,7 @@ pending → active → inactive.
 
 | Layer | Scoping mechanism |
 |---|---|
-| JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school` |
+| JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school`, `caterer` (no tenant; ADR 0077) |
 | Context | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` |
 | Database | `common.TenantTxMiddleware` (`backend/api/common/tenant_middleware.go`) runs the request through the root-bound `tenant.UnitOfWork`; rolls back on 5xx or a rollback marker. `PostgresUnitOfWork.WithinTenant` (`backend/modules/transactionruntime/internal/adapters/postgres/tenant_runtime.go`) sets `SET LOCAL ROLE phoenix_tenant` and transaction-local `app.current_tenant_id` |
 | RLS | `provisionTenantRLS` (`backend/database/migrations/rls_provisioning.go`) enables and forces RLS; `USING` and `WITH CHECK` match `tenant_id` to `app.current_tenant_id` |
@@ -214,6 +248,7 @@ host-only). The proxy redirects cross-host paths to their canonical subdomain.
 | Operator | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` | `/api/operator/auth` | `platform` | `POST /operator/auth/login` |
 | Parents | `{NEXT_PUBLIC_PARENTS_HOSTNAME}` | `parent.session-token` | `/api/parent/auth` | `parent` | `POST /parent/auth/login` |
 | School (moto schule) | `{NEXT_PUBLIC_SCHOOL_HOSTNAME}` | `school.session-token`, SameSite=Strict | `/api/school/auth` | `school` | `POST /school/auth/login` |
+| Caterer | `{NEXT_PUBLIC_CATERER_HOSTNAME}` | `caterer.session-token` | `/api/caterer/auth` | `caterer` | `POST /caterer/auth/login` |
 | Träger | `{NEXT_PUBLIC_TRAEGER_HOSTNAME}` | `traeger.session-token` | `/api/traeger/auth` | `org` | `POST /traeger/auth/login` |
 
 ### Login, refresh, and MFA
@@ -230,6 +265,14 @@ Backend paths in this section are relative to `backend/`:
   active mapping and pins that school's `tenant_id`. `SchoolMiddleware`
   accepts only `scope=school`; `common.ProtectedSchoolGroup` includes tenant
   transactions. Unlike parent scope, school scope is tenant-bound.
+- Caterer login requires a caterer account (`auth.caterer_accounts`) that
+  supplies at least one school; any other account answers like a wrong
+  password. The session row is pinned to a supplied school; refresh re-pins
+  it when that school ends the supply and fails once none is left. The token
+  carries no school: `CatererMiddleware` accepts only `scope=caterer`, and the
+  caterer portal (`workflows/catererportal`) opens each supplied school's
+  tenant transaction itself (ADR 0077). The `caterer scope matrix` contract in
+  `TestFullProductionRouterGolden` checks both directions.
 - Träger login (ADR 0084, #4649) requires an active membership in
   `platform.organization_accounts` of an active Träger and mints `scope=org`
   with `org_id` and no `tenant_id`; an account in several Träger chooses one
@@ -237,8 +280,39 @@ Backend paths in this section are relative to `backend/`:
   membership. `TraegerMiddleware` accepts only `scope=org`; the Träger rights
   come from fixed role bundles in `auth.organization_account_roles`. Reads
   across schools run through the `traeger-view` projection in an admin
-  transaction filtered on the Träger's schools. No MFA yet (#4651).
-- `TenantMiddleware` rejects parent, school, and org scopes.
+  transaction filtered on the Träger's schools. The Träger's own tables
+  (holiday periods, ADR 0105; Träger settings, ADR 0086/0107; master data
+  with logo, contact person and bank accounts, ADR 0112) are written in
+  the Träger transaction (`tenant.WithinTraeger`: tenant role,
+  `app.current_org_id`, no school), never in an admin transaction. Every
+  Träger session needs the e-mail second factor (#4651), independent of any
+  school's `mfa_mode` and of overrides: login answers `mfa_required` or `mfa_enrollment_required`
+  with the resolved `organization_id`, `/traeger/auth/mfa/*` redeems only
+  `org`-scope challenges, and mint and refresh refuse a session without
+  `mfa_verified`. No trusted device. The operator reset
+  (`DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa`)
+  revokes the proof, so the Träger session ends at its next refresh.
+- Absprung into a school (ADR 0084 section 5, #4654): `POST
+  /traeger/school-sessions` `{school_id}` needs the Träger right
+  `traeger_school:switch` and answers `{handoff_token}`: the refresh token of a
+  new tenant session (portal scope `tenant`, `tenant_id` the school,
+  `organization_id` the Träger) that lives `TraegerSchoolHandoffTTL` (two
+  minutes). The Träger portal opens `{subdomain}.TENANT_DOMAIN/traeger-uebergabe`
+  with the token in the fragment; the entry page signs in with the
+  `traegerHandoff` credential, which redeems it through `/auth/refresh` (the
+  rotation makes it single-use and gives the full lifetime). The access token
+  carries the school's `admin` role and `via_traeger: true`; no
+  `auth.account_tenants` row is written. Mint, refresh, validation and
+  `POST /auth/switch-tenant` (a second tab of the same Träger) re-check the
+  active membership, the right, an active school of that Träger and the
+  second-factor proof inherited from the Träger session; failures answer 404
+  `traeger.school_not_found`, 403, or 401 `identity.mfa_session_required`. A
+  switch to a school where the account holds its own mapping keeps its own
+  role. Every Absprung writes `traeger_school_switch` (metadata
+  `organization_id`) to the school's `audit.auth_events` in the mint
+  transaction. Ending the Träger's or the member's Träger sessions also deletes
+  these sessions.
+- `TenantMiddleware` rejects parent, school, caterer, and org scopes.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
@@ -337,7 +411,9 @@ Lehrkraft invitations link to `SCHOOL_URL/invite`, not `FRONTEND_URL/invite`.
 `TENANT_DOMAIN` is the base domain; `NEXT_PUBLIC_TENANT_DOMAIN` is its client
 counterpart. Portal hostnames use the variables in the table above.
 `FRONTEND_URL` is for staff/admin email links; `PARENTS_URL` for parent links;
-`SCHOOL_URL` for school links; `TRAEGER_URL` for Träger links. The latter three are required at backend startup
+`SCHOOL_URL` for school links; `CATERER_URL` for caterer invitation links;
+`TRAEGER_URL` for Träger links. `PARENTS_URL`, `SCHOOL_URL`, `CATERER_URL`
+and `TRAEGER_URL` are required at backend startup
 and must use HTTPS in production. Env change checklist:
 `.claude/rules/env-docker-sync.md`.
 
@@ -509,6 +585,27 @@ The parents portal serves `/parents/anmeldung/{slug}/{phaseId}` with the same
 `profileFetcher`, `submitter`, and `skipCaptcha`. Authenticated parent submissions
 stamp `enrollment.requests.guardian_account_id`; decisions prefer attachment by
 that ID over email matching.
+
+The holiday registration page `/parents/ferienanmeldung/{token}` (ADR 0110)
+stays public. With a parent session it also reads
+`GET /parent/holiday-registrations/{token}/family` (#4662, ADR 0113): the
+account's children at the link's Träger schools whose relationship grants
+`parent_portal.enrollment.submit`, and the parent's contact data. Each read
+child gets an `audit.data_access_log` row (`holiday_prefill`) at its school.
+The submission stays the public, captcha-gated
+`POST /traeger/holiday-registrations/{token}` and names no student.
+
+The school that hosts a holiday week reads its participants in its own tenant
+transaction (#4665, ADR 0116): `GET /api/holiday-weeks` and
+`.../{weekId}/participants[/export]` behind `config:read`. Host policies on the
+Träger's holiday tables admit only weeks of published periods the school
+hosts, until their last Berlin calendar day, and bookings of confirmed
+registrations; the children come only through the SECURITY DEFINER function
+`enrollment.holiday_host_participants` with name, date of birth, home school
+and time model, never as rows with health columns. The token
+carries no other `tenant_id`; every list read and export writes an
+`audit.data_access_log` row (`holiday_participants`,
+`holiday_participants_export`) at the hosting school.
 
 A form template with `core_requirements.signature` requires the parent's
 signature on every parent submission and form edit (#4786); the server refuses

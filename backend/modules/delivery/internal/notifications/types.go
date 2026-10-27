@@ -69,12 +69,15 @@ const (
 	TypePickupOverdue          = "pickup_overdue"
 	TypeActivityStart          = "activity_start"
 	TypeActivityOverdue        = "activity_overdue"
+	TypeActivityRunningOver    = "activity_running_over"
 	TypeMyActivityStarting     = "my_activity_starting"
 	TypeStudentAbsenceReported = "student_absence_reported"
 	TypeStaffParentMessage     = "staff_parent_message"
 	// TypeStaffMessage is a message from a colleague in the OGS-internal chat
 	// (#2598) — staff to staff, no parent involved.
-	TypeStaffMessage       = "staff_message"
+	TypeStaffMessage = "staff_message"
+	// TypeStaffSurvey announces a new or still open staff survey (#4781).
+	TypeStaffSurvey        = "staff_survey"
 	TypeParentAnnouncement = "parent_announcement"
 
 	// Parent-facing types added with issue #1671. Each one mirrors a channel the
@@ -264,12 +267,21 @@ func registerActivityTypes() {
 		SortOrder:   2,
 	})
 	RegisterType(TypeDefinition{
+		Key:         TypeActivityRunningOver,
+		Label:       "AG dauert länger",
+		Description: "Wenn eine gestartete Aktivität in einem Raum Ihrer Aufsicht nach dem geplanten Ende noch läuft.",
+		Group:       GroupActivities,
+		Portal:      PortalStaff,
+		TenantGate:  settingRemindersActivityRunningOverEnabled,
+		SortOrder:   3,
+	})
+	RegisterType(TypeDefinition{
 		Key:         TypeMyActivityStarting,
 		Label:       "Ihr nächster Einsatz",
 		Description: "Kurz bevor ein Einsatz aus Ihrem Betreuungsplan beginnt, auch wenn Sie gerade keine Aufsicht führen.",
 		Group:       GroupActivities,
 		Portal:      PortalStaff,
-		SortOrder:   3,
+		SortOrder:   4,
 	})
 }
 
@@ -306,6 +318,16 @@ func registerStaffMessageTypes() {
 		TenantGate:   settingStaffMessagingEnabled,
 		SortOrder:    2,
 		SchoolPortal: true,
+	})
+	// Staff surveys (#4781) are answered in the OGS portal only; the school
+	// portal never offers them.
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffSurvey,
+		Label:       "Umfragen der Einrichtung",
+		Description: "Wenn die Einrichtung eine Umfrage an das Team veröffentlicht oder an eine offene Umfrage erinnert.",
+		Group:       GroupMessages,
+		Portal:      PortalStaff,
+		SortOrder:   3,
 	})
 }
 

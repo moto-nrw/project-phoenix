@@ -36,6 +36,11 @@ type (
 	ChildFeatureFlags               = care.ChildFeatureFlags
 	ChildGuardian                   = care.ChildGuardian
 	ChildMasterData                 = care.ChildMasterData
+	ChildDataAccess                 = care.ChildDataAccess
+	ChildDataAccessLog              = care.ChildDataAccessLog
+	HolidayRegistrationChild        = care.HolidayRegistrationChild
+	HolidayRegistrationFamily       = care.HolidayRegistrationFamily
+	HolidayRegistrationGuardian     = care.HolidayRegistrationGuardian
 	CreateGuardianContactInput      = care.CreateGuardianContactInput
 	GuardianAccess                  = care.GuardianAccess
 	GuardianAccessRevocation        = care.GuardianAccessRevocation
@@ -49,6 +54,7 @@ type (
 	MasterDataFieldChange           = care.MasterDataFieldChange
 	MealParticipationDay            = care.MealParticipationDay
 	MealParticipationPlan           = care.MealParticipationPlan
+	MealWeekChange                  = care.MealWeekChange
 	MealPlanEntry                   = care.MealPlanEntry
 	MealWeekday                     = care.MealWeekday
 	ParentRequestEventView          = messaging.ParentRequestEventView
@@ -119,6 +125,7 @@ var (
 	ErrInvalidStatus                    = care.ErrInvalidStatus
 	ErrInviteDisabled                   = care.ErrInviteDisabled
 	ErrInviteSocialWorkerManaged        = care.ErrInviteSocialWorkerManaged
+	ErrInviteMailNotQueued              = care.ErrInviteMailNotQueued
 	ErrMasterDataDuplicatePending       = care.ErrMasterDataDuplicatePending
 	ErrMasterDataEditDisabled           = care.ErrMasterDataEditDisabled
 	ErrMasterDataFieldNotEditable       = care.ErrMasterDataFieldNotEditable

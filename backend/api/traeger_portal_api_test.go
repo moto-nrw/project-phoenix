@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +21,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -27,24 +31,49 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+// traegerPortalHandler is the /traeger router with the mailbox its second
+// factor writes the codes to.
+type traegerPortalHandler struct {
+	http.Handler
+	mail *testpkg.CapturingMailer
+}
+
 // newTraegerPortal mounts /traeger as the serving root does, behind the
 // tenant runtime and the session verifier of the production chain, and hands
 // back the Identity & Access owner and runtime it was composed over.
-func newTraegerPortal(t *testing.T) (*bun.DB, http.Handler, identityaccess.Owner, tenant.UnitOfWork) {
+func newTraegerPortal(t *testing.T) (*bun.DB, *traegerPortalHandler, identityaccess.Owner, tenant.UnitOfWork) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	unit := testpkg.TenantRuntime(t, db)
-	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit)
-	require.NoError(t, err)
-	return db, traegerPortalRouter(t, db, auth.Auth, unit), auth.Auth, unit
+	portal, identity := traegerPortalOn(t, db, unit)
+	return db, portal, identity, unit
 }
 
-// traegerPortalRouter builds the /traeger router over identity.
+// traegerPortalOn composes Identity & Access over db with a capturing
+// mailbox and mounts /traeger over it.
+func traegerPortalOn(t *testing.T, db *bun.DB, unit tenant.UnitOfWork) (*traegerPortalHandler, identityaccess.Owner) {
+	t.Helper()
+	mail := testpkg.NewCapturingMailer()
+	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit, WithAuthTestMailer(mail))
+	require.NoError(t, err)
+	return &traegerPortalHandler{Handler: traegerPortalRouter(t, db, auth.Auth, unit), mail: mail}, auth.Auth
+}
+
+// traegerPortalRouter builds the /traeger router over identity, with the
+// Elternabrechnung's routes the serving root mounts beside it (#4664).
 func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork) http.Handler {
 	t.Helper()
-	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
+	database := testpkg.NewDatabase(t, db)
+	organizations, err := owners.NewOrganizationTenancy(database)
 	require.NoError(t, err)
-	portal, err := NewTraegerPortalHTTP(identity, organizations)
+	audit, err := auditCompose.NewTenantPersistence(db)
+	require.NoError(t, err)
+	membership, err := owners.ComposeSchoolMembership(database)
+	require.NoError(t, err)
+	settings, err := owners.BuildTraegerSettings(database, unit, slog.Default(), organizations, nil)
+	require.NoError(t, err)
+	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), membership,
+		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings)
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
@@ -53,6 +82,11 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 		})
 	})
 	router.Mount("/traeger", portal.RouterWithAuthRateLimiter(nil, ProtectedTraegerRoutes))
+	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
+		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
+	})
+	require.NoError(t, err)
+	mountParentBillingRoutes(router, organizations, settings, delivery.Module, slog.Default())
 	return testpkg.SessionVerifier(router)
 }
 
@@ -76,10 +110,13 @@ func traegerAccount(t *testing.T, db *bun.DB, password string) *testpkg.AccountF
 // traegerLoginAnswer reads both answer shapes: status is the login state of
 // a success and the HTTP status number of a refusal.
 type traegerLoginAnswer struct {
-	Status        any    `json:"status"`
-	AccessToken   string `json:"access_token"`
-	RefreshToken  string `json:"refresh_token"`
-	Organizations []struct {
+	Status         any    `json:"status"`
+	AccessToken    string `json:"access_token"`
+	RefreshToken   string `json:"refresh_token"`
+	ChallengeToken string `json:"challenge_token"`
+	MaskedEmail    string `json:"masked_email"`
+	OrganizationID int64  `json:"organization_id"`
+	Organizations  []struct {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
 	} `json:"organizations"`
@@ -97,6 +134,68 @@ func traegerLogin(t *testing.T, router http.Handler, email, password string, org
 	var answer traegerLoginAnswer
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &answer), rec.Body.String())
 	return rec.Code, answer
+}
+
+// traegerPost sends a JSON body to the Träger router, with the bearer token
+// when one is given, and reads either answer shape.
+func traegerPost(t *testing.T, router http.Handler, path, bearer string, body any) (int, traegerLoginAnswer) {
+	t.Helper()
+	payload, err := json.Marshal(body)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	var answer traegerLoginAnswer
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &answer), rec.Body.String())
+	return rec.Code, answer
+}
+
+// lastTraegerCode reads the code of the newest MFA mail to address.
+func lastTraegerCode(t *testing.T, portal *traegerPortalHandler, address string) string {
+	t.Helper()
+	messages := portal.mail.Messages()
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].To.Address != address {
+			continue
+		}
+		content, err := json.Marshal(messages[i].Content)
+		require.NoError(t, err)
+		var mail struct{ Code string }
+		require.NoError(t, json.Unmarshal(content, &mail))
+		if mail.Code != "" {
+			return mail.Code
+		}
+	}
+	require.FailNow(t, "no MFA mail", "no code was mailed to %s", address)
+	return ""
+}
+
+// traegerSignIn signs in with the second factor the Träger-Portal requires:
+// it sets the factor up on the first sign-in and redeems the mailed code
+// otherwise. Refusals before the second factor come back unchanged.
+func traegerSignIn(t *testing.T, portal *traegerPortalHandler, email, password string, organizationID int64) (int, traegerLoginAnswer) {
+	t.Helper()
+	code, answer := traegerLogin(t, portal, email, password, organizationID)
+	if code != http.StatusOK {
+		return code, answer
+	}
+	switch answer.Status {
+	case "mfa_enrollment_required":
+		started, start := traegerPost(t, portal, "/traeger/auth/mfa/enroll/start", answer.AccessToken, map[string]any{})
+		require.Equal(t, http.StatusOK, started)
+		return traegerPost(t, portal, "/traeger/auth/mfa/enroll/confirm", answer.AccessToken, map[string]any{
+			"challenge_token": start.ChallengeToken, "code": lastTraegerCode(t, portal, email), "organization_id": answer.OrganizationID,
+		})
+	case "mfa_required":
+		return traegerPost(t, portal, "/traeger/auth/mfa/verify", "", map[string]any{
+			"challenge_token": answer.ChallengeToken, "code": lastTraegerCode(t, portal, email), "organization_id": answer.OrganizationID,
+		})
+	}
+	return code, answer
 }
 
 type traegerSchool struct {
@@ -139,9 +238,9 @@ func TestTraegerPortalLoginShowsOnlyTheSchoolsOfTheTraeger(t *testing.T) {
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, own, account.ID, identityaccess.TraegerRoleReadOnly)
 
-	code, answer := traegerLogin(t, router, account.Email, password, 0)
+	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
-	require.Equal(t, "authenticated", answer.Status)
+	require.NotEmpty(t, answer.AccessToken)
 	require.NotEmpty(t, answer.RefreshToken)
 	claims := traegerTokenClaims(t, answer.AccessToken)
 	assert.Equal(t, "org", claims["scope"], "the Träger session has its own scope")
@@ -209,7 +308,7 @@ func TestTraegerPortalLoginAsksAMemberOfSeveralTraegerToChoose(t *testing.T) {
 	assert.Equal(t, first, answer.Organizations[0].ID)
 	assert.Equal(t, second, answer.Organizations[1].ID)
 
-	code, answer = traegerLogin(t, router, account.Email, password, second)
+	code, answer = traegerSignIn(t, router, account.Email, password, second)
 	require.Equal(t, http.StatusOK, code)
 	assert.Equal(t, float64(second), traegerTokenClaims(t, answer.AccessToken)["org_id"], "one session belongs to exactly one Träger")
 
@@ -227,7 +326,7 @@ func TestTraegerSchoolListRequiresTheOverviewRight(t *testing.T) {
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID)
 
-	code, answer := traegerLogin(t, router, account.Email, password, 0)
+	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 	assert.Empty(t, traegerTokenClaims(t, answer.AccessToken)["permissions"], "a member without a role holds no right")
 	rec, _ := traegerSchools(t, router, answer.AccessToken)
@@ -265,7 +364,7 @@ func TestTraegerSessionRefreshesAndEndsWithTheMembership(t *testing.T) {
 	organization := traegerOrganization(t, db, "Träger Refresh", true)
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
-	code, answer := traegerLogin(t, router, account.Email, password, 0)
+	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 	ctx := tenant.WithUnitOfWork(context.Background(), unit)
 
@@ -298,7 +397,7 @@ func TestTraegerSchoolListQueryBudgetIsFlat(t *testing.T) {
 	}
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleReadOnly)
-	code, answer := traegerLogin(t, router, account.Email, password, 0)
+	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 	list := func() []string {
 		counter := testpkg.CaptureQueriesForContext(t, db)

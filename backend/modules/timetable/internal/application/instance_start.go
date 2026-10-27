@@ -189,7 +189,7 @@ func (s *InstanceLifecycleService) openStartedSession(
 	}
 	// Fold open, supervisor-less sessions in this room into the fresh session
 	// before announcing it; same tenant tx, so a failure rolls back the start.
-	if err := s.absorbUnsupervisedOpenGroups(ctx, instance.ID, instance.RoomID, newGroup.ID); err != nil {
+	if err := s.absorbUnsupervisedOpenGroups(ctx, instance.ID, instance.RoomID, newGroup.ID, now); err != nil {
 		return nil, nil, &ports.ScheduleError{Op: "start instance: absorb unsupervised sessions", Err: err}
 	}
 	return newGroup, activeStaffRows, nil
@@ -218,7 +218,7 @@ func (s *InstanceLifecycleService) markStarted(ctx context.Context, instance *sc
 // any block and supervised sessions (#2139) are left alone. Absorbed visits
 // are mirrored into the block's attendance rows before commit; the start
 // event that follows makes clients refetch.
-func (s *InstanceLifecycleService) absorbUnsupervisedOpenGroups(ctx context.Context, instanceID, roomID, newGroupID int64) error {
+func (s *InstanceLifecycleService) absorbUnsupervisedOpenGroups(ctx context.Context, instanceID, roomID, newGroupID int64, now time.Time) error {
 	openGroups, err := s.deps.ActiveGroupRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
 		return fmt.Errorf("find open groups in room %d: %w", roomID, err)
@@ -239,7 +239,7 @@ func (s *InstanceLifecycleService) absorbUnsupervisedOpenGroups(ctx context.Cont
 	if err != nil {
 		return fmt.Errorf("load system activities for room %d: %w", roomID, err)
 	}
-	today := calendar.TodayDate()
+	today := calendar.DateFromTime(now)
 	movedTotal := int64(0)
 	for _, group := range openGroups {
 		if !absorptionCandidate(group, newGroupID, today, systemByActivity) {

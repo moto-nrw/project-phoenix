@@ -186,6 +186,7 @@ type Query interface {
 	ActivityGroupQuery
 	TemplateRowQuery
 	HomeworkQuery
+	BlockGroupQuery
 }
 
 // CalendarPeriodReferenceQuery counts the Timetable rows that reference each

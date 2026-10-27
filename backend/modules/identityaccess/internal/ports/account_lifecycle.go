@@ -9,15 +9,12 @@ import (
 
 // AccountLifecycleStore is the persistence port over the identity-owned rows
 // the lifecycle flows (#3225) read and write beyond the login store: the
-// school's account listing, the direct permission grants, the school mapping
-// deactivation and account e-mails. Every statement
-// runs on the connection the caller's context carries.
+// school's account listing, school mapping deactivation and account e-mails.
+// Every statement runs on the connection the caller's context carries.
 type AccountLifecycleStore interface {
 	// ListTenantAccounts returns every account mapped to the school with its
 	// role names at that school, ascending by account id.
 	ListTenantAccounts(ctx context.Context, tenantID int64) ([]domain.TenantAccount, domain.OperationStats, error)
-	ListAccountPermissionGrants(ctx context.Context, accountID, tenantID int64) ([]domain.PermissionGrant, domain.OperationStats, error)
-	DeleteAccountPermissionGrants(ctx context.Context, accountID, tenantID int64) (int64, domain.OperationStats, error)
 	// DeactivateTenantMapping keeps the row (with deactivated_at) so a later
 	// re-invitation can reactivate it.
 	DeactivateTenantMapping(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
@@ -172,12 +169,13 @@ type GuardianEnrollments interface {
 type GuardianInvitationDelivery interface {
 	InvitationExpiry(ctx context.Context) (time.Duration, error)
 	SchoolName(ctx context.Context, tenantID int64) string
-	// EnqueueInvitationEmail reports whether the primary access mail was
-	// queued. A welcome must not follow a failed primary mail.
-	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (outboxID int64, queued bool)
-	// EnqueueExistingAccountEmail reports whether the primary access mail was
-	// queued. A welcome must not follow a failed primary mail.
-	EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) (outboxID int64, queued bool)
+	// EnqueueInvitationEmail returns the enqueue failure of the primary
+	// access mail; the invitation rolls back with it (#4602).
+	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (outboxID int64, err error)
+	// EnqueueExistingAccountEmail reports queued false for a contact without
+	// an address and returns the enqueue failure (#4602). A welcome follows
+	// only a queued primary mail.
+	EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) (outboxID int64, queued bool, err error)
 	// EnqueueWelcomeEmail queues the welcome that follows the first mail of
 	// a new access (#3534). A guardian gets it at most once per school; a
 	// resend never asks for it.

@@ -40,6 +40,10 @@ var (
 	ErrInviteSocialWorkerManaged        = errors.New("a social-worker contact is managed by the school and cannot be invited to the parents portal")
 	ErrGuardianInvitationNotFound       = errors.New("invitation not found")
 	ErrGuardianInvitationExpired        = errors.New("invitation has expired")
+	// ErrGuardianAccessMailNotQueued reports an invitation or access mail the
+	// outbox did not take. Nothing of the access was kept; the school can try
+	// again (#4602).
+	ErrGuardianAccessMailNotQueued = errors.New("guardian access email could not be queued")
 
 	// ErrAccountLifecycleUnavailable reports a module composed without the
 	// account-lifecycle dependencies (repository fixtures, CLI roots that
@@ -100,7 +104,6 @@ type StaffOffboardingPreview struct {
 	AccountID         int64
 	ActiveMembership  bool
 	RoleIDs           []int64
-	Permissions       int64
 	Tokens            int64
 	PreserveGuardian  bool
 	DeactivateAccount bool
@@ -109,14 +112,13 @@ type StaffOffboardingPreview struct {
 
 type StaffOffboardingResult struct {
 	RolesRevoked            int64
-	PermissionsRevoked      int64
 	TokensRevoked           int64
 	GuardianAccessPreserved bool
 	AccountDeactivated      bool
 }
 
 // StaffOffboardingAccess is the access step of the staff offboarding
-// workflow: the preview snapshots roles, permissions, sessions and membership
+// workflow: the preview snapshots roles, sessions and membership
 // at the school in context; the execution revokes them against that
 // snapshot on the caller's transaction.
 type StaffOffboardingAccess interface {
@@ -246,7 +248,6 @@ type SchoolIdentityInput struct {
 	// PersonID names an existing, account-less person at this school the
 	// account should be linked to before a new one would be created (#2600).
 	PersonID *int64
-
 	// Position fills the caregiver profile's role when one is created.
 	Position string
 

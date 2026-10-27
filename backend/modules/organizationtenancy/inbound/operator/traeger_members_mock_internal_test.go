@@ -18,6 +18,10 @@ func (m *mockProvisioningService) AssignTraegerMember(context.Context, organizat
 	return organizationtenancy.TraegerMember{}, nil
 }
 
+func (m *mockProvisioningService) ResetTraegerMemberMFA(context.Context, organizationtenancy.ResetTraegerMemberMFA) error {
+	return nil
+}
+
 func (m *mockProvisioningService) FindOpenTraegerErasureOrder(context.Context, int64) (organizationtenancy.TraegerErasureOrder, bool, error) {
 	return organizationtenancy.TraegerErasureOrder{}, false, nil
 }
@@ -28,4 +32,12 @@ func (m *mockProvisioningService) RecordTraegerErasureOrder(context.Context, org
 
 func (m *mockProvisioningService) WithdrawTraegerErasureOrder(context.Context, int64, int64, net.IP) error {
 	return nil
+}
+
+func (m *mockProvisioningService) CreateTestTraeger(context.Context, organizationtenancy.CreateTestTraeger, int64, net.IP) (*organizationtenancy.TestTraeger, error) {
+	return &organizationtenancy.TestTraeger{}, nil
+}
+
+func (m *mockProvisioningService) RecordSampleChildrenRequest(context.Context, int64, int64, net.IP) ([]int64, error) {
+	return nil, nil
 }

@@ -3,25 +3,44 @@
 #
 #   id           deutscher Kebab-Slug (a-z, 0-9, Bindestrich; Umlaute als ae/oe/ue)
 #   titel        Name für Menschen, landet im Manifest
-#   portal       tenant | eltern
-#   rolle        admin | betreuer (tenant) | eltern
+#   portal       tenant | eltern | traeger
+#   rolle        admin | betreuer (tenant) | eltern | traeger
 #   pfad         Pfad im Portal, so wie ihn die Person in der Adressleiste sieht
 #   geraete      optional: macbook | ipad | iphone.
-#                Standard: tenant = macbook + ipad, eltern = iphone + ipad
+#                Standard: tenant und traeger = macbook + ipad,
+#                eltern = iphone + ipad
 #   vorbereitung optional: Schritte vor dem Foto, jeweils genau eines von
-#                klicken (Selektor), warten_auf (Selektor), scrollen (Pixel oder Selektor).
+#                klicken (Selektor), warten_auf (Selektor),
+#                scrollen (Pixel oder Selektor), scrollen_im_bereich
+#                (Selektor), einblenden (Selektor), tippen ({feld: Selektor,
+#                text: Text}) und zeichnen (Selektor einer Zeichenfläche).
 #                Ein Klick darf auf eine andere Seite führen, etwa auf ein
 #                Kind, dessen ID erst der Seed vergibt; geprüft wird, dass
-#                `pfad` selbst erreichbar ist.
+#                `pfad` selbst erreichbar ist. Ein Klick auf einen Reiter
+#                wartet, bis er ausgewählt bleibt, und wiederholt sich sonst.
+#                `scrollen` mit Selektor legt das Element an den oberen Rand,
+#                unter die Kopfleiste. `scrollen_im_bereich` scrollt nur den
+#                Bereich um das Element (Wochenraster, Chat, Dialog) und legt
+#                es an dessen oberen Rand; `einblenden` legt dort seine
+#                Unterkante an den unteren Rand. `tippen` füllt ein Feld,
+#                `zeichnen` schreibt mit der Maus „S. Schneider“ in die Fläche
+#                (Unterschrift).
 #
 # Unbekannte Felder schlagen beim Laden fehl. Die Daten kommen aus dem
 # Seed-Profil `vollbetrieb` (backend/internal/devtools/seedapi), dem
 # Standardprofil des Seeders und der Demo, nach `simulate full-day`. Das erste
 # Elternkonto (Sabine Schneider) ist das Elternteil von Felix Schneider; die
-# Kinderakte zeigt Noah Richter. Kinder mit Elternkonto meldet der Seed nie
-# krank, beide sind anwesend. An Betreuungstagen hängt die Kinderkarte Noahs
-# Tagesänderung an den Namen („Noah Richter, … - Details öffnen“), daher der
-# reguläre Ausdruck.
+# Kinderakte zeigt Baran Amini. Kinder mit Elternkonto meldet der Seed nie
+# krank, beide sind anwesend. An Betreuungstagen hängt die Kinderkarte Barans
+# Tagesänderung an den Namen („Baran Amini, … - Details öffnen“), daher der
+# reguläre Ausdruck. Ins Träger-Portal meldet sich der Schul-Admin des Profils
+# an, den der Seed zur ersten Person des Träger-Büros macht.
+#
+# Die Vorbereitung speichert keine Eingabe (Antwort, Entscheidung,
+# Einstellung): Die Schritte laufen für jedes Gerät erneut, und gespeicherte
+# Daten verändern spätere Shots. Ein Formular auszufüllen, ein Häkchen zu
+# setzen oder eine Auswahl zu öffnen ist erlaubt, solange niemand absendet.
+# Dass ein geöffneter Elternbrief als gelesen gilt, lässt sich nicht vermeiden.
 #
 # Auswahl (#3764, vom Maintainer bestätigt): die Flows der Hilfe und die
 # Nutzung laut PostHog (nur lesend abgefragt). Erfasst sind Seitenaufrufe der
@@ -30,8 +49,12 @@
 # jedem Shot nennt seinen Grund. Die IDs folgen den Namen der
 # Hilfe-Screenshots (frontend/public/help/screens), wo es einen für dieselbe
 # Ansicht gibt, sonst dem Seitennamen; Shots aus dem Eltern-Portal beginnen
-# mit `eltern-`. `anwesenheit-ueberblick` bleibt aus dem Tracer (#3761), weil
-# eine ID die Dateinamen in Drive bestimmt.
+# mit `eltern-`, Shots aus dem Träger-Portal mit `traeger-`.
+# `anwesenheit-ueberblick` bleibt aus dem Tracer (#3761), weil eine ID die
+# Dateinamen in Drive bestimmt.
+#
+# Ergänzung: Motive, die die Website (moto-nrw/website) zeigt und die die
+# Shot-Liste nicht hatte. Ihre Zeile nennt das Motiv der Website.
 shots:
   # --- Tagesbetrieb ---------------------------------------------------------
   # Hilfe erste-schritte-mit-moto; PostHog: meistbesuchte Seite (1665 Aufrufe in 8 Tagen). ID aus dem Tracer #3761
@@ -62,7 +85,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
+      - klicken: 'role=button[name=/^Baran Amini\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
   # Hilfe betreuungszeiten-eintragen, kind-angaben-aendern
   - id: betreuungszeiten-pflegen
@@ -71,9 +94,10 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
+      - klicken: 'role=button[name=/^Baran Amini\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: '[role="tab"][data-tab-value="betreuungszeiten"]'
+      - scrollen: 'role=heading[name="Betreuungszeiten"s]'
   # Hilfe abwesenheiten; PostHog: 253 Abwesenheitsmeldungen
   - id: kinderdetail-krank-melden
     titel: Ein Kind krank melden
@@ -81,15 +105,24 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name=/^Noah Richter\b.*Details öffnen$/]'
+      - klicken: 'role=button[name=/^Baran Amini\b.*Details öffnen$/]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: 'main button:has-text("Krank melden")'
       - warten_auf: '[role="dialog"]'
-  # Hilfe meine-gruppen; PostHog: Platz 3 (3933 Aufrufe), meist Betreuer am Handy
+      # Ein Tag der Woche schaltet „Krankmelden“ frei; abgeschickt wird nicht.
+      # Der letzte freie Tag der Woche; gesperrt sind nur schon gemeldete Tage
+      # (planned-status-days-modal.tsx).
+      - klicken: '[role="dialog"] div.grid-cols-5 > button:not([disabled]) >> nth=-1'
+      - tippen:
+          feld: '[role="dialog"] textarea'
+          text: 'Mutter hat angerufen: Baran hat Fieber.'
+  # Hilfe meine-gruppen; PostHog: Platz 3 (3933 Aufrufe), meist Betreuer am
+  # Handy. Als Betreuerin: Julia Klein leitet die Sternengruppe; der Admin hat
+  # keine eigene Gruppe, die Seitenleiste zeigte „Keine eigenen Gruppen“.
   - id: meine-gruppen
     titel: Meine Gruppe mit allen Kindern
     portal: tenant
-    rolle: admin
+    rolle: betreuer
     pfad: /ogs-groups
     geraete: [iphone, ipad, macbook]
   # Hilfe gruppe-uebergeben
@@ -102,6 +135,9 @@ shots:
       - klicken: 'role=button[name="Weitere Aktionen"]'
       - klicken: 'text=Gruppe übergeben'
       - warten_auf: '[role="dialog"]'
+      # Die offene Auswahl zeigt, an wen die Gruppe gehen kann.
+      - klicken: '#transfer-user-select'
+      - warten_auf: 'role=listbox'
   # Hilfe aktuelle-aufsicht; PostHog: 3061 Aufrufe, im Median 54 min offen
   - id: aktuelle-aufsicht
     titel: Laufende Aufsicht im Raum
@@ -129,12 +165,6 @@ shots:
     portal: tenant
     rolle: admin
     pfad: /rooms
-  # Hilfe notfall
-  - id: notfall
-    titel: Notfallliste
-    portal: tenant
-    rolle: admin
-    pfad: /emergency
 
   # --- Eltern ---------------------------------------------------------------
   # Hilfe eltern-nachricht-schreiben; PostHog: 997 Aufrufe
@@ -158,6 +188,10 @@ shots:
     portal: tenant
     rolle: admin
     pfad: /anfragen
+    vorbereitung:
+      # Die erste Anfrage im Detail aufklappen; entschieden wird nicht.
+      - warten_auf: '[data-request-row] > button[aria-expanded="false"]'
+      - klicken: '[data-request-row] > button[aria-expanded="false"] >> nth=0'
   # Hilfe elternmitteilung-veroeffentlichen, elternbrief-versenden
   - id: elternbriefe
     titel: Elternmitteilungen
@@ -170,6 +204,16 @@ shots:
     portal: tenant
     rolle: admin
     pfad: /meal-plan
+  # Website: Essensbestellung und Catering. Die Bestellung der Woche je Tag
+  # und Klasse für den Caterer (#3873).
+  - id: essensbestellung
+    titel: Essensbestellung der Woche für den Caterer
+    portal: tenant
+    rolle: admin
+    pfad: /meal-plan
+    vorbereitung:
+      - warten_auf: 'role=heading[name="Bestellung"]'
+      - scrollen: 'role=heading[name="Bestellung"]'
 
   # --- Team -----------------------------------------------------------------
   # Hilfe arbeitszeit-und-pausen-erfassen; PostHog: 919 Aufrufe, 70 % mobil
@@ -188,6 +232,15 @@ shots:
     vorbereitung:
       - klicken: 'role=button[name="Urlaub beantragen"]'
       - warten_auf: '[role="dialog"]'
+      # Zeitraum im nächsten Monat, vom 9. bis zum 13.: Der Seed legt Urlaub
+      # in diese und die nächste Woche, „Nächste Woche“ könnte sich damit
+      # überschneiden. Abgeschickt wird nicht.
+      - klicken: '[role="dialog"] >> role=button[name="Nächster Monat"s]'
+      - klicken: '[role="dialog"] >> role=grid >> nth=0 >> text="9"'
+      - klicken: '[role="dialog"] >> role=grid >> nth=0 >> text="13"'
+      - tippen:
+          feld: '#vacation-note'
+          text: Vertretung mit dem Team abgestimmt.
   # Hilfe person-im-team-finden; PostHog: 716 Aufrufe
   - id: mitarbeiter
     titel: Das Team im Überblick
@@ -212,20 +265,108 @@ shots:
     portal: tenant
     rolle: admin
     pfad: /calendar
+    vorbereitung:
+      # Das Wochenraster scrollt in einem eigenen Bereich und springt beim
+      # Öffnen auf 08:00; die Frühbetreuung um 07:30 stünde angeschnitten
+      # darüber. Der erste Block um 07:30 kommt an den oberen Rand.
+      - scrollen_im_bereich: 'main button:has-text("07:30") >> nth=0'
 
   # --- Planung --------------------------------------------------------------
-  # Hilfe betreuungsplan-erstellen; PostHog: 364 Aufrufe in 11 Schulen
+  # Hilfe betreuungsplan-erstellen; PostHog: 364 Aufrufe in 11 Schulen.
+  # Darstellung „Kompakt“: „Normal“ gibt jeder Spur 112 px; der heutige Tag
+  # mit vielen parallelen Blöcken ist dann breiter als das Bild, und das
+  # Raster springt auf heute. Kompakt zeigt die ganze Woche; die Wahl ist
+  # reiner Seitenzustand und wird nicht gespeichert.
   - id: betreuungsplan
     titel: Betreuungsplan der Woche
     portal: tenant
     rolle: admin
     pfad: /betreuungsplan
+    vorbereitung:
+      - klicken: 'role=button[name="Weitere Aktionen"s]'
+      - klicken: 'role=menuitemradio[name="Kompakt"s]'
   # Hilfe vertretung-planen
   - id: vertretungsplan
     titel: Vertretung planen
     portal: tenant
     rolle: admin
     pfad: /vertretung
+
+  # Website: Dienstplan des Teams
+  - id: dienstplan
+    titel: Dienstplan des Teams
+    portal: tenant
+    rolle: admin
+    pfad: /dienstplan
+
+  # --- Anmeldung ------------------------------------------------------------
+  # Website: Online-Anmeldung mit freien Plätzen je Angebot
+  - id: anmeldephase
+    titel: Anmeldungen einer Phase mit freien Plätzen
+    portal: tenant
+    rolle: admin
+    pfad: /admin/enrollments
+    vorbereitung:
+      - klicken: 'article:has-text("Anmeldung Schuljahr") >> role=link[name="Anmeldungen ansehen"]'
+      - warten_auf: 'text=Freie Plätze je Angebot'
+  # Website: Platzentscheidung. Luka Berisha ist im Seed noch offen; der Shot
+  # zeigt nur die Auswahl und speichert nichts.
+  - id: anmeldung-entscheiden
+    titel: Über einen Platz entscheiden
+    portal: tenant
+    rolle: admin
+    pfad: /admin/enrollments
+    vorbereitung:
+      - klicken: 'article:has-text("Anmeldung Schuljahr") >> role=link[name="Anmeldungen ansehen"]'
+      - warten_auf: 'text=Freie Plätze je Angebot'
+      - klicken: 'tr:has-text("Luka Berisha") >> role=link[name="Anmeldung ansehen"]'
+      - warten_auf: 'text=Entscheidung speichern'
+      # Die Karte des Kindes oben: Name, Angebote und die Entscheidung mit
+      # allen Knöpfen stehen auf beiden Geräten ganz im Bild.
+      - scrollen: 'article:has-text("Luka Berisha")'
+
+  # --- Elternkommunikation --------------------------------------------------
+  # Website: Elternbrief mit Rückmeldung; Stand der Einverständnisse
+  - id: einverstaendnis-stand
+    titel: Stand der Antworten auf ein Einverständnis
+    portal: tenant
+    rolle: admin
+    pfad: /parent-announcements?art=erklaerungen
+    vorbereitung:
+      - klicken: 'text=Einverständnis: Ausflug in den Zoo >> visible=true'
+      - warten_auf: 'role=heading[name="Stand der Antworten"]'
+      - warten_auf: 'text=Kinder mit Antwort'
+      - scrollen: 'role=heading[name="Stand der Antworten"s]'
+  # Website: Umfrage mit Auswertung. Der Seed lässt die anderen Familien
+  # antworten; Sabine Schneider bleibt offen (eltern-umfrage-beantworten).
+  - id: umfrage-auswertung
+    titel: Auswertung einer Umfrage
+    portal: tenant
+    rolle: admin
+    pfad: /parent-announcements?art=umfragen
+    vorbereitung:
+      - klicken: 'text=Termine für den Elternsprechtag >> visible=true'
+      - warten_auf: 'role=heading[name="Auswertung"]'
+      - scrollen: 'role=heading[name="Auswertung"]'
+  # Website: Pädagogische Dokumentation; Notizen in der Kinderakte
+  - id: kinderakte-notizen
+    titel: Notizen und Beobachtungen zu einem Kind
+    portal: tenant
+    rolle: admin
+    pfad: /students/search
+    vorbereitung:
+      - klicken: 'role=button[name=/^Felix Schneider\b.*Details öffnen$/]'
+      - warten_auf: 'role=tab[name="Stammdaten"]'
+      # Der Reiter steht im Adressparameter ?tab=. Der dauerhafte Hinweis
+      # „Braucht morgens …“ steht auch in den Stammdaten; auf ihn zu warten
+      # bewies keinen Reiterwechsel. Der Klick wartet, bis der Reiter
+      # ausgewählt bleibt; danach zählt ein Eintrag, den nur der Reiter
+      # Notizen zeigt. Ohne die Notizen aus dem Seed schlägt der Shot fehl.
+      - warten_auf: 'text=Heutige Abholung'
+      - klicken: '[role="tab"][data-tab-value="notizen"]'
+      - warten_auf: '[role="tab"][data-tab-value="notizen"][aria-selected="true"]'
+      - warten_auf: 'text=Hat heute in der Hausaufgabenzeit >> visible=true'
+      - scrollen: 'role=heading[name="Notizen"s]'
 
   # --- Verwaltung -----------------------------------------------------------
   # Hilfe datenverwaltung; PostHog: 880 Aufrufe
@@ -234,6 +375,23 @@ shots:
     portal: tenant
     rolle: admin
     pfad: /database
+  # Website: Rollen und Zugriffsrechte
+  - id: rollen-und-rechte
+    titel: Rollen und ihre Berechtigungen
+    portal: tenant
+    rolle: admin
+    pfad: /database/roles
+    vorbereitung:
+      - klicken: 'role=button[name=/^Betreuung Betreut/]'
+      - warten_auf: 'role=tab[name="Berechtigungen"]'
+      - klicken: 'role=tab[name="Berechtigungen"]'
+      - warten_auf: 'text=/Berechtigungen? zugewiesen/'
+  # Website: Datenübergabe an die Verwaltung
+  - id: exporte
+    titel: Listen und Exporte
+    portal: tenant
+    rolle: admin
+    pfad: /database/exports
   # Hilfe kinder-anlegen; PostHog: 1189 Aufrufe
   - id: datenverwaltung-kinder
     titel: Kinder verwalten
@@ -254,13 +412,9 @@ shots:
     portal: eltern
     rolle: eltern
     pfad: /
-  # Hilfe mein-kind-und-den-heutigen-tag-ansehen; PostHog: 238 Aufrufe
-  - id: eltern-kinder
-    titel: Meine Kinder im Eltern-Portal
-    portal: eltern
-    rolle: eltern
-    pfad: /children
-  # Hilfe mein-kind-und-den-heutigen-tag-ansehen; PostHog: 295 Aufrufe
+  # Hilfe mein-kind-und-den-heutigen-tag-ansehen; PostHog: 295 Aufrufe (dazu
+  # 238 für /children). Felix ist das einzige Kind des Elternkontos, die
+  # Übersicht der Kinder sah genauso aus; sie hat keinen eigenen Shot.
   - id: eltern-kind-heute
     titel: Der Tag meines Kindes
     portal: eltern
@@ -280,6 +434,14 @@ shots:
       - warten_auf: 'role=tab'
       - klicken: 'main button:has-text("Felix abmelden")'
       - warten_auf: '[role="dialog"]'
+      # Entschuldigung für morgen mit Grund; abgeschickt wird nicht.
+      - klicken: '[role="dialog"] [aria-label="Grund der Abwesenheit"]'
+      - klicken: 'role=listbox >> role=option[name="Entschuldigen"s]'
+      - klicken: '[role="dialog"] >> role=button[name="Erster Tag"s]'
+      - klicken: 'td[data-today] ~ td:not([data-disabled]) button, tr:has(td[data-today]) + tr td:not([data-disabled]) button'
+      - tippen:
+          feld: '[role="dialog"] textarea'
+          text: Arzttermin am Nachmittag
   # Hilfe abholzeit-fuer-einen-tag-aendern; PostHog: 86 Abholänderungen
   - id: eltern-abholzeit-aendern
     titel: Abholzeit für einen Tag ändern
@@ -291,22 +453,31 @@ shots:
       - warten_auf: 'role=tab'
       - klicken: 'main button:has-text("Abhol")'
       - warten_auf: '[role="dialog"]'
-  # Hilfe als-elternteil-nachrichten-lesen; PostHog: 323 Aufrufe
+      # Morgen statt heute (für heute hat die OGS die Abholung schon
+      # festgelegt), mit Uhrzeit und Grund; abgeschickt wird nicht.
+      - klicken: '[role="dialog"] >> role=button[name="Tag"s]'
+      - klicken: 'td[data-today] ~ td:not([data-disabled]) button, tr:has(td[data-today]) + tr td:not([data-disabled]) button'
+      - tippen:
+          feld: '[role="dialog"] label:has-text("Abholzeit") input'
+          text: '14:30'
+      - tippen:
+          feld: '[role="dialog"] textarea'
+          text: Felix hat nachmittags einen Zahnarzttermin.
+  # Hilfe als-elternteil-nachrichten-lesen; PostHog: 323 Aufrufe, Verläufe
+  # 165 Aufrufe, im Median 821 s offen. Felix ist das einzige Kind des
+  # Elternkontos: Die Seite öffnet seinen Verlauf direkt, eine Liste gibt es
+  # nicht. Der Verlauf hat deshalb keinen eigenen Shot.
   - id: eltern-nachrichten
     titel: Nachrichten an die OGS
     portal: eltern
     rolle: eltern
     pfad: /messages
-  # PostHog: 165 Aufrufe, im Median 821 s offen
-  - id: eltern-nachrichten-verlauf
-    titel: Gespräch mit der OGS
-    portal: eltern
-    rolle: eltern
-    pfad: /messages
-    # Felix ist das einzige Kind des Elternkontos: die Seite öffnet seinen
-    # Verlauf direkt, eine Liste zum Anklicken gibt es nicht.
     vorbereitung:
       - warten_auf: 'main textarea'
+      # Der Verlauf öffnet am Ende. Die letzte Frage von Sabine kommt an den
+      # oberen Rand des Verlaufs, die Antwort der OGS steht darunter. Eigene
+      # Nachrichten stehen rechts (chat-bubble.tsx: items-end).
+      - scrollen_im_bereich: 'main div.overflow-y-auto div.flex.flex-col.items-end >> nth=-1'
   # Hilfe als-elternteil-den-kalender-ansehen; PostHog: 132 Aufrufe
   - id: eltern-kalender
     titel: Termine der Schule
@@ -326,11 +497,189 @@ shots:
     rolle: eltern
     pfad: /news
     vorbereitung:
-      - klicken: 'main button:has-text("Elternbrief: Ausflug am Freitag")'
+      - klicken: 'main button:has-text("Elternbrief: Unser Laternenfest")'
       - warten_auf: '[role="dialog"]'
-  # Hilfe mittagessen-ansehen; PostHog: im Median 735 s offen
+      # Der Anhang (Ablauf und Liedtexte) steht unter dem Brief; er kommt
+      # an den unteren Rand des Dialogs.
+      - warten_auf: '[role="dialog"] >> text=Dateien zu dieser Nachricht'
+      - einblenden: '[role="dialog"] div.border-t:has-text("Dateien zu dieser Nachricht") >> nth=-1'
+  # Hilfe mittagessen-ansehen; PostHog: im Median 735 s offen. Die nächste
+  # Woche zeigt die gebuchten Tage vollständig.
   - id: eltern-mittagessen
     titel: Mittagessen der Woche
     portal: eltern
     rolle: eltern
     pfad: /meal-plan
+    vorbereitung:
+      - klicken: 'role=button[name="Nächste Woche"s]'
+
+  # Hilfe elternbriefe-lesen; Website: Elternbrief mit Rückmeldung (Umfrage)
+  - id: eltern-umfrage-beantworten
+    titel: Eine Umfrage beantworten
+    portal: eltern
+    rolle: eltern
+    pfad: /news
+    vorbereitung:
+      - klicken: 'main button:has-text("Termine für den Elternsprechtag")'
+      - warten_auf: '[role="dialog"]'
+      # Zwei Termine ankreuzen, ohne zu speichern. Nach Position statt nach
+      # Datum: Der Seed legt die Termine relativ zu heute.
+      - klicken: '[role="dialog"] label:has(input[type="checkbox"]) >> nth=1'
+      - klicken: '[role="dialog"] label:has(input[type="checkbox"]) >> nth=4'
+  # Website: Digitale Erklärung mit Unterschrift. Sabine hat das Einverständnis
+  # im Seed schon unterschrieben; der Nachweis zeigt die Unterschrift.
+  - id: eltern-erklaerung-nachweis
+    titel: Nachweis einer unterschriebenen Erklärung
+    portal: eltern
+    rolle: eltern
+    pfad: /news
+    vorbereitung:
+      - klicken: 'main button:has-text("Einverständnis: Ausflug in den Zoo")'
+      - warten_auf: '[role="dialog"]'
+      - klicken: 'role=link[name="Nachweis ansehen"]'
+      - warten_auf: 'img[alt^="Unterschrift von"]'
+  # Website: Digitale Erklärung mit Unterschrift. Das zweite Einverständnis
+  # aus dem Seed lässt die Familie offen. „Zustimmen“ öffnet nur das Fenster
+  # zum Unterschreiben; der Schriftzug bleibt im Feld, bestätigt und
+  # abgeschickt wird nicht.
+  - id: eltern-erklaerung-unterschreiben
+    titel: Eine Erklärung digital unterschreiben
+    portal: eltern
+    rolle: eltern
+    pfad: /news
+    vorbereitung:
+      - klicken: 'main button:has-text("Einverständnis: Schwimmkurs im Hallenbad")'
+      - warten_auf: '[role="dialog"]'
+      - klicken: '[role="dialog"] >> role=button[name="Zustimmen"s]'
+      - warten_auf: 'canvas[aria-label="Feld zum Unterschreiben"]'
+      - zeichnen: 'canvas[aria-label="Feld zum Unterschreiben"]'
+  # Website: Essenstage ändern. Nur der Dialog, ohne Speichern. Erst die
+  # nächste Woche wie bei eltern-mittagessen: Die laufende Woche listet
+  # vergangene Tage als „Nicht zum Mittagessen angemeldet“. Die Woche
+  # wechselt vor dem Öffnen; danach verlangt die Seite Speichern oder
+  # Abbrechen.
+  - id: eltern-essenstage-aendern
+    titel: Feste Essenstage ändern
+    portal: eltern
+    rolle: eltern
+    pfad: /meal-plan
+    vorbereitung:
+      - klicken: 'role=button[name="Nächste Woche"s]'
+      - klicken: 'role=button[name=/^Ändern$/]'
+      - warten_auf: 'text=Feste Tage ändern'
+      - klicken: 'fieldset:has-text("Feste Tage ändern") label:has-text("Freitag")'
+  # Website: Kontakte und Abholberechtigte
+  - id: eltern-kontakte-abholung
+    titel: Kontakte und Abholberechtigte
+    portal: eltern
+    rolle: eltern
+    pfad: /children
+    vorbereitung:
+      - klicken: 'text=Felix Schneider'
+      - warten_auf: 'role=tab'
+      - klicken: 'role=tab[name="Kontakte & Abholung"]'
+      - warten_auf: 'text=Abholberechtigte und Kontakte'
+      # Die ganze Karte oben, mit ihrem Rand: an der Überschrift fehlte die
+      # Oberkante.
+      - scrollen: 'section:has-text("Abholberechtigte und Kontakte") >> nth=-1'
+  # Website: Online-Anmeldung, auch für Geschwister
+  - id: eltern-online-anmeldung
+    titel: Online-Anmeldung mit mehreren Kindern
+    portal: eltern
+    rolle: eltern
+    pfad: /anmeldung
+    vorbereitung:
+      - klicken: 'role=link[name^="Anmeldung öffnen"] >> nth=0'
+      - warten_auf: 'role=button[name="Weiteres Kind"]'
+      - klicken: 'role=button[name="Weiteres Kind"]'
+      # Zwei Geschwister von Felix ausfüllen; abgeschickt wird nicht. Die
+      # Felder der erziehungsberechtigten Person füllt das Profil vor; Vor- und
+      # Nachname stehen hier noch einmal, falls es leer bleibt. Die Vornamen
+      # vergibt der Seed nicht (data.go), Lotta ist älter, Emil jünger als
+      # Felix (22.09.2019, 1. Klasse).
+      - tippen: { feld: 'input[name="guardian_first_name"]', text: Sabine }
+      - tippen: { feld: 'input[name="guardian_last_name"]', text: Schneider }
+      - tippen: { feld: 'input[name="children_0_first_name"]', text: Lotta }
+      - tippen: { feld: 'input[name="children_0_last_name"]', text: Schneider }
+      - klicken: '[aria-label="Tag"] >> nth=0'
+      - klicken: 'role=listbox >> role=option[name="14"s]'
+      - klicken: '[aria-label="Monat"] >> nth=0'
+      - klicken: 'role=listbox >> role=option[name="März"s]'
+      - klicken: '[aria-label="Jahr"] >> nth=0'
+      - klicken: 'role=listbox >> role=option[name="2018"s]'
+      - klicken: '#children-0-target-grade-level'
+      - klicken: 'role=listbox >> role=option[name="3. Klasse"s]'
+      # Angebote erscheinen erst mit der Klassenstufe. „OGS Ganztag“ und die
+      # Tage dazu; das Pflicht-Mittagessen bucht der Seed nicht automatisch
+      # mit (kein auto_add), seine Tage sind eigene Chips. Die Karte erkennt
+      # ihr Kind am `for` des Häkchens (enrollment-form.tsx, OfferingCard),
+      # das Mittagessen an seiner Beschreibung aus parent_enrollment.go.
+      - klicken: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag")'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Mo"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Di"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Mi"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Do"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Mo"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Di"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Mi"s]'
+      - klicken: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Do"s]'
+      - tippen: { feld: 'input[name="children_1_first_name"]', text: Emil }
+      - tippen: { feld: 'input[name="children_1_last_name"]', text: Schneider }
+      - klicken: '[aria-label="Tag"] >> nth=1'
+      - klicken: 'role=listbox >> role=option[name="2"s]'
+      - klicken: '[aria-label="Monat"] >> nth=1'
+      - klicken: 'role=listbox >> role=option[name="Juni"s]'
+      - klicken: '[aria-label="Jahr"] >> nth=1'
+      - klicken: 'role=listbox >> role=option[name="2020"s]'
+      - klicken: '#children-1-target-grade-level'
+      - klicken: 'role=listbox >> role=option[name="1. Klasse"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("OGS Ganztag")'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Mo"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Di"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("Warme Mahlzeit") >> xpath=.. >> role=button[name="Do"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Mo"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Di"s]'
+      - klicken: 'label[for^="children-1-offering-"]:has-text("OGS Ganztag") >> xpath=.. >> role=button[name="Do"s]'
+      # Lottas gewähltes Angebot oben, darunter Emils Angaben: das Ende des
+      # ersten und der Anfang des zweiten Kindes in einem Bild.
+      - scrollen: 'label[for^="children-0-offering-"]:has-text("OGS Ganztag") >> xpath=..'
+  # Website: Eltern-App in vielen Sprachen. Nur die Auswahl, ohne Wechsel:
+  # Die Sprache gilt für das Konto und damit für alle späteren Eltern-Shots.
+  # Nachrichten selbst übersetzt moto nicht.
+  - id: eltern-sprache-waehlen
+    titel: Sprache der Eltern-App wählen
+    portal: eltern
+    rolle: eltern
+    pfad: /settings
+    vorbereitung:
+      - klicken: '[aria-haspopup="listbox"][aria-label="Sprache"]'
+      - warten_auf: 'role=listbox'
+
+  # --- Träger-Portal ----------------------------------------------------------
+  # Website: Ferienbetreuung des Trägers. Freie Plätze kennt das
+  # Träger-Portal noch nicht; der Shot zeigt Anmeldung, Wochen und Zeitmodelle.
+  - id: traeger-ferien-planen
+    titel: Ferienzeitraum mit Wochen und Zeitmodellen
+    portal: traeger
+    rolle: traeger
+    pfad: /ferien
+    vorbereitung:
+      - klicken: 'role=button[name=/^Ferienbetreuung/]'
+      - warten_auf: 'text=Zeitmodelle'
+      - scrollen: 'role=heading[name="Wochen"s]'
+  # Website: Rollen und Zugriffe im Träger-Büro
+  - id: traeger-person-einladen
+    titel: Eine Person mit Rollen einladen
+    portal: traeger
+    rolle: traeger
+    pfad: /accounts
+    vorbereitung:
+      - klicken: 'role=button[name="Person einladen"]'
+      - warten_auf: '[role="dialog"]'
+      # Ausgefüllt, aber nicht abgeschickt. Eine reservierte Beispiel-Domain
+      # (RFC 2606), die sich wie eine gewöhnliche Adresse liest: Eine
+      # erfundene .de-Domain könnte einem echten Verein gehören.
+      - tippen:
+          feld: '#invite-traeger-account-email'
+          text: jonas.berger@example.org
+      - klicken: '[role="dialog"] label:has-text("Darf das Personal aller Schulen verwalten")'

@@ -11,18 +11,18 @@ import {
 } from "~/components/ui/form-error-alert";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { Modal } from "~/components/ui/modal";
-import {
-  useApiFormError,
-  useApiLoadError,
-  useToast,
-} from "~/contexts/ToastContext";
+import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type { RunningSupervision } from "~/lib/substitution-helpers";
+import {
+  supervisionTargetLabel,
+  useRunningSupervision,
+  type SupervisionTarget,
+} from "~/components/active-supervisions/running-supervision";
 
 import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
 import type { Staff } from "~/lib/staff-api";
-import { externalStaffNote } from "~/lib/staff-helpers";
 
 const logger = createLogger({ component: "AddSupervisorModal" });
 
@@ -35,45 +35,6 @@ interface AddSupervisorModalProps {
   readonly onClose: () => void;
   readonly onAdded: () => Promise<unknown>;
 }
-
-function useSupervisionOverview(activeGroupId: string | null, isOpen: boolean) {
-  const [overview, setOverview] = useState<RunningSupervision | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  // Erhöht von „Wiederholen“: lädt die Betreuung erneut.
-  const [attempt, setAttempt] = useState(0);
-  const {
-    error: loadError,
-    show: showLoadError,
-    clear: clearLoadError,
-  } = useApiLoadError();
-  useEffect(() => {
-    if (!isOpen || !activeGroupId) return;
-    let current = true;
-    setOverview(null);
-    clearLoadError();
-    setIsLoading(true);
-    void substitutionService
-      .fetchRunningSupervision(activeGroupId)
-      .then((result) => current && setOverview(result))
-      .catch((cause: unknown) => {
-        logger.error("running_supervision_load_failed", {
-          error: cause instanceof Error ? cause.message : String(cause),
-        });
-        if (current)
-          void showLoadError(cause, {
-            object: "die laufende Betreuung",
-            retry: () => setAttempt((value) => value + 1),
-          });
-      })
-      .finally(() => current && setIsLoading(false));
-    return () => {
-      current = false;
-    };
-  }, [activeGroupId, isOpen, attempt, showLoadError, clearLoadError]);
-  return { overview, loadError, isLoading };
-}
-
-type SupervisionTarget = RunningSupervision["availableTargets"][number];
 
 function SupervisionDetails({
   overview,
@@ -123,13 +84,6 @@ function SupervisionDetails({
   );
 }
 
-// Wie in den anderen Auswahllisten: „Name (Extern · Musikschule, Einladung
-// offen)“ (#4573). Externe mit jedem Zugang kommen hier an (ADR 0091).
-function targetLabel(target: SupervisionTarget): string {
-  const note = externalStaffNote(target);
-  return note ? `${target.fullName} (${note})` : target.fullName;
-}
-
 function SupervisorSelect({
   targets,
   selectedStaffId,
@@ -156,7 +110,7 @@ function SupervisorSelect({
         placeholder="Person auswählen..."
         options={targets.map((target) => ({
           value: target.id,
-          label: targetLabel(target),
+          label: supervisionTargetLabel(target),
         }))}
       />
     </div>
@@ -327,7 +281,11 @@ function useSupervisionTargets(
 }
 
 export function AddSupervisorModal(props: AddSupervisorModalProps) {
-  const state = useSupervisionOverview(props.activeGroupId, props.isOpen);
+  const state = useRunningSupervision(
+    props.activeGroupId,
+    props.isOpen,
+    "die laufende Betreuung",
+  );
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const action = useAddSupervisor(props, selectedStaffId);
   useEffect(() => setSelectedStaffId(""), [props.activeGroupId, props.isOpen]);

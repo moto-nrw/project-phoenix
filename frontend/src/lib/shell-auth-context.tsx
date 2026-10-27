@@ -6,7 +6,9 @@ import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
 import { parentAbsoluteUrl, parentPath } from "~/lib/parent-url";
 import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
+import { catererAbsoluteUrl, catererPath } from "~/lib/caterer-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import { clearPersonalStorage } from "~/lib/personal-storage";
 import { createLogger } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
@@ -39,7 +41,7 @@ interface ShellProfile {
 
 type ShellStatus = "loading" | "authenticated" | "unauthenticated";
 
-type ShellMode = "teacher" | "operator" | "parent" | "school";
+type ShellMode = "teacher" | "operator" | "parent" | "school" | "caterer";
 
 interface ShellAuthContextType {
   user: ShellUser | null;
@@ -163,6 +165,9 @@ export function TeacherShellProvider({
             error: err instanceof Error ? err.message : String(err),
           });
         }
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
         clearSessionCache();
         await signOut({ redirect: false });
         window.location.href = "/";
@@ -231,6 +236,9 @@ export function OperatorShellProvider({
         // The tenant /api/auth/logout route uses tenant auth cookies and would
         // return 401 for operator sessions. Operator accounts don't do tenant
         // switching, so the stale-session issue from #1067 doesn't apply here.
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: operatorAbsoluteUrl("/operator/login") });
       },
@@ -313,6 +321,9 @@ export function SchoolShellProvider({
         // bliebe das Browser-Abo bestehen und der nächste Login auf diesem
         // Gerät fände ein Abo ohne Zuordnung vor.
         await unsubscribePushSilently("school");
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: schoolAbsoluteUrl("/school/login") });
       },
@@ -321,6 +332,75 @@ export function SchoolShellProvider({
       // Einstellungen (#2208): Benachrichtigungen und Geräte, wie im
       // Elternportal seit #1671.
       profileUrl: schoolPath("/school/einstellungen"),
+    };
+  }, [session, sessionStatus]);
+
+  return (
+    <ShellAuthContext.Provider value={value}>
+      {children}
+    </ShellAuthContext.Provider>
+  );
+}
+
+// CatererShellProvider — the caterer portal (ADR 0077) sibling of
+// SchoolShellProvider. Feeds the shared header from the caterer-scope
+// NextAuth session (caterer.session-token cookie).
+export function CatererShellProvider({
+  children,
+}: {
+  readonly children: React.ReactNode;
+}) {
+  const { data: session, status: sessionStatus } = useSession();
+
+  const value = useMemo<ShellAuthContextType>(() => {
+    const user: ShellUser | null = session?.user
+      ? {
+          ...(session.user.id ? { id: session.user.id } : {}),
+          name: session.user.name?.trim() || "Caterer",
+          email: session.user.email ?? "",
+          roles: session.user.roles ?? ["caterer"],
+        }
+      : null;
+
+    const status: ShellStatus =
+      sessionStatus === "loading"
+        ? "loading"
+        : sessionStatus === "authenticated"
+          ? "authenticated"
+          : "unauthenticated";
+
+    return {
+      user,
+      profile: null,
+      status,
+      isSessionExpired: session?.error === "RefreshTokenExpired",
+      logout: async () => {
+        try {
+          sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
+        } catch {
+          // sessionStorage unavailable: the login page shows its notice.
+        }
+        // Best effort: signing out of this device must not wait for it.
+        try {
+          await fetch("/api/caterer/auth/logout", {
+            method: "POST",
+            signal: AbortSignal.timeout(5000),
+          });
+        } catch (err: unknown) {
+          logger.warn("caterer_backend_logout_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
+        clearSessionCache();
+        await signOut({ callbackUrl: catererAbsoluteUrl("/caterer/login") });
+      },
+      mode: "caterer" as const,
+      homeUrl: catererPath("/caterer"),
+      // Kein eigenes Profil: das Konto ändert man über „Passwort vergessen“.
+      profileUrl: null,
     };
   }, [session, sessionStatus]);
 
@@ -407,6 +487,9 @@ export function ParentShellProvider({
         // cookie locally and redirects to the parents login page.
         // Best-effort: drop this device's Web Push registration first.
         await unsubscribePushSilently("parent");
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: parentAbsoluteUrl("/parents/login") });
       },

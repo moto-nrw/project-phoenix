@@ -71,6 +71,7 @@ var careRequestDecisionErrorRenderer = common.RulesRenderer(parentRequestRules(
 	common.ErrorRule{Target: carerequests.ErrGuardianAccessRevoked, Render: conflictWithCode(common.CodeStudentsGuardianAccessRevoked)},
 	common.ErrorRule{Target: carerequests.ErrCareRequestForbidden, Render: common.ErrorForbidden},
 	common.ErrorRule{Target: carerequests.ErrPickupChangeConflict, Render: conflictWithCode(common.CodeStudentsPickupChangeConflict)},
+	common.ErrorRule{Target: carerequests.ErrPickupPermissionContactGone, Render: conflictWithCode(common.CodeStudentsPickupPermissionContactGone)},
 	common.ErrorRule{Target: carerequests.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode(common.CodeStudentsPickupChangeCompleted)},
 	common.ErrorRule{Target: carerequests.ErrPickupChangeExpired, Render: conflictWithCode(common.CodeStudentsPickupChangeExpired)},
 	common.ErrorRule{Target: carerequests.ErrPickupChangeImpactChanged, Render: conflictWithCode(common.CodeStudentsPickupChangeImpactChanged)},

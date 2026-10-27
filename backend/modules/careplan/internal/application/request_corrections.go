@@ -30,12 +30,7 @@ func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool
 	if err != nil {
 		return err
 	}
-	var applied carerequests.PickupApplied
-	if approve {
-		applied, err = s.Plans.ApplyPickup(ctx, request, nil, false)
-	} else {
-		err = s.revertPickup(ctx, request)
-	}
+	applied, err := s.applyCorrectionDecision(ctx, request, approve)
 	if err != nil {
 		return err
 	}
@@ -64,6 +59,25 @@ func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool
 	return s.Effects.NotifyCorrection(ctx, request, actorID, approve, reason)
 }
 
+func (s *RequestCorrections) applyCorrectionDecision(ctx context.Context, request *carerequests.Request, approve bool) (carerequests.PickupApplied, error) {
+	if request.RequestKind == carerequests.KindPickupPermission {
+		if approve {
+			if request.Status == carerequests.StatusApproved {
+				return carerequests.PickupApplied{}, nil
+			}
+			return carerequests.PickupApplied{}, s.Plans.ApplyPickupPermission(ctx, request)
+		}
+		if request.Status == carerequests.StatusApproved {
+			return carerequests.PickupApplied{}, s.Plans.RevertPickupPermission(ctx, request)
+		}
+		return carerequests.PickupApplied{}, nil
+	}
+	if approve {
+		return s.Plans.ApplyPickup(ctx, request, nil, false)
+	}
+	return carerequests.PickupApplied{}, s.revertPickup(ctx, request)
+}
+
 func (s *RequestCorrections) loadCorrection(ctx context.Context, id int64, version string) (*carerequests.Request, error) {
 	request, student, err := lockCareRequestStudent(ctx, s.Records, s.People, id, func(row carerequests.Request) error {
 		return validateCareCorrection(row, version)
@@ -89,21 +103,7 @@ func (s *RequestCorrections) revertPickup(ctx context.Context, request *carerequ
 	if err != nil {
 		return fmt.Errorf("schedule: read care request ledger: %w", err)
 	}
-	// The newest decision names the rows it wrote: a time, a day Abholart
-	// (#3945), or both.
-	var applied carerequests.PickupApplied
-	var found bool
-	for _, event := range events {
-		if event.Type != "decided" {
-			continue
-		}
-		pickupID, pickupOK := correctionExceptionID(event.Payload["pickup_exception_id"])
-		departureID, departureOK := correctionExceptionID(event.Payload["departure_exception_id"])
-		if pickupOK || departureOK {
-			applied = carerequests.PickupApplied{PickupExceptionID: pickupID, DepartureExceptionID: departureID}
-			found = true
-		}
-	}
+	applied, found := decidedPickupRows(events)
 	if !found {
 		return fmt.Errorf("%w: zu dieser Entscheidung ist kein Eintrag gespeichert, der zurückgenommen werden kann. Bitte ändern Sie die Abholung direkt", careplan.ErrParentRequestCorrectionUnsupported)
 	}
@@ -113,7 +113,13 @@ func (s *RequestCorrections) revertPickup(ctx context.Context, request *carerequ
 		}
 	}
 	if applied.DepartureExceptionID > 0 {
-		return s.revertDepartureException(ctx, request, applied.DepartureExceptionID)
+		if err := s.revertDepartureException(ctx, request, applied.DepartureExceptionID); err != nil {
+			return err
+		}
+	}
+	if applied.PickupNoteID > 0 {
+		// The day's collector note the approval wrote (#4780).
+		return s.Records.DeletePickupNote(ctx, applied.PickupNoteID)
 	}
 	return nil
 }
@@ -146,6 +152,26 @@ func (s *RequestCorrections) revertDepartureException(ctx context.Context, reque
 	return s.Records.DeleteDepartureException(ctx, row.ID)
 }
 
+// decidedPickupRows reads the rows the newest decision wrote: a time, a day
+// Abholart (#3945), the day's collector note (#4780), or several of them.
+func decidedPickupRows(events []ports.RequestCorrectionEvent) (carerequests.PickupApplied, bool) {
+	var applied carerequests.PickupApplied
+	var found bool
+	for _, event := range events {
+		if event.Type != "decided" {
+			continue
+		}
+		pickupID, pickupOK := correctionExceptionID(event.Payload["pickup_exception_id"])
+		departureID, departureOK := correctionExceptionID(event.Payload["departure_exception_id"])
+		noteID, noteOK := correctionExceptionID(event.Payload["pickup_note_id"])
+		if pickupOK || departureOK || noteOK {
+			applied = carerequests.PickupApplied{PickupExceptionID: pickupID, DepartureExceptionID: departureID, PickupNoteID: noteID}
+			found = true
+		}
+	}
+	return applied, found
+}
+
 func correctionExceptionID(value any) (int64, bool) {
 	switch id := value.(type) {
 	case float64:
@@ -164,7 +190,7 @@ func validateCareCorrection(request carerequests.Request, version string) error 
 	if version != "" && careplan.ParentRequestVersion(request.UpdatedAt) != version {
 		return careplan.ErrParentRequestStale
 	}
-	if request.RequestKind != "pickup_change" {
+	if request.RequestKind != "pickup_change" && request.RequestKind != carerequests.KindPickupPermission {
 		return fmt.Errorf("%w: Betreuungszeiten speichern keinen Stand von vor der Entscheidung. Bitte ändern Sie den Wochenplan des Kindes direkt", careplan.ErrParentRequestCorrectionUnsupported)
 	}
 	return nil

@@ -22,16 +22,21 @@
 // identity), rotated on civil-date rollover — the same shape as the Worker's
 // instance-overdue tick. This is deliberately a single-instance guarantee: two
 // active Worker processes have independent maps and may both emit the same
-// reminder. Deployments run one Worker under the lease. A mid-day restart
-// likewise re-fires currently-due reminders once; toasts are ephemeral, that
-// cost is acceptable for zero disk state.
+// reminder. Deployments run one Worker under the lease. A mid-day restart, or
+// a crash between commit and the after-commit hook that fills the map,
+// likewise re-fires currently-due reminders once. Toasts are ephemeral, so
+// that cost is acceptable for zero disk state. Push is durable: each notice's
+// idempotency key names the occurrences it reports, so the push outbox drops
+// the repeat of an identical set (#4605).
 package reminderdelivery
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
+	"slices"
 	"sort"
 	"strconv"
 	"sync"
@@ -60,6 +65,7 @@ var personalReminderTypes = []string{
 	TypePickupOverdue,
 	TypeActivityStart,
 	TypeActivityOverdue,
+	TypeActivityRunningOver,
 	TypeMyActivityStarting,
 }
 
@@ -199,7 +205,7 @@ func (p *PersonalReminderNotifications) NotifyDue(ctx context.Context, tenantID 
 		return
 	}
 
-	notices, freshKeys := buildPersonalReminderNotices(tenantID, recipients, results, func(key reminderNotificationKey) bool {
+	notices, freshKeys := buildPersonalReminderNotices(tenantID, calendar.DateFromTime(now), recipients, results, func(key reminderNotificationKey) bool {
 		_, seen := p.notified.Load(key)
 		return seen
 	})
@@ -422,6 +428,7 @@ func (a reminderAudience) addressable(staffID int64, isAdmin bool, onDuty map[in
 // classification, aggregation — is testable without the producer.
 func buildPersonalReminderNotices(
 	tenantID int64,
+	day calendar.Date,
 	recipients []reminderRecipient,
 	results map[int64]*Result,
 	seen func(reminderNotificationKey) bool,
@@ -436,26 +443,26 @@ func buildPersonalReminderNotices(
 		if result == nil || !result.Enabled || len(result.Reminders) == 0 {
 			continue
 		}
-		counts, order, keys := countFreshReminders(tenantID, r, result, seen)
+		occurrences, order, keys := collectFreshReminders(tenantID, r, result, seen)
 		freshKeys = append(freshKeys, keys...)
 		for _, notificationType := range order {
 			notices = append(notices, buildPersonalReminderNotice(
-				tenantID, r.accountID, notificationType, counts[notificationType]))
+				tenantID, day, r.accountID, notificationType, occurrences[notificationType]))
 		}
 	}
 
 	return notices, freshKeys
 }
 
-// countFreshReminders counts one person's wanted, not yet notified reminders
-// per notification type, in first-seen order.
-func countFreshReminders(
+// collectFreshReminders gathers one person's wanted, not yet notified reminder
+// identities per notification type, in first-seen order.
+func collectFreshReminders(
 	tenantID int64,
 	r reminderRecipient,
 	result *Result,
 	seen func(reminderNotificationKey) bool,
-) (map[string]int, []string, []reminderNotificationKey) {
-	counts := make(map[string]int, len(personalReminderTypes))
+) (map[string][]string, []string, []reminderNotificationKey) {
+	occurrences := make(map[string][]string, len(personalReminderTypes))
 	order := make([]string, 0, len(personalReminderTypes))
 	var freshKeys []reminderNotificationKey
 
@@ -472,13 +479,13 @@ func countFreshReminders(
 		if seen(key) {
 			continue
 		}
-		if counts[notificationType] == 0 {
+		if len(occurrences[notificationType]) == 0 {
 			order = append(order, notificationType)
 		}
-		counts[notificationType]++
+		occurrences[notificationType] = append(occurrences[notificationType], key.reminder)
 		freshKeys = append(freshKeys, key)
 	}
-	return counts, order, freshKeys
+	return occurrences, order, freshKeys
 }
 
 // notificationTypeFor decides which notification type a reminder belongs to for
@@ -555,6 +562,12 @@ var reminderCopyByType = map[string]personalReminderCopy{
 		plural:   "%d geplante Aktivitäten sind überfällig und wurden noch nicht gestartet.",
 		urgent:   true,
 	},
+	TypeActivityRunningOver: {
+		title:    "AG dauert länger",
+		singular: "Eine Aktivität läuft länger als geplant.",
+		plural:   "%d Aktivitäten laufen länger als geplant.",
+		urgent:   true,
+	},
 	TypeMyActivityStarting: {
 		title:    "Ihr Einsatz beginnt",
 		singular: "Einer Ihrer geplanten Einsätze beginnt gleich.",
@@ -562,8 +575,10 @@ var reminderCopyByType = map[string]personalReminderCopy{
 	},
 }
 
-// buildPersonalReminderNotice renders one person's due count of one kind.
-func buildPersonalReminderNotice(tenantID, accountID int64, notificationType string, count int) PersonalReminderNotice {
+// buildPersonalReminderNotice renders one person's due occurrences of one
+// kind as their count.
+func buildPersonalReminderNotice(tenantID int64, day calendar.Date, accountID int64, notificationType string, occurrences []string) PersonalReminderNotice {
+	count := len(occurrences)
 	copyFor, known := reminderCopyByType[notificationType]
 	if !known {
 		// Unreachable while personalReminderTypes and the copy table agree,
@@ -588,7 +603,7 @@ func buildPersonalReminderNotice(tenantID, accountID int64, notificationType str
 
 	return PersonalReminderNotice{
 		Type:            notificationType,
-		IdempotencyKey:  fmt.Sprintf("personal-reminder:%d:%d:%s:%s:%d", tenantID, accountID, notificationType, calendar.DateFromTime(calendar.Now()).String(), count),
+		IdempotencyKey:  personalReminderIdempotencyKey(tenantID, day, accountID, notificationType, occurrences),
 		RelatedType:     "personal_reminder",
 		RelatedID:       accountID,
 		TenantID:        tenantID,
@@ -600,6 +615,20 @@ func buildPersonalReminderNotice(tenantID, accountID int64, notificationType str
 		DeepLink:        "/reminders",
 		Data:            map[string]string{"count": strconv.Itoa(count)},
 	}
+}
+
+// personalReminderIdempotencyKey names the tick's day and the exact
+// occurrences a notice reports. The count alone would collide with a later
+// notice of the same kind and count that day, which the push outbox would
+// then drop; the sorted identities keep the key independent of the order the
+// batch listed them in.
+func personalReminderIdempotencyKey(tenantID int64, day calendar.Date, accountID int64, notificationType string, occurrences []string) string {
+	digest := fnv.New64a()
+	for _, occurrence := range slices.Sorted(slices.Values(occurrences)) {
+		_, _ = digest.Write([]byte(occurrence + "\n"))
+	}
+	return fmt.Sprintf("personal-reminder:%d:%d:%s:%s:%x",
+		tenantID, accountID, notificationType, day.String(), digest.Sum64())
 }
 
 // rotateIfNewDay clears the re-fire guard on civil-date rollover, mirroring

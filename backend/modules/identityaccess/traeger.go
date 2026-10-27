@@ -21,6 +21,12 @@ var (
 	// ErrTraegerTransactionRequired reports a participating Träger command
 	// called without the caller's transaction.
 	ErrTraegerTransactionRequired = errors.New("the Träger role command requires the caller's transaction")
+	// ErrTraegerSchoolSwitchForbidden reports Träger roles without the right
+	// "In OGS wechseln".
+	ErrTraegerSchoolSwitchForbidden = errors.New("the Träger roles do not grant the switch into a school")
+	// ErrTraegerSchoolNotFound reports a school that is unknown, inactive or
+	// deleted, or that belongs to another Träger.
+	ErrTraegerSchoolNotFound = errors.New("the school does not belong to the Träger")
 )
 
 // The Träger roles of ADR 0084 section 4. In version 1 each is a fixed bundle
@@ -120,21 +126,35 @@ const (
 	// TraegerLoginSelectionRequired lists the Träger of a member of several;
 	// the login is repeated with one of them.
 	TraegerLoginSelectionRequired TraegerLoginStatus = "organization_selection_required"
+	// TraegerLoginMFARequired carries the challenge of the e-mailed code
+	// (#4651); every Träger session needs a second factor.
+	TraegerLoginMFARequired TraegerLoginStatus = "mfa_required"
+	// TraegerLoginMFAEnrollmentRequired carries an enrollment token: the
+	// account sets up its second factor before the Träger session exists.
+	TraegerLoginMFAEnrollmentRequired TraegerLoginStatus = "mfa_enrollment_required"
 )
 
-// TraegerLoginResult is the Träger login answer: a token pair, or the Träger
-// to choose from.
+// TraegerLoginResult is the Träger login answer: a token pair, the Träger to
+// choose from, or the second factor still to pass. On the enrollment branch
+// AccessToken is the enrollment token. OrganizationID names the Träger the
+// login resolved on both second-factor branches.
 type TraegerLoginResult struct {
-	Status        TraegerLoginStatus
-	AccessToken   string
-	RefreshToken  string
-	Organizations []TraegerOrganization
+	Status         TraegerLoginStatus
+	AccessToken    string
+	RefreshToken   string
+	ChallengeToken string
+	MaskedEmail    string
+	OrganizationID int64
+	Organizations  []TraegerOrganization
 }
 
 // TraegerAccountLogin signs an account in to the Träger-Portal. A zero
 // organizationID picks the only Träger of the account or asks for a choice.
+// IssueTraegerTokensForVerifiedMFA mints the Träger session after a proven
+// second factor of the org scope.
 type TraegerAccountLogin interface {
 	LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*TraegerLoginResult, error)
+	IssueTraegerTokensForVerifiedMFA(ctx context.Context, proof VerifiedMFAChallenge, organizationID int64, ipAddress, userAgent string) (*TraegerLoginResult, error)
 }
 
 // TraegerAccount is an account at a Träger with its Träger roles.
@@ -152,4 +172,23 @@ type TraegerRoles interface {
 	AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error
 	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]TraegerAccount, error)
 	EndTraegerSessions(ctx context.Context, organizationID int64) (int64, error)
+}
+
+// TraegerSchoolSessionRequest asks for the Absprung into one school of the
+// Träger (ADR 0084 section 5, #4654). Account, Träger and the family of the
+// Träger session come from that session, never from the request body.
+type TraegerSchoolSessionRequest struct {
+	AccountID       int64
+	OrganizationID  int64
+	TraegerFamilyID string
+	SchoolID        int64
+	IPAddress       string
+	UserAgent       string
+}
+
+// TraegerSchoolSessions opens OGS sessions through the Träger. The answer is
+// the hand-off refresh token the school's host redeems through /auth/refresh;
+// it is short-lived and single-use.
+type TraegerSchoolSessions interface {
+	StartTraegerSchoolSession(ctx context.Context, request TraegerSchoolSessionRequest) (string, error)
 }

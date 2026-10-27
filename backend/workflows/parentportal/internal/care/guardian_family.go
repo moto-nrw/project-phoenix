@@ -122,6 +122,7 @@ func projectChildGuardian(profile *GuardianProfile, link *GuardianRelationship, 
 		IsPrimary:          link.IsPrimary,
 		IsEmergencyContact: link.IsEmergencyContact,
 		CanPickup:          link.CanPickup,
+		PickupWeekdays:     normalizedWeekdays(link.PickupWeekdays),
 		HasAccount:         hasAccount,
 		IsSelf:             isSelf,
 		// Contact editing needs the edit permission and an unprotected target that

@@ -12,7 +12,7 @@ func nativeGuardianRelationship(row *models.StudentGuardian) (*directory.Guardia
 	if row == nil {
 		return nil, nil
 	}
-	value := &directory.GuardianRelationshipSnapshot{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID, StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID, RelationshipType: row.RelationshipType, GuardianRole: row.GuardianRole, IsPrimary: row.IsPrimary, IsEmergencyContact: row.IsEmergencyContact, CanPickup: row.CanPickup, PickupNotes: row.PickupNotes, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer}
+	value := &directory.GuardianRelationshipSnapshot{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, TenantID: row.TenantID, StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID, RelationshipType: row.RelationshipType, GuardianRole: row.GuardianRole, IsPrimary: row.IsPrimary, IsEmergencyContact: row.IsEmergencyContact, CanPickup: row.CanPickup, PickupNotes: row.PickupNotes, PickupWeekdays: row.PickupWeekdays, EmergencyPriority: row.EmergencyPriority, IsPayer: row.IsPayer}
 	if row.Permissions != nil {
 		raw, err := json.Marshal(row.Permissions)
 		if err != nil {

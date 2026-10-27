@@ -68,6 +68,12 @@ const (
 	CodeCarePhotoConsentNotWithdrawn                     = "care.photo_consent_not_withdrawn"
 	CodeCarePickupChangeCutoffPassed                     = "care.pickup_change_cutoff_passed"
 	CodeCarePickupChangeDisabled                         = "care.pickup_change_disabled"
+	CodeCarePickupPermissionRequestRequired              = "care.pickup_permission_request_required"
+	CodeCarePickupPermissionUnchanged                    = "care.pickup_permission_unchanged"
+	CodeCarePickupPersonNotLinked                        = "care.pickup_person_not_linked"
+	CodeCarePickupProofNotFound                          = "care.pickup_proof_not_found"
+	CodeCarePickupSignatureInvalid                       = "care.pickup_signature_invalid"
+	CodeCarePickupSignatureRequired                      = "care.pickup_signature_required"
 	CodeCarePollClosed                                   = "care.poll_closed"
 	CodeCarePrimaryGuardianProtected                     = "care.primary_guardian_protected"
 	CodeCareRemoveDisabled                               = "care.remove_disabled"
@@ -92,6 +98,10 @@ const (
 	CodeClassdayClassTripReturnTimeWeekend               = "classday.class_trip_return_time_weekend"
 	CodeClassdayClassTripStatusConflict                  = "classday.class_trip_status_conflict"
 	CodeClassdayClassTripStudentNotInClass               = "classday.class_trip_student_not_in_class"
+	CodeClassdayDayHintClassEmpty                        = "classday.day_hint_class_empty"
+	CodeClassdayDayHintInvalid                           = "classday.day_hint_invalid"
+	CodeClassdayDayHintNotToday                          = "classday.day_hint_not_today"
+	CodeClassdayDayHintStudentNotInClass                 = "classday.day_hint_student_not_in_class"
 	CodeClassdayHomeworkNotFound                         = "classday.homework_not_found"
 	CodeClassdayMorningAttendanceNoSchoolDay             = "classday.morning_attendance_no_school_day"
 	CodeClassdayMorningAttendanceNotToday                = "classday.morning_attendance_not_today"
@@ -110,6 +120,10 @@ const (
 	CodeCommunicationStaffCounterpartUnavailable         = "communication.staff_counterpart_unavailable"
 	CodeCommunicationStaffMessagingDisabled              = "communication.staff_messaging_disabled"
 	CodeCommunicationStaffNoticeOutdated                 = "communication.staff_notice_outdated"
+	CodeCommunicationSurveyAlreadyAnswered               = "communication.survey_already_answered"
+	CodeCommunicationSurveyAnonymous                     = "communication.survey_anonymous"
+	CodeCommunicationSurveyNotDraft                      = "communication.survey_not_draft"
+	CodeCommunicationSurveyNotOpen                       = "communication.survey_not_open"
 	CodeCommunicationSystemAnnouncementImmutable         = "communication.system_announcement_immutable"
 	CodeDevicesTagScanAlreadyResolved                    = "devices.tag_scan_already_resolved"
 	CodeDevicesTagScanNotFound                           = "devices.tag_scan_not_found"
@@ -193,6 +207,14 @@ const (
 	CodeEnrollmentHolidayPeriodIncomplete                = "enrollment.holiday_period_incomplete"
 	CodeEnrollmentHolidayPeriodInvalid                   = "enrollment.holiday_period_invalid"
 	CodeEnrollmentHolidayPeriodNotFound                  = "enrollment.holiday_period_not_found"
+	CodeEnrollmentHolidayRegistrationClosed              = "enrollment.holiday_registration_closed"
+	CodeEnrollmentHolidayRegistrationEntryNotFound       = "enrollment.holiday_registration_entry_not_found"
+	CodeEnrollmentHolidayRegistrationFrozen              = "enrollment.holiday_registration_frozen"
+	CodeEnrollmentHolidayRegistrationInvalid             = "enrollment.holiday_registration_invalid"
+	CodeEnrollmentHolidayRegistrationNotFound            = "enrollment.holiday_registration_not_found"
+	CodeEnrollmentHolidayRegistrationStateConflict       = "enrollment.holiday_registration_state_conflict"
+	CodeEnrollmentHolidayWeekBooked                      = "enrollment.holiday_week_booked"
+	CodeEnrollmentHostedHolidayWeekNotFound              = "enrollment.hosted_holiday_week_not_found"
 	CodeEnrollmentInvalidEmail                           = "enrollment.invalid_email"
 	CodeEnrollmentInvalidPhone                           = "enrollment.invalid_phone"
 	CodeEnrollmentLateInviteInvalid                      = "enrollment.late_invite_invalid"
@@ -265,6 +287,8 @@ const (
 	CodeIdentityAccountInactive                          = "identity.account_inactive"
 	CodeIdentityAccountNotFound                          = "identity.account_not_found"
 	CodeIdentityAccountNotInSchool                       = "identity.account_not_in_school"
+	CodeIdentityCatererAddressTaken                      = "identity.caterer_address_taken"
+	CodeIdentityCatererWithoutSchool                     = "identity.caterer_without_school"
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
 	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
@@ -277,31 +301,7 @@ const (
 	CodeIdentityEmailChangeLinkInvalid                   = "identity.email_change_link_invalid"
 	CodeIdentityEmailChangeRateLimited                   = "identity.email_change_rate_limited"
 	CodeIdentityEmailChangeSameEmail                     = "identity.email_change_same_email"
-	CodeIdentityInvalidCredentials                       = "identity.invalid_credentials"
-	CodeIdentityInvitationAccountLoginRequired           = "identity.invitation_account_login_required"
-	CodeIdentityInvitationAccountMismatch                = "identity.invitation_account_mismatch"
-	CodeIdentityInvitationExpired                        = "identity.invitation_expired"
-	CodeIdentityInvitationNotFound                       = "identity.invitation_not_found"
-	CodeIdentityInvitationRateLimited                    = "identity.invitation_rate_limited"
-	CodeIdentityLehrkraftRoleImmutable                   = "identity.lehrkraft_role_immutable"
-	CodeIdentityMfaAlreadyEnrolled                       = "identity.mfa_already_enrolled"
-	CodeIdentityMfaBlocked                               = "identity.mfa_blocked"
-	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
-	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
-	CodeIdentityMfaSessionRequired                       = "identity.mfa_session_required"
-	CodeIdentityMfaStatusUnavailable                     = "identity.mfa_status_unavailable"
-	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
-	CodeIdentityOperatorSelfDeactivation                 = "identity.operator_self_deactivation"
-	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
-	CodeIdentityPasskeyNotFound                          = "identity.passkey_not_found"
-	CodeIdentityPasswordMismatch                         = "identity.password_mismatch"
-	CodeIdentityPasswordResetLinkInvalid                 = "identity.password_reset_link_invalid"
-	CodeIdentityPasswordResetRateLimited                 = "identity.password_reset_rate_limited"
-	CodeIdentityPasswordTooWeak                          = "identity.password_too_weak"
-	CodeIdentityPreviewTargetNotPreviewable              = "identity.preview_target_not_previewable"
-	CodeIdentityPreviewTargetSchoolPortal                = "identity.preview_target_school_portal"
-	CodeIdentityPreviewTokenInvalid                      = "identity.preview_token_invalid"
-	CodeIdentityReadOnlyPreview                          = "identity.read_only_preview"
+	CodeIdentityGuardianInvitationEmailNotQueued         = "identity.guardian_invitation_email_not_queued"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -371,6 +371,12 @@ var errorCodeClasses0 = map[string]string{
 	"care.photo_consent_not_withdrawn":                     "business_rejection",
 	"care.pickup_change_cutoff_passed":                     "business_rejection",
 	"care.pickup_change_disabled":                          "permission",
+	"care.pickup_permission_request_required":              "business_rejection",
+	"care.pickup_permission_unchanged":                     "business_rejection",
+	"care.pickup_person_not_linked":                        "input",
+	"care.pickup_proof_not_found":                          "business_rejection",
+	"care.pickup_signature_invalid":                        "input",
+	"care.pickup_signature_required":                       "input",
 	"care.poll_closed":                                     "business_rejection",
 	"care.primary_guardian_protected":                      "permission",
 	"care.remove_disabled":                                 "permission",
@@ -395,6 +401,10 @@ var errorCodeClasses0 = map[string]string{
 	"classday.class_trip_return_time_weekend":              "input",
 	"classday.class_trip_status_conflict":                  "business_rejection",
 	"classday.class_trip_student_not_in_class":             "business_rejection",
+	"classday.day_hint_class_empty":                        "business_rejection",
+	"classday.day_hint_invalid":                            "input",
+	"classday.day_hint_not_today":                          "input",
+	"classday.day_hint_student_not_in_class":               "business_rejection",
 	"classday.homework_not_found":                          "business_rejection",
 	"classday.morning_attendance_no_school_day":            "input",
 	"classday.morning_attendance_not_today":                "input",
@@ -413,6 +423,10 @@ var errorCodeClasses0 = map[string]string{
 	"communication.staff_counterpart_unavailable":          "unavailable",
 	"communication.staff_messaging_disabled":               "permission",
 	"communication.staff_notice_outdated":                  "business_rejection",
+	"communication.survey_already_answered":                "business_rejection",
+	"communication.survey_anonymous":                       "business_rejection",
+	"communication.survey_not_draft":                       "business_rejection",
+	"communication.survey_not_open":                        "business_rejection",
 	"communication.system_announcement_immutable":          "business_rejection",
 	"devices.tag_scan_already_resolved":                    "business_rejection",
 	"devices.tag_scan_not_found":                           "business_rejection",
@@ -496,6 +510,14 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.holiday_period_incomplete":                 "business_rejection",
 	"enrollment.holiday_period_invalid":                    "input",
 	"enrollment.holiday_period_not_found":                  "business_rejection",
+	"enrollment.holiday_registration_closed":               "business_rejection",
+	"enrollment.holiday_registration_entry_not_found":      "business_rejection",
+	"enrollment.holiday_registration_frozen":               "business_rejection",
+	"enrollment.holiday_registration_invalid":              "input",
+	"enrollment.holiday_registration_not_found":            "business_rejection",
+	"enrollment.holiday_registration_state_conflict":       "business_rejection",
+	"enrollment.holiday_week_booked":                       "business_rejection",
+	"enrollment.hosted_holiday_week_not_found":             "business_rejection",
 	"enrollment.invalid_email":                             "input",
 	"enrollment.invalid_phone":                             "input",
 	"enrollment.late_invite_invalid":                       "input",
@@ -568,6 +590,8 @@ var errorCodeClasses0 = map[string]string{
 	"identity.account_inactive":                            "permission",
 	"identity.account_not_found":                           "business_rejection",
 	"identity.account_not_in_school":                       "business_rejection",
+	"identity.caterer_address_taken":                       "business_rejection",
+	"identity.caterer_without_school":                      "permission",
 	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
 	"identity.demo_access_invalid":                         "input",
@@ -580,31 +604,7 @@ var errorCodeClasses0 = map[string]string{
 	"identity.email_change_link_invalid":                   "business_rejection",
 	"identity.email_change_rate_limited":                   "unavailable",
 	"identity.email_change_same_email":                     "input",
-	"identity.invalid_credentials":                         "input",
-	"identity.invitation_account_login_required":           "permission",
-	"identity.invitation_account_mismatch":                 "permission",
-	"identity.invitation_expired":                          "business_rejection",
-	"identity.invitation_not_found":                        "input",
-	"identity.invitation_rate_limited":                     "unavailable",
-	"identity.lehrkraft_role_immutable":                    "business_rejection",
-	"identity.mfa_already_enrolled":                        "business_rejection",
-	"identity.mfa_blocked":                                 "unavailable",
-	"identity.mfa_code_invalid":                            "input",
-	"identity.mfa_not_enrolled":                            "business_rejection",
-	"identity.mfa_session_required":                        "permission",
-	"identity.mfa_status_unavailable":                      "unavailable",
-	"identity.operator_invitation_invalid":                 "business_rejection",
-	"identity.operator_self_deactivation":                  "business_rejection",
-	"identity.passkey_login_failed":                        "business_rejection",
-	"identity.passkey_not_found":                           "business_rejection",
-	"identity.password_mismatch":                           "input",
-	"identity.password_reset_link_invalid":                 "business_rejection",
-	"identity.password_reset_rate_limited":                 "unavailable",
-	"identity.password_too_weak":                           "input",
-	"identity.preview_target_not_previewable":              "permission",
-	"identity.preview_target_school_portal":                "permission",
-	"identity.preview_token_invalid":                       "permission",
-	"identity.read_only_preview":                           "permission",
+	"identity.guardian_invitation_email_not_queued":        "unavailable",
 }
 
 func init() {

@@ -99,7 +99,7 @@ describe("DokumenteTab", () => {
     render(<DokumenteTab staffId="42" />);
 
     expect(screen.getByText("erste-hilfe.pdf")).toBeInTheDocument();
-    // Das Label erscheint mehrfach (Filter-Pill, Kategorie-Auswahl, Badge) —
+    // Das Label erscheint mehrfach (Kategorie-Auswahl, Badge) —
     // entscheidend ist, dass es gerendert wird.
     expect(
       screen.getAllByText("Zeugnis / Qualifikation").length,
@@ -143,17 +143,20 @@ describe("DokumenteTab", () => {
     expect(screen.getByText("Noch keine Dokumente")).toBeInTheDocument();
   });
 
-  it("filtert die Liste über die Kategorie-Pills", () => {
+  it("filtert die Liste über die Kategorie-Auswahl", () => {
     mockSWR({ data: sampleData });
     render(<DokumenteTab staffId="42" />);
 
+    const filter = screen.getByRole("combobox", { name: "Anzeigen" });
+    fireEvent.click(filter);
     fireEvent.click(
-      screen.getByRole("button", { name: "Bewerbungsunterlagen" }),
+      screen.getByRole("option", { name: "Bewerbungsunterlagen" }),
     );
     expect(screen.queryByText("erste-hilfe.pdf")).not.toBeInTheDocument();
     expect(screen.getByText("lebenslauf.pdf")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Alle" }));
+    fireEvent.click(filter);
+    fireEvent.click(screen.getByRole("option", { name: "Alle Kategorien" }));
     expect(screen.getByText("erste-hilfe.pdf")).toBeInTheDocument();
   });
 

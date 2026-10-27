@@ -292,6 +292,7 @@ jobs:
           FRONTEND_URL: http://localhost:3000
           PARENTS_URL: http://parents.localhost:3000
           SCHOOL_URL: http://schule.localhost:3000
+          CATERER_URL: http://caterer.localhost:3000
           TRAEGER_URL: http://traeger.localhost:3000
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
@@ -497,6 +498,7 @@ jobs:
       TURNSTILE_SITE_KEY: 1x00000000000000000000AA
       TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
       SCHOOL_URL: http://schule.localhost:3000
+      CATERER_URL: http://caterer.localhost:3000
       TRAEGER_URL: http://traeger.localhost:3000
       # services.NewFactory refuses to build without it: the personal CalDAV
       # calendar derives its public server address from this value. Matches
@@ -506,6 +508,7 @@ jobs:
       NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
       NEXT_PUBLIC_APP_ENV: test
       NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
+      NEXT_PUBLIC_CATERER_HOSTNAME: caterer.localhost:3000
       NEXT_PUBLIC_TRAEGER_HOSTNAME: traeger.localhost:3000
       TENANT_DOMAIN: localhost
       # api/server.go refuses to build the server without it.
@@ -635,7 +638,7 @@ jobs:
             --url http://localhost:8080 \
             --tenant-slug vollbetrieb \
             --staff-password 'SeedSmoke1234%' \
-            --admin-email vollbetrieb-admin@example.test
+            --admin-email ines.lindner@ganztag-nord.example
 
       - name: Simulate a full care day
         if: ${{ matrix.scenario == 'profiles' }}

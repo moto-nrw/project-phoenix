@@ -550,9 +550,12 @@ function TenantPageView({
               // seiner Mindestbreite (6rem unter sm) Platz haben; sonst
               // brechen sie als Gruppe in eine eigene Zeile um und stehen
               // dort rechts (`ml-auto`), wie auf dem Desktop. Linksbündig
-              // stand der tote Raum rechts neben den Knöpfen.
+              // stand der tote Raum rechts neben den Knöpfen. `max-w-full`:
+              // Sind die Knöpfe zusammen breiter als der Kopf, brechen sie
+              // in der Gruppe um, statt die Seite seitlich scrollen zu
+              // lassen (#4975).
               actions
-                ? "ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2"
+                ? "ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2"
                 : "contents",
               "[&>div[data-icon-only]]:inline-flex",
               // Unter sm gilt: JEDE Zeile ist voll. Textknöpfe bekommen

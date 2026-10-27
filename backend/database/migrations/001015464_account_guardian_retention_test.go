@@ -55,12 +55,6 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	teamRole := testpkg.CreateTestRoleForTenant(t, db, "Team", school)
 	team := testpkg.CreateTestAccount(t, db, "team")
 	exec(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)`, team.ID, teamRole.ID, school)
-	directPermission := testpkg.CreateTestAccount(t, db, "direct-permission")
-	exec(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
-		SELECT ?, id, ? FROM auth.roles WHERE name = 'guardian'`, directPermission.ID, school)
-	permission := testpkg.CreateTestPermission(t, db, "direct-retention", "direct-retention", "read")
-	exec(`INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id, granted)
-		VALUES (?, ?, ?, TRUE)`, directPermission.ID, permission.ID, school)
 	invited := testpkg.CreateTestAccount(t, db, "invited")
 	testpkg.UnclaimTestAccount(t, db, invited.ID)
 	exec(`INSERT INTO auth.invitation_tokens (tenant_id, email, token, role_id, created_by, expires_at)
@@ -78,7 +72,7 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	assert.Equal(t, map[int64][]string{
 		formerParent.ID: {"/uploads/avatars/former-profile.png", "/uploads/avatars/former.png"},
 		orphan.ID:       nil,
-	}, pick(erased, formerParent.ID, orphan.ID, roleless.ID, parent.AccountID, staff.ID, pending.ID, team.ID, directPermission.ID, invited.ID, relative.ID),
+	}, pick(erased, formerParent.ID, orphan.ID, roleless.ID, parent.AccountID, staff.ID, pending.ID, team.ID, invited.ID, relative.ID),
 		"only accounts no school needs are erased; their avatar files come back for removal")
 
 	var tombstone struct {
@@ -148,7 +142,6 @@ func TestAccountReferencesWaitForErasureAndRejectTheTombstone(t *testing.T) {
 		fmt.Sprintf("account-reference-demo-%d", account.ID),
 		fmt.Sprintf("account-reference-demo-%d", account.ID)).Scan(ctx, &demoAccessID))
 	role := testpkg.CreateTestRoleForTenant(t, db, "account-reference-role", tenantID)
-	permission := testpkg.CreateTestPermission(t, db, "account-reference", "account-reference", "read")
 
 	erasure, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
@@ -182,10 +175,6 @@ func TestAccountReferencesWaitForErasureAndRejectTheTombstone(t *testing.T) {
 		"role": {
 			query: `INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)`,
 			args:  []any{account.ID, role.ID, tenantID},
-		},
-		"permission": {
-			query: `INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)`,
-			args:  []any{account.ID, permission.ID, tenantID},
 		},
 		"tenant mapping": {
 			query: `INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, created_at, updated_at)
@@ -254,6 +243,7 @@ func TestOnlyTheAdminRoleMayEraseUnusedAccounts(t *testing.T) {
 func TestAccountGuardianRetentionRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, retireDirectPermissionsDown(t.Context(), db))
 	ctx := context.Background()
 	school := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, school)
@@ -263,6 +253,10 @@ func TestAccountGuardianRetentionRollsBack(t *testing.T) {
 		return err
 	}
 
+	// The caterer tables of 1.15.479 fence their account references with
+	// this migration's trigger function; they go first and come back last.
+	require.NoError(t, mealCaterersDown(ctx, db))
+	t.Cleanup(func() { require.NoError(t, mealCaterersUp(ctx, db)) })
 	require.NoError(t, accountGuardianRetentionDown(ctx, db))
 	require.ErrorContains(t, logRow(), "chk_data_deletions_subject", "before 1.15.464 the data kind needs a subject")
 	_, err := db.ExecContext(ctx, `INSERT INTO audit.data_deletions (tenant_id, deletion_type, records_deleted, deleted_by)

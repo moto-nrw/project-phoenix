@@ -58,13 +58,20 @@ func CreateTestStudentGuardianLink(tb testing.TB, db *bun.DB, studentID, guardia
 // tenantID with the given role preset.
 func CreateTestStudentGuardianLinkForTenant(tb testing.TB, db *bun.DB, tenantID, studentID, guardianProfileID int64, role string) *StudentGuardian {
 	tb.Helper()
+	return CreateTestStudentGuardianLinkOfType(tb, db, tenantID, studentID, guardianProfileID, "parent", role)
+}
+
+// CreateTestStudentGuardianLinkOfType links a guardian to a student in
+// tenantID with the given relationship type and role preset.
+func CreateTestStudentGuardianLinkOfType(tb testing.TB, db *bun.DB, tenantID, studentID, guardianProfileID int64, relationshipType, role string) *StudentGuardian {
+	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	link := &StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianProfileID,
-		RelationshipType:   "parent",
+		RelationshipType:   relationshipType,
 		IsEmergencyContact: true,
 		CanPickup:          true,
 		EmergencyPriority:  1,
@@ -119,7 +126,7 @@ func InsertTestStudentGuardian(ctx context.Context, db bun.IDB, link *StudentGua
 // the StudentGuardian row shape, as the production guardian-link
 // projection does. Test support may not import that module.
 const studentGuardianLinkSource = `(SELECT r.id, r.tenant_id, r.student_id, r.guardian_profile_id, r.relationship_type,
-	r.guardian_role, r.is_primary, r.is_emergency_contact, p.can_pickup, p.pickup_notes,
+	r.guardian_role, r.is_primary, r.is_emergency_contact, p.can_pickup, p.pickup_notes, p.pickup_weekdays,
 	r.emergency_priority, r.is_payer, a.permissions, a.account_id AS access_account_id, r.created_at,
 	GREATEST(r.updated_at, p.updated_at, a.updated_at) AS updated_at
 	FROM users.student_guardian_relationships AS r

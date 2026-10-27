@@ -52,4 +52,21 @@ func TestSeedAttendanceCorrectionUsesCompletedInstanceFlow(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, time.Saturday, date.Weekday())
 	assert.NotEqual(t, time.Sunday, date.Weekday())
+	assert.Equal(t, previousSchoolDay(todaySeedDate()).String(), instance["date"], "the finished block lies before today")
+	assert.Equal(t, "Hausaufgabenhilfe", instance["title"])
+}
+
+// The documented block is the school day before today: today's Tagesplan
+// shows no finished block before the day began.
+func TestPreviousSchoolDaySkipsTheWeekend(t *testing.T) {
+	t.Parallel()
+	at := func(value string) seedDate {
+		day, err := parseSeedDate(value)
+		require.NoError(t, err)
+		return day
+	}
+	assert.Equal(t, "2026-10-19", previousSchoolDay(at("2026-10-20")).String(), "Tuesday: Monday")
+	assert.Equal(t, "2026-10-16", previousSchoolDay(at("2026-10-19")).String(), "Monday: Friday")
+	assert.Equal(t, "2026-10-23", previousSchoolDay(at("2026-10-25")).String(), "Sunday: Friday")
+	assert.Equal(t, "2027-08-02", previousSchoolDay(at("2027-08-02")).String(), "the new school year starts without a day before it")
 }

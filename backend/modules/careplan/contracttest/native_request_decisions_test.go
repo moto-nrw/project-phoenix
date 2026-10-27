@@ -51,6 +51,12 @@ func (d *decisionBoundary) ApplyWeekly(ctx context.Context, request *carerequest
 func (*decisionBoundary) ApplyPickup(context.Context, *carerequests.Request, *string, bool) (carerequests.PickupApplied, error) {
 	return carerequests.PickupApplied{}, errors.New("unexpected pickup application")
 }
+func (*decisionBoundary) ApplyPickupPermission(context.Context, *carerequests.Request) error {
+	return errors.New("unexpected pickup permission application")
+}
+func (*decisionBoundary) RevertPickupPermission(context.Context, *carerequests.Request) error {
+	return errors.New("unexpected pickup permission reversion")
+}
 func (d *decisionBoundary) RegisterDecision(context.Context, *carerequests.Request, carerequests.DecideInput, string, bool) error {
 	d.calls = append(d.calls, "effects")
 	return nil

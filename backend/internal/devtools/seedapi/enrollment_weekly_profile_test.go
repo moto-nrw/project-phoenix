@@ -96,6 +96,16 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"periods": []any{}}})
 		return true
 	}
+	// The Träger master data step (#4653) uploads a multipart logo and reads
+	// the bank accounts it already has.
+	if strings.HasPrefix(r.URL.Path, "/traeger/master-data/") {
+		data := any(map[string]any{})
+		if r.Method == "GET" {
+			data = map[string]any{"bank_accounts": []any{}}
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": data})
+		return true
+	}
 	var body map[string]any
 	if r.Method == "POST" || r.Method == "PUT" {
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
@@ -127,6 +137,16 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		return true
 	case path == "/traeger/schools/":
 		data = []map[string]any{{"id": 1}}
+	case strings.HasPrefix(path, "/traeger/holiday-periods/") && strings.HasSuffix(path, "/publish"):
+		// The published period carries its public link and weeks for the
+		// holiday registration of the same step (#4661).
+		data = map[string]any{"id": 5, "status": "published", "public_token": "link-key", "weeks": []map[string]any{
+			{"id": 51, "time_models": []map[string]any{{"id": 61}, {"id": 62}}},
+			{"id": 52, "time_models": []map[string]any{{"id": 63}, {"id": 64}}},
+		}}
+	case path == "/parent/holiday-registrations/link-key/family":
+		// The first seeded parent's prefill of the same link (#4662).
+		data = map[string]any{"guardian": map[string]any{}, "children": []map[string]any{{"student_id": "9", "school_id": "1"}}}
 	case path == "/auth/login":
 		token := "weekly-admin"
 		if body["tenant_slug"] == "vollbetrieb" {

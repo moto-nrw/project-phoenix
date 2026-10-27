@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -165,25 +166,41 @@ func TestGuardianWelcomeRequiresQueuedPrimaryEmail(t *testing.T) {
 	t.Run("invitation", func(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
-		f.delivery.invitationMailQueued = false
+		f.delivery.invitationMailErr = errors.New("outbox unavailable")
 
-		f.lifecycle.mailNewInvitation(tenantContext(), domain.GuardianInvitation{TenantID: lifecycleTenant}, domain.GuardianProfile{
+		err := f.lifecycle.mailNewInvitation(tenantContext(), domain.GuardianInvitation{TenantID: lifecycleTenant}, domain.GuardianProfile{
 			ID: 1, Email: "parent@example.test",
 		})
 
+		require.ErrorIs(t, err, domain.ErrGuardianAccessMailNotQueued, "the failure reaches the caller (#4602)")
 		require.Len(t, f.delivery.emails, 1)
 		assert.Empty(t, f.delivery.welcomeEmails)
 	})
 
-	t.Run("existing account", func(t *testing.T) {
+	t.Run("existing account without address", func(t *testing.T) {
 		t.Parallel()
 		f := newLifecycleFixture(t)
 		f.delivery.existingAccountQueued = false
 
-		f.lifecycle.mailExistingAccountAccess(tenantContext(), domain.GuardianProfile{
+		err := f.lifecycle.mailExistingAccountAccess(tenantContext(), domain.GuardianProfile{
 			ID: 1, Email: "parent@example.test",
 		}, lifecycleTenant)
 
+		require.NoError(t, err)
+		require.Len(t, f.delivery.accessEmails, 1)
+		assert.Empty(t, f.delivery.welcomeEmails)
+	})
+
+	t.Run("existing account enqueue failure", func(t *testing.T) {
+		t.Parallel()
+		f := newLifecycleFixture(t)
+		f.delivery.existingAccountErr = errors.New("outbox unavailable")
+
+		err := f.lifecycle.mailExistingAccountAccess(tenantContext(), domain.GuardianProfile{
+			ID: 1, Email: "parent@example.test",
+		}, lifecycleTenant)
+
+		require.ErrorIs(t, err, domain.ErrGuardianAccessMailNotQueued, "the failure reaches the caller (#4602)")
 		require.Len(t, f.delivery.accessEmails, 1)
 		assert.Empty(t, f.delivery.welcomeEmails)
 	})

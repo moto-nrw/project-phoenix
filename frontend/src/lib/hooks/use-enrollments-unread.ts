@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { personalStorageOwner } from "~/lib/personal-storage";
 
 import {
   ENROLLMENTS_UNREAD_REFRESH_EVENT,
@@ -35,6 +36,7 @@ export function useEnrollmentsUnread() {
       hasPermission(session, "config:manage"),
     fetcher: fetchUnreadEnrollmentCount,
     cacheKey: `enrollments_unread_count:${tenantSlug ?? ""}:${accountId}`,
+    cacheOwner: personalStorageOwner(session?.user),
     eventNames: [ENROLLMENTS_UNREAD_REFRESH_EVENT],
     eventDebounceMs: 300,
     refetchOnFocus: true,

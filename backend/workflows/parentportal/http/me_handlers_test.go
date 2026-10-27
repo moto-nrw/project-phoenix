@@ -59,6 +59,7 @@ type fakeParentService struct {
 	gotCarePickup    *time.Time
 	gotCareMode      string
 	gotCareReason    string
+	gotPickupEdit    *parentService.PickupChangeEdit
 
 	childFeatures parentService.ChildFeatureFlags
 
@@ -80,6 +81,11 @@ type fakeParentService struct {
 	grantConsentErr    error
 	gotConsentAccount  int64
 	gotConsentStudent  int64
+
+	holidayFamily          *parentService.HolidayRegistrationFamily
+	gotHolidayAccount      int64
+	gotHolidayOrganization int64
+	gotHolidaySchools      []int64
 }
 
 // GetChildTodayStatus haelt das Double am Service-Interface. Ohne gesetzten
@@ -124,6 +130,13 @@ func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, in
 		return f.submitStatus, nil
 	}
 	return &parentService.GuardianSubmitStatus{}, nil
+}
+func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error) {
+	f.gotHolidayAccount, f.gotHolidayOrganization, f.gotHolidaySchools = accountID, organizationID, schoolIDs
+	if f.holidayFamily != nil {
+		return f.holidayFamily, nil
+	}
+	return &parentService.HolidayRegistrationFamily{}, nil
 }
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentService.EnrollmentRequestSummary, error) {
 	return nil, nil
@@ -184,6 +197,9 @@ func (f *fakeParentService) ReplaceMealParticipationSchedule(context.Context, in
 }
 func (f *fakeParentService) SetMealParticipationDay(context.Context, int64, int64, timezone.Date, bool) error {
 	return nil
+}
+func (f *fakeParentService) SetMealParticipationWeek(context.Context, int64, int64, timezone.Date, bool) (parentService.MealWeekChange, error) {
+	return parentService.MealWeekChange{Changed: []string{"2026-09-10"}, Locked: []string{"2026-09-09"}}, nil
 }
 func (f *fakeParentService) ClearMealParticipationDay(context.Context, int64, int64, timezone.Date) error {
 	return nil
@@ -275,6 +291,46 @@ func (f *fakeParentService) SubmitCareExceptionWithReason(_ context.Context, acc
 	f.gotCarePickup = pickup
 	f.gotCareReason = reason
 	return f.careException, f.careExceptionErr
+}
+
+func (f *fakeParentService) SubmitPickupChange(ctx context.Context, accountID, studentID int64, submission parentService.PickupChangeSubmission) (*careplan.CareScheduleChangeRequest, error) {
+	return f.SubmitPickupChangeRequest(ctx, accountID, studentID, submission.Date, submission.PickupTime, submission.DepartureMode, submission.Reason, submission.RecipientGuardianProfileIDs)
+}
+
+func (f *fakeParentService) EditPickupChange(_ context.Context, accountID, _ int64, _ int64, edit parentService.PickupChangeEdit) (*careplan.CareScheduleChangeRequest, error) {
+	f.gotPickupEdit = &edit
+	return &careplan.CareScheduleChangeRequest{
+		ID: 1, SubmittedBy: accountID, Status: carerequests.StatusPending,
+		Payload: json.RawMessage(`{"date":"2026-11-10","reason":"Termin","pickup_time":"15:00"}`),
+	}, nil
+}
+
+func (f *fakeParentService) CreateSignedCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any, _ *parentService.PickupSignatureInput) (*parentService.ChildCareSchedule, error) {
+	return f.CreateCareScheduleRequest(ctx, accountID, studentID, payload)
+}
+
+func (f *fakeParentService) EditSignedCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64, payload map[string]any, expectedVersion string, _ *parentService.PickupSignatureInput) (*parentService.ChildCareSchedule, error) {
+	return f.EditCareScheduleRequest(ctx, accountID, studentID, requestID, payload, expectedVersion)
+}
+
+func (f *fakeParentService) SubmitPickupPermissionRequest(context.Context, int64, int64, int64, parentService.PickupPermissionInput) (*careplan.CareScheduleChangeRequest, error) {
+	return nil, errors.New("fake: pickup permission request not stubbed")
+}
+
+func (f *fakeParentService) SubmitPickupPermissionRequestWithRelationship(context.Context, int64, int64, int64, parentService.PickupPermissionInput, parentService.GuardianRelationshipInput) (*careplan.CareScheduleChangeRequest, error) {
+	return nil, errors.New("fake: pickup permission request not stubbed")
+}
+
+func (f *fakeParentService) ListPickupPermissionRequests(context.Context, int64, int64) ([]careplan.CareScheduleChangeRequest, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) PickupSignatureStatement(context.Context, int64, int64, parentService.PickupSignatureStatementInput) (string, error) {
+	return "", nil
+}
+
+func (f *fakeParentService) PickupRequestProof(context.Context, int64, int64, int64) (*parentService.PickupProof, error) {
+	return nil, parentService.ErrPickupProofNotFound
 }
 
 func (f *fakeParentService) SubmitPickupChangeRequest(_ context.Context, accountID, studentID int64, date timezone.Date, pickup time.Time, departureMode, reason string, _ []int64) (*careplan.CareScheduleChangeRequest, error) {
@@ -382,6 +438,14 @@ func (f *fakeParentService) RespondToAnnouncement(context.Context, int64, int64,
 	return nil
 }
 
+func (f *fakeParentService) GetAnnouncementSurvey(context.Context, int64, int64) (*parentService.SurveyForm, error) {
+	return nil, parentService.ErrAnnouncementNotFound
+}
+
+func (f *fakeParentService) SubmitAnnouncementSurvey(context.Context, int64, int64, []parentService.SurveyAnswer) error {
+	return parentService.ErrAnnouncementNotFound
+}
+
 func (f *fakeParentService) SubmitDeclaration(context.Context, int64, int64, parentService.DeclarationInput, parentService.PasswordConfirmer) (*parentService.DeclarationSubmission, bool, error) {
 	return nil, false, parentService.ErrAnnouncementNotFound
 }
@@ -407,6 +471,46 @@ func careExceptionRequest(body string) *http.Request {
 	route := chi.NewRouteContext()
 	route.URLParams.Add("studentId", "77")
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
+func TestEditPickupChangePreservesOmittedDeclarationFields(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{}
+	resource := &Resource{ParentService: service}
+	req := withClaims(httptest.NewRequest(http.MethodPut,
+		"/me/children/77/pickup-change-requests/88", strings.NewReader(`{"date":"2026-11-10","pickup_time":"15:00","reason":"Termin"}`)), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	route.URLParams.Add("requestId", "88")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	response := httptest.NewRecorder()
+	resource.editPickupChangeRequest(response, req)
+
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.NotNil(t, service.gotPickupEdit)
+	assert.True(t, service.gotPickupEdit.PreservePickupDeclaration)
+}
+
+func TestEditPickupChangeAcceptsExplicitDeclarationClear(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{}
+	resource := &Resource{ParentService: service}
+	req := withClaims(httptest.NewRequest(http.MethodPut,
+		"/me/children/77/pickup-change-requests/88", strings.NewReader(`{"date":"2026-11-10","pickup_time":"15:00","reason":"Termin","pickup_person_guardian_profile_id":""}`)), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	route.URLParams.Add("requestId", "88")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	response := httptest.NewRecorder()
+	resource.editPickupChangeRequest(response, req)
+
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	require.NotNil(t, service.gotPickupEdit)
+	assert.False(t, service.gotPickupEdit.PreservePickupDeclaration)
 }
 
 func mealPlanRequest() *http.Request {
@@ -485,16 +589,50 @@ func TestGetChildMealPlan_DisabledContract(t *testing.T) {
 func TestGetMealParticipation_ResponseContract(t *testing.T) {
 	t.Parallel()
 	rs := &Resource{ParentService: &fakeParentService{mealParticipation: parentService.MealParticipationPlan{
-		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00", CutoffLeadDays: 2,
-		CutoffWeekday: 3, CancellationCutoffTime: "16:00", CancellationCutoffLeadDays: 1,
-		Days: []parentService.MealParticipationDay{{Date: "2026-08-24", Participating: true, Source: "regular", Changeable: false}},
+		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00",
+		Model: "ongoing_split", ScheduleChangeable: true, SickCancels: true,
+		Days: []parentService.MealParticipationDay{{
+			Date: "2026-08-24", Participating: true, Regular: true, Source: "regular", Changeable: true, CanRegister: false, CanCancel: true,
+			RegisterUntil: time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC), CancelUntil: time.Date(2026, 8, 24, 6, 0, 0, 0, time.UTC),
+		}},
 	}}}
 	w := httptest.NewRecorder()
 
 	rs.getMealParticipation(w, mealParticipationRequest())
 
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","cutoff_lead_days":2,"cutoff_weekday":3,"cancellation_cutoff_time":"16:00","cancellation_cutoff_lead_days":1,"days":[{"date":"2026-08-24","participating":true,"source":"regular","changeable":false}]},"message":"Meal participation retrieved"}`, w.Body.String())
+	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","model":"ongoing_split","schedule_changeable":true,"sick_cancels_after_deadline":true,"days":[{"date":"2026-08-24","participating":true,"regular_participating":true,"source":"regular","changeable":true,"can_register":false,"can_cancel":true,"register_until":"2026-08-20T10:00:00Z","cancel_until":"2026-08-24T06:00:00Z"}]},"message":"Meal participation retrieved"}`, w.Body.String())
+}
+
+func TestSetMealParticipationWeek_ResponseContract(t *testing.T) {
+	t.Parallel()
+	rs := &Resource{ParentService: &fakeParentService{}}
+	req := withClaims(httptest.NewRequest(http.MethodPut,
+		"/me/children/77/meal-participation/weeks/2026-09-09", strings.NewReader(`{"participating":false}`)), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	route.URLParams.Add("date", "2026-09-09")
+	w := httptest.NewRecorder()
+
+	rs.setMealParticipationWeek(w, req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route)))
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.JSONEq(t, `{"status":"success","data":{"changed":["2026-09-10"],"locked":["2026-09-09"]},"message":"Meal participation week saved"}`, w.Body.String())
+}
+
+func TestSetMealParticipationWeek_RequiresParticipating(t *testing.T) {
+	t.Parallel()
+	rs := &Resource{ParentService: &fakeParentService{}}
+	req := withClaims(httptest.NewRequest(http.MethodPut,
+		"/me/children/77/meal-participation/weeks/2026-09-09", strings.NewReader(`{}`)), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	route.URLParams.Add("date", "2026-09-09")
+	w := httptest.NewRecorder()
+
+	rs.setMealParticipationWeek(w, req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route)))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {

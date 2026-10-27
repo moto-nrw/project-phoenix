@@ -45,8 +45,12 @@ func BuildParentPortal(
 	presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability, persons peopledirectory.Capability,
 	mealPlan mealplanModule.Capability, schedules CarePlanSchedules, requests CarePlanRequests, services PeopleServices,
 	emitter eventContract.Emitter, notifications DeliveryNotifications, identity identityaccess.Owner,
-	enrollment EnrollmentRows, notices EnrollmentNotices,
+	enrollment EnrollmentRows, notices EnrollmentNotices, announcements communication.ParentAnnouncementCapability, audit AuditOwner,
 ) (*parentportal.Portal, error) {
+	surveys, err := communication.SurveysOf(announcements)
+	if err != nil {
+		return nil, err
+	}
 	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, fmt.Errorf("compose parent portal care profiles: %w", err)
@@ -79,6 +83,7 @@ func BuildParentPortal(
 		ParentRequestEvents:       NewParentRequestEvents(peopleCompose.NewParentRequestEventRepository(db.Pool())), StudentAudit: NewParentStudentAudit(services.StudentAudit),
 		MessageThreadRepo: BindParentMessageThreadAccess(messaging.ParentMessageThread), MessageRepo: BindParentMessageReads(messages), MessageReadRepo: BindParentMessageInboxReads(messaging.ParentMessageRead),
 		GroupThreads: BindParentGroupThreads(parentStore.NewGroupThreadPortal(db.Pool())),
+		Surveys:      BindParentSurveys(surveys),
 		Conversations: BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 			ThreadRepo: messaging.ParentMessageThread, MessageRepo: messages, ReadRepo: messaging.ParentMessageRead,
 			Broadcaster: hub, Logger: env.Logger.With("service", "parent"),
@@ -88,7 +93,7 @@ func BuildParentPortal(
 		Emitter: BindParentChildEvents(emitter), MessagingEnabled: BindParentMessagingGate(settings, env.Logger.With("service", "parent")), AnnouncementRepo: BindParentAnnouncementAccess(messaging.ParentAnnouncement),
 		GuardianInvites: NewParentGuardianAccess(identity), GuardianInvitations: NewGuardianInvitationReads(identity),
 		StudentGuardianRepo: NewParentStudentGuardianReads(people.StudentGuardians), GuardianPhoneRepo: NewParentGuardianPhoneReads(peopleCompose.NewGuardianPhoneNumberRepository(db.Pool())),
-		StudentConsents: NewParentStudentConsents(services.StudentConsents), StudentPhotos: photos,
+		StudentConsents: NewParentStudentConsents(services.StudentConsents), StudentPhotos: photos, ChildDataAccess: NewParentChildDataAccess(audit.Persistence.DataAccessLog),
 		AbsenceNotifier: bindParentAbsenceNotifier(notifications.AbsenceNotifier), CarePeriods: parentportal.NewCarePeriodReads(enrollment.ParentCarePeriods.CarePeriods),
 		OfferingHistory: parentportal.NewOfferingHistoryReads(enrollment.ParentOfferingHistory.OfferingHistory), CareOfferingRepo: NewParentCareOfferingReads(notices.CareOfferings),
 		OfferingChanges: NewParentOfferingChangeRequests(requests.OfferingChanges), Logger: env.Logger.With("service", "parent"), Now: env.Now,

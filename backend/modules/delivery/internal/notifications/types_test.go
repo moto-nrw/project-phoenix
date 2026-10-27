@@ -12,12 +12,12 @@ import (
 // independently, so Delivery does not import the reminder workflow (#4072).
 func TestPersonalReminderNoticesSpeakTheEventVocabulary(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "my_activity_starting"}, []string{
+	assert.Equal(t, []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "activity_running_over", "my_activity_starting"}, []string{
 		notifications.TypePickupUpcoming, notifications.TypePickupOverdue,
 		notifications.TypeActivityStart, notifications.TypeActivityOverdue,
-		notifications.TypeMyActivityStarting,
+		notifications.TypeActivityRunningOver, notifications.TypeMyActivityStarting,
 	})
-	for _, notificationType := range []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "my_activity_starting"} {
+	for _, notificationType := range []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "activity_running_over", "my_activity_starting"} {
 		_, known := notifications.GetType(notificationType)
 		assert.True(t, known, "%s is not in the notification catalogue", notificationType)
 	}
@@ -31,7 +31,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 
 	t.Run("staff catalogue is grouped and ordered", func(t *testing.T) {
 		defs := notifications.TypesForPortal(notifications.PortalStaff)
-		require.Len(t, defs, 8)
+		require.Len(t, defs, 10)
 
 		keys := make([]string, len(defs))
 		for i, def := range defs {
@@ -42,10 +42,12 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 			notifications.TypePickupOverdue,
 			notifications.TypeActivityStart,
 			notifications.TypeActivityOverdue,
+			notifications.TypeActivityRunningOver,
 			notifications.TypeMyActivityStarting,
 			notifications.TypeStudentAbsenceReported,
 			notifications.TypeStaffParentMessage,
 			notifications.TypeStaffMessage,
+			notifications.TypeStaffSurvey,
 		}, keys, "order is fixed by group then SortOrder, not by registration order")
 	})
 
@@ -93,6 +95,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 			notifications.TypePickupOverdue:             "reminders.pickup_overdue_enabled",
 			notifications.TypeActivityStart:             "reminders.activity_start_enabled",
 			notifications.TypeActivityOverdue:           "reminders.activity_overdue_enabled",
+			notifications.TypeActivityRunningOver:       "reminders.activity_running_over_enabled",
 			notifications.TypeStudentAbsenceReported:    "notifications.absence_reported_enabled",
 			notifications.TypeStaffParentMessage:        "operations.parent_notes_enabled",
 			notifications.TypeParentMessage:             "operations.parent_notes_enabled",

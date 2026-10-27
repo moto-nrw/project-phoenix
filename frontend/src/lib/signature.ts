@@ -14,15 +14,19 @@ export interface SignatureRequestBody {
   readonly method: "drawn" | "typed";
   readonly image_png: string;
   readonly typed_name?: string;
+  /** Exact server-generated statement displayed when this signature was made. */
+  readonly statement?: string;
 }
 
 /** Maps the field value to the request body. */
 export function signatureRequestBody(
   value: SignatureValue,
+  statement?: string,
 ): SignatureRequestBody {
   return {
     method: value.method,
     image_png: value.imagePngBase64,
     ...(value.typedName === undefined ? {} : { typed_name: value.typedName }),
+    ...(statement === undefined ? {} : { statement }),
   };
 }

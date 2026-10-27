@@ -18,9 +18,11 @@ const (
 
 // LedgerRequestType maps a request kind onto the request type of the parent
 // request ledger. The weekly plan and the one-day pickup change are separate
-// request types everywhere else too, so the history reads the same.
+// request types everywhere else too, so the history reads the same. A pickup
+// permission (#4780) is a request about the pickup as well: the ledger, the
+// sharing and the parent notices treat it as one.
 func LedgerRequestType(requestKind string) string {
-	if requestKind == "pickup_change" {
+	if requestKind == "pickup_change" || requestKind == KindPickupPermission {
 		return "pickup_change"
 	}
 	return "care_schedule"

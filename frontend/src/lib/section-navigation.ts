@@ -206,7 +206,7 @@ export interface ParentSubPage extends SectionSubPage {
   readonly feature: ParentSubPageFeature;
 }
 
-type CommunicationSubPageFeature = "teamChat" | "staffNotices";
+type CommunicationSubPageFeature = "teamChat" | "staffNotices" | "surveys";
 
 export interface CommunicationSubPage extends SectionSubPage {
   readonly feature: CommunicationSubPageFeature;
@@ -225,6 +225,10 @@ export const COMMUNICATION_SUB_PAGES: readonly CommunicationSubPage[] = [
     label: "Tagesinformationen",
     feature: "staffNotices",
   },
+  // Umfragen (#4781): jede Person im Team beantwortet hier Umfragen an das
+  // Team; wer surveys:manage hat, legt hier auch Umfragen an Eltern an. Die
+  // kurze Frage je Kind bleibt eine Elternmitteilung („Mitteilungen“).
+  { href: "/umfragen", label: "Umfragen", feature: "surveys" },
 ];
 
 /** Seiten der Gruppe „Eltern", in Anzeigereihenfolge. */
@@ -305,6 +309,9 @@ export const STAFF_FLAT_PAGES = {
   dayLog: { href: "/day-log", label: "Tagesauswertung" },
   // Statistik (#2606): Quoten je Kind, Gruppe und Zeitraum plus Raumauslastung.
   statistics: { href: "/statistics", label: "Statistik" },
+  // Ferienwochen (#4665): die bestätigten Kinder der Wochen, die die OGS für
+  // ihren Träger ausrichtet, nur bis zum Ende der Woche.
+  holidayWeeks: { href: "/ferienwochen", label: "Ferienwochen" },
   emergency: { href: "/emergency", label: "Notfall" },
   help: { href: "/help", label: "Hilfe" },
   settings: { href: "/settings", label: "Einstellungen" },

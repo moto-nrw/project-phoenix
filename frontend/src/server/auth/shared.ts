@@ -385,6 +385,58 @@ export async function performParentLogin(
   }
 }
 
+/**
+ * Caterer login against POST /caterer/auth/login (ADR 0077). The backend
+ * answers every refusal of the account like a wrong password, so only the
+ * status and the code travel back.
+ */
+export async function performCatererLogin(
+  email: string,
+  password: string,
+  forwardHeaders?: Record<string, string>,
+): Promise<{
+  access_token: string;
+  refresh_token: string;
+  status?: number;
+  code?: string;
+} | null> {
+  try {
+    const response = await fetch(`${getServerApiUrl()}/caterer/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...forwardHeaders },
+      body: JSON.stringify({ email, password }),
+    });
+    if (!response.ok) {
+      let code: string | undefined;
+      try {
+        const parsed = (await response.json()) as { code?: unknown };
+        if (typeof parsed.code === "string") code = parsed.code;
+      } catch {
+        // Non-JSON body (a gateway error page): no code to report.
+      }
+      logger.warn("caterer login refused", { status: response.status });
+      return {
+        access_token: "",
+        refresh_token: "",
+        status: response.status,
+        code,
+      };
+    }
+    const envelope = (await response.json()) as {
+      data: { access_token: string; refresh_token: string };
+    };
+    return {
+      access_token: envelope.data.access_token,
+      refresh_token: envelope.data.refresh_token,
+    };
+  } catch (error) {
+    logger.error("caterer authentication error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
 export async function performSchoolLogin(
   email: string,
   password: string,
@@ -629,6 +681,52 @@ async function getRefreshAuditHeaders(): Promise<Record<string, string>> {
     // Auth callbacks can also run outside a request (for example in tests or
     // maintenance code). Missing audit context must not break session renewal.
     return {};
+  }
+}
+
+/**
+ * Redeems the hand-off token of an Absprung from the Träger portal (#4654)
+ * on the school's host. The token is a short-lived refresh token of a new
+ * OGS session; its first rotation here makes it single-use and gives the
+ * session its normal lifetime. Its recovery proof is random, so a replay of
+ * the token is refused even within the recovery window. Null when the
+ * backend refuses it.
+ */
+export async function redeemTraegerHandoff(
+  handoffToken: string,
+): Promise<RefreshResult | null> {
+  if (
+    typeof handoffToken !== "string" ||
+    !handoffToken ||
+    handoffToken.length > 16000
+  ) {
+    return null;
+  }
+  try {
+    const response = await fetch(`${getServerApiUrl()}/auth/refresh`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${handoffToken}`,
+        "Content-Type": "application/json",
+        // A fresh proof per redemption: the hand-off token alone, replayed
+        // within the recovery window, must not recover the session it
+        // opened. A lost answer means opening the school again.
+        "X-Refresh-Recovery-Proof": createRefreshRecoveryProof(),
+        ...(await getRefreshAuditHeaders()),
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) {
+      logger.warn("traeger_handoff_refused", { status: response.status });
+      return null;
+    }
+    return (await response.json()) as RefreshResult;
+  } catch (err) {
+    logger.warn("traeger_handoff_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
   }
 }
 

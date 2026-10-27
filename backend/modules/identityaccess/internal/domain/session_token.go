@@ -32,7 +32,7 @@ func DecodeMFAChallengeToken(wire map[string]any, now time.Time) (MFAChallengeCl
 		return MFAChallengeClaims{}, errors.New("missing required claim: account_id")
 	}
 	scope := text(wire, "scope")
-	if scope != "tenant" && scope != "platform" && scope != "school" {
+	if scope != "tenant" && scope != "platform" && scope != "school" && scope != "org" {
 		return MFAChallengeClaims{}, fmt.Errorf("invalid scope claim: %q", scope)
 	}
 	if !flag(wire, "mfa_pending") {
@@ -66,7 +66,7 @@ func DecodeSessionToken(wire map[string]any) (SessionClaims, error) {
 		Username: text(wire, "username"), FirstName: text(wire, "first_name"), LastName: text(wire, "last_name"),
 		IsAdmin: flag(wire, "is_admin"), Scope: text(wire, "scope"), TenantID: number(wire, "tenant_id"), OrgID: number(wire, "org_id"),
 		FamilyID: text(wire, "family_id"), ReadOnly: flag(wire, "read_only"), ActingAdminID: number(wire, "acting_admin_id"), PreviewID: text(wire, "preview_id"),
-		ExpiresAt: number(wire, "exp"),
+		ViaTraeger: flag(wire, "via_traeger"), ExpiresAt: number(wire, "exp"),
 	}, nil
 }
 

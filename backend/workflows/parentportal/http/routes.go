@@ -80,6 +80,12 @@ func (rs *Resource) mountEnrollmentRoutes(r chi.Router) {
 	// submission the public path uses.
 	r.Post("/enrollments/{tenantSlug}/submit", rs.submitParentEnrollment)
 	r.Post("/enrollments/{tenantSlug}/uploads", rs.uploadParentEnrollment)
+
+	// Prefill of the holiday registration of a Träger (#4662): the
+	// children of the account at the Träger's schools the parent may
+	// register, and the guardian's contact data. The Träger comes from the
+	// link only; the registration itself stays the public submit.
+	r.Get("/holiday-registrations/{token}/family", rs.getHolidayRegistrationFamily)
 }
 
 func (rs *Resource) mountChildStatusRoutes(r chi.Router) {
@@ -97,6 +103,7 @@ func (rs *Resource) mountChildStatusRoutes(r chi.Router) {
 	r.Get("/me/children/{studentId}/meal-participation", rs.getMealParticipation)
 	r.Put("/me/children/{studentId}/meal-participation", rs.replaceMealParticipation)
 	r.Put("/me/children/{studentId}/meal-participation/{date}", rs.setMealParticipationDay)
+	r.Put("/me/children/{studentId}/meal-participation/weeks/{date}", rs.setMealParticipationWeek)
 	r.Delete("/me/children/{studentId}/meal-participation/{date}", rs.clearMealParticipationDay)
 	r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 	r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
@@ -140,8 +147,12 @@ func (rs *Resource) mountCommunicationRoutes(r chi.Router, authRateLimiter func(
 	r.Post("/me/news/{announcementId}/read", rs.markAnnouncementRead)
 	r.Post("/me/news/{announcementId}/acknowledge", rs.acknowledgeAnnouncement)
 	rs.mountDeclarationRoutes(r, authRateLimiter)
+	rs.mountPickupPermissionRoutes(r)
 	// Poll answer, one child per call (#1371).
 	r.Post("/me/news/{announcementId}/respond", rs.respondToAnnouncement)
+	// Survey (#4781), one answer per guardian account.
+	r.Get("/me/news/{announcementId}/survey", rs.getAnnouncementSurvey)
+	r.Post("/me/news/{announcementId}/survey", rs.submitAnnouncementSurvey)
 }
 
 func (rs *Resource) mountChildCareRoutes(r chi.Router) {

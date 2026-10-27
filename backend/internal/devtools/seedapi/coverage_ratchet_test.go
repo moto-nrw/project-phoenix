@@ -30,8 +30,9 @@ import (
 // limited to security/session artifacts, one-time migration backups, legacy
 // compatibility tables, and transient lifecycle state.
 var seedCoverageExemptions = map[string]string{
-	"platform.school_erasures":             "real administrative erasure orders only (#3837); a demo seed must never fabricate customer erasure evidence",
-	"platform.organization_erasure_orders": "real erasure orders of a terminated Träger only (#4657); an order deactivates its Träger for good, so the demo Träger stay active and a seed fabricates no written confirmation",
+	"platform.school_erasures":                  "real administrative erasure orders only (#3837); a demo seed must never fabricate customer erasure evidence",
+	"platform.organization_erasure_orders":      "real erasure orders of a terminated Träger only (#4657); an order deactivates its Träger for good, so the demo Träger stay active and a seed fabricates no written confirmation",
+	"enrollment.holiday_registration_deletions": "real deletions only (#4667): the hourly retention logs a holiday period 92 days after its last week; the seed plans current holidays, so no period is old enough and a seed fabricates no deletion evidence",
 	// active.presence_backfill_checkpoints carries no exemption any more: the
 	// cutover #2762 writes the switch's own verdict into the checkpoint of
 	// every school it finds, and migration 1.14.002 always leaves the default
@@ -74,7 +75,6 @@ var seedCoverageExemptions = map[string]string{
 	"audit.room_color_migration_backup": "one-time migration snapshot; only installations with legacy reserved room colors can contain rows",
 	"audit.wc_alias_migration_backup":   "empty in prod too",
 
-	"auth.account_permissions":                  "direct account grants are retired (#4485); nothing writes the table and it is dropped in a follow-up migration",
 	"auth.demo_accesses":                        "prospect contact data of the public demo; its routes exist under APP_ENV=demo only and the seeder must not invent prospects",
 	"auth.mfa_overrides":                        "empty in prod too",
 	"auth.mfa_trusted_devices":                  "empty in prod too",
@@ -121,13 +121,12 @@ var seedCoverageExemptions = map[string]string{
 	"schedule.staff_shift_series_exceptions":    "empty in prod too",
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
-	"users.class_list_entries":            "not in prod yet (migration newer than the deployed image)",
-	"users.parent_announcement_responses": "empty in prod too",
-	"users.parent_request_rss_feeds":      "user-created capability credential; seeding only its hash would create an unusable subscription",
-	"users.profiles":                      "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
-	"users.staff_document_file_cleanup":   "empty in prod too",
-	"users.staff_documents":               "empty in prod too",
-	"users.staff_financial_data":          "empty in prod too",
+	"users.class_list_entries":          "not in prod yet (migration newer than the deployed image)",
+	"users.parent_request_rss_feeds":    "user-created capability credential; seeding only its hash would create an unusable subscription",
+	"users.profiles":                    "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
+	"users.staff_document_file_cleanup": "empty in prod too",
+	"users.staff_documents":             "empty in prod too",
+	"users.staff_financial_data":        "empty in prod too",
 	// Cutover #2753 froze users.staff as this rollback archive; the owner
 	// tables users.staff_school_memberships and users.staff_employment_profiles
 	// hold every seeded staff member. A fresh stack archives nothing.

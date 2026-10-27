@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { personalStorageOwner } from "~/lib/personal-storage";
 import { schoolStaffNoticesApi } from "~/lib/school-staff-notices-api";
 import { STAFF_NOTICES_REFRESH_EVENT } from "~/lib/staff-notices-api";
 import { useUnreadCount } from "./use-unread-count";
@@ -31,6 +32,7 @@ export function useSchoolStaffNoticesPending(): SchoolStaffNoticesPending {
       ).length;
     },
     cacheKey: `school_staff_notices_pending:${scope}`,
+    cacheOwner: personalStorageOwner(session?.user),
     eventNames: [STAFF_NOTICES_REFRESH_EVENT],
     refetchOnFocus: true,
   });

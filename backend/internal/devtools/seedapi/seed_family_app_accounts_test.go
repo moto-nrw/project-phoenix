@@ -26,20 +26,27 @@ func TestFamilyAppGuardiansCoverEveryOtherChildOnce(t *testing.T) {
 	// other parent of the same child.
 	parents := []ParentCredentials{{GuardianID: ids["Sabine Schneider"]}}
 
-	guardians, err := familyAppGuardians(ids, parents)
+	indexes, err := familyAppGuardianIndexes(ids, parents)
 	require.NoError(t, err)
 
-	byID := make(map[int64]DemoGuardian, len(DemoGuardians))
+	// A guardian of siblings has one entry per child and one account for all.
+	entriesByID := make(map[int64][]DemoGuardian, len(DemoGuardians))
 	for _, guardian := range DemoGuardians {
-		byID[ids[guardian.FirstName+" "+guardian.LastName]] = guardian
+		id := ids[guardian.FirstName+" "+guardian.LastName]
+		entriesByID[id] = append(entriesByID[id], guardian)
 	}
 	children := map[int]bool{}
-	for _, id := range guardians {
-		guardian, ok := byID[id]
-		require.True(t, ok, "guardian %d is a demo guardian", id)
-		assert.True(t, guardian.IsPrimary, "%s %s", guardian.FirstName, guardian.LastName)
-		assert.False(t, children[guardian.StudentIndex], "child %d gets one account", guardian.StudentIndex)
-		children[guardian.StudentIndex] = true
+	listed := map[int64]bool{}
+	for _, index := range indexes {
+		require.Less(t, index, len(DemoGuardians), "index %d is a demo guardian", index)
+		id := ids[demoGuardianKey(DemoGuardians[index])]
+		assert.False(t, listed[id], "guardian %d is listed once", id)
+		listed[id] = true
+		for _, guardian := range entriesByID[id] {
+			assert.True(t, guardian.IsPrimary, "%s %s", guardian.FirstName, guardian.LastName)
+			assert.False(t, children[guardian.StudentIndex], "child %d gets one account", guardian.StudentIndex)
+			children[guardian.StudentIndex] = true
+		}
 	}
 	assert.False(t, children[0], "child 0 already has a parent in the app")
 	for index := range familiesWithoutApp {
@@ -51,7 +58,7 @@ func TestFamilyAppGuardiansCoverEveryOtherChildOnce(t *testing.T) {
 func TestFamilyAppGuardiansReportAMissingGuardian(t *testing.T) {
 	t.Parallel()
 
-	_, err := familyAppGuardians(map[string]int64{}, nil)
+	_, err := familyAppGuardianIndexes(map[string]int64{}, nil)
 	require.Error(t, err)
 }
 

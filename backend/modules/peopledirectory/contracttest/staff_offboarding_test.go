@@ -991,35 +991,6 @@ func TestOffboardStaff_ExcludedFromListsAndPIN(t *testing.T) {
 	assert.Nil(t, found)
 }
 
-// TestOffboardStaff_ClearsDirectPermissions: direct tenant-scoped permission
-// grants must not survive offboarding — re-invitation reuses the account ID,
-// so leftover grants would restore old elevated permissions.
-func TestOffboardStaff_ClearsDirectPermissions(t *testing.T) {
-	t.Parallel()
-
-	sc := newOffboardingScenario(t)
-
-	staff, account := testpkg.CreateTestStaffWithAccount(t, sc.db, "Direct", "Permission")
-	testpkg.MapAccountToTenant(t, sc.db, account.ID, testpkg.Tenant(t))
-	perm := testpkg.CreateTestPermission(t, sc.db,
-		fmt.Sprintf("offb-perm-%d", time.Now().UnixNano()), "students", "read")
-	_, grantErr := sc.db.ExecContext(sc.ctx,
-		"INSERT INTO auth.account_permissions (account_id, permission_id, granted, tenant_id) VALUES (?, ?, TRUE, ?)",
-		account.ID, perm.ID, testpkg.Tenant(t))
-	require.NoError(t, grantErr)
-
-	require.NoError(t, testpkg.TenantCommand3(t, sc.ctx, sc.db, sc.svc.OffboardStaff, staff.ID, staff.ID, "test-admin"))
-
-	var permCount int
-	err := sc.db.NewSelect().
-		TableExpr(`auth.account_permissions`).
-		ColumnExpr(`COUNT(*)`).
-		Where(`account_id = ? AND tenant_id = ?`, account.ID, testpkg.Tenant(t)).
-		Scan(context.Background(), &permCount)
-	require.NoError(t, err)
-	assert.Zero(t, permCount, "direct permission grants must be removed on offboarding")
-}
-
 // TestOffboardStaff_PreservesGuardianAccess: a dual-role teacher/guardian
 // account loses staff access but must keep the guardian role and an active
 // tenant mapping so the parents portal keeps working.

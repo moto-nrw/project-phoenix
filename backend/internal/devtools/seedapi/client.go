@@ -78,6 +78,12 @@ func (c *Client) LoginParent(email, password string) error {
 	return nil
 }
 
+// LoginTraeger signs in to the Träger-Portal with its second factor and
+// returns the Träger session without binding it.
+func (c *Client) LoginTraeger(email, password string, organizationID int64) (AuthRef, error) {
+	return c.adapter.LoginTraeger(context.Background(), email, password, organizationID)
+}
+
 // Post makes an authenticated POST request
 func (c *Client) Post(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("POST", path, body, true, nil)
@@ -154,6 +160,16 @@ func (c *Client) PostFile(path, fieldName, filename string, contents []byte) ([]
 // PostFileWithFields is PostFile plus plain form fields next to the file,
 // such as the consent flag of a student photo upload.
 func (c *Client) PostFileWithFields(path, fieldName, filename string, contents []byte, fields map[string]string) ([]byte, error) {
+	return c.uploadFile(c.authRef(), "POST", path, fieldName, filename, contents, fields)
+}
+
+// PutFileWithAuth makes a multipart PUT with a single file part under the
+// given session, such as the Träger logo upload (#4653).
+func (c *Client) PutFileWithAuth(auth AuthRef, path, fieldName, filename string, contents []byte) ([]byte, error) {
+	return c.uploadFile(auth, "PUT", path, fieldName, filename, contents, nil)
+}
+
+func (c *Client) uploadFile(auth AuthRef, method, path, fieldName, filename string, contents []byte, fields map[string]string) ([]byte, error) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	for _, name := range slices.Sorted(maps.Keys(fields)) {
@@ -172,12 +188,12 @@ func (c *Client) PostFileWithFields(path, fieldName, filename string, contents [
 		return nil, fmt.Errorf("close multipart body: %w", err)
 	}
 
-	respBody, statusCode, err := c.adapter.RawUpload(context.Background(), c.authRef(), "POST", path, writer.FormDataContentType(), buf.Bytes())
+	respBody, statusCode, err := c.adapter.RawUpload(context.Background(), auth, method, path, writer.FormDataContentType(), buf.Bytes())
 	if err != nil {
 		return nil, err
 	}
 	if c.verbose {
-		c.logExchange("POST", path, nil, statusCode, respBody)
+		c.logExchange(method, path, nil, statusCode, respBody)
 	}
 	return respBody, nil
 }

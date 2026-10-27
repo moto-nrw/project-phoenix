@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // guardianPickupDatabase resolves the caller's transaction for a pickup
@@ -46,7 +47,7 @@ func (s *Store) ChangeGuardianPickupPermission(ctx context.Context, change carep
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	if change.CanPickup == nil && !change.SetPickupNotes {
+	if change.CanPickup == nil && !change.SetPickupNotes && !change.SetWeekdays {
 		query := db.NewSelect().TableExpr(`users.student_guardian_pickup_permissions AS "pickup"`).
 			Where(`"pickup".tenant_id = ?`, change.TenantID).
 			Where(`"pickup".relationship_id = ?`, change.RelationshipID)
@@ -67,6 +68,21 @@ func (s *Store) ChangeGuardianPickupPermission(ctx context.Context, change carep
 	}
 	if change.SetPickupNotes {
 		query = query.Set("pickup_notes = ?", change.PickupNotes)
+	}
+	if change.SetWeekdays {
+		if len(change.Weekdays) == 0 {
+			query = query.Set("pickup_weekdays = NULL")
+		} else {
+			query = query.Set("pickup_weekdays = ?::smallint[]", pgdialect.Array(change.Weekdays))
+		}
+	}
+	if change.Expected != nil {
+		query = query.Where(`"pickup".can_pickup = ?`, change.Expected.CanPickup)
+		if len(change.Expected.Weekdays) == 0 {
+			query = query.Where(`"pickup".pickup_weekdays IS NULL`)
+		} else {
+			query = query.Where(`"pickup".pickup_weekdays = ?::smallint[]`, pgdialect.Array(change.Expected.Weekdays))
+		}
 	}
 	stats, affected, err := execute(ctx, query, "change guardian pickup permission")
 	return affected > 0, stats, err

@@ -16,6 +16,7 @@ import {
 
 import type { AppLocale } from "~/i18n/locales";
 import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
+import type { SurveyAnswersRequest, SurveyForm } from "~/lib/survey-form";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
@@ -339,6 +340,27 @@ export interface PickupChangeRequest {
   readonly created_at: string;
   readonly reviewed_at?: string;
   readonly is_self?: boolean;
+  /** Die Kontaktperson, die das Kind an diesem Tag abholt (#4780). */
+  readonly pickup_person?: string;
+  /** Die ID der Kontaktperson zum erneuten Bearbeiten der Anfrage (#4780). */
+  readonly pickup_person_guardian_profile_id?: string;
+  /** Die Anfrage trägt eine Unterschrift; ihr Nachweis ist als PDF abrufbar. */
+  readonly signed?: boolean;
+}
+
+// Eine Anfrage, eine Kontaktperson dauerhaft oder an Wochentagen abholen zu
+// lassen (#4780). weekdays leer: an allen Tagen.
+export interface PickupPermissionRequest {
+  readonly id: string;
+  readonly guardian_profile_id: string;
+  readonly person_name: string;
+  readonly weekdays: readonly number[];
+  readonly status: "pending" | "approved" | "rejected" | "withdrawn";
+  readonly decision_reason?: string;
+  readonly created_at: string;
+  readonly reviewed_at?: string;
+  readonly is_self: boolean;
+  readonly signed: boolean;
 }
 
 // A guardian linked to the child, with portal-access status.
@@ -382,6 +404,8 @@ export interface ChildGuardian {
   readonly is_primary: boolean;
   readonly is_emergency_contact: boolean;
   readonly can_pickup: boolean;
+  /** Wochentage (1 = Montag … 5 = Freitag), fehlt: an allen Tagen (#4780). */
+  readonly pickup_weekdays?: readonly number[];
   readonly pickup_notes?: string;
   readonly has_account: boolean;
   readonly is_self: boolean;
@@ -414,7 +438,10 @@ export interface GuardianContactPayload {
 // the related-account invitation flow.
 export interface CreateGuardianContactPayload extends GuardianContactPayload {
   readonly relationship_type: "parent" | "guardian" | "relative" | "other";
+  /** Mit Abholerlaubnis: als unterschriebene Anfrage an die OGS (#4780). */
   readonly can_pickup: boolean;
+  readonly pickup_weekdays?: readonly number[];
+  readonly pickup_signature?: ReturnType<typeof signatureRequestBody>;
   readonly is_emergency_contact: boolean;
   readonly pickup_notes?: string | null;
 }
@@ -856,36 +883,49 @@ export async function getChildMealPlan(
   }));
 }
 
+// "absent": excused or on a class trip; "closed": a closing day or public
+// holiday, nobody eats (#3873).
 type MealParticipationSource =
-  | "none"
-  | "regular"
-  | "override"
-  | "sick"
-  /** Feiertag oder Schließtag: kein Essen, nicht änderbar. */
-  | "closed";
+  "none" | "regular" | "override" | "sick" | "absent" | "closed";
 
 interface MealParticipationDay {
   readonly date: string;
   readonly participating: boolean;
+  // What the regular days alone give on this day: false in school holidays
+  // and on closed days (#3873).
+  readonly regular_participating: boolean;
   readonly source: MealParticipationSource;
+  // True while the parent may still register or cancel the day (#3873).
   readonly changeable: boolean;
+  readonly can_register: boolean;
+  readonly can_cancel: boolean;
+  // RFC 3339 instants: the deadlines of this day.
+  readonly register_until: string;
+  readonly cancel_until: string;
 }
+
+// How the school's parents register (#3873): until one deadline per day, with
+// a separate cancellation deadline, or once for the school year.
+type MealRegistrationModel = "ongoing_single" | "ongoing_split" | "annual";
 
 export interface MealParticipation {
   readonly weekdays: number[];
   readonly effective_from?: string;
   readonly cutoff_time: string;
-  /** Werktage vor dem Essenstag, an denen die Frist gilt; 0 = am selben Tag. */
-  readonly cutoff_lead_days?: number;
-  /**
-   * 1-5 (Mo-Fr): Die Frist der ganzen nächsten Woche endet an diesem
-   * Wochentag; 0 = Vorlauf in Werktagen.
-   */
-  readonly cutoff_weekday?: number;
-  /** Spätere Abmeldefrist; fehlt, wenn sie der Änderungsfrist entspricht. */
-  readonly cancellation_cutoff_time?: string;
-  readonly cancellation_cutoff_lead_days?: number;
+  readonly model: MealRegistrationModel;
+  // False once the school year registration closed: only the school changes
+  // the regular days then.
+  readonly schedule_changeable: boolean;
+  // True when a sick note after the cancellation deadline still cancels.
+  readonly sick_cancels_after_deadline: boolean;
   readonly days: MealParticipationDay[];
+}
+
+// The days a week change changed, and the days it left because their
+// deadline had passed.
+export interface MealWeekChange {
+  readonly changed: string[];
+  readonly locked: string[];
 }
 
 export async function getMealParticipation(
@@ -915,6 +955,18 @@ export async function setMealParticipationDay(
 ): Promise<void> {
   await putJson<unknown>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation/${encodeURIComponent(date)}`,
+    { participating },
+  );
+}
+
+// Registers or cancels every remaining weekday of the week containing date.
+export async function setMealParticipationWeek(
+  studentId: string,
+  date: string,
+  participating: boolean,
+): Promise<MealWeekChange> {
+  return putJson<MealWeekChange>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation/weeks/${encodeURIComponent(date)}`,
     { participating },
   );
 }
@@ -1010,7 +1062,11 @@ export interface ParentAnnouncement {
 
   // Set on rows the system wrote on the school's behalf (#2601). A
   // cancellation notice is labelled as such instead of "Elternbrief".
-  readonly system_kind?: "care_cancellation";
+  readonly system_kind?: "care_cancellation" | "survey";
+
+  // Umfrage mit Fragebogen (#4781), present when system_kind is "survey".
+  // `participated` is this parent account's own flag, never anyone else's.
+  readonly survey?: ParentAnnouncementSurvey;
 
   // Scheduled reminder (#3162): set once the school's reminder went out. The
   // feed sorts the item back to the top; read/acknowledged stay as they were.
@@ -1019,6 +1075,14 @@ export interface ParentAnnouncement {
 
   // Einverständnis (#3430): present when delivery_mode is "declaration".
   readonly declaration?: ParentDeclaration;
+}
+
+/** The feed part of an Umfrage with Fragebogen (#4781). */
+export interface ParentAnnouncementSurvey {
+  readonly survey_id: string;
+  readonly anonymous: boolean;
+  readonly closes_at: string; // ISO timestamp
+  readonly participated: boolean;
 }
 
 /** What a guardian can do or did for one child in an Einverständnis. */
@@ -1226,6 +1290,29 @@ export async function respondToAnnouncement(
       option_ids: optionIds,
       published_at: publishedAt,
     },
+  );
+}
+
+/** The questionnaire of an Umfrage in the feed (#4781). */
+export function fetchParentSurveyForm(
+  announcementId: string,
+): Promise<SurveyForm> {
+  return getJson<SurveyForm>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/survey`,
+  );
+}
+
+/**
+ * Submits the answers to an Umfrage once per parent account (#4781). The
+ * answers travel only in the body, never in the address.
+ */
+export async function submitParentSurveyAnswers(
+  announcementId: string,
+  body: SurveyAnswersRequest,
+): Promise<void> {
+  await postJson<{ submitted: boolean }>(
+    `/api/parent/me/news/${encodeURIComponent(announcementId)}/survey`,
+    body,
   );
 }
 
@@ -1461,6 +1548,12 @@ export async function submitCareException(
     departureMode?: DayDepartureMode | "";
     reason: string;
     recipientGuardianProfileIds?: string[];
+    /** Kontaktperson, die das Kind an diesem Tag abholt (#4780). */
+    pickupPersonGuardianProfileId?: string;
+    /** Nötig für eine Abholperson oder den Heimweg allein (#4780). */
+    signature?: SignatureValue | null;
+    /** Der vom Server geladene Wortlaut neben der Unterschrift (#4780). */
+    signatureStatement?: string;
   },
 ): Promise<PickupChangeRequest> {
   return postJson<PickupChangeRequest>(
@@ -1471,6 +1564,16 @@ export async function submitCareException(
       departure_mode: params.departureMode || undefined,
       reason: params.reason,
       recipient_guardian_profile_ids: params.recipientGuardianProfileIds ?? [],
+      pickup_person_guardian_profile_id:
+        params.pickupPersonGuardianProfileId || undefined,
+      ...(params.signature
+        ? {
+            signature: signatureRequestBody(
+              params.signature,
+              params.signatureStatement,
+            ),
+          }
+        : {}),
     },
   );
 }
@@ -1485,6 +1588,9 @@ export async function updatePickupChangeRequest(
     departureMode?: DayDepartureMode | "";
     reason: string;
     expectedVersion: string;
+    pickupPersonGuardianProfileId?: string;
+    signature?: SignatureValue | null;
+    signatureStatement?: string;
   },
 ): Promise<PickupChangeRequest> {
   return putJson<PickupChangeRequest>(
@@ -1495,6 +1601,95 @@ export async function updatePickupChangeRequest(
       departure_mode: input.departureMode ?? "",
       reason: input.reason,
       expected_version: input.expectedVersion,
+      pickup_person_guardian_profile_id:
+        input.pickupPersonGuardianProfileId ?? "",
+      ...(input.signature
+        ? {
+            signature: signatureRequestBody(
+              input.signature,
+              input.signatureStatement,
+            ),
+          }
+        : {}),
+    },
+  );
+}
+
+/**
+ * Lädt den Nachweis einer unterschriebenen Anfrage als PDF der Schule
+ * (#4780). Nur die Person, die unterschrieben hat, bekommt ihn.
+ */
+export async function downloadPickupRequestProofPdf(
+  studentId: string,
+  requestId: string,
+): Promise<void> {
+  const url = `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-requests/${encodeURIComponent(requestId)}/proof/pdf`;
+  const response = await transportFetch(url, { method: "GET" });
+  if (!response.ok) await throwResponseError(url, response);
+  const blob = await response.blob();
+  downloadBlob(
+    blob,
+    filenameFromDisposition(response) ?? "nachweis-abholerlaubnis.pdf",
+  );
+}
+
+/** Die Abholerlaubnis-Anfragen des Kindes, die dieses Konto sieht (#4780). */
+export async function listPickupPermissionRequests(
+  studentId: string,
+): Promise<PickupPermissionRequest[]> {
+  return getJson<PickupPermissionRequest[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-permission-requests`,
+  );
+}
+
+export interface PickupSignatureStatementInput {
+  readonly kind: "pickup_permission" | "day_pickup" | "weekly_alone";
+  readonly personName?: string;
+  readonly weekdays?: readonly number[];
+  readonly date?: string;
+  readonly departureMode?: DayDepartureMode | "";
+}
+
+/** Loads the canonical declaration before the parent draws a signature. */
+export async function getPickupSignatureStatement(
+  studentId: string,
+  input: PickupSignatureStatementInput,
+): Promise<string> {
+  const response = await postJson<{ statement: string }>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/pickup-signature-statement`,
+    {
+      kind: input.kind,
+      person_name: input.personName,
+      weekdays: input.weekdays,
+      date: input.date,
+      departure_mode: input.departureMode,
+    },
+  );
+  return response.statement;
+}
+
+/**
+ * Bittet die OGS, eine Kontaktperson an allen Tagen oder an Wochentagen
+ * abholen zu lassen, unterschrieben (#4780).
+ */
+export async function submitPickupPermissionRequest(
+  studentId: string,
+  guardianProfileId: string,
+  input: {
+    weekdays: readonly number[];
+    signature: SignatureValue;
+    statement: string;
+    reason?: string;
+    relationship?: GuardianRelationshipPayload;
+  },
+): Promise<PickupPermissionRequest> {
+  return postJson<PickupPermissionRequest>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/guardians/${encodeURIComponent(guardianProfileId)}/pickup-permission-requests`,
+    {
+      weekdays: input.weekdays,
+      reason: input.reason ?? "",
+      signature: signatureRequestBody(input.signature, input.statement),
+      relationship: input.relationship,
     },
   );
 }
@@ -1692,14 +1887,24 @@ export interface CareScheduleRequestInput {
   }>;
 }
 
-/** Submits a permanent change request for the child's standard weekly plan. */
+/**
+ * Submits a permanent change request for the child's standard weekly plan.
+ * A weekday the child walks home alone needs a signature (#4780).
+ */
 export async function submitCareScheduleRequest(
   studentId: string,
   payload: CareScheduleRequestInput,
+  signature?: SignatureValue | null,
+  signatureStatement?: string,
 ): Promise<ChildCareSchedule> {
   return postJson<ChildCareSchedule>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-schedule/requests`,
-    { payload },
+    {
+      payload,
+      ...(signature
+        ? { signature: signatureRequestBody(signature, signatureStatement) }
+        : {}),
+    },
   );
 }
 

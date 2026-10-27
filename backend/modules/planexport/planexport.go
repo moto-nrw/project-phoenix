@@ -103,6 +103,29 @@ type Params struct {
 	Template Template
 	Variant  Variant
 	Format   listexport.Format
+	// Filter narrows the Betreuungsplan to the blocks the planner shows
+	// under the same filter (#4766, #4768). The Dienstplan ignores it.
+	Filter BlockFilter
+}
+
+// BlockFilter is the Betreuungsplan's group and person filter (#4766) and
+// room filter (#4768). A nil field does not filter.
+type BlockFilter struct {
+	EducationGroupID *int64
+	StaffID          *int64
+	RoomID           *int64
+}
+
+func (f BlockFilter) active() bool {
+	return f.EducationGroupID != nil || f.StaffID != nil || f.RoomID != nil
+}
+
+func (f BlockFilter) valid() bool {
+	return positiveOrUnset(f.EducationGroupID) && positiveOrUnset(f.StaffID) && positiveOrUnset(f.RoomID)
+}
+
+func positiveOrUnset(id *int64) bool {
+	return id == nil || *id > 0
 }
 
 // TemplatesForDienstplan, TemplatesForHours and TemplatesForBetreuungsplan are the templates

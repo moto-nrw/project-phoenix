@@ -8,8 +8,7 @@
 //
 // Mechanism: DATE columns are DISCOVERED by scanning the SQL inside
 // database/migrations/*.go (never trust a hand-maintained list), then joined
-// against persistence struct fields parsed from models/**/*.go and
-// modules/**/*.go. The allowlists
+// against persistence struct fields parsed from modules/**/*.go. The allowlists
 // below may only SHRINK — a stale entry fails the test and demands deletion.
 //
 // Known limitation: ad-hoc result structs inside database/repositories/
@@ -73,6 +72,12 @@ var unmappedDateColumns = map[string]string{
 	"schedule.meal_participation_schedules.effective_from": "meal-participation Postgres adapter-local row uses calendar.Date — no models/ struct",
 	"schedule.meal_participation_overrides.date":           "meal-participation Postgres adapter-local row uses calendar.Date — no models/ struct",
 	"schedule.meal_sickness_status_history.date":           "meal-participation sickness history is queried through adapter-local calendar.Date rows — no models/ struct",
+	"schedule.meal_orders.period_start":                    "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
+	"schedule.meal_orders.period_end":                      "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
+	"schedule.meal_order_days.date":                        "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
+	"schedule.meal_order_lines.date":                       "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
+	"schedule.meal_order_changes.date":                     "meal-order Postgres adapter-local row uses calendar.Date — no models/ struct",
+	"schedule.meal_registration_changes.date":              "meal registration log Postgres adapter-local row uses calendar.Date — no models/ struct",
 	// Later-pickup tasks (#3261) are owned by the Timetable module. Its
 	// adapter-local rows use the module's distinct Date value, because the
 	// target architecture forbids a dependency on the former date wrapper.
@@ -225,10 +230,7 @@ func TestDateColumnTypes(t *testing.T) {
 				case "Date", "*Date":
 					// Domain owners may keep the same ISO calendar-date value shape
 					// without importing sharedkernel/calendar.
-					if !strings.HasPrefix(f.file, "models/activities/") &&
-						!strings.HasPrefix(f.file, "modules/auditlog/records/") &&
-						!strings.HasPrefix(f.file, "models/calendar/") &&
-						!strings.HasPrefix(f.file, "models/schedule/") {
+					if !strings.HasPrefix(f.file, "modules/auditlog/records/") {
 						violations = append(violations, formatViolation(f.file, f.line,
 							col+" uses Date outside an approved owner package — use calendar.Date"))
 					}
@@ -439,8 +441,7 @@ type dateFieldInfo struct {
 	goType     string
 }
 
-// scanModelDateFields parses persistence structs in models/**/*.go and
-// modules/**/*.go and returns
+// scanModelDateFields parses persistence structs in modules/**/*.go and returns
 // map["schema.table.column"][]dateFieldInfo for all fields. Fields tagged
 // type:date additionally register their column in dateColumns (belt and
 // braces for columns the migration scan cannot see).
@@ -506,10 +507,8 @@ func scanModelDateFields(t *testing.T, root string, dateColumns map[string]strin
 		})
 		return nil
 	}
-	for _, dir := range []string{"models", "modules"} {
-		if err := filepath.Walk(filepath.Join(root, dir), walk); err != nil {
-			t.Fatalf("walking %s dir: %v", dir, err)
-		}
+	if err := filepath.Walk(filepath.Join(root, "modules"), walk); err != nil {
+		t.Fatalf("walking modules dir: %v", err)
 	}
 	return result
 }

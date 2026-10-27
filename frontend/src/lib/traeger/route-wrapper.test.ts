@@ -20,7 +20,13 @@ vi.mock("~/lib/analytics-session-header.server", () => ({
 
 global.fetch = mockFetch as typeof fetch;
 
-import { proxyDelete, proxyGet, proxyPut } from "./route-wrapper.server";
+import {
+  proxyDelete,
+  proxyFile,
+  proxyGet,
+  proxyPut,
+  proxyUpload,
+} from "./route-wrapper.server";
 
 const context = { params: Promise.resolve({}) };
 
@@ -227,5 +233,288 @@ describe("Träger proxy", () => {
 
     expect(response.status).toBe(409);
     expect(await response.text()).toBe(conflict);
+  });
+});
+
+describe("Träger file proxy (#4655)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTraegerAuth.mockResolvedValue({ user: { token: "org-token" } });
+  });
+
+  function exportRequest() {
+    return new NextRequest(
+      "http://localhost:3000/api/traeger/access-log/export?from=2026-09-01&to=2026-09-09",
+    );
+  }
+
+  it("streams the file with its name and the query forwarded", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response("﻿Datum;Uhrzeit\n", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="zugriffsprotokoll.csv"',
+        },
+      }),
+    );
+
+    const response = await proxyFile("/traeger/access-log/export")(
+      exportRequest(),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "text/csv; charset=utf-8",
+    );
+    expect(response.headers.get("content-disposition")).toContain(
+      "zugriffsprotokoll.csv",
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/traeger/access-log/export?from=2026-09-01&to=2026-09-09",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer org-token" }),
+      }),
+    );
+  });
+
+  it("keeps the problem body of a refused export", async () => {
+    mockFetch.mockResolvedValueOnce(
+      Response.json(
+        {
+          status: 400,
+          code: "traeger.access_log_export_too_large",
+          detail: "x",
+        },
+        {
+          status: 400,
+          headers: { "Content-Type": "application/problem+json" },
+        },
+      ),
+    );
+
+    const response = await proxyFile("/traeger/access-log/export")(
+      exportRequest(),
+      context,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      code: "traeger.access_log_export_too_large",
+    });
+  });
+
+  it("retries once with a refreshed Träger session after a backend 401", async () => {
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+    mockFetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(
+        new Response("ok", {
+          status: 200,
+          headers: { "Content-Type": "text/csv" },
+        }),
+      );
+
+    const response = await proxyFile("/traeger/access-log/export")(
+      exportRequest(),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer fresh-token",
+        }),
+      }),
+    );
+  });
+});
+
+describe("Träger POST file proxy (#4669)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTraegerAuth.mockResolvedValue({ user: { token: "org-token" } });
+  });
+
+  function previewRequest(body: string) {
+    return new NextRequest(
+      "http://localhost:3000/api/traeger/billing-runs/7/letters/preview",
+      { method: "POST", body, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  it("forwards the JSON body and streams the PDF back", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response("%PDF-1.4", {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": 'inline; filename="bestaetigung-fe-0001.pdf"',
+        },
+      }),
+    );
+
+    const response = await proxyFile(
+      "/traeger/billing-runs/7/letters/preview",
+      {
+        method: "POST",
+      },
+    )(previewRequest('{"payment_due_on":"2026-12-15"}'), context);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    expect(await response.text()).toBe("%PDF-1.4");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/traeger/billing-runs/7/letters/preview",
+      expect.objectContaining({
+        method: "POST",
+        body: '{"payment_due_on":"2026-12-15"}',
+        headers: expect.objectContaining({
+          Authorization: "Bearer org-token",
+          "Content-Type": "application/json",
+        }),
+      }),
+    );
+  });
+
+  it("sends the same body again after a refreshed session", async () => {
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+    mockFetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(
+        new Response("%PDF", {
+          status: 200,
+          headers: { "Content-Type": "application/pdf" },
+        }),
+      );
+
+    const response = await proxyFile(
+      "/traeger/billing-runs/7/letters/preview",
+      {
+        method: "POST",
+      },
+    )(previewRequest('{"notes":"Hausschuhe"}'), context);
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: '{"notes":"Hausschuhe"}',
+        headers: expect.objectContaining({
+          Authorization: "Bearer fresh-token",
+        }),
+      }),
+    );
+  });
+
+  it("refuses a body over the limit before calling the backend", async () => {
+    const response = await proxyFile(
+      "/traeger/billing-runs/7/letters/preview",
+      {
+        method: "POST",
+      },
+    )(previewRequest("x".repeat(64 * 1024 + 1)), context);
+
+    expect(response.status).toBe(400);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("Träger upload proxy (#4653)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTraegerAuth.mockResolvedValue({ user: { token: "org-token" } });
+  });
+
+  function upload(body: BodyInit, headers: Record<string, string>) {
+    return new NextRequest(
+      "http://localhost:3000/api/traeger/master-data/logo",
+      {
+        method: "PUT",
+        body,
+        headers,
+      },
+    );
+  }
+
+  it("forwards the multipart body once more after a refreshed session", async () => {
+    const form = new FormData();
+    form.append("logo", new File(["png"], "logo.png", { type: "image/png" }));
+    const prepared = new Request("http://localhost", {
+      method: "PUT",
+      body: form,
+    });
+    const contentType = prepared.headers.get("content-type")!;
+    const bytes = await prepared.arrayBuffer();
+    mockFetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(
+        Response.json({ status: "success", data: { width: 1 } }),
+      );
+    mockUncachedAuth.mockResolvedValue({ user: { token: "fresh-token" } });
+
+    const response = await proxyUpload("/traeger/master-data/logo", 1024)(
+      upload(bytes, { "content-type": contentType }),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    const [url, init] = mockFetch.mock.calls[1]!;
+    expect(url).toBe("http://localhost:8080/traeger/master-data/logo");
+    expect(init).toMatchObject({
+      method: "PUT",
+      headers: expect.objectContaining({
+        Authorization: "Bearer fresh-token",
+        "Content-Type": contentType,
+      }),
+    });
+    expect(new Uint8Array(init.body as ArrayBuffer)).toEqual(
+      new Uint8Array(bytes),
+    );
+  });
+
+  it("refuses an oversized or non-multipart body without calling the backend", async () => {
+    const tooLarge = await proxyUpload("/traeger/master-data/logo", 10)(
+      upload(new Uint8Array(70 * 1024), {
+        "content-type": "multipart/form-data; boundary=x",
+      }),
+      context,
+    );
+    expect(tooLarge.status).toBe(400);
+    expect(await tooLarge.json()).toMatchObject({
+      code: "traeger.logo_too_large",
+    });
+
+    // Without a Content-Length the proxy stops reading past the limit.
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(32 * 1024));
+      },
+    });
+    const streamed = await proxyUpload("/traeger/master-data/logo", 10)(
+      new NextRequest("http://localhost:3000/api/traeger/master-data/logo", {
+        method: "PUT",
+        body: stream,
+        headers: { "content-type": "multipart/form-data; boundary=x" },
+        duplex: "half",
+      } as ConstructorParameters<typeof NextRequest>[1]),
+      context,
+    );
+    expect(streamed.status).toBe(400);
+    expect(await streamed.json()).toMatchObject({
+      code: "traeger.logo_too_large",
+    });
+
+    const notMultipart = await proxyUpload("/traeger/master-data/logo", 1024)(
+      upload("{}", { "content-type": "application/json" }),
+      context,
+    );
+    expect(notMultipart.status).toBe(400);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 });

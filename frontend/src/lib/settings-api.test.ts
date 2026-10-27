@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "./api-error";
+import type { ResolvedSetting, SettingsSchema } from "./settings-api";
 
 const mockSessionFetch =
   vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
@@ -240,6 +241,8 @@ describe("applyOptimisticSchemaUpdate", () => {
       visible: true,
       sort_order: 0,
       access_policy: "shared" as const,
+      levels: "schule" as const,
+      source: "default" as const,
       depends_on: overrides.depends_on ?? undefined,
     };
   }
@@ -287,6 +290,36 @@ describe("applyOptimisticSchemaUpdate", () => {
     const item = next.tabs[0]!.categories[0]!.items[0]!;
     expect(item.value).toBe(false);
     expect(item.is_default).toBe(true);
+  });
+
+  it("compares a boolean with the Träger value where there is one (#4652)", () => {
+    // The Träger switched the default (false) on; the school switches it off
+    // and back on: back on equals the inherited Träger value.
+    const fromTraeger: ResolvedSetting = {
+      ...makeItem("a", { type: "boolean", value: true }),
+      levels: "beide",
+      source: "traeger",
+      traeger_changed_at: "2026-09-01T08:00:00Z",
+    };
+    const schemaOf = (item: ResolvedSetting): SettingsSchema => ({
+      tabs: [
+        {
+          key: "tab",
+          label: "Tab",
+          categories: [{ key: "cat", label: "Cat", items: [item] }],
+        },
+      ],
+    });
+
+    const off = applyOptimisticSchemaUpdate(schemaOf(fromTraeger), "a", false)
+      .tabs[0]!.categories[0]!.items[0]!;
+    expect(off.is_default).toBe(false);
+    expect(off.source).toBe("school");
+
+    const backOn = applyOptimisticSchemaUpdate(schemaOf(off), "a", true)
+      .tabs[0]!.categories[0]!.items[0]!;
+    expect(backOn.is_default).toBe(true);
+    expect(backOn.source).toBe("school");
   });
 
   it("keeps a resettable setting non-default even when saved at the default value", () => {

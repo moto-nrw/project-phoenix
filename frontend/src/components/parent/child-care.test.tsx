@@ -1,5 +1,6 @@
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   renderHook,
@@ -36,6 +37,36 @@ import {
 vi.mock("~/components/ui/date-picker", async () =>
   (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
 );
+
+vi.mock("~/lib/parent-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/parent-api")>()),
+  getPickupSignatureStatement: vi.fn(),
+}));
+
+beforeEach(() => {
+  // These reads also run in nested controls. Keep them local unless a test
+  // supplies its own recipients, contacts or request history.
+  vi.spyOn(parentApi, "listChildGuardians").mockResolvedValue([]);
+  vi.spyOn(parentApi, "getRequestSharingOptions").mockResolvedValue({
+    family_protected: false,
+    recipients: [],
+  });
+  vi.spyOn(parentApi, "getRequestSharing").mockResolvedValue({
+    family_protected: false,
+    recipients: [],
+  });
+  vi.spyOn(parentApi, "listParentRequestEvents").mockResolvedValue([]);
+  vi.spyOn(globalThis, "fetch");
+});
+
+afterEach(() => {
+  cleanup();
+  try {
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  } finally {
+    vi.restoreAllMocks();
+  }
+});
 
 // de-locale (the test locale) renders YYYY-MM-DD as DD.MM.YYYY.
 function de(iso: string): string {
@@ -329,6 +360,7 @@ describe("PickupTimeModal — failed preload guard", () => {
   it("submits only an Abholart for the day when the school allows it", () => {
     const { onSubmit, reasonInput } = renderModal({
       departureModeEnabled: true,
+      studentId: "1",
     });
 
     expect(screen.getByText("Abholung ändern")).toBeInTheDocument();
@@ -1168,10 +1200,6 @@ describe("SickStatusSummary — edit action", () => {
     );
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("offers editing an own pending request when the guardian may report absences", () => {
     render(
       <SickStatusSummary
@@ -1467,10 +1495,6 @@ describe("resolveTodayPickup", () => {
 });
 
 describe("useChildCare reportSick", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   // A direct sick/excused report that includes today makes the child absent NOW.
   // todayPickup reads todayAbsent exclusively, so the hook must flip it on the
   // optimistic merge path — otherwise the "Heute → Abholung" tile keeps showing
@@ -1542,10 +1566,6 @@ describe("useChildCare reportSick", () => {
 });
 
 describe("useChildCare studentId switch", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   // Navigating from child A to child B reuses the hook instance (only the prop
   // changes). The loadSeqRef guard stops a late load(A) from overwriting B, but
   // it does nothing about the window before B's fetch lands — so A's resolved
@@ -1782,10 +1802,6 @@ describe("Dialoge in Elternsprache", () => {
 // #2518: jeder Fehler läuft über den gemeinsamen Fehlerweg. Ein Satz des
 // Servers erscheint nie, Wiederholen sendet die aktuellen Angaben.
 describe("Fehlerweg der Dialoge (#2518)", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("zeigt einen Ausfall beim Ändern der Abholzeit im Dialog und wiederholt", async () => {
     const onSubmit = vi
       .fn()
@@ -1916,5 +1932,342 @@ describe("Fehlerweg der Dialoge (#2518)", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     // Heute card and the care-schedule section report it; no third box.
     expect(result.current.loadError).toBeNull();
+  });
+});
+
+// #4780: holt an einem Tag eine eingetragene Kontaktperson ab, unterschreiben
+// die Eltern die Erlaubnis für diesen Tag. Ohne Unterschrift geht nichts raus.
+describe("PickupTimeModal, Abholperson an einem Tag", () => {
+  beforeEach(() => {
+    vi.mocked(parentApi.getPickupSignatureStatement).mockImplementation(
+      async (_studentId, input) =>
+        input.personName
+          ? `Ich erlaube, dass ${input.personName} das Kind Felix Schneider am Dienstag, 15.09.2026 von der OGS abholt.`
+          : "Ich erlaube, dass das Kind Felix Schneider am Dienstag, 15.09.2026 allein nach Hause geht.",
+    );
+  });
+
+  it("needs the signature and sends person and signature together", async () => {
+    const contacts = vi
+      .spyOn(parentApi, "listChildGuardians")
+      .mockResolvedValue([
+        {
+          guardian_profile_id: "12",
+          student_guardian_id: "120",
+          first_name: "Rita",
+          last_name: "Klein",
+          relationship_type: "relative",
+          is_primary: false,
+          can_pickup: false,
+          can_manage_pickup: true,
+          is_emergency_contact: false,
+          phones: [],
+          is_self: false,
+        } as unknown as parentApi.ChildGuardian,
+      ]);
+    const { onSubmit, dateInput, reasonInput } = renderModal({
+      studentId: "1",
+    });
+
+    fireEvent.change(dateInput, { target: { value: "2026-09-15" } });
+    fireEvent.click(
+      await screen.findByRole("combobox", { name: "Wer holt ab?" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Rita Klein" }));
+    if (reasonInput) {
+      fireEvent.change(reasonInput, { target: { value: "Oma holt ab" } });
+    }
+    expect(
+      await screen.findByText(
+        "Ich erlaube, dass Rita Klein das Kind Felix Schneider am Dienstag, 15.09.2026 von der OGS abholt.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+    expect(
+      (
+        await screen.findAllByText(
+          "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Namen tippen" }));
+    fireEvent.change(screen.getByLabelText("Ihr Vor- und Nachname"), {
+      target: { value: "Sabine Muster" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterschrift bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          date: "2026-09-15",
+          pickupPersonGuardianProfileId: "12",
+          signature: expect.objectContaining({
+            method: "typed",
+            typedName: "Sabine Muster",
+          }),
+          signatureStatement:
+            "Ich erlaube, dass Rita Klein das Kind Felix Schneider am Dienstag, 15.09.2026 von der OGS abholt.",
+        }),
+      ),
+    );
+    contacts.mockRestore();
+  });
+
+  it("shows a retryable error when the signature statement cannot load", async () => {
+    vi.mocked(parentApi.getPickupSignatureStatement).mockRejectedValue(
+      new ApiError("backend unavailable", 503),
+    );
+    const contacts = vi
+      .spyOn(parentApi, "listChildGuardians")
+      .mockResolvedValue([
+        {
+          guardian_profile_id: "12",
+          student_guardian_id: "120",
+          first_name: "Rita",
+          last_name: "Klein",
+          relationship_type: "relative",
+          is_primary: false,
+          can_pickup: false,
+          can_manage_pickup: true,
+          is_emergency_contact: false,
+          phones: [],
+          is_self: false,
+        } as unknown as parentApi.ChildGuardian,
+      ]);
+    renderModal({ studentId: "1" });
+
+    fireEvent.click(
+      await screen.findByRole("combobox", { name: "Wer holt ab?" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Rita Klein" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "Ihre Erlaubnis"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: "Wiederholen" }).length,
+    ).toBeGreaterThan(0);
+    contacts.mockRestore();
+  });
+
+  it("sends the signature for walking home alone", async () => {
+    const { onSubmit, reasonInput } = renderModal({
+      departureModeEnabled: true,
+      studentId: "1",
+    });
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Abholart an diesem Tag" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Geht allein" }));
+    fireEvent.change(reasonInput!, { target: { value: "Heute allein" } });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Namen tippen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Ihr Vor- und Nachname"), {
+      target: { value: "Sabine Muster" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterschrift bestätigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          departureMode: "alone",
+          signature: expect.objectContaining({
+            method: "typed",
+            typedName: "Sabine Muster",
+          }),
+          signatureStatement:
+            "Ich erlaube, dass das Kind Felix Schneider am Dienstag, 15.09.2026 allein nach Hause geht.",
+        }),
+      ),
+    );
+  });
+
+  it("requires a new signature when the selected date changes", async () => {
+    const { onSubmit, dateInput, reasonInput } = renderModal({
+      departureModeEnabled: true,
+      studentId: "1",
+    });
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: "Abholart an diesem Tag" }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: "Geht allein" }));
+    fireEvent.change(reasonInput!, { target: { value: "Heute allein" } });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Namen tippen" }),
+    );
+    fireEvent.change(screen.getByLabelText("Ihr Vor- und Nachname"), {
+      target: { value: "Sabine Muster" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Unterschrift bestätigen" }),
+    );
+    fireEvent.change(dateInput, { target: { value: "2026-09-16" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(
+      (
+        await screen.findAllByText(
+          "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("offers only contacts that may receive a pickup permission", async () => {
+    const contacts = vi
+      .spyOn(parentApi, "listChildGuardians")
+      .mockResolvedValue([
+        {
+          guardian_profile_id: "12",
+          student_guardian_id: "120",
+          first_name: "Rita",
+          last_name: "Klein",
+          relationship_type: "relative",
+          is_primary: false,
+          can_pickup: false,
+          can_manage_pickup: true,
+          is_emergency_contact: false,
+          phones: [],
+          is_self: false,
+        },
+        {
+          guardian_profile_id: "13",
+          student_guardian_id: "130",
+          first_name: "Max",
+          last_name: "Muster",
+          relationship_type: "parent",
+          is_primary: true,
+          can_pickup: false,
+          can_manage_pickup: false,
+          is_emergency_contact: false,
+          phones: [],
+          is_self: false,
+        },
+      ] as unknown as parentApi.ChildGuardian[]);
+    renderModal({ studentId: "1" });
+
+    fireEvent.click(
+      await screen.findByRole("combobox", { name: "Wer holt ab?" }),
+    );
+
+    // Anker: Die Auswahl der berechtigten Kontaktperson ist geladen.
+    expect(
+      screen.getByRole("option", { name: "Rita Klein" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Max Muster" }),
+    ).not.toBeInTheDocument();
+    contacts.mockRestore();
+  });
+
+  it("keeps the collector selected while editing a pending request", async () => {
+    const contacts = vi
+      .spyOn(parentApi, "listChildGuardians")
+      .mockResolvedValue([
+        {
+          guardian_profile_id: "12",
+          student_guardian_id: "120",
+          first_name: "Rita",
+          last_name: "Klein",
+          relationship_type: "relative",
+          is_primary: false,
+          can_pickup: false,
+          can_manage_pickup: true,
+          is_emergency_contact: false,
+          phones: [],
+          is_self: false,
+        } as unknown as parentApi.ChildGuardian,
+      ]);
+    render(
+      <PickupTimeModal
+        studentId="1"
+        careExceptions={[]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        pickupChangeRequests={[
+          {
+            id: "request-collector",
+            date: todayISO(),
+            pickup_time: null,
+            departure_mode: "pickup",
+            pickup_person: "Rita Klein",
+            pickup_person_guardian_profile_id: "12",
+            signed: true,
+            reason: "Oma holt ab",
+            status: "pending",
+            created_at: "2026-09-08T09:00:00Z",
+          },
+        ]}
+        departureModeEnabled
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage bearbeiten" }));
+
+    expect(
+      await screen.findByRole("combobox", { name: "Wer holt ab?" }),
+    ).toHaveTextContent("Rita Klein");
+    contacts.mockRestore();
+  });
+
+  it("does not remove a pending collector when contacts cannot be resolved", async () => {
+    const contacts = vi
+      .spyOn(parentApi, "listChildGuardians")
+      .mockRejectedValue(new Error("contacts unavailable"));
+    const update = vi
+      .spyOn(parentApi, "updatePickupChangeRequest")
+      .mockResolvedValue({} as parentApi.PickupChangeRequest);
+    render(
+      <PickupTimeModal
+        studentId="1"
+        careExceptions={[]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        pickupChangeRequests={[
+          {
+            id: "request-collector",
+            date: todayISO(),
+            pickup_time: null,
+            departure_mode: "pickup",
+            pickup_person: "Rita Klein",
+            pickup_person_guardian_profile_id: "12",
+            signed: true,
+            reason: "Oma holt ab",
+            status: "pending",
+            created_at: "2026-09-08T09:00:00Z",
+          },
+        ]}
+        departureModeEnabled
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage bearbeiten" }));
+    fireEvent.click(screen.getByRole("button", { name: "Änderung speichern" }));
+
+    expect(await screen.findByText(LOAD_ERROR_DE)).toBeInTheDocument();
+    expect(update).not.toHaveBeenCalled();
+    contacts.mockRestore();
+    update.mockRestore();
   });
 });

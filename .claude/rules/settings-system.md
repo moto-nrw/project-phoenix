@@ -57,14 +57,31 @@ Tabs in use today: `operations`, `enrollment`, `system`, `gdpr`, `devices`, `sec
 
 ### Value Resolution
 
-The settings service resolves values in **two tiers**:
+The settings service resolves values in **three tiers** (ADR 0086, #4652);
+the later tier wins:
 
 ```
-1. Tenant DB override  (config.setting_values row exists)
-2. Registry default    (Definition.Default)
+1. Registry default    (Definition.Default)
+2. Träger value        (config.traeger_setting_values row of the school's Träger; only Levels traeger/beide)
+3. School override     (config.setting_values row; not for Levels traeger)
 ```
 
 This is the complete resolution chain for services and their consumers.
+Resolution is live on every read, so a new school of a Träger inherits its
+values without a copy. `Definition.Levels` is `schule` (default), `beide` or
+`traeger`; the registry and `ValidateTraegerLevels` admit a Träger level only
+for shared or admin_only, non-password keys without side effect, lock or
+cross-field check. The Träger-Büro writes Träger values in the Träger
+transaction (`tenant.WithinTraeger`, ADR 0105/0107) through `/traeger/settings`,
+checked against `Definition.TraegerWriteRight`; every change lands in
+`config.traeger_setting_audit` in the same transaction. The first `traeger`
+keys are the branding colour and texts (`branding.*`, #4653); logo, contact
+person and bank accounts are master data of Organisation & Tenancy (ADR 0112),
+not settings. Schema items carry
+`levels`, `source` (`default`/`traeger`/`school`) and `traeger_changed_at`;
+`is_default` means the school has no override of its own. The Träger level is
+read only in the school's own tenant transaction or through the batch read
+(`ResolveManyForTenants`); any other ambient unit fails instead of skipping it.
 Environment variables are not a third tier, including for legacy compatibility.
 An explicit tenant value remains authoritative even when it equals the registry
 default or is empty, false, or zero where the definition permits that value.
@@ -124,7 +141,7 @@ GetLoginImageURL / SetLoginImageURL / ClearLoginImageURL(ctx, tenantID, ...) // 
 ### Access Control — Two Dimensions
 
 1. **Permissions** (`ReadPermission` / `WritePermission`): `config:update` for operational settings, `config:manage` for GDPR/security. Route-level auth accepts either; service-level `checkWritePermission` is wildcard-aware (`admin:*` works).
-2. **AccessPolicy** (`shared` | `admin_only` | `operator_only` | `operator_managed`, default `shared`): who may see/change the setting at all. `operator_only` settings (e.g. `operations.presence_mode`, the session-lifecycle settings, `gdpr.data_cleanup_enabled`, `gdpr.data_cleanup_timeout_minutes`) are hidden from the tenant schema and managed via the operator portal; `admin_only` (e.g. `security.ogs_device_pin`) is hidden from operators. `operator_managed` (ADR 0048) is for the retention windows: operators write them, the tenant schema shows them with `writable: false`, and tenant set/reset answers 403. Every retention window of school data uses it, and so does every module switch `module.<key>` ([module switches](../../docs/reference/modulschalter.md)). Settings without an explicit policy are `shared` (e.g. `gdpr.data_cleanup_time` stays tenant-writable).
+2. **AccessPolicy** (`shared` | `admin_only` | `operator_only` | `operator_managed`, default `shared`): who may see/change the setting at all. `operator_only` settings (e.g. `operations.presence_mode`, the session-lifecycle settings, `gdpr.data_cleanup_enabled`, `gdpr.data_cleanup_timeout_minutes`) are hidden from the tenant schema and managed via the operator portal; `admin_only` (e.g. `security.ogs_device_pin`) is hidden from operators. `operator_managed` (ADR 0048) is for the retention windows: operators write them, the tenant schema shows them with `writable: false`, and tenant set/reset answers 403. Every retention window of school data uses it, and so does every module switch `module.<key>` ([module switches](../../docs/reference/modulschalter.md)) and the school's federal state `operations.federal_state` (#4775). Settings without an explicit policy are `shared` (e.g. `gdpr.data_cleanup_time` stays tenant-writable).
 
 ### Frontend
 
@@ -265,7 +282,7 @@ Also run tests for affected consumers and the backend architecture checks.
 
 ## Key Rules
 
-- **Per-tenant runtime config uses tenant overrides and registry defaults only** — no env fallback, including legacy compatibility chains
+- **Per-tenant runtime config uses school overrides, Träger values and registry defaults only** — no env fallback, including legacy compatibility chains
 - **Handle settings-service errors explicitly** — do not hide them behind env values or local defaults
 - **NEVER hardcode key strings** — use constants from `modules/settings/records/keys.go`
 - **`config:manage`** for sensitive settings (GDPR, security); **`config:update`** for operational ones
@@ -292,7 +309,9 @@ The child setting is hidden in the UI when the condition is not met. **DependsOn
 | `InvalidValueError` | 400 | Value fails type/validation checks |
 | `PermissionDeniedError` | 403 | User lacks WritePermission for the setting |
 
-## Database Tables (Migration 1.15.25)
+## Database Tables (Migrations 1.15.25 and 1.15.552)
 
 - **`config.setting_values`** — tenant overrides; UNIQUE(tenant_id, setting_key); RLS-isolated; `value` is jsonb
 - **`config.setting_audit`** — append-only change log (`action`: set/reset/delete, old/new jsonb, passwords redacted)
+- **`config.traeger_setting_values`** — Träger values; UNIQUE(organization_id, setting_key); RLS on `app.current_org_id` for the Träger, read-only for the Träger's own schools
+- **`config.traeger_setting_audit`** — append-only Träger change log (`action`: set/reset), kept three years like the school log

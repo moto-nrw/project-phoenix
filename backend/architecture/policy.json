@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 93,
+  "policy_epoch": 95,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -119,6 +119,10 @@
     },
     {
       "id": "enrollment",
+      "kind": "domain"
+    },
+    {
+      "id": "parent-billing",
       "kind": "domain"
     },
     {
@@ -294,6 +298,10 @@
       "kind": "projection"
     },
     {
+      "id": "caterer-portal",
+      "kind": "workflow"
+    },
+    {
       "id": "traeger-view",
       "kind": "projection"
     }
@@ -308,7 +316,6 @@
     "domain",
     "e2e-test",
     "http",
-    "legacy-model",
     "migration",
     "module-behavior-test",
     "module-internal-test",
@@ -1263,13 +1270,6 @@
       "path": "middleware",
       "owner": "tenant-runtime",
       "role": "http",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "models",
-      "owner": "legacy-composition",
-      "role": "legacy-model",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -2947,6 +2947,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/organizationtenancy/inbound/traeger",
+      "owner": "organization-tenancy",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/settings/inbound/operator",
       "owner": "settings-platform",
       "role": "http",
@@ -3472,6 +3479,48 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/parentbilling",
+      "owner": "parent-billing",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentbilling/compose",
+      "owner": "parent-billing",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentbilling/http",
+      "owner": "parent-billing",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/parentbilling/internal/application",
+      "owner": "parent-billing",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentbilling/internal/adapters/rendering",
+      "owner": "parent-billing",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentbilling/internal/adapters/postgres",
+      "owner": "parent-billing",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/communication/eventcontract",
       "owner": "communication",
       "role": "contract",
@@ -3610,6 +3659,41 @@
       "role": "adapter",
       "internal_test_role": "adapter-test",
       "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/catererportal",
+      "owner": "caterer-portal",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/catererportal/ports",
+      "owner": "caterer-portal",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/catererportal/internal/application",
+      "owner": "caterer-portal",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/catererportal/compose",
+      "owner": "caterer-portal",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/catererportal/http",
+      "owner": "caterer-portal",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     },
     {
       "path": "roots/requestreviewbinding",
@@ -3969,10 +4053,6 @@
       "write_owner": "audit-platform"
     },
     {
-      "name": "auth.account_permissions",
-      "write_owner": "identity-access"
-    },
-    {
       "name": "auth.account_roles",
       "write_owner": "identity-access"
     },
@@ -3990,6 +4070,22 @@
     },
     {
       "name": "auth.demo_accesses",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.caterer_accounts",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.caterer_invitations",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.caterer_schools",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.caterers",
       "write_owner": "identity-access"
     },
     {
@@ -4098,6 +4194,14 @@
     },
     {
       "name": "config.setting_values",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.traeger_setting_audit",
+      "write_owner": "settings-platform"
+    },
+    {
+      "name": "config.traeger_setting_values",
       "write_owner": "settings-platform"
     },
     {
@@ -4217,6 +4321,34 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_registration_audit",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_deletions",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_bookings",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_children",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_contacts",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_rate_limits",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registrations",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.holiday_week_time_models",
       "write_owner": "enrollment"
     },
@@ -4301,6 +4433,54 @@
       "write_owner": "observability"
     },
     {
+      "name": "parent_billing.contribution_rules",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.document_positions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.document_letters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.documents",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.holiday_contribution_lines",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.holiday_contributions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.number_range_counters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.number_ranges",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.run_corrections",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.run_letters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.run_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.runs",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "platform.announcement_views",
       "write_owner": "communication"
     },
@@ -4381,6 +4561,18 @@
       "write_owner": "organization-tenancy"
     },
     {
+      "name": "platform.traeger_bank_accounts",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.traeger_master_data_audit",
+      "write_owner": "organization-tenancy"
+    },
+    {
+      "name": "platform.traeger_profiles",
+      "write_owner": "organization-tenancy"
+    },
+    {
       "name": "platform.storage_backfill_checkpoints",
       "write_owner": "migrations"
     },
@@ -4429,11 +4621,35 @@
       "write_owner": "meal-plan"
     },
     {
+      "name": "schedule.meal_order_change_counters",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_order_changes",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_order_days",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_order_lines",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_orders",
+      "write_owner": "meal-plan"
+    },
+    {
       "name": "schedule.meal_participation_overrides",
       "write_owner": "meal-plan"
     },
     {
       "name": "schedule.meal_participation_schedules",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_registration_changes",
       "write_owner": "meal-plan"
     },
     {
@@ -4765,6 +4981,30 @@
       "write_owner": "migrations"
     },
     {
+      "name": "users.survey_answers",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_participations",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_question_options",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_questions",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_responses",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.surveys",
+      "write_owner": "communication"
+    },
+    {
       "name": "users.teachers",
       "write_owner": "school-membership"
     },
@@ -4842,7 +5082,6 @@
       "package": "modules/parentrequestfeedprojection/internal/adapters/postgres",
       "data_objects": [
         "active.excused_absence_requests",
-        "auth.account_permissions",
         "auth.account_roles",
         "auth.account_tenants",
         "auth.accounts",
@@ -5057,7 +5296,6 @@
         "audit.time_tracking_deletions",
         "audit.unregistered_tag_scans",
         "audit.work_session_edits",
-        "auth.account_permissions",
         "auth.account_roles",
         "auth.account_tenants",
         "auth.accounts",
@@ -7810,6 +8048,98 @@
       "source_owner": "enrollment",
       "source_role": "http",
       "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-billing.http.public",
+      "description": "The Elternabrechnung routes drive the owner through its public capability (ADR 0088, #4664).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "http",
+      "target_owner": "parent-billing",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-billing.http.tenant-runtime.common",
+      "description": "The Elternabrechnung routes reuse the shared HTTP runtime of api/common: the Träger route group, the permission gates, request parsing, response rendering and the shared error codes, like the other owners' HTTP adapters (#4664).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "parent-billing.http.tenant-runtime",
+      "description": "The public contribution of the holiday registration resolves its link in the administrative transaction and computes in the Träger transaction of the link's Träger; a confirmation that fails after Enrollment confirmed marks the request's Träger transaction for rollback (ADR 0110, ADR 0115).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "parent-billing.adapter.document-rendering-lists",
+      "description": "The rendering adapter of the Elternabrechnung lays out its confirmation letters through the letter of the Document Rendering contract and the overview of a run through its list renderer; the owner writes every text and decides who reads the file (#4669, ADR 0121, #4672, ADR 0122).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "adapter",
+      "target_owner": "document-rendering",
+      "target_role": "contract",
+      "target_package": "modules/documentrendering/lists"
+    },
+    {
+      "id": "parent-billing.adapter.application",
+      "description": "The rendering adapter implements the letter and table renderer ports of the Elternabrechnung's application over its native values (#4669, ADR 0121, #4672, ADR 0122).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "adapter",
+      "target_owner": "parent-billing",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-billing.adapter.public",
+      "description": "The rendering adapter answers in the Elternabrechnung's public letter and export files (#4669, ADR 0121, #4672, ADR 0122).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "adapter",
+      "target_owner": "parent-billing",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-billing.postgres.tenant-runtime",
+      "description": "The Elternabrechnung's persistence resolves the Träger transaction of the tenant runtime and refuses any other (ADR 0105, ADR 0115).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "parent-billing.behaviour-test.tenant-runtime",
+      "description": "The Elternabrechnung's public contract suite runs its commands inside the Träger transaction of the tenant runtime (ADR 0105, ADR 0115).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-billing",
+      "source_role": "module-behavior-test",
+      "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
@@ -15368,7 +15698,7 @@
     },
     {
       "id": "care-plan.contracttest.enrollment-offering-contract",
-      "description": "Native availability and offering values replace the retired legacy-model test boundary.",
+      "description": "Native availability and offering values replace the retired model-package test boundary.",
       "scopes": [
         "external_test"
       ],
@@ -15584,7 +15914,7 @@
     },
     {
       "id": "delivery.postgres.native-subscriptions",
-      "description": "Same-owner native subscription values replace the exact legacy-model capability; actual definitions, no ORM or generic API.",
+      "description": "Same-owner native subscription values replace the exact model-package capability; actual definitions, no ORM or generic API.",
       "scopes": [
         "production"
       ],
@@ -15783,8 +16113,174 @@
       "target_package": "modules/securityruntime/ports"
     },
     {
+      "id": "caterer-portal.public.identity-access",
+      "description": "The caterer portal contract speaks the caterer types of Identity & Access (ADR 0077).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "public",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.public.meal-plan",
+      "description": "The caterer portal contract speaks the order types of the Meal Plan (ADR 0077).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "public",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.port.identity-access",
+      "description": "Caterer portal ports name the Identity & Access caterer capability through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "port",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.port.meal-plan",
+      "description": "Caterer portal ports name the Meal Plan supply and order capability through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "port",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.application.identity-access",
+      "description": "The caterer portal coordinates the caterer, its account and its schools through the Identity & Access public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "application",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.application.meal-plan",
+      "description": "The caterer portal coordinates the supply and the orders through the Meal Plan public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "application",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.application.ports",
+      "description": "The caterer portal consumes its own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "application",
+      "target_owner": "caterer-portal",
+      "target_role": "port"
+    },
+    {
+      "id": "caterer-portal.application.public",
+      "description": "The caterer portal implements its own public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "application",
+      "target_owner": "caterer-portal",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.compose.tenant-runtime",
+      "description": "Caterer portal composition opens each school's tenant transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.http.caterer-portal.public",
+      "description": "The caterer portal HTTP transport serves its own workflow contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "http",
+      "target_owner": "caterer-portal",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.http.identity-access.public",
+      "description": "The caterer portal HTTP transport maps the Identity & Access caterer errors and types.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.http.meal-plan.public",
+      "description": "The caterer portal HTTP transport lays out the Meal Plan orders and maps its errors.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "http",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.http.tenant-runtime.http",
+      "description": "The caterer portal HTTP transport renders through the shared API envelope.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "caterer-portal.decision-test.identity-access",
+      "description": "Caterer portal decision tests fake the Identity & Access caterer capability through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "caterer-portal.decision-test.meal-plan",
+      "description": "Caterer portal decision tests fake the Meal Plan capability through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "caterer-portal",
+      "source_role": "workflow-decision-test",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
       "id": "communication.postgres.port",
-      "description": "Native query observation binds Communication\u2019s own observer port; same-owner successor of composition wiring (ADR 0058).",
+      "description": "Native query observation binds Communication’s own observer port; same-owner successor of composition wiring (ADR 0058).",
       "scopes": [
         "production"
       ],

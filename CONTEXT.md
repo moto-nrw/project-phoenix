@@ -651,6 +651,16 @@ OGS nutzt. Die Anmeldung im Träger-Portal ist aber getrennt von der Anmeldung i
 einer OGS, und keine beendet die andere.
 _Vermeiden_: Träger-Cockpit (Werbename), Org-Portal.
 
+## Absprung
+
+Der **Absprung** ist der Wechsel aus dem Träger-Portal in eine OGS des
+Trägers, ohne neue Anmeldung. Die Person arbeitet dort als sie selbst mit der
+Rolle Verwaltung der OGS, solange ihre Träger-Rolle das erlaubt und die OGS zum
+Träger gehört. Sie bekommt dafür keinen Zugang in der OGS selbst; jeder
+Absprung steht im Protokoll der OGS.
+_Vermeiden_: Impersonation, Einloggen als, Schulwechsel (meint den Wechsel
+zwischen eigenen OGS-Zugängen).
+
 ## Träger-Rolle
 
 Eine **Träger-Rolle** legt fest, was eine Person im Träger-Büro darf:
@@ -959,7 +969,7 @@ _Vermeiden_: Stichtagszahl für diese Zahl.
 ## Produkt-Screenshots
 
 Ein **Produkt-Screenshot** ist ein automatisch erzeugtes, unverändertes Bild
-eines festgelegten Zustands im Tenant- oder Eltern-Portal, gedacht für
+eines festgelegten Zustands im Tenant-, Eltern- oder Träger-Portal, gedacht für
 Website, Unterlagen und Social Media. Er zeigt ausschließlich synthetische
 Daten aus einem eigenen Demo-Schulprofil.
 
@@ -999,18 +1009,46 @@ Aufbewahrungspflichten erfüllt der Träger in seinem eigenen Lohn- und
 Aktensystem.
 _Vermeiden_: Personalakte (meint das vollständige gesetzliche Archiv).
 
+## Mittagessen: Anmeldung und Bestellung
+
+Die **Anmeldung zum Mittagessen** sagt je Kind und Tag, ob es mitisst. Sie
+besteht aus festen Wochentagen und Ausnahmen für einzelne Tage. Eine Woche ist
+nur eine Ansicht, kein eigener Datensatz.
+
+Das **Anmeldemodell** einer Schule legt fest, wie Eltern anmelden: laufend mit
+einer Frist, laufend mit eigener Abmeldefrist oder einmal für das Schuljahr.
+Die **Anmeldefrist** und die **Abmeldefrist** liegen eine Anzahl Tage vor dem
+Essenstag oder an einem Wochentag der Vorwoche, jeweils zu einer Uhrzeit. Die
+Schule ändert eine Anmeldung auch nach der Frist.
+
+Ein **Caterer** ist ein Betrieb, der eine oder mehrere Schulen mit Essen
+beliefert, auch über Träger hinweg. Er meldet sich mit eigenen
+**Caterer-Konten** im Caterer-Portal an und gehört zu keiner Schule.
+
+Eine **Belieferung** verbindet eine Schule mit einem Caterer. Die Schule lädt
+den Caterer ein und beendet die Belieferung jederzeit. Eine Schule hat
+höchstens eine aktive Belieferung; der Bestellweg (Anmeldemodell, Fristen,
+Rhythmus, Detailgrad) ist deshalb eine Einstellung der Schule.
+
+Eine **Bestellung** ist der eingefrorene Stand eines Tages oder einer Woche zur
+Frist. Sie ändert sich danach nicht mehr. Eine **Nachmeldung** ist eine
+Änderung nach der Frist: ein Kind mehr oder weniger an einem Tag, fortlaufend
+nummeriert. Der Caterer sieht Zahlen, Namen nur mit Freigabe der Schule und
+nie den Grund einer Abmeldung.
+
 ## Backend-Modul
 
 Ein **Fachmodul** ist der Teil des Backends, der einen fachlichen Begriff von
 moto mit seinen Regeln und Daten besitzt. Ein **Plattformmodul** stellt eine
 gemeinsame Laufzeit bereit, etwa Mandanten, Transaktionen, Sicherheit oder
 Zustellung, und besitzt nicht die fachliche Bedeutung dessen, was es
-transportiert. moto hat 18 Fachmodule und 10 Plattformmodule:
+transportiert. moto hat 19 Fachmodule und 10 Plattformmodule:
 
 - Fachmodule: Identity & Access, People Directory, School Membership,
   Organisation & Tenancy, School Structure, School Calendar, Facilities,
   Enrollment, Care Plan, Timetable & Activities, Student Presence, Workforce,
-  Appointments, Communication, Device Fleet, Meal Plan, Feedback, File Storage.
+  Appointments, Communication, Device Fleet, Meal Plan, Feedback, File Storage,
+  Elternabrechnung (ADR 0088).
 - Plattformmodule: Tenant Runtime, Transaction Runtime, Security Runtime,
   Settings Platform, Delivery Platform, Observability, Audit Platform,
   Scheduler Runtime, Document Rendering, Export Transfer.

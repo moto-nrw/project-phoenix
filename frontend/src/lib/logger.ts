@@ -248,10 +248,12 @@ class ServerLogger implements Logger {
  * exactly the logs that explain the misconfiguration.
  */
 function clientLogEndpoint(): string {
-  const parentsHost = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
-  return parentsHost && window.location.host === parentsHost
-    ? "/api/parent/logs"
-    : "/api/logs";
+  const host = window.location.host;
+  if (host === process.env.NEXT_PUBLIC_PARENTS_HOSTNAME)
+    return "/api/parent/logs";
+  if (host === process.env.NEXT_PUBLIC_CATERER_HOSTNAME)
+    return "/api/caterer/logs";
+  return "/api/logs";
 }
 
 /**

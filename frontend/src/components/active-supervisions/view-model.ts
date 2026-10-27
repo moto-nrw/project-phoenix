@@ -1,6 +1,6 @@
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import type { ClassHandover } from "~/lib/class-handover";
-import type { Student } from "~/lib/student-helpers";
+import type { Student, TeacherHint } from "~/lib/student-helpers";
 import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
 export const SCHULHOF_ROOM_NAME = "Schulhof";
@@ -157,6 +157,16 @@ function onlyAssignableSession(
   const assignable = sessions.filter((session) => session.canAssign);
   return assignable.length === 1
     ? (assignable[0]?.activeGroupId ?? null)
+    : null;
+}
+
+/** The session the caller supervises, when it is unambiguous. */
+function onlySupervisedSession(
+  sessions: readonly OpenRoomSessionView[],
+): string | null {
+  const supervised = sessions.filter((session) => session.isUserSupervising);
+  return supervised.length === 1
+    ? (supervised[0]?.activeGroupId ?? null)
     : null;
 }
 
@@ -501,14 +511,20 @@ export function mapSupervisedGroupsToRooms(
     }))
     .sort(
       (a, b) =>
-        // Same room → order by session name so parallel sessions (#2265)
-        // keep a deterministic tab order; fully equal entries keep the
-        // backend order (Array.prototype.sort is stable). The active-group
-        // payload may carry no name at runtime, so compare defensively.
+        // Own sessions first (#5035): with the school-wide overview the list
+        // also holds foreign sessions, and every default selection takes the
+        // first entry. Then by room, and within one room by session name so
+        // parallel sessions (#2265) keep a deterministic tab order; fully
+        // equal entries keep the backend order (Array.prototype.sort is
+        // stable). The active-group payload may carry no name at runtime, so
+        // compare defensively.
+        Number(b.isCurrentUserSupervising) -
+          Number(a.isCurrentUserSupervising) ||
         (a.room_name ?? a.name ?? "").localeCompare(
           b.room_name ?? b.name ?? "",
           "de",
-        ) || (a.name ?? "").localeCompare(b.name ?? "", "de"),
+        ) ||
+        (a.name ?? "").localeCompare(b.name ?? "", "de"),
     );
 }
 
@@ -614,12 +630,33 @@ export function additionalSupervisionTarget(options: {
   return options.currentRoom?.canAssign ? options.currentRoom.id : null;
 }
 
+/**
+ * The session the head action „Aufsicht übergeben“ changes. Unlike adding a
+ * supervisor, handing over requires the caller's own supervision and never
+ * depends on whether they may assign additional supervisors.
+ */
+export function handOverSupervisionTarget(options: {
+  readonly currentRoom: ActiveSupervisionRoom | null;
+  readonly currentOpenRoom: OpenRoomView | null;
+}): string | null {
+  const { currentOpenRoom } = options;
+  if (currentOpenRoom) {
+    // Blocks have their own action in the matching section.
+    if (openRoomSections(currentOpenRoom)) return null;
+    return onlySupervisedSession(currentOpenRoom.sessions ?? []);
+  }
+  return options.currentRoom?.isCurrentUserSupervising
+    ? options.currentRoom.id
+    : null;
+}
+
 function mapVisitToSupervisionStudent(
   visit: VisitDisplayLike,
   options: {
     roomName?: string;
     roomColor?: string | null;
     groupNameToId?: Map<string, string>;
+    teacherHints?: ReadonlyMap<string, TeacherHint[]>;
   },
 ): ActiveSupervisionStudent {
   const nameParts = visit.studentName?.split(" ") ?? ["", ""];
@@ -657,6 +694,7 @@ function mapVisitToSupervisionStudent(
         ? visit.checkInTime
         : new Date(visit.checkInTime),
     photo_url: visit.photoUrl,
+    teacher_hints: options.teacherHints?.get(visit.studentId),
   } as ActiveSupervisionStudent;
 }
 
@@ -666,6 +704,8 @@ export function mapVisitsToSupervisionStudents(
     roomName?: string;
     roomColor?: string | null;
     groupNameToId?: Map<string, string>;
+    /** Hinweise der Lehrkraft für heute (#4795), je Kind. */
+    teacherHints?: ReadonlyMap<string, TeacherHint[]>;
   },
 ): ActiveSupervisionStudent[] {
   return visits

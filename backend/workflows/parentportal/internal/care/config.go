@@ -67,6 +67,9 @@ type Config struct {
 	ParentRequestEvents RequestEventWriter
 	// StudentPhotos unlinks the stored photo a withdrawal leaves behind.
 	StudentPhotos StudentPhotoUnlinker
+	// ChildDataAccess records the reads of the holiday registration prefill
+	// (#4662) in the school's data access log.
+	ChildDataAccess ChildDataAccessLog
 
 	// Owner commands. Care Plan records absences, the guardian leg of a
 	// day's pickup exception and the Stammdaten requests; People Directory
@@ -78,6 +81,9 @@ type Config struct {
 	Guardians        GuardianRecords
 	Students         StudentRecords
 	GuardianChanges  GuardianChangeLog
+	// PickupSignatures stores the signatures of pickup permissions, collectors
+	// and the way home alone (#4780, Audit Platform).
+	PickupSignatures PickupSignatureLedger
 
 	// Identity & Access: inviting and removing further guardians, and the
 	// open invitations shown as pending.

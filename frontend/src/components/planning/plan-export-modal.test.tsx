@@ -191,6 +191,53 @@ describe("PlanExportModal", () => {
     expect(screen.queryByText("Vorlage")).not.toBeInTheDocument();
   });
 
+  // #4766: der Druck übernimmt den Filter des Betreuungsplans und sagt das.
+  it("prints only the filtered care plan and names the selection", async () => {
+    renderModal({
+      plan: "betreuungsplan",
+      filter: { groupId: "5", staffId: null, roomId: null },
+      filterLabel: "„Sonnen“",
+    });
+
+    expect(
+      screen.getByText(
+        "Gedruckt werden nur die Termine für „Sonnen“, wie im Plan.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+
+    await waitFor(() => expect(mockExportPlan).toHaveBeenCalled());
+    expect(mockExportPlan).toHaveBeenCalledWith(
+      "betreuungsplan",
+      expect.objectContaining({
+        filter: { groupId: "5", staffId: null, roomId: null },
+      }),
+      "pdf",
+      "download",
+      null,
+    );
+  });
+
+  it("sends no filter and no selection line for the unfiltered plan", async () => {
+    renderModal({
+      plan: "betreuungsplan",
+      filter: { groupId: null, staffId: null, roomId: null },
+      filterLabel: "",
+    });
+
+    // Anker: der Zeitraum steht im Dialog, die Auswahl-Zeile nicht.
+    expect(screen.getByText("Zeitraum")).toBeInTheDocument();
+    expect(screen.queryByText("Auswahl")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Herunterladen" }));
+
+    await waitFor(() => expect(mockExportPlan).toHaveBeenCalled());
+    const request = mockExportPlan.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(request).not.toHaveProperty("filter");
+  });
+
   it("offers the template picker for the duty plan", () => {
     renderModal({ plan: "dienstplan" });
 

@@ -7,6 +7,7 @@ import { SessionProvider, useSession } from "next-auth/react";
 import { SWRConfig } from "swr";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
+import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { ModuleBookingAudienceProvider } from "~/contexts/ToastContext";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
@@ -18,6 +19,7 @@ import { primeSessionCache } from "~/lib/session-cache";
 import { SETTINGS_SCHEMA_SWR_KEY } from "~/lib/settings-api";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
+import { tenantAwarePath } from "~/lib/tenant-path";
 import type { TenantInfo } from "~/lib/tenant-api";
 import { seesLockedModules } from "~/lib/module-register";
 
@@ -131,6 +133,9 @@ export function TenantProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <PersonalStorageGuard
+        homeHref={() => tenantAwarePath("/", tenantSlug, routingMode)}
+      />
       <SessionCachePrimer />
       <ModuleBookingAudienceBridge>
         <PushSubscriptionSync portal="tenant" />

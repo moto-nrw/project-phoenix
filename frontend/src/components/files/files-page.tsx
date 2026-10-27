@@ -450,6 +450,11 @@ function FolderFilesPanel({
     {
       key: "filename",
       header: "Datei",
+      stacked: "title",
+      // Die Spalte nimmt den freien Platz und kürzt einen langen Namen,
+      // statt die Tabelle über die Karte hinaus zu verbreitern (#4975).
+      // min-w-40 hält auf dem Handy Platz für den Anfang des Namens.
+      className: "w-full max-w-0 min-w-40",
       render: (file) => (
         <span className="flex min-w-0 items-center gap-2">
           <FileTypeIcon contentType={file.contentType} />
@@ -458,7 +463,7 @@ function FolderFilesPanel({
               href={filesService.viewUrl(folder.id, file.id)}
               target="_blank"
               rel="noopener"
-              title="Im Browser öffnen"
+              title={`${file.filename} (im Browser öffnen)`}
               className="truncate text-sm font-medium text-gray-900 hover:underline"
             >
               {file.filename}
@@ -466,7 +471,7 @@ function FolderFilesPanel({
           ) : (
             <a
               href={filesService.downloadUrl(folder.id, file.id)}
-              title="Herunterladen"
+              title={`${file.filename} (herunterladen)`}
               className="truncate text-sm font-medium text-gray-900 hover:underline"
             >
               {file.filename}
@@ -479,6 +484,8 @@ function FolderFilesPanel({
     {
       key: "size",
       header: "Größe",
+      className: "whitespace-nowrap",
+      stacked: "hidden",
       render: (file) => (
         <span className="text-xs text-gray-500">
           {formatBytes(file.sizeBytes)}
@@ -489,17 +496,23 @@ function FolderFilesPanel({
     {
       key: "uploaded",
       header: "Hochgeladen",
+      className: "whitespace-nowrap",
       render: (file) => (
         <span className="text-xs text-gray-500">
           {formatDate(file.uploadedAt)}
         </span>
       ),
+      // Auf dem Handy steht die Größe mit in dieser Zeile unter dem Namen.
+      stackedLabel: false,
+      stackedRender: (file) =>
+        `${formatBytes(file.sizeBytes)} · ${formatDate(file.uploadedAt)}`,
       sortValue: (file) => file.uploadedAt,
     },
     {
       key: "actions",
       header: "",
       align: "right",
+      stacked: "meta",
       render: (file) => {
         const items: OverflowMenuEntry[] = [];
         if (isViewableInBrowser(file.contentType)) {
@@ -630,6 +643,11 @@ function FolderFilesPanel({
           Ladefehler. */}
       {error && !data ? null : (
         <DataTable
+          // Auf dem Handy eine Zeile je Datei, das Menü rechts daneben: in der
+          // Tabelle lag es außerhalb des Bildes (#4975).
+          stackedOnMobile
+          stackedLayout="row"
+          stackedDetailKey="uploaded"
           columns={columns}
           rows={files}
           getRowKey={(file) => file.id}

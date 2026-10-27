@@ -31,6 +31,7 @@ import {
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { Textarea } from "~/components/ui/textarea";
 import { MODULE_SETTING_KEYS } from "~/lib/modules";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
@@ -45,6 +46,13 @@ import {
   retentionShorteningText,
   shortenedRetentionDays,
 } from "./retention-shortening";
+import {
+  type SettingsAudience,
+  followsTraegerAfterReset,
+  resetRestoresTraegerValue,
+  settingOriginNote,
+  showsStandardBadge,
+} from "./settings-origin";
 
 /** Settings keys that require a confirmation dialog before enabling. */
 const CONFIRM_ON_ENABLE: Record<
@@ -75,12 +83,14 @@ const CONFIRM_ON_DISABLE: Record<
 };
 
 // operator_managed settings (ADR 0048) say who decides them: the moto team,
-// by contract. Module switches (#4892) name the booking, every other one is a
-// retention window.
-function operatorManagedNote(
-  key: string,
-  audience: "admin" | "operator",
-): string {
+// by contract. Module switches (#4892) name the booking, the federal state
+// (#4775) the holidays, every other one is a retention window.
+function operatorManagedNote(key: string, audience: SettingsAudience): string {
+  if (key === "operations.federal_state") {
+    return audience === "operator"
+      ? "Bundesland der Schule. Die Schule sieht es, kann es aber nicht ändern."
+      : "Das Bundesland legt moto mit Ihrer Schule fest. Stimmt es nicht, wenden Sie sich an das moto-Team.";
+  }
   if (MODULE_SETTING_KEYS.includes(key)) {
     return audience === "operator"
       ? "Gebuchtes Modul aus dem Vertrag. Die Schule sieht es, kann es aber nicht ändern."
@@ -299,8 +309,10 @@ interface SettingsFieldProps {
   readonly onSchemaRefresh?: () => void;
   readonly onBookingAuthorityEnable?: () => Promise<void>;
   // audience controls the "auch von {other side} änderbar" hint shown
-  // on shared settings. Defaults to "admin" (tenant settings page).
-  readonly audience?: "admin" | "operator";
+  // on shared settings and the origin of a value (default, Träger, school).
+  // Defaults to "admin" (tenant settings page); "traeger" is the Träger
+  // portal, which sets values for all its schools (#4652).
+  readonly audience?: SettingsAudience;
   // revealFn overrides how PasswordField fetches the unmasked value.
   // Defaults to the tenant reveal endpoint; the operator page passes a
   // school-bound function so reveal hits the operator endpoint instead.
@@ -376,6 +388,8 @@ export function SettingsField({
   const latestUploadRef = useRef<(file: File) => void>(() => undefined);
   const latestDeleteRef = useRef<() => void>(() => undefined);
   const settingObject = `die Einstellung „${setting.label}“`;
+  const restoresTraegerValue = resetRestoresTraegerValue(setting, audience);
+  const originNote = settingOriginNote(setting, audience);
   const legalActivationTextKey =
     ENROLLMENT_LEGAL_TOGGLE_TO_TEXT_KEY[setting.key] ?? null;
   const legalActivationTextSetting = legalActivationTextKey
@@ -898,12 +912,21 @@ export function SettingsField({
       setHint(null);
       setIsDirty(false);
       toastSuccess(
-        `Die Einstellung „${setting.label}“ steht wieder auf dem Standard.`,
+        restoresTraegerValue
+          ? `Für „${setting.label}“ gilt wieder der Wert des Trägers.`
+          : `Die Einstellung „${setting.label}“ steht wieder auf dem Standard.`,
       );
     } finally {
       isResettingRef.current = false;
     }
-  }, [setting.key, setting.label, onReset, reportFieldFailure, toastSuccess]);
+  }, [
+    setting.key,
+    setting.label,
+    onReset,
+    reportFieldFailure,
+    restoresTraegerValue,
+    toastSuccess,
+  ]);
 
   const handleHistoryDeletionConfirm = useCallback(async () => {
     if (!historyDeletion || historyDeletionSaving) return;
@@ -1025,7 +1048,7 @@ export function SettingsField({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <h4 className="text-sm font-medium text-gray-900">{setting.label}</h4>
-          {setting.is_default && (
+          {showsStandardBadge(setting, audience) && (
             <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
               Standard
             </span>
@@ -1038,6 +1061,9 @@ export function SettingsField({
         </div>
         {setting.description && (
           <p className="mt-0.5 text-sm text-gray-500">{setting.description}</p>
+        )}
+        {originNote && (
+          <p className="mt-0.5 text-xs text-gray-500">{originNote}</p>
         )}
         {setting.access_policy === "shared" && audience === "operator" && (
           <p className="mt-0.5 text-xs text-gray-400 italic">
@@ -1079,20 +1105,21 @@ export function SettingsField({
               revealFn,
             )}
 
-        {!setting.is_default &&
-          setting.writable &&
-          (setting.type !== "boolean" || deletesRoomHistory) &&
-          !isEnrollmentLegalTextKey(setting.key) && (
-            <button
-              type="button"
-              onClick={handleReset}
-              className="moto-content-surface inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100"
-              title="Auf Standard zurücksetzen"
-            >
-              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-              <span className="hidden sm:inline">Zurücksetzen</span>
-            </button>
-          )}
+        {offersReset(setting, audience, deletesRoomHistory) && (
+          <button
+            type="button"
+            onClick={handleReset}
+            className="moto-content-surface inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 active:bg-gray-100"
+            title={
+              restoresTraegerValue
+                ? "Auf den Wert des Trägers zurücksetzen"
+                : "Auf Standard zurücksetzen"
+            }
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="hidden sm:inline">Zurücksetzen</span>
+          </button>
+        )}
       </div>
 
       <ConfirmDeleteModal
@@ -1226,6 +1253,7 @@ export function SettingsField({
               documentDeleteDisabledReason: legalDocumentDeleteDisabledReason,
               onDocumentUpload: handleLegalDocumentUpload,
               onDocumentDelete: handleLegalDocumentDelete,
+              textOnly: audience === "traeger",
             })
           ) : (
             <label className="block">
@@ -1296,6 +1324,7 @@ export function SettingsField({
               documentDeleteDisabledReason: legalDocumentDeleteDisabledReason,
               onDocumentUpload: handleLegalDocumentUpload,
               onDocumentDelete: handleLegalDocumentDelete,
+              textOnly: audience === "traeger",
             })
           ) : (
             <label className="block">
@@ -1331,6 +1360,27 @@ export function SettingsField({
         </div>
       </ConfirmationModal>
     </div>
+  );
+}
+
+/**
+ * Whether the field offers „Zurücksetzen“. A school's toggle and legal text
+ * normally have none: a toggle switches back, a legal text is edited. Back to
+ * the Träger value is offered for every type (see resetRestoresTraegerValue),
+ * and so is removing the Träger value in the Träger portal.
+ */
+function offersReset(
+  setting: ResolvedSetting,
+  audience: SettingsAudience,
+  deletesRoomHistory: boolean,
+): boolean {
+  if (!setting.writable) return false;
+  if (followsTraegerAfterReset(setting, audience)) return true;
+  if (setting.is_default) return false;
+  if (audience === "traeger") return true;
+  return (
+    (setting.type !== "boolean" || deletesRoomHistory) &&
+    !isEnrollmentLegalTextKey(setting.key)
   );
 }
 
@@ -1434,6 +1484,11 @@ interface AGBSourceEditorProps {
   readonly documentDeleteDisabledReason?: string;
   readonly onDocumentUpload: (file: File | null) => void;
   readonly onDocumentDelete: () => void;
+  /**
+   * Only the text source. The Träger portal sets the AGB text for all its
+   * schools; the PDF and the choice between both stay with each school.
+   */
+  readonly textOnly?: boolean;
 }
 
 function renderAGBSourceEditor({
@@ -1448,11 +1503,24 @@ function renderAGBSourceEditor({
   documentDeleteDisabledReason,
   onDocumentUpload,
   onDocumentDelete,
+  textOnly = false,
 }: AGBSourceEditorProps) {
   const hasText = textValue.trim() !== "";
   const hasDocument = documentURL.trim() !== "";
   const canManageDocument =
     writable && documentManagementDisabledReason == null;
+  if (textOnly) {
+    return (
+      <Textarea
+        id="traeger-agb-text"
+        label="AGB-Text"
+        value={textValue}
+        onChange={(event) => onTextChange(event.target.value)}
+        rows={10}
+        className="resize-y font-mono leading-6"
+      />
+    );
+  }
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">

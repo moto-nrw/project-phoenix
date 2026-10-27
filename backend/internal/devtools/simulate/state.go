@@ -19,6 +19,7 @@ type SeedState struct {
 	Bootstrap   SeedStateBootstrap    `json:"bootstrap"`
 	DevicePIN   string                `json:"device_pin"`
 	Accounts    SeedStateAccounts     `json:"accounts"`
+	Parents     []ParentCredentials   `json:"parents,omitempty"`
 	Devices     map[string]SeedDevice `json:"devices"`
 	Students    []SeedStudent         `json:"students"`
 	Rooms       map[string]int64      `json:"rooms"`
@@ -49,12 +50,22 @@ type SeedStateAccounts struct {
 }
 
 type AccountCredentials struct {
+	Key       string `json:"key,omitempty"`
 	Email     string `json:"email"`
 	Password  string `json:"password"`
 	Name      string `json:"name"`
 	StaffID   int64  `json:"staff_id"`
 	TeacherID int64  `json:"teacher_id,omitempty"`
 	Group     string `json:"group,omitempty"`
+}
+
+// ParentCredentials is a parent-portal login with the children it reaches,
+// in seed order: the first parent is the one the product screenshots show.
+type ParentCredentials struct {
+	Email      string  `json:"email"`
+	Password   string  `json:"password"`
+	Name       string  `json:"name"`
+	StudentIDs []int64 `json:"student_ids,omitempty"`
 }
 
 type SeedDevice struct {
@@ -101,6 +112,7 @@ func seedStateFromProfile(contract *demoprofile.SeedState, profile *demoprofile.
 			Admin:    simulationAccounts(profile.Credentials.Accounts.Admin),
 			Betreuer: simulationAccounts(profile.Credentials.Accounts.Betreuer),
 		},
+		Parents:    simulationParents(profile.Credentials.Parents),
 		Devices:    make(map[string]SeedDevice),
 		Rooms:      simulationEntityIDs(profile.Entities.Rooms),
 		Activities: simulationEntityIDs(profile.Entities.Activities),
@@ -130,8 +142,19 @@ func simulationAccounts(accounts []demoprofile.AccountCredentials) []AccountCred
 	result := make([]AccountCredentials, 0, len(accounts))
 	for _, account := range accounts {
 		result = append(result, AccountCredentials{
-			Email: account.Email, Password: account.Password, Name: account.Name,
+			Key: account.Key, Email: account.Email, Password: account.Password, Name: account.Name,
 			StaffID: account.StaffID, TeacherID: account.TeacherID, Group: account.Group,
+		})
+	}
+	return result
+}
+
+func simulationParents(parents []demoprofile.ParentCredentials) []ParentCredentials {
+	result := make([]ParentCredentials, 0, len(parents))
+	for _, parent := range parents {
+		result = append(result, ParentCredentials{
+			Email: parent.Email, Password: parent.Password, Name: parent.Name,
+			StudentIDs: append([]int64(nil), parent.StudentIDs...),
 		})
 	}
 	return result

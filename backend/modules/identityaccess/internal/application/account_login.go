@@ -122,8 +122,11 @@ func (s *AccountAuthentication) resolveTenantMFAGate(ctx context.Context, accoun
 // /mfa/enroll/* surface accepts.
 func (s *AccountAuthentication) mfaEnrollmentResult(account domain.LoginAccount, tenantID int64, scope string) (*domain.LoginResult, error) {
 	enrollmentScope := "tenant"
-	if scope == domain.ScopeSchool {
+	switch scope {
+	case domain.ScopeSchool:
 		enrollmentScope = "school"
+	case domain.ScopeOrg:
+		enrollmentScope = "org"
 	}
 	token, err := s.codec.IssueMFAEnrollmentToken(account.ID, tenantID, enrollmentScope, domain.MFAEnrollmentTokenTTL)
 	if err != nil {
@@ -149,12 +152,20 @@ func (s *AccountAuthentication) trustedDeviceVerified(ctx context.Context, accou
 // email code plus a challenge token bound to the portal scope.
 func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account domain.LoginAccount, tenantID int64, scope, ipAddress string) (*domain.LoginResult, error) {
 	challengeScope := "tenant"
-	if scope == domain.ScopeSchool {
+	switch scope {
+	case domain.ScopeSchool:
 		challengeScope = "school"
+	case domain.ScopeOrg:
+		challengeScope = "org"
 	}
 	challenge, err := s.mfa.StartChallenge(ctx, account.ID, tenantID, challengeScope, ipAddress)
 	if err != nil {
 		return nil, failed("start mfa challenge", err)
+	}
+	if scope == domain.ScopeOrg {
+		// The Träger-Portal remembers no device: it has no school whose
+		// trusted-device settings would apply.
+		return &domain.LoginResult{Status: domain.LoginStatusMFARequired, ChallengeToken: challenge, MaskedEmail: domain.MaskEmail(account.Email)}, nil
 	}
 	return &domain.LoginResult{
 		Status:               domain.LoginStatusMFARequired,
@@ -691,6 +702,7 @@ func buildClaims(account domain.LoginAccount, session domain.AccountSession, met
 		TenantID:     metadata.TenantID,
 		OrgID:        metadata.OrgID,
 		FamilyID:     session.FamilyID,
+		ViaTraeger:   metadata.ViaTraeger,
 	}
 	refresh := domain.RefreshClaims{
 		AccountID: account.ID,

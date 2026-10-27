@@ -61,7 +61,8 @@ export function getStudentPresenceBadgePlanning(student: DayPlanningStudent): {
   };
 }
 
-function hasActualAttendance(
+/** Whether the child is checked in on site right now (room, yard, on the way). */
+export function hasActualAttendance(
   student: Pick<DayPlanningStudent, "actual_arrival_time" | "current_location">,
 ): boolean {
   if (student.current_location?.trim()) {

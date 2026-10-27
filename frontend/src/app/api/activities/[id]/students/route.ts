@@ -1,6 +1,6 @@
 // app/api/activities/[id]/students/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, apiPut } from "~/lib/api-helpers.server";
+import { apiGet, apiPost, apiPut, bffError } from "~/lib/api-helpers.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "ActivityStudentsRoute" });
@@ -13,6 +13,103 @@ import {
   mapStudentEnrollmentsResponse,
   type BackendStudentEnrollment,
 } from "~/lib/activity-helpers";
+
+interface StudentListPage {
+  data?: Array<{
+    id: number;
+    first_name: string;
+    last_name: string;
+    school_class?: string;
+  }>;
+  pagination?: {
+    current_page: number;
+    page_size: number;
+    total_pages: number;
+    total_records: number;
+  };
+}
+
+// Reject oversized/inconsistent responses, never truncate them into a success.
+const MAX_STUDENT_PAGES = 1_000;
+
+function failStudentPagination(reason: string): never {
+  logger.error("invalid_student_pagination", { reason });
+  throw bffError(502, "Invalid student list pagination", {
+    code: "general.unavailable",
+  });
+}
+
+async function fetchAllStudents(params: URLSearchParams, token: string) {
+  const firstResponse = await apiGet<StudentListPage>(
+    `/api/students?${params.toString()}`,
+    token,
+  );
+  const pagination = firstResponse.pagination;
+  if (!pagination) failStudentPagination("missing pagination");
+  // Freeze the traversal plan; later responses cannot extend the work.
+  const {
+    total_pages: totalPages,
+    total_records: totalRecords,
+    page_size: pageSize,
+  } = pagination;
+  if (
+    !Number.isSafeInteger(totalPages) ||
+    totalPages < 0 ||
+    totalPages > MAX_STUDENT_PAGES ||
+    !Number.isSafeInteger(totalRecords) ||
+    totalRecords < 0 ||
+    !Number.isSafeInteger(pageSize) ||
+    pageSize < 1 ||
+    totalPages !== Math.ceil(totalRecords / pageSize)
+  ) {
+    failStudentPagination("invalid pagination bounds");
+  }
+
+  const students: NonNullable<StudentListPage["data"]> = [];
+  const seenIds = new Set<number>();
+  for (let page = 1; page <= Math.max(1, totalPages); page++) {
+    let response = firstResponse;
+    if (page > 1) {
+      params.set("page", String(page));
+      response = await apiGet<StudentListPage>(
+        `/api/students?${params.toString()}`,
+        token,
+      );
+    }
+    if (
+      response.pagination?.current_page !== page ||
+      response.pagination.page_size !== pageSize ||
+      response.pagination.total_pages !== totalPages ||
+      response.pagination.total_records !== totalRecords
+    ) {
+      failStudentPagination("page metadata changed");
+    }
+    const data = response.data ?? [];
+    const expectedCount = Math.min(
+      pageSize,
+      totalRecords - (page - 1) * pageSize,
+    );
+    if (!Array.isArray(data) || data.length !== expectedCount) {
+      failStudentPagination("unexpected page length");
+    }
+    for (const student of data) {
+      if (
+        !student ||
+        !Number.isSafeInteger(student.id) ||
+        student.id < 1 ||
+        seenIds.has(student.id)
+      ) {
+        failStudentPagination("invalid or repeated student ID");
+      }
+      seenIds.add(student.id);
+      students.push(student);
+    }
+  }
+  if (students.length !== totalRecords) {
+    failStudentPagination("student count differs from total_records");
+  }
+  return students;
+}
 
 /**
  * Handler for GET /api/activities/[id]/students
@@ -36,31 +133,24 @@ export const GET = createGetHandler(
 
       // Get available students by fetching all students and filtering out enrolled ones
       try {
-        // First, get enrolled students in this activity
-        const enrolledResponse = await apiGet<{
-          data: BackendStudentEnrollment[];
-        }>(`/api/activities/${id}/students`, token);
-        const enrolledStudentIds = new Set(
-          (enrolledResponse.data ?? []).map((e) => e.id),
-        );
-
-        // Then, get all students
         const allStudentsParams = new URLSearchParams();
         if (search) allStudentsParams.append("search", search);
         if (groupId) allStudentsParams.append("group_id", groupId);
 
-        const allStudentsUrl = `/api/students?${allStudentsParams.toString()}`;
-        const allStudentsResponse = await apiGet<{
-          data: Array<{
-            id: number;
-            first_name: string;
-            last_name: string;
-            school_class?: string;
-          }>;
-        }>(allStudentsUrl, token);
+        // The roster and paginated candidate list are independent reads.
+        const [enrolledResponse, allStudents] = await Promise.all([
+          apiGet<{ data: BackendStudentEnrollment[] }>(
+            `/api/activities/${id}/students`,
+            token,
+          ),
+          fetchAllStudents(allStudentsParams, token),
+        ]);
+        const enrolledStudentIds = new Set(
+          (enrolledResponse.data ?? []).map((e) => e.id),
+        );
 
         // Filter out enrolled students and format for frontend
-        const availableStudents = (allStudentsResponse.data ?? [])
+        const availableStudents = allStudents
           .filter((student) => !enrolledStudentIds.has(student.id))
           .map((student) => ({
             id: String(student.id),

@@ -46,20 +46,6 @@ type accountRow struct {
 	Email string `bun:"email"`
 }
 
-type accountTenantRow struct {
-	bun.BaseModel `bun:"table:auth.account_tenants,alias:account_tenant"`
-	AccountID     int64     `bun:"account_id,notnull"`
-	TenantID      int64     `bun:"tenant_id,notnull"`
-	Status        string    `bun:"status,notnull"`
-	ActivatedAt   time.Time `bun:"activated_at"`
-	// invited_at is written as an explicit NULL by the insert: an approval
-	// grants access without an invitation, matching the legacy model that
-	// never set it on this path, and the column default would stamp NOW().
-	InvitedAt *time.Time `bun:"invited_at"`
-	CreatedAt time.Time  `bun:"created_at"`
-	UpdatedAt time.Time  `bun:"updated_at"`
-}
-
 func (s *Store) FindAccount(ctx context.Context, id int64) (domain.Account, bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
@@ -164,23 +150,18 @@ func (s *Store) EnsureActiveTenantMapping(ctx context.Context, accountID, tenant
 	if len(lockedIDs) == 0 {
 		return stats, domain.ErrAccountNotFound
 	}
-	now := time.Now()
-	row := accountTenantRow{AccountID: accountID, TenantID: tenantID, Status: "active", ActivatedAt: now, CreatedAt: now, UpdatedAt: now}
-	started = time.Now()
-	result, err := db.NewInsert().Model(&row).ModelTableExpr(`auth.account_tenants`).
-		Value("invited_at", "NULL").
-		On("CONFLICT (account_id, tenant_id) DO UPDATE").
-		Set("status = EXCLUDED.status").
-		Set("activated_at = EXCLUDED.activated_at").
-		Set("deactivated_at = NULL").
-		Set("updated_at = NOW()").
-		Exec(ctx)
-	stats.Add(domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)})
-	if err != nil {
-		return stats, fmt.Errorf("identity access postgres: ensure active tenant mapping: %w", err)
-	}
-	stats.Rows, _ = result.RowsAffected()
-	return stats, nil
+	// invited_at is written as an explicit NULL: an approval grants access
+	// without an invitation, matching the legacy model that never set it on
+	// this path, and the column default would stamp NOW().
+	mappingStats, err := s.bindAccountToSchool(ctx, "ensure active tenant mapping", func(db bun.IDB) *bun.RawQuery {
+		return db.NewRaw(refuseCatererAccount+`INSERT INTO auth.account_tenants (account_id, tenant_id, status, activated_at, invited_at, created_at, updated_at)
+			SELECT ?, ?, 'active', NOW(), NULL::timestamptz, NOW(), NOW() FROM caterer WHERE NOT caterer.refused
+			ON CONFLICT (account_id, tenant_id) DO UPDATE
+			SET status = EXCLUDED.status, activated_at = EXCLUDED.activated_at, deactivated_at = NULL, updated_at = NOW()
+			RETURNING 1`+reportCatererRefusal, accountID, accountID, tenantID)
+	})
+	stats.Add(mappingStats)
+	return stats, err
 }
 
 // FindRoleByName prefers the tenant's own role over the system role of the

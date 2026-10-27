@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 /**
  * Health check endpoint for container orchestration and load balancers.
@@ -9,7 +10,7 @@ import { NextResponse } from "next/server";
  * - CI/CD deployment verification
  * - Monitoring systems
  */
-export async function GET() {
+async function GETHandler() {
   return NextResponse.json({
     status: "ok",
     service: "phoenix-frontend",
@@ -17,6 +18,9 @@ export async function GET() {
   });
 }
 
-export async function HEAD() {
+async function HEADHandler() {
   return new Response(null, { status: 200 });
 }
+
+export const GET = withPrivateNoStore(GETHandler);
+export const HEAD = withPrivateNoStore(HEADHandler);

@@ -217,6 +217,9 @@ function LohnartenCard({
       description="Mandantenspezifische Lohnartnummern aus dem Lohnsystem des Trägers (1 bis 4 Ziffern). Für Krank, Urlaub und Fortbildung zusätzlich die Einheit, die die Lohnart erwartet. Änderungen werden sofort gespeichert."
     >
       <DataTable
+        // Auf dem Handy untereinander: die Auswahl der Einheit lag sonst
+        // rechts außerhalb der Karte (#4975).
+        stackedOnMobile
         columns={lohnartColumns(onSave)}
         rows={status.categories}
         getRowKey={(cat) => cat.id}

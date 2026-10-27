@@ -151,7 +151,7 @@ var (
 	allowedRoles = map[string]bool{
 		"public": true, "contract": true, "domain": true, "application": true,
 		"port": true, "adapter": true, "postgres": true, "compose": true,
-		"http": true, "worker": true, "cli": true, "migration": true, "test-support": true, legacyModelRole: true,
+		"http": true, "worker": true, "cli": true, "migration": true, "test-support": true,
 		"module-internal-test": true, "module-behavior-test": true,
 		"workflow-decision-test": true, "workflow-integration-test": true,
 		"adapter-test": true, "e2e-test": true,
@@ -202,23 +202,36 @@ func decodePolicy(reader io.Reader, allowOlderSchema bool) (*Policy, error) {
 			}
 		}
 		kinds["inbound"] = true
-		if err := policy.validate(4, kinds); err != nil {
+		if err := policy.validate(4, kinds, roleVocabulary(allowOlderSchema)); err != nil {
 			return nil, fmt.Errorf("validate base policy: %w", err)
 		}
 		policy.upgradeToolingBase()
 		return &policy, nil
 	}
-	if err := policy.Validate(); err != nil {
+	if err := policy.validate(5, allowedOwnerKinds, roleVocabulary(allowOlderSchema)); err != nil {
 		return nil, fmt.Errorf("validate policy: %w", err)
 	}
 	return &policy, nil
 }
 
-func (p *Policy) Validate() error {
-	return p.validate(5, allowedOwnerKinds)
+// roleVocabulary returns the roles a decoded policy may declare. An immutable
+// base keeps every role it declares: it was validated at its own commit, and a
+// candidate may retire a role together with its packages (#4956). Only a
+// candidate is pinned to allowedRoles.
+func roleVocabulary(base bool) map[string]bool {
+	if base {
+		return nil
+	}
+	return allowedRoles
 }
 
-func (p *Policy) validate(schema int, ownerKinds map[string]bool) error {
+func (p *Policy) Validate() error {
+	return p.validate(5, allowedOwnerKinds, allowedRoles)
+}
+
+// validate checks the policy against the given owner kinds and roles; nil
+// roles accept every role the policy declares.
+func (p *Policy) validate(schema int, ownerKinds, allowedRoleSet map[string]bool) error {
 	if err := p.validateHeader(schema); err != nil {
 		return err
 	}
@@ -229,7 +242,7 @@ func (p *Policy) validate(schema int, ownerKinds map[string]bool) error {
 	if err := p.validateCanonicalOwners(); err != nil {
 		return err
 	}
-	roles, err := validateUniqueValues("role", p.Roles, allowedRoles)
+	roles, err := validateUniqueValues("role", p.Roles, allowedRoleSet)
 	if err != nil {
 		return err
 	}
@@ -239,11 +252,6 @@ func (p *Policy) validate(schema int, ownerKinds map[string]bool) error {
 	}
 	if err := p.validatePackages(owners, roles); err != nil {
 		return err
-	}
-	if p.PolicyEpoch >= targetOnlyRulesEpoch {
-		if err := p.validateLegacyModelPackages(); err != nil {
-			return err
-		}
 	}
 	dataObjects, err := p.validateDataObjects(owners)
 	if err != nil {
@@ -438,7 +446,7 @@ func (p *Policy) validateOwners(ownerKinds map[string]bool) (map[string]Owner, e
 	return owners, nil
 }
 
-// validateCanonicalOwners pins moto's module map from ADRs 0010/0012 and #2580.
+// validateCanonicalOwners pins moto's module map from ADRs 0010/0012/0088 and #2580.
 // Evaluator fixtures use independent module paths and their own small maps.
 func (p *Policy) validateCanonicalOwners() error {
 	if p.ModulePath != "github.com/moto-nrw/project-phoenix" {
@@ -449,18 +457,26 @@ func (p *Policy) validateCanonicalOwners() error {
 		"observability", "scheduler-runtime", "security-runtime", "settings-platform",
 		"tenant-runtime", "transaction-runtime",
 	}
-	const decision = "ADRs 0010 and 0012"
+	const decision = "ADRs 0010, 0012 and 0088"
+	domainOwners := []string{
+		"appointments", "care-plan", "communication", "device-fleet",
+		"enrollment", "facilities", "feedback", "file-storage", "identity-access",
+		"meal-plan", "organization-tenancy", "people-directory", "school-calendar",
+		"school-membership", "school-structure", "student-presence",
+		"timetable-activities", "workforce",
+	}
+	// ADR 0088 adds the Elternabrechnung (#4664). A policy before it, such as
+	// the base of the pull request that adds it, keeps the eighteen domains;
+	// either map is exact, nothing else is accepted.
+	if slices.ContainsFunc(p.Owners, func(owner Owner) bool { return owner.ID == "parent-billing" && owner.Kind == "domain" }) {
+		domainOwners = append(domainOwners, "parent-billing")
+		slices.Sort(domainOwners)
+	}
 	canonicalOwners := []struct {
 		kind string
 		ids  []string
 	}{
-		{kind: "domain", ids: []string{
-			"appointments", "care-plan", "communication", "device-fleet",
-			"enrollment", "facilities", "feedback", "file-storage", "identity-access",
-			"meal-plan", "organization-tenancy", "people-directory", "school-calendar",
-			"school-membership", "school-structure", "student-presence",
-			"timetable-activities", "workforce",
-		}},
+		{kind: "domain", ids: domainOwners},
 		{kind: "platform", ids: platformOwners},
 	}
 	if p.SchemaVersion >= 5 {
@@ -517,7 +533,7 @@ func (p *Policy) validatePackages(owners map[string]Owner, roles map[string]stru
 			{scope: "external_test", role: pkg.ExternalTestRole},
 		}
 		for _, scopedRole := range packageRoles {
-			if _, ok := roles[scopedRole.role]; !ok || !allowedRoles[scopedRole.role] {
+			if _, ok := roles[scopedRole.role]; !ok {
 				return fmt.Errorf("package %q has invalid %s role %q", pkg.Path, scopedRole.scope, scopedRole.role)
 			}
 		}

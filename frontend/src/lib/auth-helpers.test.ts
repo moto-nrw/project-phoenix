@@ -16,6 +16,13 @@ describe("getRoleDisplayName", () => {
     expect(getRoleDisplayName("externe-ag")).toBe("externe-ag");
   });
 
+  // Die Demo-Schule legt beide Rollen klein geschrieben an
+  // (identityaccess/internal/domain/demo_access.go).
+  it("labels the demo school roles OGS-Leitung and Betreuungskraft", () => {
+    expect(getRoleDisplayName("ogs-leitung")).toBe("OGS-Leitung");
+    expect(getRoleDisplayName("betreuungskraft")).toBe("Betreuungskraft");
+  });
+
   it("translates the system role ag-leitung to AG-Leitung", () => {
     expect(getRoleDisplayName("ag-leitung")).toBe("AG-Leitung");
     expect(getRoleDisplayName("AG-Leitung")).toBe("AG-Leitung");

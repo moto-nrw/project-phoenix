@@ -55,6 +55,11 @@ const (
 	// so the trail shows who looked through whose eyes and when.
 	EventTypeStaffPreviewStarted = "staff_preview_started"
 	EventTypeStaffPreviewEnded   = "staff_preview_ended"
+
+	// Absprung of the Träger-Büro into the school (ADR 0084 section 5,
+	// #4654). Written against the school with the Träger in the metadata,
+	// so the school sees who opened it through the Träger and when.
+	EventTypeTraegerSchoolSwitch = "traeger_school_switch"
 )
 
 // Validate ensures auth event is valid
@@ -84,7 +89,8 @@ func (ae *AuthEvent) Validate() error {
 		EventTypeMFATrustedDeviceAdded, EventTypeMFAAdminOverride,
 		EventTypeTenantAccessGranted, EventTypeTenantAccessRevoked,
 		EventTypeTenantRoleChanged,
-		EventTypeStaffPreviewStarted, EventTypeStaffPreviewEnded:
+		EventTypeStaffPreviewStarted, EventTypeStaffPreviewEnded,
+		EventTypeTraegerSchoolSwitch:
 		// Valid types
 	default:
 		return errors.New("invalid event type")

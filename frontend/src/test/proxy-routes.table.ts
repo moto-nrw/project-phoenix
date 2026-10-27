@@ -63,6 +63,13 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/announcement-attachments/[announcementId]/[attachmentId]": [
     "DELETE tenant /api/announcement-attachments/announcementId%2F1/attachmentId%2F1",
   ],
+  "api/caterer/schools": ["GET caterer /caterer/schools"],
+  "api/caterer/schools/[schoolId]/orders": [
+    "GET caterer /caterer/schools/schoolId%2F1/orders",
+  ],
+  "api/caterer/schools/[schoolId]/orders/[orderId]/confirm": [
+    "POST caterer /caterer/schools/schoolId%2F1/orders/orderId%2F1/confirm",
+  ],
   "api/class-list-entries": [
     "GET tenant /api/class-list-entries/",
     "POST tenant /api/class-list-entries/",
@@ -153,10 +160,23 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/me/staff": ["GET tenant /api/me/staff"],
   "api/me/teacher": ["GET tenant /api/me/teacher"],
+  "api/meal-caterer": ["GET tenant /api/meal-caterer"],
+  "api/meal-caterer/invitations": ["POST tenant /api/meal-caterer/invitations"],
+  "api/meal-caterer/invitations/[invitationId]": [
+    "DELETE tenant /api/meal-caterer/invitations/invitationId%2F1",
+  ],
+  "api/meal-caterer/supply": ["DELETE tenant /api/meal-caterer/supply"],
+  "api/meal-plan/orders": ["GET tenant /api/meal-plan/orders"],
   "api/meal-plan/participants": ["GET tenant /api/meal-plan/participants"],
-  "api/meal-plan/participants/[studentId]/[date]": [
-    "DELETE tenant /api/meal-plan/participants/studentId%2F1/date%2F1",
-    "PUT tenant /api/meal-plan/participants/studentId%2F1/date%2F1",
+  "api/meal-plan/participation/[studentId]": [
+    "GET tenant /api/meal-plan/participation/studentId%2F1",
+  ],
+  "api/meal-plan/participation/[studentId]/days/[date]": [
+    "DELETE tenant /api/meal-plan/participation/studentId%2F1/days/date%2F1",
+    "PUT tenant /api/meal-plan/participation/studentId%2F1/days/date%2F1",
+  ],
+  "api/meal-plan/participation/[studentId]/schedule": [
+    "PUT tenant /api/meal-plan/participation/studentId%2F1/schedule",
   ],
   "api/meal-plan/participants/week": [
     "GET tenant /api/meal-plan/participants/week",
@@ -245,11 +265,17 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/operator/provisioning/organizations/[id]/restore": [
     "POST operator /operator/organizations/id%2F1/restore",
   ],
+  "api/operator/provisioning/organizations/[id]/sample-children": [
+    "POST operator /operator/organizations/id%2F1/sample-children",
+  ],
   "api/operator/provisioning/organizations/[id]/schools": [
     "GET operator /operator/organizations/id%2F1/schools",
   ],
   "api/operator/provisioning/organizations/summaries": [
     "GET operator /operator/organizations/summaries",
+  ],
+  "api/operator/provisioning/organizations/test-traeger": [
+    "POST operator /operator/organizations/test-traeger",
   ],
   "api/operator/provisioning/roles": ["GET operator /operator/roles"],
   "api/operator/provisioning/schools": [
@@ -309,6 +335,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/parent/enrollments/[tenantSlug]/submit": [
     "POST parent /parent/enrollments/tenantSlug%2F1/submit",
   ],
+  "api/parent/holiday-registrations/[token]/family": [
+    "GET parent /parent/holiday-registrations/token%2F1/family",
+  ],
   "api/parent/me/children": ["GET parent /parent/me/children"],
   "api/parent/me/children/[studentId]/care-offerings": [
     "GET parent /parent/me/children/studentId%2F1/care-offerings",
@@ -362,6 +391,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/parent/me/children/[studentId]/guardians/[guardianProfileId]/pickup": [
     "PUT parent /parent/me/children/studentId%2F1/guardians/guardianProfileId%2F1/pickup",
   ],
+  "api/parent/me/children/[studentId]/guardians/[guardianProfileId]/pickup-permission-requests":
+    [
+      "POST parent /parent/me/children/studentId%2F1/guardians/guardianProfileId%2F1/pickup-permission-requests",
+    ],
   "api/parent/me/children/[studentId]/master-data": [
     "GET parent /parent/me/children/studentId%2F1/master-data",
   ],
@@ -380,6 +413,12 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/parent/me/children/[studentId]/pickup-change-requests/[requestId]": [
     "PUT parent /parent/me/children/studentId%2F1/pickup-change-requests/requestId%2F1",
+  ],
+  "api/parent/me/children/[studentId]/pickup-permission-requests": [
+    "GET parent /parent/me/children/studentId%2F1/pickup-permission-requests",
+  ],
+  "api/parent/me/children/[studentId]/pickup-signature-statement": [
+    "POST parent /parent/me/children/studentId%2F1/pickup-signature-statement",
   ],
   "api/parent/me/children/[studentId]/related-accounts": [
     "GET parent /parent/me/children/studentId%2F1/related-accounts",
@@ -504,6 +543,14 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "PUT school /school/class-day/handover/schoolClass%2F1/date%2F1",
   ],
   "api/school/class-day/classes": ["GET school /school/class-day/classes"],
+  "api/school/class-day/day-hints/[schoolClass]/[date]": [
+    "DELETE school /school/class-day/day-hints/schoolClass%2F1/date%2F1",
+    "PUT school /school/class-day/day-hints/schoolClass%2F1/date%2F1",
+  ],
+  "api/school/class-day/day-hints/[schoolClass]/[date]/students/[studentId]": [
+    "DELETE school /school/class-day/day-hints/schoolClass%2F1/date%2F1/students/studentId%2F1",
+    "PUT school /school/class-day/day-hints/schoolClass%2F1/date%2F1/students/studentId%2F1",
+  ],
   "api/school/class-day/morning-attendance/[schoolClass]/[date]": [
     "PUT school /school/class-day/morning-attendance/schoolClass%2F1/date%2F1",
   ],
@@ -808,6 +855,27 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "POST tenant /api/substitutions",
   ],
   "api/substitutions/end": ["POST tenant /api/substitutions/end"],
+  "api/surveys": ["GET tenant /api/surveys", "POST tenant /api/surveys"],
+  "api/surveys/[surveyId]/answers": [
+    "POST tenant /api/surveys/surveyId%2F1/answers",
+  ],
+  "api/surveys/[surveyId]/close": [
+    "POST tenant /api/surveys/surveyId%2F1/close",
+  ],
+  "api/surveys/[surveyId]/form": ["GET tenant /api/surveys/surveyId%2F1/form"],
+  "api/surveys/[surveyId]/publish": [
+    "POST tenant /api/surveys/surveyId%2F1/publish",
+  ],
+  "api/surveys/[surveyId]/remind": [
+    "POST tenant /api/surveys/surveyId%2F1/remind",
+  ],
+  "api/surveys/[surveyId]/respondents": [
+    "GET tenant /api/surveys/surveyId%2F1/respondents",
+  ],
+  "api/surveys/[surveyId]/results": [
+    "GET tenant /api/surveys/surveyId%2F1/results",
+  ],
+  "api/surveys/to-answer": ["GET tenant /api/surveys/to-answer"],
   "api/time-tracking/[id]/edits": [
     "GET tenant /api/time-tracking/id%2F1/edits",
   ],
@@ -834,6 +902,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET tenant /api/time-tracking/closing-days",
   ],
   "api/time-tracking/config": ["GET tenant /api/time-tracking/config"],
+  "api/time-tracking/absence-allowances": [
+    "GET tenant /api/time-tracking/absence-allowances",
+  ],
   "api/time-tracking/current": ["GET tenant /api/time-tracking/current"],
   "api/time-tracking/history": ["GET tenant /api/time-tracking/history"],
   "api/time-tracking/holidays": ["GET tenant /api/time-tracking/holidays"],
@@ -868,6 +939,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET tenant /api/timetable/deviations/history",
   ],
   "api/timetable/gaps": ["GET tenant /api/timetable/gaps"],
+  "api/timetable/holidays": ["GET tenant /api/timetable/holidays"],
   "api/timetable/instances": [
     "GET tenant /api/timetable/instances",
     "POST tenant /api/timetable/instances",
@@ -1015,6 +1087,8 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/templates/[id]/split": [
     "POST tenant /api/timetable/templates/id%2F1/split",
   ],
+  "api/traeger/access-log": ["GET traeger /traeger/access-log"],
+  "api/traeger/access-log/people": ["GET traeger /traeger/access-log/people"],
   "api/traeger/accounts": ["GET traeger /traeger/accounts/"],
   "api/traeger/accounts/[accountId]": [
     "DELETE traeger /traeger/accounts/accountId%2F1",
@@ -1028,6 +1102,27 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/traeger/accounts/invitations/[invitationId]": [
     "DELETE traeger /traeger/accounts/invitations/invitationId%2F1",
   ],
+  "api/traeger/billing-runs": [
+    "GET traeger /traeger/billing-runs",
+    "POST traeger /traeger/billing-runs",
+  ],
+  "api/traeger/billing-runs/[id]": ["GET traeger /traeger/billing-runs/id%2F1"],
+  "api/traeger/billing-runs/[id]/corrections": [
+    "POST traeger /traeger/billing-runs/id%2F1/corrections",
+  ],
+  "api/traeger/billing-runs/[id]/letters": [
+    "POST traeger /traeger/billing-runs/id%2F1/letters",
+  ],
+  "api/traeger/billing-runs/[id]/release": [
+    "POST traeger /traeger/billing-runs/id%2F1/release",
+  ],
+  "api/traeger/billing-runs/periods": [
+    "GET traeger /traeger/billing-runs/periods",
+  ],
+  "api/traeger/contribution-rules": [
+    "GET traeger /traeger/contribution-rules",
+    "POST traeger /traeger/contribution-rules",
+  ],
   "api/traeger/holiday-periods": [
     "GET traeger /traeger/holiday-periods",
     "POST traeger /traeger/holiday-periods",
@@ -1039,7 +1134,47 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/traeger/holiday-periods/[id]/publish": [
     "POST traeger /traeger/holiday-periods/id%2F1/publish",
   ],
+  "api/traeger/holiday-periods/[id]/registrations": [
+    "GET traeger /traeger/holiday-periods/id%2F1/registrations",
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]": [
+    "GET traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1",
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/cancel": [
+    "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/cancel",
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/children/[childId]/bookings":
+    [
+      "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/children/childId%2F1/bookings",
+    ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/confirm": [
+    "POST traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/confirm",
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/contribution":
+    [
+      "GET traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1",
+    ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/freeze": [
+    "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/freeze",
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/reopen": [
+    "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/reopen",
+  ],
+  "api/traeger/master-data": ["GET traeger /traeger/master-data/"],
+  "api/traeger/master-data/bank-accounts": [
+    "POST traeger /traeger/master-data/bank-accounts",
+  ],
+  "api/traeger/master-data/contact": [
+    "PUT traeger /traeger/master-data/contact",
+  ],
+  "api/traeger/number-ranges": ["GET traeger /traeger/number-ranges"],
+  "api/traeger/number-ranges/[service]": [
+    "PUT traeger /traeger/number-ranges/service%2F1",
+  ],
+  "api/traeger/organization": ["GET traeger /traeger/organization"],
+  "api/traeger/school-sessions": ["POST traeger /traeger/school-sessions"],
   "api/traeger/schools": ["GET traeger /traeger/schools"],
+  "api/traeger/settings/schema": ["GET traeger /traeger/settings/schema"],
   "api/work-time-models": [
     "GET tenant /api/work-time-models",
     "POST tenant /api/work-time-models",

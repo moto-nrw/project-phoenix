@@ -213,6 +213,89 @@ func (s printSummaryStep) Run(_ context.Context, rt *Runtime) error {
 }
 
 func fullDemoWorkflow(seeder *Seeder) Workflow {
+	steps := fullDemoSetupSteps(seeder)
+	if !seeder.options.DeferHistory {
+		steps = append(steps, deferredPastSteps()...)
+	}
+	steps = append(steps, parentEnrollmentSeedStep{seeder: seeder})
+	if !seeder.options.DeferHistory {
+		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
+	}
+	steps = append(steps,
+		seedParentEngagementStep{}, seedAnalyticsConsentStep{}, seedSchoolLifeStep{},
+		// After the parents: it orders lunch for the children they registered.
+		seedMealOrdersStep{seeder: seeder},
+	)
+	if !seeder.options.DeferHistory {
+		// After the meal orders: books care and lunch for the children who eat.
+		steps = append(steps, seedRegularBookingsStep{})
+	}
+	steps = append(steps,
+		seedGradeTransitionStep{},
+		seedParentLetterStep{},
+		seedParentPollStep{},
+		seedParentDeclarationStep{}, seedSurveysStep{},
+		seedInactiveAccountStep{},
+		// Zuletzt: Erst jetzt hat die Demo-Schule alle Daten, die der
+		// Einrichtungs-Assistent als erledigt erkennt (#2832).
+		seedSchoolSetupStep{},
+		seedStaffOnboardingStep{},
+		verifyProfileStep{definition: seeder.definition},
+	)
+	if seeder.options.OnlyProfile == "" {
+		steps = append(steps,
+			manualProfileStep{seeder: seeder},
+			seedEnrollmentWeeklyProfileStep{seeder: seeder},
+			seedEnrollmentBookingsProfileStep{seeder: seeder},
+		)
+	}
+	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerBillingLettersStep{}, seedTestTraegerStep{})
+	if !seeder.options.DeferHistory {
+		steps = append(steps, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
+	}
+	steps = append(steps,
+		buildStateStep{seeder: seeder},
+		printSummaryStep{seeder: seeder},
+	)
+	return Workflow{Name: "full-demo", Steps: steps}
+}
+
+// deferredPastSteps fill the past: the time-tracking history, today's
+// absences priced against it, the export that audits it, and past course
+// dates. No later step reads them.
+func deferredPastSteps() []Step {
+	return []Step{
+		seedTimeTrackingHistoryStep{},
+		// Korrigiert eine Woche der Historie zu einer mit Hinweisen zu
+		// Pausen und Höchstarbeitszeit (#4804).
+		seedLaborHintsStep{},
+		// Nach der Historie und den Diensten der Woche: Die Krankmeldung
+		// sagt den Dienst ab und braucht die Sollzeiten der Historie.
+		seedTodaysAbsencesStep{},
+		seedDataAccessAuditStep{},
+		// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
+		// vergangene Kurstermine samt Anwesenheit an (#2891).
+		seedCourseParticipationStep{},
+	}
+}
+
+// deferredDemoSteps are what a demo school opens without (DeferHistory): the
+// past, then the parents' requests. The requests go after the history, since
+// the running simulation's parents may collide with them. The app accounts of
+// the other families wait as well: a visitor needs them only for writing to
+// parents, not for the school to open. The child quota is sized to the
+// children in care once the requests are decided, and the billing snapshot
+// counts them, so both follow.
+func deferredDemoSteps(seeder *Seeder) []Step {
+	return append(deferredPastSteps(),
+		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
+		// The meal orders ran before the phase existed; the bookings follow it.
+		seedRegularBookingsStep{},
+		seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
+}
+
+// fullDemoSetupSteps prepares the school before its history and parent flows.
+func fullDemoSetupSteps(seeder *Seeder) []Step {
 	steps := []Step{
 		healthCheckStep{},
 		operatorLoginStep{},
@@ -224,6 +307,8 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedPlanningDemoStep{},
 		seedStudentStatusVariantsStep{},
 		seedOperationsDemoStep{},
+		// Before the parents' invitations queue up in the outbox.
+		seedMealCatererInvitationStep{seeder: seeder},
 		seedShiftSeriesStep{},
 		seedVisitorDayStep{},
 		seedHomeLayoutStep{},
@@ -252,65 +337,11 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		// geplanten Dienst ab und bräuchte eine Begründung.
 		seedTodaysShiftsStep{},
 	}
-	if !seeder.options.DeferHistory {
-		steps = append(steps, deferredPastSteps()...)
+	// Die Produkt-Screenshots simulieren den ganzen Tag, der die Statistik
+	// füllt. Die Statistik-Sitzung stünde dort als Hausaufgaben-Block von
+	// einer Minute zur Seed-Uhrzeit im Tagesplan und in der Zeiterfassung.
+	if seeder.options.ProductScreenshots {
+		steps = slices.DeleteFunc(steps, func(step Step) bool { _, ok := step.(seedStatisticsDemoStep); return ok })
 	}
-	steps = append(steps, parentEnrollmentSeedStep{seeder: seeder})
-	if !seeder.options.DeferHistory {
-		steps = append(steps, parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder})
-	}
-	steps = append(steps,
-		seedParentEngagementStep{}, seedAnalyticsConsentStep{}, seedSchoolLifeStep{},
-		seedGradeTransitionStep{},
-		seedParentLetterStep{},
-		seedParentPollStep{},
-		seedParentDeclarationStep{},
-		seedInactiveAccountStep{},
-		// Zuletzt: Erst jetzt hat die Demo-Schule alle Daten, die der
-		// Einrichtungs-Assistent als erledigt erkennt (#2832).
-		seedSchoolSetupStep{},
-		seedStaffOnboardingStep{},
-		verifyProfileStep{definition: seeder.definition},
-	)
-	if seeder.options.OnlyProfile == "" {
-		steps = append(steps,
-			manualProfileStep{seeder: seeder},
-			seedEnrollmentWeeklyProfileStep{seeder: seeder},
-			seedEnrollmentBookingsProfileStep{seeder: seeder},
-		)
-	}
-	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{})
-	if !seeder.options.DeferHistory {
-		steps = append(steps, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
-	}
-	steps = append(steps,
-		buildStateStep{seeder: seeder},
-		printSummaryStep{seeder: seeder},
-	)
-	return Workflow{Name: "full-demo", Steps: steps}
-}
-
-// deferredPastSteps fill the past only: the time-tracking history, the export
-// that audits it, and past course dates. No later step reads them.
-func deferredPastSteps() []Step {
-	return []Step{
-		seedTimeTrackingHistoryStep{},
-		seedDataAccessAuditStep{},
-		// Rührt weder an der Zeiterfassung noch am NFC-Block: legt nur
-		// vergangene Kurstermine samt Anwesenheit an (#2891).
-		seedCourseParticipationStep{},
-	}
-}
-
-// deferredDemoSteps are what a demo school opens without (DeferHistory): the
-// past, then the parents' requests. The requests go after the history, since
-// the running simulation's parents may collide with them. The app accounts of
-// the other families wait as well: a visitor needs them only for writing to
-// parents, not for the school to open. The child quota is sized to the
-// children in care once the requests are decided, and the billing snapshot
-// counts them, so both follow.
-func deferredDemoSteps(seeder *Seeder) []Step {
-	return append(deferredPastSteps(),
-		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
-		seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
+	return steps
 }

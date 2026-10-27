@@ -36,6 +36,10 @@ func (seedAuditLifecycleStep) Run(_ context.Context, rt *Runtime) error {
 	return nil
 }
 
+// seedAttendanceCorrection documents yesterday's Hausaufgabenhilfe: the
+// block ran with five children, was completed, and the attendance of one
+// child got a note afterwards. It lies on the school day before today, so
+// today's Tagesplan does not show a finished block before the day began.
 func seedAttendanceCorrection(rt *Runtime) error {
 	studentIDs := orderedSeedStudentIDs(rt.FixedSeeder)
 	staffIDs := orderedSeedStaffIDs(rt.FixedSeeder)
@@ -43,19 +47,17 @@ func seedAttendanceCorrection(rt *Runtime) error {
 	if len(studentIDs) == 0 || len(staffIDs) == 0 || roomID == 0 {
 		return fmt.Errorf("attendance correction references not available")
 	}
-	date := todaySeedDate()
-	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
-		date = date.AddDays(-1)
-	}
-
+	// Children and a colleague who have no other block at that time.
+	children := studentIDs[min(40, len(studentIDs)-1):min(45, len(studentIDs))]
+	staffID := staffIDs[min(8, len(staffIDs)-1)]
 	instanceRaw, err := rt.Client.Post("/api/timetable/instances", map[string]any{
-		"date":        date.String(),
-		"start_time":  "11:00",
-		"end_time":    "12:00",
-		"title":       "Korrekturbeispiel",
+		"date":        previousSchoolDay(todaySeedDate()).String(),
+		"start_time":  "14:00",
+		"end_time":    "15:00",
+		"title":       "Hausaufgabenhilfe",
 		"room_id":     roomID,
-		"staff_ids":   []int64{staffIDs[0]},
-		"student_ids": []int64{studentIDs[0]},
+		"staff_ids":   []int64{staffID},
+		"student_ids": children,
 	})
 	if err != nil {
 		return fmt.Errorf("create attendance correction instance: %w", err)
@@ -68,17 +70,34 @@ func seedAttendanceCorrection(rt *Runtime) error {
 		return fmt.Errorf("start attendance correction instance: %w", err)
 	}
 	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/complete", instanceID), map[string]any{
-		"confirmed_present_student_ids": []int64{studentIDs[0]},
+		"confirmed_present_student_ids": children,
 	}); err != nil {
 		return fmt.Errorf("complete attendance correction instance: %w", err)
 	}
-	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/students/%d/correction", instanceID, studentIDs[0]), map[string]any{
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/students/%d/correction", instanceID, children[0]), map[string]any{
 		"note":   "Nachträglich ergänzt.",
 		"reason": "Dokumentation vervollständigt",
 	}); err != nil {
 		return fmt.Errorf("seed attendance correction: %w", err)
 	}
 	return nil
+}
+
+// previousSchoolDay is the weekday before today. On the first school days
+// of August it stays on today: the day before lies in the previous school
+// year, outside the planning period the bootstrap created.
+func previousSchoolDay(today seedDate) seedDate {
+	day := today.AddDays(-1)
+	for day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
+		day = day.AddDays(-1)
+	}
+	if day.Month() == time.July && today.Month() == time.August {
+		for today.Weekday() == time.Saturday || today.Weekday() == time.Sunday {
+			today = today.AddDays(-1)
+		}
+		return today
+	}
+	return day
 }
 
 func firstSeedGroupID(fs *FixedSeeder) int64 {

@@ -3,6 +3,11 @@
 // The backend returns ISO timestamps in snake_case; this module normalises
 // them to camelCase `Date`-friendly shapes used by the UI.
 
+import {
+  parseAttendanceActor,
+  type AttendanceActor,
+} from "~/lib/attendance-actor";
+
 export interface BackendAttendanceHistoryResponse {
   student_id: string;
   days: BackendAttendanceHistoryDay[];
@@ -29,6 +34,8 @@ interface BackendAttendanceRecord {
   duration_minutes?: number | null;
   checked_in_by: number;
   checked_out_by?: number | null;
+  checked_in_actor?: AttendanceActor | null;
+  checked_out_actor?: AttendanceActor | null;
   device_id: number;
   sessions?: BackendAttendanceSession[] | null;
 }
@@ -94,6 +101,9 @@ interface AttendanceRecord {
   durationMinutes: number | null;
   checkedInBy: number;
   checkedOutBy: number | null;
+  /** Who recorded the day's arrival and pickup (#4761). */
+  checkedInActor: AttendanceActor | null;
+  checkedOutActor: AttendanceActor | null;
   deviceId: number;
   sessions: AttendanceSession[];
   /**
@@ -181,6 +191,8 @@ function mapAttendanceRecord(rec: BackendAttendanceRecord): AttendanceRecord {
     durationMinutes: rec.duration_minutes ?? null,
     checkedInBy: rec.checked_in_by,
     checkedOutBy: rec.checked_out_by ?? null,
+    checkedInActor: parseAttendanceActor(rec.checked_in_actor),
+    checkedOutActor: parseAttendanceActor(rec.checked_out_actor),
     deviceId: rec.device_id,
     sessions,
     checkOutNote: notes.length > 0 ? notes.join(" · ") : null,

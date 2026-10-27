@@ -7,7 +7,7 @@ import (
 	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
 )
 
-// RendererService renders list/record documents to PDF, XLSX, and DOCX files.
+// RendererService renders list/record documents to PDF, XLSX, DOCX, and CSV files.
 type RendererService struct{}
 
 // NewService creates the document renderer.
@@ -39,9 +39,29 @@ func (s *RendererService) Render(doc listrecords.Document, format listrecords.Fo
 			return listrecords.File{}, err
 		}
 		return listrecords.File{Data: data, ContentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", Filename: base + ".xlsx"}, nil
+	case listrecords.FormatCSV:
+		data, err := renderCSV(doc)
+		if err != nil {
+			return listrecords.File{}, err
+		}
+		return listrecords.File{Data: data, ContentType: "text/csv; charset=utf-8", Filename: base + ".csv"}, nil
 	default:
 		return listrecords.File{}, fmt.Errorf("unsupported export format %q", format)
 	}
+}
+
+// RenderLetter renders one letter in the layout of its sender as a PDF
+// (#4669).
+func (s *RendererService) RenderLetter(letter listrecords.Letter, filenameBase string) (listrecords.File, error) {
+	base := safeFilename(filenameBase)
+	if base == "" {
+		base = "schreiben"
+	}
+	data, err := renderLetterPDF(letter)
+	if err != nil {
+		return listrecords.File{}, err
+	}
+	return listrecords.File{Data: data, ContentType: "application/pdf", Filename: base + ".pdf"}, nil
 }
 
 func safeFilename(input string) string {

@@ -70,10 +70,9 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"analytics/core_actions_middleware.go:CoreActionMiddleware":                                               19,
 	"api/active_test_helpers.go:buildActiveTestModule":                                                        31,
-	"api/auth_test_helpers.go:NewAuthTestModule":                                                              28,
+	"api/auth_test_helpers.go:NewAuthTestModule":                                                              25,
 	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).InsertRequestChildOffering": 18,
 	"api/enrollment_booking_repository_test_helpers.go:(EnrollmentBookingFixture).bookingCommandValues":       22,
-	"api/student_owner_http_test_helpers.go:NewStudentHTTPTestResources":                                      19,
 	"api/student_test_helpers.go:newStudentTestModule":                                                        32,
 	"api/timetable_test_helpers.go:NewTimetableTestModule":                                                    27,
 	"cmd/devtools/demo.go:provisionDemoSchool":                                                                18,
@@ -209,13 +208,11 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/architecture/owner_http_rule.go:reviewedOwnerHTTPRule": 51,
 	// ADR 0087.
-	"internal/architecture/policy.go:(*Policy).validate": 16,
-	// ADR 0087.
 	"internal/architecture/policy.go:(*Policy).validateHeader": 16,
 	// ADR 0087.
 	"internal/architecture/policy.go:(*Policy).validateLegacyComposition": 16,
 	// ADR 0087.
-	"internal/architecture/policy.go:(*Policy).validatePackages": 17,
+	"internal/architecture/policy.go:(*Policy).validatePackages": 16,
 	// ADR 0087.
 	"internal/architecture/policy.go:(*Policy).validateReadProjections": 18,
 	// ADR 0087.
@@ -262,21 +259,17 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 23,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 53,
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 18,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 26,
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 25,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentRequestsSeedStep).Run": 16,
-	// ADR 0087.
-	"internal/devtools/seedapi/seed_extras.go:(seedCourseParticipationStep).Run": 39,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_extras.go:(seedStatisticsDemoStep).Run": 19,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_phase_periods.go:seedPhaseSchoolYear": 30,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_planning.go:selectRecurringPlanningInstances": 16,
-	// ADR 0087.
-	"internal/devtools/seedapi/seed_staff_messaging.go:(seedStaffMessagingStep).Run": 21,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_time_tracking.go:(seedTimeTrackingHistoryStep).Run": 35,
 	// ADR 0087.
@@ -288,9 +281,7 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).Seed": 22,
 	// ADR 0087.
-	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedGuardianPayments": 18,
-	// ADR 0087.
-	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedGuardians": 25,
+	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedGuardianPayments": 16,
 	// ADR 0087.
 	"internal/devtools/seedapi/stammdaten.go:(*FixedSeeder).seedStaffAccounts": 29,
 	// ADR 0087.
@@ -327,8 +318,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"internal/testdb/server.go:inspectTestContainer": 18,
 	// ADR 0087.
 	"internal/testdb/template.go:migrationsComplete": 17,
-	// ADR 0087.
-	"middleware/log_redaction.go:RedactFeedToken": 17,
 	// ADR 0087.
 	"observability/sentry_envelope.go:TagSentryEnvelope": 16,
 	// ADR 0087.

@@ -135,10 +135,14 @@ function ParentLoginForm() {
     () => buildParentAuthShellCopy(tAuthShell),
     [tAuthShell],
   );
+  // A session the callback stripped (no usable access token) carries an
+  // empty token and stays on the form. The layout's server snapshot carries
+  // no token at all (#4990, #5005); the server already checked it, so a
+  // signed-in parent opening /login is still sent to the portal.
   const isRedirectingToParent =
     status === "authenticated" &&
     session?.user?.scope === "parent" &&
-    Boolean(session.user.token) &&
+    session.user.token !== "" &&
     session.error === undefined;
   const isSessionSettling =
     status === "loading" ||

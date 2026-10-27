@@ -115,6 +115,7 @@ type EmergencyContactRow struct {
 	PickupNotes        string
 	PhoneNumber        string
 	CanPickup          bool
+	PickupWeekdays     []int
 	IsEmergencyContact bool
 }
 
@@ -186,16 +187,29 @@ type (
 	ArrivalWriteScope interface {
 		SchoolMayWriteClassArrivalExceptions(ctx context.Context) (bool, error)
 	}
+	// DayHintWriteScope applies operations.school_portal_write_scope to the
+	// day hints (#4795).
+	DayHintWriteScope interface {
+		SchoolMayWriteDayHints(ctx context.Context) (bool, error)
+	}
+	// DayHints reads and writes the Lehrkraft's day hints (#4795), People
+	// Directory's dated notes with origin school.
+	DayHints interface {
+		ListSchoolDayHints(ctx context.Context, date calendar.Date, studentIDs []int64) ([]peopledirectory.SchoolDayHint, error)
+		SetSchoolDayHint(ctx context.Context, hint peopledirectory.SetSchoolDayHint) error
+		ClearSchoolDayHint(ctx context.Context, target peopledirectory.ClearSchoolDayHint) error
+	}
 	// ClassTripWriteScope applies operations.school_portal_write_scope to
 	// class trips (#4799).
 	ClassTripWriteScope interface {
 		SchoolMayReportClassTrips(ctx context.Context) (bool, error)
 	}
-	// SchoolWriteScope is operations.school_portal_write_scope for both
-	// writes of moto schule; the root binds one value to both ports.
+	// SchoolWriteScope is operations.school_portal_write_scope for every
+	// write of moto schule; the root binds one value to each port.
 	SchoolWriteScope interface {
 		ArrivalWriteScope
 		ClassTripWriteScope
+		DayHintWriteScope
 	}
 	// ClassTripStatusDays records the status "Klassenfahrt" for children of
 	// one class on the given days: the OGS's own status-day write, which

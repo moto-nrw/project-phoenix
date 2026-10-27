@@ -288,7 +288,7 @@ closed/locked devices.
 1. **Candidates** — `StaffRepository.ListAllStaffAccountIDs`: every staff
    member of the school with an active account and an active tenant mapping.
 2. **Consent** — `FilterOptedIn` per type (`pickup_upcoming`,
-   `pickup_overdue`, `activity_start`, `activity_overdue`,
+   `pickup_overdue`, `activity_start`, `activity_overdue`, `activity_running_over`,
    `my_activity_starting`), which also applies each type's `reminders.*` gate.
    Nobody opted in → the tick ends **before** any reminder is computed, which
    is the normal case and keeps the per-minute cost at six cheap queries.

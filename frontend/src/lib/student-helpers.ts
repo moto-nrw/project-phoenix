@@ -1,7 +1,12 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
+import { schoolClassLabel } from "./school-class-label";
 import type { ClassHandover } from "~/lib/class-handover";
+import {
+  parseAttendanceActor,
+  type AttendanceActor,
+} from "~/lib/attendance-actor";
 import type {
   CompanionExtensionConfirmation,
   StudentCompanion,
@@ -467,6 +472,8 @@ export interface BackendStudent {
   // NOT change day_planning_status; the child stays "expected" until the OGS
   // confirms. Absent when there is no pending absence request for today.
   pending_excused_note?: string;
+  // Hinweise der Lehrkraft für heute (#4795); nur mit Lesezugriff.
+  teacher_hints?: TeacherHint[];
   // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind heute
   // mit der Klasse übergeben, „da“ oder „nicht da“.
   class_handover?: ClassHandover;
@@ -510,6 +517,8 @@ export interface BackendStudent {
   actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
   actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
   actual_pickup_note?: string; // Why the child went home early today (#3324)
+  actual_arrival_by?: AttendanceActor | null; // Who recorded today's arrival (#4761)
+  actual_pickup_by?: AttendanceActor | null; // Who recorded today's pickup (#4761)
   has_full_access?: boolean;
   // Photo (gated by operations.student_photos_enabled). Empty string or
   // undefined when no photo / feature off / no consent — the <Avatar>
@@ -552,6 +561,8 @@ export interface BackendSlimStudent {
   day_planning_reason?: string;
   day_planning_label?: string;
   pending_excused_note?: string;
+  // Hinweise der Lehrkraft für heute (#4795); nur mit Lesezugriff.
+  teacher_hints?: TeacherHint[];
   // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind heute
   // mit der Klasse übergeben, „da“ oder „nicht da“.
   class_handover?: ClassHandover;
@@ -629,6 +640,35 @@ export interface PrivacyConsent {
 // Note: StudentLocation is a simple string type, no separate alias needed
 
 // Frontend types (mapped from backend)
+/**
+ * Hinweis der Lehrkraft für heute an die OGS (#4795), geschrieben in moto
+ * schule für das Kind oder seine ganze Klasse.
+ */
+export interface TeacherHint {
+  body: string;
+  author_name?: string;
+  // Gesetzt, wenn der Hinweis für die ganze Klasse gilt.
+  school_class?: string;
+}
+
+/** Die Zeile, mit der eine OGS-Ansicht einen Hinweis der Lehrkraft zeigt. */
+export function teacherHintText(hint: TeacherHint): string {
+  const author = hint.author_name ? ` ${hint.author_name}` : "";
+  // schoolClassLabel macht aus „3b“ und „Klasse 3b“ beide „Klasse 3b“.
+  const target = hint.school_class
+    ? ` an die ${schoolClassLabel(hint.school_class)}`
+    : "";
+  return `Hinweis der Lehrkraft${author}${target}: ${hint.body}`;
+}
+
+/**
+ * Der React-Schlüssel eines Hinweises. Je Lehrkraft, Kind und Ziel gibt es
+ * einen Hinweis; zwei Lehrkräfte mit demselben Text bleiben getrennt.
+ */
+export function teacherHintKey(hint: TeacherHint): string {
+  return `${hint.school_class ?? ""}|${hint.author_name ?? ""}|${hint.body}`;
+}
+
 export interface Student {
   id: string;
   name: string; // Derived from FirstName + SecondName
@@ -682,6 +722,8 @@ export interface Student {
   // Informational only — the child stays "expected" (day_planning_status
   // unchanged) until an office/admin confirms the request.
   pending_excused_note?: string;
+  // Hinweise der Lehrkraft für heute (#4795); nur mit Lesezugriff.
+  teacher_hints?: TeacherHint[];
   // Übergabe nach dem Unterricht (#4794): die Lehrkraft hat das Kind heute
   // mit der Klasse übergeben, „da“ oder „nicht da“.
   class_handover?: ClassHandover;
@@ -736,6 +778,8 @@ export interface Student {
   actual_arrival_time?: string; // Today's actual arrival time from attendance (HH:MM)
   actual_pickup_time?: string; // Today's actual pickup time from attendance (HH:MM)
   actual_pickup_note?: string; // Why the child went home early today (#3324)
+  actual_arrival_by?: AttendanceActor | null; // Who recorded today's arrival (#4761)
+  actual_pickup_by?: AttendanceActor | null; // Who recorded today's pickup (#4761)
   // Photo + consent (gated server-side by operations.student_photos_enabled
   // setting). photo_url empty/missing is the universal "no photo to show"
   // signal; consumers do NOT need to read the setting separately — when the
@@ -814,6 +858,7 @@ export function mapStudentResponse(
     care_ended: backendStudent.care_ended ?? false,
     care_exit_recorded: backendStudent.care_exit_recorded ?? false,
     pending_excused_note: backendStudent.pending_excused_note,
+    teacher_hints: backendStudent.teacher_hints,
     class_handover: backendStudent.class_handover,
     address_street: backendStudent.address_street,
     address_city: backendStudent.address_city,
@@ -836,6 +881,8 @@ export function mapStudentResponse(
     actual_arrival_time: backendStudent.actual_arrival_time,
     actual_pickup_time: backendStudent.actual_pickup_time,
     actual_pickup_note: backendStudent.actual_pickup_note,
+    actual_arrival_by: parseAttendanceActor(backendStudent.actual_arrival_by),
+    actual_pickup_by: parseAttendanceActor(backendStudent.actual_pickup_by),
     has_full_access: backendStudent.has_full_access,
     photo_url: backendStudent.photo_url,
     photo_consent_given: backendStudent.photo_consent_given,
@@ -892,6 +939,7 @@ export function mapSlimStudentResponse(
     day_planning_reason: backendStudent.day_planning_reason,
     day_planning_label: backendStudent.day_planning_label,
     pending_excused_note: backendStudent.pending_excused_note,
+    teacher_hints: backendStudent.teacher_hints,
     class_handover: backendStudent.class_handover,
     departure_modes: backendStudent.departure_modes,
     departure_label: backendStudent.departure_label,

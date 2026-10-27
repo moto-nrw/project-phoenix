@@ -25,7 +25,9 @@ type AnnouncementFeedItem struct {
 	Options                 []*ParentAnnouncementOption  `json:"options,omitempty"`
 	Children                []*AnnouncementPollChild     `json:"children,omitempty"`
 	Declaration             *AnnouncementFeedDeclaration `json:"-"`
-	Poll                    bool                         `json:"-"`
+	// Survey is set for the carrier of a parent survey (#4781).
+	Survey *SurveySummary `json:"-"`
+	Poll   bool           `json:"-"`
 }
 type AnnouncementFeedScope struct {
 	TenantIDs           []int64

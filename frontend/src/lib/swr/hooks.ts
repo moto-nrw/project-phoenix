@@ -14,7 +14,7 @@
 
 "use client";
 
-// eslint-disable-next-line no-restricted-imports -- this IS the tenant-aware wrapper
+// swr/no-direct-import permits package imports inside this shared wrapper only.
 import useSWR, {
   mutate as swrMutate,
   type SWRConfiguration,
@@ -23,6 +23,7 @@ import useSWR, {
 import { useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
+import { hasSessionAccess } from "~/lib/session-access";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 /**
@@ -45,7 +46,7 @@ function scopedKey(
 /**
  * SWR hook with authentication and tenant cache isolation.
  *
- * Only fetches data when the user is authenticated (has a valid token).
+ * Only fetches data while the session grants access (hasSessionAccess).
  * Cache keys are automatically prefixed with the tenant slug, or with the
  * school tenant and account identity in the school portal, to prevent data
  * from one session appearing in another.
@@ -78,11 +79,11 @@ export function useSWRAuth<T, E = Error>(
   // Determine if we should fetch:
   // - key must be non-null
   // - session must be loaded (not "loading")
-  // - user must have a token
+  // - session must still grant access (no stripped token)
   const shouldFetch =
     key !== null &&
     status !== "loading" &&
-    !!session?.user?.token &&
+    hasSessionAccess(session) &&
     (!isSchoolSession || schoolSession !== null);
 
   return useSWR<T, E>(
@@ -264,7 +265,7 @@ export function useSWRWithId<T, E = Error>(
   const shouldFetch =
     id != null &&
     status !== "loading" &&
-    !!session?.user?.token &&
+    hasSessionAccess(session) &&
     (!isSchoolSession || schoolSession !== null);
 
   return useSWR<T, E>(

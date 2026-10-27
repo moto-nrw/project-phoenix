@@ -84,8 +84,10 @@ type Resource struct {
 type Dependencies struct {
 	// CalendarPeriods and ClosingDays are the School Calendar owner; the
 	// period usage counts come from the planning owners (#3124).
-	CalendarPeriods         CalendarPeriods
-	ClosingDays             ClosingDays
+	CalendarPeriods CalendarPeriods
+	ClosingDays     ClosingDays
+	// Holidays serves the statutory holidays of the school (#4775).
+	Holidays                Holidays
 	CalendarPeriodUsage     CalendarPeriodUsage
 	MaterializationService  timetable.MaterializationCapability
 	InstanceService         timetable.InstanceLifecycleCapability
@@ -94,6 +96,9 @@ type Dependencies struct {
 	// People serves display names and whether a child still attends from
 	// the People Directory (#2732).
 	People People
+	// TeacherHints reads the Lehrkraft's day hints for the roster (#4795);
+	// nil attaches none.
+	TeacherHints TeacherHints
 	// Templates are the Timetable owner's template writes including split
 	// and end (#3424 slice S2); RecurrenceLock is its tenant recurrence gate.
 	// AttendanceCorrections corrects completed blocks and Deviations applies
@@ -106,7 +111,10 @@ type Dependencies struct {
 	TimetableData         timetable.TimetableDataCapability
 	// ConflictDetection serves the conflict warnings, the staff pool and the
 	// shift-coverage probe from the Timetable owner (#3550).
-	ConflictDetection  timetable.ConflictDetectionCapability
+	ConflictDetection timetable.ConflictDetectionCapability
+	// BlockGroups names the OGS groups of the listed blocks for the
+	// Betreuungsplan's group filter (#4766).
+	BlockGroups        timetable.BlockGroupQuery
 	CareDayService     careplan.CareDayQuery
 	UserContextService interface {
 		HasCurrentStaff(context.Context) (bool, error)

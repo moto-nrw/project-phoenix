@@ -50,6 +50,19 @@ describe("TraegerAuthGuard", () => {
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
+  // The layout's server snapshot carries no token (#4991).
+  it("renders the portal for the layout's server snapshot", () => {
+    mockUseSession.mockReturnValue(session({ scope: "org", orgId: 7 }));
+    render(
+      <TraegerAuthGuard>
+        <p>Schulen</p>
+      </TraegerAuthGuard>,
+    );
+
+    expect(screen.getByTestId("shell")).toHaveTextContent("Schulen");
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
   // The session callback keeps scope org after the refresh ended for good;
   // the page must not stay open with stale content.
   it.each([

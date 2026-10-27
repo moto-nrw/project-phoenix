@@ -43,6 +43,12 @@ type PortalService interface {
 	// provided admin transaction when one is in context.
 	GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentService.GuardianSubmitStatus, error)
 
+	// HolidayRegistrationFamily returns the children of the account at the
+	// schools of a Träger whose relationship grants
+	// parent_portal.enrollment.submit, with the guardian's contact data, and
+	// records each child's read in its school's data access log (#4662).
+	HolidayRegistrationFamily(ctx context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error)
+
 	// ListEnrollmentsForAccount returns every enrollment.requests row
 	// where guardian_account_id matches the calling account, joined
 	// to phase + school + child summaries. Used by the dashboard to
@@ -128,6 +134,7 @@ type PortalService interface {
 	// parent_portal.meal_participation.manage permission.
 	ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []parentService.MealWeekday) (string, error)
 	SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error
+	SetMealParticipationWeek(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) (parentService.MealWeekChange, error)
 	ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error
 
 	// SubmitCareExceptionWithReason requires a
@@ -136,6 +143,20 @@ type PortalService interface {
 	SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime *time.Time, reason string) (*parentService.CareException, error)
 	SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, departureMode, reason string, recipientGuardianProfileIDs []int64) (*parentService.PickupChangeRequest, error)
 	ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]parentService.PickupChangeRequest, error)
+	// SubmitPickupChange and EditPickupChange carry the one-day collector and
+	// the signature a collector or walking home alone needs (#4780).
+	SubmitPickupChange(ctx context.Context, accountID, studentID int64, submission parentService.PickupChangeSubmission) (*parentService.PickupChangeRequest, error)
+	EditPickupChange(ctx context.Context, accountID, studentID, requestID int64, edit parentService.PickupChangeEdit) (*parentService.PickupChangeRequest, error)
+	// CreateSignedCareScheduleRequest and EditSignedCareScheduleRequest carry
+	// the signature a weekday the child walks home alone needs (#4780).
+	CreateSignedCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any, signature *parentService.PickupSignatureInput) (*parentService.ChildCareSchedule, error)
+	EditSignedCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64, payload map[string]any, expectedVersion string, signature *parentService.PickupSignatureInput) (*parentService.ChildCareSchedule, error)
+	// Pickup permission requests and the proof of a signed request (#4780).
+	PickupSignatureStatement(ctx context.Context, accountID, studentID int64, input parentService.PickupSignatureStatementInput) (string, error)
+	SubmitPickupPermissionRequest(ctx context.Context, accountID, studentID, guardianProfileID int64, input parentService.PickupPermissionInput) (*parentService.PickupChangeRequest, error)
+	SubmitPickupPermissionRequestWithRelationship(ctx context.Context, accountID, studentID, guardianProfileID int64, input parentService.PickupPermissionInput, relationship parentService.GuardianRelationshipInput) (*parentService.PickupChangeRequest, error)
+	ListPickupPermissionRequests(ctx context.Context, accountID, studentID int64) ([]parentService.PickupChangeRequest, error)
+	PickupRequestProof(ctx context.Context, accountID, studentID, requestID int64) (*parentService.PickupProof, error)
 
 	// ListCareExceptions returns the merged pickup/arrival exceptions for the
 	// child in [from, to], including staff-authored ones (flagged via Source)
@@ -305,6 +326,11 @@ type PortalService interface {
 	// portal-enabled guardian of a child the poll reaches), with the same
 	// stale-version guard as MarkAnnouncementRead plus the answer deadline (#1371).
 	RespondToAnnouncement(ctx context.Context, accountID, announcementID, studentID int64, optionIDs []int64, expectedPublishedAt time.Time) error
+
+	// GetAnnouncementSurvey and SubmitAnnouncementSurvey read and answer the
+	// survey a feed entry carries (#4781): once per guardian account.
+	GetAnnouncementSurvey(ctx context.Context, accountID, announcementID int64) (*parentService.SurveyForm, error)
+	SubmitAnnouncementSurvey(ctx context.Context, accountID, announcementID int64, answers []parentService.SurveyAnswer) error
 	// SubmitDeclaration records one Erklärung for one child (#3430); false =
 	// the same action was already the latest and nothing new was stored.
 	SubmitDeclaration(ctx context.Context, accountID, announcementID int64, in parentService.DeclarationInput, confirm parentService.PasswordConfirmer) (*parentService.DeclarationSubmission, bool, error)

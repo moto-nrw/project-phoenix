@@ -60,6 +60,13 @@ type ActiveSupervisorCreator interface {
 	CreateGroupSupervisor(context.Context, *studentpresence.GroupSupervision) error
 }
 
+// SupervisionRelease ends a staff member's own supervision of a running
+// session while another supervisor stays, and returns the ended
+// supervision (#4763).
+type SupervisionRelease interface {
+	ReleaseSupervision(ctx context.Context, activeGroupID, staffID int64) (studentpresence.GroupSupervision, error)
+}
+
 type SubstitutionDependencies struct {
 	Groups        GroupStore
 	Substitutions GroupHandoverStore
@@ -80,6 +87,9 @@ type SubstitutionDependencies struct {
 	ActiveGroups            studentpresence.SessionRecords
 	ActiveSupervisors       studentpresence.SupervisionRecords
 	ActiveSupervisorCreator ActiveSupervisorCreator
+	// SupervisionRelease serves the hand-over and the release of a running
+	// supervision; nil refuses both.
+	SupervisionRelease SupervisionRelease
 }
 
 type substitutionModule struct {
@@ -318,7 +328,9 @@ func (s *substitutionModule) rejectDuplicate(ctx context.Context, tenantID int64
 
 func (s *substitutionModule) End(ctx context.Context, caller SubstitutionCaller, request EndRequest) error {
 	return s.deps.Runtime.RunInTx(ctx, func(ctx context.Context) error {
-
+		if request.Type == TargetAdditionalSupervision {
+			return s.releaseSupervision(ctx, caller, request.ID)
+		}
 		if request.Type != TargetGroupHandover || request.ID <= 0 {
 			return ErrInvalidTarget
 		}

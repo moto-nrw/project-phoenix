@@ -105,7 +105,7 @@ func (s *settingsService) setParentReportModeLocked(ctx context.Context, key, mo
 	if err != nil {
 		return err
 	}
-	snapshot, err := config.NewSettingsSnapshot(s.registry, s.tenantID(ctx), keys, stored)
+	snapshot, err := s.layeredSnapshot(ctx, s.tenantID(ctx), keys, stored)
 	if err != nil {
 		return err
 	}

@@ -14,6 +14,7 @@ import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
+import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
 import {
   useTenantRoutingModeSafe,
   useTenantSafe,
@@ -110,6 +111,13 @@ function schoolTitleForPath(pathname: string): string | null {
   if (pathname === "/kalender" || pathname === "/school/kalender") {
     return "Kalender";
   }
+  return null;
+}
+
+// Caterer-Portal (ADR 0077): eine Seite, auf dem Caterer-Host ohne
+// /caterer-Präfix.
+function catererTitleForPath(pathname: string): string | null {
+  if (pathname === "/" || pathname === "/caterer") return "Bestellungen";
   return null;
 }
 
@@ -226,7 +234,11 @@ export function Header() {
   // /school-Präfix — getPageTitle kennt nur die Tenant-Pfade und würde den
   // Dashboard-Fallback anzeigen.
   const schoolPageTitle =
-    mode === "school" ? schoolTitleForPath(pathname) : null;
+    mode === "school"
+      ? schoolTitleForPath(pathname)
+      : mode === "caterer"
+        ? catererTitleForPath(pathname)
+        : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
   // Die Seitenhilfe bei den Aktionen. Jedes Portal hat seine eigenen
   // Routen: `/messages` heisst im Personal-Portal etwas anderes als im
@@ -251,7 +263,9 @@ export function Header() {
         ? tParentNav("role")
         : mode === "school"
           ? schoolRoleLabel(userRoles)
-          : getAccountRoleLabel(userRoles, user?.roleIsSystem);
+          : mode === "caterer"
+            ? "Caterer"
+            : getAccountRoleLabel(userRoles, user?.roleIsSystem);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
   // gegen Flackern). Die Höhe bleibt beim Scrollen fest: 48px auf dem Telefon
@@ -413,13 +427,15 @@ export function Header() {
             {/* Desktop actions */}
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />
-              <RefreshButton />
+              {/* Das Caterer-Portal lädt ohne SWR, der Knopf frischte dort
+                  nichts auf. */}
+              {mode !== "caterer" && <RefreshButton />}
             </div>
 
             {/* Mobile actions */}
             <div className="flex items-center space-x-2 lg:hidden">
               <SessionWarning isExpired={isSessionExpired} variant="mobile" />
-              {mode !== "parent" && <RefreshButton />}
+              {mode !== "parent" && mode !== "caterer" && <RefreshButton />}
             </div>
 
             {mode === "teacher" ? <RemindersBell /> : null}
@@ -491,21 +507,24 @@ export function Header() {
 
 /**
  * Enrich a bare referrer URL (e.g. "/ogs-groups") with the last-selected
- * sub-item param from localStorage so the sidebar highlights the correct item
- * when navigating back via breadcrumb link.
+ * sub-item param from the sidebar memory so the sidebar highlights the correct
+ * item when navigating back via breadcrumb link.
  */
-function enrichReferrerWithParam(referrer: string): string {
+function enrichReferrerWithParam(
+  referrer: string,
+  memory: SidebarMemory,
+): string {
   if (globalThis.window === undefined) return referrer;
   if (referrer === "/ogs-groups") {
-    const groupId = localStorage.getItem("sidebar-last-group");
+    const groupId = memory.read("sidebar-last-group");
     if (groupId) return `/ogs-groups?group=${groupId}`;
   }
   if (referrer === "/active-supervisions") {
     // Prefer the precise session key (#2265); the room key is the legacy
     // fallback for state written before session tracking existed.
-    const sessionId = localStorage.getItem("supervision-last-session");
+    const sessionId = memory.read("supervision-last-session");
     if (sessionId) return `/active-supervisions?session=${sessionId}`;
-    const roomId = localStorage.getItem("sidebar-last-room");
+    const roomId = memory.read("sidebar-last-room");
     if (roomId) return `/active-supervisions?room=${roomId}`;
   }
   return referrer;
@@ -547,6 +566,7 @@ function HeaderBreadcrumb({
   activeSupervisionName,
   activeSupervisionIsSharedRoom,
 }: HeaderBreadcrumbProps) {
+  const memory = useSidebarMemory();
   // Gruppierte Navigationsbereiche: Datenverwaltung, Planung, Eltern
   if (sectionBreadcrumb) {
     return <SectionBreadcrumb {...sectionBreadcrumb} />;
@@ -575,7 +595,7 @@ function HeaderBreadcrumb({
     return <ParentChildBreadcrumb childName={pageTitle} />;
   }
 
-  // enrichReferrerWithParam liest localStorage; der Aufruf steht deshalb in
+  // enrichReferrerWithParam liest den Speicher; der Aufruf steht deshalb in
   // den beiden Zweigen, die das Ergebnis auch verwenden, statt auf jedem
   // Render-Pfad zu laufen.
 
@@ -584,7 +604,7 @@ function HeaderBreadcrumb({
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentHistoryBreadcrumb
-        referrer={enrichReferrerWithParam(referrer)}
+        referrer={enrichReferrerWithParam(referrer, memory)}
         breadcrumbLabel={breadcrumbLabel}
         pathname={pathname}
         studentName={studentName ?? "…"}
@@ -643,7 +663,7 @@ function HeaderBreadcrumb({
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentDetailBreadcrumb
-        referrer={enrichReferrerWithParam(referrer)}
+        referrer={enrichReferrerWithParam(referrer, memory)}
         breadcrumbLabel={breadcrumbLabel}
         studentName={studentName ?? "…"}
         subSectionName={subSectionName}

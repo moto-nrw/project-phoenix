@@ -3,6 +3,7 @@ package timetracking
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/require"
@@ -59,4 +60,32 @@ func TestScheduleWireUsesMinutePrecision(t *testing.T) {
 	require.ErrorContains(t, err, "stored start time")
 	_, _, err = modelEntriesToResponseParts([]workforce.WorkTimeModelEntry{{StartTime: "invalid"}}, 1)
 	require.ErrorContains(t, err, "stored start time")
+}
+
+// TestHistoryWireCarriesLaborDays pins the snake_case fields the frontend
+// maps for the ArbZG hints (#4804).
+func TestHistoryWireCarriesLaborDays(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, time.October, 5, 16, 1, 0, 0, time.UTC)
+	raw, err := json.Marshal(workforce.HistoryResponse{LaborDays: []workforce.WorkDayLaborHint{{
+		Date: "2026-10-05", NetMinutes: 370, BreakMinutes: 10, CountedBreakMinutes: 0, RequiredBreakMinutes: 30,
+		IsBreakTooShort: true, IsRunning: true, OverDailyMaxAt: &at, BreakTooShortRequiredMinutes: 45,
+	}}})
+	require.NoError(t, err)
+	var decoded struct {
+		LaborDays []map[string]json.RawMessage `json:"labor_days"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	require.Len(t, decoded.LaborDays, 1)
+	day := decoded.LaborDays[0]
+	require.JSONEq(t, `"2026-10-05"`, string(day["date"]))
+	require.JSONEq(t, "370", string(day["net_minutes"]))
+	require.JSONEq(t, "0", string(day["counted_break_minutes"]))
+	require.JSONEq(t, "30", string(day["required_break_minutes"]))
+	require.JSONEq(t, "true", string(day["is_break_too_short"]))
+	require.JSONEq(t, "false", string(day["is_over_daily_max"]))
+	require.JSONEq(t, "true", string(day["is_running"]))
+	require.JSONEq(t, `"2026-10-05T16:01:00Z"`, string(day["over_daily_max_at"]))
+	require.JSONEq(t, "null", string(day["break_too_short_at"]))
+	require.JSONEq(t, "45", string(day["break_too_short_required_minutes"]))
 }

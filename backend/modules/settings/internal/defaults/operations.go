@@ -5,7 +5,7 @@ import (
 )
 
 func init() {
-	registerDefinitions(operations_init_betreuungstage_0Definitions, operations_init_sitzungsende_1Definitions, operations_init_nach_hause_2Definitions, operations_init_frueh_abgeholt_3Definitions, operations_init_sitzungsbereinigung_4Definitions, operations_init_sehen_und_bearbeiten_5Definitions, operations_init_aufsicht_6Definitions, operations_init_zeiterfassung_7Definitions, operations_init_abwesenheit_8Definitions, operations_init_anwesenheit_erfassen_9Definitions, operations_init_standort_10Definitions, attendanceChannelsDefinitions, groupModeDefinitions, attendanceLimitsDefinitions, studentPhotosDefinitions, childNavigationDefinitions, pickupReviewsDefinitions, birthdayDisplayDefinitions, parentAttendanceDefinitions, staffMessagingDefinitions, parentFeaturesDefinitions)
+	registerDefinitions(operations_init_betreuungstage_0Definitions, operations_init_sitzungsende_1Definitions, operations_init_nach_hause_2Definitions, operations_init_frueh_abgeholt_3Definitions, operations_init_sitzungsbereinigung_4Definitions, operations_init_sehen_und_bearbeiten_5Definitions, operations_init_aufsicht_6Definitions, operations_init_zeiterfassung_7Definitions, operations_init_abwesenheit_8Definitions, operations_init_anwesenheit_erfassen_9Definitions, operations_init_standort_10Definitions, attendanceChannelsDefinitions, groupModeDefinitions, attendanceLimitsDefinitions, studentPhotosDefinitions, childNavigationDefinitions, pickupReviewsDefinitions, birthdayDisplayDefinitions, parentAttendanceDefinitions, staffMessagingDefinitions, parentFeaturesDefinitions, mealDefinitions)
 
 }
 
@@ -359,6 +359,7 @@ var operations_init_aufsicht_6Definitions = []config.Definition{
 				{Label: "Andere Ankunftszeit für eine Klasse an einem Tag", Value: config.SchoolPortalWriteScopeClassArrivalExceptions},
 				{Label: "Klasse nach dem Unterricht an die OGS übergeben", Value: config.SchoolPortalWriteScopeClassHandover},
 				{Label: "Ausflug oder Klassenfahrt der Klasse melden", Value: config.SchoolPortalWriteScopeClassTrips},
+				{Label: "Hinweis für heute an die OGS, für die Klasse oder ein Kind", Value: config.SchoolPortalWriteScopeDayHints},
 			},
 		},
 	},
@@ -501,7 +502,7 @@ var operations_init_standort_10Definitions = []config.Definition{
 	{
 		Key:             config.KeyFederalState,
 		Label:           "Bundesland",
-		Description:     "Bundesland des Standorts. Bestimmt die gesetzlichen Feiertage in der Zeiterfassung (Soll = 0 an Feiertagen).",
+		Description:     "Bundesland der Schule. Danach richten sich die gesetzlichen Feiertage. An Feiertagen gibt es in der Zeiterfassung kein Soll. Der Dienstplan legt keine Schichten an. Regeltermine finden nicht statt.",
 		Type:            config.FieldSelect,
 		Default:         "DE-NW",
 		ReadPermission:  "config:read",
@@ -509,7 +510,9 @@ var operations_init_standort_10Definitions = []config.Definition{
 		Tab:             "operations",
 		Category:        "standort",
 		SortOrder:       45,
-		AccessPolicy:    config.AccessOperatorOnly,
+		// Schools see their state read-only (#4775); changing it shifts the
+		// whole Arbeitszeitkonto, so only operators write it.
+		AccessPolicy: config.AccessOperatorManaged,
 		Options: &config.SelectOptions{
 			Static: []config.SelectOption{
 				{Label: "Baden-Württemberg", Value: "DE-BW"},

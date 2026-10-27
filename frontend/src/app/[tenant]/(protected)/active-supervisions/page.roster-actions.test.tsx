@@ -38,7 +38,7 @@ vi.mock("~/lib/auth-utils", () => ({
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { token: "test-token", id: "7", tenantId: 1 } },
     status: "authenticated",
   })),
 }));
@@ -336,6 +336,14 @@ import MeinRaumPage from "./page";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import {
+  type SidebarMemoryEntry,
+  sidebarMemoryKey,
+} from "~/lib/sidebar-memory";
+
+// The sidebar memory is bound to the school and account of the session
+// (#5000); the mocked session signs in account "7" at school 1.
+const memoryKey = (entry: SidebarMemoryEntry) => sidebarMemoryKey(entry, "1:7");
 
 // Aktionen melden Fehler als Toast oder im Dialog (#2517); der Provider
 // zeigt den Toast echt an.
@@ -407,6 +415,8 @@ describe("MeinRaumPage roster actions", () => {
     navigationMockState.permissions = [];
     window.innerWidth = 800;
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
     primaryRosterRows = [expectedRow];
     global.fetch = vi.fn();
     vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
@@ -764,7 +774,9 @@ describe("MeinRaumPage roster actions", () => {
           screen.queryByRole("button", { name: "Rückgängig" }),
         ).not.toBeInTheDocument(),
       );
-      expect(localStorage.getItem("supervision-last-session")).toBe("2");
+      expect(localStorage.getItem(memoryKey("supervision-last-session"))).toBe(
+        "2",
+      );
     } finally {
       globalThis.sessionStorage.removeItem("timetable-reopenable-instance");
     }

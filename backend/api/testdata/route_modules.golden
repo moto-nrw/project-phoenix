@@ -52,6 +52,7 @@ basis
 	DELETE /api/students/{id}/pickup-notes/{noteId}
 	DELETE /api/students/{id}/purge
 	DELETE /api/students/{id}/status-days/{statusDayId}
+	DELETE /api/surveys/{surveyId}
 	DELETE /api/timetable/closing-days/{id}
 	DELETE /api/timetable/conflict-acks/{fingerprint}
 	DELETE /api/timetable/instances/{id}
@@ -77,6 +78,7 @@ basis
 	DELETE /operator/invitations/{id}
 	DELETE /operator/organizations/{id}
 	DELETE /operator/organizations/{id}/erasure-order
+	DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa
 	DELETE /operator/persons/{id}
 	DELETE /operator/schools/{id}
 	DELETE /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
@@ -84,6 +86,10 @@ basis
 	DELETE /operator/schools/{id}/settings/values/{key}
 	DELETE /traeger/accounts/invitations/{invitationId}
 	DELETE /traeger/accounts/{accountId}
+	DELETE /traeger/contribution-rules/{id}
+	DELETE /traeger/master-data/bank-accounts/{id}
+	DELETE /traeger/master-data/logo
+	DELETE /traeger/settings/values/{key}
 	GET /
 	GET /.well-known/caldav
 	GET /analytics-consent/
@@ -172,6 +178,9 @@ basis
 	GET /api/guardians/{id}/payment
 	GET /api/guardians/{id}/phone-numbers/
 	GET /api/guardians/{id}/students
+	GET /api/holiday-weeks/
+	GET /api/holiday-weeks/{weekId}/participants
+	GET /api/holiday-weeks/{weekId}/participants/export
 	GET /api/import/class-list-entries/template
 	GET /api/import/students/template
 	GET /api/import/teachers/template
@@ -229,6 +238,7 @@ basis
 	GET /api/students/arrival-settings
 	GET /api/students/care-offerings
 	GET /api/students/care-schedule-change-requests/{requestId}
+	GET /api/students/care-schedule-change-requests/{requestId}/proof
 	GET /api/students/care-withdrawals
 	GET /api/students/care-withdrawals/{completionId}/deletion-impact
 	GET /api/students/change-requests
@@ -266,6 +276,13 @@ basis
 	GET /api/students/{id}/status-days
 	GET /api/students/{id}/visit-history
 	GET /api/substitutions/
+	GET /api/surveys/
+	GET /api/surveys/to-answer
+	GET /api/surveys/{surveyId}
+	GET /api/surveys/{surveyId}/form
+	GET /api/surveys/{surveyId}/respondents
+	GET /api/surveys/{surveyId}/results
+	GET /api/surveys/{surveyId}/results/export
 	GET /api/time-tracking/assignments
 	GET /api/time-tracking/closing-days
 	GET /api/time-tracking/holidays
@@ -275,6 +292,7 @@ basis
 	GET /api/timetable/deviations/history
 	GET /api/timetable/exception-conflicts
 	GET /api/timetable/gaps
+	GET /api/timetable/holidays
 	GET /api/timetable/instances/
 	GET /api/timetable/instances/edited-in-window
 	GET /api/timetable/instances/{id}/guardian-notice
@@ -367,11 +385,30 @@ basis
 	GET /public/login-image/{filename}
 	GET /public/request-feed/{token}
 	GET /ready
+	GET /traeger/access-log/
+	GET /traeger/access-log/export
+	GET /traeger/access-log/people
 	GET /traeger/accounts/
+	GET /traeger/billing-runs/
+	GET /traeger/billing-runs/periods
+	GET /traeger/billing-runs/{id}
+	GET /traeger/billing-runs/{id}/documents/{documentID}/letter
+	GET /traeger/billing-runs/{id}/export
+	GET /traeger/contribution-rules/
+	GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 	GET /traeger/holiday-periods/
 	GET /traeger/holiday-periods/{id}
+	GET /traeger/holiday-periods/{id}/registrations
+	GET /traeger/holiday-periods/{id}/registrations/export
+	GET /traeger/holiday-periods/{id}/registrations/{registrationId}
+	GET /traeger/holiday-registrations/{token}
 	GET /traeger/invitations/{token}
+	GET /traeger/master-data/
+	GET /traeger/master-data/logo
+	GET /traeger/number-ranges/
+	GET /traeger/organization/
 	GET /traeger/schools/
+	GET /traeger/settings/schema
 	HEAD /.well-known/caldav
 	HEAD /api/caldav
 	HEAD /api/caldav/*
@@ -505,6 +542,11 @@ basis
 	POST /api/students/{id}/status-days
 	POST /api/substitutions/
 	POST /api/substitutions/end
+	POST /api/surveys/
+	POST /api/surveys/{surveyId}/answers
+	POST /api/surveys/{surveyId}/close
+	POST /api/surveys/{surveyId}/publish
+	POST /api/surveys/{surveyId}/remind
 	POST /api/timetable/betreuungsplan/export
 	POST /api/timetable/closing-days/
 	POST /api/timetable/instances/
@@ -596,8 +638,10 @@ basis
 	POST /operator/operators/{id}/deactivate
 	POST /operator/operators/{id}/reactivate
 	POST /operator/organizations/
+	POST /operator/organizations/test-traeger
 	POST /operator/organizations/{id}/erasure-order
 	POST /operator/organizations/{id}/restore
+	POST /operator/organizations/{id}/sample-children
 	POST /operator/organizations/{id}/traeger-members
 	POST /operator/profile/email-change
 	POST /operator/profile/password
@@ -610,9 +654,27 @@ basis
 	POST /operator/unregistered-tag-scans/{id}/resolve
 	POST /traeger/accounts/invitations
 	POST /traeger/auth/login
+	POST /traeger/auth/mfa/enroll/confirm
+	POST /traeger/auth/mfa/enroll/start
+	POST /traeger/auth/mfa/resend
+	POST /traeger/auth/mfa/verify
+	POST /traeger/billing-runs/
+	POST /traeger/billing-runs/{id}/corrections
+	POST /traeger/billing-runs/{id}/letters
+	POST /traeger/billing-runs/{id}/letters/preview
+	POST /traeger/billing-runs/{id}/release
+	POST /traeger/contribution-rules/
+	POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm
 	POST /traeger/holiday-periods/
 	POST /traeger/holiday-periods/{id}/publish
+	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/cancel
+	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/freeze
+	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen
+	POST /traeger/holiday-quotes/{token}
+	POST /traeger/holiday-registrations/{token}
 	POST /traeger/invitations/{token}/accept
+	POST /traeger/master-data/bank-accounts
+	POST /traeger/school-sessions/
 	PUT /.well-known/caldav
 	PUT /analytics-consent/
 	PUT /api/active/combined/{id}
@@ -665,6 +727,7 @@ basis
 	PUT /api/students/{id}/pickup-notes/{noteId}
 	PUT /api/students/{id}/pickup-schedules
 	PUT /api/students/{id}/privacy-consent
+	PUT /api/surveys/{surveyId}
 	PUT /api/timetable/closing-days/{id}
 	PUT /api/timetable/conflict-acks/{fingerprint}
 	PUT /api/timetable/instances/{id}
@@ -691,7 +754,14 @@ basis
 	PUT /operator/schools/{id}/accounts/{accountId}/mfa/override
 	PUT /operator/schools/{id}/settings/values/{key}
 	PUT /traeger/accounts/{accountId}/roles
+	PUT /traeger/contribution-rules/{id}
 	PUT /traeger/holiday-periods/{id}
+	PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings
+	PUT /traeger/master-data/bank-accounts/{id}
+	PUT /traeger/master-data/contact
+	PUT /traeger/master-data/logo
+	PUT /traeger/number-ranges/{service}
+	PUT /traeger/settings/values/{key}
 	QUERY /.well-known/caldav
 	QUERY /api/caldav
 	QUERY /api/caldav/*
@@ -750,14 +820,32 @@ nfc_anwesenheit
 	PUT /api/iot/session/{sessionId}/supervisors  (#4896 Geräte und PyrePortal)
 
 mittagessen
-	DELETE /api/meal-plan/participants/{studentId}/{date}
+	DELETE /api/meal-caterer/invitations/{invitationId}
+	DELETE /api/meal-caterer/supply
+	DELETE /api/meal-plan/participation/{studentId}/days/{date}
 	DELETE /api/meal-plan/{date}
+	GET /api/meal-caterer/
+	GET /api/meal-caterer/orders/export
 	GET /api/meal-plan/
+	GET /api/meal-plan/orders
+	GET /api/meal-plan/orders/month/export
 	GET /api/meal-plan/participants
 	GET /api/meal-plan/participants/export
 	GET /api/meal-plan/participants/week
 	GET /api/meal-plan/participants/week/export
-	PUT /api/meal-plan/participants/{studentId}/{date}
+	GET /api/meal-plan/participation/{studentId}
+	GET /caterer/invitations/{schoolId}/{token}  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	GET /caterer/orders/export  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	GET /caterer/schools  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	GET /caterer/schools/{schoolId}/orders  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	POST /api/meal-caterer/invitations
+	POST /caterer/auth/login  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	POST /caterer/auth/password-reset  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	POST /caterer/auth/password-reset/confirm  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	POST /caterer/invitations/{schoolId}/{token}/accept  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	POST /caterer/schools/{schoolId}/orders/{orderId}/confirm  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+	PUT /api/meal-plan/participation/{studentId}/days/{date}
+	PUT /api/meal-plan/participation/{studentId}/schedule
 	PUT /api/meal-plan/{date}
 
 eltern_app
@@ -798,6 +886,7 @@ eltern_app
 	GET /parent-news-attachments/{announcementId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent-news-attachments/{announcementId}/{attachmentId}/download  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent-sse/events  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/holiday-registrations/{token}/family  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/calendar  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/calendar/appointments/{appointmentId}/ics  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/calendar/appointments/{appointmentId}/overview  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -817,6 +906,8 @@ eltern_app
 	GET /parent/me/children/{studentId}/meal-participation  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/meal-plan  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/pickup-change-requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/pickup-permission-requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/pickup-requests/{requestId}/proof  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/related-accounts  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/request-sharing-options  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -834,6 +925,7 @@ eltern_app
 	GET /parent/me/news  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/news/unread-count  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/news/{announcementId}/declaration/proof  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/news/{announcementId}/survey  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/notification-preferences/  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/profile  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/push/public-key  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -870,7 +962,9 @@ eltern_app
 	POST /parent/me/children/{studentId}/courses/requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/children/{studentId}/courses/requests/{requestId}/withdraw  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/children/{studentId}/guardians  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup-permission-requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/children/{studentId}/master-data/requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/children/{studentId}/pickup-signature-statement  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/children/{studentId}/related-accounts  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/children/{studentId}/sick-note  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/messages/children/{studentId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -878,6 +972,7 @@ eltern_app
 	POST /parent/me/news/{announcementId}/declaration  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/news/{announcementId}/read  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/news/{announcementId}/respond  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	POST /parent/me/news/{announcementId}/survey  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/push/subscriptions  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	POST /parent/me/pwa-usage  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /api/messages/count-scope
@@ -891,6 +986,7 @@ eltern_app
 	PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/master-data/requests/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/meal-participation  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/meal-participation/weeks/{date}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/meal-participation/{date}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -988,6 +1084,8 @@ online_anmeldung
 unterricht_vormittag
 	DELETE /school/calendar/appointments/{appointmentId}
 	DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
+	DELETE /school/class-day/day-hints/{schoolClass}/{date}
+	DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 	DELETE /school/class-day/handover/{schoolClass}/{date}
 	DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 	DELETE /school/notifications/preferences/
@@ -1034,6 +1132,8 @@ unterricht_vormittag
 	POST /school/supervisions/{id}/students/{student_id}/check-out
 	PUT /school/calendar/appointments/{appointmentId}
 	PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
+	PUT /school/class-day/day-hints/{schoolClass}/{date}
+	PUT /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 	PUT /school/class-day/handover/{schoolClass}/{date}
 	PUT /school/class-day/homework/{schoolClass}/{homeworkId}
 	PUT /school/class-day/morning-attendance/{schoolClass}/{date}
@@ -1093,6 +1193,7 @@ zeiterfassung
 	GET /api/staff/{id}/time-tracking/schedule-targets
 	GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 	GET /api/staff/{id}/vacation/quota
+	GET /api/time-tracking/absence-allowances
 	GET /api/time-tracking/absences
 	GET /api/time-tracking/breaks/{sessionId}
 	GET /api/time-tracking/config

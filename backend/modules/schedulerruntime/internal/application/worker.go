@@ -43,6 +43,7 @@ func validateWorkerDependencies(deps ports.WorkerDependencies) error {
 		{name: "operator ledger retention", value: deps.OperatorRetention.Ledger},
 		{name: "operator account retention", value: deps.OperatorRetention.Accounts},
 		{name: "account retention", value: deps.AccountRetention},
+		{name: "holiday registration retention", value: deps.HolidayRegistrationRetention},
 		{name: "feedback cleanup", value: deps.FeedbackCleaner},
 		{name: "cleanup run ledger", value: deps.CleanupRuns},
 		{name: "export transfer recovery", value: deps.SettleExpiredTransfers},
@@ -64,6 +65,7 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"pwa-usage-cleanup",
 		"staff-message-cleanup",
 		"booking-consistency-audit",
+		"meal-orders",
 		"session-end",
 		"token-cleanup",
 		"staff-document-file-cleanup",
@@ -102,6 +104,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.pwaUsageCleanup), "pwa-usage-cleanup", s.schedulePWAUsageCleanupTask)
 	add(!isNilDependency(s.staffMessageCleanup), "staff-message-cleanup", s.scheduleStaffMessageCleanupTask)
 	add(!isNilDependency(s.bookingConsistency), "booking-consistency-audit", s.scheduleBookingConsistencyAuditTask)
+	add(!isNilDependency(s.mealOrders), "meal-orders", s.scheduleMealOrdersTask)
 	add(!isNilDependency(s.activeService), "session-end", s.scheduleSessionEndTask)
 	add(true, "token-cleanup", s.scheduleTokenCleanupTask)
 	add(!isNilDependency(s.staffDocumentFileCleaner), "staff-document-file-cleanup", s.scheduleStaffDocumentFileCleanupTask)

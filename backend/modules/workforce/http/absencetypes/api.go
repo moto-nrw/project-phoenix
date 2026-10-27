@@ -188,6 +188,26 @@ func toAllowanceSummaryResponse(summary workforce.AbsenceTypeAllowanceSummary) A
 	return response
 }
 
+// OwnAllowanceResponse is one of the staff member's own Kontingente under
+// /api/time-tracking/absence-allowances (#4971): the type's name next to the
+// yearly account the Leitung reads under /{id}/allowances/{staffId}.
+type OwnAllowanceResponse struct {
+	Name string `json:"name"`
+	AllowanceSummaryResponse
+}
+
+// ToOwnAllowanceResponses renders the staff member's own accounts in the
+// wire form of the Leitung's view; the root binds it to /api/time-tracking.
+func ToOwnAllowanceResponses(accounts []workforce.AbsenceTypeAllowanceAccount) []OwnAllowanceResponse {
+	out := make([]OwnAllowanceResponse, 0, len(accounts))
+	for _, account := range accounts {
+		out = append(out, OwnAllowanceResponse{
+			Name: account.AbsenceType.Name, AllowanceSummaryResponse: toAllowanceSummaryResponse(account.Summary),
+		})
+	}
+	return out
+}
+
 func toAbsenceTypeResponse(t workforce.StaffAbsenceType) AbsenceTypeResponse {
 	return AbsenceTypeResponse{
 		ID:               strconv.FormatInt(t.ID, 10),

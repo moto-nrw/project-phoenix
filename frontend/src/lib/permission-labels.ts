@@ -35,10 +35,12 @@ export const resourceLabels: Record<string, string> = {
   student_documents: "Unterlagen der Kinder",
   enrollment_uploads: "Nachweise aus Anmeldungen",
   staff_notices: "Tagesinformationen",
+  surveys: "Umfragen",
   class_day: "Klassenansicht",
   supervision: "Aufsichten",
   display: "Info-Point",
   vacation: "Urlaub",
+  meals: "Mittagessen",
   "*": "Alle Bereiche",
 };
 
@@ -63,9 +65,12 @@ export const actionLabels: Record<string, string> = {
   health: "Gesundheitsdaten",
   legal: "Sorgerecht",
   arrival_exception_write: "Ankunftszeit ändern",
+  orders: "Essenslisten",
+  register: "Anmeldungen ändern",
   all_classes: "Alle Klassen",
   school: "In moto schule",
   class_trip_write: "Ausflug melden",
+  day_hint_write: "Hinweis für die OGS",
   morning_attendance_write: "Anwesenheit am Vormittag eintragen",
   homework_write: "Hausaufgaben eintragen",
   handover_write: "Klasse an die OGS übergeben",
@@ -197,6 +202,12 @@ const permissionDescriptions: Record<string, string> = {
   "config:manage":
     "Alle Einstellungen der Schule ändern, auch Anmeldung, Formulare und Datenschutz",
 
+  // Mittagessen (#3873)
+  "meals:read": "Speiseplan und Essenszahlen ansehen",
+  "meals:manage": "Speiseplan pflegen und den Caterer verwalten",
+  "meals:orders": "Essenslisten mit Namen sehen",
+  "meals:register": "Anmeldung eines Kindes ändern, auch nach der Frist",
+
   // IoT
   "iot:read": "Tablets und Geräte ansehen",
   "iot:update": "Tablets und Geräte bearbeiten",
@@ -248,6 +259,8 @@ const permissionDescriptions: Record<string, string> = {
     "Für eine eigene Klasse an einem Tag eine andere Ankunftszeit eintragen",
   "class_day:class_trip_write":
     "Für eine eigene Klasse einen Ausflug oder eine Klassenfahrt melden",
+  "class_day:day_hint_write":
+    "Für eine eigene Klasse oder eines ihrer Kinder einen Hinweis für heute an die OGS schreiben",
   "class_day:homework_write":
     "Für eine eigene Klasse Hausaufgaben eintragen, ändern und löschen",
   "class_day:morning_attendance_write":
@@ -255,6 +268,12 @@ const permissionDescriptions: Record<string, string> = {
   "class_day:handover_write":
     "Eine eigene Klasse nach dem Unterricht an die OGS übergeben",
   "staff_notices:read": "Tagesinformationen der Leitung lesen und bestätigen",
+
+  // Umfragen (#4781). Beantworten braucht kein Recht; dieses Recht legt an,
+  // veröffentlicht und wertet aus. Auch dann sieht niemand, wer bei einer
+  // anonymen Umfrage was geantwortet hat.
+  "surveys:manage":
+    "Umfragen an Eltern oder das Team anlegen, veröffentlichen und auswerten",
   "supervision:own": "Eigene Aufsichten aus dem Betreuungsplan durchführen",
 
   // Guardian payment data

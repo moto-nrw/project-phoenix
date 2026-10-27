@@ -7,11 +7,12 @@
 # Usage: scripts/test-changed.sh [--fast] [base-ref]   (Default: origin/development)
 #   --fast: nur direkt geänderte Packages plus ihre direkten Importer
 #           (Depth 1 statt transitiver Closure, ohne das Ratchet-Package
-#           ./test). Für die schnelle Fix-Iteration; vor dem Push einmal
-#           ohne --fast laufen lassen.
+#           ./test). Reicht vor dem Push; CI läuft die volle Closure.
 set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
+# shellcheck source=scripts/go-test-workspace.sh
+source "$repo_root/scripts/go-test-workspace.sh"
 
 FAST=false
 if [ "${1:-}" = --fast ]; then
@@ -24,7 +25,7 @@ MB=$(git merge-base HEAD "$BASE")
 
 affected=()
 if [ "$FAST" = true ]; then
-  echo "==> Schnellmodus: nur direkt geänderte Packages und ihre direkten Importer. Vor dem Push ohne --fast laufen lassen."
+  echo "==> Schnellmodus: nur direkt geänderte Packages und ihre direkten Importer. CI läuft die volle Closure."
   affected_output=$(scripts/backend-affected-packages.sh --direct "$BASE")
 else
   affected_output=$(scripts/backend-affected-packages.sh "$BASE")
@@ -61,6 +62,7 @@ if [ "${#affected[@]}" -gt 0 ]; then
     fi
     [ -n "${PHX_TEST_RUN_LOCK:-}" ] && rm -f "$PHX_TEST_RUN_LOCK"
     rm -f "$backend_go_log"
+    if ! cleanup_go_test_workspace && [ "$status" -eq 0 ]; then status=1; fi
     return "$status"
   }
   # Stabile Run-ID pro Worktree (Cache-Hebel) plus Overlap-Lock; Details im
@@ -69,6 +71,7 @@ if [ "${#affected[@]}" -gt 0 ]; then
   # shellcheck source=scripts/test-run-id.sh
   source "$repo_root/scripts/test-run-id.sh"
   trap backend_sweep EXIT
+  prepare_go_test_workspace
   # Handshake einmal pro Lauf statt einmal pro Binary. Jedes Binary liest
   # PHX_TEST_TEMPLATE, die Variable ist Teil des Go-Test-Cache-Keys und muss
   # deshalb zwischen beiden Wrappern uebereinstimmen (test-backend.sh setzt

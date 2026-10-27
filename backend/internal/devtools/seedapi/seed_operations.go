@@ -83,16 +83,16 @@ func seedClosingDay(rt *Runtime, today seedDate) error {
 // and the parents portal open on the current week, and the parents portal
 // also offers the next one (#3894).
 var demoMeals = [10][]map[string]any{
-	{{"dish": "Gemüsenudeln", "note": "Auch ohne Milch erhältlich", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Obst und Wasser"}},
+	{{"dish": "Gemüsenudeln", "note": "Auch ohne Milch erhältlich", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Obst und Wasser", "note": "Obst aus der Region"}},
 	{{"dish": "Hähnchen mit Reis und Erbsen", "note": "Vegetarisch: Gemüsebratling", "allergens": []string{"celery"}}},
-	{{"dish": "Kartoffelsuppe mit Brötchen", "allergens": []string{"gluten", "celery", "milk"}}, {"dish": "Joghurt mit Beeren", "allergens": []string{"milk"}}},
+	{{"dish": "Kartoffelsuppe mit Brötchen", "note": "Vegetarisch", "allergens": []string{"gluten", "celery", "milk"}}, {"dish": "Joghurt mit Beeren", "note": "Laktosefrei auf Nachfrage", "allergens": []string{"milk"}}},
 	{{"dish": "Spaghetti Bolognese", "note": "Vegetarisch: Linsen-Bolognese", "allergens": []string{"gluten", "celery"}}},
-	{{"dish": "Fischstäbchen mit Kartoffelpüree", "note": "Vegetarisch: Gemüsestäbchen", "allergens": []string{"gluten", "fish", "milk"}}, {"dish": "Obst"}},
-	{{"dish": "Milchreis mit Zimt und Kirschen", "allergens": []string{"milk"}}},
-	{{"dish": "Gemüsecurry mit Reis", "allergens": []string{"mustard", "nuts"}}, {"dish": "Apfelschnitze"}},
+	{{"dish": "Fischstäbchen mit Kartoffelpüree", "note": "Vegetarisch: Gemüsestäbchen", "allergens": []string{"gluten", "fish", "milk"}}, {"dish": "Obst", "note": "Äpfel und Bananen"}},
+	{{"dish": "Milchreis mit Zimt und Kirschen", "note": "Laktosefrei auf Nachfrage", "allergens": []string{"milk"}}},
+	{{"dish": "Gemüsecurry mit Reis", "note": "Vegan, leicht scharf", "allergens": []string{"mustard", "nuts"}}, {"dish": "Apfelschnitze", "note": "Aus der Region"}},
 	{{"dish": "Linseneintopf mit Würstchen", "note": "Vegetarisch: ohne Würstchen", "allergens": []string{"celery", "mustard", "sulphites"}}},
-	{{"dish": "Gemüselasagne", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Apfelkompott"}},
-	{{"dish": "Pfannkuchen mit Apfelmus", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Rohkost"}},
+	{{"dish": "Gemüselasagne", "note": "Vegetarisch", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Apfelkompott", "note": "Ohne Zuckerzusatz"}},
+	{{"dish": "Pfannkuchen mit Apfelmus", "note": "Vegetarisch", "allergens": []string{"gluten", "eggs", "milk"}}, {"dish": "Rohkost", "note": "Gurke, Möhre und Paprika"}},
 }
 
 // seedMealPlan publishes lunch for every weekday of the week today lies in
@@ -118,11 +118,11 @@ func seedStaffShift(rt *Runtime, today seedDate, staffID int64) error {
 	if _, err := rt.Client.Post("/api/staff-shifts", map[string]any{
 		"staff_id":      staffID,
 		"date":          shiftDate.Format(seedDateLayout),
-		"start_time":    "08:00",
-		"end_time":      "16:30",
-		"break_minutes": 30,
+		"start_time":    lateDutyStart,
+		"end_time":      lateDutyEnd,
+		"break_minutes": regularDutyBreakMinutes,
 		"shift_type_id": shiftTypes[0].ID,
-		"notes":         "Frühdienst und Gruppenbetreuung",
+		"notes":         "Gruppenbetreuung und Freies Spiel",
 	}); err != nil {
 		return fmt.Errorf("seed staff shift: %w", err)
 	}
@@ -170,4 +170,49 @@ func createDefaultShiftTypes(rt *Runtime) ([]seedShiftType, error) {
 		return nil, fmt.Errorf("parse default shift types response")
 	}
 	return response.Data, nil
+}
+
+// seedDutyTypes are the Schichtarten the Dienstplan shows on its chips: the
+// default for time with the children and the school's own Früh- and
+// Spätdienst.
+type seedDutyTypes struct {
+	care, early, late int64
+}
+
+// seedDutyShiftTypes returns the Schichtarten of the seeded Dienste. The
+// defaults endpoint is idempotent and lists every Schichtart of the school,
+// so the Früh- and Spätdienst are created only when it does not list them
+// yet: the series step and the week step both ask.
+func seedDutyShiftTypes(rt *Runtime) (seedDutyTypes, error) {
+	shiftTypes, err := createDefaultShiftTypes(rt)
+	if err != nil {
+		return seedDutyTypes{}, err
+	}
+	types := seedDutyTypes{care: shiftTypes[0].ID}
+	for _, shiftType := range shiftTypes {
+		switch {
+		case strings.HasPrefix(shiftType.Name, "Betreuung"):
+			types.care = shiftType.ID
+		case shiftType.Name == "Frühdienst":
+			types.early = shiftType.ID
+		case shiftType.Name == "Spätdienst":
+			types.late = shiftType.ID
+		}
+	}
+	for _, missing := range []struct {
+		id          *int64
+		name, color string
+	}{{&types.early, "Frühdienst", "#F59E0B"}, {&types.late, "Spätdienst", "#8B5CF6"}} {
+		if *missing.id != 0 {
+			continue
+		}
+		raw, err := rt.Client.Post("/api/shift-types/", map[string]any{"name": missing.name, "color": missing.color, "is_active": true})
+		if err != nil {
+			return seedDutyTypes{}, fmt.Errorf("create shift type %s: %w", missing.name, err)
+		}
+		if *missing.id, err = decodeSeedEntityID(raw); err != nil || *missing.id == 0 {
+			return seedDutyTypes{}, fmt.Errorf("parse shift type %s response", missing.name)
+		}
+	}
+	return types, nil
 }

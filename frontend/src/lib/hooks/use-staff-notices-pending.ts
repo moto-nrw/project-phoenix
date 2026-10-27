@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { personalStorageOwner } from "~/lib/personal-storage";
 import { hasPermission } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
@@ -33,6 +34,7 @@ export function useStaffNoticesPending() {
       ).length;
     },
     cacheKey: `staff_notices_pending:${tenantSlug ?? ""}:${accountId}`,
+    cacheOwner: personalStorageOwner(session?.user),
     eventNames: [STAFF_NOTICES_REFRESH_EVENT],
     refetchOnFocus: true,
     initialCount: useShellSeed()?.counts.staffNoticesPending,

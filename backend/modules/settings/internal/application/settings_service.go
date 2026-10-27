@@ -12,6 +12,8 @@ type settingsService struct {
 	config.OperatorWritePolicy
 	valueRepo     config.SettingValueRepository
 	auditRepo     config.SettingAuditRepository
+	traegerValues config.TraegerSettingRepository
+	schoolTraeger func(context.Context, []int64) (map[int64]int64, error)
 	schoolStore   config.SchoolSettingsStore
 	runtime       config.Runtime
 	logger        *slog.Logger
@@ -69,7 +71,12 @@ type SettingsServiceDependencies struct {
 	ClassRestrictionGuard func(ctx context.Context) (bool, error)
 	GradeRestrictionGuard func(ctx context.Context) (bool, error)
 	GradeCapGuard         func(ctx context.Context) (int, error)
-	Registry              *config.Registry
+	// TraegerValues is the Träger level every school resolves beneath its
+	// own override (ADR 0086); SchoolTraeger names the Träger of each school
+	// for the batch read over several schools (Organisation & Tenancy).
+	TraegerValues config.TraegerSettingRepository
+	SchoolTraeger func(context.Context, []int64) (map[int64]int64, error)
+	Registry      *config.Registry
 }
 
 // NewSettingsServiceWithDependencies builds the settings service with its
@@ -78,13 +85,22 @@ type SettingsServiceDependencies struct {
 func NewSettingsServiceWithDependencies(dependencies SettingsServiceDependencies) (config.BatchSettingsService, error) {
 	if dependencies.Values == nil || dependencies.Audit == nil || dependencies.Schools == nil || dependencies.Runtime == nil ||
 		dependencies.Logger == nil || dependencies.HomeLayouts == nil || dependencies.ObserveLookup == nil ||
-		dependencies.ClassRestrictionGuard == nil || dependencies.GradeRestrictionGuard == nil || dependencies.GradeCapGuard == nil {
+		dependencies.ClassRestrictionGuard == nil || dependencies.GradeRestrictionGuard == nil || dependencies.GradeCapGuard == nil ||
+		dependencies.TraegerValues == nil || dependencies.SchoolTraeger == nil {
 		return nil, errors.New("settings service: all dependencies are required")
+	}
+	registry := dependencies.Registry
+	if registry == nil {
+		registry = config.DefaultRegistry()
+	}
+	if err := ValidateTraegerLevels(registry); err != nil {
+		return nil, err
 	}
 	return newSettingsService(dependencies.Values, dependencies.Audit, dependencies.Schools, dependencies.Runtime,
 		dependencies.Logger, dependencies.HomeLayouts, config.ServiceOptions{
 			ObserveLookup: dependencies.ObserveLookup, ClassRestrictionGuard: dependencies.ClassRestrictionGuard,
 			GradeRestrictionGuard: dependencies.GradeRestrictionGuard, GradeCapGuard: dependencies.GradeCapGuard,
+			TraegerValues: dependencies.TraegerValues, SchoolTraeger: dependencies.SchoolTraeger,
 		}, dependencies.Registry), nil
 }
 
@@ -106,6 +122,8 @@ func newSettingsService(
 		OperatorWritePolicy:   registry,
 		valueRepo:             valueRepo,
 		auditRepo:             auditRepo,
+		traegerValues:         options.TraegerValues,
+		schoolTraeger:         options.SchoolTraeger,
 		schoolStore:           schoolStore,
 		runtime:               runtime,
 		logger:                logger.With("service", "settings"),

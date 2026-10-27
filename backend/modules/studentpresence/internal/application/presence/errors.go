@@ -34,6 +34,7 @@ var (
 	ErrCannotDeleteActiveGroup          = studentpresence.ErrCannotDeleteActiveGroup
 	ErrStudentAlreadyActive             = studentpresence.ErrStudentAlreadyActive
 	ErrStaffAlreadySupervising          = studentpresence.ErrStaffAlreadySupervising
+	ErrLastSupervisor                   = studentpresence.ErrLastSupervisor
 	ErrStudentsNotPresent               = studentpresence.ErrStudentsNotPresent
 	ErrStudentMoveForbidden             = studentpresence.ErrStudentMoveForbidden
 	ErrInvalidData                      = studentpresence.ErrInvalidData

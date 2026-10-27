@@ -5,12 +5,14 @@ import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 const OPERATOR_HOSTNAME = "operator.localhost:3000";
 const PARENTS_HOSTNAME = "parents.localhost:3000";
 const SCHOOL_HOSTNAME = "schule.localhost:3000";
+const CATERER_HOSTNAME = "caterer.localhost:3000";
 const TRAEGER_HOSTNAME = "traeger.localhost:3000";
 const POSTHOG_KEY = "phc_test_key_123";
 
 vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", SCHOOL_HOSTNAME);
+vi.stubEnv("NEXT_PUBLIC_CATERER_HOSTNAME", CATERER_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", TRAEGER_HOSTNAME);
 vi.stubEnv("TENANT_DOMAIN", "localhost");
 vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", POSTHOG_KEY);
@@ -224,6 +226,9 @@ describe("Turnstile CSP", () => {
     ["school-a.localhost:3000", "/anmeldung/5"],
     ["school-a.localhost:3000", "/school-a/anmeldung/5"],
     ["localhost:3000", "/school-a/anmeldung/5"],
+    // The public holiday registration of a Träger (#4661).
+    [PARENTS_HOSTNAME, "/ferienanmeldung/link-key"],
+    [PARENTS_HOSTNAME, "/parents/ferienanmeldung/link-key"],
   ])("allows only Turnstile scripts and frames on %s%s", (host, path) => {
     const res = proxy(makeRequest(`http://${host}${path}`, host));
     expect(res.status).toBe(200);
@@ -246,6 +251,9 @@ describe("Turnstile CSP", () => {
     ["school-a.localhost:3000", "/anmeldung/status/request/edit"],
     [PARENTS_HOSTNAME, "/anmeldung/school-a/5"],
     [PARENTS_HOSTNAME, "/parents/anmeldung/school-a/5"],
+    [PARENTS_HOSTNAME, "/ferienanmeldung"],
+    [PARENTS_HOSTNAME, "/ferienanmeldung/link-key/extra"],
+    ["school-a.localhost:3000", "/ferienanmeldung/link-key"],
     [SCHOOL_HOSTNAME, "/anmeldung/5"],
     [OPERATOR_HOSTNAME, "/anmeldung/5"],
     ["school-a.localhost:3000", "/api/enrollment/captcha-config/school-a"],
@@ -667,6 +675,108 @@ describe("proxy", () => {
     });
   });
 
+  describe("caterer subdomain (ADR 0077)", () => {
+    const caterer = (path: string) =>
+      proxy(makeRequest(`http://${CATERER_HOSTNAME}${path}`, CATERER_HOSTNAME));
+
+    it("rewrites / to the caterer overview", () => {
+      const res = caterer("/");
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain("/caterer");
+    });
+
+    it("rewrites the login, the reset and the mailed invitation", () => {
+      for (const [path, target] of [
+        ["/login", "/caterer/login"],
+        ["/reset-password?token=abc", "/caterer/reset-password"],
+        ["/einladung/42/abc", "/caterer/einladung/42/abc"],
+      ] as const) {
+        expect(caterer(path).headers.get("x-middleware-rewrite")).toContain(
+          target,
+        );
+      }
+    });
+
+    it("serves only the caterer API on its host", () => {
+      expect(caterer("/api/caterer/schools").status).toBe(200);
+      for (const path of [
+        "/api/auth/session",
+        "/api/parent/auth/session",
+        "/api/school/auth/session",
+        "/api/students",
+      ]) {
+        expect(caterer(path).status).toBe(404);
+      }
+    });
+
+    it("redirects unknown paths to the overview", () => {
+      expect(caterer("/dashboard").headers.get("location")).toContain(
+        `${CATERER_HOSTNAME}/`,
+      );
+    });
+
+    it("sends /caterer on another host to the caterer host", () => {
+      const res = proxy(
+        makeRequest(
+          "http://school-a.localhost:3000/caterer/login",
+          "school-a.localhost:3000",
+        ),
+      );
+
+      expect(res.headers.get("location")).toContain(
+        `${CATERER_HOSTNAME}/login`,
+      );
+    });
+
+    it("keeps the caterer API off the parents host", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/api/caterer/schools`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it.each([
+      ["operator", OPERATOR_HOSTNAME],
+      ["school", SCHOOL_HOSTNAME],
+      ["tenant", "school-a.localhost:3000"],
+      ["bare domain", "localhost:3000"],
+    ])("keeps the caterer API off the %s host", (_, host) => {
+      for (const path of [
+        "/api/caterer",
+        "/api/caterer/schools",
+        "/api/caterer/auth/login",
+      ]) {
+        expect(proxy(makeRequest(`http://${host}${path}`, host)).status).toBe(
+          404,
+        );
+      }
+    });
+
+    it("still serves other API routes on the operator and tenant hosts", () => {
+      expect(
+        proxy(
+          makeRequest(
+            `http://${OPERATOR_HOSTNAME}/api/operator/organizations`,
+            OPERATOR_HOSTNAME,
+          ),
+        ).status,
+      ).toBe(200);
+      expect(
+        proxy(
+          makeRequest(
+            "http://school-a.localhost:3000/api/groups",
+            "school-a.localhost:3000",
+          ),
+        ).status,
+      ).toBe(200);
+    });
+  });
+
   describe("school subdomain (moto schule, #2207)", () => {
     it("rewrites / to /school (the Klassenansicht)", () => {
       const res = proxy(
@@ -895,6 +1005,17 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites /access-log to /traeger/access-log (#4655)", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/access-log`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/access-log",
+      );
+    });
+
     it("rewrites the holiday periods to /traeger/ferien (#4659)", () => {
       for (const path of ["/ferien", "/ferien/neu", "/ferien/12"]) {
         const res = proxy(
@@ -908,10 +1029,52 @@ describe("proxy", () => {
       }
     });
 
+    it("rewrites /einstellungen to /traeger/einstellungen (#4652)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}/einstellungen`,
+          TRAEGER_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/einstellungen",
+      );
+    });
+
+    it("rewrites /beitraege to /traeger/beitraege (#4664)", () => {
+      const res = proxy(
+        makeRequest(`http://${TRAEGER_HOSTNAME}/beitraege`, TRAEGER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/beitraege",
+      );
+    });
+
+    it("rewrites /abrechnung/{id} to /traeger/abrechnung/{id} (#4668)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}/abrechnung/7`,
+          TRAEGER_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/abrechnung/7",
+      );
+    });
+
     it("passes through /api/traeger/* without rewriting", () => {
       for (const path of [
         "/api/traeger/auth/session",
         "/api/traeger/schools",
+        "/api/traeger/access-log/export",
+        "/api/traeger/settings/schema",
+        "/api/traeger/settings/values/parent.news_enabled",
       ]) {
         const res = proxy(
           makeRequest(`http://${TRAEGER_HOSTNAME}${path}`, TRAEGER_HOSTNAME),

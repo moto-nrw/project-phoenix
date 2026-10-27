@@ -4,11 +4,12 @@ package sessiontoken
 // operators and school-portal (Lehrkraft) logins. The school scope (#2207)
 // exists so a challenge started at /school/auth/login can only ever be
 // redeemed for school-scope tokens: the tenant verify endpoint refuses it
-// and vice versa.
+// and vice versa. The org scope (#4651) does the same for the Träger-Portal.
 const (
 	MFAChallengeScopeTenant   = "tenant"
 	MFAChallengeScopePlatform = "platform"
 	MFAChallengeScopeSchool   = "school"
+	MFAChallengeScopeOrg      = "org"
 )
 
 // MFAChallengeClaims represents a short-lived JWT issued after a successful
