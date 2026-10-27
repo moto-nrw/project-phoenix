@@ -4819,6 +4819,7 @@ function enrollmentFormTopic(): HelpTopic {
           "Soll die Antwort später beim Kind stehen? Nehmen Sie einen `Stammdaten-Vorschlag` und wählen Sie `Hinzufügen`.",
           "Zur Auswahl stehen unter anderem `Abholzeiten`, `Ankunftszeiten`, `Erlaubte Heimwege` und `Gesundheitsinformationen`.",
           "Geht es nur um diese eine Anmeldung? Wählen Sie `+ Freie Zusatzfrage`.",
+          "Fragen Sie etwas zum Kind, zum Beispiel zu Allergien oder zum Schwimmen? Schalten Sie bei der Frage `Pro Kind abfragen` ein. Dann beantworten Eltern sie für jedes Kind.",
           "Wollen Sie nur etwas erklären, ohne zu fragen? Wählen Sie `Infotext`.",
         ],
       },
