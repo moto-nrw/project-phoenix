@@ -38,15 +38,14 @@ export interface NavigationHop {
  */
 export const NAVIGATION_HOPS: readonly NavigationHop[] = [
   {
-    path: "/dashboard",
-    linkName: "Home",
-    ready: (page) => page.getByText("Kinder anwesend").first(),
+    path: "/home",
+    linkName: "Startseite",
+    ready: homeReady,
   },
   {
     path: "/students/search",
     linkName: "Alle Kinder",
-    ready: (page) =>
-      page.getByRole("button", { name: /Tippen für mehr Infos/ }).first(),
+    ready: childCardReady,
   },
   {
     path: "/rooms",
@@ -61,13 +60,14 @@ export const NAVIGATION_HOPS: readonly NavigationHop[] = [
   {
     path: "/statistics",
     linkName: "Statistik",
+    group: "Verwaltung",
     ready: (page) =>
       page.getByRole("columnheader", { name: /^Gruppe/ }).first(),
   },
   {
-    path: "/dashboard",
-    linkName: "Home",
-    ready: (page) => page.getByText("Kinder anwesend").first(),
+    path: "/home",
+    linkName: "Startseite",
+    ready: homeReady,
   },
 ];
 
