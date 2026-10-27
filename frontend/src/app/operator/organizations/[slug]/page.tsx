@@ -50,7 +50,10 @@ import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
-import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
+import {
+  AssignTraegerMemberModal,
+  InviteTraegerMemberModal,
+} from "~/app/operator/provisioning/assign-traeger-member-modal";
 import { TraegerErasureOrderSection } from "./traeger-erasure-order-section";
 import { TestTraegerSection } from "./test-traeger-section";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -126,6 +129,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
   const [assignTraegerOpen, setAssignTraegerOpen] = useState(false);
+  const [inviteTraegerOpen, setInviteTraegerOpen] = useState(false);
   const [mfaResetMember, setMfaResetMember] = useState<TraegerMember | null>(
     null,
   );
@@ -515,15 +519,25 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
     if (activeTab === "traeger-buero") {
       return (
-        <Button
-          type="button"
-          variant="primary"
-          size="compact"
-          onClick={() => setAssignTraegerOpen(true)}
-        >
-          <PlusIcon />
-          Person zuordnen
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={() => setAssignTraegerOpen(true)}
+          >
+            Person zuordnen
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="compact"
+            onClick={() => setInviteTraegerOpen(true)}
+          >
+            <PlusIcon />
+            Person einladen
+          </Button>
+        </>
       );
     }
 
@@ -727,7 +741,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
               traegerMembers?.length === 0 ? (
               <SimpleEmptyState
                 title="Noch niemand im Träger-Büro"
-                description="Noch niemand hat Zugang zum Träger-Portal dieses Trägers."
+                description="Noch niemand hat Zugang zum Träger-Portal dieses Trägers. Laden Sie die erste Person oben mit „Person einladen“ ein."
               />
             ) : (
               <DataTable
@@ -773,7 +787,15 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         onClose={() => setAssignTraegerOpen(false)}
         organizationId={organization.id}
         organizationName={organization.name}
-        onAssigned={() => mutateTraegerMembers()}
+        onDone={() => mutateTraegerMembers()}
+      />
+
+      <InviteTraegerMemberModal
+        isOpen={inviteTraegerOpen}
+        onClose={() => setInviteTraegerOpen(false)}
+        organizationId={organization.id}
+        organizationName={organization.name}
+        onDone={() => mutateTraegerMembers()}
       />
 
       {mfaResetMember ? (
