@@ -595,6 +595,29 @@ describe("SWR Hooks", () => {
       expect(matcher("school-a:unrelated")).toBe(false);
     });
 
+    it("applies `update` to every match except the keys named in `except`", () => {
+      // A list that just updated its own entry applies the same change to its
+      // other filter and view variants (#4988); its own entry stays as is.
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+      const update = vi.fn();
+      const { result } = renderHook(() =>
+        useTenantMutateMatching(["request-feed:7:"]),
+      );
+      void result.current({
+        update,
+        except: ['request-feed:7:open:[""]'],
+      });
+
+      const lastCall = mockSwrMutate.mock.calls.at(-1);
+      expect(lastCall?.[1]).toBe(update);
+      expect(lastCall?.[2]).toEqual({ revalidate: false });
+      const matcher = lastCall?.[0] as (key: unknown) => boolean;
+      expect(matcher('school-a:request-feed:7:open:["Mia"]')).toBe(true);
+      expect(matcher('school-a:request-feed:7:history:[""]')).toBe(true);
+      expect(matcher('school-a:request-feed:7:open:[""]')).toBe(false);
+      expect(matcher('school-b:request-feed:7:open:["Mia"]')).toBe(false);
+    });
+
     it("returns the same callback when called with a fresh array of identical contents", () => {
       // Stability guard: callers pass a literal array each render. Without
       // the joined-string dep, useCallback would re-create the function every

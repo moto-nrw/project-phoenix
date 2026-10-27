@@ -185,7 +185,13 @@ export function useTenantMutate() {
  * on the returned function.
  *
  * **Clearing instead of revalidating**: pass `{ clear: true }` to DELETE the
- * matching cache entries without refetching. The global `keepPreviousData`
+ * matching cache entries without refetching.
+ *
+ * **Updating instead of revalidating**: pass `{ update }` to apply the same
+ * change to every matching entry without refetching, e.g. a decided request
+ * removed from every filter and view variant of a list. `except` names
+ * unprefixed keys that stay untouched, e.g. the entry a mounted list just
+ * updated itself. The global `keepPreviousData`
  * config means a plain revalidation still serves the stale entry first
  * (`isLoading` stays false on remount) — when consumers must never act on
  * pre-mutation data, the entry has to go so the next mount loads fresh with
@@ -211,14 +217,24 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
   const joined = substrings.join("|");
 
   return useCallback(
-    (options?: { clear?: boolean }) => {
+    (options?: {
+      clear?: boolean;
+      update?: (current: unknown) => unknown;
+      except?: readonly string[];
+    }) => {
       const needles = joined.length > 0 ? joined.split("|") : [];
+      const kept = new Set(
+        (options?.except ?? []).map((key) => scopedKey(key, slug, null)),
+      );
       const matches = (key: unknown): boolean => {
-        if (typeof key !== "string") return false;
+        if (typeof key !== "string" || kept.has(key)) return false;
         // Limit to the active tenant so cross-tenant caches (multi-tab) stay put.
         if (slug && !key.startsWith(`${slug}:`)) return false;
         return needles.some((needle) => key.includes(needle));
       };
+      if (options?.update) {
+        return swrMutate(matches, options.update, { revalidate: false });
+      }
       if (options?.clear) {
         return swrMutate(matches, undefined, { revalidate: false });
       }

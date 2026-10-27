@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render as renderComponent,
   screen,
@@ -9,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
 import type { StaffAbsenceRequestRow } from "~/lib/staff-api";
-import { SWRConfig, type Cache } from "~/lib/swr";
+import { mutate, SWRConfig, type Cache } from "~/lib/swr";
 import { catalogText } from "~/test/error-catalog-text";
 
 import { StaffAbsenceRequestList } from "./staff-absence-request-list";
@@ -332,6 +333,52 @@ describe("StaffAbsenceRequestList", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Mira Muster")).toBeInTheDocument();
+  });
+
+  it("zeigt einen genehmigten Antrag nach dem Filterwechsel nicht wieder", async () => {
+    // Wie in der App: der Standard-Cache von SWR, kein eigener Provider.
+    const clearDefaultCache = () =>
+      act(async () => {
+        await mutate(() => true, undefined, { revalidate: false });
+      });
+    await clearDefaultCache();
+    const other = { ...openRow(), id: "20", staff_name: "Tom Neu" };
+    listRequests.mockResolvedValue([openRow(), other]);
+    const { rerender } = renderComponent(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+      { wrapper: ({ children }) => <SWRConfig>{children}</SWRConfig> },
+    );
+    await screen.findByText("Tom Neu");
+
+    listRequests.mockResolvedValue([openRow()]);
+    rerender(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "Mira", types: [] }}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.queryByText("Tom Neu")).not.toBeInTheDocument(),
+    );
+
+    approve.mockResolvedValue(undefined);
+    listRequests.mockResolvedValue([other]);
+    await userEvent.click(screen.getByRole("button", { name: "Genehmigen" }));
+    await waitFor(() => expect(approve).toHaveBeenCalledWith("17"));
+
+    rerender(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+    );
+    // Anker: die ungefilterte Liste steht sofort aus dem Cache.
+    expect(screen.getByText("Tom Neu")).toBeInTheDocument();
+    expect(screen.queryByText("Mira Muster")).not.toBeInTheDocument();
+    await clearDefaultCache();
   });
 
   it("meldet eine abgelehnte Genehmigung über den gemeinsamen Fehlerweg", async () => {

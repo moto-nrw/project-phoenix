@@ -40,7 +40,7 @@ import {
   staffAbsenceService,
   type StaffAbsenceRequestRow,
 } from "~/lib/staff-api";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 
 const logger = createLogger({ component: "StaffAbsenceRequestList" });
 
@@ -99,24 +99,33 @@ export function StaffAbsenceRequestList({
   // Hintergrund. Beim Wechsel von Ansicht oder Filter zeigt die Liste ihr
   // Skelett statt der Zeilen des alten Filters; ein Fehlschlag steht mit
   // „Wiederholen“ vor Ort, statt still wiederholt zu werden.
+  const listKey = accountId
+    ? `staff-absence-requests:${accountId}:${view}:${JSON.stringify([
+        filters.search,
+        filters.types,
+      ])}`
+    : null;
   const {
     data: rows,
     error,
     mutate,
   } = useSWRAuth<StaffAbsenceRequestRow[]>(
-    accountId
-      ? `staff-absence-requests:${accountId}:${view}:${JSON.stringify([
-          filters.search,
-          filters.types,
-        ])}`
-      : null,
+    listKey,
     () =>
       staffAbsenceService.listRequests(view, {
         search: filters.search,
         types: filters.types,
       }),
-    { keepPreviousData: false, shouldRetryOnError: false },
+    {
+      keepPreviousData: false,
+      shouldRetryOnError: false,
+      // Jedes erneute Öffnen gleicht ab, auch kurz nach dem letzten Abruf.
+      dedupingInterval: 0,
+    },
   );
+  const updateOtherLists = useTenantMutateMatching([
+    `staff-absence-requests:${accountId}:`,
+  ]);
   const loadError = useSwrLoadError(error, "die Liste der Anträge", () =>
     mutate(),
   );
@@ -150,22 +159,36 @@ export function StaffAbsenceRequestList({
   // aus der Arbeitsliste. Dazu die Zähler auffrischen — Badge der
   // Seitenleiste, Verweis auf der Mitarbeiter-Seite, Reiter der
   // Mitarbeitenden-Detailseite hören auf diese beiden Signale.
-  const afterDecision = useCallback(() => {
-    setRowsAtDecision(rows);
-    void mutate();
-    swrMutate(
-      (key) =>
-        typeof key === "string" && key.includes("staff-pending-absences-"),
-    );
-    dispatchAbsencesRefresh();
-  }, [mutate, rows, swrMutate]);
+  const afterDecision = useCallback(
+    (decidedId?: string) => {
+      setRowsAtDecision(rows);
+      void mutate();
+      // Ein entschiedener Antrag verschwindet auch aus den anderen Ansichten
+      // und Filtern; er käme sonst beim Filterwechsel zurück (#4988). Eine
+      // Rückfrage lässt ihn offen.
+      if (listKey && decidedId)
+        void updateOtherLists({
+          update: (current) =>
+            (current as StaffAbsenceRequestRow[] | undefined)?.filter(
+              (row) => row.id !== decidedId,
+            ),
+          except: [listKey],
+        });
+      swrMutate(
+        (key) =>
+          typeof key === "string" && key.includes("staff-pending-absences-"),
+      );
+      dispatchAbsencesRefresh();
+    },
+    [listKey, mutate, rows, swrMutate, updateOtherLists],
+  );
 
   const handleApprove = async (row: StaffAbsenceRequestRow) => {
     setBusyId(row.id);
     try {
       await staffAbsenceService.approve(row.id);
       toast.success("Der Antrag ist genehmigt.");
-      afterDecision();
+      afterDecision(row.id);
     } catch (err) {
       logger.error("absence_approve_failed", {
         absence_id: row.id,
@@ -282,7 +305,7 @@ export function StaffAbsenceRequestList({
             absence={denyModal}
             onClose={() => setDenyModal(null)}
             onDenied={() => {
-              afterDecision();
+              afterDecision(denyModal.id);
               setDenyModal(null);
             }}
           />

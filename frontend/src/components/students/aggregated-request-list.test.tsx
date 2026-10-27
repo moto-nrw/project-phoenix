@@ -23,7 +23,7 @@ import {
 } from "~/lib/change-request-list-api";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import { SWRConfig, type Cache } from "~/lib/swr";
+import { mutate, SWRConfig, type Cache } from "~/lib/swr";
 
 import {
   useMergedRequestFeed,
@@ -163,6 +163,22 @@ function providersWith(cache: Cache) {
 
 const render = (ui: React.ReactNode) =>
   renderComponent(ui, { wrapper: providersWith(new Map()) });
+
+/** Der Standard-Cache von SWR, wie ihn die App nutzt. */
+function DefaultCacheProviders({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <ToastProvider>
+      <SWRConfig value={{ dedupingInterval: 0 }}>{children}</SWRConfig>
+    </ToastProvider>
+  );
+}
+
+const clearDefaultCache = () =>
+  act(async () => {
+    await mutate(() => true, undefined, { revalidate: false });
+  });
 
 /** Rendert mit einem Cache, den ein späterer Render wiederfindet. */
 const renderWithCache = (ui: React.ReactNode, cache: Cache) =>
@@ -1392,6 +1408,94 @@ describe("AggregatedRequestList", () => {
     ).toBeVisible();
     expect(screen.getByText("excused-item-4")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
+  });
+
+  it("zeigt eine entschiedene Anfrage nach dem Filterwechsel nicht wieder", async () => {
+    // Ungefiltert laden, nach „Mia“ filtern, dort entscheiden, Filter wieder
+    // löschen: die ungefilterte Liste im Cache darf die Anfrage nicht mehr
+    // zeigen, auch nicht für den Moment bis zum Abgleich (#4988).
+    // Wie in der App: der Standard-Cache von SWR, kein eigener Provider.
+    await clearDefaultCache();
+    mockListOpen.mockResolvedValue({
+      items: [openItem("master_data", "1"), openItem("excused", "4")],
+    });
+    const { rerender } = renderComponent(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      { wrapper: DefaultCacheProviders },
+    );
+    await screen.findByText("excused-item-4");
+
+    mockListOpen.mockResolvedValue({ items: [openItem("master_data", "1")] });
+    const filtered = { ...NO_FILTERS, search: "Mia" };
+    rerender(<AggregatedRequestList view="open" filters={filtered} />);
+    await waitFor(() =>
+      expect(screen.queryByText("excused-item-4")).not.toBeInTheDocument(),
+    );
+
+    // Der Server kennt die Anfrage danach nicht mehr als offen.
+    mockListOpen.mockResolvedValue({ items: [openItem("excused", "4")] });
+    fireEvent.click(screen.getByText("master-item-1"));
+
+    rerender(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    expect(screen.queryByText("master-item-1")).not.toBeInTheDocument();
+    expect(await screen.findByText("excused-item-4")).toBeInTheDocument();
+    expect(screen.queryByText("master-item-1")).not.toBeInTheDocument();
+    await clearDefaultCache();
+  });
+
+  it("verwirft beim Zurückkehren keinen laufenden Abgleich durch Nachladen", async () => {
+    // Liste mit weiterer Seite laden, Abgleich starten, Seite verlassen und
+    // während des Abgleichs zurückkehren und nachladen wollen: die frische
+    // Antwort des Abgleichs muss stehen bleiben (#4988).
+    const firstPage = Array.from({ length: 25 }, (_, index) =>
+      stampedItem(
+        "excused",
+        `alt-${index + 1}`,
+        `2026-08-29T09:${String(index).padStart(2, "0")}:00Z`,
+      ),
+    );
+    mockListOpen.mockResolvedValueOnce({
+      items: firstPage,
+      next_cursor: "cursor-1",
+    });
+    const { rerender } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+    await screen.findByText("excused-item-alt-1");
+
+    let resolveRefresh!: (value: { items: never[] }) => void;
+    mockListOpen.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }) as never,
+    );
+    mockListOpen.mockResolvedValue({
+      items: [
+        stampedItem("excused", "alt-26", "2026-08-28T09:00:00Z"),
+      ] as never[],
+    });
+    act(() => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(2));
+    // Seite verlassen und zurückkehren; der Cache bleibt wie in der App.
+    rerender(<div />);
+    rerender(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    // Anker: die Liste steht aus dem Cache.
+    expect(screen.getByText("excused-item-alt-1")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Weitere Einträge laden|Wird geladen…)$/,
+      }),
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      resolveRefresh({ items: [openItem("excused", "frisch")] });
+    });
+
+    expect(await screen.findByText("excused-item-frisch")).toBeInTheDocument();
+    expect(screen.queryByText("excused-item-alt-1")).not.toBeInTheDocument();
   });
 
   it("meldet das fehlende Recht über den Code, nicht über den Backend-Satz", async () => {
