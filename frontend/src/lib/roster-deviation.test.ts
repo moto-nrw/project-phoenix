@@ -88,6 +88,21 @@ describe("selection helpers", () => {
         schoolClasses: ["1a", "1b"],
       }),
     ).toBe("Nur Kinder der Klassen 1a und 1b");
+    // Schools that name their classes „Klasse 1b“ get no double word.
+    expect(
+      describeSelectionFilter({
+        offeringIds: ["3"],
+        gradeLevels: [],
+        schoolClasses: ["Klasse 1b"],
+      }),
+    ).toBe("Nur Kinder der Klasse 1b");
+    expect(
+      describeSelectionFilter({
+        offeringIds: ["3"],
+        gradeLevels: [],
+        schoolClasses: ["Klasse 1a", "Klasse 1b"],
+      }),
+    ).toBe("Nur Kinder der Klassen 1a und 1b");
     expect(
       describeSelectionFilter({
         offeringIds: ["3"],

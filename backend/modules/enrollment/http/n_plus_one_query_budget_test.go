@@ -220,6 +220,8 @@ func TestOfferingWeekdayBookingsListsTheBookedWeekdays(t *testing.T) {
 	assert.Equal(t, source.Name, bookings[0].OfferingName)
 	assert.Equal(t, studentID, bookings[0].StudentID)
 	assert.Equal(t, []int{1}, bookings[0].Weekdays, "the booking plans Monday")
+	assert.Equal(t, source.CountsAsCare, bookings[0].CountsAsCare, "the catalog flags travel with the booking")
+	assert.Equal(t, source.IncludesLunch, bookings[0].IncludesLunch)
 }
 
 func TestOfferingWeekdayBookingsQueryBudget(t *testing.T) {

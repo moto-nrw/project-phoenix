@@ -84,11 +84,16 @@ func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64
 	if err != nil {
 		return nil, err
 	}
+	kinds := make(map[int64]timetable.RosterOfferingKind, len(templates))
+	for _, template := range templates {
+		kinds[template.ID] = timetable.RosterOfferingKindFor(template.Type, template.ListKind)
+	}
 	for _, templateID := range reviewed {
 		roster, found := rosters[templateID]
 		if !found {
 			continue
 		}
+		roster.OfferingKind = kinds[templateID]
 		if deviation := timetable.DetectRosterDeviation(roster, bookings); deviation != nil {
 			result = append(result, rosterDeviationResponseFrom(templateID, deviation))
 		}

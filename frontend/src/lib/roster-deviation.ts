@@ -183,9 +183,13 @@ export function deviationSelection(
 /** One line naming which children of the offering the series takes. */
 export function describeSelectionFilter(selection: OfferingSelection): string {
   if (selection.schoolClasses.length > 0) {
-    return selection.schoolClasses.length === 1
-      ? `Nur Kinder der Klasse ${selection.schoolClasses[0]}`
-      : `Nur Kinder der Klassen ${joinNames(selection.schoolClasses)}`;
+    // Some schools store the class as „Klasse 1b“; the word stands once.
+    const classes = selection.schoolClasses.map((schoolClass) =>
+      schoolClass.trim().replace(/^klasse\s+/i, ""),
+    );
+    return classes.length === 1
+      ? `Nur Kinder der Klasse ${classes[0]}`
+      : `Nur Kinder der Klassen ${joinNames(classes)}`;
   }
   if (selection.gradeLevels.length > 0) {
     const grades = [...selection.gradeLevels].sort((a, b) => a - b).map(String);

@@ -175,3 +175,56 @@ func TestPreviewOfferingSource(t *testing.T) {
 		{Weekday: 3, Added: []int64{2001}, Removed: []int64{1002, 1003, 1004}, KeptCount: 1},
 	}, changes)
 }
+
+// TestDetectRosterDeviationOfferingKind: a Randstunde holding the whole class
+// matches every offering of the class. The lunch must not explain a care
+// block, and a Mensa list takes the lunch offering.
+func TestDetectRosterDeviationOfferingKind(t *testing.T) {
+	t.Parallel()
+	const lunchID = int64(303)
+	class := studentRange(1001, 20)
+	bookings := []timetable.OfferingWeekdayBooking{}
+	for _, studentID := range class {
+		lunch := booking(lunchID, "Mittagessen", studentID, "Klasse 1b", 1, 2, 3, 4, 5)
+		lunch.IncludesLunch = true
+		bookings = append(bookings, lunch)
+	}
+	for _, studentID := range class[:6] {
+		care := booking(randstundeID, "Kurzbetreuung", studentID, "Klasse 1b", 1, 2, 3, 4, 5)
+		care.CountsAsCare = true
+		bookings = append(bookings, care)
+	}
+	mensa := "mensa"
+	edgeHours := "edge_hours"
+
+	t.Run("care block ignores the lunch", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1, 2, 3, 4, 5}, class, "Klasse 1b")
+		roster.OfferingKind = timetable.RosterOfferingKindFor(timetable.GroupTypeCare, &edgeHours)
+
+		deviation := timetable.DetectRosterDeviation(roster, bookings)
+
+		require.NotNil(t, deviation)
+		assert.Equal(t, randstundeID, deviation.Offering.ID)
+		assert.Equal(t, 14, deviation.UnbookedCount)
+		assert.Len(t, deviation.Candidates, 1)
+	})
+
+	t.Run("mensa list takes the lunch", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1, 2, 3, 4, 5}, append(class[:18:18], 9001, 9002), "Klasse 1b")
+		roster.OfferingKind = timetable.RosterOfferingKindFor(timetable.GroupTypeCare, &mensa)
+
+		deviation := timetable.DetectRosterDeviation(roster, bookings)
+
+		require.NotNil(t, deviation)
+		assert.Equal(t, lunchID, deviation.Offering.ID)
+		assert.Equal(t, 2, deviation.MissingCount)
+	})
+
+	t.Run("kind of an AG and an external block", func(t *testing.T) {
+		t.Parallel()
+		assert.Equal(t, timetable.RosterOfferingCourse, timetable.RosterOfferingKindFor(timetable.GroupTypeActivity, nil))
+		assert.Equal(t, timetable.RosterOfferingAny, timetable.RosterOfferingKindFor(timetable.GroupTypeExternal, nil))
+	})
+}

@@ -133,11 +133,14 @@ func createClassStudents(t *testing.T, db *bun.DB, class string, count int) []in
 	return ids
 }
 
+// rosterReviewBookings books care offerings: the Regeltermine of these tests
+// are care blocks, which only care offerings can explain.
 func rosterReviewBookings(offeringID int64, name, class string, studentIDs []int64, weekdays ...int) []timetableModule.OfferingWeekdayBooking {
 	bookings := make([]timetableModule.OfferingWeekdayBooking, 0, len(studentIDs))
 	for _, studentID := range studentIDs {
 		bookings = append(bookings, timetableModule.OfferingWeekdayBooking{
 			OfferingID: offeringID, OfferingName: name, StudentID: studentID, SchoolClass: class, Weekdays: weekdays,
+			CountsAsCare: true,
 		})
 	}
 	return bookings

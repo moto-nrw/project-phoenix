@@ -46,6 +46,9 @@ type OfferingWeekdayBooking struct {
 	// the class carries none.
 	GradeLevel *int
 	Weekdays   []int
+	// CountsAsCare and IncludesLunch are the offering's catalog flags.
+	CountsAsCare  bool
+	IncludesLunch bool
 }
 
 // OfferingSourceOption is one selectable Betreuungsangebot of the editor with

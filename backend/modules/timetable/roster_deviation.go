@@ -16,6 +16,50 @@ const (
 	RosterDeviationMinChildren = 3
 )
 
+// RosterOfferingKind names which offerings can stand behind the children of
+// a Regeltermin. A Regeltermin that holds a whole class matches every offering
+// of that class; the kind keeps a Randstunde from being explained by the
+// lunch or a course.
+type RosterOfferingKind int
+
+const (
+	// RosterOfferingAny admits every offering.
+	RosterOfferingAny RosterOfferingKind = iota
+	// RosterOfferingCare admits offerings that count as care.
+	RosterOfferingCare
+	// RosterOfferingLunch admits offerings with lunch (Mensa lists).
+	RosterOfferingLunch
+	// RosterOfferingCourse admits offerings that are neither care nor lunch.
+	RosterOfferingCourse
+)
+
+// RosterOfferingKindFor derives the kind from the Regeltermin's type and list
+// kind: a Mensa list takes lunch offerings, any other care block care
+// offerings, an AG course offerings; everything else takes any offering.
+func RosterOfferingKindFor(templateType string, listKind *string) RosterOfferingKind {
+	switch {
+	case templateType == GroupTypeCare && listKind != nil && *listKind == "mensa":
+		return RosterOfferingLunch
+	case templateType == GroupTypeCare:
+		return RosterOfferingCare
+	case templateType == GroupTypeActivity:
+		return RosterOfferingCourse
+	}
+	return RosterOfferingAny
+}
+
+func (kind RosterOfferingKind) admits(booking OfferingWeekdayBooking) bool {
+	switch kind {
+	case RosterOfferingCare:
+		return booking.CountsAsCare
+	case RosterOfferingLunch:
+		return booking.IncludesLunch
+	case RosterOfferingCourse:
+		return !booking.CountsAsCare && !booking.IncludesLunch
+	}
+	return true
+}
+
 // RosterDeviation is a detected deviation of a Regeltermin from the bookings
 // of an offering that obviously stands behind its roster.
 type RosterDeviation struct {
@@ -110,7 +154,7 @@ func rosterDeviationCandidates(roster TemplateFutureRoster, planned map[rosterSl
 func bookedSlotsByOffering(roster TemplateFutureRoster, bookings []OfferingWeekdayBooking) map[int64]*deviationCandidate {
 	byOffering := make(map[int64]*deviationCandidate)
 	for _, booking := range bookings {
-		if !bookingInTargetCohort(roster, booking) {
+		if !roster.OfferingKind.admits(booking) || !bookingInTargetCohort(roster, booking) {
 			continue
 		}
 		candidate := byOffering[booking.OfferingID]

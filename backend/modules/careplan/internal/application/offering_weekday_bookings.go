@@ -83,12 +83,14 @@ func collectOfferingWeekdayBookings(
 		}
 		index[key] = len(result)
 		result = append(result, careplan.OfferingWeekdayBooking{
-			OfferingID:   offering.ID,
-			OfferingName: offering.Name,
-			StudentID:    child.StudentID,
-			SchoolClass:  child.SchoolClass,
-			GradeLevel:   child.GradeLevel,
-			Weekdays:     weekdays,
+			OfferingID:    offering.ID,
+			OfferingName:  offering.Name,
+			StudentID:     child.StudentID,
+			SchoolClass:   child.SchoolClass,
+			GradeLevel:    child.GradeLevel,
+			Weekdays:      weekdays,
+			CountsAsCare:  offering.CountsAsCare,
+			IncludesLunch: offering.IncludesLunch,
 		})
 	}
 	return result

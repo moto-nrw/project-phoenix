@@ -49,6 +49,9 @@ type TemplateFutureRoster struct {
 	// every target is a Klasse respectively a Jahrgang; empty otherwise.
 	TargetSchoolClasses []string
 	TargetGradeLevels   []int
+	// OfferingKind restricts which offerings may explain the roster; the
+	// zero value admits every offering.
+	OfferingKind RosterOfferingKind
 }
 
 // TemplateSeriesSegment is one segment of a split series.

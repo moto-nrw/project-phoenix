@@ -116,4 +116,8 @@ type OfferingWeekdayBooking struct {
 	SchoolClass  string
 	GradeLevel   *int16
 	Weekdays     []int
+	// CountsAsCare and IncludesLunch are the offering's catalog flags; they
+	// tell care blocks, Mensa lists and courses apart.
+	CountsAsCare  bool
+	IncludesLunch bool
 }
