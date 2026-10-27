@@ -159,7 +159,6 @@ func NewPreferenceService(
 	db *bun.DB,
 	accountTenants GuardianSchools,
 	permissions PermissionMatch,
-	opts ...PreferenceOption,
 ) PreferenceService {
 	service := &preferenceService{
 		consent:        consent,
@@ -168,9 +167,9 @@ func NewPreferenceService(
 		accountTenants: accountTenants,
 		permissions:    permissions,
 	}
-	for _, opt := range opts {
-		opt(service)
-	}
+	// Identity & Access answers the guardian schools and the account
+	// permissions alike: push types with a Permission need the latter (#4791).
+	service.accountPermissions, _ = accountTenants.(AccountPermissions)
 	return service
 }
 

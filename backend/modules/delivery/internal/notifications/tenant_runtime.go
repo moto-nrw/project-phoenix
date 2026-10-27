@@ -65,16 +65,11 @@ func NewTenantAbsenceNotifier(runtime tenant.UnitOfWork, notifier Service, recip
 
 // NewTenantPreferenceService is NewPreferenceService over the tenant unit of
 // work, with the guardian-portal and e-mail collaborators required.
-func NewTenantPreferenceService(runtime tenant.UnitOfWork, consent ConsentStore, settings PreferenceSettings, db *bun.DB, accountTenants GuardianSchools, permissions PermissionMatch, opts ...PreferenceOption) (PreferenceService, error) {
+func NewTenantPreferenceService(runtime tenant.UnitOfWork, consent ConsentStore, settings PreferenceSettings, db *bun.DB, accountTenants GuardianSchools, permissions PermissionMatch) (PreferenceService, error) {
 	if err := requireTenantRuntime("notification preferences", runtime, consent != nil && settings != nil && db != nil && accountTenants != nil && permissions != nil); err != nil {
 		return nil, err
 	}
-	service := NewPreferenceService(consent, settings, db, accountTenants, permissions, opts...).(*preferenceService)
-	// Identity & Access answers the guardian schools and the account
-	// permissions alike: push types with a Permission need the latter (#4791).
-	if reader, ok := accountTenants.(AccountPermissions); ok && service.accountPermissions == nil {
-		service.accountPermissions = reader
-	}
+	service := NewPreferenceService(consent, settings, db, accountTenants, permissions).(*preferenceService)
 	service.tenantRuntime = &runtime
 	return service, nil
 }

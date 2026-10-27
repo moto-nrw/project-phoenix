@@ -15,6 +15,9 @@ const (
 	// windows last an hour or a day, so a replay within a minute only counts
 	// another attempt and keeps the demo visitor waiting.
 	seedSubmissionRateLimited = "enrollment.submission_rate_limited"
+	// seedCaptchaFailed is the refusal of the demo server's real Turnstile
+	// key for the seeder's test token.
+	seedCaptchaFailed = "enrollment.captcha_failed"
 )
 
 // retryingAdapter covers every HTTP operation the seed workflow performs,

@@ -37,7 +37,13 @@ func (f fakeSchoolOffice) SchoolOfficeAccountIDs(context.Context) ([]int64, erro
 	return f.ids, f.err
 }
 
+// fakeAccountPermissions answers the guardian schools (none) and the
+// account permissions, as Identity & Access does.
 type fakeAccountPermissions map[int64][]string
+
+func (fakeAccountPermissions) ListGuardianSchoolIDs(context.Context, int64) ([]int64, error) {
+	return nil, nil
+}
 
 func (f fakeAccountPermissions) FindEffectivePermissionNamesByAccountIDsForTenant(_ context.Context, ids []int64, _ int64) (map[int64][]string, error) {
 	out := make(map[int64][]string, len(ids))
@@ -114,11 +120,10 @@ func TestDefaultOnTypeIsOfferedToTheOfficeOnly(t *testing.T) {
 	t.Parallel()
 	ctx := tenant.WithTenantID(context.Background(), unreportedTenant)
 	repo := &fakePreferenceRepo{}
-	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission,
-		notifications.WithAccountPermissions(fakeAccountPermissions{
-			unreportedOffice:  {permissions.ClassDayRead, permissions.ClassDayAllClasses},
-			unreportedTeacher: {permissions.ClassDayRead},
-		}))
+	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, fakeAccountPermissions{
+		unreportedOffice:  {permissions.ClassDayRead, permissions.ClassDayAllClasses},
+		unreportedTeacher: {permissions.ClassDayRead},
+	}, securityruntime.HasPermission)
 
 	enabled := func(accountID int64) (bool, bool) {
 		overview, err := svc.GetForAccount(ctx, accountID, notifications.PortalSchool)

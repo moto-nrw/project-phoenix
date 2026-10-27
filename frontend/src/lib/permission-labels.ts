@@ -75,6 +75,7 @@ export const actionLabels: Record<string, string> = {
   homework_write: "Hausaufgaben eintragen",
   handover_write: "Klasse an die OGS übergeben",
   parent_letter_write: "Elternbriefe an die Klasse",
+  absence_report_write: "Meldung nachtragen",
   "*": "Alle",
 };
 

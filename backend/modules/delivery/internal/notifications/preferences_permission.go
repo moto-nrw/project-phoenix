@@ -13,16 +13,6 @@ type AccountPermissions interface {
 	FindEffectivePermissionNamesByAccountIDsForTenant(ctx context.Context, accountIDs []int64, tenantID int64) (map[int64][]string, error)
 }
 
-// PreferenceOption configures optional collaborators of the preference
-// service.
-type PreferenceOption = func(*preferenceService)
-
-// WithAccountPermissions lets the preference service offer the push types
-// that need a permission to its holders (#4791).
-func WithAccountPermissions(reader AccountPermissions) PreferenceOption {
-	return func(s *preferenceService) { s.accountPermissions = reader }
-}
-
 // offeredTypes is the catalogue of one portal the account may decide: the
 // push types with a Permission only when it holds it.
 func (s *preferenceService) offeredTypes(ctx context.Context, accountID int64, portal string) ([]TypeDefinition, error) {
