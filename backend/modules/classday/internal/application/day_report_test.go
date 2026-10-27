@@ -39,6 +39,10 @@ func (f fakeDayRosters) ClassRosterDay(context.Context, string, calendar.Date) (
 	return f.roster, nil
 }
 
+func (f fakeDayRosters) SchoolRosterDay(ctx context.Context, date calendar.Date) (*DayRoster, error) {
+	return f.ClassRosterDay(ctx, "", date)
+}
+
 // fakeClassDayStatusDays serves fixed status-day rows.
 type fakeClassDayStatusDays struct {
 	entries []StatusDayEntry
@@ -88,8 +92,23 @@ func (failingCompanions) ListLinksForStudents(context.Context, []int64) (map[int
 // ClassDayViewSeenSince from the captured class day views, mirroring the real
 // dedupe semantics (actor + school_class + date metadata).
 type fakeClassDayAccessLog struct {
-	views  []AccessRecord
-	sheets []AccessRecord
+	views       []AccessRecord
+	sheets      []AccessRecord
+	schoolViews []AccessRecord
+}
+
+func (f *fakeClassDayAccessLog) SchoolDayViewSeenSince(_ context.Context, actorAccountID int64, date string, _ time.Time) (bool, error) {
+	for _, entry := range f.schoolViews {
+		if entry.ActorAccountID == actorAccountID && fmt.Sprint(entry.Metadata["date"]) == date {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (f *fakeClassDayAccessLog) RecordSchoolDayView(_ context.Context, entry AccessRecord) error {
+	f.schoolViews = append(f.schoolViews, entry)
+	return nil
 }
 
 func (f *fakeClassDayAccessLog) ClassDayViewSeenSince(_ context.Context, actorAccountID int64, schoolClass, date string, _ time.Time) (bool, error) {

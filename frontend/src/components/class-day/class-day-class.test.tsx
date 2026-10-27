@@ -173,8 +173,31 @@ describe("ClassDayClass", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams.delete("tag");
+    mockSearchParams.delete("liste");
     // Weekday fixtures must not depend on the day CI runs. Keep async timers real.
     setTestClock(new Date("2026-09-07T12:00:00+02:00"));
+  });
+
+  it.each([
+    ["krank", "/school?tag=2026-09-09&liste=krank"],
+    ["gehen-heim", "/school?tag=2026-09-09&liste=gehen-heim"],
+    ["unbekannt", "/school?tag=2026-09-09"],
+    ["", "/school?tag=2026-09-09"],
+  ])("returns to the selected overview list (%s)", async (list, href) => {
+    mockSearchParams.set("tag", "2026-09-09");
+    mockSearchParams.set("liste", list);
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={() => Promise.resolve(report())}
+      />,
+    );
+
+    expect(await screen.findByText("Klassentag, Klara")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Alle Klassen" })).toHaveAttribute(
+      "href",
+      href,
+    );
   });
 
   it.each(["2026-09-05T12:00:00+02:00", "2026-09-06T12:00:00+02:00"])(
@@ -804,6 +827,7 @@ describe("ClassDayClass homework (#4796)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams.delete("tag");
+    mockSearchParams.delete("liste");
     setTestClock(new Date("2026-09-07T12:00:00+02:00"));
   });
 
@@ -1009,6 +1033,7 @@ describe("ClassDayClass class trips (#4799)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSearchParams.delete("tag");
+    mockSearchParams.delete("liste");
     setTestClock(new Date("2026-09-07T12:00:00+02:00"));
   });
 

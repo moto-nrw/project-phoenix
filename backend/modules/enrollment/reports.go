@@ -37,6 +37,10 @@ type Reports interface {
 	// across every covering phase. It writes no access log: the consumer
 	// serves the day view and audits it.
 	ClassRosterDay(ctx context.Context, schoolClass string, date calendar.Date) (*ClassRosterDay, error)
+	// SchoolRosterDay is the roster of every class on one calendar day
+	// (#4802), built once for the whole school; each row names its class.
+	// Children without a class are not on it. It writes no access log.
+	SchoolRosterDay(ctx context.Context, date calendar.Date) (*ClassRosterDay, error)
 }
 
 // ReportOfferingDate selects the current point within a phase. Reports for a

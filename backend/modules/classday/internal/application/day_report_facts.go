@@ -76,6 +76,25 @@ func (s *dayReports) classDayStatuses(ctx context.Context, studentIDs []int64, d
 // may lag behind. Times only: the "kommt heute nicht" decision belongs to
 // classDayCancellations.
 func (s *dayReports) classDayEffectiveTimes(ctx context.Context, studentIDs []int64, date calendar.Date, facts *classDayFacts) error {
+	if err := s.classDayEffectivePickups(ctx, studentIDs, date, facts); err != nil {
+		return err
+	}
+	if len(studentIDs) == 0 || s.times == nil {
+		return nil
+	}
+	arrivals, err := s.times.EffectiveArrivals(ctx, studentIDs, date)
+	if err != nil {
+		return fmt.Errorf("class day report: load effective arrival times: %w", err)
+	}
+	for studentID, entry := range arrivals {
+		applyClassDayArrival(facts, studentID, entry)
+	}
+	return nil
+}
+
+// classDayEffectivePickups loads the effective pickup times alone: the
+// school-wide overview (#4802) needs only whether a pickup changed.
+func (s *dayReports) classDayEffectivePickups(ctx context.Context, studentIDs []int64, date calendar.Date, facts *classDayFacts) error {
 	if len(studentIDs) == 0 || s.times == nil {
 		return nil
 	}
@@ -85,13 +104,6 @@ func (s *dayReports) classDayEffectiveTimes(ctx context.Context, studentIDs []in
 	}
 	for studentID, entry := range pickups {
 		applyClassDayPickup(facts, studentID, entry)
-	}
-	arrivals, err := s.times.EffectiveArrivals(ctx, studentIDs, date)
-	if err != nil {
-		return fmt.Errorf("class day report: load effective arrival times: %w", err)
-	}
-	for studentID, entry := range arrivals {
-		applyClassDayArrival(facts, studentID, entry)
 	}
 	return nil
 }
