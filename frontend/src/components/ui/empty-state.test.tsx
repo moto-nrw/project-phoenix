@@ -34,6 +34,13 @@ describe("EmptyState", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders the title as a heading when asked", () => {
+    render(<EmptyState titleAs="h1" title="Bitte kurz warten" />);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Bitte kurz warten" }),
+    ).toBeInTheDocument();
+  });
+
   it("hides the icon from assistive tech", () => {
     const { container } = render(
       <EmptyState title="Leer" icon={<svg data-testid="icon" />} />,

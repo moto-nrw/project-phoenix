@@ -37,8 +37,6 @@ import {
   type StudentStatusKind,
   deleteCareException,
   downloadPickupRequestProofPdf,
-  getChildCareSchedule,
-  getChildFeatures,
   listCareExceptions,
   listChildGuardians,
   listPickupChangeRequests,
@@ -52,6 +50,7 @@ import {
   RequestEditModal,
   useRequestVersion,
 } from "~/components/parent/request-edit-modal";
+import { useChildRequests } from "~/components/parent/child-requests-context";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -306,6 +305,7 @@ export interface ChildCare {
 }
 
 export function useChildCare(studentId: string): ChildCare {
+  const childRequests = useChildRequests();
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
   const [excusedRequests, setExcusedRequests] = useState<ExcusedRequest[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
@@ -445,13 +445,13 @@ export function useChildCare(studentId: string): ChildCare {
           // Not part of loadError: the Heute card says the pickup time is
           // unavailable, and the care-schedule section shows its own load
           // error with retry. A third box would repeat the same outage.
-          getChildCareSchedule(studentId).catch(() => {
+          childRequests.careSchedule(studentId).catch(() => {
             weekPlanOk = false;
             return null;
           }),
           // Approval settings have no safe fallback: keep them unknown when
           // the feature request fails so the modal uses neutral wording.
-          getChildFeatures(studentId).catch((err: unknown) => {
+          childRequests.features(studentId).catch((err: unknown) => {
             failures.push(err);
             return DEFAULT_FEATURES;
           }),
@@ -495,7 +495,7 @@ export function useChildCare(studentId: string): ChildCare {
       // after a newer one can't flip it back off prematurely.
       if (mountedRef.current && seq === loadSeqRef.current) setLoading(false);
     }
-  }, [studentId]);
+  }, [childRequests, studentId]);
 
   // Reload on mount, on a studentId change (load identity), AND when the Berlin
   // calendar day rolls over while the tab stays open — the windowed lists and

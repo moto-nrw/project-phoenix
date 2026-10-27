@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { fireEvent, render as renderUi, screen } from "@testing-library/react";
 import type { TenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -74,7 +75,6 @@ vi.mock("~/env", () => ({
 }));
 
 const { bareTenantHost, default: TenantLayout } = await import("./layout");
-const { tenantResolutionRateLimitedError } = await import("~/sentry.shared");
 const { setTestClock, TEST_CLOCK_INSTANT } = await import("~/test/clock");
 
 beforeEach(() => {
@@ -269,9 +269,45 @@ describe("TenantLayout", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("marks a rate-limited lookup so Sentry can drop it", async () => {
+  it("shows a waiting page with a full reload when the lookup is rate limited", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 429 }));
+    const reloadSpy = vi
+      .spyOn(globalThis.location, "reload")
+      .mockImplementation(() => undefined);
+
+    const page = await TenantLayout({
+      children: <p>Schulinhalt</p>,
+      params: Promise.resolve({ tenant: "school-busy" }),
+    });
+    renderUi(page);
+
+    // Anker: die Warteseite ist gerendert, nicht der Schulinhalt.
+    expect(
+      screen.getByRole("heading", { name: "Bitte kurz warten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Seite lädt gerade nicht. Das liegt nicht an Ihnen. Bitte warten Sie eine Minute. Laden Sie die Seite dann neu.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Schulinhalt")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Neu laden" }));
+    expect(reloadSpy).toHaveBeenCalledOnce();
+
+    // The rejection is not cached: the next load asks the backend again.
+    await TenantLayout({
+      children: null,
+      params: Promise.resolve({ tenant: "school-busy" }),
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps other lookup failures on the error path", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(null, { status: 429 }),
+      new Response(null, { status: 503 }),
     );
 
     await expect(
@@ -279,7 +315,7 @@ describe("TenantLayout", () => {
         children: null,
         params: Promise.resolve({ tenant: "school-busy" }),
       }),
-    ).rejects.toMatchObject({ name: tenantResolutionRateLimitedError });
+    ).rejects.toThrow("Tenant resolution failed with HTTP 503");
   });
 
   it("does not run refresh-capable auth callbacks from the server layout", async () => {
