@@ -4,6 +4,7 @@ import { createContext, useContext } from "react";
 import type { UnreadAnnouncement } from "~/lib/hooks/use-announcements";
 import type { Profile } from "~/lib/profile-helpers";
 import type { RemindersResult } from "~/lib/reminders-api";
+import type { StaffNotice } from "~/lib/staff-notices-api";
 import type { SupervisionSnapshot } from "~/lib/supervision-derive";
 import type { TenantSummary } from "~/lib/tenant-api";
 import type { UserContextResponse } from "~/lib/user-context-types";
@@ -18,7 +19,6 @@ export interface ShellCounts {
   staffAbsencesPending?: number;
   messagesUnread?: number;
   teamChatUnread?: number;
-  staffNoticesPending?: number;
   changeRequestsPending?: number;
   enrollmentRequestsPending?: number;
   careWithdrawalsPending?: number;
@@ -37,6 +37,8 @@ export interface ShellBootstrap {
   profile?: Profile;
   accountTenants?: TenantSummary[];
   reminders?: RemindersResult;
+  /** Today's staff notices; the badge counts the pending acknowledgements. */
+  staffNoticesToday?: StaffNotice[];
   announcements?: UnreadAnnouncement[];
   supervision?: SupervisionSnapshot;
   counts: ShellCounts;
