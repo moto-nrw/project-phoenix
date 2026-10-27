@@ -22,7 +22,7 @@ import {
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { isValidTenantSlug } from "~/lib/tenant-slug";
 import { env } from "~/env";
-import { tenantResolutionRateLimitedError } from "~/sentry.shared";
+import { TenantBusyPage } from "~/components/tenant/tenant-busy-page";
 import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
 
 interface TenantResolveResponse {
@@ -126,10 +126,21 @@ function resolveTenantCached(
 }
 
 /**
+ * The backend rate limit rejected the lookup (HTTP 429). Scanner bursts cause
+ * it, not a defect, and the backend counts every rejection in its rate-limit
+ * metric. The layout shows a waiting page instead of throwing (#5090): an
+ * error boundary would show a generic crash, report it to Sentry and retry
+ * only on the client, without running this layout again.
+ */
+const TENANT_RATE_LIMITED = "rate-limited";
+
+/**
  * Resolve tenant metadata on the server side.
  * Uses the backend API to validate the tenant slug.
  */
-async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
+async function fetchTenantInfo(
+  slug: string,
+): Promise<TenantInfo | typeof TENANT_RATE_LIMITED | null> {
   if (isRememberedUnknownTenant(slug)) return null;
 
   let data: TenantResolveResponse;
@@ -144,13 +155,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       rememberUnknownTenant(slug);
       return null;
     }
-    if (error.status === 429) {
-      const rateLimited = new Error(
-        "Tenant resolution was rate limited (HTTP 429)",
-      );
-      rateLimited.name = tenantResolutionRateLimitedError;
-      throw rateLimited;
-    }
+    if (error.status === 429) return TENANT_RATE_LIMITED;
     throw error;
   }
 
@@ -291,6 +296,9 @@ export default async function TenantLayout({
 
   const tenant = await fetchTenantInfo(tenantSlug);
 
+  if (tenant === TENANT_RATE_LIMITED) {
+    return <TenantBusyPage />;
+  }
   if (!tenant) {
     await redirectToTenantSelection();
     throw new Error("Tenant redirect did not complete");
