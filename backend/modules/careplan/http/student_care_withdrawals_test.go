@@ -16,8 +16,9 @@ import (
 
 // TestStudentCareWithdrawals_ChildScopedResolvedList pins the child's
 // Änderungsprotokoll source for completed withdrawals (#5025): the request
-// reviewers of the child read it with users:update or users:absence, and it
-// never reaches beyond the one child, the resolved state or the reason.
+// reviewers of the child read it with users:update or users:read plus
+// users:absence, and it never reaches beyond the one child, the resolved
+// state or the reason.
 func TestStudentCareWithdrawals_ChildScopedResolvedList(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRouteWithCareLifecycle(t, false)
@@ -38,7 +39,7 @@ func TestStudentCareWithdrawals_ChildScopedResolvedList(t *testing.T) {
 	staff := testutil.TeacherTestClaims(int(staffAccount.ID))
 	path := fmt.Sprintf("/%d/care-withdrawals", child.ID)
 
-	for _, perms := range [][]string{{"users:absence"}, {"users:update"}, {"users:read", "users:absence"}} {
+	for _, perms := range [][]string{{"users:update"}, {"users:read", "users:absence"}} {
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil), staff, perms)
 		require.Equal(t, http.StatusOK, rr.Code, "%v: %s", perms, rr.Body.String())
 		var body struct {
@@ -65,7 +66,7 @@ func TestStudentCareWithdrawals_ChildScopedResolvedList(t *testing.T) {
 		"?search=Nachbar",
 		fmt.Sprintf("?student_id=%d", sibling.ID),
 	} {
-		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path+query, nil), staff, []string{"users:absence"})
+		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path+query, nil), staff, []string{"users:read", "users:absence"})
 		require.Equal(t, http.StatusOK, rr.Code, "%s: %s", query, rr.Body.String())
 		var body struct {
 			Data struct {
@@ -93,6 +94,11 @@ func TestStudentCareWithdrawals_RejectsCallersWithoutChildAccess(t *testing.T) {
 	readOnly := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil),
 		testutil.TeacherTestClaims(int(staffAccount.ID)), []string{"users:read"})
 	assert.Equal(t, http.StatusForbidden, readOnly.Code, "the route keeps the request log's gate")
+
+	absenceOnly := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil),
+		testutil.TeacherTestClaims(int(staffAccount.ID)), []string{"users:absence"})
+	assert.Equal(t, http.StatusForbidden, absenceOnly.Code, "users:absence is a write scope and needs users:read")
+	assert.NotContains(t, absenceOnly.Body.String(), `"items"`)
 
 	// An account that is no staff member of the school has no read access to
 	// the child, whatever its permissions.
@@ -140,7 +146,7 @@ func TestListStudentCareWithdrawalsQueryBudget(t *testing.T) {
 	run := func() measurement {
 		counter.Reset()
 		path := fmt.Sprintf("/%d/care-withdrawals?page_size=1", child.ID)
-		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil), staff, []string{"users:absence"})
+		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil), staff, []string{"users:read", "users:absence"})
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 		var body struct {
 			Data struct {

@@ -273,10 +273,10 @@ function studentTabs(
     ? withCarePlan
     : withCarePlan.filter((tab) => tab !== "dokumente");
   // Änderungsprotokoll (#2437) uses the gate of both its sources:
-  // RequiresAnyPermission(users:update, users:absence) on the aggregate route
-  // and on the child's completed withdrawals (/students/{id}/care-withdrawals,
-  // #5025), which also needs read access to the child. Without either
-  // permission both would only answer 403, so the tab stays away.
+  // Both sources require users:update, or users:read plus users:absence. The
+  // child's completed withdrawals (/students/{id}/care-withdrawals, #5025)
+  // additionally need read access to the child. Without this gate both would
+  // only answer 403, so the tab stays away.
   const withRequestLog = canViewRequestLog
     ? withDocuments
     : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
@@ -550,11 +550,12 @@ function StudentDetailPageContent() {
   // Eltern, Notizen und Nachrichten hängen an users:read; die Rolle „Gast“
   // sieht das Kind nur mit students:read (ADR 0091).
   const canReadParentData = sessionReadsChildDetails;
-  // Same gate the aggregate request route uses (#2437).
+  // Same gate the aggregate request route uses (#2437). users:absence is a
+  // write scope, so it needs users:read and cannot expose the log by itself.
   const canViewRequestLog =
     sessionStatus === "authenticated" &&
     (hasPermission(session, "users:update") ||
-      hasPermission(session, "users:absence"));
+      (sessionReadsChildDetails && hasPermission(session, "users:absence")));
   // Mirrors the backend gate on POST /students/{id}/school-checkin exactly.
   const canCheckin =
     sessionStatus === "authenticated" &&

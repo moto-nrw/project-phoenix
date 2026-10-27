@@ -2576,10 +2576,9 @@ describe("StudentDetailPage", () => {
         },
       );
 
-      // Eine Fachkraft ohne users:read sieht die eingeschränkte Ansicht, hat
-      // aber Lesezugriff auf das Kind; die Kind-Route liefert ihr die
-      // Abmeldungen.
-      it("loads the child's withdrawals in the limited view of verified staff", async () => {
+      // users:absence ist ein Schreibrecht und darf ohne users:read weder das
+      // Änderungsprotokoll noch dessen Datenquellen öffnen.
+      it("hides the request log for absence-only staff", async () => {
         vi.mocked(useSession).mockReturnValue({
           data: { user: { id: "7", permissions: ["users:absence"] } },
           status: "authenticated",
@@ -2592,15 +2591,19 @@ describe("StudentDetailPage", () => {
         render(<StudentDetailPage />);
 
         // Anker: die eingeschränkte Ansicht hat keine Betreuungszeiten.
-        expect(await screen.findByText("Betreuung beendet")).toBeVisible();
+        expect(await screen.findByText("Max Mustermann")).toBeVisible();
         expect(
           screen.queryByTestId("care-schedule-manager"),
         ).not.toBeInTheDocument();
+        expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
         expect(
           requestedPaths().some((path) =>
             path.startsWith("/api/students/care-withdrawals"),
           ),
         ).toBe(false);
+        expect(requestedPaths()).not.toContain(
+          "/api/students/1/care-withdrawals",
+        );
       });
 
       it("loads the request log without withdrawals in the limited view", async () => {
