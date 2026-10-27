@@ -289,12 +289,7 @@ describe("TenantLayout", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Die Seite lädt gerade nicht. Das liegt nicht an Ihnen.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Bitte warten Sie eine Minute. Laden Sie die Seite dann neu.",
+        "Die Seite lädt gerade nicht. Das liegt nicht an Ihnen. Bitte warten Sie eine Minute. Laden Sie die Seite dann neu.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Schulinhalt")).not.toBeInTheDocument();
