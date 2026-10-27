@@ -295,19 +295,8 @@ func mapParentAnnouncement(row *StaffParentAnnouncement) *communication.ParentAn
 		DeliveryMode: row.DeliveryMode, EmailAudience: row.EmailAudience, SystemKind: row.SystemKind,
 		ReminderAt: row.ReminderAt, ReminderText: row.ReminderText, ReminderSentAt: row.ReminderSentAt,
 		Declaration: communication.ParentDeclarationSettings(row.Declaration),
-		CreatedBy:   row.CreatedBy, Sender: classLetterSender(row),
+		CreatedBy:   row.CreatedBy, Sender: (*communication.ParentLetterSender)(classLetterSenderOf(row)),
 	}
-}
-
-func classLetterSender(row *StaffParentAnnouncement) *communication.ParentLetterSender {
-	if row.SenderSchoolClass == nil {
-		return nil
-	}
-	sender := &communication.ParentLetterSender{SchoolClass: *row.SenderSchoolClass}
-	if row.SenderName != nil {
-		sender.Name = *row.SenderName
-	}
-	return sender
 }
 
 var _ communication.ParentAnnouncementCapability = (*parentAnnouncements)(nil)

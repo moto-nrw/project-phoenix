@@ -4,7 +4,6 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Download wie im OGS-Portal (#3430), mit der Sitzung von moto schule.
 
 import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
 import {
   schoolAuth,
   uncachedSchoolAuth,
@@ -14,6 +13,7 @@ import { getServerApiUrl } from "~/lib/server-api-url";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { createLogger } from "~/lib/logger";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { pdfDownloadResponse } from "~/lib/pdf-download-response.server";
 
 const logger = createLogger({
   component: "SchoolDeclarationExportDownload",
@@ -67,19 +67,7 @@ async function GETHandler(
     return forwardBackendResponse(upstream, request);
   }
 
-  const headers = new Headers();
-  for (const name of [
-    "content-type",
-    "content-disposition",
-    "cache-control",
-    "content-length",
-    "x-content-type-options",
-  ]) {
-    const value = upstream.headers.get(name);
-    if (value) headers.set(name, value);
-  }
-
-  return new NextResponse(upstream.body, { status: 200, headers });
+  return pdfDownloadResponse(upstream);
 }
 
 export const GET = withSchoolAuth(GETHandler);

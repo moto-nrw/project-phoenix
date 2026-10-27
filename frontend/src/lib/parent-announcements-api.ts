@@ -491,10 +491,9 @@ export async function createAnnouncement(
 export async function updateAnnouncement(
   id: string,
   input: AnnouncementInput,
-  base = BASE,
 ): Promise<Announcement> {
   const data = await request<Announcement>(
-    `${base}/${encodeURIComponent(id)}`,
+    `${BASE}/${encodeURIComponent(id)}`,
     { ...jsonBody(input), method: "PUT" },
     "Elternmitteilung konnte nicht gespeichert werden",
   );
@@ -506,10 +505,9 @@ export async function updateAnnouncement(
 export async function updateAnnouncementReminder(
   id: string,
   input: AnnouncementReminderInput,
-  base = BASE,
 ): Promise<Announcement> {
   const data = await request<Announcement>(
-    `${base}/${encodeURIComponent(id)}/reminder`,
+    `${BASE}/${encodeURIComponent(id)}/reminder`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },

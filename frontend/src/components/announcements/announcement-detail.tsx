@@ -506,6 +506,11 @@ export function AnnouncementDetail({
   const letter = isLetter(announcement);
   const declaration = isDeclaration(announcement);
   const chips = targetChips(announcement.targets, groups, activities);
+  const sender = classLetterSenderLine(announcement);
+  // A class letter of a Lehrkraft (#4800) is read-only in the OGS portal:
+  // only its author, on the routes of moto schule, reminds or resends.
+  const canAct =
+    announcement.status === "published" && (!sender || apiBase !== undefined);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -540,9 +545,9 @@ export function AnnouncementDetail({
 
       <SectionCard title="Zielgruppen und Zustellung" icon={Send}>
         <DataGrid>
-          {announcement.sender_name && (
+          {sender && (
             <DataField label="Absender" fullWidth>
-              {classLetterSenderLine(announcement)}
+              {sender}
             </DataField>
           )}
           <DataField label="Zielgruppen" fullWidth>
@@ -627,7 +632,7 @@ export function AnnouncementDetail({
         <SectionCard title="Status">
           <LetterStatusPanel
             announcementId={announcement.id}
-            canAct={announcement.status === "published"}
+            canAct={canAct}
             emailAudience={announcement.email_audience}
             apiBase={apiBase}
           />
@@ -641,7 +646,7 @@ export function AnnouncementDetail({
           <SectionCard title="Stand der Antworten">
             <DeclarationStatusPanel
               announcementId={announcement.id}
-              canAct={announcement.status === "published"}
+              canAct={canAct}
               apiBase={apiBase}
             />
           </SectionCard>

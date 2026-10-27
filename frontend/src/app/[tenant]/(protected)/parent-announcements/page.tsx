@@ -565,7 +565,7 @@ function ParentAnnouncementsContent() {
           <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
             {row.body}
           </p>
-          {classLetterSenderLine(row) && (
+          {row.sender_school_class && (
             <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
               Von {classLetterSenderLine(row)} · nur zum Lesen
             </p>

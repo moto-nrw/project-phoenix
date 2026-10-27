@@ -52,6 +52,7 @@ import {
   SCHOOL_PARENT_LETTERS_KEY,
   SCHOOL_PARENT_LETTERS_ROUTE,
   schoolParentLetterFieldErrors,
+  schoolParentLetterKindLabel,
   schoolParentLetterRequest,
   type SchoolParentLetterDraft,
 } from "~/lib/school-parent-letters";
@@ -59,12 +60,6 @@ import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "SchoolParentLettersPage" });
-
-const KIND_LABEL: Record<Announcement["delivery_mode"], string> = {
-  standard: "Nur zur Information",
-  letter: "Mit Lesebestätigung",
-  declaration: "Einverständnis",
-};
 
 const columns: DataTableColumn<Announcement>[] = [
   {
@@ -76,7 +71,7 @@ const columns: DataTableColumn<Announcement>[] = [
       <div className="min-w-0">
         <p className="truncate font-semibold text-gray-900">{row.title}</p>
         <p className="mt-0.5 text-xs text-gray-500">
-          {KIND_LABEL[row.delivery_mode]}
+          {schoolParentLetterKindLabel(row.delivery_mode)}
         </p>
       </div>
     ),

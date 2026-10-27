@@ -129,7 +129,7 @@ func (s *service) LockAnnouncementForAttachmentChange(ctx context.Context, annou
 func (s *service) attachmentsEditable(ctx context.Context, a *StaffParentAnnouncement) (bool, error) {
 	// A class letter (#4800) carries no attachments: moto schule offers
 	// none, and the OGS only reads the letter.
-	if a.IsPublished() || a.IsSystem() || a.SenderSchoolClass != nil {
+	if a.IsPublished() || a.IsSystem() || a.IsClassLetter() {
 		return false, nil
 	}
 	if !a.IsDeclaration() {

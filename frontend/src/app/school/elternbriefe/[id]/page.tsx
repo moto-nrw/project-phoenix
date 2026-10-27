@@ -64,9 +64,7 @@ export default function SchoolParentLetterPage() {
 
   const listHref = schoolPath(SCHOOL_PARENT_LETTERS_ROUTE);
   // Die Liste lädt beim Öffnen neu; hier genügt der Brief selbst.
-  const refresh = async () => {
-    await mutate();
-  };
+  const refresh = () => mutate().then(() => undefined);
 
   const back = <BackLink href={listHref} label="Zurück zu den Elternbriefen" />;
 

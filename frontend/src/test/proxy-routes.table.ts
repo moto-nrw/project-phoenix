@@ -561,7 +561,6 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school/parent-letters/[announcementId]": [
     "DELETE school /school/parent-letters/announcementId%2F1",
     "GET school /school/parent-letters/announcementId%2F1",
-    "PUT school /school/parent-letters/announcementId%2F1",
   ],
   "api/school/parent-letters/[announcementId]/declaration-status": [
     "GET school /school/parent-letters/announcementId%2F1/declaration-status",
@@ -577,9 +576,6 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/school/parent-letters/[announcementId]/remind": [
     "POST school /school/parent-letters/announcementId%2F1/remind",
-  ],
-  "api/school/parent-letters/[announcementId]/reminder": [
-    "PUT school /school/parent-letters/announcementId%2F1/reminder",
   ],
   "api/school/parent-letters/[announcementId]/resend-failed": [
     "POST school /school/parent-letters/announcementId%2F1/resend-failed",

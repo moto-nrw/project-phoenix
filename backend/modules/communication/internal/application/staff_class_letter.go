@@ -57,14 +57,10 @@ func stampClassLetterSender(a *StaffParentAnnouncement, sender *ClassLetterSende
 
 // classLetterSenderOf is the sender a stored class letter keeps.
 func classLetterSenderOf(a *StaffParentAnnouncement) *ClassLetterSender {
-	if a.SenderSchoolClass == nil {
+	if !a.IsClassLetter() || a.SenderName == nil {
 		return nil
 	}
-	sender := &ClassLetterSender{SchoolClass: *a.SenderSchoolClass}
-	if a.SenderName != nil {
-		sender.Name = *a.SenderName
-	}
-	return sender
+	return &ClassLetterSender{Name: *a.SenderName, SchoolClass: *a.SenderSchoolClass}
 }
 
 // guardClassLetterWrite keeps the two authors apart (#4800): a class letter
@@ -73,9 +69,9 @@ func classLetterSenderOf(a *StaffParentAnnouncement) *ClassLetterSender {
 func guardClassLetterWrite(ctx context.Context, a *StaffParentAnnouncement) error {
 	author, viaSchool := communication.ClassLetterAuthorFrom(ctx)
 	switch {
-	case a.SenderSchoolClass != nil && (!viaSchool || author != a.CreatedBy):
+	case a.IsClassLetter() && (!viaSchool || author != a.CreatedBy):
 		return ErrClassLetterReadOnly
-	case a.SenderSchoolClass == nil && viaSchool:
+	case !a.IsClassLetter() && viaSchool:
 		return ErrNotFound
 	}
 	return nil
@@ -85,10 +81,11 @@ func guardClassLetterWrite(ctx context.Context, a *StaffParentAnnouncement) erro
 // who wrote, for which class and at which school, before the usual line.
 // The intro follows the salutation, so it starts in lower case.
 func classLetterMailIntro(a *StaffParentAnnouncement, schoolName, intro string) string {
-	if a.SenderSchoolClass == nil || a.SenderName == nil {
+	sender := classLetterSenderOf(a)
+	if sender == nil {
 		return intro
 	}
-	from := fmt.Sprintf("diese Nachricht kommt von %s, Klasse %s", *a.SenderName, *a.SenderSchoolClass)
+	from := fmt.Sprintf("diese Nachricht kommt von %s, %s", sender.Name, schoolClassLabel(sender.SchoolClass))
 	if schoolName != "" {
 		from += ", " + schoolName
 	}
@@ -97,4 +94,13 @@ func classLetterMailIntro(a *StaffParentAnnouncement, schoolName, intro string) 
 	}
 	runes := []rune(intro)
 	return from + ". " + strings.ToUpper(string(runes[0])) + string(runes[1:])
+}
+
+// schoolClassLabel names a class as the school spells it: a school that
+// stores "Klasse 3a" does not read "Klasse Klasse 3a".
+func schoolClassLabel(class string) string {
+	if strings.HasPrefix(strings.ToLower(class), "klasse") {
+		return class
+	}
+	return "Klasse " + class
 }

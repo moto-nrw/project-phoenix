@@ -59,11 +59,9 @@ func (rs *Resource) SchoolRouter(protectedSchoolRoutes func(chi.Router, func(chi
 
 		// Writing to parents again needs the class still in reach.
 		reach := r.With(write, withTx, rs.ownClassLetter(true))
-		reach.Put("/{announcementId}", rs.update)
 		reach.Post("/{announcementId}/publish", rs.publish)
 		reach.Post("/{announcementId}/remind", rs.remindUnanswered)
 		reach.Post("/{announcementId}/resend-failed", rs.resendFailed)
-		reach.Put("/{announcementId}/reminder", rs.updateReminder)
 	})
 	return r
 }

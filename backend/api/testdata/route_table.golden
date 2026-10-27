@@ -1237,8 +1237,6 @@ PUT /school/class-day/handover/{schoolClass}/{date}
 PUT /school/class-day/homework/{schoolClass}/{homeworkId}
 PUT /school/class-day/morning-attendance/{schoolClass}/{date}
 PUT /school/notifications/preferences/{type}
-PUT /school/parent-letters/{announcementId}
-PUT /school/parent-letters/{announcementId}/reminder
 PUT /school/supervisions/{id}/students/{student_id}/homework-feedback
 PUT /traeger/accounts/{accountId}/roles
 PUT /traeger/contribution-rules/{id}

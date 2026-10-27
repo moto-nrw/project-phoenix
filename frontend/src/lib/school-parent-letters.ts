@@ -3,7 +3,10 @@
 // wie im OGS-Portal. Die Empfänger sind die Eltern der gewählten Klasse; das
 // Backend prüft, dass die Klasse zur Lehrkraft gehört.
 
-import type { AnnouncementInput } from "./parent-announcements-api";
+import type {
+  Announcement,
+  AnnouncementInput,
+} from "./parent-announcements-api";
 
 /** Die Adresse der Elternbriefe in moto schule. */
 export const SCHOOL_PARENT_LETTERS_ROUTE = "/school/elternbriefe";
@@ -16,6 +19,8 @@ export type SchoolParentLetterKind = "info" | "letter" | "consent";
 
 export interface SchoolParentLetterKindOption {
   readonly value: SchoolParentLetterKind;
+  /** Die Art der Elternmitteilung, die daraus wird. */
+  readonly deliveryMode: Announcement["delivery_mode"];
   readonly label: string;
   readonly hint: string;
 }
@@ -24,20 +29,34 @@ export const SCHOOL_PARENT_LETTER_KINDS: readonly SchoolParentLetterKindOption[]
   [
     {
       value: "info",
+      deliveryMode: "standard",
       label: "Nur zur Information",
       hint: "Die Eltern lesen den Brief. Sie müssen nichts tun.",
     },
     {
       value: "letter",
+      deliveryMode: "letter",
       label: "Mit Lesebestätigung",
       hint: "Die Eltern bestätigen, dass sie den Brief gelesen haben.",
     },
     {
       value: "consent",
+      deliveryMode: "declaration",
       label: "Einverständnis mit Unterschrift",
       hint: "Die Eltern stimmen zu oder lehnen ab. Zum Zustimmen unterschreiben sie.",
     },
   ];
+
+/** Die Art eines gesendeten Briefs, mit derselben Bezeichnung wie im Formular. */
+export function schoolParentLetterKindLabel(
+  deliveryMode: Announcement["delivery_mode"],
+): string {
+  return (
+    SCHOOL_PARENT_LETTER_KINDS.find(
+      (option) => option.deliveryMode === deliveryMode,
+    )?.label ?? ""
+  );
+}
 
 export interface SchoolParentLetterDraft {
   readonly schoolClass: string;

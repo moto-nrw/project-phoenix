@@ -771,7 +771,9 @@ function senderLabel(
   if (!item.sender_name || !item.sender_school_class) return item.school_name;
   return t("newsSender", {
     name: item.sender_name,
-    schoolClass: item.sender_school_class,
+    // The text names the class itself: "3a", even where the school
+    // stores "Klasse 3a".
+    schoolClass: item.sender_school_class.replace(/^klasse\s+/i, ""),
     school: item.school_name,
   });
 }
