@@ -183,6 +183,18 @@ func TestSharedNotesRecordEveryRead(t *testing.T) {
 	assert.Contains(t, metadata, f.class)
 }
 
+func TestSharedNotesMissingStudentReturnsNotFound(t *testing.T) {
+	t.Parallel()
+	f := setupSharedNotesFixture(t)
+	var missingID int64
+	err := f.db.NewRaw(`SELECT nextval(pg_get_serial_sequence('users.student_profiles', 'id'))`).Scan(testpkg.Ctx(t), &missingID)
+	require.NoError(t, err)
+
+	code, _ := f.read(t, f.claims, f.path(f.class, missingID), classDayReadPermission)
+	assert.Equal(t, http.StatusNotFound, code)
+	assert.Zero(t, f.accessRows(t, int64(f.claims.ID)))
+}
+
 // dayReport reads today's report of the class as the route serves it.
 func (f *sharedNotesFixture) dayReport(t *testing.T, perms ...string) map[string]any {
 	t.Helper()

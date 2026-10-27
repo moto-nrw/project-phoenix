@@ -89,6 +89,9 @@ func (n sharedNotes) StudentSharedNotes(ctx context.Context, in classday.SharedN
 		return nil, classday.ErrClassNotAssigned
 	}
 	student, err := n.students.FindSheetStudent(ctx, in.StudentID)
+	if errors.Is(err, peopledirectory.ErrStudentRowMissing) {
+		return nil, classday.ErrSharedNoteStudentNotInClass
+	}
 	if err != nil {
 		return nil, fmt.Errorf("shared notes: load student: %w", err)
 	}

@@ -34,7 +34,7 @@ import {
 } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
-import { useSWRAuth } from "~/lib/swr";
+import { SWRConfig, useSWRAuth } from "~/lib/swr";
 
 /** Wann und von wem: der beschriebene Tag oder „Dauerhafter Hinweis“. */
 function noteMeta(note: SharedNote): string {
@@ -51,15 +51,56 @@ function SharedNotesFromAddress() {
   const schoolClass = classDayClassParam(params.get(CLASS_DAY_CLASS_PARAM));
   const studentId = params.get(CLASS_DAY_CHILD_PARAM)?.trim() ?? "";
   const dateISO = classDayDateParam(params.get(CLASS_DAY_DATE_PARAM));
+
+  return (
+    // Each opening (including a change of child) must make its own audited
+    // request before disclosing data. Never reuse the portal's notes cache.
+    <SWRConfig
+      key={`${schoolClass}-${studentId}`}
+      value={{ provider: () => new Map() }}
+    >
+      <SharedNotes
+        schoolClass={schoolClass}
+        studentId={studentId}
+        dateISO={dateISO}
+      />
+    </SWRConfig>
+  );
+}
+
+function SharedNotes({
+  schoolClass,
+  studentId,
+  dateISO,
+}: {
+  readonly schoolClass: string;
+  readonly studentId: string;
+  readonly dateISO: string;
+}) {
   const { data: session } = useSession();
 
-  const { data, error, isLoading, mutate } = useSWRAuth<StudentSharedNotes>(
+  const {
+    data: cachedData,
+    error,
+    isLoading,
+    mutate,
+  } = useSWRAuth<StudentSharedNotes>(
     session && schoolClass && studentId
       ? `school-shared-notes-${schoolClass}-${studentId}`
       : null,
-    () => fetchSharedNotesSchool(schoolClass, studentId),
-    { revalidateOnFocus: false },
+    async () => {
+      try {
+        return await fetchSharedNotesSchool(schoolClass, studentId);
+      } catch (error) {
+        // Clear the previous disclosure before SWR records the load error.
+        await mutate(undefined, { revalidate: false });
+        throw error;
+      }
+    },
+    { revalidateOnFocus: false, keepPreviousData: false },
   );
+  // A failed revalidation must neither display nor retain sensitive data.
+  const data = error ? undefined : cachedData;
   const loadError = useSwrLoadError(
     error,
     "die Beobachtungen der OGS",
