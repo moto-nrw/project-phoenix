@@ -57,12 +57,12 @@ export function SchoolBottomNav({
   // der Leiste geschoben wird. Seit den Tagesinformationen (#2208) sind es
   // immer mindestens vier Ziele, die Beschriftung ist also stets so geregelt.
   //
-  // Mit den Elternbriefen (#4800) sind es mit Team-Chat sieben Ziele. Dann
+  // Mit den Elternbriefen (#4800) sind es sechs, mit Team-Chat sieben Ziele. Dann
   // rücken die Icons enger zusammen, damit die Zeile auf 360 px passt, und
   // die Beschriftung des aktiven Ziels kommt erst ab 480 px dazu.
   // Gemessen auf 360 px: sieben Icons à 40 px ohne Lücke passen in die
   // 294 px der Pille, mit px-3 und gap-1 wären es 332 px.
-  const crowded = items.length > 6;
+  const crowded = items.length >= 6;
   const itemPadding = crowded ? "px-2.5" : "px-4";
   const listGap = crowded ? "gap-0" : "gap-1";
   const labelClass = crowded

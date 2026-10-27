@@ -46,17 +46,20 @@ describe("SchoolBottomNav", () => {
     expect(screen.queryByText("Klassenansicht")).not.toBeInTheDocument();
   });
 
-  // Ab dem vierten Ziel passt die laengste Beschriftung erst ab 420 px in
-  // die Pille. Mit den Tagesinformationen (#2208) sind es immer mindestens
-  // vier Ziele, mit Team-Chat fuenf — auf schmaleren Geraeten blendet CSS die
-  // Beschriftung aus, statt ein Ziel aus der Leiste zu schieben.
-  it("blendet die Beschriftung bei vier Zielen unterhalb von 420 px aus", () => {
+  // Auch ohne Team-Chat sind es sechs Ziele: breite Abstände würden auf
+  // 360 px überlaufen. Beide Besetzungen verwenden die kompakte Darstellung.
+  it("verwendet bei sechs Zielen ohne Team-Chat die kompakte Darstellung", () => {
     mockPathname.value = "/aufsichten";
     render(<SchoolBottomNav teamChat={teamChat} />);
 
+    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(6);
     expect(screen.getByText("Meine Aufsichten")).toHaveClass(
       "hidden",
-      "min-[420px]:inline",
+      "min-[480px]:inline",
+    );
+    expect(screen.getByRole("list")).toHaveClass("gap-0");
+    expect(screen.getByRole("link", { name: "Elternbriefe" })).toHaveClass(
+      "px-2.5",
     );
   });
 
