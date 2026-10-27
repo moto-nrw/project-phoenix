@@ -119,6 +119,11 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 		return err
 	}
 	token, err := seedHolidayRegistrations(rt, auth, periodID, published, schools[0])
+	if errors.Is(err, errSeedHolidayCaptchaRefused) {
+		fmt.Println("  WARNING: the server's Turnstile key refuses the test token; the holiday period stays without registrations")
+		rt.Values[seedHolidayRegistrationsSkippedKey] = true
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -218,6 +223,10 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 		return "", fmt.Errorf("show the holiday contribution: %w", err)
 	}
 	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, registration)
+	var refused *APIError
+	if errors.As(err, &refused) && refused.Code == seedCaptchaFailed {
+		return "", errSeedHolidayCaptchaRefused
+	}
 	if err != nil {
 		return "", fmt.Errorf("register for the holiday period: %w", err)
 	}
@@ -338,6 +347,19 @@ func seedHolidayDuplicate(registration map[string]any) map[string]any {
 // seedTurnstileTestToken is the token Cloudflare's Turnstile test keys of
 // the dev and CI environments accept (dev.env.example).
 const seedTurnstileTestToken = "XXXX.DUMMY.TOKEN.XXXX"
+
+// The public holiday registration always requires Turnstile (ADR 0110). The
+// demo server holds a real Turnstile key, which refuses the test token: the
+// holiday step there publishes the period without registrations and skips
+// what builds on them, the billing run and the confirmation letters,
+// instead of failing every demo school order.
+const seedCaptchaFailed = "enrollment.captcha_failed"
+
+var errSeedHolidayCaptchaRefused = errors.New("the server's Turnstile key refuses the test token")
+
+// seedHolidayRegistrationsSkippedKey marks a run whose holiday period has no
+// registrations, so the confirmation letters step has no run to write for.
+const seedHolidayRegistrationsSkippedKey = "traeger.holiday_registrations_skipped"
 
 // seedHolidayRegistration builds the public registration of two siblings for
 // the published period: a child of homeSchool for the first week and a
