@@ -252,18 +252,21 @@ host-only). The proxy redirects cross-host paths to their canonical subdomain.
 | Träger | `{NEXT_PUBLIC_TRAEGER_HOSTNAME}` | `traeger.session-token` | `/api/traeger/auth` | `org` | `POST /traeger/auth/login` |
 
 The browser never receives a session's access token, refresh token or
-recovery proof (#5005). The `next-auth` `Session` type carries none; each
-portal's `{basePath}/session` answer (GET and the `update()` POST) passes
-through the allowlist in `frontend/src/server/auth/browser-session.ts`, and
-the layout snapshots map the cookie without them. Server code reads the
-tokens from the portal's `auth()` and route wrappers (`ServerSession`); BFF
-routes authenticate through the session cookie, not a browser `Authorization`
-header. A session whose access token is gone always carries `error`, which
-`hasSessionAccess` checks. `src/app/api/auth/session-tokens.test.ts` and
-`src/lib/browser-token-ratchet.test.ts` enforce both directions. Open: login,
-MFA, passkey login, tenant switch, Träger Absprung and staff-preview start
-still hand freshly minted tokens through browser JavaScript into Auth.js
-(`signIn`/`update`).
+recovery proof (#5005). The client-importable `next-auth` types `Session` and
+`User` carry none; server code reads them through `ServerSession`, `AuthUser`
+and the `next-auth/jwt` `JWT` fields in `frontend/src/server/auth/shared.ts`.
+Each portal's `{basePath}/session` answer (GET and the `update()` POST)
+passes through the allowlist in `frontend/src/server/auth/browser-session.ts`,
+and the layout snapshots map the cookie without them. BFF routes authenticate
+through the session cookie, not a browser `Authorization` header. A session
+whose access token is gone always carries `error`, which `hasSessionAccess`
+checks. `src/app/api/auth/session-tokens.test.ts` checks every session route;
+`src/lib/browser-token-ratchet.test.ts` pins the types and walks the syntax
+tree of every module outside `server/`, `app/api/` and `*.server.ts` for
+credential reads on session values (casts, renames, intermediate variables
+included). Open: login, MFA, passkey login, tenant switch, Träger Absprung
+and staff-preview start still hand freshly minted tokens through browser
+JavaScript into Auth.js (`signIn`/`update`).
 
 ### Login, refresh, and MFA
 

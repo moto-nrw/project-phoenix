@@ -36,7 +36,7 @@ declare module "next-auth" {
   // The browser's view of a session (#5005): useSession(), getSession(),
   // the session routes and the layout snapshots. It carries no access or
   // refresh token; server code reads them through ServerSession. The user
-  // lists DefaultSession's fields itself: its User type carries the tokens.
+  // lists DefaultSession's fields itself, so no User field reaches it.
   interface Session extends DefaultSession {
     user: {
       id: string;
@@ -62,9 +62,9 @@ declare module "next-auth" {
     error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
 
+  // Importable from client code too, so it carries no token (#5005); the
+  // credentials providers return AuthUser.
   interface User {
-    token?: string;
-    refreshToken?: string;
     roles?: string[];
     roleIsSystem?: boolean[];
     permissions?: string[];
@@ -74,7 +74,11 @@ declare module "next-auth" {
     orgId?: number;
     scope?: string;
   }
+}
 
+// The encrypted session cookie's content. next-auth/jwt is server-only; the
+// browser token ratchet refuses its import outside server code (#5005).
+declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     token?: string;
@@ -114,6 +118,9 @@ declare module "next-auth" {
 export type ServerSession = Session & {
   user: Session["user"] & { token?: string; refreshToken?: string };
 };
+
+/** What the credentials providers return: the user with its token pair. */
+export type AuthUser = User & { token?: string; refreshToken?: string };
 
 // ---------------------------------------------------------------------------
 // Utility functions
@@ -211,7 +218,7 @@ export function buildAuthUser(
   refreshToken: string,
   email: string,
   scope?: string,
-): User {
+): AuthUser {
   const roles =
     payload.roles && Array.isArray(payload.roles) ? payload.roles : [];
   const permissions =
@@ -1291,13 +1298,14 @@ export const sharedJwtCallback: NonNullable<
     });
   }
 
-  // Initial sign in
+  // Initial sign in. The credentials providers return AuthUser.
   if (user) {
+    const authUser: AuthUser = user;
     token.id = user.id;
     token.name = user.name;
     token.email = user.email;
-    token.token = user.token ?? "";
-    token.refreshToken = user.refreshToken ?? "";
+    token.token = authUser.token ?? "";
+    token.refreshToken = authUser.refreshToken ?? "";
     token.roles = user.roles;
     token.roleIsSystem = user.roleIsSystem;
     token.permissions = user.permissions;
@@ -1306,7 +1314,9 @@ export const sharedJwtCallback: NonNullable<
     token.tenantId = user.tenantId;
     token.orgId = user.orgId;
     token.scope = user.scope;
-    const accessClaims = user.token ? parseJwtPayload(user.token) : null;
+    const accessClaims = authUser.token
+      ? parseJwtPayload(authUser.token)
+      : null;
     token.tokenExpiry =
       typeof accessClaims?.exp === "number"
         ? accessClaims.exp * 1000
