@@ -15,7 +15,7 @@ export const SCHOOL_PARENT_LETTERS_ROUTE = "/school/elternbriefe";
 export const SCHOOL_PARENT_LETTERS_KEY = "school-parent-letters";
 
 /** Was die Eltern mit dem Brief tun. */
-export type SchoolParentLetterKind = "info" | "letter" | "consent";
+type SchoolParentLetterKind = "info" | "letter" | "consent";
 
 export interface SchoolParentLetterKindOption {
   readonly value: SchoolParentLetterKind;
