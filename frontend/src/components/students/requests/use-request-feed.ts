@@ -71,15 +71,6 @@ const logger = createLogger({ component: "AggregatedRequestList" });
 const LIST_OBJECT = "die Liste der Anfragen";
 const WITHDRAWAL_OBJECT = "die Liste der Abmeldungen";
 
-/**
- * Meldet einen Ladefehler vor Ort, mit Wiederholen (#2513). `null` leert ihn.
- */
-export type ReportLoadError = (
-  error: unknown,
-  object: string,
-  retry: () => void,
-) => void;
-
 /** Wie viele Zeilen eine Seite zeigt. */
 const PAGE_SIZE = 25;
 const WITHDRAWAL_PAGE_SIZE = 25;
@@ -271,8 +262,6 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   autoLoad,
   applyUpdate,
   itemId,
-  reportError,
-  clearError,
 }: {
   key: string | null;
   /** Gemeinsamer Teil aller Schlüssel dieser Liste für das Konto. */
@@ -290,9 +279,13 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   applyUpdate: (current: S, update: (items: T[]) => T[]) => S;
   /** Die ID eines Eintrags; keine Liste zeigt dieselbe ID zweimal. */
   itemId: (item: T) => string;
-  reportError: ReportLoadError;
-  clearError: () => void;
 }) {
+  // Nachladefehler gehören nur zu dieser Quelle, nicht zum anderen Feed.
+  const {
+    error: pageError,
+    show: showLoadError,
+    clear: clearError,
+  } = useApiLoadError();
   const {
     data,
     error: swrError,
@@ -384,13 +377,16 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
       logger.warn(logEvent, {
         error: err instanceof Error ? err.message : String(err),
       });
-      reportError(err, object, () => void loadMoreRef.current());
+      void showLoadError(err, {
+        object,
+        retry: () => void loadMoreRef.current(),
+      });
       setAutoLoadFailed(true);
     } finally {
       inFlight.current.delete(fetchedAt);
       setPending(new Set(inFlight.current));
     }
-  }, [clearError, loadNext, logEvent, object, reportError, shown]);
+  }, [clearError, loadNext, logEvent, object, showLoadError, shown]);
   useEffect(() => {
     loadMoreRef.current = loadMore;
   });
@@ -413,7 +409,7 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
     // Während eines Abgleichs wartet „Weitere Einträge laden“ auf dessen
     // Stand; das ist nur Anzeige, keine Sperre.
     loadingMore: loadingPage || (isValidating && data !== undefined),
-    error,
+    error: error ?? pageError,
     reload,
     setItems,
     loadMore,
@@ -465,13 +461,6 @@ export function useMergedRequestFeed(
 ) {
   const { data: session } = useSession();
   const accountId = session?.user.id;
-  const loadError = useApiLoadError();
-  const { error: pageError, clear: clearError } = loadError;
-  const showLoadError = loadError.show;
-  const reportError = useCallback<ReportLoadError>(
-    (err, object, retry) => void showLoadError(err, { object, retry }),
-    [showLoadError],
-  );
   const loadNext = useCallback(
     async (base: RequestFeedSnapshot) => {
       // Eine Kopie: der Cache-Eintrag bleibt, wie er war, bis die Seite da ist.
@@ -508,8 +497,6 @@ export function useMergedRequestFeed(
     loadFirst: () => loadFirstRequestPage(sources),
     loadNext,
     autoLoad,
-    reportError,
-    clearError,
   });
   const items = useMemo(() => feed.items ?? [], [feed.items]);
   return {
@@ -519,9 +506,7 @@ export function useMergedRequestFeed(
     loading: feed.loading,
     loadingMore: feed.loadingMore,
     reviewAccess: feed.data?.reviewAccess,
-    error: feed.error ?? pageError,
-    clearError,
-    reportError,
+    error: feed.error,
     reload: feed.reload,
     loadMore: feed.loadMore,
   };
@@ -560,8 +545,6 @@ const ALWAYS = () => true;
 export function useWithdrawalFeed(
   view: "open" | "history",
   filters: AggregatedRequestFilters,
-  reportError: ReportLoadError,
-  clearError: () => void,
 ) {
   const { data: session } = useSession();
   const accountId = session?.user.id;
@@ -606,8 +589,6 @@ export function useWithdrawalFeed(
     },
     loadNext,
     autoLoad: ALWAYS,
-    reportError,
-    clearError,
   });
   const items = useMemo(
     () => (included ? (feed.items ?? []) : []),

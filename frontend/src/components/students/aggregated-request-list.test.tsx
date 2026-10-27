@@ -1522,14 +1522,74 @@ describe("AggregatedRequestList", () => {
   ) {
     const sources = useRequestSources(view, filters);
     const feed = useMergedRequestFeed(sources, view, filters);
-    const withdrawals = useWithdrawalFeed(
-      view,
-      filters,
-      feed.reportError,
-      feed.clearError,
-    );
+    const withdrawals = useWithdrawalFeed(view, filters);
     return { feed, withdrawals };
   }
+
+  it.each(["merged", "withdrawal"] as const)(
+    "retains the %s pagination error and retry when the other feed reloads",
+    async (kind) => {
+      const unavailable = new ApiError("page unavailable", 503, {
+        code: "general.unavailable",
+      });
+      const requestPage = {
+        items: Array.from({ length: 25 }, (_, i) =>
+          openItem("excused", String(i)),
+        ),
+        next_cursor: "next",
+      };
+      mockListHistory.mockResolvedValue(requestPage);
+      mockListWithdrawals.mockResolvedValue({
+        items: [withdrawalItem("first")],
+        total: 26,
+        page: 1,
+        pageSize: 25,
+      });
+      const { result } = renderHook(
+        () => useFeeds({ ...NO_FILTERS, includeCareWithdrawals: true }),
+        { wrapper: providersWith(new Map()) },
+      );
+      await waitFor(() => {
+        expect(result.current.feed.items).toHaveLength(25);
+        expect(result.current.withdrawals.items).toEqual([
+          withdrawalItem("first"),
+        ]);
+      });
+      if (kind === "merged") mockListHistory.mockRejectedValueOnce(unavailable);
+      else mockListWithdrawals.mockRejectedValueOnce(unavailable);
+      const failedFeed = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      const displayedError = () =>
+        result.current.feed.error ?? result.current.withdrawals.error;
+      await act(async () => {
+        await failedFeed().loadMore();
+      });
+      await waitFor(() => expect(displayedError()?.retry).toBeTruthy());
+      const error = displayedError();
+      await act(async () => {
+        if (kind === "merged") await result.current.withdrawals.load();
+        else await result.current.feed.reload();
+      });
+      expect(displayedError()).toBe(error);
+      if (kind === "merged") {
+        mockListHistory.mockResolvedValueOnce({
+          items: [openItem("excused", "next")],
+        });
+      } else {
+        mockListWithdrawals.mockResolvedValueOnce({
+          items: [withdrawalItem("next")],
+          total: 26,
+          page: 2,
+          pageSize: 25,
+        });
+      }
+      act(() => error?.retry?.onClick());
+      await waitFor(() => {
+        expect(failedFeed().items).toHaveLength(kind === "merged" ? 26 : 2);
+      });
+      expect(displayedError()).toBeNull();
+    },
+  );
 
   it.each(["changed", "identical"] as const)(
     "rejects a withdrawal page after a same-filter reload with %s contents",
@@ -1663,7 +1723,9 @@ describe("AggregatedRequestList", () => {
       await act(async () => {
         await result.current.withdrawals.loadMore();
       });
-      await waitFor(() => expect(result.current.feed.error).toBeTruthy());
+      await waitFor(() =>
+        expect(result.current.withdrawals.error).toBeTruthy(),
+      );
       if (replacement === "reload") {
         await act(async () => {
           await result.current.withdrawals.load();
@@ -1674,7 +1736,7 @@ describe("AggregatedRequestList", () => {
       await waitFor(() =>
         expect(result.current.withdrawals.items[0]?.id).toBe("replacement"),
       );
-      expect(result.current.feed.error).toBeNull();
+      expect(result.current.withdrawals.error).toBeNull();
     },
   );
 
@@ -1763,7 +1825,12 @@ describe("AggregatedRequestList", () => {
         }),
         { wrapper: DefaultCacheProviders },
       );
-      await waitFor(() => expect(result.current.feed.error).toBeTruthy());
+      await waitFor(() =>
+        expect(
+          (kind === "merged" ? result.current.feed : result.current.withdrawals)
+            .error,
+        ).toBeTruthy(),
+      );
       const fetchPage = kind === "merged" ? mockListOpen : mockListWithdrawals;
       expect(fetchPage).toHaveBeenCalledTimes(2);
 
@@ -1794,7 +1861,10 @@ describe("AggregatedRequestList", () => {
                 ...(hasMore ? [withdrawalItem("new-page")] : []),
               ],
         );
-        expect(result.current.feed.error).toBeNull();
+        expect(
+          (kind === "merged" ? result.current.feed : result.current.withdrawals)
+            .error,
+        ).toBeNull();
       });
       expect(fetchPage).toHaveBeenCalledTimes(hasMore ? 4 : 3);
     },

@@ -108,15 +108,8 @@ export function AggregatedRequestList({
     loadingMore,
     reviewAccess,
     error: listError,
-    clearError,
-    reportError,
   } = feed;
-  const withdrawalsFeed = useWithdrawalFeed(
-    view,
-    filters,
-    reportError,
-    clearError,
-  );
+  const withdrawalsFeed = useWithdrawalFeed(view, filters);
   const {
     items: withdrawals,
     setItems: setWithdrawals,
