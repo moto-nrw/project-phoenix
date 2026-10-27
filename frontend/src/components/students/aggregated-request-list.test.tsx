@@ -834,6 +834,45 @@ describe("AggregatedRequestList", () => {
     expect(screen.queryByText("Kind sofort gelöscht")).not.toBeInTheDocument();
   });
 
+  // Im Verlauf steht eine abgeschlossene Abmeldung im Raster der übrigen
+  // Einträge: Datum in der Spalte „Entschieden“, nicht der Name des Kindes.
+  it("puts a completed withdrawal into the history columns", async () => {
+    mockListWithdrawals.mockResolvedValue({
+      items: [
+        {
+          id: "withdrawal-dated",
+          studentId: "10",
+          firstName: "Mia",
+          lastName: "Muster",
+          schoolClass: "2a",
+          firstBookinglessDay: "2026-09-01",
+          urgency: "overdue",
+          state: "resolved",
+          outcome: "care_ended",
+          resolvedAt: "2026-09-02T09:00:00Z",
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    });
+
+    render(
+      <AggregatedRequestList
+        view="history"
+        filters={{ ...NO_FILTERS, includeCareWithdrawals: true }}
+      />,
+    );
+
+    const row = (await screen.findByText("Betreuung beendet")).closest(
+      "[data-request-row]",
+    );
+    expect(row).not.toBeNull();
+    const cells = within(row as HTMLElement);
+    expect(cells.getByText("02.09.2026")).toBeInTheDocument();
+    expect(cells.getByText("Mia Muster")).toBeVisible();
+  });
+
   it("does not show withdrawals when another request type is selected", async () => {
     mockListWithdrawals.mockResolvedValue({
       items: [

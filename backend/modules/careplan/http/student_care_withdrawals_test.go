@@ -12,12 +12,30 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+// resolveCareWithdrawal sets up the completed state this route alone reads.
+// Care Plan lifecycle behavior is covered by its owner tests; this HTTP test
+// only needs the persisted response state.
+func resolveCareWithdrawal(t testing.TB, db *bun.DB, completionID int64) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		Model((*testpkg.CareWithdrawalCompletion)(nil)).
+		Set("state = 'resolved'").
+		Set("outcome = 'care_ended'").
+		Set("resolved_at = NOW()").
+		Where("id = ?", completionID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err, "resolve care withdrawal task")
+}
 
 // TestStudentCareWithdrawals_ChildScopedResolvedList pins the child's
 // Änderungsprotokoll source for completed withdrawals (#5025): the request
-// reviewers of the child read it with users:update or users:absence, and it
-// never reaches beyond the one child, the resolved state or the reason.
+// reviewers of the child read it with users:update or users:read plus
+// users:absence, and it never reaches beyond the one child, the resolved
+// state or the reason.
 func TestStudentCareWithdrawals_ChildScopedResolvedList(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRouteWithCareLifecycle(t, false)
@@ -27,18 +45,18 @@ func TestStudentCareWithdrawals_ChildScopedResolvedList(t *testing.T) {
 	firstGap := calendar.NewDate(2026, 9, 1)
 
 	resolved := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, child.ID, actor.ID, firstGap)
-	testpkg.ResolveTestCareWithdrawal(t, tc.db, resolved.ID)
+	resolveCareWithdrawal(t, tc.db, resolved.ID)
 	// A pending task of the same child and a resolved one of another child
 	// stay out: the list is the child's completed withdrawals only.
 	testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, child.ID, actor.ID, firstGap.AddDays(7))
 	foreignResolved := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, sibling.ID, actor.ID, firstGap)
-	testpkg.ResolveTestCareWithdrawal(t, tc.db, foreignResolved.ID)
+	resolveCareWithdrawal(t, tc.db, foreignResolved.ID)
 
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Betreuung", "Kraft")
 	staff := testutil.TeacherTestClaims(int(staffAccount.ID))
 	path := fmt.Sprintf("/%d/care-withdrawals", child.ID)
 
-	for _, perms := range [][]string{{"users:absence"}, {"users:update"}, {"users:read", "users:absence"}} {
+	for _, perms := range [][]string{{"users:update"}, {"users:read", "users:absence"}} {
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil), staff, perms)
 		require.Equal(t, http.StatusOK, rr.Code, "%v: %s", perms, rr.Body.String())
 		var body struct {
@@ -65,7 +83,7 @@ func TestStudentCareWithdrawals_ChildScopedResolvedList(t *testing.T) {
 		"?search=Nachbar",
 		fmt.Sprintf("?student_id=%d", sibling.ID),
 	} {
-		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path+query, nil), staff, []string{"users:absence"})
+		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path+query, nil), staff, []string{"users:read", "users:absence"})
 		require.Equal(t, http.StatusOK, rr.Code, "%s: %s", query, rr.Body.String())
 		var body struct {
 			Data struct {
@@ -86,13 +104,18 @@ func TestStudentCareWithdrawals_RejectsCallersWithoutChildAccess(t *testing.T) {
 	child := testpkg.CreateTestStudent(t, tc.db, "Api", "Geschuetzt", "4b")
 	actor := testpkg.CreateTestAccount(t, tc.db, "student-care-withdrawals-gate@example.com")
 	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, child.ID, actor.ID, calendar.NewDate(2026, 9, 1))
-	testpkg.ResolveTestCareWithdrawal(t, tc.db, completion.ID)
+	resolveCareWithdrawal(t, tc.db, completion.ID)
 	path := fmt.Sprintf("/%d/care-withdrawals", child.ID)
 
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Nur", "Lesen")
 	readOnly := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil),
 		testutil.TeacherTestClaims(int(staffAccount.ID)), []string{"users:read"})
 	assert.Equal(t, http.StatusForbidden, readOnly.Code, "the route keeps the request log's gate")
+
+	absenceOnly := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil),
+		testutil.TeacherTestClaims(int(staffAccount.ID)), []string{"users:absence"})
+	assert.Equal(t, http.StatusForbidden, absenceOnly.Code, "users:absence is a write scope and needs users:read")
+	assert.NotContains(t, absenceOnly.Body.String(), `"items"`)
 
 	// An account that is no staff member of the school has no read access to
 	// the child, whatever its permissions.
@@ -125,7 +148,7 @@ func TestListStudentCareWithdrawalsQueryBudget(t *testing.T) {
 	addResolved := func(n int) {
 		for range n {
 			completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, child.ID, actor.ID, calendar.NewDate(2026, 9, 1+created))
-			testpkg.ResolveTestCareWithdrawal(t, tc.db, completion.ID)
+			resolveCareWithdrawal(t, tc.db, completion.ID)
 			created++
 		}
 	}
@@ -140,7 +163,7 @@ func TestListStudentCareWithdrawalsQueryBudget(t *testing.T) {
 	run := func() measurement {
 		counter.Reset()
 		path := fmt.Sprintf("/%d/care-withdrawals?page_size=1", child.ID)
-		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil), staff, []string{"users:absence"})
+		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil), staff, []string{"users:read", "users:absence"})
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 		var body struct {
 			Data struct {

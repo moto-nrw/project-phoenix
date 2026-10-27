@@ -2539,10 +2539,46 @@ describe("StudentDetailPage", () => {
         ).not.toBeInTheDocument();
       });
 
-      // Eine Fachkraft ohne users:read sieht die eingeschränkte Ansicht, hat
-      // aber Lesezugriff auf das Kind; die Kind-Route liefert ihr die
-      // Abmeldungen.
-      it("loads the child's withdrawals in the limited view of verified staff", async () => {
+      // Mit users:delete oder als Admin bleibt es beim Protokoll mit den
+      // Abmeldungen des Kindes (#5030); auch hier fragt die Kindakte nur die
+      // Kind-Route.
+      it.each([
+        ["users:delete", ["users:read", "users:update", "users:delete"]],
+        ["admin", ["admin:*"]],
+      ])(
+        "keeps the child's withdrawals with %s",
+        async (account, permissions) => {
+          vi.mocked(useSession).mockReturnValue({
+            data: { user: { id: `delete-${account}`, permissions } },
+            status: "authenticated",
+          } as ReturnType<typeof useSession>);
+
+          render(<StudentDetailPage />);
+
+          // Anker: die abgeschlossene Abmeldung steht im Protokoll.
+          expect(await screen.findByText("Betreuung beendet")).toBeVisible();
+          expect(requestedPaths()).toContain(
+            "/api/students/1/care-withdrawals",
+          );
+          // Die Kopfkarte fragt mit users:delete die offene Abmeldung über
+          // die Schul-Liste ab; der Verlauf des Protokolls nicht mehr.
+          const resolvedFromSchoolList = vi
+            .mocked(globalThis.fetch)
+            .mock.calls.map(
+              ([input]) => new URL(String(input), "http://localhost"),
+            )
+            .filter(
+              (url) =>
+                url.pathname === "/api/students/care-withdrawals" &&
+                url.searchParams.get("state") === "resolved",
+            );
+          expect(resolvedFromSchoolList).toEqual([]);
+        },
+      );
+
+      // users:absence ist ein Schreibrecht und darf ohne users:read weder das
+      // Änderungsprotokoll noch dessen Datenquellen öffnen.
+      it("hides the request log for absence-only staff", async () => {
         vi.mocked(useSession).mockReturnValue({
           data: { user: { id: "7", permissions: ["users:absence"] } },
           status: "authenticated",
@@ -2555,15 +2591,21 @@ describe("StudentDetailPage", () => {
         render(<StudentDetailPage />);
 
         // Anker: die eingeschränkte Ansicht hat keine Betreuungszeiten.
-        expect(await screen.findByText("Betreuung beendet")).toBeVisible();
+        expect(await screen.findByTestId("readonly-name")).toHaveTextContent(
+          "Max Mustermann",
+        );
         expect(
           screen.queryByTestId("care-schedule-manager"),
         ).not.toBeInTheDocument();
+        expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
         expect(
           requestedPaths().some((path) =>
             path.startsWith("/api/students/care-withdrawals"),
           ),
         ).toBe(false);
+        expect(requestedPaths()).not.toContain(
+          "/api/students/1/care-withdrawals",
+        );
       });
 
       it("loads the request log without withdrawals in the limited view", async () => {

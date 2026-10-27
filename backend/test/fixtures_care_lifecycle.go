@@ -29,23 +29,6 @@ func CreateTestCareWithdrawalCompletion(
 	return CreateTestCareWithdrawalCompletionConfirmedAt(tb, db, studentID, actorID, firstGap, time.Now())
 }
 
-// ResolveTestCareWithdrawal marks the withdrawal task as resolved with the
-// care ended, the state a completed withdrawal shows in the child's
-// Änderungsprotokoll. Ending the care itself is not reproduced; a test of
-// that path drives Care Plan.
-func ResolveTestCareWithdrawal(tb testing.TB, db bun.IDB, completionID int64) {
-	tb.Helper()
-	_, err := db.NewUpdate().
-		Model((*CareWithdrawalCompletion)(nil)).
-		Set("state = 'resolved'").
-		Set("outcome = 'care_ended'").
-		Set("resolved_at = NOW()").
-		Where("id = ?", completionID).
-		Where("tenant_id = ?", fixtureTenantID(tb)).
-		Exec(Ctx(tb))
-	require.NoError(tb, err, "resolve care withdrawal task")
-}
-
 // upsertTestPendingCareWithdrawal stores row as the child's pending
 // withdrawal task in the test's tenant. Care Plan keeps one pending task per
 // child, so a second call for the same child moves that task to the new

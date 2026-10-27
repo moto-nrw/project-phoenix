@@ -118,14 +118,11 @@ export function HistoryWithdrawalCard({
         kind: "readonly",
         label: deleted ? "Gelöscht" : "Abgeschlossen",
         tone: "gray",
+        // Ohne Zeitpunkt nähme die Zeile das Raster der Arbeitsliste und
+        // stünde quer zu den Spalten des Verlaufs.
+        decidedAt: row.resolvedAt,
       }}
-    >
-      {row.resolvedAt && (
-        <p className="text-sm text-gray-600">
-          Erledigt am {formatDate(row.resolvedAt)}
-        </p>
-      )}
-    </RequestReviewCard>
+    />
   );
 }
 

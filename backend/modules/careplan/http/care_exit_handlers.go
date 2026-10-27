@@ -12,6 +12,7 @@ import (
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -282,6 +283,10 @@ func respondCareWithdrawalPage(w http.ResponseWriter, r *http.Request, rows []ca
 func (rs *Resource) listStudentResolvedCareWithdrawals(w http.ResponseWriter, r *http.Request) {
 	if rs.CareLifecycleService == nil {
 		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+		return
+	}
+	if !securityruntime.CanReviewExcusedAbsenceRequests(sessiontoken.PermissionsFromCtx(r.Context())) {
+		renderError(w, r, common.ErrorForbidden(errors.New("users:absence requires users:read to view the child's withdrawals")))
 		return
 	}
 	student, ok := rs.parseAndGetStudent(w, r)
