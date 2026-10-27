@@ -11,7 +11,7 @@ import { toOptionalIdString } from "~/lib/wire-id";
 const logger = createLogger({ component: "TeachersConfig" });
 
 // Map teacher response from backend to frontend format
-function mapTeacherResponse(data: unknown): Teacher {
+export function mapTeacherResponse(data: unknown): Teacher {
   const typedData = data as Record<string, unknown>;
 
   // Extract person data if nested

@@ -452,6 +452,46 @@ async function fetchActiveGroups(): Promise<ActiveGroupWithId[]> {
   }
 }
 
+/** Kopf der Personalakte aus dem Datensatz von GET /api/staff/{id}. */
+export function mapStaffRecord(staff: BackendStaffResponse): Staff {
+  const { currentLocation, supervisionRole } = getSupervisionInfo(
+    staff.staff_id,
+    {},
+    staff.was_present_today,
+    staff.work_status,
+    staff.absence_type,
+  );
+  return {
+    id: staff.id,
+    startedOn: staff.started_on,
+    endedOn: staff.ended_on,
+    name: staff.name,
+    firstName: staff.firstName ?? staff.name?.split(" ")[0] ?? "",
+    lastName: staff.lastName ?? staff.name?.split(" ").slice(1).join(" ") ?? "",
+    email: undefined,
+    avatarUrl: staffAvatarUrl(staff.id, staff.avatar),
+    role: staff.role ?? undefined,
+    accountRole: staff.account_role ?? undefined,
+    specialization: staff.specialization?.trim() ?? undefined,
+    qualifications: staff.qualifications ?? undefined,
+    staffNotes: staff.staff_notes ?? undefined,
+    employmentType: staff.employment_type ?? undefined,
+    hasRfid: !!staff.tag_id,
+    isTeacher: !!staff.teacher_id,
+    isSupervising: false,
+    currentLocation,
+    supervisionRole,
+    supervisions: [],
+    wasPresentToday: staff.was_present_today,
+    workStatus: staff.work_status,
+    absenceType: staff.absence_type,
+    absenceTypeLabel: staff.absence_type_label,
+    isExternal: staff.is_external ?? false,
+    externalOrganization: staff.external_organization ?? undefined,
+    externalAccountStatus: staff.external_account_status ?? null,
+  };
+}
+
 // Staff service
 class StaffService {
   async getDocumentDirectory(): Promise<StaffDocumentDirectoryEntry[]> {
@@ -573,8 +613,9 @@ class StaffService {
     return mapStaffMember(payload.data, {});
   }
 
-  // Get a single staff member by ID
-  async getStaffById(id: string): Promise<Staff> {
+  // Rohdaten von GET /api/staff/{id}. Kopf der Personalakte (mapStaffRecord)
+  // und Konto-Reiter leiten ihre Abbildungen aus demselben Abruf ab (#4993).
+  async getStaffRecord(id: string): Promise<BackendStaffResponse> {
     const response = await sessionFetch(`/api/staff/${id}`);
     if (!response.ok) {
       throw await apiErrorFromResponse(
@@ -582,47 +623,8 @@ class StaffService {
         `Failed to fetch staff member: ${response.statusText}`,
       );
     }
-    const json = (await response.json()) as {
-      data: BackendStaffResponse & { employment_type?: string | null };
-    };
-    const staff = json.data;
-    const { currentLocation, supervisionRole } = getSupervisionInfo(
-      staff.staff_id,
-      {},
-      staff.was_present_today,
-      staff.work_status,
-      staff.absence_type,
-    );
-    return {
-      id: staff.id,
-      startedOn: staff.started_on,
-      endedOn: staff.ended_on,
-      name: staff.name,
-      firstName: staff.firstName ?? staff.name?.split(" ")[0] ?? "",
-      lastName:
-        staff.lastName ?? staff.name?.split(" ").slice(1).join(" ") ?? "",
-      email: undefined,
-      avatarUrl: staffAvatarUrl(staff.id, staff.avatar),
-      role: staff.role ?? undefined,
-      accountRole: staff.account_role ?? undefined,
-      specialization: staff.specialization?.trim() ?? undefined,
-      qualifications: staff.qualifications ?? undefined,
-      staffNotes: staff.staff_notes ?? undefined,
-      employmentType: staff.employment_type ?? undefined,
-      hasRfid: !!staff.tag_id,
-      isTeacher: !!staff.teacher_id,
-      isSupervising: false,
-      currentLocation,
-      supervisionRole,
-      supervisions: [],
-      wasPresentToday: staff.was_present_today,
-      workStatus: staff.work_status,
-      absenceType: staff.absence_type,
-      absenceTypeLabel: staff.absence_type_label,
-      isExternal: staff.is_external ?? false,
-      externalOrganization: staff.external_organization ?? undefined,
-      externalAccountStatus: staff.external_account_status ?? null,
-    };
+    const json = (await response.json()) as { data: BackendStaffResponse };
+    return json.data;
   }
 
   async getFinancialProfile(id: string): Promise<Staff> {
