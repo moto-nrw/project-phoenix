@@ -358,7 +358,7 @@ var queryBudgets = map[string]queryBudget{
 	// roster, one read of the morning marks and one of the status days for
 	// the whole period, 2 and then 5 children. The count must not move with
 	// the children.
-	"modules.classday.absence_list": {max: 20},
+	"modules.classday.absence_list": {max: 19},
 	// modules/mealplan — a week of orders reads each weekday in bulk (#3873),
 	// without a lock or a write; a due order not stored yet shares its day's
 	// reads with the current registration (ADR 0077).
