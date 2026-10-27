@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, PUT, PATCH, DELETE } from "./route";
 import {
@@ -125,6 +125,190 @@ describe("GET /api/students/[id]", () => {
     const response = await GET(request, createMockContext({ id: undefined }));
 
     expect(response.status).toBe(500);
+  });
+
+  // The consent read is independent of the student record, so both backend
+  // calls start together (#4995). These cases run the real consent helper so
+  // its "missing consent → defaults" rule is exercised through the route.
+  describe("student and consent fetched together", () => {
+    const STUDENT_PATH = "/api/students/123";
+    const CONSENT_PATH = "/api/students/123/privacy-consent";
+    const studentBody = {
+      data: { id: 123, person_id: 10, first_name: "Alice", last_name: "Smith" },
+    };
+
+    function deferred<T>() {
+      let resolve!: (value: T) => void;
+      let reject!: (reason: unknown) => void;
+      const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+
+    function problem(status: number, code: string) {
+      return new ApiResponseError(
+        status,
+        JSON.stringify({
+          type: "about:blank",
+          title: "Error",
+          status,
+          detail: "backend",
+          code,
+        }),
+        { contentType: "application/problem+json" },
+      );
+    }
+
+    async function useRealConsentHelper() {
+      const actual = await vi.importActual<
+        typeof import("~/lib/student-privacy-helpers")
+      >("~/lib/student-privacy-helpers");
+      const { fetchPrivacyConsent } =
+        await import("~/lib/student-privacy-helpers");
+      vi.mocked(fetchPrivacyConsent).mockImplementationOnce(
+        actual.fetchPrivacyConsent,
+      );
+    }
+
+    function routeApiGet(responses: Record<string, () => Promise<unknown>>) {
+      mockApiGet.mockImplementation((path: string) => {
+        const respond = responses[path];
+        if (!respond) throw new Error(`unexpected GET ${path}`);
+        return respond();
+      });
+    }
+
+    function getStudent() {
+      return GET(
+        createMockRequest(STUDENT_PATH),
+        createMockContext({ id: "123" }),
+      );
+    }
+
+    beforeEach(async () => {
+      await useRealConsentHelper();
+    });
+
+    // A case that fails before the route reads the consent would otherwise
+    // leave the real helper queued for the next test.
+    afterEach(async () => {
+      mockApiGet.mockReset();
+      const { fetchPrivacyConsent } =
+        await import("~/lib/student-privacy-helpers");
+      vi.mocked(fetchPrivacyConsent).mockReset();
+    });
+
+    it("starts the consent request before the student request has answered", async () => {
+      const student = deferred<unknown>();
+      const consent = deferred<unknown>();
+      routeApiGet({
+        [STUDENT_PATH]: () => student.promise,
+        [CONSENT_PATH]: () => consent.promise,
+      });
+
+      const pending = getStudent();
+
+      await vi.waitFor(() => {
+        expect(mockApiGet).toHaveBeenCalledWith(CONSENT_PATH, "test-token");
+      });
+      expect(mockApiGet).toHaveBeenCalledWith(STUDENT_PATH, "test-token");
+
+      consent.resolve({ data: { accepted: true, data_retention_days: 14 } });
+      student.resolve(studentBody);
+      const response = await pending;
+
+      expect(response.status).toBe(200);
+      const json = await parseJsonResponse<{
+        data: {
+          privacy_consent_accepted: boolean;
+          data_retention_days: number;
+        };
+      }>(response);
+      expect(json.data.privacy_consent_accepted).toBe(true);
+      expect(json.data.data_retention_days).toBe(14);
+    });
+
+    it.each([404, 403])(
+      "falls back to the default consent when the consent read answers %i",
+      async (status) => {
+        routeApiGet({
+          [STUDENT_PATH]: () => Promise.resolve(studentBody),
+          [CONSENT_PATH]: () =>
+            Promise.reject(
+              problem(
+                status,
+                status === 403 ? "general.permission" : "general.input",
+              ),
+            ),
+        });
+
+        const response = await getStudent();
+
+        expect(response.status).toBe(200);
+        const json = await parseJsonResponse<{
+          data: {
+            id: string;
+            privacy_consent_accepted: boolean;
+            data_retention_days: number;
+          };
+        }>(response);
+        expect(json.data.id).toBe("123");
+        expect(json.data.privacy_consent_accepted).toBe(false);
+        expect(json.data.data_retention_days).toBe(30);
+      },
+    );
+
+    it("answers the student 404 even when the consent read fails first", async () => {
+      const student = deferred<unknown>();
+      routeApiGet({
+        [STUDENT_PATH]: () => student.promise,
+        [CONSENT_PATH]: () => Promise.reject(problem(500, "general.server")),
+      });
+
+      const pending = getStudent();
+      await vi.waitFor(() => {
+        expect(mockApiGet).toHaveBeenCalledWith(CONSENT_PATH, "test-token");
+      });
+      student.reject(problem(404, "general.input"));
+      const response = await pending;
+
+      expect(response.status).toBe(404);
+      const json = await parseJsonResponse<{ code: string }>(response);
+      expect(json.code).toBe("general.input");
+    });
+
+    it("answers a student 5xx through the shared error path", async () => {
+      routeApiGet({
+        [STUDENT_PATH]: () =>
+          Promise.reject(problem(503, "general.unavailable")),
+        [CONSENT_PATH]: () =>
+          Promise.resolve({
+            data: { accepted: true, data_retention_days: 14 },
+          }),
+      });
+
+      const response = await getStudent();
+
+      expect(response.status).toBe(503);
+      const json = await parseJsonResponse<{ code: string }>(response);
+      expect(json.code).toBe("general.unavailable");
+    });
+
+    it("fails the request when the consent read answers 5xx", async () => {
+      routeApiGet({
+        [STUDENT_PATH]: () => Promise.resolve(studentBody),
+        [CONSENT_PATH]: () =>
+          Promise.reject(problem(502, "general.unavailable")),
+      });
+
+      const response = await getStudent();
+
+      expect(response.status).toBe(502);
+      const json = await parseJsonResponse<{ code: string }>(response);
+      expect(json.code).toBe("general.unavailable");
+    });
   });
 });
 

@@ -120,9 +120,19 @@ export const GET = createGetHandler(
     }
 
     try {
-      // Fetch student from backend API
-      // Using unknown type and will validate structure
-      const response = await apiGet<unknown>(`/api/students/${id}`, token);
+      // Student and consent are independent reads, so both start at once
+      // (#4995). Settling both keeps the old precedence: a failed student read
+      // answers the request even when the consent read failed first, and a
+      // consent failure is never left as an unhandled rejection. Missing or
+      // forbidden consent still resolves to the defaults in the helper.
+      const [studentResult, consentResult] = await Promise.allSettled([
+        apiGet<unknown>(`/api/students/${id}`, token),
+        fetchPrivacyConsent(id, apiGet, token),
+      ]);
+      if (studentResult.status === "rejected") {
+        throw studentResult.reason;
+      }
+      const response = studentResult.value;
 
       // Type guard to check response structure
       if (!response || typeof response !== "object" || !("data" in response)) {
@@ -194,8 +204,10 @@ export const GET = createGetHandler(
         studentData as unknown as BackendStudent,
       );
 
-      // Fetch privacy consent data using helper
-      const consentData = await fetchPrivacyConsent(id, apiGet, token);
+      if (consentResult.status === "rejected") {
+        throw consentResult.reason;
+      }
+      const consentData = consentResult.value;
 
       return {
         ...mappedStudent,
