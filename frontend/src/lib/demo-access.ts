@@ -21,13 +21,9 @@ export const DEMO_RECORDING_NOTICE =
   "Um moto zu verbessern, werten wir aus, wie die Demo genutzt wird. Was Sie eintippen, sehen wir dabei nicht.";
 export const DEMO_RECORDING_PRIVACY_LINK = "Mehr zum Datenschutz";
 
-/**
- * True in the image built for the public demo only. Next.js inlines the
- * value at build time, so no other build ever shows the demo banner.
- */
-export function isDemoBuild(): boolean {
-  return process.env.NEXT_PUBLIC_APP_ENV === "demo";
-}
+// Kept in its own light module so screens outside the demo flow can ask
+// without loading the sign-in code below.
+export { isDemoBuild } from "~/lib/demo-build";
 
 /**
  * What the visitor sees the demo school as (#3467). The visitor has one
@@ -58,7 +54,10 @@ export const DEMO_ROLES: readonly {
   {
     role: "parent",
     label: "Elternteil",
-    description: "Die Eltern-App: Kind, Abholung, Krankmeldung, Nachrichten.",
+    // The visitor is also the parent of one child of the school (#3468), so
+    // their name stands at that child's guardians in every role (#5033).
+    description:
+      "Die Eltern-App für Ihr eigenes Kind an der Schule: Abholung, Krankmeldung, Nachrichten.",
   },
 ];
 

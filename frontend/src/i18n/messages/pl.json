@@ -797,7 +797,8 @@
       "badges": {
         "primary": "Główny",
         "canPickup": "Może odbierać",
-        "emergency": "Kontakt alarmowy"
+        "emergency": "Kontakt alarmowy",
+        "self": "To Państwo"
       },
       "editContact": "Edytuj",
       "managePickup": "Zarządzaj odbiorem",
