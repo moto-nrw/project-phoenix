@@ -333,7 +333,7 @@ func buildActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return fail(err)
 	}
 	scan := ActiveDeviceScan{
-		SessionLifecycle: scanBindings.NewSessionLifecycle(presence, scanBindings.NewSupervisionQuery(owners.NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
+		SessionLifecycle: scanBindings.NewSessionLifecycle(presence, owners.NewLoggedStudentPresence(db, logger), scanBindings.NewSupervisionQuery(owners.NewLoggedStudentPresence(db, logger)), NewDeviceScanPeople(dataUsers), dataDevices.IoT, nil, logger, DeviceScanPrincipal),
 		RoomAvailability: data.RoomAvailability, Configuration: data.Configuration, Directory: data.Directory, TagAssignments: data.TagAssignments,
 	}
 	return ActiveTestModule{PickupSchedule: pickups, ArrivalSchedule: arrivals, CareDay: careDay},

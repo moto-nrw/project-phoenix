@@ -320,10 +320,11 @@ func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDev
 	}
 
 	s.applyCheckoutFlags(ctx, result, student, checkout.Visit)
-	result.ActiveStudents, err = s.resolveActiveStudentCount(ctx, checkin, command.RoomID, device.ID)
+	counter, err := s.resolveActiveStudentCount(ctx, checkin, command.RoomID, device.ID)
 	if err != nil {
 		return nil, err
 	}
+	result.ActiveStudents, result.ActiveStudentsSessionID, result.ActiveStudentsRevision = counter.count, counter.sessionID, counter.revision
 	s.applyPickupTime(ctx, result, student.ID, now)
 
 	result.PersonID = student.ID

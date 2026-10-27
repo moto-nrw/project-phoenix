@@ -180,6 +180,43 @@ request transaction up to its commit or rollback) and `after-commit` (the
 hooks after a commit). Sections that did not run are left out. Code:
 `backend/api/iot_http_metrics.go`.
 
+### Student count revision (#5128)
+
+The kiosk orders its student counter by a server revision, not by the start
+order of its requests. Both fields are additive; an older kiosk ignores them.
+
+- **Wire.** `GET /api/iot/session/current` returns `active_students_revision`
+  exactly when it returns `active_students`; its scope is the
+  `active_group_id` of the same answer. `POST /api/iot/checkin` (detailed
+  mode) returns `active_students_session_id` and `active_students_revision`
+  together, only with an `active_students` of the scanning device's own
+  session in the scanned room. A room-wide count (the device runs no session
+  there), a failed count and a binary-mode or supervisor scan carry neither.
+- **Scope and monotonicity.** The revision is
+  `active.groups.visit_revision` of one session (Student Presence). Every
+  statement on `active.visits` that opens, closes, moves or deletes an open
+  visit raises it by one for each session whose count it changed, in the same
+  transaction (statement trigger of migration 1.15.685). Revisions compare
+  only within one session; a new session starts at 0.
+- **Snapshot and ties.** Count and revision come from one statement. The
+  trigger locks the sessions it raises (ascending id) until commit, so writers
+  of one session commit in revision order, and a scan reads the revision its
+  own change raised. One revision of a session always names one count; an
+  equal revision is the same state.
+- **Restarts and processes.** The revision lives in the database. Neither a
+  backend restart nor several backend processes reset or fork it.
+- **Kiosk rule.** Within one scope (activity, room, session), accept a count
+  whose revision is greater than the shown one, ignore a smaller or equal one,
+  and never take a revision from another session. A count without a revision
+  (room-wide count, older backend) keeps the kiosk's previous rule.
+- **Lock order.** `CloseVisits` locks the visits' sessions before the visit
+  rows, like a session end, so a checkout and a session end of one session
+  wait instead of deadlocking. Two transfers in opposite directions between
+  the same two sessions at the same moment can still deadlock; PostgreSQL
+  aborts one of them and that scan answers with an error.
+
+Deploy the backend first; the kiosk change in PyrePortal follows.
+
 ### Destination choice into released rooms (#3067)
 
 `GET /api/iot/rooms/available` flags each room with `is_open_room` (released

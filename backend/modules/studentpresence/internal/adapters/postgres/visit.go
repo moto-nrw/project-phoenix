@@ -184,9 +184,22 @@ func (s *Store) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]*
 		return []*studentpresence.Visit{}, ports.Stats{}, nil
 	}
 	started := time.Now()
+	// The sessions are locked before the visit rows, in ascending id order:
+	// the visit revision trigger (#5128) locks the sessions it raises, and a
+	// session end locks its session before its visits. The uncorrelated
+	// subquery runs once before the first row reaches the update, so a
+	// checkout and a session end of one session wait for each other instead
+	// of deadlocking.
 	err = db.NewUpdate().Model((*visitRow)(nil)).ModelTableExpr(`active.visits AS "visit"`).
 		Set("exit_time = ?", at).Where("visit.tenant_id = ?", tenantID).
-		Where("visit.id IN (?)", bun.List(ids)).Where("visit.exit_time IS NULL").Returning("*").Scan(ctx, &rows)
+		Where("visit.id IN (?)", bun.List(ids)).Where("visit.exit_time IS NULL").
+		Where(`(SELECT count(*) FROM (
+			SELECT g.id FROM active.groups AS g
+			WHERE g.tenant_id = ? AND g.id IN (
+				SELECT v.active_group_id FROM active.visits AS v
+				WHERE v.tenant_id = ? AND v.id IN (?) AND v.exit_time IS NULL)
+			ORDER BY g.id FOR NO KEY UPDATE OF g) AS locked_sessions) >= 0`, tenantID, tenantID, bun.List(ids)).
+		Returning("*").Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, stats, fmt.Errorf("close visits: %w", err)
