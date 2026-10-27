@@ -3,7 +3,7 @@
  * (#4999). Next sets no Cache-Control on dynamic route handlers, so without
  * it a shared school device may keep children's data in its disk cache.
  */
-export const PRIVATE_NO_STORE = "private, no-store";
+const PRIVATE_NO_STORE = "private, no-store";
 
 const JSON_CONTENT_TYPE = /^application\/(?:[\w.+-]+\+)?json\s*(?:;|$)/i;
 
