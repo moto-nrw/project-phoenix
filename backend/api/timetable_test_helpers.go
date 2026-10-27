@@ -189,7 +189,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return TimetableTestModule{}, nil, nil, err
 	}
 	templateDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
-	templates, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
+	templates, _, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}

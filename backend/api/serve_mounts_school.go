@@ -160,6 +160,7 @@ func newTimetableResource(
 		People:                  NewTimetablePeople(users),
 		TeacherHints:            newTimetableTeacherHints(hints),
 		Templates:               planning.Planning.Templates,
+		RosterReview:            planning.RosterReview,
 		StudentTemplateDays:     planning.StudentTemplateDays,
 		RecurrenceLock:          planning.Planning.RecurrenceLock,
 		AttendanceCorrections:   planning.Planning.AttendanceCorrections,

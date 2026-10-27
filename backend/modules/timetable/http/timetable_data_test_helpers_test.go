@@ -24,7 +24,10 @@ type testTimetable struct {
 	conflicts   timetableModule.ConflictDetectionCapability
 	corrections timetableModule.AttendanceCorrections
 	lock        timetableModule.RecurrenceWriteLock
+	review      timetableModule.TemplateRosterReview
 }
+
+func (t *testTimetable) RosterReview() timetableModule.TemplateRosterReview { return t.review }
 
 func (t *testTimetable) TimetableData() timetableModule.TimetableDataCapability { return t.data }
 
@@ -103,6 +106,7 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		conflicts:              module.ConflictDetection,
 		lock:                   module.RecurrenceLock,
 		corrections:            module.AttendanceCorrections,
+		review:                 module.RosterReview,
 	}
 }
 
@@ -123,6 +127,7 @@ type TimetableOptions struct {
 // attendance correction and the recurrence gate.
 type TimetableHTTPModule struct {
 	Templates             timetableModule.TemplateAdministration
+	RosterReview          timetableModule.TemplateRosterReview
 	Data                  timetableModule.TimetableDataCapability
 	ConflictDetection     timetableModule.ConflictDetectionCapability
 	AttendanceCorrections timetableModule.AttendanceCorrections

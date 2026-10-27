@@ -3,9 +3,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-const { createExternal } = vi.hoisted(() => ({ createExternal: vi.fn() }));
+const { createExternal, getOfferingPreview } = vi.hoisted(() => ({
+  createExternal: vi.fn(),
+  getOfferingPreview: vi.fn(),
+}));
 vi.mock("~/lib/staff-api", () => ({
   staffService: { createExternal, inviteExternal: vi.fn() },
+}));
+vi.mock("~/lib/timetable-api", () => ({
+  timetableService: { getOfferingPreview },
 }));
 
 import { StepPersonalKinder } from "./step-personal-kinder";
@@ -589,5 +595,47 @@ describe("StepPersonalKinder — externe Person", () => {
     expect(
       screen.queryByRole("button", { name: "Externe Person eintragen" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("StepPersonalKinder — Vorschau pro Wochentag (#5103)", () => {
+  it("previews an existing series switched to an offering per weekday", async () => {
+    getOfferingPreview.mockResolvedValue({
+      from: "2026-10-28",
+      weekdays: [
+        {
+          weekday: 1,
+          added: [],
+          removed: [{ studentId: "5", name: "Ben Kurz" }],
+          keptCount: 3,
+        },
+      ],
+      segments: [
+        { templateId: "8", validFrom: "2026-09-01", validUntil: "2026-10-30" },
+        { templateId: "9", validFrom: "2026-10-30" },
+      ],
+    });
+    renderStep({
+      form: {
+        ...emptyForm("2026-08-03"),
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["42"],
+        sourceFilterMode: "klasse",
+        sourceSchoolClasses: ["1b"],
+      },
+      sourcePreviewTemplateId: "9",
+      sourcePreviewFrom: "2026-10-28",
+    });
+
+    expect(await screen.findByText("Montag")).toBeInTheDocument();
+    expect(screen.getByText("Fällt weg (1): Ben Kurz")).toBeInTheDocument();
+    expect(getOfferingPreview).toHaveBeenCalledWith(
+      "9",
+      { offeringIds: ["42"], gradeLevels: [], schoolClasses: ["1b"] },
+      "2026-10-28",
+    );
+    expect(
+      screen.getByText(/Die Termine vom 28.10.2026 bis 29.10.2026/),
+    ).toBeInTheDocument();
   });
 });

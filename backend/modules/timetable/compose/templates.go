@@ -31,7 +31,7 @@ func NewMaterialization(deps ports.MaterializationDependencies) (timetable.Mater
 	return application.NewMaterialization(deps)
 }
 
-func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (timetable.TemplateAdministration, error) {
+func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (timetable.TemplateAdministration, timetable.TemplateRosterReview, error) {
 	return application.NewTemplateAdministration(deps)
 }
 
