@@ -31,6 +31,7 @@ import {
   describeRecurrence,
   fetchStaffNotices,
   fetchTodaysNotices,
+  staffNoticesTodayKey,
   updateStaffNotice,
 } from "~/lib/staff-notices-api";
 import type { StaffNotice, StaffNoticeInput } from "~/lib/staff-notices-api";
@@ -61,7 +62,7 @@ export default function TagesinformationenPage() {
     isLoading: todayLoading,
     mutate: mutateToday,
   } = useSWRAuth<StaffNotice[]>(
-    `staff-notices-today:${accountId}`,
+    staffNoticesTodayKey(accountId),
     fetchTodaysNotices,
     {
       revalidateOnFocus: false,
