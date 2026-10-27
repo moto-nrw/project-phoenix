@@ -84,8 +84,8 @@ func TestRecordPresenceHistoryAcceptsAnEmptyBatch(t *testing.T) {
 	assert.Zero(t, written)
 }
 
-// A day that is not in the past, or a visit outside its attendance, rejects
-// the whole batch before anything is written.
+// A day in the future, or a visit outside its attendance, rejects the whole
+// batch before anything is written.
 func TestRecordPresenceHistoryRejectsDaysNoCareDayProduced(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -102,22 +102,48 @@ func TestRecordPresenceHistoryRejectsDaysNoCareDayProduced(t *testing.T) {
 	past := calendar.NewDate(2026, time.March, 10)
 	valid := studentpresence.PastPresenceDay{StudentID: student.ID, Date: past, DeviceID: device.ID,
 		CheckIn: time.Date(2026, time.March, 10, 12, 0, 0, 0, berlin), CheckOut: time.Date(2026, time.March, 10, 15, 0, 0, 0, berlin)}
-	// The writer reads the real clock; tomorrow stays ahead of it even when
-	// the test crosses midnight.
-	tomorrow := calendar.TodayDate().AddDays(1)
+	futureDate := calendar.NewDate(2099, time.January, 2)
 	future := valid
-	future.Date = tomorrow
-	future.CheckIn = time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 12, 0, 0, 0, berlin)
+	future.Date = futureDate
+	future.CheckIn = time.Date(futureDate.Year(), futureDate.Month(), futureDate.Day(), 12, 0, 0, 0, berlin)
 	future.CheckOut = future.CheckIn.Add(3 * time.Hour)
 	outside := valid
 	outside.Visit = &studentpresence.PastVisit{ActivityGroupID: activity.ID, RoomID: room.ID,
 		SessionStart: valid.CheckIn, SessionEnd: valid.CheckOut.Add(time.Hour), Entry: valid.CheckIn, Exit: valid.CheckOut.Add(30 * time.Minute)}
 
-	for name, day := range map[string]studentpresence.PastPresenceDay{"tomorrow": future, "visit after departure": outside} {
+	for name, day := range map[string]studentpresence.PastPresenceDay{"future": future, "visit after departure": outside} {
 		_, err := history.RecordPresenceHistory(ctx, []studentpresence.PastPresenceDay{valid, day})
 		require.Error(t, err, name)
 	}
 	attendance, err := module.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{student.ID}})
 	require.NoError(t, err)
 	assert.Empty(t, attendance, "a rejected batch writes nothing")
+}
+
+func TestRecordPresenceHistoryRejectsOpenAttendance(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	require.NoError(t, err)
+	history := compose.NewPresenceHistory(compose.Dependencies{DB: db})
+	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
+	require.NoError(t, err)
+	device := testpkg.CreateTestDevice(t, db, "presence-history-open")
+	student := testpkg.CreateTestStudent(t, db, "History", "Open", "3a")
+	day := calendar.NewDate(2026, time.March, 10)
+	checkIn := time.Date(2026, time.March, 10, 12, 0, 0, 0, berlin)
+	checkOut := checkIn.Add(3 * time.Hour)
+	_, err = module.RecordAttendance(ctx, studentpresence.Attendance{StudentID: student.ID, Date: day.String(), DeviceID: device.ID, CheckInTime: checkIn})
+	require.NoError(t, err)
+
+	_, err = history.RecordPresenceHistory(ctx, []compose.PastPresenceDay{{
+		StudentID: student.ID, Date: day, DeviceID: device.ID, CheckIn: checkIn, CheckOut: checkOut,
+	}})
+
+	require.ErrorContains(t, err, "already has open attendance")
+	attendance, err := module.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{student.ID}, FromDate: day.String(), UntilDate: day.String()})
+	require.NoError(t, err)
+	require.Len(t, attendance, 1)
+	assert.Nil(t, attendance[0].CheckOutTime)
 }

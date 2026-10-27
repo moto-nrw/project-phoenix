@@ -158,7 +158,7 @@ func (w *PresenceHistoryWriter) recordPastVisit(ctx context.Context, day student
 }
 
 // loadPastPresenceRecords recognizes only rows with the deterministic seed
-// signature. A different completed record is left untouched and stops the
+// signature. A different existing record is left untouched and stops the
 // batch instead of creating a duplicate beside it.
 func (w *PresenceHistoryWriter) loadPastPresenceRecords(ctx context.Context, days []studentpresence.PastPresenceDay) (pastPresenceRecords, error) {
 	records := pastPresenceRecords{attendance: map[pastAttendanceKey]bool{}, sessions: map[pastSessionKey]studentpresence.LiveGroup{}, visits: map[pastVisitKey][]studentpresence.Visit{}}
@@ -184,6 +184,9 @@ func (w *PresenceHistoryWriter) loadPastAttendanceRecords(ctx context.Context, s
 		for _, row := range attendance {
 			if row.StudentID != key.studentID || row.Date != key.date {
 				continue
+			}
+			if row.CheckOutTime == nil {
+				return fmt.Errorf("%w: student %d already has open attendance on %s", errPresenceHistory, day.StudentID, day.Date)
 			}
 			if !matchesPastAttendance(row, day) || records.attendance[key] {
 				return fmt.Errorf("%w: student %d already has different attendance on %s", errPresenceHistory, day.StudentID, day.Date)
