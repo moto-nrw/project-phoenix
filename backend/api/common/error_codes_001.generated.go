@@ -132,6 +132,7 @@ const (
 	CodeParentBillingLetterheadTooLong                = "parent_billing.letterhead_too_long"
 	CodeParentBillingNumberRangeInvalid               = "parent_billing.number_range_invalid"
 	CodeParentBillingNumberRangeMissing               = "parent_billing.number_range_missing"
+	CodeParentBillingParentDocumentNotFound           = "parent_billing.parent_document_not_found"
 	CodeParentBillingRecipientEmailMissing            = "parent_billing.recipient_email_missing"
 	CodePickupBulkExceptionConfirmationRequired       = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                       = "pickup.future_manual_reset"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableAttendanceEntryNotFound              = "timetable.attendance_entry_not_found"
 	CodeTimetableAttendanceFrozen                     = "timetable.attendance_frozen"
 	CodeTimetableAttendanceInvalid                    = "timetable.attendance_invalid"
-	CodeTimetableCalendarPeriodCareOfferingConflict   = "timetable.calendar_period_care_offering_conflict"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -435,6 +435,7 @@ var errorCodeClasses1 = map[string]string{
 	"parent_billing.letterhead_too_long":                 "business_rejection",
 	"parent_billing.number_range_invalid":                "input",
 	"parent_billing.number_range_missing":                "business_rejection",
+	"parent_billing.parent_document_not_found":           "business_rejection",
 	"parent_billing.recipient_email_missing":             "business_rejection",
 	"pickup.bulk_exception_confirmation_required":        "input",
 	"pickup.future_manual_reset":                         "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.attendance_entry_not_found":               "business_rejection",
 	"timetable.attendance_frozen":                        "business_rejection",
 	"timetable.attendance_invalid":                       "input",
-	"timetable.calendar_period_care_offering_conflict":   "business_rejection",
 }
 
 func init() {

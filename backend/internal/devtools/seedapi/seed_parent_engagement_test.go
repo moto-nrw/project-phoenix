@@ -103,6 +103,7 @@ func TestSeedParentEngagementStepUsesParentFacingFlows(t *testing.T) {
 		"/parent/me/notification-preferences/parent_appointment",
 		"/parent/me/notification-preferences/parent_request_decided",
 		"/parent/me/notification-preferences/parent_care_cancelled",
+		"/parent/me/notification-preferences/parent_billing_document",
 		"/api/students/44",
 		"/api/groups/7",
 		"/api/messages/group-threads",

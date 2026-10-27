@@ -42,3 +42,9 @@ func NewLetterMailRenderer() parentbilling.LetterMailRenderer { return applicati
 func NewBillingLetters(letterheads parentbilling.BillingLetterheads) parentbilling.BillingLetterService {
 	return application.NewBillingLetters(postgres.NewStore(), letterheads, rendering.NewRenderer(), calendar.TodayDate)
 }
+
+// NewParentDocuments builds the inbox of the parents portal (#4671, ADR
+// 0126). It runs in the Träger transaction the parents portal opens.
+func NewParentDocuments() parentbilling.ParentDocuments {
+	return application.NewParentDocuments(postgres.NewStore())
+}

@@ -608,6 +608,8 @@ GET /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
 GET /parent/me/children/{studentId}/requests/{requestType}/{requestId}/events
 GET /parent/me/children/{studentId}/sick-note
 GET /parent/me/children/{studentId}/today
+GET /parent/me/documents
+GET /parent/me/documents/{organizationId}/{documentId}/pdf
 GET /parent/me/enrollable-schools
 GET /parent/me/enrollments
 GET /parent/me/messages

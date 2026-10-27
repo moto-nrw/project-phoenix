@@ -49,6 +49,13 @@ type PortalService interface {
 	// records each child's read in its school's data access log (#4662).
 	HolidayRegistrationFamily(ctx context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error)
 
+	// ListBillingDocuments lists the documents the Träger of the account's
+	// schools sent to its address, where a relationship grants
+	// parent_portal.enrollments.view at a school of that Träger (#4671).
+	ListBillingDocuments(ctx context.Context, accountID int64) ([]parentService.BillingDocument, error)
+	// BillingDocumentLetter reads the PDF of one document in that inbox.
+	BillingDocumentLetter(ctx context.Context, accountID, organizationID, documentID int64) (parentService.BillingDocumentFile, error)
+
 	// ListEnrollmentsForAccount returns every enrollment.requests row
 	// where guardian_account_id matches the calling account, joined
 	// to phase + school + child summaries. Used by the dashboard to

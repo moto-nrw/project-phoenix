@@ -28,9 +28,15 @@ import (
 type fakeParentService struct {
 	declarationProof *parentService.DeclarationProof
 
-	conferenceChild    *parentService.Child
-	conferenceChildErr error
-	gotConferenceBook  []bool
+	conferenceChild         *parentService.Child
+	conferenceChildErr      error
+	gotConferenceBook       []bool
+	documents               []parentService.BillingDocument
+	documentFile            parentService.BillingDocumentFile
+	documentsErr            error
+	gotDocumentsAccount     int64
+	gotDocumentOrganization int64
+	gotDocumentID           int64
 
 	getProfile    *parentService.Profile
 	getProfileErr error
@@ -135,6 +141,16 @@ func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, in
 	}
 	return &parentService.GuardianSubmitStatus{}, nil
 }
+func (f *fakeParentService) ListBillingDocuments(_ context.Context, accountID int64) ([]parentService.BillingDocument, error) {
+	f.gotDocumentsAccount = accountID
+	return f.documents, f.documentsErr
+}
+
+func (f *fakeParentService) BillingDocumentLetter(_ context.Context, accountID, organizationID, documentID int64) (parentService.BillingDocumentFile, error) {
+	f.gotDocumentsAccount, f.gotDocumentOrganization, f.gotDocumentID = accountID, organizationID, documentID
+	return f.documentFile, f.documentsErr
+}
+
 func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error) {
 	f.gotHolidayAccount, f.gotHolidayOrganization, f.gotHolidaySchools = accountID, organizationID, schoolIDs
 	if f.holidayFamily != nil {

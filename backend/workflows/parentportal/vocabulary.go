@@ -6,6 +6,8 @@ package parentportal
 // package that owns it.
 
 import (
+	"context"
+
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
 )
@@ -37,6 +39,16 @@ type (
 	ChildFeatureFlags               = care.ChildFeatureFlags
 	ChildGuardian                   = care.ChildGuardian
 	ChildMasterData                 = care.ChildMasterData
+	BillingDocument                 = care.BillingDocument
+	BillingDocumentFile             = care.BillingDocumentFile
+	BillingDocumentPush             = care.BillingDocumentPush
+	BillingDocumentReader           = care.BillingDocumentReader
+	BillingDocumentsPort            = care.BillingDocuments
+	BillingDocumentNotifierPort     = care.BillingDocumentNotifier
+	ParentAccountsPort              = care.ParentAccounts
+	SchoolTraegerPort               = care.SchoolTraeger
+	TraegerRuntime                  = care.TraegerRuntime
+	Traeger                         = care.Traeger
 	ChildDataAccess                 = care.ChildDataAccess
 	ChildDataAccessLog              = care.ChildDataAccessLog
 	HolidayRegistrationChild        = care.HolidayRegistrationChild
@@ -102,6 +114,7 @@ var (
 	ErrCareRequestNotPending            = care.ErrCareRequestNotPending
 	ErrChildCareEnded                   = care.ErrChildCareEnded
 	ErrChildNotAnswerable               = messaging.ErrChildNotAnswerable
+	ErrBillingDocumentNotFound          = care.ErrBillingDocumentNotFound
 	ErrChildNotLinked                   = care.ErrChildNotLinked
 	ErrEmailRequired                    = care.ErrEmailRequired
 	ErrEmptyNote                        = care.ErrEmptyNote
@@ -229,3 +242,9 @@ type (
 	OfferingChangeIdentity     = messaging.OfferingChangeIdentity
 	OfferingChangeRequestReads = messaging.OfferingChangeRequestReads
 )
+
+// DocumentNotices sends the push that a document of a Träger is in the inbox
+// of the parents portal (#4671, ADR 0126).
+type DocumentNotices interface {
+	NotifyBillingDocument(ctx context.Context, organizationID, documentID int64, recipientEmail string) error
+}

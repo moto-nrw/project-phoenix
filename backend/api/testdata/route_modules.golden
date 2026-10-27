@@ -922,6 +922,8 @@ eltern_app
 	GET /parent/me/children/{studentId}/requests/{requestType}/{requestId}/events  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/sick-note  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/today  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/documents  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/documents/{organizationId}/{documentId}/pdf  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/enrollable-schools  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/enrollments  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/messages  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)

@@ -106,6 +106,9 @@ const (
 	// children was booked into has been cancelled (#2601). The feed entry is
 	// a system-authored parent announcement; this type only governs the push.
 	TypeParentCareCancelled = "parent_care_cancelled"
+	// TypeParentBillingDocument announces a document of the Träger in the
+	// inbox of the parents portal (#4671), such as a confirmation letter.
+	TypeParentBillingDocument = "parent_billing_document"
 
 	// TypeEnrollmentSubmitted is the e-mail "Neue Anmeldung" (#3780) to the
 	// enrollment managers who switched it on in the Anmeldungen overview.
@@ -382,6 +385,17 @@ func registerParentMessageTypes() {
 	// settings blip so the inbox never half-disables. Here a blip fails the whole
 	// FilterOptedIn call and the producer skips the push — the message is already
 	// safely stored and visible; a missing push is the harmless side.
+	// No school gate: the document comes from the Träger, not from a school
+	// feature; the family decides here whether the phone rings for it.
+	RegisterType(TypeDefinition{
+		Key:         TypeParentBillingDocument,
+		Label:       "Neues Dokument vom Träger",
+		Description: "Wenn der Träger Ihnen ein Dokument schickt, zum Beispiel ein Bestätigungsschreiben.",
+		Group:       GroupMessages,
+		Portal:      PortalParent,
+		SortOrder:   3,
+	})
+
 	RegisterType(TypeDefinition{
 		Key:         TypeParentMessage,
 		Label:       "Neue Nachricht der OGS",

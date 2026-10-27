@@ -47,6 +47,12 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Powers the "Anmeldungen in Bearbeitung" section on the
 	// dashboard.
 	r.Get("/me/enrollments", rs.listMyEnrollments)
+
+	// Document inbox (#4671): the documents the Träger of the account's
+	// schools sent to its address, and the PDF of one of them. Account
+	// from the claims; the Träger only from the account's relationships.
+	r.Get("/me/documents", rs.listBillingDocuments)
+	r.Get("/me/documents/{organizationId}/{documentId}/pdf", rs.billingDocumentPDF)
 }
 
 func (rs *Resource) mountCalendarRoutes(r chi.Router) {

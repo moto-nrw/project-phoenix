@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -219,6 +220,7 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if err != nil {
 		return "", err
 	}
+	seedHolidayRegistrationByParent(rt, registration)
 	if _, err := rt.Client.PostPublic("/traeger/holiday-quotes/"+token, seedHolidayQuote(registration)); err != nil {
 		return "", fmt.Errorf("show the holiday contribution: %w", err)
 	}
@@ -402,6 +404,25 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
 		"captcha_token": seedTurnstileTestToken,
 	}, nil
+}
+
+// seedHolidayRegistrationByParent lets the first seeded parent register the
+// siblings with the address of the parent's account, as a family with the
+// Eltern-App does after the prefill (#4662). Their confirmation letter then
+// lands in that parent's document inbox (#4671). A run without seeded
+// parents keeps the invented family.
+func seedHolidayRegistrationByParent(rt *Runtime, registration map[string]any) {
+	if len(rt.Parents) == 0 || rt.Parents[0].Email == "" {
+		return
+	}
+	guardian, _ := registration["guardian"].(map[string]any)
+	if guardian == nil {
+		return
+	}
+	guardian["email"] = rt.Parents[0].Email
+	if first, last, ok := strings.Cut(strings.TrimSpace(rt.Parents[0].Name), " "); ok && first != "" && last != "" {
+		guardian["first_name"], guardian["last_name"] = first, last
+	}
 }
 
 // seedTraegerSession is the Träger-Portal session of the bootstrap admin,

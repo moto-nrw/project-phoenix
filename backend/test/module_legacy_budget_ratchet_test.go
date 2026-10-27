@@ -186,7 +186,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose add exactly 9 LOC.
 // ADR 0127: the Elternsprechtag constructor of modules/schoolcalendar/compose
 // adds exactly 7 LOC.
-const moduleComposeBudgetTotal = 12692
+// ADR 0126: the document inbox constructor of modules/parentbilling/compose
+// (+6) and the inbox ports and document notices of
+// workflows/parentportal/compose (+21) add exactly 27 LOC.
+const moduleComposeBudgetTotal = 12719
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -236,7 +239,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0119: the billing run constructor (+7).
 	// Raised by ADR 0121: the confirmation letter constructor (+8).
 	// Raised by ADR 0123: the mail constructor and the mail renderer (+9).
-	"modules/parentbilling/compose":               44,
+	// Raised by ADR 0126: the document inbox constructor (+6).
+	"modules/parentbilling/compose":               50,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":    973,
@@ -267,8 +271,10 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/catererportal/compose":    37, // added by ADR 0077
 	"workflows/gradetransition/compose":  49,
 	"workflows/openroommove/compose":     46,
-	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1).
-	"workflows/parentportal/compose":     308,
+	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1);
+	// by ADR 0126: the document inbox ports and the push of a new document
+	// for the Delivery worker (+21).
+	"workflows/parentportal/compose":     329,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,

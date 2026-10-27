@@ -196,6 +196,7 @@ export const HELP_TOPICS = {
   parentCalendar: "als-elternteil-den-kalender-ansehen",
   parentConference: "einen-termin-am-elternsprechtag-buchen",
   parentMealPlan: "mittagessen-ansehen",
+  parentDocuments: "dokumente-vom-traeger-finden",
   parentEnroll: "mein-kind-anmelden",
   parentEnrollStatus: "anmeldung-weiter-bearbeiten",
   parentHolidayRegistration: "fuer-die-ferienbetreuung-anmelden",
@@ -347,6 +348,7 @@ const PARENT_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/calendar": HELP_TOPICS.parentCalendar,
   "/news": HELP_TOPICS.parentNews,
   "/meal-plan": HELP_TOPICS.parentMealPlan,
+  "/documents": HELP_TOPICS.parentDocuments,
   // Die Seite traegt Sprache und Benachrichtigungen. Der Artikel dazu
   // ist `Benachrichtigungen einstellen`.
   "/settings": HELP_TOPICS.parentNotifications,
