@@ -124,6 +124,12 @@ var queryBudgets = map[string]queryBudget{
 	// caller's child, then reads all requests once. The test uses three requests
 	// to prevent a per-row request lookup.
 	"workflows.parentportal.pickup_permission_requests.list": {max: 12},
+	// workflows/parentportal — GET /parent/me/documents (#4671, ADR 0126):
+	// the account's children with their relationships, the Träger of their
+	// schools and the account's address in one administrative transaction,
+	// then per Träger its binding, the sent documents of the address and one
+	// trail entry per run. Flat in the number of documents.
+	"workflows.parentportal.billing_documents.list": {max: 16},
 	// modules/enrollment/http — GET /phases/{id}/responses: phase plus four batched
 	// response sources inside the tenant transaction. The matching test proves
 	// the total stays flat from three to eight children.
@@ -158,6 +164,11 @@ var queryBudgets = map[string]queryBudget{
 	// statement that joins the named student directory projection; the
 	// matching test also pins the rows read at one and at four children.
 	"api.students.care_withdrawals.list": {max: 6},
+	// api/students — GET /students/{id}/care-withdrawals (#5025), page_size=1
+	// over four completed withdrawals of one child: the tenant list's six
+	// statements, filtered to the child, plus three for the child read and
+	// the read-access check.
+	"api.students.care_withdrawals.student_list": {max: 9},
 	// workflows/studentdeletion — the permanent deletion behind DELETE
 	// /students/{id} and DELETE /students/care-withdrawals/{id} (#3411), over
 	// the production composition with one and with four linked children.

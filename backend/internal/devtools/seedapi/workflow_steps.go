@@ -255,7 +255,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerBillingLettersStep{}, seedTestTraegerStep{})
 	if !seeder.options.DeferHistory {
 		// Erst jetzt sind alle Kinder der Schule angelegt (#5031).
-		steps = append(steps, seedPresenceHistoryStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
+		steps = append(steps, seedPresenceHistoryStep{seeder: seeder}, seedFeedbackHistoryStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 	}
 	steps = append(steps,
 		buildStateStep{seeder: seeder},
@@ -298,6 +298,8 @@ func deferredDemoSteps(seeder *Seeder) []Step {
 		// The past presence of every child, once the requests have added the
 		// last ones (#5031).
 		seedPresenceHistoryStep{seeder: seeder},
+		// The feedback the children gave on those days (#5029).
+		seedFeedbackHistoryStep{seeder: seeder},
 		seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 }
 

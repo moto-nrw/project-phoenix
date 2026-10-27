@@ -441,6 +441,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/parent/me/enrollable-schools": [
     "GET parent /parent/me/enrollable-schools",
   ],
+  "api/parent/me/documents": ["GET parent /parent/me/documents"],
   "api/parent/me/enrollments": ["GET parent /parent/me/enrollments"],
   "api/parent/me/messages": ["GET parent /parent/me/messages"],
   "api/parent/me/messages/children/[studentId]": [
@@ -783,6 +784,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   ],
   "api/students/[id]/care-end/resume": [
     "POST tenant /api/students/id%2F1/care-end/resume",
+  ],
+  "api/students/[id]/care-withdrawals": [
+    "GET tenant /api/students/id%2F1/care-withdrawals",
   ],
   "api/students/[id]/companions": [
     "GET tenant /api/students/id%2F1/companions",

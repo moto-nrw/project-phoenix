@@ -75,7 +75,7 @@ type ProviderAdapter struct{ Provider Provider }
 
 func (p ProviderAdapter) Send(ctx context.Context, intent domain.Intent) (deliveryContract.ProviderResult, error) {
 	claimed := deliveryContract.ClaimedIntent{
-		ID: intent.ID, TenantID: intent.TenantID, Transport: deliveryContract.Transport(intent.Transport),
+		ID: intent.ID, TenantID: intent.TenantID, OrganizationID: intent.OrganizationID, Transport: deliveryContract.Transport(intent.Transport),
 		Template: intent.Template, RelatedEntityType: intent.RelatedEntityType,
 		RelatedEntityID: intent.RelatedEntityID, Attempts: intent.Attempts,
 	}

@@ -94,6 +94,7 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end", rs.confirmCareExit)
 	r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end/cancel", rs.cancelCareExit)
 	r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Get("/care-withdrawals", rs.listCareWithdrawals)
+	r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/{id}/care-withdrawals", rs.listStudentResolvedCareWithdrawals)
 	r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-withdrawals/{completionId}/care-end/preview", rs.previewWithdrawalCareEnd)
 	r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-withdrawals/{completionId}/care-end", rs.confirmWithdrawalCareEnd)
 	r.With(common.RequiresPermission(permissions.UsersDelete), withTx).Post("/{id}/care-end/resume", rs.resumeCare)

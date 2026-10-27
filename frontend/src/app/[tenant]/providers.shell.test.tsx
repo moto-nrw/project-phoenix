@@ -18,6 +18,7 @@ const {
   mockProfileProvider,
   mockSupervisionProvider,
   mockPrimeSessionCache,
+  mockSwrMutate,
   childEffectOrder,
 } = vi.hoisted(() => ({
   mockSessionProvider: vi.fn(),
@@ -26,6 +27,7 @@ const {
   mockProfileProvider: vi.fn(),
   mockSupervisionProvider: vi.fn(),
   mockPrimeSessionCache: vi.fn(),
+  mockSwrMutate: vi.fn(),
   childEffectOrder: [] as string[],
 }));
 
@@ -41,6 +43,10 @@ vi.mock("swr", () => ({
   SWRConfig: (props: { children: React.ReactNode; value: unknown }) => {
     mockSWRConfig(props.value);
     return props.children;
+  },
+  mutate: (...args: unknown[]) => {
+    childEffectOrder.push(`seed ${String(args[0])}`);
+    mockSwrMutate(...args);
   },
 }));
 
@@ -112,6 +118,7 @@ const shell: ShellBootstrap = {
     updatedAt: "2026-01-01T00:00:00Z",
   },
   reminders: { enabled: true, reminders: [], count: 0 },
+  staffNoticesToday: [],
   announcements: [],
   supervision: {
     groups: [],
@@ -180,7 +187,43 @@ describe("TenantProviders with a server snapshot", () => {
     );
 
     expect(mockPrimeSessionCache).toHaveBeenCalledWith(session);
-    expect(childEffectOrder).toEqual(["prime", "child"]);
+    expect(childEffectOrder).toEqual([
+      "prime",
+      "seed school-a:user-context",
+      "seed school-a:reminders",
+      "seed school-a:staff-notices-today:1",
+      "child",
+    ]);
+  });
+
+  // Their readers never revalidate on mount; without the cache entry the
+  // first poll or mutate answered with the seed instead of the server (#4989).
+  it("writes the shell-owned entries into the cache without fetching", () => {
+    render(
+      <TenantProviders
+        tenantSlug="school-a"
+        tenant={tenant}
+        routingMode="subdomain"
+        session={session}
+        shell={shell}
+      >
+        <div />
+      </TenantProviders>,
+    );
+
+    expect(mockSwrMutate).toHaveBeenCalledTimes(3);
+    for (const [key, seed] of [
+      ["school-a:user-context", shell.userContext],
+      ["school-a:reminders", shell.reminders],
+      ["school-a:staff-notices-today:1", shell.staffNoticesToday],
+    ] as const) {
+      const call = mockSwrMutate.mock.calls.find(([k]) => k === key);
+      expect(call?.[2]).toEqual({ revalidate: false });
+      const write = call?.[1] as (current: unknown) => unknown;
+      // An entry a reader already holds stays.
+      expect(write(undefined)).toBe(seed);
+      expect(write("held")).toBe("held");
+    }
   });
 
   it("seeds SWR under the tenant-scoped keys and the providers with their slices", () => {
@@ -199,6 +242,8 @@ describe("TenantProviders with a server snapshot", () => {
     const entries = {
       "school-a:user-context": shell.userContext,
       "school-a:reminders": shell.reminders,
+      // Keyed by the account the snapshot was built for (#4989).
+      "school-a:staff-notices-today:1": shell.staffNoticesToday,
       // Platform-scoped: no tenant prefix.
       "user-announcements-unread": shell.announcements,
     };

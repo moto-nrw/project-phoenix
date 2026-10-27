@@ -27,6 +27,7 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // DeliveryNotifications are Delivery's notification side (#1845): the
@@ -106,7 +107,7 @@ func BuildDeliveryNotifications(
 func BuildDeliveryWorker(
 	db transactionruntime.Database, env RootEnvironment, mailSender email.Mailer, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, mailIdentity email.ReplyToResolver,
 	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer, reminders CalendarReminderSource,
-	modules settingsValues.ModuleBookingReader,
+	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices,
 ) (*deliveryModule.Worker, error) {
 	defaultFrom := mailFrom
 	renderers := map[string]deliveryCompose.MailRenderer{
@@ -151,7 +152,7 @@ func BuildDeliveryWorker(
 		}, deliveryCompose.NewExpiredPushSubscriptionCleaner(tenants, pushSubscriptions)),
 		Logger: env.Logger.With("service", "delivery"), Tenants: tenants,
 		PushAuthorized: deliveryCompose.NewPushAuthorizationChecker(tenants, pushSubscriptions),
-		DeferredPush:   reminderRecovery(db, reminders),
+		DeferredPush:   deferredPushes(reminderRecovery(db, reminders), documents),
 		Deliverable:    moduleGate.deliverable,
 	})
 	if err != nil {

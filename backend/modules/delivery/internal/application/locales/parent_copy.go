@@ -152,3 +152,25 @@ func ParentMessageCopy(locale string) (string, string) {
 		return "Neue Nachricht der OGS", "Sie haben eine neue Nachricht im Elternportal."
 	}
 }
+
+// ParentBillingDocumentCopy is the push that a Träger put a document in the
+// inbox of the parents portal (#4671). Like every parent push it names no
+// child and no amount; the document waits in the portal.
+func ParentBillingDocumentCopy(locale string) (string, string) {
+	switch Normalize(locale) {
+	case "en":
+		return "New document from the provider", "You have a new document in the parent portal."
+	case "ru":
+		return "Новый документ от организации", "У вас новый документ в родительском портале."
+	case "sq":
+		return "Dokument i ri nga ofruesi", "Keni një dokument të ri në portalin e prindërve."
+	case "pl":
+		return "Nowy dokument od organizatora", "Mają Państwo nowy dokument w portalu dla rodziców."
+	case "tr":
+		return "Kurumdan yeni belge", "Veli portalında yeni bir belgeniz var."
+	case "uk":
+		return "Новий документ від організації", "У вас новий документ у батьківському порталі."
+	default:
+		return "Neues Dokument vom Träger", "Sie haben ein neues Dokument im Elternportal."
+	}
+}

@@ -49,7 +49,7 @@ func TestPresenceHistoryPlanGivesPlausibleQuotas(t *testing.T) {
 			careDays++
 		}
 	}
-	require.Equal(t, 18, careDays, "29 days minus weekends, the closed day and two Ferien days")
+	require.Equal(t, 18, careDays, "30 days minus weekends, the closed day and two Ferien days")
 	sick, excused := 0, 0
 	for _, status := range plan.statuses {
 		switch status.status {

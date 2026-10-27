@@ -171,7 +171,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
   return (
     <SectionCard
       title="Versand per Mail"
-      description="Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Familien ohne Internet geben Sie das gedruckte Schreiben."
+      description="Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat sie mit dieser Adresse ein Konto in der Eltern-App, liegt es auch dort unter „Dokumente“. Familien ohne Internet geben Sie das gedruckte Schreiben."
       actions={
         <div className="flex flex-wrap gap-2">
           <Button
