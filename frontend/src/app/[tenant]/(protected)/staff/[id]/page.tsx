@@ -16,10 +16,13 @@ import { KeyRound, Trash2, Users } from "lucide-react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { staffService } from "~/lib/staff-api";
-import type { Staff } from "~/lib/staff-api";
+import { mapStaffRecord, staffService } from "~/lib/staff-api";
+import type { BackendStaffResponse, Staff } from "~/lib/staff-api";
 import { teacherService, type Teacher } from "~/lib/teacher-api";
-import { teachersConfig } from "~/components/database/configs/teachers.config";
+import {
+  mapTeacherResponse,
+  teachersConfig,
+} from "~/components/database/configs/teachers.config";
 import { createCrudService } from "~/lib/database/service-factory";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -66,7 +69,10 @@ import { StaffDetailSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StaffDetailPage" });
 
-/** SWR-Schlüssel des Personal-Datensatzes (Konto-Reiter, Bearbeiten). */
+/**
+ * SWR-Schlüssel des Personal-Datensatzes: die Rohdaten von GET /api/staff/{id}.
+ * Kopf der Personalakte und Konto-Reiter leiten ihre Abbildungen daraus ab.
+ */
 function staffRecordKey(staffId: string): string {
   return `staff-record-${staffId}`;
 }
@@ -181,30 +187,52 @@ export default function StaffDetailContent() {
   // bestimmt statt einmalig im useState-Initialwert eingefroren.
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
 
-  const {
-    data: staff,
-    isLoading,
-    error,
-    mutate: mutateStaff,
-  } = useSWRAuth<Staff>(`staff-detail-${staffId}`, () =>
+  // Wer nur das Finanz- oder Dokumentprofil sehen darf, bekommt dessen
+  // schmalen Endpunkt; alle anderen den vollen Datensatz.
+  const limitedProfile =
     canViewFinancial && !canViewStammdatenSections
-      ? staffService.getFinancialProfile(staffId)
+      ? "financial"
       : canViewDocuments && !canViewTimeTracking && !canViewStammdaten
-        ? staffService.getDocumentProfile(staffId)
-        : staffService.getStaffById(staffId),
+        ? "document"
+        : null;
+  const profileRequest = useSWRAuth<Staff>(
+    limitedProfile ? `staff-detail-${staffId}` : null,
+    () =>
+      limitedProfile === "financial"
+        ? staffService.getFinancialProfile(staffId)
+        : staffService.getDocumentProfile(staffId),
   );
+  const profile = profileRequest.data;
 
-  // Der Datensatz für den Reiter „Konto" und das Bearbeiten: dieselbe
-  // Abbildung wie das Register der Datenverwaltung (Systemrolle, RFID-Karte,
-  // Notizen, Konto-ID), damit beide Seiten dieselben Felder kennen.
-  const {
-    data: record,
-    error: recordError,
-    mutate: mutateRecord,
-  } = useSWRAuth<Teacher>(
-    canViewRecord && staff && !staff.endedOn ? staffRecordKey(staffId) : null,
-    () => recordService.getOne(staffId),
+  // Der Datensatz kommt mit EINEM Abruf je Seite (#4993). Daraus entstehen
+  // der Kopf der Personalakte und die Abbildung des Reiters „Konto": dieselbe
+  // wie im Register der Datenverwaltung (Systemrolle, RFID-Karte, Notizen,
+  // Konto-ID), damit beide Seiten dieselben Felder kennen. Neben einem
+  // schmalen Profil lädt er nur für den Reiter „Konto".
+  const recordRequest = useSWRAuth<BackendStaffResponse>(
+    limitedProfile === null || (canViewRecord && profile && !profile.endedOn)
+      ? staffRecordKey(staffId)
+      : null,
+    () => staffService.getStaffRecord(staffId),
   );
+  const recordData = recordRequest.data;
+  const fullStaff = useMemo(
+    () => (recordData ? mapStaffRecord(recordData) : undefined),
+    [recordData],
+  );
+  const record = useMemo<Teacher | undefined>(
+    () =>
+      canViewRecord && recordData ? mapTeacherResponse(recordData) : undefined,
+    [canViewRecord, recordData],
+  );
+  const staffRequest = limitedProfile ? profileRequest : recordRequest;
+  const staff = limitedProfile ? profile : fullStaff;
+  const { isLoading, error } = staffRequest;
+  const mutateStaff = staffRequest.mutate;
+  // Ohne schmales Profil ist ein Fehler des Datensatzes der Ladefehler der
+  // ganzen Seite, nicht des Reiters.
+  const recordError = limitedProfile ? recordRequest.error : undefined;
+  const mutateRecord = recordRequest.mutate;
   // Ladefehler stehen dort, wo die Daten fehlen, mit Wiederholen (#2514).
   // Ein 404 ist kein Ladefehler, sondern eine Person, die es nicht mehr gibt.
   const staffNotFound = error instanceof ApiError && error.status === 404;
