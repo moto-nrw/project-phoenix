@@ -272,9 +272,11 @@ function studentTabs(
   const withDocuments = canViewDocuments
     ? withCarePlan
     : withCarePlan.filter((tab) => tab !== "dokumente");
-  // Änderungsprotokoll (#2437) mirrors the aggregate route's gate exactly:
-  // RequiresAnyPermission(users:update, users:absence). Without either, the
-  // list would only answer 403, so the tab stays away.
+  // Änderungsprotokoll (#2437) uses the gate of both its sources:
+  // RequiresAnyPermission(users:update, users:absence) on the aggregate route
+  // and on the child's completed withdrawals (/students/{id}/care-withdrawals,
+  // #5025), which also needs read access to the child. Without either
+  // permission both would only answer 403, so the tab stays away.
   const withRequestLog = canViewRequestLog
     ? withDocuments
     : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
@@ -1763,6 +1765,7 @@ function StudentDetailPageContent() {
           activeTab={activeTab}
           tabs={visibleTabs}
           canViewEnrollments={canViewEnrollments}
+          canReadChild={childGrantsFullAccess}
         />
       )}
     </TenantPage>
@@ -1875,6 +1878,11 @@ interface LimitedAccessViewProps {
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
+  /**
+   * Die Antwort zum Kind meldet Lesezugriff (CanReadStudent). Die Ansicht
+   * ist trotzdem eingeschränkt, wenn der Sitzung users:read fehlt.
+   */
+  canReadChild: boolean;
 }
 
 function LimitedAccessView({
@@ -1886,18 +1894,22 @@ function LimitedAccessView({
   activeTab,
   tabs,
   canViewEnrollments,
+  canReadChild,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  // Die Kind-Route der Abmeldungen verlangt Lesezugriff auf das Kind
+  // (#5025). Ohne ihn zeigt das Protokoll nur die Anfragen, statt mit 403
+  // zu scheitern.
   const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
     () => ({
       search: "",
       studentId,
       includeEnrollment: false,
-      includeCareWithdrawals: true,
+      includeCareWithdrawals: canReadChild,
       types: [],
       statuses: [],
     }),
-    [studentId],
+    [canReadChild, studentId],
   );
   // Siehe FullAccessView: das Änderungsprotokoll lädt erst beim ersten Öffnen.
   const [protocolTabSeen, setProtocolTabSeen] = useState(
