@@ -306,6 +306,8 @@ const reads = (source: string) =>
   findBrowserTokenReads("fixture.tsx", source).map(({ rule }) => rule);
 
 describe("browser token ratchet (#5005)", () => {
+  const modules = clientModules();
+
   // Checked by tsc (pnpm run check): a token field on the client-importable
   // types fails the typecheck before this ratchet runs.
   it("keeps token fields off the browser Session and User types", () => {
@@ -323,22 +325,27 @@ describe("browser token ratchet (#5005)", () => {
     expectTypeOf<User>().not.toHaveProperty("refreshRecoveryProof");
   });
 
-  it("keeps every token out of code that can run in the browser", () => {
-    const modules = clientModules();
+  it("selects browser modules for the token scan", () => {
     // Guards the selection itself: client code exists and gets scanned.
     expect(modules.length).toBeGreaterThan(500);
     expect(modules.map(({ relative }) => relative)).toContain(
       "lib/session-cache.ts",
     );
-
-    const violations = modules.flatMap(({ file, relative }) =>
-      findBrowserTokenReads(file, readFileSync(file, "utf8")).map(
-        ({ line, rule }) => `${relative}:${line} ${rule}`,
-      ),
-    );
-
-    expect(violations).toEqual([]);
   });
+
+  // Give each module its own timeout budget instead of timing the entire
+  // source tree as one test on slower CI runners.
+  it.each(modules)(
+    "keeps every token out of $relative",
+    ({ file, relative }) => {
+      const violations = findBrowserTokenReads(
+        file,
+        readFileSync(file, "utf8"),
+      ).map(({ line, rule }) => `${relative}:${line} ${rule}`);
+
+      expect(violations).toEqual([]);
+    },
+  );
 
   // Each of these compiled and passed the former line-regex ratchet.
   it.each([
