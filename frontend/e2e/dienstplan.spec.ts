@@ -258,6 +258,22 @@ async function openWeek(page: Page, day: string) {
   ).toBeVisible(GRID);
 }
 
+async function clickPersonAction(page: Page, staff: StaffLite, name: string) {
+  const trigger = personRow(page, staff).getByRole("button", {
+    name: `Aktionen für ${staff.first_name} ${staff.last_name}`,
+  });
+  // Auto-Scroll zur Personenzeile kann das Menü nach dem Öffnen schließen.
+  // Nur den Menü-Klick wiederholen, nicht die nachfolgende Formularaktion.
+  await expect(async () => {
+    if ((await trigger.getAttribute("aria-expanded")) !== "true") {
+      await trigger.click({ timeout: 1000 });
+    }
+    await page.getByRole("menuitem", { name, exact: true }).click({
+      timeout: 1000,
+    });
+  }).toPass({ timeout: 15000 });
+}
+
 // Empty-/Plus-Zelle einer Person an einem Tag (Grid und gefüllte Zelle tragen
 // dieselbe Beschriftung — pro Zelle existiert genau eine).
 function emptyCellButton(page: Page, staff: StaffLite, date: string) {
@@ -626,12 +642,7 @@ test.describe("Dienstplan UI-Flow", () => {
       await openWeek(page, TODAY);
 
       // (b) Krank melden -> SickReportModal -> speichern -> "Fällt aus".
-      await personRow(page, person)
-        .getByRole("button", {
-          name: `Aktionen für ${person.first_name} ${person.last_name}`,
-        })
-        .click();
-      await page.getByRole("menuitem", { name: "Krank melden" }).click();
+      await clickPersonAction(page, person, "Krank melden");
       const sick = page.getByRole("dialog");
       await expect(
         sick.getByRole("heading", {
@@ -653,14 +664,7 @@ test.describe("Dienstplan UI-Flow", () => {
       );
 
       // (a) "Für heute abwesend melden" -> /vertretung?d=heute.
-      await personRow(page, person)
-        .getByRole("button", {
-          name: `Aktionen für ${person.first_name} ${person.last_name}`,
-        })
-        .click();
-      await page
-        .getByRole("menuitem", { name: "Für heute abwesend melden" })
-        .click();
+      await clickPersonAction(page, person, "Für heute abwesend melden");
       await page.waitForURL((url) => url.pathname.endsWith("/vertretung"), {
         timeout: 60000,
       });
