@@ -1,10 +1,18 @@
 "use client";
 
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
-import {
-  CLASS_DAY_REFRESH_DEBOUNCE_MS,
-  CLASS_DAY_REFRESH_EVENT,
-} from "./routes";
+
+/**
+ * Fensterereignis, mit dem die SSE-Verbindung des Schul-Portals eine offene
+ * Klassenansicht neu laden lässt (#4792), etwa nach einer neuen Krankmeldung.
+ */
+export const CLASS_DAY_REFRESH_EVENT = "class-day-refresh";
+
+/**
+ * Mehrere Änderungen kurz hintereinander (etwa mehrere Krankmeldungen am
+ * Morgen) laden die Ansicht nur einmal neu.
+ */
+export const CLASS_DAY_REFRESH_DEBOUNCE_MS = 1000;
 
 /**
  * Lädt eine offene Klassenansicht neu, wenn sich an dieser Schule ein

@@ -15,7 +15,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -238,7 +238,11 @@ export function ClassDayOverview({
 
   // Eine neue Krankmeldung an dieser Schule aktualisiert die Zahlen der
   // Übersicht ohne Neuladen der Seite (#4792).
-  useClassDayRefresh(() => void reloadReports());
+  const refreshReports = useCallback(
+    () => void reloadReports(),
+    [reloadReports],
+  );
+  useClassDayRefresh(refreshReports);
 
   const reports = useMemo(() => dayData?.reports ?? {}, [dayData]);
   const failedClasses = useMemo(

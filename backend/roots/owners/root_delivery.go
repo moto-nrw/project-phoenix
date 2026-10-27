@@ -20,6 +20,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -46,7 +47,7 @@ func BuildDeliveryNotifications(
 	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, module deliveryModule.Capability,
 	settings settingsCompose.BatchSettingsService, consent communication.NotificationConsentCapability,
 	identity identityaccess.Owner, people PeopleRows, structure StructureRows, workTime workforce.Capability,
-	messaging parentStore.MessagingRepositories,
+	messaging parentStore.MessagingRepositories, assignments schoolmembership.TeachingAssignmentQuery,
 ) (DeliveryNotifications, error) {
 	logger := env.Logger
 	if !pushVAPID.Configured() {
@@ -70,7 +71,7 @@ func BuildDeliveryNotifications(
 		structure.Groups, people.Staff, identity, settings,
 		deliveryOnDutyStaff{presence: workTime})
 	schoolClasses := deliveryContract.SchoolClassRecipients{
-		Reach:   deliverySchoolClassReach{students: people.Students, classTeachers: structure.ClassTeachers, staff: people.Staff},
+		Reach:   deliverySchoolClassReach{students: people.Students, assignments: assignments, staff: people.Staff},
 		Consent: preferences, Subscribers: consent, Accounts: identity, Permissions: securityruntime.HasPermission,
 	}
 	absences, err := deliveryCompose.NewTenantAbsenceNotifier(unit, notifier, recipients, db.Pool(), logger.With("producer", "absence_notifications"), schoolClasses)

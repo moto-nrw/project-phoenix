@@ -294,7 +294,11 @@ export function ClassDayClass({
 
   // Eine neue Krankmeldung oder ein anderer Status an dieser Schule lädt die
   // offene Klasse neu, ohne Neuladen der Seite (#4792).
-  useClassDayRefresh(() => void refetchReport());
+  const refreshReport = useCallback(
+    () => void refetchReport(),
+    [refetchReport],
+  );
+  useClassDayRefresh(refreshReport);
 
   // Ladefehler mit Katalogtext und Wiederholen (#2517); eine entzogene
   // Klasse meldet sich über ihren Code (fehlende Berechtigung).

@@ -119,7 +119,7 @@ import { ClassDayClass, classArrivalExceptionLine } from "./class-day-class";
 import {
   CLASS_DAY_REFRESH_DEBOUNCE_MS,
   CLASS_DAY_REFRESH_EVENT,
-} from "./routes";
+} from "./use-class-day-refresh";
 
 function report(overrides: Partial<ClassDayReport> = {}): ClassDayReport {
   return {

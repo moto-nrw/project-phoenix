@@ -1,7 +1,7 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SchoolRealtimeBridge } from "./school-realtime-bridge";
-import { CLASS_DAY_REFRESH_EVENT } from "~/components/class-day/routes";
+import { CLASS_DAY_REFRESH_EVENT } from "~/components/class-day/use-class-day-refresh";
 import type { SSEHookOptions } from "~/lib/sse-types";
 
 const useSSE = vi.hoisted(() => vi.fn());

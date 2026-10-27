@@ -11,6 +11,7 @@ frontend-relative paths start at `frontend/src/`.
 - **Broadcasting**: services fire events after data changes via `realtime.NewEvent(...)` + `BroadcastToGroup` — fire-and-forget, broadcast errors are logged and never block the operation. Per-client buffers are small and lossy (events drop when a client's channel is full), which is why clients refetch instead of trusting delivery. Broadcast points live in `modules/studentpresence/internal/application/presence/` (visits, sessions, attendance).
 - **Event types**: authoritative list in `realtime/events.go` (student check-in/out, activity lifecycle, instance lifecycle, dashboard counts, supervision/arrival-schedule/settings changes). Frontend types mirror it in `frontend/src/lib/sse-types.ts` — keep both in sync.
 - Events are notification triggers, not payloads — clients refetch via bulk endpoints.
+- **School portal** (moto schule, `/api/school/sse/events`): clients are indexed by account and by school, never by group or tenant fan-out. They get `BroadcastToSchoolAccounts` events, plus `class_day_changed`, which `Hub.BroadcastToTenant` derives from every `student_updated` at the same school (#4792). It carries only the source, never a child; open class views refetch.
 
 ## Frontend
 

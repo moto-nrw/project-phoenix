@@ -97,7 +97,7 @@ func schoolClassAbsenceEvents(report AbsenceReport, studentIDs []int64, classes 
 	return events
 }
 
-// schoolWide narrows the subscribers to the active accounts holding
+// schoolWideAccounts narrows the subscribers to the active accounts holding
 // class_day:all_classes, the Schulverwaltung.
 func schoolWideAccounts(ctx context.Context, s *contract.SchoolClassRecipients, tenantID int64, subscribers []int64) ([]int64, error) {
 	active, err := s.Accounts.ListActiveAccountIDsForTenant(ctx, tenantID, subscribers)
@@ -113,14 +113,14 @@ func schoolWideAccounts(ctx context.Context, s *contract.SchoolClassRecipients, 
 	}
 	schoolWide := make([]int64, 0, len(active))
 	for _, accountID := range active {
-		if s.Permissions != nil && s.Permissions(permissionClassDayAllClasses, names[accountID]) {
+		if s.Permissions(permissionClassDayAllClasses, names[accountID]) {
 			schoolWide = append(schoolWide, accountID)
 		}
 	}
 	return schoolWide, nil
 }
 
-// agreed applies the single consent enforcement point to everyone reaching a
+// agreedSchoolAccounts applies the single consent enforcement point to everyone reaching a
 // reported class, minus the people who originated the report.
 func agreedSchoolAccounts(ctx context.Context, s *contract.SchoolClassRecipients, report AbsenceReport, classes map[int64]contract.StudentClassTeachers, schoolWide []int64) (map[int64]bool, error) {
 	candidates := make(map[int64]struct{}, len(schoolWide))

@@ -9,6 +9,7 @@ import (
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
@@ -59,8 +60,8 @@ type deliverySchoolClassReach struct {
 	students interface {
 		FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.StudentState, error)
 	}
-	classTeachers interface {
-		List(ctx context.Context, filters map[string]any) ([]*schoolmembership.ClassAssignment, error)
+	assignments interface {
+		ListClassAssignments(ctx context.Context, filter schoolmembership.ClassAssignmentFilter) ([]schoolmembership.ClassAssignment, error)
 	}
 	staff interface {
 		ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
@@ -89,35 +90,38 @@ func (r deliverySchoolClassReach) StudentClassTeachers(ctx context.Context, stud
 	return result, nil
 }
 
-// teacherAccounts maps each distinct class to the accounts of its assigned
-// Lehrkräfte: one assignment read per class (School Membership compares
-// classes trimmed and case-insensitive) and one account read for all.
+// teacherAccounts maps each class to the accounts of its assigned
+// Lehrkräfte: one assignment read for all classes and one account read.
+// School Membership compares classes trimmed and case-insensitive; the
+// result is grouped back the same way (schoolstructure.NormalizeClass).
 func (r deliverySchoolClassReach) teacherAccounts(ctx context.Context, classOf map[int64]string) (map[string][]int64, error) {
-	staffByClass := make(map[string][]int64)
+	keys := make([]string, 0, len(classOf))
 	for _, schoolClass := range classOf {
-		if _, loaded := staffByClass[schoolClass]; loaded {
-			continue
-		}
-		assignments, err := r.classTeachers.List(ctx, map[string]any{"school_class": schoolClass})
-		if err != nil {
-			return nil, err
-		}
-		staffByClass[schoolClass] = []int64{}
-		for _, assignment := range assignments {
-			staffByClass[schoolClass] = append(staffByClass[schoolClass], assignment.StaffID)
-		}
+		keys = append(keys, schoolstructure.NormalizeClass(schoolClass))
 	}
-	accountOf, err := r.staff.ListAccountIDsByStaffIDs(ctx, slices.Concat(slices.Collect(maps.Values(staffByClass))...))
+	slices.Sort(keys)
+	assignments, err := r.assignments.ListClassAssignments(ctx, schoolmembership.ClassAssignmentFilter{ClassKeys: slices.Compact(keys)})
 	if err != nil {
 		return nil, err
 	}
-	accountsByClass := make(map[string][]int64, len(staffByClass))
-	for schoolClass, staffIDs := range staffByClass {
-		for _, staffID := range staffIDs {
-			if accountID, ok := accountOf[staffID]; ok {
-				accountsByClass[schoolClass] = append(accountsByClass[schoolClass], accountID)
-			}
+	staffIDs := make([]int64, 0, len(assignments))
+	for _, assignment := range assignments {
+		staffIDs = append(staffIDs, assignment.StaffID)
+	}
+	accountOf, err := r.staff.ListAccountIDsByStaffIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, err
+	}
+	byKey := make(map[string][]int64, len(keys))
+	for _, assignment := range assignments {
+		if accountID, ok := accountOf[assignment.StaffID]; ok {
+			key := schoolstructure.NormalizeClass(assignment.SchoolClass)
+			byKey[key] = append(byKey[key], accountID)
 		}
+	}
+	accountsByClass := make(map[string][]int64, len(classOf))
+	for _, schoolClass := range classOf {
+		accountsByClass[schoolClass] = byKey[schoolstructure.NormalizeClass(schoolClass)]
 	}
 	return accountsByClass, nil
 }

@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { CLASS_DAY_REFRESH_EVENT } from "~/components/class-day/routes";
+import { CLASS_DAY_REFRESH_EVENT } from "~/components/class-day/use-class-day-refresh";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { dispatchPhoenixNotification } from "~/lib/notification-events";
 import { schoolTeamChatDeepLink } from "~/lib/school-team-chat-links";
