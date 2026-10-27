@@ -258,6 +258,19 @@ async function openWeek(page: Page, day: string) {
   ).toBeVisible(GRID);
 }
 
+async function openPersonMenu(page: Page, staff: StaffLite) {
+  const trigger = personRow(page, staff).getByRole("button", {
+    name: `Aktionen für ${staff.first_name} ${staff.last_name}`,
+  });
+  // Auto-Scroll während click() kann sein Scroll-Ereignis erst nach dem
+  // Öffnen liefern. OverflowMenu schließt bei äußerem Scrollen absichtlich.
+  // Vorab scrollen: Der folgende Klick wartet auf den stabilen Auslöser,
+  // bevor er das Menü öffnet, statt Scrollen und Öffnen zu verschachteln.
+  await trigger.scrollIntoViewIfNeeded();
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+}
+
 // Empty-/Plus-Zelle einer Person an einem Tag (Grid und gefüllte Zelle tragen
 // dieselbe Beschriftung — pro Zelle existiert genau eine).
 function emptyCellButton(page: Page, staff: StaffLite, date: string) {
@@ -626,11 +639,7 @@ test.describe("Dienstplan UI-Flow", () => {
       await openWeek(page, TODAY);
 
       // (b) Krank melden -> SickReportModal -> speichern -> "Fällt aus".
-      await personRow(page, person)
-        .getByRole("button", {
-          name: `Aktionen für ${person.first_name} ${person.last_name}`,
-        })
-        .click();
+      await openPersonMenu(page, person);
       await page.getByRole("menuitem", { name: "Krank melden" }).click();
       const sick = page.getByRole("dialog");
       await expect(
@@ -653,11 +662,7 @@ test.describe("Dienstplan UI-Flow", () => {
       );
 
       // (a) "Für heute abwesend melden" -> /vertretung?d=heute.
-      await personRow(page, person)
-        .getByRole("button", {
-          name: `Aktionen für ${person.first_name} ${person.last_name}`,
-        })
-        .click();
+      await openPersonMenu(page, person);
       await page
         .getByRole("menuitem", { name: "Für heute abwesend melden" })
         .click();
