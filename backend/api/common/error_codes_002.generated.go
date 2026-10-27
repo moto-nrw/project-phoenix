@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableClosingDayNotFound                    = "timetable.closing_day_not_found"
 	CodeTimetableCompleteTooEarly                      = "timetable.complete_too_early"
 	CodeTimetableCompletionConfirmationStale           = "timetable.completion_confirmation_stale"
 	CodeTimetableCorrectionCancelled                   = "timetable.correction_cancelled"
@@ -204,6 +205,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.closing_day_not_found":                      "business_rejection",
 	"timetable.complete_too_early":                         "business_rejection",
 	"timetable.completion_confirmation_stale":              "business_rejection",
 	"timetable.correction_cancelled":                       "business_rejection",

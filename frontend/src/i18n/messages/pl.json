@@ -77,7 +77,8 @@
     "more": "Więcej",
     "unreadCount": "Nieprzeczytane: {count}",
     "openCount": "Otwarte: {count}",
-    "noticeCount": "Informacje: {count}"
+    "noticeCount": "Informacje: {count}",
+    "documents": "Dokumenty"
   },
   "parentFirstSteps": {
     "title": "Pierwsze kroki",
@@ -271,6 +272,22 @@
     "errorObjectWeekRegister": "zapisu na tydzień",
     "participationCutoffLead": "Zapis można zmienić do godziny {time} {days, plural, one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}}.",
     "participationSicknessLead": "Potwierdzone zgłoszenie choroby do godziny {time} {days, plural, one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}} wypisuje Państwa dziecko z obiadu. Po tym terminie zapis pozostaje bez zmian."
+  },
+  "parentDocuments": {
+    "title": "Dokumenty",
+    "description": "Tutaj znajdą Państwo pisma, które przesłał Państwu organizator. Na przykład potwierdzenie opieki w ferie.",
+    "emptyTitle": "Brak dokumentów",
+    "emptyDescription": "Gdy organizator wyśle Państwu pismo, znajdą je Państwo tutaj. Otrzymają je Państwo również e-mailem.",
+    "confirmationLetter": "Potwierdzenie: {period}",
+    "sender": "Od: {traeger}",
+    "children": "Dla",
+    "amount": "Kwota",
+    "number": "Numer faktury",
+    "sentAt": "Wysłano",
+    "download": "Pobierz PDF",
+    "downloading": "Pobieranie …",
+    "errorObject": "dokumenty",
+    "downloadErrorObject": "dokument"
   },
   "mealOrders": {
     "title": "Zamówienie",
@@ -726,6 +743,10 @@
       "parent_care_cancelled": {
         "label": "Opieka odwołana",
         "description": "Gdy OGS odwoła termin opieki Państwa dziecka."
+      },
+      "parent_billing_document": {
+        "label": "Nowy dokument od organizatora",
+        "description": "Gdy organizator wyśle Państwu dokument, na przykład potwierdzenie."
       }
     },
     "errorObjectList": "lista powiadomień",
@@ -2857,6 +2878,7 @@
         "letterhead_too_long": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "number_range_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "number_range_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "parent_document_not_found": "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
         "recipient_email_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "pickup": {

@@ -77,7 +77,8 @@
     "more": "Daha fazla",
     "unreadCount": "{count} okunmamış",
     "openCount": "{count} açık",
-    "noticeCount": "{count} uyarı"
+    "noticeCount": "{count} uyarı",
+    "documents": "Belgeler"
   },
   "parentFirstSteps": {
     "title": "İlk adımlar",
@@ -271,6 +272,22 @@
     "errorObjectWeekRegister": "haftalık kayıt",
     "participationCutoffLead": "Kaydı {days, plural, one {yemekten bir iş günü önce} other {yemekten # iş günü önce}} saat {time} olana kadar değiştirebilirsiniz.",
     "participationSicknessLead": "{days, plural, one {Yemekten bir iş günü önce} other {Yemekten # iş günü önce}} saat {time} olana kadar onaylanan bir hastalık bildirimi, çocuğunuzun öğle yemeği kaydını iptal eder. Sonrasında kayıt geçerli kalır."
+  },
+  "parentDocuments": {
+    "title": "Belgeler",
+    "description": "Kurumun size gönderdiği yazıları burada bulursunuz. Örneğin tatil bakımı onayı.",
+    "emptyTitle": "Henüz belge yok",
+    "emptyDescription": "Kurum size bir yazı gönderdiğinde onu burada bulursunuz. Ayrıca e-posta ile de alırsınız.",
+    "confirmationLetter": "Onay yazısı: {period}",
+    "sender": "Gönderen: {traeger}",
+    "children": "Çocuk",
+    "amount": "Tutar",
+    "number": "Fatura numarası",
+    "sentAt": "Gönderildi",
+    "download": "PDF indir",
+    "downloading": "İndiriliyor …",
+    "errorObject": "Belgeler",
+    "downloadErrorObject": "Belge"
   },
   "mealOrders": {
     "title": "Sipariş",
@@ -726,6 +743,10 @@
       "parent_care_cancelled": {
         "label": "Bakım iptal edildi",
         "description": "OGS çocuğunuzun bir bakım gününü iptal ettiğinde."
+      },
+      "parent_billing_document": {
+        "label": "Kurumdan yeni belge",
+        "description": "Kurum size bir belge gönderdiğinde, örneğin bir onay yazısı."
       }
     },
     "errorObjectList": "bildirim listesi",
@@ -2857,6 +2878,7 @@
         "letterhead_too_long": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "number_range_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "number_range_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "parent_document_not_found": "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
         "recipient_email_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "pickup": {

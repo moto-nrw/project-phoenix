@@ -87,6 +87,7 @@ func TestBillingDocuments_RefuseWithoutRightOrOutsideTheInbox(t *testing.T) {
 	missing := &fakeParentService{documentsErr: fmt.Errorf("lookup: %w", parentService.ErrBillingDocumentNotFound)}
 	w = serveBillingDocuments(t, &Resource{ParentService: missing}, "/parent/me/documents/4/31/pdf", 7301)
 	require.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
+	assert.Equal(t, "parent_billing.parent_document_not_found", refusalCode(t, w))
 	assert.Equal(t, int64(4), missing.gotDocumentOrganization)
 	assert.Equal(t, int64(31), missing.gotDocumentID)
 

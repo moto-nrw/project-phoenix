@@ -42,7 +42,8 @@ nicht. Den Zahler gibt es erst mit Etappe 2.
      liest das Postfach. Das Schreiben ist die Bestätigung einer Anmeldung,
      deshalb das Recht, Anmeldungen zu sehen. Ein Konto ohne dieses Recht an
      irgendeiner Schule bekommt 403 (`care.guardian_permission_denied`), ein
-     Schreiben außerhalb seines Postfachs 404.
+     Schreiben außerhalb seines Postfachs 404
+     (`parent_billing.parent_document_not_found`).
    Der Workflow `parent-portal` prüft die Beziehung (Gate in
    `internal/care`, wie #4662), die Elternabrechnung die Adresse.
 3. **Lesen in der Träger-Transaktion.** Die Elternabrechnung bekommt die
@@ -112,6 +113,6 @@ nicht. Den Zahler gibt es erst mit Etappe 2.
   Beziehungsbedingung bleibt.
 - Weitere Dokumentarten (Vertrag, Bescheid, Mahnung) können denselben Weg
   nehmen.
-- Eltern, die Push schon eingeschaltet haben, bekommen den neuen Typ erst,
-  wenn sie ihn in den Einstellungen anschalten; neue Eltern bekommen ihn mit
-  der Einrichtung der Benachrichtigungen.
+- Wie jeder Typ ist „Neues Dokument vom Träger“ aus, bis die Eltern ihn in
+  den Einstellungen einschalten (keine Entscheidung heißt aus). Die Hilfe
+  nennt den Schalter.

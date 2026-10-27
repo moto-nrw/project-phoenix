@@ -94,7 +94,7 @@ func renderBillingDocumentError(w http.ResponseWriter, r *http.Request, err erro
 	case errors.Is(err, parentService.ErrGuardianPermissionDenied):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareGuardianPermissionDenied))
 	case errors.Is(err, parentService.ErrBillingDocumentNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingParentDocumentNotFound))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}

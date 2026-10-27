@@ -1426,6 +1426,8 @@ export const ERROR_CATALOG = {
         "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
+      "parent_billing.parent_document_not_found":
+        "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
     },
   },
   en: {
@@ -1866,6 +1868,8 @@ export const ERROR_CATALOG = {
         "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
       "traeger.school_not_found":
         "This school does not belong to your Träger. Please reload the page.",
+      "parent_billing.parent_document_not_found":
+        "This document is no longer available. Please reload the page.",
     },
   },
   ru: {
@@ -2238,6 +2242,8 @@ export const ERROR_CATALOG = {
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
       "traeger.access_log_export_too_large":
         "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
+      "parent_billing.parent_document_not_found":
+        "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
     },
   },
   sq: {
@@ -2625,6 +2631,8 @@ export const ERROR_CATALOG = {
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
       "traeger.access_log_export_too_large":
         "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
+      "parent_billing.parent_document_not_found":
+        "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
     },
   },
   pl: {
@@ -2999,6 +3007,8 @@ export const ERROR_CATALOG = {
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
       "traeger.access_log_export_too_large":
         "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
+      "parent_billing.parent_document_not_found":
+        "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
     },
   },
   tr: {
@@ -3379,6 +3389,8 @@ export const ERROR_CATALOG = {
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
       "traeger.access_log_export_too_large":
         "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
+      "parent_billing.parent_document_not_found":
+        "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
     },
   },
   uk: {
@@ -3750,6 +3762,8 @@ export const ERROR_CATALOG = {
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
       "traeger.access_log_export_too_large":
         "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
+      "parent_billing.parent_document_not_found":
+        "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
     },
   },
 } as const;

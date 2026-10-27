@@ -77,7 +77,8 @@
     "more": "Більше",
     "unreadCount": "Непрочитані: {count}",
     "openCount": "Відкрито: {count}",
-    "noticeCount": "Підказки: {count}"
+    "noticeCount": "Підказки: {count}",
+    "documents": "Документи"
   },
   "parentFirstSteps": {
     "title": "Перші кроки",
@@ -271,6 +272,22 @@
     "errorObjectWeekRegister": "запис на тиждень",
     "participationCutoffLead": "Ви можете змінити запис до {time} {days, plural, one {за # робочий день до обіду} few {за # робочі дні до обіду} many {за # робочих днів до обіду} other {за # робочого дня до обіду}}.",
     "participationSicknessLead": "Підтверджене повідомлення про хворобу до {time} {days, plural, one {за # робочий день до обіду} few {за # робочі дні до обіду} many {за # робочих днів до обіду} other {за # робочого дня до обіду}} скасовує обід для вашої дитини. Після цього запис залишається."
+  },
+  "parentDocuments": {
+    "title": "Документи",
+    "description": "Тут ви знайдете листи, які вам надіслала організація. Наприклад, підтвердження канікулярного догляду.",
+    "emptyTitle": "Ще немає документів",
+    "emptyDescription": "Коли організація надішле вам лист, ви знайдете його тут. Ви також отримаєте його електронною поштою.",
+    "confirmationLetter": "Підтвердження: {period}",
+    "sender": "Від: {traeger}",
+    "children": "Для",
+    "amount": "Сума",
+    "number": "Номер рахунку",
+    "sentAt": "Надіслано",
+    "download": "Завантажити PDF",
+    "downloading": "Завантаження …",
+    "errorObject": "документи",
+    "downloadErrorObject": "документ"
   },
   "mealOrders": {
     "title": "Замовлення",
@@ -726,6 +743,10 @@
       "parent_care_cancelled": {
         "label": "Догляд скасовано",
         "description": "Коли OGS скасовує запланований догляд вашої дитини."
+      },
+      "parent_billing_document": {
+        "label": "Новий документ від організації",
+        "description": "Коли організація надсилає вам документ, наприклад підтвердження."
       }
     },
     "errorObjectList": "список сповіщень",
@@ -2857,6 +2878,7 @@
         "letterhead_too_long": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "number_range_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "number_range_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "parent_document_not_found": "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
         "recipient_email_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "pickup": {
