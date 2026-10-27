@@ -54,6 +54,12 @@ type presenceHistoryStatusDay struct {
 	studentID, id int64
 }
 
+type presenceHistoryStatusDayResponse struct {
+	ID     int64  `json:"id"`
+	Date   string `json:"date"`
+	Status string `json:"status"`
+}
+
 // presenceHistoryPlan is the deterministic past of the school: who came on
 // which care day, who was sick or excused, and who stayed away unexplained.
 type presenceHistoryPlan struct {
@@ -72,7 +78,7 @@ type presenceHistoryInput struct {
 	sessions []presenceHistorySession
 }
 
-// presenceHistorySession is an activity in its room; capacity weighs how many
+// presenceHistorySession is an activity in its room; capacity bounds how many
 // children spend the afternoon there.
 type presenceHistorySession struct {
 	activityID, roomID int64
@@ -146,10 +152,15 @@ func seedPresenceHistoryStatusDays(rt *Runtime, statuses []presenceHistoryStatus
 			return statusDays, created, fmt.Errorf("seed past %s days: %w", status.status, err)
 		}
 		rows, err := createdPresenceHistoryStatusDays(raw, status)
+		created = appendUniquePresenceHistoryStatusDays(created, rows)
 		if err != nil {
+			recovered, recoveryErr := findPresenceHistoryStatusDays(rt, status)
+			created = appendUniquePresenceHistoryStatusDays(created, recovered)
+			if recoveryErr != nil {
+				err = errors.Join(err, recoveryErr)
+			}
 			return statusDays, created, err
 		}
-		created = append(created, rows...)
 		statusDays += len(dates)
 	}
 	return statusDays, created, nil
@@ -160,31 +171,78 @@ func seedPresenceHistoryStatusDays(rt *Runtime, statuses []presenceHistoryStatus
 // response rather than risking a later compensation of an unrelated row.
 func createdPresenceHistoryStatusDays(raw []byte, status presenceHistoryStatus) ([]presenceHistoryStatusDay, error) {
 	var response struct {
-		Data []struct {
-			ID     int64  `json:"id"`
-			Date   string `json:"date"`
-			Status string `json:"status"`
-		} `json:"data"`
+		Data []presenceHistoryStatusDayResponse `json:"data"`
 	}
-	if err := parseJSON(raw, &response); err != nil {
-		return nil, fmt.Errorf("read created past %s days: %w", status.status, err)
+	parseErr := parseJSON(raw, &response)
+	created, wanted := presenceHistoryStatusDaysFromResponse(response.Data, status)
+	if parseErr != nil {
+		return created, fmt.Errorf("read created past %s days: %w", status.status, parseErr)
 	}
+	if len(wanted) != 0 {
+		return created, fmt.Errorf("read created past %s days: response missed %d status days", status.status, len(wanted))
+	}
+	return created, nil
+}
+
+// findPresenceHistoryStatusDays recovers status rows after a successful write
+// returned an incomplete body. The route would have rejected an active row on
+// a requested day, so an exact status/date match belongs to this seed write.
+func findPresenceHistoryStatusDays(rt *Runtime, status presenceHistoryStatus) ([]presenceHistoryStatusDay, error) {
+	from, until := status.dates[0], status.dates[0]
+	for _, date := range status.dates[1:] {
+		if date.Before(from) {
+			from = date
+		}
+		if date.After(until) {
+			until = date
+		}
+	}
+	raw, err := rt.Client.Get(fmt.Sprintf("/api/students/%d/status-days?from=%s&to=%s", status.studentID, from, until))
+	if err != nil {
+		return nil, fmt.Errorf("recover past %s days: %w", status.status, err)
+	}
+	var response struct {
+		Data []presenceHistoryStatusDayResponse `json:"data"`
+	}
+	parseErr := parseJSON(raw, &response)
+	created, wanted := presenceHistoryStatusDaysFromResponse(response.Data, status)
+	if parseErr != nil {
+		return created, fmt.Errorf("recover past %s days: %w", status.status, parseErr)
+	}
+	if len(wanted) != 0 {
+		return created, fmt.Errorf("recover past %s days: response missed %d status days", status.status, len(wanted))
+	}
+	return created, nil
+}
+
+func presenceHistoryStatusDaysFromResponse(rows []presenceHistoryStatusDayResponse, status presenceHistoryStatus) ([]presenceHistoryStatusDay, map[string]bool) {
 	wanted := make(map[string]bool, len(status.dates))
 	for _, date := range status.dates {
 		wanted[date.String()] = true
 	}
 	created := make([]presenceHistoryStatusDay, 0, len(status.dates))
-	for _, row := range response.Data {
+	for _, row := range rows {
 		if row.ID == 0 || row.Status != status.status || !wanted[row.Date] {
 			continue
 		}
 		created = append(created, presenceHistoryStatusDay{studentID: status.studentID, id: row.ID})
 		delete(wanted, row.Date)
 	}
-	if len(wanted) != 0 {
-		return nil, fmt.Errorf("read created past %s days: response missed %d status days", status.status, len(wanted))
+	return created, wanted
+}
+
+func appendUniquePresenceHistoryStatusDays(days, added []presenceHistoryStatusDay) []presenceHistoryStatusDay {
+	known := make(map[presenceHistoryStatusDay]bool, len(days)+len(added))
+	for _, day := range days {
+		known[day] = true
 	}
-	return created, nil
+	for _, day := range added {
+		if !known[day] {
+			days = append(days, day)
+			known[day] = true
+		}
+	}
+	return days
 }
 
 // rollbackPresenceHistoryStatusDays clears only the status rows the current
@@ -386,6 +444,7 @@ func planPresenceHistory(input presenceHistoryInput) presenceHistoryPlan {
 		if !input.careDays(day) {
 			continue
 		}
+		occupancy := map[int64]int{}
 		for index, student := range input.students {
 			if student.lastDay != nil && day.After(*student.lastDay) {
 				continue
@@ -393,7 +452,11 @@ func planPresenceHistory(input presenceHistoryInput) presenceHistoryPlan {
 			absent, status := plannedAbsence(index, day)
 			switch {
 			case !absent:
-				plan.days = append(plan.days, pastPresenceDay(input, berlin, index, student.id, day))
+				session, ok := weightedAvailableSession(input.sessions, occupancy, presenceRoll(index, day, "room"))
+				if ok {
+					occupancy[session.roomID]++
+				}
+				plan.days = append(plan.days, pastPresenceDay(input, berlin, index, student.id, day, session, ok))
 			case status == "":
 				plan.unexplained++
 			default:
@@ -435,9 +498,9 @@ func absenceStatus(roll uint32) string {
 }
 
 // pastPresenceDay places a child between 11:45 and 12:44 at the OGS and lets
-// it go home between 15:00 and 16:29; in between it spends the afternoon in
-// one room, chosen by capacity, whose session runs from 12:00 to 16:45.
-func pastPresenceDay(input presenceHistoryInput, berlin *time.Location, index int, studentID int64, day calendar.Date) PastPresenceDay {
+// it go home between 15:00 and 16:29. A child visits a room only when it has
+// a free place; every visit is inside a session from 12:00 to 16:45.
+func pastPresenceDay(input presenceHistoryInput, berlin *time.Location, index int, studentID int64, day calendar.Date, session presenceHistorySession, hasSession bool) PastPresenceDay {
 	at := func(hour, minute int) time.Time {
 		return time.Date(day.Year(), day.Month(), day.Day(), hour, minute, 0, 0, berlin)
 	}
@@ -448,32 +511,38 @@ func pastPresenceDay(input presenceHistoryInput, berlin *time.Location, index in
 	if entry.Before(sessionStart) {
 		entry = sessionStart
 	}
-	session := weightedSession(input.sessions, presenceRoll(index, day, "room"))
-	return PastPresenceDay{
+	past := PastPresenceDay{
 		StudentID: studentID, Date: day, DeviceID: input.deviceID, CheckIn: checkIn, CheckOut: checkOut,
-		Visit: &PastVisit{
-			ActivityGroupID: session.activityID, RoomID: session.roomID,
-			SessionStart: sessionStart, SessionEnd: sessionEnd,
-			Entry: entry, Exit: checkOut.Add(-5 * time.Minute),
-		},
 	}
+	if !hasSession {
+		return past
+	}
+	past.Visit = &PastVisit{
+		ActivityGroupID: session.activityID, RoomID: session.roomID,
+		SessionStart: sessionStart, SessionEnd: sessionEnd,
+		Entry: entry, Exit: checkOut.Add(-5 * time.Minute),
+	}
+	return past
 }
 
-// weightedSession picks a room in proportion to its capacity, so the rooms
-// fill alike instead of the small ones overflowing.
-func weightedSession(sessions []presenceHistorySession, roll uint32) presenceHistorySession {
+// weightedAvailableSession picks among the remaining seats in proportion to
+// their capacity. A filled room is not considered again that day.
+func weightedAvailableSession(sessions []presenceHistorySession, occupancy map[int64]int, roll uint32) (presenceHistorySession, bool) {
 	total := 0
 	for _, session := range sessions {
-		total += max(session.capacity, 1)
+		total += max(session.capacity-occupancy[session.roomID], 0)
+	}
+	if total == 0 {
+		return presenceHistorySession{}, false
 	}
 	pick := int(roll % uint32(total))
 	for _, session := range sessions {
-		pick -= max(session.capacity, 1)
+		pick -= max(session.capacity-occupancy[session.roomID], 0)
 		if pick < 0 {
-			return session
+			return session, true
 		}
 	}
-	return sessions[len(sessions)-1]
+	return presenceHistorySession{}, false
 }
 
 func demoRoomCapacity(name string) int {
