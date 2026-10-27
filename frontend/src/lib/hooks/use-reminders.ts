@@ -119,11 +119,7 @@ interface NextChangeDelay {
 // instant, which carries its date and Berlin offset. Keep accepting the legacy
 // 24:00 spelling while clients and servers roll out independently.
 function nextChangeDelay(hhmm: string): NextChangeDelay | null {
-  if (
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/.test(
-      hhmm,
-    )
-  ) {
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$/.test(hhmm)) {
     const targetMs = Date.parse(hhmm);
     if (Number.isNaN(targetMs)) return null;
     const realDeltaMs = targetMs - Date.now();
@@ -222,6 +218,12 @@ export function useReminders() {
       // the tab was hidden would not surface until a manual reload. Re-enable it
       // for this key so returning to the tab refetches immediately.
       revalidateOnFocus: true,
+      // The header bell keeps this entry current from the shell seed on
+      // (poll, SSE event, focus, next_change_at timer). A second reader that
+      // mounts later, the home block on every visit, shows that entry instead
+      // of fetching the shell endpoint again (#4989). Without cached data the
+      // first reader still fetches.
+      revalidateIfStale: false,
     },
   );
 
