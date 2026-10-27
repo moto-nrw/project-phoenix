@@ -121,8 +121,8 @@ func (s seedPresenceHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 // history seed. Status days use the normal HTTP write path, while attendance
 // needs the dev-tools-only writer. Keep the IDs from the former so either a
 // failed report or a rejected attendance batch removes the status days again.
-// The demo's route sends the whole fixed-size plan in one request, so its
-// writer commits attendance, sessions and visits together.
+// The demo's route commits its chunks one by one; a retry reuses the chunks
+// that already went through, since the writer recognizes its own rows.
 func seedPresenceHistoryPlan(ctx context.Context, rt *Runtime, schoolID int64, write PresenceHistoryWriter, plan presenceHistoryPlan) error {
 	statusDays, createdStatusDays, err := seedPresenceHistoryStatusDays(rt, plan.statuses)
 	if err != nil {

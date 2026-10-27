@@ -8,6 +8,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// presenceHistoryRouteChunk is how many days one request carries. The route
+// accepts at most 1000 days; every chunk is its own transaction, and a retry
+// recognizes the days an earlier chunk already wrote.
+const presenceHistoryRouteChunk = 500
+
 type presenceHistoryRouteDay struct {
 	StudentID int64                      `json:"student_id"`
 	Date      calendar.Date              `json:"date"`
@@ -44,19 +49,24 @@ func presenceHistoryWriterFor(options SeedOptions, rt *Runtime) PresenceHistoryW
 func operatorPresenceHistoryWriter(rt *Runtime) PresenceHistoryWriter {
 	return func(_ context.Context, schoolID int64, days []PastPresenceDay) (int, error) {
 		path := fmt.Sprintf("/operator/schools/%d/demo-presence-history", schoolID)
-		raw, err := rt.Client.PostWithAuth(rt.OperatorAuth, path, map[string]any{"days": presenceHistoryRouteDays(days)})
-		if err != nil {
-			return 0, err
+		written := 0
+		for start := 0; start < len(days); start += presenceHistoryRouteChunk {
+			chunk := days[start:min(start+presenceHistoryRouteChunk, len(days))]
+			raw, err := rt.Client.PostWithAuth(rt.OperatorAuth, path, map[string]any{"days": presenceHistoryRouteDays(chunk)})
+			if err != nil {
+				return written, err
+			}
+			var response struct {
+				Data struct {
+					Written int `json:"written"`
+				} `json:"data"`
+			}
+			if err := parseJSON(raw, &response); err != nil {
+				return written, fmt.Errorf("read recorded presence history: %w", err)
+			}
+			written += response.Data.Written
 		}
-		var response struct {
-			Data struct {
-				Written int `json:"written"`
-			} `json:"data"`
-		}
-		if err := parseJSON(raw, &response); err != nil {
-			return 0, fmt.Errorf("read recorded presence history: %w", err)
-		}
-		return response.Data.Written, nil
+		return written, nil
 	}
 }
 
