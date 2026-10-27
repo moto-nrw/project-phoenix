@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { DEMO_TOKEN_COOKIE, demoBackendUrl } from "../forward";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "DemoHandoffRoute" });
 
@@ -15,7 +16,7 @@ const OGS_ROLES = new Set(["caregiver", "lead", "all"]);
 // the fragment. No script of this page ever sees the token, and no server
 // log records it. Without a usable token the visitor lands on this host's
 // entry page, which offers a new link.
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   const role = request.nextUrl.searchParams.get("role") ?? "";
   const token = request.cookies.get(DEMO_TOKEN_COOKIE)?.value;
   if (!token || (role !== "parent" && !OGS_ROLES.has(role))) {
@@ -85,3 +86,5 @@ function redirect(location: string): NextResponse {
     },
   });
 }
+
+export const GET = withPrivateNoStore(GETHandler);

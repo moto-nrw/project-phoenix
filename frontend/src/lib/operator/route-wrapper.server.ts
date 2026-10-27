@@ -8,6 +8,7 @@ import {
   isApiResponseError,
 } from "../api-response-error.server";
 import { forwardBackendResponse } from "../backend-proxy-response.server";
+import { withPrivateNoStore } from "../private-no-store";
 import { recordBackendProxyMetric } from "../backend-proxy-metrics";
 import { sanitizeEndpoint } from "../log-sanitize";
 import { makeProxyFactories } from "../route-proxy-factory.server";
@@ -377,60 +378,67 @@ export function createOperatorPublicProxyPostHandler(
   backendEndpoint: string,
   options: OperatorPublicProxyOptions = {},
 ) {
-  return async (request: NextRequest): Promise<NextResponse> => {
-    let body: unknown;
-    try {
-      body = await parseRequestBody(request);
-      body = (await options.transformBody?.(request, body)) ?? body;
-    } catch {
-      return operatorErrorResponse(
-        400,
-        "general.input",
-        "Invalid JSON request body",
-        request,
-      );
-    }
+  // Public login steps answer with tokens; no auth handler covers them.
+  return withPrivateNoStore(
+    async (request: NextRequest): Promise<NextResponse> => {
+      let body: unknown;
+      try {
+        body = await parseRequestBody(request);
+        body = (await options.transformBody?.(request, body)) ?? body;
+      } catch {
+        return operatorErrorResponse(
+          400,
+          "general.input",
+          "Invalid JSON request body",
+          request,
+        );
+      }
 
-    try {
-      const { getServerApiUrl } = await import("~/lib/server-api-url");
-      const { getClientForwardHeaders } =
-        await import("~/lib/client-headers.server");
-      const startedAt = Date.now();
-      const response = await fetch(`${getServerApiUrl()}${backendEndpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getClientForwardHeaders(request),
-        },
-        body: JSON.stringify(body),
-      });
+      try {
+        const { getServerApiUrl } = await import("~/lib/server-api-url");
+        const { getClientForwardHeaders } =
+          await import("~/lib/client-headers.server");
+        const startedAt = Date.now();
+        const response = await fetch(`${getServerApiUrl()}${backendEndpoint}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...getClientForwardHeaders(request),
+          },
+          body: JSON.stringify(body),
+        });
 
-      await recordOperatorBackendProxyMetric({
-        method: "POST",
-        endpoint: backendEndpoint,
-        status: response.status,
-        durationMs: Date.now() - startedAt,
-        outcome: response.ok ? "success" : "backend_error",
-      });
-      const forwardedResponse = forwardBackendResponse(response, request);
-      await options.decorateResponse?.(request, forwardedResponse, response.ok);
-      return forwardedResponse;
-    } catch {
-      await recordOperatorBackendProxyMetric({
-        method: "POST",
-        endpoint: backendEndpoint,
-        status: 0,
-        durationMs: 0,
-        outcome: "network_error",
-      });
-      return operatorErrorResponse(
-        503,
-        "general.unavailable",
-        "Backend request failed",
-        request,
-      );
-    }
-  };
+        await recordOperatorBackendProxyMetric({
+          method: "POST",
+          endpoint: backendEndpoint,
+          status: response.status,
+          durationMs: Date.now() - startedAt,
+          outcome: response.ok ? "success" : "backend_error",
+        });
+        const forwardedResponse = forwardBackendResponse(response, request);
+        await options.decorateResponse?.(
+          request,
+          forwardedResponse,
+          response.ok,
+        );
+        return forwardedResponse;
+      } catch {
+        await recordOperatorBackendProxyMetric({
+          method: "POST",
+          endpoint: backendEndpoint,
+          status: 0,
+          durationMs: 0,
+          outcome: "network_error",
+        });
+        return operatorErrorResponse(
+          503,
+          "general.unavailable",
+          "Backend request failed",
+          request,
+        );
+      }
+    },
+  );
 }
 
 /**

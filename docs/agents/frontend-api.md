@@ -54,6 +54,18 @@ message when the backend returned an empty body. Locally generated errors
 (validation, missing session, network failure) are separate from backend
 responses.
 
+Cache policy (#4999): every BFF answer that is JSON or bodyless and sets no
+`Cache-Control` of its own leaves as `private, no-store`
+(`lib/private-no-store.ts`). The portal auth handlers
+(`server/auth/route-handler.ts`), `forwardBackendResponse` and the public
+proxy factories apply it; a route that builds its answer itself (login, MFA,
+passkeys, demo access, invitations, Auth.js endpoints) wraps its handler in
+`withPrivateNoStore`. `src/app/api/route-cache-policy.test.ts` fails for an
+exported handler that is neither built by a policy factory nor listed with a
+reason in its exception table, and for every re-export (`export * from`,
+`export { GET } from`) in a route file. Files, images and event streams keep their own
+headers.
+
 Sentry ownership follows the same boundary: forwarding a backend HTTP error,
 including 5xx, creates no BFF event. A caught network failure or BFF exception
 uses `captureBffException(error, request)` once at the handler boundary so the

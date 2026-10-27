@@ -193,6 +193,7 @@ export const nodeLogicTestFiles = [
   "src/lib/planning-navigation.test.ts",
   "src/lib/planning-track-api.test.ts",
   "src/lib/portal-session-snapshot.server.test.ts",
+  "src/lib/private-no-store.test.ts",
   "src/lib/profile-helpers.test.ts",
   "src/lib/redirect-utils.test.ts",
   "src/lib/reminders-api.test.ts",

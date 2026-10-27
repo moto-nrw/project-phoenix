@@ -1,12 +1,13 @@
 import { type NextRequest } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 export const runtime = "nodejs";
 
 // Public RSS readers use this tenant-host URL. The path secret is the only
 // credential and is forwarded to the backend without entering a user session.
-export async function GET(
+async function GETHandler(
   _request: NextRequest,
   context: { params: Promise<{ token: string }> },
 ) {
@@ -28,3 +29,5 @@ export async function GET(
     },
   });
 }
+
+export const GET = withPrivateNoStore(GETHandler);

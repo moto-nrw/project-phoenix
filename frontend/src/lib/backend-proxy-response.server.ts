@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { problemBody, problemTitle } from "./api-error";
+import { applyPrivateNoStore } from "./private-no-store";
 import { safeProblemExtensions } from "./api-response-error.server";
 import { requestInstance } from "./request-id";
 
@@ -16,12 +17,15 @@ export function forwardBackendResponse(
 
   if (response.status >= 500) {
     headers.set("Content-Type", "application/problem+json");
+    applyPrivateNoStore(headers);
     return new NextResponse(sanitizedBackendErrorBody(response, request), {
       status: response.status,
       headers,
     });
   }
 
+  // Token routes without a session (enrollment edit links) also pass here.
+  applyPrivateNoStore(headers);
   return new NextResponse(
     response.status === 204 || response.status === 304 ? null : response.body,
     { status: response.status, headers },
