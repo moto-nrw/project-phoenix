@@ -14,7 +14,7 @@ import type {
  * `enabled = false` skips the request, for surfaces that render outside a
  * signed-in school session (the operator's navigation).
  */
-export function useSchoolSwitches(enabled = true): {
+function useSchoolSwitches(enabled = true): {
   switches: SchoolSwitches | undefined;
   isLoading: boolean;
   error: Error | undefined;
