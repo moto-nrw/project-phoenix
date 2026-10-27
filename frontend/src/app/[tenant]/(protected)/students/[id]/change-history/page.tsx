@@ -51,6 +51,9 @@ const FIELD_LABELS: Record<string, string> = {
   pickup_schedule: "Dauerhafte Gehzeiten",
   departure_days: "Wochenplan (Abholung)",
   departure_companion_note: "Geht außerdem mit",
+  // Krank oder entschuldigt, von der Schulverwaltung in moto schule
+  // nachgetragen (#4791).
+  school_absence_report: "Meldung der Schulverwaltung",
   document: "Dokument",
 };
 

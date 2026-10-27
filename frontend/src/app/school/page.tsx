@@ -12,6 +12,8 @@ import {
   fetchClassDaySchool,
   fetchClassDayClassesSchool,
   fetchSchoolDaySchool,
+  reportAbsenceSchool,
+  withdrawAbsenceReportSchool,
 } from "~/lib/school-class-day-api";
 
 export default function SchoolHomePage() {
@@ -27,6 +29,8 @@ export default function SchoolHomePage() {
           fetchClasses={fetchClassDayClassesSchool}
           fetchClassDay={fetchClassDaySchool}
           fetchSchoolDay={fetchSchoolDaySchool}
+          reportAbsence={reportAbsenceSchool}
+          withdrawAbsenceReport={withdrawAbsenceReportSchool}
         />
       </Suspense>
     </div>

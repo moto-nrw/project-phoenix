@@ -64,6 +64,11 @@ export interface SchoolDayTotals {
   students: number;
   /** Am Vormittag als fehlend markiert oder krank, entschuldigt, Klassenfahrt. */
   missing: number;
+  /**
+   * Von der Lehrkraft als fehlend markiert, ohne Krankmeldung, Entschuldigung
+   * oder Klassenfahrt (#4791). Fehlt bei älteren Antworten.
+   */
+  unreported?: number;
   /** Kinder mit Tagesstatus, „Heute abgemeldet“ eingeschlossen. */
   absent: number;
   sick: number;
@@ -85,6 +90,10 @@ export interface SchoolDayChild {
   last_name: string;
   status?: string;
   missing?: boolean;
+  /** Fehlt ohne Meldung (#4791). */
+  unreported?: boolean;
+  /** Den Status hat die Schulverwaltung nachgetragen (#4791). */
+  status_by_school?: boolean;
   after_school?: "stays" | "goes_home";
   changed?: boolean;
 }
@@ -103,6 +112,12 @@ export interface SchoolDayReport {
   enrollment_known: boolean;
   totals: SchoolDayTotals;
   classes: SchoolDayClass[];
+  /**
+   * Die Person darf für ein Kind, das ohne Meldung fehlt, eine Meldung
+   * nachtragen oder sie zurücknehmen (#4791): der Tag ist heute und das Recht
+   * liegt vor.
+   */
+  can_report_absences?: boolean;
 }
 
 export async function fetchSchoolDaySchool(
@@ -398,6 +413,44 @@ export async function withdrawClassHandoverSchool(
   date: string,
 ): Promise<void> {
   await authFetch<unknown>(classHandoverPath(schoolClass, date), {
+    method: "DELETE",
+  });
+}
+
+/** Was die Schulverwaltung nachträgt (#4791). */
+export type AbsenceReportStatus = "sick" | "excused";
+
+function absenceReportPath(
+  schoolClass: string,
+  date: string,
+  studentId: string,
+): string {
+  return `/api/school/class-day/absence-reports/${encodeURIComponent(schoolClass)}/${encodeURIComponent(date)}/students/${encodeURIComponent(studentId)}`;
+}
+
+/**
+ * Trägt für ein Kind, das ohne Meldung fehlt, „krank“ oder „entschuldigt“
+ * für heute nach (#4791). Die OGS sieht den Status wie jeden anderen.
+ */
+export async function reportAbsenceSchool(
+  schoolClass: string,
+  date: string,
+  studentId: string,
+  status: AbsenceReportStatus,
+): Promise<void> {
+  await authFetch<unknown>(absenceReportPath(schoolClass, date, studentId), {
+    method: "PUT",
+    body: { status },
+  });
+}
+
+/** Nimmt die Meldung zurück, die die Schulverwaltung heute nachgetragen hat. */
+export async function withdrawAbsenceReportSchool(
+  schoolClass: string,
+  date: string,
+  studentId: string,
+): Promise<void> {
+  await authFetch<unknown>(absenceReportPath(schoolClass, date, studentId), {
     method: "DELETE",
   });
 }
