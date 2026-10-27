@@ -1702,6 +1702,74 @@ describe("AggregatedRequestList", () => {
   }
 
   it.each(["merged", "withdrawal"] as const)(
+    "loads a new filter while old %s pagination is pending and keeps the new request busy",
+    async (kind) => {
+      const oldPage = deferred<void>();
+      const newPage = deferred<void>();
+      mockListHistory.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          await (params.search === "Mia" ? newPage : oldPage).promise;
+          return { items: [openItem("excused", "next")] };
+        }
+        return {
+          items: Array.from({ length: 25 }, (_, i) =>
+            openItem("excused", `${params?.search ?? "all"}-${i}`),
+          ),
+          next_cursor: "next",
+        };
+      });
+      mockListWithdrawals.mockImplementation(async (params) => {
+        if (params?.page === 2) {
+          await (params.search === "Mia" ? newPage : oldPage).promise;
+        }
+        return {
+          items: [withdrawalItem(`${params?.search ?? "all"}-${params?.page}`)],
+          total: 26,
+          page: params?.page ?? 1,
+          pageSize: 25,
+        };
+      });
+      const filters = { ...NO_FILTERS, includeCareWithdrawals: true };
+      const { result, rerender } = renderHook(useFeeds, {
+        initialProps: filters,
+        wrapper: providersWith(new Map()),
+      });
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      await waitFor(() => {
+        expect(current().hasMore).toBe(true);
+        expect(current().loadingMore).toBe(false);
+      });
+      let oldLoading!: Promise<void>;
+      act(() => {
+        oldLoading = current().loadMore();
+      });
+      expect(current().loadingMore).toBe(true);
+      rerender({ ...filters, search: "Mia" });
+      await waitFor(() => {
+        expect(current().hasMore).toBe(true);
+        expect(current().loadingMore).toBe(false);
+      });
+      let newLoading!: Promise<void>;
+      act(() => {
+        newLoading = current().loadMore();
+      });
+      expect(current().loadingMore).toBe(true);
+      await act(async () => {
+        oldPage.resolve();
+        await oldLoading;
+      });
+      expect(current().loadingMore).toBe(true);
+      await act(async () => {
+        newPage.resolve();
+        await newLoading;
+      });
+      expect(current().loadingMore).toBe(false);
+      expect(current().items).toHaveLength(kind === "merged" ? 26 : 2);
+    },
+  );
+
+  it.each(["merged", "withdrawal"] as const)(
     "preserves the remounted refresh when unmounted %s pagination completes",
     async (kind) => {
       const oldPage = deferred<void>();
@@ -2065,19 +2133,20 @@ describe("AggregatedRequestList", () => {
     "ignores superseded pagination failures after %s and still loads new pages automatically",
     async (replacement) => {
       const oldPage = deferred<void>();
+      const newPage = deferred<void>();
       let replaced = false;
       const urgentItems = Array.from({ length: 25 }, (_, i) =>
         stampedItem("excused", String(i), "2026-09-01T12:00:00Z", true),
       );
       mockListOpen.mockImplementation(async (params) => {
         if (params?.cursor) {
-          if (!replaced) await oldPage.promise;
+          await (replaced ? newPage : oldPage).promise;
           return { items: [openItem("excused", "new-page")] };
         }
         return { items: urgentItems, next_cursor: "next" };
       });
       mockListWithdrawals.mockImplementation(async (params) => {
-        if (params?.page === 2 && !replaced) await oldPage.promise;
+        if (params?.page === 2) await (replaced ? newPage : oldPage).promise;
         return {
           items: [withdrawalItem(params?.page === 2 ? "new-page" : "first")],
           total: params?.page === 2 ? 2 : 26,
@@ -2120,6 +2189,9 @@ describe("AggregatedRequestList", () => {
             code: "general.unavailable",
           }),
         );
+      });
+      await act(async () => {
+        newPage.resolve();
       });
       await waitFor(() => {
         expect(result.current.feed.items).toHaveLength(26);

@@ -154,15 +154,22 @@ export function StaffAbsenceRequestList({
     onCountChange?.(reportedCount);
   }, [onCountChange, reportedCount]);
 
-  // Nach einer Entscheidung neu laden statt die Zeile zu entfernen: eine
+  // Nach einer Entscheidung den Cache bereinigen und neu laden: eine
   // Rückfrage lässt den Antrag offen, genehmigt und abgelehnt verschwinden
-  // aus der Arbeitsliste. Dazu die Zähler auffrischen — Badge der
-  // Seitenleiste, Verweis auf der Mitarbeiter-Seite, Reiter der
-  // Mitarbeitenden-Detailseite hören auf diese beiden Signale.
+  // aus der Arbeitsliste auch dann, wenn der Abgleich fehlschlägt. Dazu die
+  // Zähler auffrischen: Badge der Seitenleiste, Verweis auf der Mitarbeiter-
+  // Seite und Reiter der Mitarbeitenden-Detailseite hören auf diese Signale.
   const afterDecision = useCallback(
     (decidedId?: string) => {
       setRowsAtDecision(rows);
-      void mutate();
+      if (decidedId) {
+        void mutate(
+          (current) => current?.filter((row) => row.id !== decidedId),
+          { revalidate: true },
+        );
+      } else {
+        void mutate();
+      }
       // Ein entschiedener Antrag verschwindet auch aus den anderen Ansichten
       // und Filtern; er käme sonst beim Filterwechsel zurück (#4988). Eine
       // Rückfrage lässt ihn offen.

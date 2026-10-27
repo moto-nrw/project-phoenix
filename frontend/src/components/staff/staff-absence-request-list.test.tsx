@@ -335,6 +335,44 @@ describe("StaffAbsenceRequestList", () => {
     expect(screen.getByText("Mira Muster")).toBeInTheDocument();
   });
 
+  it("behält eine Genehmigung nach gescheitertem Abgleich und erneutem Öffnen", async () => {
+    const cache: Cache = new Map();
+    const other = { ...openRow(), id: "20", staff_name: "Tom Neu" };
+    listRequests.mockResolvedValueOnce([openRow(), other]);
+    const list = (
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />
+    );
+    const first = render(list, cache);
+    // Anker: die offene Liste ist geladen und enthält den zu entscheidenden Antrag.
+    await screen.findByText("Mira Muster");
+
+    approve.mockResolvedValue(undefined);
+    listRequests.mockRejectedValue(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Genehmigen" })[0]!,
+    );
+    await screen.findByText(
+      catalogText("general.server", "die Liste der Anträge"),
+    );
+    first.unmount();
+    render(list, cache);
+
+    // Anker: der andere offene Antrag steht sofort aus dem Cache.
+    expect(screen.getByText("Tom Neu")).toBeInTheDocument();
+    expect(screen.queryByText("Mira Muster")).not.toBeInTheDocument();
+    await screen.findByText(
+      catalogText("general.server", "die Liste der Anträge"),
+    );
+    expect(screen.getAllByRole("button", { name: "Genehmigen" })).toHaveLength(
+      1,
+    );
+  });
+
   it("zeigt einen genehmigten Antrag nach dem Filterwechsel nicht wieder", async () => {
     // Wie in der App: der Standard-Cache von SWR, kein eigener Provider.
     const clearDefaultCache = () =>

@@ -292,7 +292,14 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
     };
   });
   const updateFamily = useTenantUpdateMatching([family]);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [pagination, setPagination] = useState<{
+    key: string | null;
+  } | null>(null);
+  const loadingMore = pagination !== null && pagination.key === key;
+  useLayoutEffect(() => {
+    // Ein alter Filter darf das Nachladen des neuen nicht blockieren.
+    setPagination(null);
+  }, [key]);
   const [autoLoadFailed, setAutoLoadFailed] = useState(false);
   // Laden und Abgleich im Hintergrund melden ihren Fehler über denselben
   // Fehlerpfad (#2513, #4988); die geladene Liste bleibt dabei stehen.
@@ -336,7 +343,8 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
       latest.current.key === key &&
       latest.current.data?.snapshot === base.snapshot &&
       !latest.current.isValidating;
-    setLoadingMore(true);
+    const request = { key };
+    setPagination(request);
     clearError();
     try {
       const append = await loadNext(base);
@@ -356,7 +364,8 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
       reportError(err, object, () => void loadMoreRef.current());
       setAutoLoadFailed(true);
     } finally {
-      setLoadingMore(false);
+      // Ein alter Abruf darf den Ladezustand seines Nachfolgers nicht löschen.
+      setPagination((current) => (current === request ? null : current));
     }
   }, [
     clearError,
