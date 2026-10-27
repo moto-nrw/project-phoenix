@@ -125,8 +125,9 @@ export function AdminEnrollmentChangeRequestDetail({
 
   const handleReview = async (approved: boolean) => {
     const note = reviewNote.trim();
-    if (!note) {
-      reviewErrors.invalid("Bitte tragen Sie eine kurze Begründung ein.", {
+    // Freigeben geht ohne Begründung, Ablehnen nicht (#5024).
+    if (!approved && !note) {
+      reviewErrors.invalid("Bitte begründen Sie die Ablehnung.", {
         note: "Bitte tragen Sie eine Begründung ein.",
       });
       return;
@@ -347,12 +348,12 @@ export function AdminEnrollmentChangeRequestDetail({
                       id="change-request-review-note"
                       name="note"
                       error={reviewErrors.fieldError("note")}
-                      label="Begründung"
+                      label="Begründung (freiwillig)"
                       value={reviewNote}
                       onChange={(event) => setReviewNote(event.target.value)}
                       rows={4}
                       disabled={!canReview || busy !== null}
-                      placeholder="Kurz begründen, warum die Änderung übernommen oder abgelehnt wird."
+                      placeholder="Beim Ablehnen schreiben Sie bitte kurz, warum. Die Familie sieht den Text."
                     />
                   </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -361,9 +362,7 @@ export function AdminEnrollmentChangeRequestDetail({
                       variant="outline"
                       size="md"
                       onClick={() => void handleReview(true)}
-                      disabled={
-                        !canReview || busy !== null || !reviewNote.trim()
-                      }
+                      disabled={!canReview || busy !== null}
                       className="inline-flex items-center justify-center gap-2"
                     >
                       <Check className="h-4 w-4" aria-hidden="true" />
@@ -374,9 +373,7 @@ export function AdminEnrollmentChangeRequestDetail({
                       variant="outline_danger"
                       size="md"
                       onClick={() => void handleReview(false)}
-                      disabled={
-                        !canReview || busy !== null || !reviewNote.trim()
-                      }
+                      disabled={!canReview || busy !== null}
                       className="inline-flex items-center justify-center gap-2"
                     >
                       <X className="h-4 w-4" aria-hidden="true" />

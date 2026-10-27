@@ -174,9 +174,9 @@ export function MasterDataReviewItem({
       submittedAt={row.created_at}
       reason={reason}
       onReasonChange={setReason}
-      reasonPlaceholder={
-        approveReasonRequired ? "Begründung" : "Begründung (optional)"
-      }
+      // Ablehnen braucht immer einen Grund; die Pflicht beim Freigeben setzt
+      // die Karte selbst als „Begründung (Pflicht)“ (#5024).
+      reasonPlaceholder="Begründung (Pflicht bei Ablehnung)"
       approveReasonRequired={approveReasonRequired}
       decisionDisabledReason={decisionDisabledReason}
       busy={busy}

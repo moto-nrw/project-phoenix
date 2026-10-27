@@ -96,7 +96,7 @@ describe("MasterDataReviewItem", () => {
     ).toBeInTheDocument();
 
     const reasonInputs = screen.getAllByPlaceholderText(
-      "Begründung (optional)",
+      "Begründung (Pflicht bei Ablehnung)",
     );
     fireEvent.change(reasonInputs[0]!, { target: { value: " passt " } });
     fireEvent.click(screen.getAllByRole("button", { name: "Freigeben" })[0]!);

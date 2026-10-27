@@ -195,19 +195,20 @@ func (s *ChangeRequests) AskQuestion(ctx context.Context, changeRequestID int64,
 // Reject rejects a pending change request with a note.
 func (s *ChangeRequests) Reject(ctx context.Context, changeRequestID int64, input enrollmentNative.ReviewChangeRequestInput) (*enrollmentNative.ChangeRequestCase, error) {
 	return publicCase(s.review(ctx, changeRequestID, input, reviewOutcome{
+		noteRequired:    true,
 		noteRequiredMsg: "rejection note is required",
 		status:          enrollmentNative.ChangeRequestStatusRejected,
 		emailKind:       enrollmentNative.MailKindChangeRequestRejected,
 	}))
 }
 
-// Approve approves a pending change request and applies it.
+// Approve approves a pending change request and applies it. The note is
+// optional: an approval needs no explanation for the family (#5024).
 func (s *ChangeRequests) Approve(ctx context.Context, changeRequestID int64, input enrollmentNative.ReviewChangeRequestInput) (*enrollmentNative.ChangeRequestCase, error) {
 	return publicCase(s.review(ctx, changeRequestID, input, reviewOutcome{
-		noteRequiredMsg: "approval note is required",
-		status:          enrollmentNative.ChangeRequestStatusApproved,
-		emailKind:       enrollmentNative.MailKindChangeRequestApproved,
-		apply:           s.applyApprovedChange,
+		status:    enrollmentNative.ChangeRequestStatusApproved,
+		emailKind: enrollmentNative.MailKindChangeRequestApproved,
+		apply:     s.applyApprovedChange,
 	}))
 }
 
@@ -404,8 +405,10 @@ func (s *ChangeRequests) askQuestion(ctx context.Context, changeRequestID int64,
 
 // reviewOutcome parameterizes the shared approve/reject flow. apply, when
 // set, changes the request inside the locked transaction before the change
-// request is marked reviewed.
+// request is marked reviewed. noteRequired refuses an empty note with
+// noteRequiredMsg; without it an empty note stores no note and no message.
 type reviewOutcome struct {
+	noteRequired    bool
 	noteRequiredMsg string
 	status          string
 	emailKind       string
@@ -414,7 +417,7 @@ type reviewOutcome struct {
 
 func (s *ChangeRequests) review(ctx context.Context, changeRequestID int64, input enrollmentNative.ReviewChangeRequestInput, outcome reviewOutcome) (*changeRequestCase, error) {
 	note := strings.TrimSpace(input.Note)
-	if note == "" {
+	if note == "" && outcome.noteRequired {
 		return nil, enrollmentNative.InvalidInput(enrollmentNative.CodeChangeRequestNoteRequired, "note", fmt.Errorf("%w: %s", enrollmentNative.ErrChangeRequestInvalidData, outcome.noteRequiredMsg))
 	}
 	var req *Request
@@ -435,8 +438,15 @@ func (s *ChangeRequests) review(ctx context.Context, changeRequestID int64, inpu
 			}
 			impacts = applied
 		}
-		if err := s.deps.Requests.MarkChangeRequestReviewed(txCtx, row.ID, outcome.status, &note, input.ActorAccountID, time.Now()); err != nil {
+		var decisionNote *string
+		if note != "" {
+			decisionNote = &note
+		}
+		if err := s.deps.Requests.MarkChangeRequestReviewed(txCtx, row.ID, outcome.status, decisionNote, input.ActorAccountID, time.Now()); err != nil {
 			return err
+		}
+		if decisionNote == nil {
+			return nil
 		}
 		actorID := input.ActorAccountID
 		return s.deps.Requests.InsertChangeRequestMessage(txCtx, &enrollmentNative.ChangeRequestMessage{
