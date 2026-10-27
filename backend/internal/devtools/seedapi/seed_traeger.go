@@ -356,7 +356,11 @@ const seedTurnstileTestToken = "XXXX.DUMMY.TOKEN.XXXX"
 // either refusal the holiday step publishes the period without
 // registrations and skips what builds on them, the billing run and the
 // confirmation letters, instead of failing every demo school order.
-var seedHolidayRefusals = []string{"enrollment.captcha_failed", seedSubmissionRateLimited}
+var seedHolidayRefusals = []string{seedHolidayCaptchaFailed, seedSubmissionRateLimited}
+
+// seedHolidayCaptchaFailed is the registered code of a refused captcha. The
+// dev tools may not import api/common, so the code is named once here.
+const seedHolidayCaptchaFailed = "enrollment.captcha_failed"
 
 var errSeedHolidayRegistrationRefused = errors.New("the server refuses the seeded holiday registration")
 
