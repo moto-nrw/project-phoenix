@@ -32,6 +32,7 @@ vi.mock("./session-cache", () => {
 // Import after mocks are set up
 import { getCachedSession } from "./session-cache";
 import {
+  mapStaffRecord,
   staffAbsenceService,
   staffBalanceAdjustmentService,
   staffHistoryService,
@@ -1440,7 +1441,7 @@ describe("staff-api", () => {
     });
   });
 
-  describe("staffService.getStaffById", () => {
+  describe("staffService.getStaffRecord + mapStaffRecord", () => {
     it("maps the retained employment period without converting calendar dates", async () => {
       vi.mocked(globalThis.fetch).mockResolvedValueOnce({
         ok: true,
@@ -1453,7 +1454,7 @@ describe("staff-api", () => {
             },
           }),
       } as Response);
-      const staff = await staffService.getStaffById("1");
+      const staff = mapStaffRecord(await staffService.getStaffRecord("1"));
       expect(staff.startedOn).toBe("2024-09-02");
       expect(staff.endedOn).toBe("2026-07-31");
     });
@@ -1473,7 +1474,7 @@ describe("staff-api", () => {
           }),
       } as Response);
 
-      const result = await staffService.getStaffById("1");
+      const result = mapStaffRecord(await staffService.getStaffRecord("1"));
 
       expect(mockFetch).toHaveBeenCalledWith(
         "/api/staff/1",
@@ -1498,7 +1499,7 @@ describe("staff-api", () => {
           }),
       } as Response);
 
-      const staff = await staffService.getStaffById("1");
+      const staff = mapStaffRecord(await staffService.getStaffRecord("1"));
 
       expect(staff.avatarUrl).toBe("/api/staff/1/avatar");
     });
@@ -1510,7 +1511,7 @@ describe("staff-api", () => {
           Promise.resolve({ data: { ...sampleBackendStaff, avatar: null } }),
       } as Response);
 
-      const staff = await staffService.getStaffById("1");
+      const staff = mapStaffRecord(await staffService.getStaffRecord("1"));
 
       expect(staff.avatarUrl).toBeUndefined();
     });
@@ -1522,7 +1523,7 @@ describe("staff-api", () => {
         statusText: "Not Found",
       } as Response);
 
-      await expect(staffService.getStaffById("404")).rejects.toThrow(
+      await expect(staffService.getStaffRecord("404")).rejects.toThrow(
         "Failed to fetch staff member: Not Found",
       );
     });

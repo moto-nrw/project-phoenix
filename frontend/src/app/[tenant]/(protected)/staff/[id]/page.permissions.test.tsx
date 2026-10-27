@@ -57,18 +57,37 @@ vi.mock("~/lib/teacher-api", () => ({
   },
 }));
 
-// Der Personal-Datensatz für den Reiter „Konto" (#3115).
-const staffRecord = {
-  id: "42",
-  name: "Mila Muster",
-  first_name: "Mila",
-  last_name: "Muster",
-  account_role: "teacher",
-  role: "Betreuung",
-  email: "mila@example.test",
-  tag_id: "ABC123",
-  account_id: "7",
-};
+// Der Personal-Datensatz von GET /api/staff/{id}: Kopf der Personalakte und
+// Reiter „Konto" (#3115) leiten sich daraus ab (#4993). Stabil je Zustand, wie
+// die Daten aus dem SWR-Cache.
+const staffRecords = new Map<string, Record<string, unknown>>();
+function staffRecord(): Record<string, unknown> {
+  const cacheKey = `${detailRequest.endedOn}|${detailRequest.avatarUrl}`;
+  const cached = staffRecords.get(cacheKey);
+  if (cached) return cached;
+  const record = {
+    id: "42",
+    started_on: "2024-09-02",
+    ended_on: detailRequest.endedOn,
+    avatar: detailRequest.avatarUrl ?? null,
+    name: "Mila Muster",
+    firstName: "Mila",
+    lastName: "Muster",
+    first_name: "Mila",
+    last_name: "Muster",
+    account_role: "teacher",
+    role: "Betreuung",
+    qualifications: null,
+    staff_notes: null,
+    email: "mila@example.test",
+    tag_id: "ABC123",
+    account_id: "7",
+    created_at: "2024-09-02T08:00:00Z",
+    updated_at: "2024-09-02T08:00:00Z",
+  };
+  staffRecords.set(cacheKey, record);
+  return record;
+}
 
 vi.mock("~/lib/database/service-factory", () => ({
   createCrudService: () => ({
@@ -85,7 +104,21 @@ vi.mock("~/lib/swr", () => ({
     if (key?.startsWith("staff-history-"))
       return { data: [], isLoading: false, error: null };
     if (key?.startsWith("staff-record-")) {
-      return { data: staffRecord, isLoading: false, error: null };
+      void fetcher?.();
+      if (detailRequest.error) {
+        return {
+          data: undefined,
+          isLoading: false,
+          error: detailRequest.error,
+          mutate: detailRequest.mutate,
+        };
+      }
+      return {
+        data: staffRecord(),
+        isLoading: false,
+        error: null,
+        mutate: detailRequest.mutate,
+      };
     }
     if (key?.startsWith("staff-detail-")) {
       void fetcher?.();
@@ -130,9 +163,10 @@ vi.mock("~/lib/swr", () => ({
   },
 }));
 
-vi.mock("~/lib/staff-api", () => ({
+vi.mock("~/lib/staff-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/staff-api")>()),
   staffService: {
-    getStaffById: vi.fn(),
+    getStaffRecord: vi.fn(),
     getFinancialProfile: vi.fn(),
     getDocumentProfile: vi.fn(),
   },
@@ -539,7 +573,7 @@ describe("StaffDetailContent permissions", () => {
       expect(screen.getByTestId("arbeitszeitmodell-tab")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("tab", { name: "Abwesenheiten" }));
       expect(screen.getByTestId("abwesenheiten-tab")).toBeInTheDocument();
-      expect(staffService.getStaffById).toHaveBeenCalledWith("42");
+      expect(staffService.getStaffRecord).toHaveBeenCalledWith("42");
       expect(replaceMock).not.toHaveBeenCalled();
     },
   );

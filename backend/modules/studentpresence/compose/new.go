@@ -16,6 +16,8 @@ import (
 )
 
 type Observation = ports.Observation
+type PastPresenceDay = studentpresence.PastPresenceDay
+type PastVisit = studentpresence.PastVisit
 
 type Dependencies struct {
 	DB      *bun.DB
@@ -41,6 +43,11 @@ func New(deps Dependencies) (studentpresence.Owner, error) {
 		now = time.Now
 	}
 	return application.New(store, transaction{}, deps.Observe, sessionAttendancePorts(deps), now), nil
+}
+
+// NewPresenceHistory builds the past-presence writer only the dev tools compose (ADR 0125).
+func NewPresenceHistory(deps Dependencies) studentpresence.PresenceHistory {
+	return application.NewPresenceHistory(postgres.New(databaseRuntime(deps.DB)), transaction{})
 }
 
 func sessionAttendancePorts(deps Dependencies) ports.AttendanceRulePorts {

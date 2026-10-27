@@ -60,6 +60,9 @@ type SeedOptions struct {
 	DeferHistory bool
 	// ReadMailLink reads the caterer's invitation mail (ADR 0077); nil invites none.
 	ReadMailLink MailLinkReader
+	// PresenceHistory writes the past attendance and room visits (#5031);
+	// nil seeds the past without presence.
+	PresenceHistory PresenceHistoryWriter
 	// ProductScreenshots prepares the school for the product screenshots,
 	// whose simulation runs a single Tuesday: no weekend runs Friday's plan,
 	// so no screen shows Saturday and Sunday columns, and no statistics

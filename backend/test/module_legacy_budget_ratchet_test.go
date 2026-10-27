@@ -178,7 +178,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0121: the confirmation letter constructor of
 // modules/parentbilling/compose adds exactly 8 LOC.
 // ADR 0124: the scan heartbeat savepoint binding adds exactly 9 LOC.
-const moduleComposeBudgetTotal = 12663
+// ADR 0125: the dev-tools presence history constructor of
+// modules/studentpresence/compose adds exactly 7 LOC.
+const moduleComposeBudgetTotal = 12670
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -240,9 +242,10 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolsetup/compose":      56,
 	"modules/schoolstructure/compose":  593,
 	// Raised by ADR 0107: the Träger settings store, runtime and service.
-	"modules/settings/compose":                        322,
-	"modules/studentdirectoryview/compose":            9,
-	"modules/studentpresence/compose":                 243,
+	"modules/settings/compose":             322,
+	"modules/studentdirectoryview/compose": 9,
+	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
+	"modules/studentpresence/compose":                 250,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
 	"modules/timetable/compose":                       1142,
