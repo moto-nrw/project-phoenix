@@ -90,7 +90,6 @@ export function CalendarPeriodsEditor({
     editing,
     createDefaults,
     editingUsage,
-    beginCreateSemester,
     beginEdit,
     closeModal,
     reload,
@@ -260,22 +259,6 @@ export function CalendarPeriodsEditor({
         }
         title="Noch keine Kalenderzeiträume"
         description="Legen Sie das nächste Halbjahr an, damit Anmeldephasen und Betreuungsplan darauf verweisen können."
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={beginCreateSemester}
-            className="gap-2"
-          >
-            <MotoConceptIcon
-              concept="calendarPeriods"
-              colorMode="inherit"
-              size={16}
-            />
-            Halbjahr anlegen
-          </Button>
-        }
       />
     );
   } else if (!failedWithoutData || awaitingErrorText) {

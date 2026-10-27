@@ -25,12 +25,14 @@ const PROBLEM_LABEL: Record<BulkInviteProblem["reason"], string> = {
   missing_email: "E-Mail-Adresse fehlt",
   invalid_email: "E-Mail-Adresse ist falsch geschrieben",
   duplicate_email: "Gleiche E-Mail-Adresse wie eine andere Person",
+  email_not_queued: "E-Mail konnte gerade nicht verschickt werden",
 };
 
 const PROBLEM_ACTION: Record<BulkInviteProblem["reason"], string> = {
   missing_email: "Tragen Sie die E-Mail-Adresse beim Kind ein.",
   invalid_email: "Prüfen Sie die E-Mail-Adresse beim Kind.",
   duplicate_email: "Prüfen Sie die E-Mail-Adressen bei den Eltern.",
+  email_not_queued: "Versuchen Sie es später noch einmal.",
 };
 
 function parents(count: number): string {

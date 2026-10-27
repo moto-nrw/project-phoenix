@@ -5,6 +5,7 @@
 // caller may see plus the caller's visible categories.
 
 import { ApiError, apiErrorFromResponse, transportFetch } from "./api-error";
+import { hasSessionAccess } from "./session-access";
 import { getCachedSession, sessionFetch } from "./session-cache";
 
 interface StudentDocumentCategoryOption {
@@ -96,9 +97,7 @@ class StudentDocumentsService {
     formData.append("file", file);
     formData.append("category", category);
 
-    const session = await getCachedSession();
-    const token = session?.user?.token;
-    if (!token) {
+    if (!hasSessionAccess(await getCachedSession())) {
       // Ohne Sitzung führt der gemeinsame Fehlerweg zur Anmeldung.
       throw new ApiError("Authentifizierung erforderlich", 401);
     }
@@ -112,7 +111,6 @@ class StudentDocumentsService {
       {
         method: "POST",
         body: formData,
-        headers: { Authorization: `Bearer ${token}` },
       },
     );
     if (!response.ok) {

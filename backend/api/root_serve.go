@@ -549,7 +549,7 @@ func composeServeRoot(
 			enrollmentResource := newEnrollmentResource(logger, settings.Service, config.Turnstile, careOfferings, flows, phases,
 				enrollmentCompose.PublicDecisions(decisions), notices.Deletions, identity, guardianProfiles, organizations, renderer, persons, carePlan)
 			mountSchoolRoutes(tenant, db, logger, facilities, facilitiesRooms, settings.Service, caller, active, services.Users,
-				structureViews.Education, renderer, activities, timetableOwner, iot, settingsWrites, organizations, audit.Persistence.DataAccessLog,
+				structureViews.Education, renderer, activities, timetableOwner, iot, settingsWrites, organizations, carePlan, audit.Persistence.DataAccessLog,
 				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource)
 			mountPeopleRoutes(tenant, db, logger, reports, renderer, persons, services.Guardian, identity, caller, feedback, mealPlan,
 				birthdays, emergency)
@@ -579,7 +579,7 @@ func composeServeRoot(
 	if !embedWorker {
 		return &serveHandler{router: router, settings: settings.Service}, nil, nil
 	}
-	worker, err := owners.NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, deviceFleet, carePlan, persons, people,
+	worker, err := owners.NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, audit.Persistence.DataAccessLog, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
 		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker))

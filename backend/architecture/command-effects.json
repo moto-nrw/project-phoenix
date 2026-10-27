@@ -29092,6 +29092,303 @@
     },
     {
       "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform",
+      "binding_digest": "d39cd75aea417360e3819014cc9944ba",
+      "effect": "mutation",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform",
+      "binding_digest": "ba3c4b0c0a9e943407c914941eda28ef",
+      "effect": "mutation",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform",
+      "binding_digest": "165de1ed8e365e8386b2c2eddeaf6d6f",
+      "effect": "mutation",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
+      "target_owner": "audit-platform",
+      "binding_digest": "1e345724b9a603ca62c26a786c6af4d3",
+      "effect": "mutation",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.ClearHolidayGuestDays",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.ClearHolidayGuestDays",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.DeleteArrivalExceptionsByStudent",
+      "target_owner": "care-plan",
+      "binding_digest": "9c312c8d847efd0c1805c159971a40f5",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.DeleteArrivalExceptionsByStudent (care-plan) through roots/owners.holidayGuestCareDays.ClearHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.ClearHolidayGuestDays",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.ClearHolidayGuestDays",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.DeletePickupExceptionsByStudent",
+      "target_owner": "care-plan",
+      "binding_digest": "1be1044600c27b55aa67bce8f42efbf4",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.DeletePickupExceptionsByStudent (care-plan) through roots/owners.holidayGuestCareDays.ClearHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.PlanHolidayGuestDays",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreateArrivalException",
+      "target_owner": "care-plan",
+      "binding_digest": "2d95f3db6e86a0fce63d85794000d22c",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreateArrivalException (care-plan) through roots/owners.holidayGuestCareDays.PlanHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.PlanHolidayGuestDays",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreatePickupException",
+      "target_owner": "care-plan",
+      "binding_digest": "0f3aa4931369223dd17c0f7f6a368d1d",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreatePickupException (care-plan) through roots/owners.holidayGuestCareDays.PlanHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.PlanHolidayGuestDays",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID",
+      "target_owner": "people-directory",
+      "binding_digest": "55b2019072bb6ff4043f3c3000f96d23",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID. ADR 0120 (#4666): the booked days of a holiday guest name the staff member of the account that picked the group as their author, as Care Plan requires."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.CreateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.CreateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.CreateChildPerson",
+      "target_owner": "people-directory",
+      "binding_digest": "e5b31f46f49e08cc10a7d8156911f203",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Capability.CreateChildPerson (people-directory) through roots/owners.holidayGuestPeople.CreateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.CreateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.CreateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.CreateEnrollmentStudent",
+      "target_owner": "people-directory",
+      "binding_digest": "b6bfc0257845464eaa7e3ee7999447b9",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Capability.CreateEnrollmentStudent (people-directory) through roots/owners.holidayGuestPeople.CreateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.CreateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.CreateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.CreateChildPerson",
+      "target_owner": "people-directory",
+      "binding_digest": "f8b00856414cc74751fe9b003a8b12ba",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Owner.CreateChildPerson (people-directory) through roots/owners.holidayGuestPeople.CreateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.CreateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.CreateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.CreateEnrollmentStudent",
+      "target_owner": "people-directory",
+      "binding_digest": "46e707030d08ad607822cf5f6cc3393c",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Owner.CreateEnrollmentStudent (people-directory) through roots/owners.holidayGuestPeople.CreateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.ReadHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.ReadHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.FindPerson",
+      "target_owner": "people-directory",
+      "binding_digest": "3f2e0185799ae57c01811a726194f7b6",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.FindPerson. ADR 0120 (#4666): the holiday guest reconciliation reads the names and date of birth of the guest's child to write it only when the confirmed registration changed."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.ReadHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.ReadHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ReadEnrollmentStudent",
+      "target_owner": "people-directory",
+      "binding_digest": "6213951e93f6d7910637377ed2387335",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (lock) participating in the caller unit: enrollment reaches modules/peopledirectory.Capability.ReadEnrollmentStudent (people-directory) through roots/owners.holidayGuestPeople.ReadHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.ReadHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.ReadHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.FindPerson",
+      "target_owner": "people-directory",
+      "binding_digest": "81792af92c81776ece73f1e7962a32c9",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.FindPerson. ADR 0120 (#4666): the holiday guest reconciliation reads the names and date of birth of the guest's child to write it only when the confirmed registration changed."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.ReadHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.ReadHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ReadEnrollmentStudent",
+      "target_owner": "people-directory",
+      "binding_digest": "72bda0b9783dd494f4e489580071d90a",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (lock) participating in the caller unit: enrollment reaches modules/peopledirectory.Owner.ReadEnrollmentStudent (people-directory) through roots/owners.holidayGuestPeople.ReadHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.UpdateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.UpdateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ApplyEnrollmentProfile",
+      "target_owner": "people-directory",
+      "binding_digest": "0a08e1e5472089c1eb4d0cb9a3eb92af",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Capability.ApplyEnrollmentProfile (people-directory) through roots/owners.holidayGuestPeople.UpdateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.UpdateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.UpdateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ReadEnrollmentStudent",
+      "target_owner": "people-directory",
+      "binding_digest": "d7605d79e1d7d1dcf00c40bdb6c3ae13",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (lock) participating in the caller unit: enrollment reaches modules/peopledirectory.Capability.ReadEnrollmentStudent (people-directory) through roots/owners.holidayGuestPeople.UpdateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.UpdateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.UpdateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.RenewEnrollmentStudent",
+      "target_owner": "people-directory",
+      "binding_digest": "bf36f6aa46253c57675035c092218365",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Capability.RenewEnrollmentStudent (people-directory) through roots/owners.holidayGuestPeople.UpdateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.UpdateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.UpdateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.SetPersonDetails",
+      "target_owner": "people-directory",
+      "binding_digest": "0c60a12a89a103617a6043121c18053b",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Capability.SetPersonDetails (people-directory) through roots/owners.holidayGuestPeople.UpdateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.UpdateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.UpdateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ApplyEnrollmentProfile",
+      "target_owner": "people-directory",
+      "binding_digest": "7116b78b36962c4c801613fc0ee58aee",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Owner.ApplyEnrollmentProfile (people-directory) through roots/owners.holidayGuestPeople.UpdateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.UpdateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.UpdateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ReadEnrollmentStudent",
+      "target_owner": "people-directory",
+      "binding_digest": "0663970de3b304a3a9eaecdbf7836da8",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (lock) participating in the caller unit: enrollment reaches modules/peopledirectory.Owner.ReadEnrollmentStudent (people-directory) through roots/owners.holidayGuestPeople.UpdateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.UpdateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.UpdateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.RenewEnrollmentStudent",
+      "target_owner": "people-directory",
+      "binding_digest": "ae3ff7c0361f8c7ef63c57d7313c956c",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Owner.RenewEnrollmentStudent (people-directory) through roots/owners.holidayGuestPeople.UpdateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestPeople.UpdateHolidayGuestChild",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestPeople.UpdateHolidayGuestChild",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.SetPersonDetails",
+      "target_owner": "people-directory",
+      "binding_digest": "af64523f7a417fb113fbf5e300e1822c",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/peopledirectory.Owner.SetPersonDetails (people-directory) through roots/owners.holidayGuestPeople.UpdateHolidayGuestChild. ADR 0120 (#4666): the holiday guest of the hosting school is a child of the class Feriengast whose care covers the booked week; Enrollment writes it through the People Directory's person and enrollment commands in the hosting school's tenant transaction, with the owner's own validation and row lock and no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3)."
+    },
+    {
+      "source_owner": "enrollment",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHostSchoolNames.HolidayHostSchoolNames",
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayHostSchoolNames.HolidayHostSchoolNames",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
@@ -40371,11 +40668,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueExistingAccountEmail",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.Enqueue",
       "target_owner": "delivery-platform",
-      "binding_digest": "18f8ecb2c1ab33ec0b177d97b90a8988",
+      "binding_digest": "9c905a76952e7b787d00a9c4d2982a56",
       "effect": "durable",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueExistingAccountEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueExistingAccountEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Rebound by #4602: the mail returns its enqueue failure instead of logging it, so the access rolls back with its mail; a missing outbox is an error. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40383,11 +40680,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueInvitationEmail",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.Enqueue",
       "target_owner": "delivery-platform",
-      "binding_digest": "283de242d62467903dc413d02291c2e9",
+      "binding_digest": "1998f26822681eebcc087b423323bed2",
       "effect": "durable",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueInvitationEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueInvitationEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Rebound by #4602: the mail returns its enqueue failure instead of logging it, so the invitation rolls back with its mail; a missing outbox is an error. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40395,11 +40692,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.Enqueue",
       "target_owner": "delivery-platform",
-      "binding_digest": "8a10f81573e41a947a7293398b2aed5d",
+      "binding_digest": "2267f2760b0f7888763b7e528625ea1d",
       "effect": "durable",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed. Rebound by #4602: the mailer reports a missing outbox as an error instead of skipping the welcome; the welcome stays best-effort in its savepoint. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40407,10 +40704,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "1cfdb8d9bb69b6b9cde1bf1a51820481",
+      "binding_digest": "0d88b92f728d71edf6076b54e97c076e",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed. Rebound by #4602: the mailer reports a missing outbox as an error instead of skipping the welcome; the welcome stays best-effort in its savepoint. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40418,10 +40715,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "77039c8ba058b9b7a8e186c27c87f11a",
+      "binding_digest": "3ee89d2953fdbc0fec9227b10604a2d1",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed. Rebound by #4602: the mailer reports a missing outbox as an error instead of skipping the welcome; the welcome stays best-effort in its savepoint. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40429,10 +40726,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "640b3966664b172a25ca87a138f8745f",
+      "binding_digest": "f07867eb28682193ba4bf3a2659f1640",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed. Rebound by #4602: the mailer reports a missing outbox as an error instead of skipping the welcome; the welcome stays best-effort in its savepoint. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40440,10 +40737,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
       "target_owner": "settings-platform",
-      "binding_digest": "a55e1a21345b09c7723e7d180d17fc1e",
+      "binding_digest": "bf9e895c4dd76717c8aed52c1dc61925",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed. Rebound by #4602: the mailer reports a missing outbox as an error instead of skipping the welcome; the welcome stays best-effort in its savepoint. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -44970,6 +45267,28 @@
     },
     {
       "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters",
+      "target_owner": "document-rendering",
+      "binding_digest": "a29b1e89dd9abcee482a975f6ce8f3c2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters: imports the pages of the stored confirmation letters into one PDF to print; it stores nothing and decides no access (#4670, ADR 0123)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.CombineLetters",
+      "target_owner": "document-rendering",
+      "binding_digest": "65a91405d22a61f7b7c55929268bff6f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.LetterRenderer.CombineLetters: the letter contract of Document Rendering returns the PDF bytes of the combined letters; it stores nothing and decides no access (#4670, ADR 0123)."
+    },
+    {
+      "source_owner": "parent-billing",
       "port": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.LetterRenderer.RenderLetter",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter",
       "target": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.RenderLetter",
@@ -45022,6 +45341,40 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/documentrendering/lists.Renderer.Render: the list renderer of Document Rendering turns the overview of a released billing run for the Kämmerei into a PDF, Excel or CSV file; it stores nothing and decides no access (#4672, ADR 0122)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.EnqueueLetterMail",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueLetterMail",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform",
+      "binding_digest": "68673b2f23941412ea4c0dc5aede93c1",
+      "effect": "durable",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (durable): parent-billing reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through api.parentBillingLetterPost.EnqueueLetterMail. The mail of a confirmation letter is a mail of the Träger with the stored PDF in its payload, enqueued in the caller's Träger transaction with the record of the send in parent_billing.document_mailings (ADR 0110, ADR 0123); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.LetterMailStates",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.LetterMailStates",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform",
+      "binding_digest": "984b93abc6b7f11e4fe93394981257c5",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/delivery/runtime.Capability.TraegerEmailStatuses: the state of the mails of a billing run of the session's Träger, read in its Träger transaction under the Träger policy of platform.email_outbox (ADR 0110, ADR 0123)."
+    },
+    {
+      "source_owner": "parent-billing",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.SenderText",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.SenderText",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform",
+      "binding_digest": "a1256f7e2ab16c49bd565fb0d3d8047d",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the letterhead text of the session's Träger (its value or the registry default), read in its Träger transaction; its first line is the sender name of the mail of a confirmation letter (ADR 0112, ADR 0123)."
     },
     {
       "source_owner": "parent-billing",

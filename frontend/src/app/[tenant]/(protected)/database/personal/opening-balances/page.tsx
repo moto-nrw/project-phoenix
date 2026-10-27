@@ -317,7 +317,7 @@ function OpeningBalanceImportPageContent() {
     try {
       await downloadImportTemplate(
         `/api/import/opening-balances/template?format=${templateFormat}`,
-        session?.user?.token,
+        session,
         templateFormat === "xlsx"
           ? "eroeffnungssalden-import-vorlage.xlsx"
           : "eroeffnungssalden-import-vorlage.csv",
@@ -347,7 +347,7 @@ function OpeningBalanceImportPageContent() {
       try {
         const response = await postImportFile(
           "/api/import/opening-balances/preview",
-          session?.user?.token,
+          session,
           buildFormData(file),
         );
         const payload = response.body;
@@ -427,7 +427,7 @@ function OpeningBalanceImportPageContent() {
     try {
       const response = await postImportFile(
         "/api/import/opening-balances/import",
-        session?.user?.token,
+        session,
         buildFormData(uploadedFile),
       );
       const payload = response.body;

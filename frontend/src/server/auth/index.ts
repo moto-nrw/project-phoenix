@@ -6,6 +6,7 @@
  * tenant subdomains for tenant-to-tenant switching.
  */
 
+import "server-only";
 import NextAuth from "next-auth";
 
 import { tenantAuthConfig } from "./tenant-config";

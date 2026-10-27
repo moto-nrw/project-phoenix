@@ -9,6 +9,8 @@ import {
 } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSWRConfig } from "swr";
+import { HolidayGuestSection } from "~/components/students/holiday-guest-section";
+import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
@@ -39,6 +41,7 @@ import {
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import { useSidebarMemory } from "~/lib/sidebar-memory";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
@@ -480,6 +483,9 @@ function StudentDetailPageContent() {
     (hasPermission(session, "users:update") ||
       hasPermission(session, "users:absence"));
   const hasFullAccess = childGrantsFullAccess && sessionReadsChildDetails;
+  // Ein Feriengast der ausrichtenden OGS (#4666) zeigt nur Betreuung, Notfall
+  // und Abholung aus der Ferienanmeldung, keine Reiter der Kindakte.
+  const isHolidayGuest = student?.school_class === HOLIDAY_GUEST_SCHOOL_CLASS;
   const hasAbsenceWriteAccess =
     childGrantsAbsenceWrite && sessionWritesAbsences;
   const hasSickExcusedWriteAccess = childGrantsSickExcusedWrite;
@@ -593,13 +599,16 @@ function StudentDetailPageContent() {
 
   // Set breadcrumb data, include group/room name for 3-level breadcrumb
   // when navigating from an accordion section (e.g. Gruppen > 1a > Mia Fischer)
+  const memory = useSidebarMemory();
+  const groupNameKey = memory.key("sidebar-last-group-name");
+  const roomNameKey = memory.key("sidebar-last-room-name");
   const breadcrumbGroupName = useLocalStorageValue(
-    "sidebar-last-group-name",
-    referrer.startsWith("/ogs-groups"),
+    groupNameKey ?? "",
+    groupNameKey !== null && referrer.startsWith("/ogs-groups"),
   );
   const breadcrumbRoomName = useLocalStorageValue(
-    "sidebar-last-room-name",
-    referrer.startsWith("/active-supervisions"),
+    roomNameKey ?? "",
+    roomNameKey !== null && referrer.startsWith("/active-supervisions"),
   );
 
   useSetBreadcrumb({
@@ -1446,12 +1455,16 @@ function StudentDetailPageContent() {
           />
         ) : undefined
       }
-      tabs={{
-        value: activeTab,
-        onChange: handleTabChange,
-        items: buildStudentTabItems(visibleTabs),
-        label: "Bereiche der Kindakte",
-      }}
+      tabs={
+        isHolidayGuest
+          ? undefined
+          : {
+              value: activeTab,
+              onChange: handleTabChange,
+              items: buildStudentTabItems(visibleTabs),
+              label: "Bereiche der Kindakte",
+            }
+      }
       overlays={
         <>
           {/* Checkout Confirmation Modal */}
@@ -1708,7 +1721,13 @@ function StudentDetailPageContent() {
         </div>
       ) : null}
 
-      {hasFullAccess ? (
+      {isHolidayGuest && (
+        <HolidayGuestSection
+          studentId={studentId}
+          canRead={sessionReadsChildDetails}
+        />
+      )}
+      {!isHolidayGuest && hasFullAccess && (
         <FullAccessView
           student={student}
           studentId={studentId}
@@ -1733,7 +1752,8 @@ function StudentDetailPageContent() {
           groupOptions={groupOptions}
           onRefreshData={refreshDataAndHistory}
         />
-      ) : (
+      )}
+      {!isHolidayGuest && !hasFullAccess && (
         <LimitedAccessView
           student={student}
           studentId={studentId}

@@ -2680,7 +2680,9 @@
         "holiday_registration_not_found": "Diesen Anmeldelink gibt es nicht. Bitte nutzen Sie den Link, den Sie vom Träger bekommen haben.",
         "holiday_registration_state_conflict": "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
         "holiday_week_booked": "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
-        "hosted_holiday_week_not_found": "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da."
+        "hosted_holiday_week_not_found": "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
+        "holiday_guest_not_found": "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
+        "holiday_guest_group_invalid": "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe."
       },
       "files": {
         "announcement_published": "Die Mitteilung ist schon veröffentlicht. Ihre Anhänge lassen sich nicht mehr ändern.",
@@ -2746,6 +2748,7 @@
         "operator_invitation_invalid": "Dieser Einladungslink ist abgelaufen oder ungültig. Bitte lassen Sie sich neu einladen.",
         "operator_self_deactivation": "Sie können Ihr eigenes Konto nicht deaktivieren. Bitten Sie eine andere Person aus dem Team darum.",
         "invitation_rate_limited": "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
+        "guardian_invitation_email_not_queued": "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
         "email_change_rate_limited": "Die E-Mail-Adresse wurde zu oft geändert. Bitte versuchen Sie es in einer Stunde erneut.",
         "email_change_same_email": "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
         "email_change_link_invalid": "Dieser Bestätigungslink ist abgelaufen oder ungültig. Bitte ändern Sie die E-Mail-Adresse erneut.",
@@ -2838,6 +2841,7 @@
         "billing_letter_not_found": "Dieses Schreiben gibt es noch nicht. Bitte erstellen Sie zuerst die Schreiben des Laufs.",
         "billing_letters_exist": "Die Schreiben dieses Laufs sind schon erstellt. Sie lassen sich nicht ändern.",
         "billing_letters_invalid": "Bitte prüfen Sie die markierten Felder.",
+        "billing_letters_missing": "Es gibt noch keine Bestätigungsschreiben. Bitte erstellen Sie zuerst die Schreiben.",
         "billing_run_changed": "Seit Ihrer Prüfung hat sich der Lauf geändert. Bitte prüfen Sie die neue Vorschau und geben Sie dann frei.",
         "billing_run_empty": "Der Lauf hat keine Rechnung. Es gibt nichts freizugeben.",
         "billing_run_not_found": "Diesen Abrechnungslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“.",
@@ -2849,9 +2853,11 @@
         "contribution_rule_overlap": "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
         "holiday_quote_invalid": "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
         "invoice_number_taken": "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
+        "letter_mail_pending": "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
         "letterhead_too_long": "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
         "number_range_invalid": "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
-        "number_range_missing": "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest."
+        "number_range_missing": "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
+        "recipient_email_missing": "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",

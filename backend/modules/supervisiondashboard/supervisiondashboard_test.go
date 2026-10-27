@@ -414,6 +414,26 @@ func TestSelectGroup(t *testing.T) {
 	assert.Nil(t, got)
 }
 
+// An overview caller sees every running session in room-name order; without
+// a request the caller's own session wins over the first foreign one (#5035).
+func TestSelectGroupPrefersOwnSessionForOverviewCaller(t *testing.T) {
+	t.Parallel()
+
+	groups := []Group{
+		{ID: 10, RoomName: "Atelier"},
+		{ID: 20, RoomName: "Bibliothek", IsCurrentUserSupervising: true},
+		{ID: 30, RoomName: "Werkraum", IsCurrentUserSupervising: true},
+	}
+
+	got, err := selectGroup(groups, nil, 0)
+	require.NoError(t, err)
+	assert.Equal(t, int64Ptr(20), got)
+
+	got, err = selectGroup(groups, nil, 10)
+	require.NoError(t, err)
+	assert.Equal(t, int64Ptr(10), got, "an explicit foreign selection is kept")
+}
+
 func TestLoadStaticSectionsBranches(t *testing.T) {
 	t.Parallel()
 

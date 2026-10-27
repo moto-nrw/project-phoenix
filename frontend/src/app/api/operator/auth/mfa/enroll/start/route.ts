@@ -1,8 +1,11 @@
 import type { NextRequest } from "next/server";
 import { forwardJsonPost } from "~/lib/auth-proxy.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   return forwardJsonPost(request, "/operator/auth/mfa/enroll/start", {
     hasBody: false,
   });
 }
+
+export const POST = withPrivateNoStore(POSTHandler);

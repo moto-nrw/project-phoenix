@@ -283,11 +283,11 @@ type GuardianInvitationDelivery struct {
 	identityPorts.GuardianInvitationDelivery
 }
 
-func (d GuardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (int64, bool) {
+func (d GuardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (int64, error) {
 	return d.GuardianInvitationDelivery.EnqueueInvitationEmail(ctx, identityaccess.GuardianInvitation(invitation), identityPorts.GuardianProfile(profile), schoolName)
 }
 
-func (d GuardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) (int64, bool) {
+func (d GuardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) (int64, bool, error) {
 	return d.GuardianInvitationDelivery.EnqueueExistingAccountEmail(ctx, identityPorts.GuardianProfile(profile), schoolName)
 }
 

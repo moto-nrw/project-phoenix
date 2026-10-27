@@ -313,11 +313,11 @@ const ROW_ACTION_BASELINE = new Map(
       "Gericht entfernen@796",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1575",
-      "Entfernen@2038",
+      "Antwort entfernen@1581",
+      "Entfernen@2044",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2022",
+      "Bedingung löschen@2008",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2512",
@@ -1576,7 +1576,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1459",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1465",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1596,7 +1596,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@984",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@948",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@932",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@145",
@@ -1615,7 +1615,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
     // Personalakte geöffnet (#3116).
     "src/components/auth/mfa-admin-override-modal.tsx": [
-      "Zwei-Faktor-Authentifizierung verwalten@397",
+      "Zwei-Faktor-Authentifizierung verwalten@380",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
       "resolve Zuordnungen auflösen: Betreuung verwalten:@330",

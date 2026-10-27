@@ -289,4 +289,63 @@ describe("createResponseAwareAuth", () => {
       expect(sentryTags().school_id).toBeUndefined();
     });
   });
+
+  describe("cache policy (#4999)", () => {
+    async function respond(response: Response): Promise<Response> {
+      const helpers = createResponseAwareAuth(
+        createRawAuth(tenantSession, "tenant.session-token"),
+        "tenant",
+      );
+      return helpers.withAuthResponse(async () => response)(
+        new NextRequest("https://school.moto-app.de/api/students"),
+      );
+    }
+
+    it.each([
+      ["a JSON success", Response.json({ data: [] })],
+      [
+        "a JSON error",
+        new Response('{"status":404,"code":"general.not_found"}', {
+          status: 404,
+          headers: { "Content-Type": "application/problem+json" },
+        }),
+      ],
+      ["a bodyless success", new Response(null, { status: 204 })],
+      [
+        "a redirect",
+        new Response(null, {
+          status: 307,
+          headers: { Location: "https://school.moto-app.de/" },
+        }),
+      ],
+    ])("marks %s private, no-store", async (_label, routeResponse) => {
+      const response = await respond(routeResponse);
+
+      expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    });
+
+    it("keeps a route's own cache policy", async () => {
+      const response = await respond(
+        Response.json(
+          { data: [] },
+          { headers: { "Cache-Control": "private, max-age=60" } },
+        ),
+      );
+
+      expect(response.headers.get("Cache-Control")).toBe("private, max-age=60");
+    });
+
+    it.each([
+      ["a download", "text/csv; charset=utf-8"],
+      ["an image", "image/webp"],
+      ["an event stream", "text/event-stream"],
+    ])("leaves %s without a cache header unchanged", async (_label, type) => {
+      const response = await respond(
+        new Response("bytes", { headers: { "Content-Type": type } }),
+      );
+
+      expect(response.headers.get("Content-Type")).toBe(type);
+      expect(response.headers.has("Cache-Control")).toBe(false);
+    });
+  });
 });

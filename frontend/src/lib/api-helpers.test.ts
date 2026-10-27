@@ -3,8 +3,6 @@ import type { NextRequest } from "next/server";
 import {
   handleDomainApiError,
   isBrowserContext,
-  buildAuthHeaders,
-  buildAuthHeadersWithBody,
   convertToBackendRoom,
   authFetch,
   fetchWithRetry,
@@ -652,48 +650,6 @@ describe("isBrowserContext", () => {
   });
 });
 
-describe("buildAuthHeaders", () => {
-  it("returns undefined when token is undefined", () => {
-    const result = buildAuthHeaders(undefined);
-
-    expect(result).toBeUndefined();
-  });
-
-  it("returns undefined when token is empty string", () => {
-    const result = buildAuthHeaders("");
-
-    expect(result).toBeUndefined();
-  });
-
-  it("returns auth headers with token", () => {
-    const result = buildAuthHeaders("test-token");
-
-    expect(result).toEqual({
-      Authorization: "Bearer test-token",
-      "Content-Type": "application/json",
-    });
-  });
-});
-
-describe("buildAuthHeadersWithBody", () => {
-  it("returns Content-Type even without token", () => {
-    const result = buildAuthHeadersWithBody(undefined);
-
-    expect(result).toEqual({
-      "Content-Type": "application/json",
-    });
-  });
-
-  it("includes Authorization when token is provided", () => {
-    const result = buildAuthHeadersWithBody("test-token");
-
-    expect(result).toEqual({
-      "Content-Type": "application/json",
-      Authorization: "Bearer test-token",
-    });
-  });
-});
-
 describe("convertToBackendRoom", () => {
   it("converts raw API response to typed BackendRoom", () => {
     const rawResponse = {
@@ -802,33 +758,8 @@ describe("authFetch", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("makes GET request with auth headers", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ data: "test" }),
-    } as Response);
-
-    const result = await authFetch<{ data: string }>(
-      "http://api.test/endpoint",
-      {
-        token: "test-token",
-      },
-    );
-
-    expect(result.data).toBe("test");
-    expect(mockFetch).toHaveBeenCalledWith("http://api.test/endpoint", {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-      headers: {
-        Authorization: "Bearer test-token",
-        "Content-Type": "application/json",
-      },
-    });
-  });
-
-  it("makes GET request without headers when no token", async () => {
+  // The browser holds no token (#5005): the BFF reads the session cookie.
+  it("makes GET request without headers", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -856,7 +787,6 @@ describe("authFetch", () => {
     await authFetch("http://api.test/endpoint", {
       method: "POST",
       body,
-      token: "test-token",
     });
 
     expect(mockFetch).toHaveBeenCalledWith("http://api.test/endpoint", {
@@ -865,7 +795,6 @@ describe("authFetch", () => {
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-token",
       },
       body: JSON.stringify(body),
     });
@@ -881,7 +810,6 @@ describe("authFetch", () => {
       "http://api.test/endpoint",
       {
         method: "DELETE",
-        token: "test-token",
       },
     );
 
@@ -895,9 +823,9 @@ describe("authFetch", () => {
       statusText: "Not Found",
     } as Response);
 
-    await expect(
-      authFetch("http://api.test/endpoint", { token: "test-token" }),
-    ).rejects.toThrow("API error (404): Not Found");
+    await expect(authFetch("http://api.test/endpoint")).rejects.toThrow(
+      "API error (404): Not Found",
+    );
   });
 
   it("normalizes a transport failure as a retryable unavailable error", async () => {
@@ -940,14 +868,13 @@ describe("fetchWithRetry", () => {
 
     const result = await fetchWithRetry<{ data: string }>(
       "http://api.test/endpoint",
-      "test-token",
     );
 
     expect(result.response).toBeTruthy();
     expect(result.data).toEqual({ data: "test" });
   });
 
-  it("retries on 401 with token refresh", async () => {
+  it("retries on 401 after a session refresh", async () => {
     // First call returns 401
     mockFetchRetry.mockResolvedValueOnce({
       ok: false,
@@ -963,16 +890,15 @@ describe("fetchWithRetry", () => {
     } as Response);
 
     const onAuthFailure = vi.fn().mockResolvedValue(true);
-    const getNewToken = vi.fn().mockResolvedValue("new-token");
+    const beforeRetry = vi.fn().mockResolvedValue(undefined);
 
     const result = await fetchWithRetry<{ data: string }>(
       "http://api.test/endpoint",
-      "old-token",
-      { onAuthFailure, getNewToken },
+      { onAuthFailure, beforeRetry },
     );
 
     expect(onAuthFailure).toHaveBeenCalled();
-    expect(getNewToken).toHaveBeenCalled();
+    expect(beforeRetry).toHaveBeenCalled();
     expect(result.data).toEqual({ data: "refreshed" });
     expect(mockFetchRetry).toHaveBeenCalledTimes(2);
   });
@@ -985,18 +911,17 @@ describe("fetchWithRetry", () => {
     } as Response);
 
     const onAuthFailure = vi.fn().mockResolvedValue(false);
-    const getNewToken = vi.fn();
+    const beforeRetry = vi.fn();
 
-    const result = await fetchWithRetry(
-      "http://api.test/endpoint",
-      "old-token",
-      { onAuthFailure, getNewToken },
-    );
+    const result = await fetchWithRetry("http://api.test/endpoint", {
+      onAuthFailure,
+      beforeRetry,
+    });
 
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
     expect(result.accessDeniedStatus).toBe(401);
-    expect(getNewToken).not.toHaveBeenCalled();
+    expect(beforeRetry).not.toHaveBeenCalled();
   });
 
   it("normalizes a transport failure while retrying after authentication", async () => {
@@ -1008,14 +933,10 @@ describe("fetchWithRetry", () => {
       } as Response)
       .mockRejectedValueOnce(new TypeError("Failed to fetch"));
 
-    const error = await fetchWithRetry(
-      "http://api.test/endpoint",
-      "old-token",
-      {
-        onAuthFailure: vi.fn().mockResolvedValue(true),
-        getNewToken: vi.fn().mockResolvedValue("new-token"),
-      },
-    ).catch((caught: unknown) => caught);
+    const error = await fetchWithRetry("http://api.test/endpoint", {
+      onAuthFailure: vi.fn().mockResolvedValue(true),
+      beforeRetry: vi.fn().mockResolvedValue(undefined),
+    }).catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({
@@ -1031,10 +952,7 @@ describe("fetchWithRetry", () => {
       text: () => Promise.resolve("Forbidden"),
     } as Response);
 
-    const result = await fetchWithRetry(
-      "http://api.test/endpoint",
-      "test-token",
-    );
+    const result = await fetchWithRetry("http://api.test/endpoint");
 
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
@@ -1054,7 +972,6 @@ describe("fetchWithRetry", () => {
 
     await fetchWithRetry(
       "http://api.test/api/students?search=Mustermann&first_name=Erika",
-      "test-token",
     );
 
     expect(consoleSpies.warn).toHaveBeenCalledWith(
@@ -1074,7 +991,7 @@ describe("fetchWithRetry", () => {
     } as Response);
 
     await expect(
-      fetchWithRetry("http://api.test/api/students?search=Mustermann", "t"),
+      fetchWithRetry("http://api.test/api/students?search=Mustermann"),
     ).rejects.toThrow("API error: 500");
 
     expect(consoleSpies.error).toHaveBeenCalledWith(
@@ -1093,9 +1010,9 @@ describe("fetchWithRetry", () => {
       text: () => Promise.resolve("Bad Request"),
     } as Response);
 
-    await expect(
-      fetchWithRetry("http://api.test/endpoint", "test-token"),
-    ).rejects.toThrow("API error: 400");
+    await expect(fetchWithRetry("http://api.test/endpoint")).rejects.toThrow(
+      "API error: 400",
+    );
   });
 
   it("logs 429 responses as rate-limit warnings", async () => {
@@ -1105,9 +1022,9 @@ describe("fetchWithRetry", () => {
       text: () => Promise.resolve("Rate limit exceeded"),
     } as Response);
 
-    await expect(
-      fetchWithRetry("http://api.test/endpoint", "test-token"),
-    ).rejects.toThrow("API error: 429");
+    await expect(fetchWithRetry("http://api.test/endpoint")).rejects.toThrow(
+      "API error: 429",
+    );
 
     expect(consoleSpies.warn).toHaveBeenCalledWith("api rate limited", {
       url: "http://api.test/endpoint",
@@ -1126,26 +1043,38 @@ describe("fetchWithRetry", () => {
       text: () => Promise.resolve("Internal Server Error"),
     } as Response);
 
-    await expect(
-      fetchWithRetry("http://api.test/endpoint", "test-token"),
-    ).rejects.toThrow("API error: 500");
+    await expect(fetchWithRetry("http://api.test/endpoint")).rejects.toThrow(
+      "API error: 500",
+    );
   });
 
-  it("makes request without headers when token is undefined", async () => {
-    mockFetchRetry.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({}),
-    } as Response);
+  // The browser holds no token (#5005): neither the request nor its retry
+  // after a refresh carries an Authorization header.
+  it("sends no Authorization header, also on the retry", async () => {
+    mockFetchRetry
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve("Unauthorized"),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({}),
+      } as Response);
 
-    await fetchWithRetry("http://api.test/endpoint", undefined);
+    await fetchWithRetry("http://api.test/endpoint", {
+      onAuthFailure: vi.fn().mockResolvedValue(true),
+    });
 
-    expect(mockFetchRetry).toHaveBeenCalledWith(
-      "http://api.test/endpoint",
-      expect.objectContaining({
-        headers: undefined,
-      }),
-    );
+    expect(mockFetchRetry).toHaveBeenCalledTimes(2);
+    for (const [, init] of mockFetchRetry.mock.calls) {
+      expect(init).toMatchObject({
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      expect(init?.headers).not.toHaveProperty("Authorization");
+    }
   });
 
   it("includes body in POST requests", async () => {
@@ -1156,7 +1085,7 @@ describe("fetchWithRetry", () => {
     } as Response);
 
     const body = { name: "Test" };
-    await fetchWithRetry("http://api.test/endpoint", "token", {
+    await fetchWithRetry("http://api.test/endpoint", {
       method: "POST",
       body,
     });

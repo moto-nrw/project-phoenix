@@ -5,6 +5,7 @@ import { createLogger } from "~/lib/logger";
 import { DEMO_TOKEN_COOKIE, demoBackendUrl } from "../forward";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "DemoResetRoute" });
 
@@ -17,7 +18,7 @@ const DEMO_ROLES = new Set(["caregiver", "lead", "parent", "all"]);
 // ride along in the fragment, so the entry lands in the same role, skips the
 // role cards and reports a restart. Without a usable token the visitor is
 // sent back to the mailed link, as a role switch does.
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   const token = request.cookies.get(DEMO_TOKEN_COOKIE)?.value;
   if (!token) {
     return problemResponse(404, "demo access is unknown", request);
@@ -62,3 +63,5 @@ export async function POST(request: NextRequest) {
     return problemResponse(500, "Internal Server Error", request);
   }
 }
+
+export const POST = withPrivateNoStore(POSTHandler);

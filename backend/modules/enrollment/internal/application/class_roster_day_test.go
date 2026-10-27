@@ -100,3 +100,42 @@ func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
 	assert.Equal(t, "Anders", roster.Rows[0].LastName)
 	assert.Equal(t, "Becker", roster.Rows[1].LastName)
 }
+
+// TestSchoolRosterDayBuildsEveryClassOnce is the school-wide roster of the
+// day (#4802): one student load for every class, each row naming its class,
+// children without a class left out and the class-list-only entries of every
+// class included.
+func TestSchoolRosterDayBuildsEveryClassOnce(t *testing.T) {
+	t.Parallel()
+
+	students := &fakeClassRosterStudentRepo{students: []*RosterStudent{
+		{ID: 1, PersonID: 11, SchoolClass: "1a"},
+		{ID: 2, PersonID: 12, SchoolClass: "2b"},
+		{ID: 3, PersonID: 13, SchoolClass: " "},
+	}}
+	svc := classRosterTestService(nil,
+		map[int64]*RosterPerson{
+			11: {FirstName: "Mila", LastName: "Anders"},
+			12: {FirstName: "Finn", LastName: "Becker"},
+			13: {FirstName: "Ohne", LastName: "Klasse"},
+		},
+		&fakeClassRosterRequestRepo{},
+		&fakeClassRosterChildRepo{},
+	)
+	svc.deps.Students = students
+	svc.deps.Phases = &fakeClassDayPhaseRepo{}
+	svc.deps.ClassListEntries = &fakeClassListEntries{entries: []ClassListEntry{
+		{ID: 7, FirstName: "Lea", LastName: "Cramer", SchoolClass: "2b"},
+	}}
+
+	roster, err := svc.SchoolRosterDay(context.Background(), calendar.NewDate(2026, 8, 5))
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, students.listCalls)
+	require.Len(t, roster.Rows, 3)
+	classes := map[string]string{}
+	for _, row := range roster.Rows {
+		classes[row.LastName] = row.SchoolClass
+	}
+	assert.Equal(t, map[string]string{"Anders": "1a", "Becker": "2b", "Cramer": "2b"}, classes)
+}

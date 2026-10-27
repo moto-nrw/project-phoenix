@@ -2680,7 +2680,9 @@
         "holiday_registration_not_found": "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
         "holiday_registration_state_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "holiday_week_booked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "hosted_holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "hosted_holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "holiday_guest_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "holiday_guest_group_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані."
       },
       "files": {
         "announcement_published": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2746,6 +2748,7 @@
         "operator_invitation_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "operator_self_deactivation": "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
         "invitation_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
+        "guardian_invitation_email_not_queued": "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
         "email_change_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
         "email_change_same_email": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "email_change_link_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2838,6 +2841,7 @@
         "billing_letter_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_letters_exist": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_letters_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "billing_letters_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_empty": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2849,9 +2853,11 @@
         "contribution_rule_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "holiday_quote_invalid": "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
         "invoice_number_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "letter_mail_pending": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "letterhead_too_long": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "number_range_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
-        "number_range_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "number_range_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "recipient_email_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",

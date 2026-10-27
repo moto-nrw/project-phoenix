@@ -176,7 +176,7 @@ func (d *Decisions) linkPrimaryGuardian(ctx context.Context, studentID, guardian
 	rel := &StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianProfileID,
-		RelationshipType:   "guardian",
+		RelationshipType:   newGuardianRelationshipType,
 		IsPrimary:          true,
 		IsEmergencyContact: true,
 		CanPickup:          true,

@@ -67,6 +67,7 @@ export const HELP_TOPICS = {
   studentSearch: "kindersuche",
   editStudent: "kind-angaben-aendern",
   webAttendance: "kind-an-und-abmelden",
+  holidayGuests: "feriengaeste-betreuen",
   changeLocation: "aufenthaltsort-aendern",
   dayLog: "betreuungstag-pruefen",
   ownGroups: "meine-gruppen",
@@ -158,6 +159,7 @@ export const HELP_TOPICS = {
   leadAbsenceReport: "abwesenheiten-auswerten",
   leadStatistics: "statistik-oeffnen",
   leadHolidayWeeks: "ferienwochen-teilnehmer-ansehen",
+  leadHolidayGuestGroup: "feriengruppe-waehlen",
   leadExports: "liste-exportieren",
   leadPayroll: "abrechnung-vorbereiten",
   leadParentVisibility: "festlegen-was-eltern-sehen",
@@ -302,11 +304,6 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   // bewusst draußen: es führt auf die Startseite, und zu der gibt es noch
   // keinen Artikel -- ein allgemeiner wäre geraten, nicht passend.
   "/admin/change-requests": HELP_TOPICS.parentRequests,
-  "/invitations": HELP_TOPICS.leadInviteStaff,
-  "/planung": HELP_TOPICS.leadCarePlan,
-  "/staff/dienstplan": HELP_TOPICS.leadDutyRoster,
-  "/timetables": HELP_TOPICS.leadCarePlan,
-  "/vertretungsplan": HELP_TOPICS.leadSubstitutionPlan,
 };
 
 const PREFIX_HELP_TOPICS: ReadonlyArray<

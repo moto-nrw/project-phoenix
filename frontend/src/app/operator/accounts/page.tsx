@@ -15,7 +15,6 @@ import type {
 import { SimpleEmptyState } from "../provisioning/provisioning-shared";
 import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
-import { useSession } from "next-auth/react";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { AccountsTable } from "~/components/operator/accounts-table";
@@ -60,8 +59,6 @@ function OperatorAccountsPageContent() {
   const [tenantAccessAccount, setTenantAccessAccount] = useState<
     SchoolAccount | OrgAccount | null
   >(null);
-  const { data: session } = useSession();
-  const operatorBearerToken = session?.user?.token ?? "";
 
   const { mutate: globalMutate } = useSWRConfig();
 
@@ -296,7 +293,6 @@ function OperatorAccountsPageContent() {
           }}
           scope="operator"
           schoolId={mfaSchoolContext.id}
-          bearerToken={operatorBearerToken}
           accountId={mfaAccount.accountId}
           accountLabel={`${mfaAccount.firstName} ${mfaAccount.lastName}`.trim()}
         />

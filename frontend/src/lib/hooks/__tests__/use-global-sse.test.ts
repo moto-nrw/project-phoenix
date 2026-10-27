@@ -183,11 +183,14 @@ describe("useGlobalSSE", () => {
       );
     });
 
+    // The browser session carries no token (#5005); a session without one
+    // carries an error.
     it("is disabled when authenticated session has no access token", () => {
       vi.mocked(useSession).mockReturnValueOnce({
         status: "authenticated",
         data: {
           user: { tenantId: 1, roles: ["user"] },
+          error: "RefreshTokenError",
         } as never,
         update: vi.fn(),
       });

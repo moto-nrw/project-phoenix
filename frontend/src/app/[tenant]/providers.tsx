@@ -7,6 +7,7 @@ import { SessionProvider, useSession } from "next-auth/react";
 import { SWRConfig } from "swr";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
+import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { ModuleBookingAudienceProvider } from "~/contexts/ToastContext";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
@@ -14,10 +15,12 @@ import { PushSubscriptionSync } from "~/components/notifications/service-worker-
 import { ANNOUNCEMENTS_UNREAD_SWR_KEY } from "~/lib/hooks/use-announcements";
 import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
+import { hasSessionAccess } from "~/lib/session-access";
 import { primeSessionCache } from "~/lib/session-cache";
 import { SETTINGS_SCHEMA_SWR_KEY } from "~/lib/settings-api";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
+import { tenantAwarePath } from "~/lib/tenant-path";
 import type { TenantInfo } from "~/lib/tenant-api";
 import { seesLockedModules } from "~/lib/module-register";
 
@@ -32,7 +35,7 @@ import { seesLockedModules } from "~/lib/module-register";
 function SessionCachePrimer() {
   const { data: session } = useSession();
   useLayoutEffect(() => {
-    if (session?.user?.token) primeSessionCache(session);
+    if (hasSessionAccess(session)) primeSessionCache(session);
   }, [session]);
   return null;
 }
@@ -131,6 +134,9 @@ export function TenantProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <PersonalStorageGuard
+        homeHref={() => tenantAwarePath("/", tenantSlug, routingMode)}
+      />
       <SessionCachePrimer />
       <ModuleBookingAudienceBridge>
         <PushSubscriptionSync portal="tenant" />

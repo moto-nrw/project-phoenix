@@ -142,17 +142,23 @@ async function startStaffPreview(
  * over regardless of the answer, and the backend records one end per preview
  * instance however often it is asked.
  *
- * Plain fetch, not sessionFetch: the signed preview token in the body is the
- * credential the whole way down, and the route needs no session. sessionFetch
- * would throw when the admin session has already expired — exactly the case in
- * which the end must still reach the audit trail.
+ * The signed preview token is the credential the whole way down. A running
+ * preview's token lives only in the session cookie (#5005), so the route reads
+ * it there; only a start whose session swap failed presents the token it was
+ * just handed. Plain fetch, not sessionFetch: sessionFetch would throw when the
+ * admin session has already expired, and the call must never fail the end.
  */
-async function postPreviewEnd(previewToken: string): Promise<void> {
+async function postPreviewEnd(previewToken?: string): Promise<void> {
   try {
     await fetch("/api/auth/staff-preview/end", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ preview_token: previewToken }),
+      body: JSON.stringify(
+        previewToken === undefined ? {} : { preview_token: previewToken },
+      ),
+      // The end of the preview waits for this call; a stalled request must
+      // not keep the admin in the preview.
+      signal: AbortSignal.timeout(5000),
     });
   } catch {
     // Audit only — ending the preview must never fail on this call.
@@ -202,16 +208,16 @@ export async function performStartStaffPreview(
 }
 
 /**
- * Full end sequence: restore the admin session, then record the end for the
- * audit trail (best effort — the preview token simply expires either way).
+ * Full end sequence: record the end for the audit trail (best effort), then
+ * restore the admin session. The session swap can make PersonalStorageGuard
+ * navigate immediately, so the audit request must settle before that swap.
  *
- * The preview token travels with that call as proof of which preview is being
- * closed: the backend reads the previewed person from the signed token, so no
- * client can write an audit entry about a preview it never held. It is
- * therefore captured BEFORE the session swaps back to the admin, and the audit
- * call runs even when restoring the admin session fails: that call needs no
- * session, and a preview whose end never reaches the trail would stay open in
- * the protocol forever.
+ * The preview token is the proof of which preview is being closed: the backend
+ * reads the previewed person from the signed token, so no client can write an
+ * audit entry about a preview it never held. The route takes it from the
+ * session cookie, so the call must run BEFORE the session swaps back to the
+ * admin, and it runs even when restoring the admin session fails: a preview
+ * whose end never reaches the trail would stay open in the protocol forever.
  *
  * Fails the restore, the two sides would disagree: the trail says the preview
  * ended while the session cookie still carries the target's token. That state
@@ -220,11 +226,10 @@ export async function performStartStaffPreview(
  * the caller still sees why.
  */
 export async function performEndStaffPreview(
-  previewToken: string | undefined,
   update: SessionUpdate,
   swrMutate: SwrMutateAll,
 ): Promise<void> {
-  const tokenAtEnd = previewToken;
+  await postPreviewEnd();
   let restoreError: unknown = null;
   try {
     const result = await update({ previewEnd: true });
@@ -235,9 +240,6 @@ export async function performEndStaffPreview(
     restoreError = err;
   }
   clearSessionCache();
-  if (tokenAtEnd) {
-    await postPreviewEnd(tokenAtEnd);
-  }
   if (restoreError) {
     logger.error("staff_preview_restore_failed", {
       error:

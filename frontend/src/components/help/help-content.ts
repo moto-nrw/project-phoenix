@@ -651,6 +651,50 @@ function editStudentTopic(): HelpTopic {
   };
 }
 
+/**
+ * Feriengäste im Alltag (#4666): Kinder anderer Schulen in der Feriengruppe
+ * der ausrichtenden OGS. Die Kindakte zeigt nur Betreuung, Notfall und
+ * Abholung.
+ */
+function holidayGuestsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.holidayGuests,
+    title: "Feriengäste betreuen",
+    question: "Wo sehe ich Notfall und Abholung eines Feriengasts?",
+    summary:
+      "In den Ferien kommen Kinder anderer Schulen in Ihre OGS. Sie stehen in der Feriengruppe.",
+    group: "gruppen",
+    audience: ["caregiver", "lead"],
+    icon: "SunHorizon",
+    requirements: [
+      "Ihre OGS richtet eine Ferienwoche für den Träger aus.",
+      "Die Leitung hat unter `Ferienwochen` eine Feriengruppe gewählt.",
+      "Die Ferienwoche hat begonnen. Vorher stehen Feriengäste noch nicht in der Gruppe.",
+    ],
+    steps: [
+      "Öffnen Sie die Feriengruppe. Unter dem Namen jedes Feriengasts steht `Feriengast`.",
+      "Melden Sie Feriengäste an und ab wie jedes andere Kind.",
+      "Öffnen Sie die Karte eines Feriengasts.",
+      "Lesen Sie unter `Betreuung` die Woche und die gebuchte Zeit.",
+      "Unter `Notfall` stehen die Eltern und weitere Kontakte. Unter `Abholung` steht, wer das Kind außer den Eltern abholen darf.",
+    ],
+    result:
+      "Sie wissen, wann das Kind gehen darf und wen Sie im Notfall anrufen.",
+    notes: [
+      "Mehr als Betreuung, Notfall und Abholung sehen Sie von einem Feriengast nicht. Die übrigen Angaben bleiben beim Träger.",
+      "Jeder Blick auf Notfall und Abholung steht im Zugriffsprotokoll Ihrer OGS.",
+    ],
+    differences: [
+      "Nach dem letzten Tag der Woche steht der Feriengast nicht mehr in der Gruppe und nicht mehr im Check-in. Seine Angaben bleiben noch 7 Tage zum Nachlesen.",
+    ],
+    troubleshootingDetails: [
+      "Fehlt ein Feriengast? Anmeldungen bestätigt der Träger. Neu bestätigte Kinder kommen innerhalb einer Stunde in die Gruppe.",
+      "Sehen Sie `Notfall` und `Abholung` nicht? Dafür brauchen Sie das Recht, die Angaben der Kinder zu lesen. Fragen Sie Ihre Leitung.",
+    ],
+    related: [HELP_TOPICS.webAttendance, HELP_TOPICS.ownGroups],
+  };
+}
+
 function webAttendanceTopic(presenceMode: HelpPresenceMode): HelpTopic {
   const result =
     presenceMode === "detailed"
@@ -1322,7 +1366,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     title: "Den Betreuungstag von heute verfolgen",
     question: "Wo sehe ich den Betreuungstag von heute?",
     summary:
-      "Die Seite `Heute` zeigt die Betreuungsblöcke des Tages der Reihe nach.",
+      "Die Seite `Heute` zeigt die Betreuungsblöcke des Tages nach Uhrzeit.",
     group: "tagesplanung",
     audience: "caregiver",
     icon: "ClockAfternoon",
@@ -1333,6 +1377,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     steps: [
       "Öffnen Sie `Heute` in der Seitenleiste.",
       "Sie sehen die Blöcke des Tages von früh nach spät.",
+      "Blöcke zur selben Zeit stehen nebeneinander, unter `Gleichzeitig`.",
       "Eine Linie zeigt, wo Sie gerade im Tag stehen.",
       "Tippen Sie auf einen laufenden Block. Das öffnet seine Kinderliste.",
       "Hat Ihr Block noch nicht begonnen? Wählen Sie `Starten`.",
@@ -1342,6 +1387,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "`Läuft` heißt: der Block ist gerade aktiv. `Beendet` und `Nicht gestartet` können Sie nur ansehen.",
       "`Fällt aus` zeigt zusätzlich den Grund.",
+      "Laufen mehr als zwei Blöcke gleichzeitig? Dann wischen Sie auf dem Handy zur Seite, um alle zu sehen.",
       "Ein `Dienst` ist eine Aufgabe ohne Kinder, etwa die Busaufsicht. Er hat keinen Knopf `Starten`.",
       "Blöcke, für die Sie eingeteilt sind, sind in ihrer Farbe hinterlegt. Das gilt auch für eine Vertretung.",
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
@@ -1641,6 +1687,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // #4372: offene Räume ohne eigene Aufsicht stehen unter `Räume`.
       "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht der Raum unter `Aktuelle Aufsicht`. Alle anderen offenen Räume finden Sie unter `Räume`.",
       "Haben Sie mehrere Aufsichten? Auf dem Handy stehen sie oben auf der Seite `Aufsicht` als Reiter.",
+      // #5035: mit dem Überblick über alle Aufsichten stehen auch fremde da.
+      "Sehen Sie auch Aufsichten von anderen? Ihre eigene steht zuerst und öffnet sich zuerst. Bei einer fremden steht oben `Nicht Ihre Aufsicht`.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
       "`Abgeben` ist gesperrt? Dann sind Sie die einzige Aufsicht. Übergeben Sie die Aufsicht an eine Person oder beenden Sie die Aktivität.",
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`, mit jedem Zugang. In Zeiterfassung und Dienstplan erscheint sie nicht.",
@@ -3041,6 +3089,7 @@ function caregiverTopics(
     emergencyTopic(presenceMode),
     ownGroupsTopic(presenceMode, groupMode),
     transferGroupTopic(groupMode),
+    holidayGuestsTopic(),
     roomsTopic(presenceMode),
     activeSupervisionTopic(presenceMode),
     homeworkFeedbackTopic(),
@@ -3827,7 +3876,7 @@ function studentNotesTopic(): HelpTopic {
       "Ein Hinweis trägt `Übernommen aus den Betreuernotizen`? Der stammt aus dem früheren Textfeld und hat deshalb keinen Verfasser.",
     ],
     troubleshootingDetails: [
-      "Es fehlt `Neue Notiz`? Dann dürfen Sie dieses Kind nur lesen.",
+      "Es fehlt der Reiter `Notizen`? Dann darf Ihre Rolle keine Notizen sehen. Fragen Sie Ihre Leitung.",
       "Ein Angebot fehlt unter `Bezug`? Dort stehen nur Angebote, in denen das Kind heute angemeldet ist.",
       "Es fehlt `Gruppenleitung` oder `Angebotsleitung`? Wählen Sie zuerst unter `Bezug` die Gruppe oder das Angebot.",
     ],
@@ -5981,7 +6030,54 @@ function holidayWeeksTopic(): HelpTopic {
       "Fehlt ein Kind? Anmeldungen prüft und bestätigt der Träger. Fragen Sie dort nach.",
       "Fehlt `Ferienwochen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
     ],
-    related: [HELP_TOPICS.leadStatistics, HELP_TOPICS.leadExports],
+    related: [
+      HELP_TOPICS.leadHolidayGuestGroup,
+      HELP_TOPICS.leadStatistics,
+      HELP_TOPICS.leadExports,
+    ],
+  };
+}
+
+/**
+ * `/ferienwochen` (#4666): Die Leitung wählt die Gruppe für die Feriengäste
+ * einer Woche. Die bestätigten Gäste kommen dann in die Gruppe und in den
+ * Check-in.
+ */
+function holidayGuestGroupTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadHolidayGuestGroup,
+    title: "Die Feriengruppe wählen",
+    question: "Wie kommen Feriengäste in eine Gruppe?",
+    summary:
+      "Wählen Sie für jede Ferienwoche eine Gruppe. Dort sieht Ihr Team die Feriengäste.",
+    group: "auswertung",
+    audience: "lead",
+    icon: "UsersThree",
+    requirements: [
+      "Der Träger hat Ihre OGS für eine Ferienwoche eingetragen.",
+      "Es gibt eine Gruppe für die Ferienwoche, zum Beispiel `Feriengruppe`. Eine neue Gruppe legen Sie unter `Gruppen` an.",
+    ],
+    steps: [
+      "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
+      "Öffnen Sie `Ferienwochen`.",
+      "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
+      "Wählen Sie unter `Feriengruppe` die Gruppe.",
+      "Wählen Sie `Feriengäste übernehmen`.",
+    ],
+    result:
+      "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe und im Check-in. Ihr Team sieht bei jedem Feriengast Betreuung, Notfall und Abholung.",
+    notes: [
+      "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
+      "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",
+      "Jede Übernahme steht im Zugriffsprotokoll Ihrer OGS.",
+    ],
+    differences: [
+      "Fehlen Auswahl und Knopf? Gruppen wählen darf nur, wer Kinder anlegen darf.",
+    ],
+    troubleshootingDetails: [
+      "Nach dem letzten Tag der Woche stehen die Feriengäste nicht mehr in der Gruppe und nicht mehr im Check-in.",
+    ],
+    related: [HELP_TOPICS.leadHolidayWeeks, HELP_TOPICS.holidayGuests],
   };
 }
 
@@ -6759,6 +6855,7 @@ function leadTopics(
     absenceReportTopic(),
     statisticsTopic(),
     holidayWeeksTopic(),
+    holidayGuestGroupTopic(),
     exportsTopic(),
 
     // --- Einstellungen und Geräte ---
@@ -8150,7 +8247,10 @@ function teacherClassDayTopic(): HelpTopic {
       "Mit den Pfeilen sehen Sie den vorherigen oder nächsten Tag.",
       "Betreut Ihre OGS am Wochenende? Dann sehen Sie auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
-    differences: ["An einem Wochenende ohne Betreuung steht `Kein Schultag`."],
+    differences: [
+      "An einem Wochenende ohne Betreuung steht `Kein Schultag`.",
+      "Sie haben die Rolle `Schulverwaltung`? Dann steht oben `Ganze Schule` mit den Zahlen aller Klassen. Wählen Sie eine Zahl. Darunter stehen dann die Kinder, nach Klassen sortiert. `Liste schließen` blendet sie wieder aus.",
+    ],
     troubleshootingDetails: [
       "Es steht `Keine Klassen zugewiesen`? Dann hat die OGS Ihnen noch keine Klasse zugeordnet.",
     ],
@@ -9373,6 +9473,17 @@ function traegerBillingRunTopic(): HelpTopic {
         ],
       },
       {
+        title: "Schreiben per Mail senden und drucken",
+        description:
+          "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Für Familien ohne Internet drucken Sie es.",
+        steps: [
+          "Wählen Sie im freigegebenen Lauf bei `Versand per Mail` den Knopf `An alle Familien senden`. moto schickt nur Mails, die noch nicht gesendet sind.",
+          "Neben jeder Familie steht, ob die Mail gesendet ist. `Nicht angekommen` heißt: Die Mail kam nicht an.",
+          "Wählen Sie bei dieser Familie `Erneut senden`. Mit `Senden` schicken Sie das Schreiben an eine einzelne Familie.",
+          "Wählen Sie `Alle Schreiben drucken`. Sie bekommen alle Schreiben des Laufs in einer Datei.",
+        ],
+      },
+      {
         title: "Übersicht für die Kämmerei herunterladen",
         description: "Das geht, sobald der Lauf freigegeben ist.",
         steps: [
@@ -9400,6 +9511,7 @@ function traegerBillingRunTopic(): HelpTopic {
       "Die Freigabe meldet, dass sich der Lauf geändert hat? Inzwischen wurde eine Anmeldung bestätigt. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
       "Eine bestätigte Anmeldung fehlt in der Vorschau? Sie hat schon eine Rechnung, oder beim Bestätigen wurde kein Beitrag festgehalten.",
       "Die Schreiben lassen sich nicht erstellen, weil eine Bankverbindung fehlt? Die Verwaltung trägt sie unter `Briefkopf` ein. Danach erstellen Sie die Schreiben.",
+      "Eine Mail kommt auch nach `Erneut senden` nicht an? Vielleicht stimmt die Adresse nicht. Drucken Sie das Schreiben und geben Sie es der Familie.",
     ],
     related: [
       HELP_TOPICS.traegerHolidayContribution,

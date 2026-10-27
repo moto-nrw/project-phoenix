@@ -74,11 +74,8 @@ import {
   morningSummaryLine,
   type MorningAttendanceDraft,
 } from "./morning-attendance";
-import {
-  classDayDateParam,
-  classDayOverviewPath,
-  isWeekendISO,
-} from "./routes";
+import { classDayDateParam, isWeekendISO } from "./routes";
+import { schoolDayListParam, schoolDayListPath } from "./school-day";
 import { Section, type StudentRowMorning } from "./student-row";
 import { type ClassHomeworkApi, useClassHomework } from "./use-class-homework";
 
@@ -206,6 +203,7 @@ export function ClassDayClass({
   const at = now ?? new Date();
   const searchParams = useSearchParams();
   const dateISO = classDayDateParam(searchParams.get("tag"));
+  const openList = schoolDayListParam(searchParams.get("liste"));
   const weekendDay = isWeekendISO(dateISO);
   const [exceptionDialogOpen, setExceptionDialogOpen] = useState(false);
   const [tripModalOpen, setTripModalOpen] = useState(false);
@@ -619,7 +617,7 @@ export function ClassDayClass({
     >
       <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
         <NavigationLink
-          href={schoolPath(classDayOverviewPath(dateISO))}
+          href={schoolPath(schoolDayListPath(dateISO, openList))}
           className="inline-flex items-center gap-1 text-sm font-medium text-gray-600 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />

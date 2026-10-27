@@ -16,7 +16,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() =>
     Promise.resolve({
-      user: { token: "test-token" },
+      user: { id: "1" },
     }),
   ),
 }));
@@ -117,22 +117,18 @@ describe("userContextService", () => {
       ).rejects.toThrow();
     });
 
-    it("uses provided token instead of getSession", async () => {
+    // The BFF reads the session cookie; the browser holds no token (#5005).
+    it("sends no Authorization header", async () => {
       fetchWithAuthMock.mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({ success: true, message: "", data: [] }),
       } as Response);
 
-      await userContextService.getMyEducationalGroups("custom-token");
+      await userContextService.getMyEducationalGroups();
 
-      expect(fetchWithAuthMock).toHaveBeenCalledWith(
-        "/api/me/groups",
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer custom-token",
-          }) as HeadersInit,
-        }),
-      );
+      expect(fetchWithAuthMock).toHaveBeenCalledWith("/api/me/groups", {
+        headers: { "Content-Type": "application/json" },
+      });
     });
   });
 

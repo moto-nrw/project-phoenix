@@ -609,16 +609,6 @@ export function CatalogPage<T extends CatalogItem>({
                   size={48}
                 />
               ),
-              action:
-                isSearching || !canManage ? undefined : (
-                  <DatabaseCreateAction
-                    label={config.singular}
-                    ariaLabel={`${config.singular} anlegen`}
-                    disabled={createDisabled}
-                    showMobileFab={false}
-                    onClick={() => setCreateOpen(true)}
-                  />
-                ),
             }
           : null
       }

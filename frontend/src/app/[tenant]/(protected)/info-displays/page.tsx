@@ -342,18 +342,6 @@ function InfoDisplaysPageContent() {
               title: "Noch keine Info-Displays",
               description:
                 "Ein Info-Display zeigt die Anwesenheit auf einem Fernseher oder Smartboard. Legen Sie eines an; den Link öffnen Sie danach im Browser des Geräts.",
-              action: canManage ? (
-                <Button
-                  type="button"
-                  size="md"
-                  onClick={() => {
-                    setNameInput("");
-                    setCreateOpen(true);
-                  }}
-                >
-                  Neues Display
-                </Button>
-              ) : undefined,
             }
           : null
       }

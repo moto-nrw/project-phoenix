@@ -180,7 +180,7 @@ func mountSchoolRoutes(
 	settings settingsCompose.SettingsService, caller *owners.CallerRows, active studentpresence.Presence, users peoplePorts.PersonDirectory,
 	education schoolstructure.GroupManagement, renderer *lists.RendererService, activities activityContract.ActivityService,
 	timetableOwner timetableModule.Capability, iot devicefleetCompose.IoTService, settingsWrites SettingsWrites,
-	holidaySchools HolidayHostSchools, holidayAccessLog owners.DataAccessAppender,
+	holidaySchools HolidayHostSchools, holidayCare owners.HolidayGuestCarePlan, holidayAccessLog owners.DataAccessAppender,
 	membership schoolMembershipModule.Capability, classListEntries schoolMembershipModule.ClassListEntries, databaseStats DatabaseStatsReader,
 	dataImports imports, persons peopledirectory.Capability, gradeTransition *gradetransition.Workflow, enrollment *enrollmentAPI.Resource,
 ) {
@@ -195,8 +195,9 @@ func mountSchoolRoutes(
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(activities, timetableOwner, NewTimetableSupervisorDirectory(users), caller, TimetableHTTPTransactions).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).
 	tenant.Mount("/enrollment", enrollment.Router(TenantSessionChain))
-	// The hosting school's holiday participant lists (#4665).
-	mountHolidayHostRoutes(tenant, holidaySchools, holidayAccessLog)
+	// The hosting school's holiday participant lists (#4665) and holiday
+	// guests (#4666).
+	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayCare, users, holidayAccessLog)
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the root composes it and the IoT service hands it back here
 	// (#2676).

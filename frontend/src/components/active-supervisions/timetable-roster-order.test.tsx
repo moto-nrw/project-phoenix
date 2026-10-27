@@ -180,6 +180,19 @@ describe("TimetableRosterContent collapsible sections (#4353)", () => {
     expect(screen.getByText("Anwesend (1)")).toBeInTheDocument();
   });
 
+  it("folds and unfolds a list from a click on its title (#5021)", () => {
+    renderRoster(roster(rows));
+
+    fireEvent.click(screen.getByText("Nicht mehr im Raum (1)"));
+    expect(screen.getByText("Dana Gone")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Nicht mehr im Raum einklappen" }),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(screen.getByText("Nicht mehr im Raum (1)"));
+    expect(screen.queryByText("Dana Gone")).not.toBeInTheDocument();
+  });
+
   it("opens every list for a search and folds the children who left again after it", () => {
     const { rerender } = renderRoster(roster(rows));
     rerender(

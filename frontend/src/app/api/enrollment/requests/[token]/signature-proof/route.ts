@@ -9,12 +9,13 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { createLogger } from "~/lib/logger";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { pdfDownloadResponse } from "~/lib/pdf-download-response.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({
   component: "EnrollmentStatusSignatureProofRoute",
 });
 
-export async function GET(
+async function GETHandler(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
@@ -34,3 +35,5 @@ export async function GET(
   }
   return pdfDownloadResponse(upstream);
 }
+
+export const GET = withPrivateNoStore(GETHandler);

@@ -478,17 +478,6 @@ function StudentsPageContent() {
                   size={48}
                 />
               ),
-              action:
-                searchTerm ||
-                groupFilter !== "all" ||
-                !canCreateStudents ? undefined : (
-                  <DatabaseCreateAction
-                    label="Kind"
-                    ariaLabel="Kind anlegen"
-                    showMobileFab={false}
-                    onClick={() => setShowCreateModal(true)}
-                  />
-                ),
             }
           : null
       }

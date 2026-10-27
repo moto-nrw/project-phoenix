@@ -90,7 +90,7 @@ describe("useStudentData", () => {
 
     it("should show loading when SWR is loading", () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -111,7 +111,7 @@ describe("useStudentData", () => {
 
     it("should not be loading when data is available", () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -143,7 +143,7 @@ describe("useStudentData", () => {
     it("should return the load error when SWR has error", () => {
       const loadError = new Error("Network error");
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -165,7 +165,7 @@ describe("useStudentData", () => {
 
     it("should return null error when no error", () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -195,7 +195,7 @@ describe("useStudentData", () => {
   describe("data fetching", () => {
     it("should pass correct SWR key when authenticated", () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -250,7 +250,7 @@ describe("useStudentData", () => {
       const mockMutate = vi.fn();
 
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -309,7 +309,7 @@ describe("useStudentData", () => {
 
     it("should handle service errors gracefully", async () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -371,7 +371,7 @@ describe("useStudentData", () => {
   describe("access control", () => {
     it("should include sensitive fields when hasFullAccess is true", () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -406,7 +406,7 @@ describe("useStudentData", () => {
 
     it("should include excused fields when hasFullAccess is true", () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -440,7 +440,7 @@ describe("useStudentData", () => {
 
     it("should use default value for hasFullAccess when data is undefined", () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -465,7 +465,7 @@ describe("useStudentData", () => {
 
     it("should expose absence write access independently of Stammdaten write access", () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -495,7 +495,7 @@ describe("useStudentData", () => {
 
     it("keeps the absence statuses readable for an absence writer without read scope", async () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -547,7 +547,7 @@ describe("useStudentData", () => {
 
     it("should expose actual_arrival_time and actual_pickup_time when hasFullAccess is true", () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -585,7 +585,7 @@ describe("useStudentData", () => {
       // is that the hook does not fabricate actual times when none are in
       // the SWR result and access is denied — i.e. no defaulting bug.
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -617,7 +617,7 @@ describe("useStudentData", () => {
       // Common case: student has not yet checked in. Hook must not invent
       // empty strings or epoch timestamps just because the field is missing.
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -650,7 +650,7 @@ describe("useStudentData", () => {
       const mockMutate = vi.fn(() => Promise.resolve());
 
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -685,7 +685,7 @@ describe("useStudentData", () => {
       const mockMutate = vi.fn();
 
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });
@@ -723,7 +723,7 @@ describe("useStudentData", () => {
   describe("default values", () => {
     it("should return default empty arrays when data is undefined", () => {
       mockUseSession.mockReturnValue({
-        data: { user: { id: "1", token: "test-token" }, expires: "2099-12-31" },
+        data: { user: { id: "1" }, expires: "2099-12-31" },
         status: "authenticated",
         update: vi.fn(),
       });

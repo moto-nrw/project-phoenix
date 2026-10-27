@@ -1,6 +1,5 @@
 // lib/usercontext-api.ts
 import { ApiError, apiErrorFromText } from "./api-error";
-import { getCachedSession } from "./session-cache";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "UserContextAPI" });
@@ -28,6 +27,9 @@ import {
   type BackendTeacher,
 } from "./usercontext-helpers";
 
+// The BFF routes read the session cookie; the browser holds no token (#5005).
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
 // Generic API response interface
 interface ApiResponse<T> {
   success: boolean;
@@ -43,12 +45,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -84,12 +82,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -132,12 +126,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -167,27 +157,14 @@ export const userContextService = {
   },
 
   // Get educational groups for current user
-  // Pass token to skip redundant getSession() call (saves ~600ms per request)
-  getMyEducationalGroups: async (
-    token?: string,
-  ): Promise<EducationalGroup[]> => {
+  getMyEducationalGroups: async (): Promise<EducationalGroup[]> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = await resolveApiUrl("/api/me/groups", "/me/groups");
 
     try {
       if (useProxyApi) {
-        // Use provided token or fall back to getSession()
-        let authToken = token;
-        if (!authToken) {
-          const session = await getCachedSession();
-          authToken = session?.user?.token;
-        }
-
         const response = await fetchWithAuth(url, {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-            "Content-Type": "application/json",
-          },
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -236,12 +213,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -282,12 +255,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {
@@ -334,12 +303,8 @@ export const userContextService = {
 
     try {
       if (useProxyApi) {
-        const session = await getCachedSession();
         const response = await fetchWithAuth(url, {
-          headers: {
-            Authorization: `Bearer ${session?.user?.token}`,
-            "Content-Type": "application/json",
-          },
+          headers: JSON_HEADERS,
         });
 
         if (!response.ok) {

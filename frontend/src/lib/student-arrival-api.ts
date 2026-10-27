@@ -1,5 +1,4 @@
 import { ApiError, apiErrorFromText, unavailableApiError } from "./api-error";
-import { getCachedSession } from "./session-cache";
 
 /**
  * One care day of a child. The row says the child is in care that weekday;
@@ -135,16 +134,10 @@ function unwrap<T>(value: ApiWrapper<T> | T): T {
   return value as T;
 }
 
-async function authHeaders(): Promise<HeadersInit> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  const session = await getCachedSession();
-  if (session?.user?.token) {
-    headers.Authorization = `Bearer ${session.user.token}`;
-  }
-  return headers;
-}
+// BFF routes read the session cookie; the browser holds no token (#5005).
+const JSON_HEADERS: Record<string, string> = {
+  "Content-Type": "application/json",
+};
 
 /** Keeps transport failures on the shared, retryable error path. */
 async function transportFetch(
@@ -196,7 +189,7 @@ export async function fetchArrivalData(
     `/api/students/${studentId}/arrival-schedules${suffix}`,
     {
       method: "GET",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
     },
   );
@@ -210,7 +203,7 @@ export async function fetchBulkArrivalScheduleStatus(
     "/api/students/arrival-schedules/status",
     {
       method: "POST",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
       body: JSON.stringify({
         student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
@@ -224,7 +217,7 @@ export async function fetchBulkArrivalScheduleStatus(
 export async function fetchArrivalSettings(): Promise<ArrivalSettings> {
   const response = await transportFetch("/api/students/arrival-settings", {
     method: "GET",
-    headers: await authHeaders(),
+    headers: JSON_HEADERS,
     credentials: "include",
   });
   const settings = await parseResponse<ArrivalSettingsResponse>(response);
@@ -245,7 +238,7 @@ export async function updateArrivalSchedules(
     `/api/students/${studentId}/arrival-schedules`,
     {
       method: "PUT",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
       body: JSON.stringify(body),
     },
@@ -287,7 +280,7 @@ export async function bulkUpsertArrivalSchedules(
     "/api/students/arrival-schedules/bulk",
     {
       method: "POST",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
       body: JSON.stringify(body),
     },
@@ -310,7 +303,7 @@ export async function createArrivalException(
     `/api/students/${studentId}/arrival-exceptions`,
     {
       method: "POST",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
       body: JSON.stringify(input),
     },
@@ -327,7 +320,7 @@ export async function updateArrivalException(
     `/api/students/${studentId}/arrival-exceptions/${exceptionId}`,
     {
       method: "PUT",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
       body: JSON.stringify(input),
     },
@@ -343,7 +336,7 @@ export async function deleteArrivalException(
     `/api/students/${studentId}/arrival-exceptions/${exceptionId}`,
     {
       method: "DELETE",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
     },
   );
@@ -365,7 +358,7 @@ export async function createArrivalNote(
     `/api/students/${studentId}/arrival-notes`,
     {
       method: "POST",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
       body: JSON.stringify(input),
     },
@@ -382,7 +375,7 @@ export async function updateArrivalNote(
     `/api/students/${studentId}/arrival-notes/${noteId}`,
     {
       method: "PUT",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
       body: JSON.stringify(input),
     },
@@ -398,7 +391,7 @@ export async function deleteArrivalNote(
     `/api/students/${studentId}/arrival-notes/${noteId}`,
     {
       method: "DELETE",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
     },
   );
@@ -435,7 +428,7 @@ export async function fetchClassArrivalTimes(
 ): Promise<ClassArrivalTimes> {
   const response = await transportFetch(
     `/api/students/class-arrival-times/${encodeURIComponent(schoolClass)}`,
-    { headers: await authHeaders() },
+    { headers: JSON_HEADERS },
   );
   return parseResponse<ClassArrivalTimes>(response);
 }
@@ -481,7 +474,7 @@ export async function fetchClassArrivalExceptions(
   const response = await transportFetch(
     classArrivalExceptionPath(schoolClass),
     {
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
     },
   );
   return parseResponse<ClassArrivalExceptionList>(response);
@@ -496,7 +489,7 @@ export async function upsertClassArrivalException(
     classArrivalExceptionPath(schoolClass, date),
     {
       method: "PUT",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
       body: JSON.stringify(input),
     },
@@ -512,7 +505,7 @@ export async function deleteClassArrivalException(
     classArrivalExceptionPath(schoolClass, date),
     {
       method: "DELETE",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
     },
   );

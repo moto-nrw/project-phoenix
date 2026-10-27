@@ -156,11 +156,6 @@ const OHNE_BAUART: Readonly<Record<string, string>> = {
   "admin/enrollments/change-requests/page.tsx":
     "Weiterleitung nach /anfragen (#2435)",
   "dashboard/page.tsx": "Weiterleitung auf die Startseite (#2180)",
-  "invitations/page.tsx": "Weiterleitung nach /database/personal",
-  "planung/page.tsx": "Weiterleitung auf die Planungsbereiche (#1886)",
-  "staff/dienstplan/page.tsx": "Weiterleitung nach /dienstplan",
-  "timetables/page.tsx": "Weiterleitung nach /betreuungsplan",
-  "vertretungsplan/page.tsx": "Weiterleitung nach /vertretung",
   "home/page.tsx":
     "Startseite aus Bausteinen (ADR 0008, #2180): keine Sammlung, kein Werkzeug",
   "database/page.tsx":

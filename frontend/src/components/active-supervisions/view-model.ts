@@ -511,14 +511,20 @@ export function mapSupervisedGroupsToRooms(
     }))
     .sort(
       (a, b) =>
-        // Same room → order by session name so parallel sessions (#2265)
-        // keep a deterministic tab order; fully equal entries keep the
-        // backend order (Array.prototype.sort is stable). The active-group
-        // payload may carry no name at runtime, so compare defensively.
+        // Own sessions first (#5035): with the school-wide overview the list
+        // also holds foreign sessions, and every default selection takes the
+        // first entry. Then by room, and within one room by session name so
+        // parallel sessions (#2265) keep a deterministic tab order; fully
+        // equal entries keep the backend order (Array.prototype.sort is
+        // stable). The active-group payload may carry no name at runtime, so
+        // compare defensively.
+        Number(b.isCurrentUserSupervising) -
+          Number(a.isCurrentUserSupervising) ||
         (a.room_name ?? a.name ?? "").localeCompare(
           b.room_name ?? b.name ?? "",
           "de",
-        ) || (a.name ?? "").localeCompare(b.name ?? "", "de"),
+        ) ||
+        (a.name ?? "").localeCompare(b.name ?? "", "de"),
     );
 }
 

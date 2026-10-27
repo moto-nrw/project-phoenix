@@ -31,6 +31,9 @@ var (
 	// ErrInviteSocialWorkerManaged refuses inviting a social-worker contact,
 	// which the school manages, into the parents portal.
 	ErrInviteSocialWorkerManaged = errors.New("a social-worker contact is managed by the school and cannot be invited to the parents portal")
+	// ErrInviteMailNotQueued reports an invitation whose mail could not be
+	// queued; nothing of it was kept and the parent can try again (#4602).
+	ErrInviteMailNotQueued = errors.New("the invitation email could not be queued")
 )
 
 // GuardianInviteRequest is one parent-initiated "invite this address to my

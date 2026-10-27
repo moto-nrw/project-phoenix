@@ -204,6 +204,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/api/guardians/{id}/phone-numbers/{phoneId}"}:                                     notCaptured,
 	{http.MethodPut, "/api/guardians/{id}/phone-numbers/{phoneId}"}:                                        notCaptured,
 	{http.MethodPost, "/api/guardians/{id}/phone-numbers/{phoneId}/set-primary"}:                           notCaptured,
+	{http.MethodPut, "/api/holiday-weeks/{weekId}/guest-group"}:                                            event("holiday_guests_taken_over"),
 	{http.MethodPost, "/api/import/class-list-entries/import"}:                                             notCaptured,
 	{http.MethodPost, "/api/import/class-list-entries/preview"}:                                            notCaptured,
 	{http.MethodPost, "/api/import/opening-balances/import"}:                                               notCaptured,
@@ -620,6 +621,9 @@ var coreActions = map[RouteKey]CoreAction{
 	// to the Träger as well.
 	{http.MethodPost, "/traeger/billing-runs/{id}/letters"}:         notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/letters/preview"}: notCaptured,
+	// The mail of the letters (#4670, ADR 0123) belongs to the Träger too.
+	{http.MethodPost, "/traeger/billing-runs/{id}/mailings"}:                        notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/mailings"}: notCaptured,
 
 	// School portal (Lehrkräfte).
 	{http.MethodPost, "/school/auth/login"}:                                                      session("login_success"),

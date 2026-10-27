@@ -3,6 +3,7 @@ import { auth, uncachedAuth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 import { createLogger } from "~/lib/logger";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 import { getClientForwardHeaders } from "~/lib/client-headers.server";
@@ -211,8 +212,11 @@ export function createOptionalTenantJsonProxy(options: JsonProxyOptions) {
 
 /** Public JSON proxy; no tenant session or Authorization header is attached. */
 export function createPublicJsonProxy(options: JsonProxyOptions) {
-  return (request: NextRequest, context?: RouteContext) =>
-    proxyJsonRequest(request, context, options);
+  // No auth handler applies the cache policy here, and token routes
+  // (enrollment edit links) answer with personal data.
+  return withPrivateNoStore((request: NextRequest, context?: RouteContext) =>
+    proxyJsonRequest(request, context, options),
+  );
 }
 
 /** Operator-session JSON proxy with the operator's own refresh boundary. */

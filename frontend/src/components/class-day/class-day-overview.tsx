@@ -21,7 +21,9 @@ import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import NavigationLink from "~/components/ui/navigation-link";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatCard } from "~/components/ui/stat-card";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useTimeBasedGreeting } from "~/lib/greeting";
@@ -30,12 +32,25 @@ import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
-import type { ClassDayClasses } from "~/lib/school-class-day-api";
+import type {
+  ClassDayClasses,
+  SchoolDayChild,
+  SchoolDayReport,
+} from "~/lib/school-class-day-api";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 import { countDayChanges } from "./day-changes";
+import { classDayDateParam, isWeekendISO } from "./routes";
+import {
+  schoolDayChildrenByClass,
+  schoolDayClassPath,
+  schoolDayListParam,
+  schoolDayListPath,
+  visibleSchoolDayLists,
+} from "./school-day";
+import type { SchoolDayListKey } from "./school-day";
+import { statusLabel } from "./status-labels";
 import { useClassDayRefresh } from "./use-class-day-refresh";
-import { classDayDateParam, classDayPath, isWeekendISO } from "./routes";
 
 const logger = createLogger({ component: "ClassDayOverview" });
 
@@ -54,8 +69,48 @@ const logger = createLogger({ component: "ClassDayOverview" });
 // Roster-Rebuild nicht im Sekundentakt auslösen (SWR-Default wären 5s).
 const REPORT_FOCUS_THROTTLE_MS = 60 * 1000;
 
+/**
+ * Die Zahlen einer Klassenzeile. Kommen aus dem Klassenreport oder, für die
+ * Schulverwaltung, aus der Tagesübersicht der ganzen Schule (#4802): beide
+ * zählen nach denselben Regeln, die Zeile liest sich gleich.
+ */
+interface ClassLine {
+  school_day: boolean;
+  enrollment_known: boolean;
+  totals: {
+    students: number;
+    staying: number;
+    leaving: number;
+    absent: number;
+    list_entries: number;
+  };
+  changes: number;
+}
+
+function reportLine(report: ClassDayReport): ClassLine {
+  return {
+    school_day: report.school_day,
+    enrollment_known: report.enrollment_known,
+    totals: report.totals,
+    changes: countDayChanges(report),
+  };
+}
+
+function schoolDayLines(report: SchoolDayReport): Record<string, ClassLine> {
+  const lines: Record<string, ClassLine> = {};
+  for (const klass of report.classes) {
+    lines[klass.school_class] = {
+      school_day: report.school_day,
+      enrollment_known: report.enrollment_known,
+      totals: klass.totals,
+      changes: klass.totals.changes,
+    };
+  }
+  return lines;
+}
+
 /** Zusammenfassung einer Klasse für den Tag, in einer Zeile. */
-function classSummary(report: ClassDayReport, weekend: boolean): string {
+function classSummary(report: ClassLine, weekend: boolean): string {
   if (weekend || !report.school_day) return "Kein Schultag";
   const totals = report.totals;
   if (!report.enrollment_known) {
@@ -90,14 +145,16 @@ function ClassLink({
   failed,
   weekend,
   dateISO,
+  openList,
 }: Readonly<{
   klass: string;
-  report: ClassDayReport | null;
+  report: ClassLine | null;
   failed: boolean;
   weekend: boolean;
   dateISO: string;
+  openList: SchoolDayListKey | null;
 }>) {
-  const changes = countDayChanges(report);
+  const changes = report?.school_day ? report.changes : 0;
   const summary = failed
     ? "Konnte nicht geladen werden"
     : report
@@ -105,7 +162,7 @@ function ClassLink({
       : "Wird geladen …";
   return (
     <ButtonLink
-      href={schoolPath(classDayPath(klass, dateISO))}
+      href={schoolPath(schoolDayClassPath(klass, dateISO, openList))}
       variant="surface"
       size="card"
       className="justify-between gap-3 text-left"
@@ -142,6 +199,20 @@ function ClassLink({
   );
 }
 
+/**
+ * Was eine Liste über ein Kind nicht schon selbst sagt: in „Kinder“ und
+ * „Fehlen“ der Tagesstatus, in „Kinder“ das Kind ohne Betreuung.
+ */
+function childNote(
+  child: SchoolDayChild,
+  list: SchoolDayListKey,
+): string | null {
+  if (list !== "kinder" && list !== "fehlen") return null;
+  if (child.status) return statusLabel(child.status);
+  if (list === "kinder" && child.list_entry) return "keine Betreuung";
+  return null;
+}
+
 export interface ClassDayOverviewProps {
   /** Klassenliste und Wochenendplan der angemeldeten Lehrkraft. */
   readonly fetchClasses: () => Promise<ClassDayClasses>;
@@ -150,11 +221,17 @@ export interface ClassDayOverviewProps {
     schoolClass: string,
     date: string,
   ) => Promise<ClassDayReport>;
+  /**
+   * Tagesübersicht der ganzen Schule (#4802). Darf die Person sie sehen,
+   * lädt die Startseite sie einmal statt einen Report je Klasse.
+   */
+  readonly fetchSchoolDay?: (date: string) => Promise<SchoolDayReport>;
 }
 
 export function ClassDayOverview({
   fetchClasses,
   fetchClassDay,
+  fetchSchoolDay,
 }: ClassDayOverviewProps) {
   const greeting = useTimeBasedGreeting();
   const { data: session } = useSession();
@@ -163,6 +240,7 @@ export function ClassDayOverview({
   // Der Tag steht in der Adresse, nicht nur im Zustand: nur so führt der
   // Zurück-Weg aus einer Klasse auf denselben Tag zurück.
   const dateISO = classDayDateParam(searchParams.get("tag"));
+  const openList = schoolDayListParam(searchParams.get("liste"));
   // Die Klassenliste MUSS mitrevalidieren (App-Default ist
   // revalidateOnFocus: false): bliebe sie auf dem Mount-Stand eingefroren,
   // würde eine entzogene Klasse für immer im Reports-Key stehen (jede
@@ -181,6 +259,11 @@ export function ClassDayOverview({
   const classes = classList?.classes;
   const weekend =
     isWeekendISO(dateISO) && classList?.weekend_follows_friday !== true;
+  // Die Schulverwaltung sieht alle Klassen. Ein Report je Klasse hieße N
+  // volle Klassenaufbauten pro Abruf; die Tagesübersicht der Schule liefert
+  // dieselben Zahlen aus einem Abruf (#4802).
+  const schoolMode =
+    fetchSchoolDay !== undefined && classList?.can_view_school_day === true;
 
   // Alle zugewiesenen Klassen für den Tag parallel laden: die Übersicht
   // braucht von jeder Klasse die Zahlen und die Anzahl der Abweichungen.
@@ -192,7 +275,7 @@ export function ClassDayOverview({
     isLoading: reportsLoading,
     mutate: reloadReports,
   } = useSWRAuth(
-    classes && classes.length > 0 && !weekend
+    classes && classes.length > 0 && !weekend && !schoolMode
       ? `class-day-reports-${dateISO}-${JSON.stringify(classes)}`
       : null,
     async () => {
@@ -236,15 +319,46 @@ export function ClassDayOverview({
     },
   );
 
+  // Die Tagesübersicht der Schule: dieselbe Fokus-Revalidierung wie die
+  // Klassenreports, und der Server protokolliert sie wie diese nur einmal
+  // pro Person, Tag und Zugriffstag.
+  const {
+    data: schoolDay,
+    error: schoolDayError,
+    isLoading: schoolDayLoading,
+    mutate: reloadSchoolDay,
+  } = useSWRAuth(
+    schoolMode && classes && classes.length > 0 && !weekend
+      ? `class-day-school-day-${dateISO}`
+      : null,
+    () =>
+      fetchSchoolDay
+        ? fetchSchoolDay(dateISO)
+        : Promise.reject(new Error("school day not available")),
+    {
+      revalidateOnFocus: true,
+      focusThrottleInterval: REPORT_FOCUS_THROTTLE_MS,
+      keepPreviousData: false,
+    },
+  );
+
   // Eine neue Krankmeldung an dieser Schule aktualisiert die Zahlen der
-  // Übersicht ohne Neuladen der Seite (#4792).
+  // Übersicht ohne Neuladen der Seite (#4792); in der Schulansicht die
+  // Tagesübersicht der Schule, sonst die Klassenreports.
   const refreshReports = useCallback(
-    () => void reloadReports(),
-    [reloadReports],
+    () => void (schoolMode ? reloadSchoolDay() : reloadReports()),
+    [schoolMode, reloadSchoolDay, reloadReports],
   );
   useClassDayRefresh(refreshReports);
 
-  const reports = useMemo(() => dayData?.reports ?? {}, [dayData]);
+  const reports = useMemo<Record<string, ClassLine>>(() => {
+    if (schoolMode) return schoolDay ? schoolDayLines(schoolDay) : {};
+    const lines: Record<string, ClassLine> = {};
+    for (const [klass, report] of Object.entries(dayData?.reports ?? {})) {
+      lines[klass] = reportLine(report);
+    }
+    return lines;
+  }, [schoolMode, schoolDay, dayData]);
   const failedClasses = useMemo(
     () => new Set(dayData?.failed ?? []),
     [dayData],
@@ -253,28 +367,41 @@ export function ClassDayOverview({
     classesLoading ||
     (!weekend &&
       (classes?.length ?? 0) > 0 &&
-      dayData === undefined &&
-      reportsLoading);
+      (schoolMode
+        ? schoolDay === undefined && schoolDayLoading
+        : dayData === undefined && reportsLoading));
   // Fehler beim Laden der Klassenliste ist NICHT "keine Klassen zugewiesen":
   // sonst rennt die Lehrkraft bei einem transienten 500 der Verwaltung
   // hinterher. Katalogtext mit Wiederholen (#2517); bei Teilausfall nennt
   // die Meldung die erste fehlende Klasse, die geladenen bleiben stehen.
   const firstFailedClass = dayData?.failed[0];
   const loadError = useSwrLoadError(
-    classesError ?? dayData?.firstFailure ?? null,
+    classesError ??
+      (schoolMode ? schoolDayError : dayData?.firstFailure) ??
+      null,
     classesError
       ? "die Liste Ihrer Klassen"
-      : firstFailedClass
-        ? `die Klasse ${schoolClassLabel(firstFailedClass)}`
-        : "die Klassenansicht",
-    () => (classesError ? reloadClasses() : reloadReports()),
+      : schoolMode
+        ? "die Tagesübersicht der Schule"
+        : firstFailedClass
+          ? `die Klasse ${schoolClassLabel(firstFailedClass)}`
+          : "die Klassenansicht",
+    () => {
+      if (classesError) return reloadClasses();
+      return schoolMode ? reloadSchoolDay() : reloadReports();
+    },
   );
   const hasLoadFailure =
-    Boolean(classesError) || (dayData?.failed.length ?? 0) > 0;
+    Boolean(classesError) ||
+    (schoolMode ? Boolean(schoolDayError) : (dayData?.failed.length ?? 0) > 0);
 
   const selectedDate = parseISODate(dateISO);
+  // Eine geöffnete Liste bleibt beim Tageswechsel offen: dieselbe Frage
+  // für den nächsten Tag.
   const goToDate = (next: string) => {
-    router.replace(`${schoolPath("/school")}?tag=${next}`, { scroll: false });
+    router.replace(schoolPath(schoolDayListPath(next, openList)), {
+      scroll: false,
+    });
   };
   const shiftDay = (delta: number) => {
     const next = new Date(selectedDate);
@@ -283,6 +410,16 @@ export function ClassDayOverview({
   };
 
   const noClasses = classes !== undefined && classes.length === 0;
+
+  // Die Zahlen der ganzen Schule für die Schulverwaltung (#4802). Jede Zahl
+  // ist ein Link auf dieselbe Seite mit `?liste=…`: darunter stehen dann die
+  // Kinder dieser Zahl, nach Klasse gruppiert. Ein echter Seitenwechsel im
+  // selben Fenster, keine versteckte Schaltfläche, und der Zurück-Weg aus
+  // einer Klasse landet wieder bei der Liste.
+  const schoolLists = schoolDay ? visibleSchoolDayLists(schoolDay) : [];
+  const open = schoolLists.find((list) => list.key === openList) ?? null;
+  const groups =
+    schoolDay && open ? schoolDayChildrenByClass(schoolDay, open) : [];
 
   return (
     <div
@@ -381,8 +518,96 @@ export function ClassDayOverview({
                 />
               ) : (
                 <>
+                  {schoolMode && schoolDay && (
+                    <>
+                      <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                        Ganze Schule
+                      </h3>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                        {schoolLists.map((list) => (
+                          <StatCard
+                            key={list.key}
+                            variant="row"
+                            label={list.label}
+                            value={list.count(schoolDay.totals)}
+                            href={schoolPath(
+                              schoolDayListPath(dateISO, list.key),
+                            )}
+                          />
+                        ))}
+                      </div>
+                      {open && (
+                        <div className="mt-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-sm font-semibold text-gray-900">
+                              {open.label}: {open.count(schoolDay.totals)}
+                            </h3>
+                            <ButtonLink
+                              href={schoolPath(
+                                schoolDayListPath(dateISO, null),
+                              )}
+                              variant="ghost"
+                              size="compact"
+                            >
+                              Liste schließen
+                            </ButtonLink>
+                          </div>
+                          {groups.length === 0 ? (
+                            <p className="mt-2 text-sm text-gray-500">
+                              An diesem Tag stehen keine Kinder in dieser Liste.
+                            </p>
+                          ) : (
+                            <div className="mt-2 grid gap-3 lg:grid-cols-2">
+                              {groups.map((group) => (
+                                <div
+                                  key={group.schoolClass}
+                                  className="rounded-xl bg-gray-50 px-3 py-2"
+                                >
+                                  <NavigationLink
+                                    href={schoolPath(
+                                      schoolDayClassPath(
+                                        group.schoolClass,
+                                        dateISO,
+                                        open.key,
+                                      ),
+                                    )}
+                                    className="text-sm font-semibold text-gray-900 underline-offset-2 hover:underline"
+                                  >
+                                    {schoolClassLabel(group.schoolClass)} ·{" "}
+                                    {group.children.length}
+                                  </NavigationLink>
+                                  <ul className="mt-1 space-y-0.5 text-sm text-gray-700">
+                                    {group.children.map((child) => {
+                                      const note = childNote(child, open.key);
+                                      return (
+                                        <li
+                                          key={
+                                            child.list_entry
+                                              ? `entry-${child.list_entry_id}`
+                                              : `student-${child.student_id}`
+                                          }
+                                        >
+                                          {child.last_name}, {child.first_name}
+                                          {note && (
+                                            <span className="text-gray-500">
+                                              {" "}
+                                              · {note}
+                                            </span>
+                                          )}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
                   <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Ihre Klassen
+                    {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
                   </h3>
                   <div className="mt-2 grid gap-3 lg:grid-cols-2">
                     {(classes ?? []).map((klass) => (
@@ -393,6 +618,7 @@ export function ClassDayOverview({
                         failed={failedClasses.has(klass)}
                         weekend={weekend}
                         dateISO={dateISO}
+                        openList={schoolMode ? openList : null}
                       />
                     ))}
                   </div>

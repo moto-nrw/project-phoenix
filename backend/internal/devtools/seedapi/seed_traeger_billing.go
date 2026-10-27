@@ -97,7 +97,9 @@ const seedBillingRunKey = "traeger.billing_run"
 // released holiday run (#4669): the payment date, the packing list and rule
 // on illness, and the emergency numbers of the hosting OGS. It runs after
 // the master data step, because a letter needs the bank account of the
-// Träger.
+// Träger. Then it mails them to every family (#4670); the seeded families
+// have invented example.org addresses, and a local stack sends to its test
+// mailer.
 type seedTraegerBillingLettersStep struct{}
 
 func (seedTraegerBillingLettersStep) Name() string { return "Seeding the confirmation letters" }
@@ -128,5 +130,9 @@ func (seedTraegerBillingLettersStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("create the confirmation letters: %w", err)
 	}
 	fmt.Println("  Abrechnung: confirmation letters of the holiday run created")
+	if _, err := rt.Client.PostWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/mailings", runID), map[string]any{}); err != nil {
+		return fmt.Errorf("mail the confirmation letters: %w", err)
+	}
+	fmt.Println("  Abrechnung: confirmation letters of the holiday run mailed")
 	return nil
 }

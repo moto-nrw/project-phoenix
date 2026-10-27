@@ -1,6 +1,5 @@
 // Generic CRUD Service Factory
 
-import { getCachedSession } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 import {
   apiErrorFromText,
@@ -114,15 +113,9 @@ function isApiWrapper(
 export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
   const { api: apiConfig, service } = config;
 
-  // Helper to get auth token
-  const getToken = async () => {
-    const session = await getCachedSession();
-    return session?.user?.token;
-  };
-
-  // Helper to make fetch requests with auth
+  // Helper to make fetch requests with auth. The BFF routes read the
+  // session cookie; the browser holds no token (#5005).
   const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-    const token = await getToken();
     const headers = new Headers();
     headers.set("Content-Type", "application/json");
     if (options.headers) {
@@ -130,10 +123,6 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       optionHeaders.forEach((value, key) => {
         headers.set(key, value);
       });
-    }
-
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
     }
 
     // A request that never reached the API becomes general.unavailable.
@@ -318,8 +307,7 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       try {
         // Check if there's a custom create method
         if (service?.create) {
-          const token = await getToken();
-          const result = await service.create(data, token);
+          const result = await service.create(data);
 
           // Apply after hook
           if (config.hooks?.afterCreate) {
@@ -367,8 +355,7 @@ export function createCrudService<T>(config: EntityConfig<T>): CrudService<T> {
       try {
         // Check if there's a custom update method
         if (service?.update) {
-          const token = await getToken();
-          const result = await service.update(id, data, token);
+          const result = await service.update(id, data);
 
           // Apply after hook
           if (config.hooks?.afterUpdate) {

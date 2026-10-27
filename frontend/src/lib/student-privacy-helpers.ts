@@ -40,18 +40,24 @@ export const DEFAULT_PRIVACY_CONSENT = {
  * @param studentId - The student ID
  * @param apiGet - The API GET function
  * @param token - Authentication token
+ * @param signal - Cancels the backend request; its abort error is rethrown
  * @returns Privacy consent data or defaults if not found/forbidden
  */
 export async function fetchPrivacyConsent(
   studentId: string,
-  apiGet: (endpoint: string, token: string) => Promise<unknown>,
+  apiGet: (
+    endpoint: string,
+    token: string,
+    options?: { signal?: AbortSignal },
+  ) => Promise<unknown>,
   token: string,
+  signal?: AbortSignal,
 ): Promise<{ privacy_consent_accepted: boolean; data_retention_days: number }> {
   try {
-    const consentResponse = await apiGet(
-      `/api/students/${studentId}/privacy-consent`,
-      token,
-    );
+    const endpoint = `/api/students/${studentId}/privacy-consent`;
+    const consentResponse = await (signal
+      ? apiGet(endpoint, token, { signal })
+      : apiGet(endpoint, token));
 
     const consentData = extractConsentData(consentResponse);
     if (consentData) {

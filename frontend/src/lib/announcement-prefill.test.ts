@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   announcementPrefillPath,
+  clearAnnouncementStudents,
   stashAnnouncementStudents,
   takeAnnouncementStudents,
 } from "./announcement-prefill";
 
 afterEach(() => {
   vi.restoreAllMocks();
-  window.sessionStorage.clear();
+  clearAnnouncementStudents();
 });
 
 describe("announcement prefill handoff", () => {
@@ -30,15 +31,6 @@ describe("announcement prefill handoff", () => {
     expect(takeAnnouncementStudents("testschule", "missing")).toEqual([]);
   });
 
-  it("drops entries that are not a student", () => {
-    const token = "test-token";
-    window.sessionStorage.setItem(
-      `moto:announcement-prefill:${token}`,
-      JSON.stringify(["not a valid payload"]),
-    );
-    expect(takeAnnouncementStudents("testschule", token)).toEqual([]);
-  });
-
   it("rejects a selection from another tenant", () => {
     const token = stashAnnouncementStudents("andere-schule", [
       { id: "7", name: "Mia Arslan" },
@@ -47,52 +39,53 @@ describe("announcement prefill handoff", () => {
     expect(takeAnnouncementStudents("testschule", token!)).toEqual([]);
   });
 
-  it("drops malformed student entries", () => {
-    const token = "test-token";
-    window.sessionStorage.setItem(
-      `moto:announcement-prefill:${token}`,
-      JSON.stringify({
-        tenantSlug: "testschule",
-        students: [
-          { id: "7", name: "Mia Arslan" },
-          { id: "", name: "Ohne Nummer" },
-          { id: 9, name: "Zahl statt Text" },
-          "kein Objekt",
-          null,
-        ],
-      }),
-    );
-    expect(takeAnnouncementStudents("testschule", token)).toEqual([
+  it("keeps the names out of the browser storage (#5000)", () => {
+    const token = stashAnnouncementStudents("testschule", [
+      { id: "7", name: "Mia Arslan" },
+    ]);
+    expect(token).not.toBeNull();
+
+    expect(window.sessionStorage.length).toBe(0);
+    expect(window.localStorage.length).toBe(0);
+    expect(takeAnnouncementStudents("testschule", token!)).toEqual([
       { id: "7", name: "Mia Arslan" },
     ]);
   });
 
-  it("survives unreadable content and clears it", () => {
-    const token = "test-token";
-    window.sessionStorage.setItem(
-      `moto:announcement-prefill:${token}`,
-      "{kaputt",
-    );
-    expect(takeAnnouncementStudents("testschule", token)).toEqual([]);
-    expect(
-      window.sessionStorage.getItem(`moto:announcement-prefill:${token}`),
-    ).toBeNull();
+  it("drops an unclaimed selection at logout or account switch", () => {
+    const token = stashAnnouncementStudents("testschule", [
+      { id: "7", name: "Mia Arslan" },
+    ]);
+    expect(token).not.toBeNull();
+
+    clearAnnouncementStudents();
+
+    expect(takeAnnouncementStudents("testschule", token!)).toEqual([]);
   });
 
-  it("reports a blocked storage instead of throwing", () => {
-    // The test setup installs its own storage object, so the spy goes on that
-    // object and not on Storage.prototype.
-    vi.spyOn(window.sessionStorage, "setItem").mockImplementation(() => {
-      throw new Error("blocked");
-    });
+  it("keeps only the latest selection", () => {
+    const first = stashAnnouncementStudents("testschule", [
+      { id: "7", name: "Mia Arslan" },
+    ]);
+    const second = stashAnnouncementStudents("testschule", [
+      { id: "8", name: "Ben Yilmaz" },
+    ]);
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+
+    expect(takeAnnouncementStudents("testschule", first!)).toEqual([]);
+    expect(takeAnnouncementStudents("testschule", second!)).toEqual([
+      { id: "8", name: "Ben Yilmaz" },
+    ]);
+  });
+
+  it("hands nothing over without a random token", () => {
+    vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(
+      undefined as unknown as ReturnType<Crypto["randomUUID"]>,
+    );
     expect(
       stashAnnouncementStudents("testschule", [{ id: "7", name: "Mia" }]),
     ).toBeNull();
-
-    vi.spyOn(window.sessionStorage, "getItem").mockImplementation(() => {
-      throw new Error("blocked");
-    });
-    expect(takeAnnouncementStudents("testschule", "test-token")).toEqual([]);
   });
 });
 

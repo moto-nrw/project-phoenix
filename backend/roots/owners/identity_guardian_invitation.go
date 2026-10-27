@@ -88,11 +88,11 @@ func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {
 	})
 }
 
-func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile identityPorts.GuardianProfile, schoolName string) (int64, bool) {
+func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile identityPorts.GuardianProfile, schoolName string) (int64, error) {
 	return d.mailer().EnqueueInvitation(ctx, invitation.ID, invitation.Token, invitation.ExpiresAt, guardianMailRecipient(profile), schoolName)
 }
 
-func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityPorts.GuardianProfile, schoolName string) (int64, bool) {
+func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityPorts.GuardianProfile, schoolName string) (int64, bool, error) {
 	return d.mailer().EnqueueExistingAccount(ctx, guardianMailRecipient(profile), schoolName)
 }
 
@@ -261,4 +261,5 @@ var parentGuardianSentinels = []retainedSentinel{
 	{identityaccess.ErrCannotRemoveOwnAccess, parentportal.ErrCannotRemoveOwnAccess},
 	{identityaccess.ErrCannotRemovePayerGuardian, parentportal.ErrCannotRemovePayerGuardian},
 	{identityaccess.ErrInviteSocialWorkerManaged, parentportal.ErrInviteSocialWorkerManaged},
+	{identityaccess.ErrGuardianAccessMailNotQueued, parentportal.ErrInviteMailNotQueued},
 }

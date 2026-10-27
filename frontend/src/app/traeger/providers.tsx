@@ -3,7 +3,12 @@
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { TraegerAnalyticsSession } from "~/components/analytics/traeger-analytics-session";
+import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { traegerPath } from "~/lib/traeger-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
+
+// Where a page lands that still showed another account (#5000).
+const traegerHome = () => traegerPath("/traeger");
 
 /**
  * Träger-scoped providers ("moto träger", #4649).
@@ -27,6 +32,7 @@ export function TraegerProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <PersonalStorageGuard homeHref={traegerHome} />
       <TraegerAnalyticsSession />
       <SentrySessionContext portal="traeger" />
       {children}
