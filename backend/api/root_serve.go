@@ -501,7 +501,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			outbox, err = owners.BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, owners.BuildCalendarAppointmentRenderer(db, mailFrom, people),
-				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service, owners.ParentDocumentNoticeSources{Portal: portalReads, Organizations: organizations, Identity: identity, People: people, Notifications: notifications})
+				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service, owners.BuildParentDocumentNotices(env, portalReads, organizations, identity, people, notifications))
 			return
 		},
 	)

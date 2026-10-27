@@ -4,7 +4,6 @@
 package compose
 
 import (
-	"cmp"
 	"log/slog"
 	"time"
 
@@ -197,10 +196,10 @@ func bindOwners(deps Dependencies) owners {
 // Delivery worker over the children, their Träger, the accounts, the
 // guardian's language and the notifier of deps; it needs no other flow.
 func NewDocumentNotices(deps Dependencies) parentportal.DocumentNotices {
-	if deps.Runtime == nil || deps.ChildRepo == nil || deps.SchoolTraeger == nil || deps.ParentAccounts == nil || deps.DocumentNotifier == nil {
-		panic("parent portal: document notices need the runtime, the children, the Träger, the accounts and the notifier")
+	if deps.Runtime == nil || deps.ChildRepo == nil || deps.SchoolTraeger == nil || deps.ParentAccounts == nil || deps.DocumentNotifier == nil || deps.Logger == nil {
+		panic("parent portal: document notices need the runtime, the children, the Träger, the accounts, the notifier and a logger")
 	}
 	return &care.Service{Config: care.Config{Runtime: deps.Runtime, ChildRepo: deps.ChildRepo, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, GuardianProfileRepo: deps.GuardianProfileRepo, DocumentNotifier: deps.DocumentNotifier,
-		Logger: cmp.Or(deps.Logger, slog.Default())}}
+		Logger: deps.Logger}}
 }

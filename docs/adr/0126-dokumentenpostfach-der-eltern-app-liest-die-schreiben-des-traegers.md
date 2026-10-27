@@ -85,8 +85,15 @@ nicht. Den Zahler gibt es erst mit Etappe 2.
    - `command-effects.json`: eine geprüfte Bindung (Push des Trägers:
      platform/durable nach ADR 0098).
    - `passthrough.json`: vier Methoden mit Entscheidung 0126.
-   - Transaktionsregister: `ParentPortalRuntime.WithinTraeger` als Stelle der
-     Träger-Transaktion.
+   - Transaktionsregister: zwei Admin-Grenzen im Workflow (Postfach und
+     Push lesen Kinder, Träger und Konto), `test/transaction_boundaries.json`
+     mit `test/parent_document_inbox_transaction.go`.
+   - Compose-Budgets: `modules/parentbilling/compose` 44 → 50,
+     `workflows/parentportal/compose` 308 → 329, `moduleComposeBudgetTotal`
+     12685 → 12712.
+   - Query-Budget `workflows.parentportal.billing_documents.list` (16).
+   - Delivery-Katalog: Typ `parent_billing_document` (Eltern, Gruppe
+     Mitteilungen, ohne Schulschalter).
    - Migration 1.15.684: Push-Outbox des Trägers, Index auf Träger und
      Empfänger der Rechnungen.
 
