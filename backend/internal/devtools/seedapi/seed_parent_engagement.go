@@ -284,6 +284,7 @@ func seedParentPhotoConsentHistory(rt *Runtime, auth AuthRef, studentID int64) e
 // appointment reminder stays off, so the settings show a real choice.
 var seedParentNotificationTopics = []string{
 	"parent_message", "parent_announcement", "parent_appointment", "parent_request_decided", "parent_care_cancelled",
+	"parent_billing_document",
 }
 
 func seedParentNotificationPreferences(rt *Runtime, auth AuthRef) error {

@@ -17,6 +17,7 @@ import (
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -46,6 +47,7 @@ func BuildParentPortal(
 	mealPlan mealplanModule.Capability, schedules CarePlanSchedules, requests CarePlanRequests, services PeopleServices,
 	emitter eventContract.Emitter, notifications DeliveryNotifications, identity identityaccess.Owner,
 	enrollment EnrollmentRows, notices EnrollmentNotices, announcements communication.ParentAnnouncementCapability, audit AuditOwner,
+	organizations organizationtenancy.Query,
 ) (*parentportal.Portal, error) {
 	surveys, err := communication.SurveysOf(announcements)
 	if err != nil {
@@ -99,6 +101,9 @@ func BuildParentPortal(
 		OfferingChanges: NewParentOfferingChangeRequests(requests.OfferingChanges), Logger: env.Logger.With("service", "parent"), Now: env.Now,
 
 		CarePlanPolicy: NewParentCarePlanPolicy(),
+
+		BillingDocuments: NewParentBillingDocuments(), TraegerRuntime: ParentPortalRuntime{},
+		SchoolTraeger: NewParentSchoolTraeger(organizations), ParentAccounts: NewParentAccounts(identity),
 	}), nil
 }
 

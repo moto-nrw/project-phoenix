@@ -7678,6 +7678,39 @@ function parentCalendarTopic(): HelpTopic {
 }
 
 /** `/parents/meal-plan`: Wochenplan des Mittagessens, nur mit Freischaltung. */
+function parentDocumentsTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.parentDocuments,
+    title: "Dokumente vom Träger finden",
+    question: "Wo finde ich Schreiben vom Träger?",
+    summary:
+      "Unter `Dokumente` liegen die Schreiben, die Ihnen der Träger geschickt hat.",
+    group: "nachrichten",
+    audience: "parent",
+    icon: "FileText",
+    steps: [
+      "Tippen Sie unten auf `Mehr`.",
+      "Wählen Sie `Dokumente`.",
+      "Wählen Sie beim Schreiben `Als PDF laden`.",
+    ],
+    result:
+      "Sie bekommen das Schreiben als PDF. Sie können es speichern oder drucken.",
+    notes: [
+      "Heute sind das die Bestätigungsschreiben der Ferienbetreuung. Das Schreiben ist auch Ihre Rechnung.",
+      "Jedes Schreiben bekommen Sie auch per Mail.",
+      "Sie möchten eine Nachricht auf dem Handy bekommen? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein.",
+    ],
+    troubleshootingDetails: [
+      "Ein Schreiben fehlt? Hier liegt es nur, wenn es an die Mail-Adresse Ihres Kontos ging. Haben Sie bei der Anmeldung eine andere Adresse angegeben, bekommen Sie es nur per Mail.",
+      "Statt der Liste steht, dass Ihnen die Berechtigung fehlt? Bitte fragen Sie die Schule.",
+    ],
+    related: [
+      HELP_TOPICS.parentHolidayRegistration,
+      HELP_TOPICS.parentNotifications,
+    ],
+  };
+}
+
 function parentMealPlanTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.parentMealPlan,
@@ -8099,6 +8132,7 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
   parentSurveysTopic(),
   parentCalendarTopic(),
   parentMealPlanTopic(),
+  parentDocumentsTopic(),
 
   // --- Anmeldung ---
   parentEnrollTopic(),
@@ -9570,7 +9604,7 @@ function traegerBillingRunTopic(): HelpTopic {
       {
         title: "Schreiben per Mail senden und drucken",
         description:
-          "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Für Familien ohne Internet drucken Sie es.",
+          "Jede Familie bekommt ihr Schreiben als PDF im Anhang einer Mail. Hat die Familie ein Konto in der Eltern-App mit derselben Mail-Adresse, liegt es auch dort unter `Dokumente`. Für Familien ohne Internet drucken Sie es.",
         steps: [
           "Wählen Sie im freigegebenen Lauf bei `Versand per Mail` den Knopf `An alle Familien senden`. moto schickt nur Mails, die noch nicht gesendet sind.",
           "Neben jeder Familie steht, ob die Mail gesendet ist. `Nicht angekommen` heißt: Die Mail kam nicht an.",

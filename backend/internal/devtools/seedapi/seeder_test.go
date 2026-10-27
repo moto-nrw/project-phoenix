@@ -1624,6 +1624,12 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`)
 			return
 		}
+		if r.URL.Path == "/parent/me/documents" {
+			// The first seeded parent's document inbox after the letters
+			// went out (#4671).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":"71","organization_id":"3"}]}`)
+			return
+		}
 		if r.URL.Path == "/parent/holiday-registrations/link-key/family" {
 			// The first seeded parent's prefill of the same link (#4662).
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian":{},"children":[{"student_id":"9","school_id":"1"}]}}`)

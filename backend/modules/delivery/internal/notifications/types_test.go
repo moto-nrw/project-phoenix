@@ -53,7 +53,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 
 	t.Run("parent catalogue is separate", func(t *testing.T) {
 		defs := notifications.TypesForPortal(notifications.PortalParent)
-		require.Len(t, defs, 6)
+		require.Len(t, defs, 7)
 
 		keys := make([]string, len(defs))
 		for i, def := range defs {
@@ -63,6 +63,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 			notifications.TypeParentRequestDecided,
 			notifications.TypeParentAnnouncement,
 			notifications.TypeParentMessage,
+			notifications.TypeParentBillingDocument,
 			notifications.TypeParentAppointment,
 			notifications.TypeParentAppointmentReminder,
 			notifications.TypeParentCareCancelled,

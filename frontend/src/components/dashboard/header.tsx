@@ -231,6 +231,8 @@ export function Header() {
       return tParentNav("settings");
     if (pathname === "/parents/meal-plan" || pathname === "/meal-plan")
       return tParentNav("mealPlan");
+    if (pathname === "/parents/documents" || pathname === "/documents")
+      return tParentNav("documents");
     if (pathname === "/parents/calendar" || pathname === "/calendar")
       return tParentNav("calendar");
     if (

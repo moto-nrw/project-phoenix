@@ -2305,3 +2305,52 @@ export async function removeRelatedAccount(
   if (!response.ok)
     await throwResponseError("remove_related_account", response);
 }
+
+// ── Dokumente (#4671) ──────────────────────────────────────────────────────
+
+/**
+ * One document a Träger sent to this account's address: today the
+ * confirmation letter of a holiday registration, which is its invoice.
+ * Mirrors backend BillingDocumentResponse; dates are "YYYY-MM-DD", sent_at
+ * an instant.
+ */
+export interface ParentDocument {
+  readonly id: string;
+  readonly organization_id: string;
+  readonly traeger_name: string;
+  readonly kind: "confirmation_letter";
+  readonly number: string;
+  readonly period_name: string;
+  readonly service_from: string;
+  readonly service_until: string;
+  readonly issued_on: string;
+  readonly total_cents: number;
+  readonly child_names: readonly string[];
+  readonly sent_at: string;
+}
+
+/**
+ * The documents the Träger of the account's schools sent to the family,
+ * newest first. 403 when no relationship of the account grants them.
+ */
+export async function listMyDocuments(): Promise<ParentDocument[]> {
+  return getJson<ParentDocument[]>("/api/parent/me/documents");
+}
+
+/**
+ * Downloads one document as the stored PDF, under the file name the backend
+ * chose. Fetched first rather than opened as a link, so a failure stays on
+ * the page as a message; a 401 still leads to the login.
+ */
+export async function downloadMyDocument(
+  document: Pick<ParentDocument, "id" | "organization_id" | "number">,
+): Promise<void> {
+  const url = `/api/parent/me/documents/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}/pdf`;
+  const response = await transportFetch(url, { method: "GET" });
+  if (!response.ok) await throwResponseError(url, response);
+  const blob = await response.blob();
+  downloadBlob(
+    blob,
+    filenameFromDisposition(response) ?? `dokument-${document.number}.pdf`,
+  );
+}
