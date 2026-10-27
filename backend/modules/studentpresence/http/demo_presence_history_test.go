@@ -90,7 +90,7 @@ func TestDemoPresenceHistoryWritesTheDaysInTheSchoolOfThePath(t *testing.T) {
 // malformed bodies never reach the owner.
 func TestDemoPresenceHistoryRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
-	tooMany := make([]map[string]any, 1001)
+	tooMany := make([]map[string]any, 4001)
 	for i := range tooMany {
 		tooMany[i] = map[string]any{"student_id": i + 1, "date": "2026-10-20", "device_id": 3}
 	}
@@ -106,7 +106,7 @@ func TestDemoPresenceHistoryRejectsInvalidInput(t *testing.T) {
 		"second JSON value": {school: "42", body: []byte(`{"days":[]}{"days":[]}`)},
 		"trailing bytes":    {school: "42", body: []byte(`{"days":[]}not-json`)},
 		"too many days":     {school: "42", body: demoPresenceHistoryBody(t, tooMany...)},
-		"body too large":    {school: "42", body: []byte(`{"days":[` + strings.Repeat(" ", 1<<20) + `]}`)},
+		"body too large":    {school: "42", body: []byte(`{"days":[` + strings.Repeat(" ", 4<<20) + `]}`)},
 		"invalid school":    {school: "0", body: demoPresenceHistoryBody(t)},
 	}
 	for name, tc := range cases {

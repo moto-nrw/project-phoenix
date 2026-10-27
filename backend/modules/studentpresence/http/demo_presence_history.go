@@ -14,11 +14,12 @@ import (
 	tenant "github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// Bounds of one presence history request. The demo seeder sends a school's
-// days in chunks below them; a full chunk stays well under the body limit.
+// Bounds of one presence history request. The fixed demo profile has 100
+// children and records at most 30 past days, so its full plan fits below both
+// limits and the owner can commit it atomically.
 const (
-	maxDemoPresenceHistoryDays  = 1000
-	maxDemoPresenceHistoryBytes = 1 << 20
+	maxDemoPresenceHistoryDays  = 4000
+	maxDemoPresenceHistoryBytes = 4 << 20
 )
 
 // DemoPresenceHistoryRequest is the body of POST

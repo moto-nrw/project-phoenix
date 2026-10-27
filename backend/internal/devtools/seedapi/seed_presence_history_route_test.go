@@ -13,10 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The public demo's sidecar records the past through the operator route
-// (ADR 0127): in chunks the route accepts, as the operator, with every field
-// the owner needs.
-func TestOperatorPresenceHistoryWriterPostsChunksAsOperator(t *testing.T) {
+// The public demo's sidecar records its complete bounded plan through the
+// operator route (ADR 0127), so the owner commits it in one transaction.
+func TestOperatorPresenceHistoryWriterPostsPlanAsOperator(t *testing.T) {
 	t.Parallel()
 	var sizes []int
 	var auths []string
@@ -58,8 +57,8 @@ func TestOperatorPresenceHistoryWriterPostsChunksAsOperator(t *testing.T) {
 	written, err := presenceHistoryWriterFor(SeedOptions{PresenceHistoryRoute: true}, rt)(context.Background(), 42, days)
 	require.NoError(t, err)
 	assert.Equal(t, 1100, written)
-	assert.Equal(t, []int{500, 500, 100}, sizes, "no request exceeds the route's limit")
-	assert.Equal(t, []string{"Bearer operator-token", "Bearer operator-token", "Bearer operator-token"}, auths)
+	assert.Equal(t, []int{1100}, sizes)
+	assert.Equal(t, []string{"Bearer operator-token"}, auths)
 	assert.Equal(t, date, first.Date)
 	assert.Equal(t, deviceID, first.DeviceID)
 	assert.True(t, first.CheckIn.Equal(checkIn))
