@@ -12,7 +12,24 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+// resolveCareWithdrawal sets up the completed state this route alone reads.
+// Care Plan lifecycle behavior is covered by its owner tests; this HTTP test
+// only needs the persisted response state.
+func resolveCareWithdrawal(t testing.TB, db *bun.DB, completionID int64) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		Model((*testpkg.CareWithdrawalCompletion)(nil)).
+		Set("state = 'resolved'").
+		Set("outcome = 'care_ended'").
+		Set("resolved_at = NOW()").
+		Where("id = ?", completionID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err, "resolve care withdrawal task")
+}
 
 // TestStudentCareWithdrawals_ChildScopedResolvedList pins the child's
 // Änderungsprotokoll source for completed withdrawals (#5025): the request
@@ -28,12 +45,12 @@ func TestStudentCareWithdrawals_ChildScopedResolvedList(t *testing.T) {
 	firstGap := calendar.NewDate(2026, 9, 1)
 
 	resolved := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, child.ID, actor.ID, firstGap)
-	testpkg.ResolveTestCareWithdrawal(t, tc.db, resolved.ID)
+	resolveCareWithdrawal(t, tc.db, resolved.ID)
 	// A pending task of the same child and a resolved one of another child
 	// stay out: the list is the child's completed withdrawals only.
 	testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, child.ID, actor.ID, firstGap.AddDays(7))
 	foreignResolved := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, sibling.ID, actor.ID, firstGap)
-	testpkg.ResolveTestCareWithdrawal(t, tc.db, foreignResolved.ID)
+	resolveCareWithdrawal(t, tc.db, foreignResolved.ID)
 
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Betreuung", "Kraft")
 	staff := testutil.TeacherTestClaims(int(staffAccount.ID))
@@ -87,7 +104,7 @@ func TestStudentCareWithdrawals_RejectsCallersWithoutChildAccess(t *testing.T) {
 	child := testpkg.CreateTestStudent(t, tc.db, "Api", "Geschuetzt", "4b")
 	actor := testpkg.CreateTestAccount(t, tc.db, "student-care-withdrawals-gate@example.com")
 	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, child.ID, actor.ID, calendar.NewDate(2026, 9, 1))
-	testpkg.ResolveTestCareWithdrawal(t, tc.db, completion.ID)
+	resolveCareWithdrawal(t, tc.db, completion.ID)
 	path := fmt.Sprintf("/%d/care-withdrawals", child.ID)
 
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Nur", "Lesen")
@@ -131,7 +148,7 @@ func TestListStudentCareWithdrawalsQueryBudget(t *testing.T) {
 	addResolved := func(n int) {
 		for range n {
 			completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, child.ID, actor.ID, calendar.NewDate(2026, 9, 1+created))
-			testpkg.ResolveTestCareWithdrawal(t, tc.db, completion.ID)
+			resolveCareWithdrawal(t, tc.db, completion.ID)
 			created++
 		}
 	}
