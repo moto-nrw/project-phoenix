@@ -68,6 +68,15 @@ describe("OperatorCaterersPage (#4497)", () => {
     expect(within(row!).getByText("An")).toBeInTheDocument();
     const other = screen.getByText("Bistro Nord").closest("tr");
     expect(within(other!).getByText("Aus")).toBeInTheDocument();
+    // Only a switched-on second factor can be reset.
+    expect(
+      screen.getByRole("button", { name: "Aktionen für kueche@example.test" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Aktionen für bistro@example.test",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens the reset with the caterer's reason dialog", async () => {

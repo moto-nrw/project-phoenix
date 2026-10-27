@@ -333,7 +333,7 @@ Backend paths in this section are relative to `backend/`:
   A caterer challenge is refused by every other portal's verify. Switching
   the factor on (`/caterer/account/mfa/confirm`) answers with a new proven
   session; older sessions end at their next refresh. Recovery is the
-  operator's reset (`DELETE /operator/caterers/{id}/mfa`, reason, operator
+  operator's reset (`DELETE /operator/caterers/{id}/accounts/{accountId}/mfa`, reason, operator
   audit, notice mail); school admins have none.
 - Träger login (ADR 0084, #4649) requires an active membership in
   `platform.organization_accounts` of an active Träger and mints `scope=org`

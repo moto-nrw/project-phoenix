@@ -262,7 +262,7 @@ export function MFAAdminOverrideModal({
         if (!catererId) {
           throw new Error("catererId is required for caterer scope");
         }
-        await operatorAdminResetCatererMFA(catererId, trimmed);
+        await operatorAdminResetCatererMFA(catererId, accountId, trimmed);
       } else if (scope === "traeger") {
         if (!organizationId) {
           throw new Error("organizationId is required for traeger scope");

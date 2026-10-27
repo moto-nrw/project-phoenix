@@ -460,10 +460,11 @@ export async function operatorAdminResetTraegerMFA(
  */
 export async function operatorAdminResetCatererMFA(
   catererId: string,
+  accountId: string,
   reason: string,
 ): Promise<void> {
   await postJson<unknown>(
-    `/api/operator/caterers/${encodeURIComponent(catererId)}/mfa`,
+    `/api/operator/caterers/${encodeURIComponent(catererId)}/accounts/${encodeURIComponent(accountId)}/mfa`,
     { reason },
     { method: "DELETE", allowEmptyBody: true },
   );

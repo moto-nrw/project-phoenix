@@ -207,7 +207,7 @@ one of school accounts and operators; it adds no factor and no recovery path.
 4. **Recovery.** A moto operator resets the factor after
    `OperatorAdminDisable`: with a reason, the operator audit and a notice
    mailed to the caterer, in one administrative unit
-   (`DELETE /operator/caterers/{id}/mfa`). School admins cannot reset it,
+   (`DELETE /operator/caterers/{id}/accounts/{accountId}/mfa`). School admins cannot reset it,
    because the caterer supplies several schools.
 5. **Session and portal.** The caterer portal keeps its own scope, cookie
    and refresh; the session row stays kept at a supplied school as a storage

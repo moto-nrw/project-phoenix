@@ -158,7 +158,8 @@ type CatererSecondFactor interface {
 type CatererMFAAdministration interface {
 	ListCaterersForOperator(ctx context.Context) ([]CatererSecuritySummary, error)
 	// OperatorResetCatererMFA removes the e-mail factor and the trusted
-	// devices, writes the operator audit with the reason and mails the
-	// caterer, in one administrative unit.
-	OperatorResetCatererMFA(ctx context.Context, operatorID, catererID int64, reason string) error
+	// devices of one caterer account, writes the operator audit with the
+	// reason and mails the caterer, in one administrative unit. An account
+	// without the factor is refused with ErrCatererMFANotEnabled.
+	OperatorResetCatererMFA(ctx context.Context, operatorID, catererID, accountID int64, reason string) error
 }

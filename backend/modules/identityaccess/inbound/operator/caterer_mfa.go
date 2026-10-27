@@ -58,7 +58,8 @@ func (rs *CatererMFAResource) ListCaterers(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusOK, rows, "Caterers retrieved successfully")
 }
 
-// ResetCatererMFA answers DELETE /operator/caterers/{id}/mfa: the caterer
+// ResetCatererMFA answers DELETE
+// /operator/caterers/{id}/accounts/{accountId}/mfa: the caterer
 // signs in with its password alone until it switches the factor on again.
 // The reason goes to the operator audit; the caterer gets a notice.
 func (rs *CatererMFAResource) ResetCatererMFA(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +67,10 @@ func (rs *CatererMFAResource) ResetCatererMFA(w http.ResponseWriter, r *http.Req
 		return
 	}
 	catererID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid caterer ID")
+	if !ok {
+		return
+	}
+	accountID, ok := common.ParseInt64IDWithError(w, r, "accountId", "invalid account ID")
 	if !ok {
 		return
 	}
@@ -80,12 +85,14 @@ func (rs *CatererMFAResource) ResetCatererMFA(w http.ResponseWriter, r *http.Req
 		return
 	}
 	ctx := identityaccess.WithOperatorAuditClientIP(r.Context(), common.ParseClientIP(r))
-	err := rs.Caterers.OperatorResetCatererMFA(ctx, operatorID, catererID, req.Reason)
+	err := rs.Caterers.OperatorResetCatererMFA(ctx, operatorID, catererID, accountID, req.Reason)
 	switch {
 	case err == nil:
 		common.RespondNoContent(w, r)
 	case errors.Is(err, identityaccess.ErrCatererNotFound):
-		common.RenderError(w, r, common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "No caterer with this ID"))
+		common.RenderError(w, r, common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "No account of this caterer"))
+	case errors.Is(err, identityaccess.ErrCatererMFANotEnabled):
+		common.RenderError(w, r, common.OperatorRejection(http.StatusConflict, common.CodeGeneralBusinessRejection, "The caterer's second factor is not switched on"))
 	case errors.Is(err, identityaccess.ErrCatererMFAResetReasonRequired):
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 	case errors.Is(err, identityaccess.ErrOperatorAuditUnavailable):

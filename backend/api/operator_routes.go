@@ -388,13 +388,13 @@ func (rs operatorIdentityRoutes) mountAccountMFARoutes(r chi.Router, provisionin
 
 // mountCatererMFARoutes registers the operator's reset of a caterer's
 // second factor (#4497). A caterer belongs to no school, so the routes are
-// keyed by the caterer.
+// keyed by the caterer and its account.
 func (rs operatorIdentityRoutes) mountCatererMFARoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource) {
 	if rs.caterers == nil {
 		return
 	}
 	r.Get("/caterers", provisioning.AuditReadAccess(organizationtenancy.ReadCaterers, rs.caterers.ListCaterers))
-	r.Delete("/caterers/{id}/mfa", rs.caterers.ResetCatererMFA)
+	r.Delete("/caterers/{id}/accounts/{accountId}/mfa", rs.caterers.ResetCatererMFA)
 }
 
 // mountAccountTenantAccessRoutes registers cross-school access management for a

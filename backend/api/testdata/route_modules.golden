@@ -74,7 +74,7 @@ basis
 	DELETE /operator/announcements/{id}
 	DELETE /operator/auth/mfa/trusted-devices/{deviceId}
 	DELETE /operator/auth/passkeys/{passkeyId}
-	DELETE /operator/caterers/{id}/mfa
+	DELETE /operator/caterers/{id}/accounts/{accountId}/mfa
 	DELETE /operator/devices/{id}
 	DELETE /operator/invitations/{id}
 	DELETE /operator/organizations/{id}

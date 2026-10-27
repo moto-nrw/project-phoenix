@@ -456,21 +456,27 @@ var catererSentinels = []struct {
 // catererMFAError translates the caterer sentinels and leaves the
 // credentials and the second factor to the sign-in's mapping (#4497).
 func catererMFAError(err error) error {
-	for _, sentinel := range catererSentinels {
-		if errors.Is(err, sentinel.internal) {
-			return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
-		}
+	if translated, ok := translateCatererSentinel(err); ok {
+		return translated
 	}
 	return authenticationError(err)
+}
+
+// translateCatererSentinel exposes the public sentinel of a caterer error.
+func translateCatererSentinel(err error) (error, bool) {
+	for _, sentinel := range catererSentinels {
+		if errors.Is(err, sentinel.internal) {
+			return &translatedError{text: err.Error(), public: sentinel.public, cause: err}, true
+		}
+	}
+	return nil, false
 }
 
 // catererError translates the caterer sentinels and leaves credentials and
 // invitations to the mappings of their flows.
 func catererError(err error) error {
-	for _, sentinel := range catererSentinels {
-		if errors.Is(err, sentinel.internal) {
-			return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
-		}
+	if translated, ok := translateCatererSentinel(err); ok {
+		return translated
 	}
 	if errors.Is(err, identityaccess.ErrInvalidCredentials) || errors.Is(err, domain.ErrAccountNotFound) || errors.Is(err, identityaccess.ErrAccountInactive) {
 		return authenticationError(err)

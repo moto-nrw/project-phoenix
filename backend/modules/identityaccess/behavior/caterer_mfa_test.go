@@ -198,12 +198,14 @@ func TestOperatorResetsTheCaterersSecondFactor(t *testing.T) {
 	assert.Equal(t, sc.email, listed.Email)
 	assert.True(t, listed.MFAEnabled)
 
-	err = sc.caterers.OperatorResetCatererMFA(ctx, operator.ID, sc.account.CatererID, " x ")
+	err = sc.caterers.OperatorResetCatererMFA(ctx, operator.ID, sc.account.CatererID, sc.account.AccountID, " x ")
 	require.ErrorIs(t, err, identityaccess.ErrCatererMFAResetReasonRequired)
-	err = sc.caterers.OperatorResetCatererMFA(ctx, operator.ID, -1, "Gerät verloren")
-	require.ErrorIs(t, err, identityaccess.ErrCatererNotFound)
+	err = sc.caterers.OperatorResetCatererMFA(ctx, operator.ID, -1, sc.account.AccountID, "Gerät verloren")
+	require.ErrorIs(t, err, identityaccess.ErrCatererNotFound, "the account belongs to another caterer")
 
-	require.NoError(t, sc.caterers.OperatorResetCatererMFA(ctx, operator.ID, sc.account.CatererID, "Gerät verloren"))
+	require.NoError(t, sc.caterers.OperatorResetCatererMFA(ctx, operator.ID, sc.account.CatererID, sc.account.AccountID, "Gerät verloren"))
+	err = sc.caterers.OperatorResetCatererMFA(ctx, operator.ID, sc.account.CatererID, sc.account.AccountID, "Gerät verloren")
+	require.ErrorIs(t, err, identityaccess.ErrCatererMFANotEnabled, "a second reset finds nothing to reset and mails nothing")
 	state, err := sc.caterers.CatererMFAStatus(ctx, sc.account.AccountID)
 	require.NoError(t, err)
 	assert.False(t, state.Enabled, "the reset switches the factor off")

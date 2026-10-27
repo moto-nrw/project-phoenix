@@ -60,8 +60,10 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 }
 
 // requireCatererSessionMFA reads the caterer's own choice: the enrollment of
-// its account, never a school's mode. The read runs on the mint's or the
-// refresh's transaction, after the account lock the MFA reset shares.
+// its account, never a school's mode, on the mint's or the refresh's
+// transaction. A password mint that races the switch-on commits a session
+// without proof; like every session from before the switch-on, it ends at
+// its next refresh, which reads the committed enrollment.
 func (s *AccountAuthentication) requireCatererSessionMFA(ctx context.Context, accountID int64, verified bool) error {
 	if verified {
 		return nil

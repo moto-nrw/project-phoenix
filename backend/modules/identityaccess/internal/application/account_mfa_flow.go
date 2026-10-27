@@ -615,7 +615,7 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 // events are logged like the Träger sign-in itself.
 type schoolLedgerKey struct{}
 
-func traegerMFAContext(ctx context.Context, scope string) context.Context {
+func schoollessMFAContext(ctx context.Context, scope string) context.Context {
 	if scope != domain.MFAChallengeScopeOrg && scope != domain.MFAChallengeScopeCaterer {
 		return ctx
 	}
@@ -656,7 +656,7 @@ func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.Acc
 func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challenge domain.AccountMFAChallenge) error {
 	// A challenge of a portal without a school logs its event without a
 	// school ledger.
-	return f.runtime.WithAdminTx(traegerMFAContext(f.runtime.Detach(ctx), challenge.Scope), func(txCtx context.Context) error {
+	return f.runtime.WithAdminTx(schoollessMFAContext(f.runtime.Detach(ctx), challenge.Scope), func(txCtx context.Context) error {
 		if err := f.records.ActivateChallenge(txCtx, challenge.ID); err != nil {
 			return err
 		}

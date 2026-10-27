@@ -51,18 +51,20 @@ function catererColumns(
     {
       key: "actions",
       header: "",
-      render: (caterer) => (
-        <OverflowMenu
-          ariaLabel={`Aktionen für ${caterer.email}`}
-          triggerSize="sm"
-          items={[
-            {
-              label: "Zwei-Faktor zurücksetzen",
-              onClick: () => onResetMfa(caterer),
-            },
-          ]}
-        />
-      ),
+      // Only a switched-on second factor can be reset.
+      render: (caterer) =>
+        caterer.mfaEnabled ? (
+          <OverflowMenu
+            ariaLabel={`Aktionen für ${caterer.email}`}
+            triggerSize="sm"
+            items={[
+              {
+                label: "Zwei-Faktor zurücksetzen",
+                onClick: () => onResetMfa(caterer),
+              },
+            ]}
+          />
+        ) : null,
     },
   ];
 }
