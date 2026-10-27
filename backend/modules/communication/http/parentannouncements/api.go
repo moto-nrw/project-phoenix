@@ -52,6 +52,7 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		// a group lead limited to their own group) is deliberately deferred.
 		// The parent-news feature flag is still re-checked in the service.
 		announce := common.RequiresPermission(permissions.AdminWildcard)
+		read := r.With(announce, withTx, rs.requireReadableAnnouncement)
 		r.With(announce, withTx).Get("/", rs.list)
 		r.With(announce, withTx).Post("/", rs.create)
 		r.With(announce, withTx).Get("/{announcementId}", rs.get)
@@ -59,24 +60,24 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		r.With(announce, withTx).Delete("/{announcementId}", rs.delete)
 		r.With(announce, withTx).Post("/{announcementId}/publish", rs.publish)
 		r.With(announce, withTx).Post("/{announcementId}/unpublish", rs.unpublish)
-		r.With(announce, withTx).Get("/{announcementId}/stats", rs.stats)
-		r.With(announce, withTx).Get("/{announcementId}/recipients", rs.recipients)
+		read.Get("/{announcementId}/stats", rs.stats)
+		read.Get("/{announcementId}/recipients", rs.recipients)
 		// Poll (Umfrage, #1371): evaluation and the manual reminder to the
 		// guardians of children that have not answered.
-		r.With(announce, withTx).Get("/{announcementId}/poll-results", rs.pollResults)
-		r.With(announce, withTx).Get("/{announcementId}/poll-children", rs.pollChildren)
+		read.Get("/{announcementId}/poll-results", rs.pollResults)
+		read.Get("/{announcementId}/poll-children", rs.pollChildren)
 		r.With(announce, withTx).Post("/{announcementId}/remind", rs.remindUnanswered)
 		// Elternbrief (#2384): the recipient matrix — e-mail and moto status per
 		// person, plus which children the letter is already fulfilled for.
-		r.With(announce, withTx).Get("/{announcementId}/letter-status", rs.letterStatus)
+		read.Get("/{announcementId}/letter-status", rs.letterStatus)
 		r.With(announce, withTx).Post("/{announcementId}/resend-failed", rs.resendFailed)
 		// Scheduled reminder (#3162): the one post-publish edit. Distinct from
 		// POST /remind above, which is the manual nudge to whoever still owes
 		// an answer.
 		r.With(announce, withTx).Put("/{announcementId}/reminder", rs.updateReminder)
 		// Erklärung (#3430): state per child, full history, proof export.
-		r.With(announce, withTx).Get("/{announcementId}/declaration-status", rs.declarationStatus)
-		r.With(announce, withTx).Get("/{announcementId}/declaration-export", rs.declarationExport)
+		read.Get("/{announcementId}/declaration-status", rs.declarationStatus)
+		read.Get("/{announcementId}/declaration-export", rs.declarationExport)
 	})
 
 	return r
@@ -298,15 +299,15 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, out, "Announcements retrieved")
 }
 
-func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
+func (rs *Resource) readableAnnouncement(w http.ResponseWriter, r *http.Request) (*announcementService.ParentAnnouncement, bool) {
 	id, ok := parseAnnouncementID(w, r)
 	if !ok {
-		return
+		return nil, false
 	}
 	a, err := rs.Service.GetParentAnnouncement(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
-		return
+		return nil, false
 	}
 	// Draft class letters are private to their author in moto schule,
 	// including when that account also holds an OGS admin role.
@@ -314,8 +315,26 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 		author, viaSchool := announcementService.ClassLetterAuthorFrom(r.Context())
 		if !viaSchool || author != a.CreatedBy {
 			renderAnnouncementError(w, r, announcementService.ErrParentAnnouncementNotFound)
-			return
+			return nil, false
 		}
+	}
+	return a, true
+}
+
+// requireReadableAnnouncement keeps every related read and export behind the
+// same draft visibility rule as the announcement itself, inside the tenant transaction.
+func (rs *Resource) requireReadableAnnouncement(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := rs.readableAnnouncement(w, r); ok {
+			next.ServeHTTP(w, r)
+		}
+	})
+}
+
+func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
+	a, ok := rs.readableAnnouncement(w, r)
+	if !ok {
+		return
 	}
 	common.Respond(w, r, http.StatusOK, toAnnouncementResponse(a), "Announcement retrieved")
 }

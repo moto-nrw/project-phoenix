@@ -3,6 +3,7 @@ package announcement_test
 import (
 	"context"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -250,4 +251,72 @@ func TestOGSDirectReadHidesClassLetterDrafts(t *testing.T) {
 	require.Equal(t, 200, out.Code, out.Body.String())
 	assert.Contains(t, out.Body.String(), "Wandertag")
 	require.Equal(t, 200, read("13").Code, "OGS drafts remain readable")
+}
+
+type relatedReadContract struct{ *announcementContract }
+
+func (s relatedReadContract) ParentDeclarationStatus(ctx context.Context, id int64) (*communication.ParentDeclarationStatus, error) {
+	return &communication.ParentDeclarationStatus{Title: s.row.Title}, s.call(ctx, "declaration-status", id)
+}
+
+type classLetterReport struct{ calls int }
+
+func (r *classLetterReport) RenderReport(doc announcement.ReportDocument, _ string) (announcement.ReportFile, error) {
+	r.calls++
+	return announcement.ReportFile{Data: []byte(doc.Subtitle), ContentType: "application/pdf", Filename: "proof.pdf"}, nil
+}
+
+func TestOGSRelatedReadsHideClassLetterDrafts(t *testing.T) {
+	t.Parallel()
+	s, resource, token := announcementRoute(t)
+	resource.Service = relatedReadContract{s}
+	reports := &classLetterReport{}
+	resource.Reports = reports
+	schoolClaims := routetest.DefaultTestClaims()
+	schoolClaims.Scope = tenant.ScopeSchool
+	schoolClaims.TenantID = s.tenantID
+	schoolClaims.Permissions = []string{writePermission}
+	schoolRouter := resource.SchoolRouter(rootAPI.ProtectedSchoolRoutes)
+	s.row.CreatedBy = int64(schoolClaims.ID)
+	id := strconv.FormatInt(s.id, 10)
+	sent := time.Date(2026, 10, 27, 8, 0, 0, 0, time.UTC)
+	for _, endpoint := range []struct{ path, call string }{
+		{"stats", "stats"}, {"recipients", "recipients"},
+		{"poll-results", "poll-results"}, {"poll-children", "poll-children"},
+		{"letter-status", "letter-status"}, {"declaration-status", "declaration-status"},
+		{"declaration-export?format=csv", "declaration-status"},
+		{"declaration-export?format=pdf", "declaration-status"},
+	} {
+		t.Run(endpoint.path, func(t *testing.T) {
+			s.row.Sender = &communication.ParentLetterSender{Name: "Lena Lehrerin", SchoolClass: "3b"}
+			s.row.PublishedAt = nil
+			s.calls = nil
+			before := reports.calls
+			status, body := announcementRequest(t, resource, token, "GET", "/"+id+"/"+endpoint.path, nil)
+			require.Equal(t, 404, status, body)
+			require.Equal(t, []string{"get"}, s.calls, "private drafts must not reach related reads")
+			require.Equal(t, before, reports.calls, "private drafts must not reach the PDF renderer")
+			require.NotContains(t, body, s.row.Title)
+			if endpoint.call != "poll-results" && endpoint.call != "poll-children" {
+				s.calls = nil
+				req := routetest.NewAuthenticatedRequest(t, "GET", "/"+id+"/"+endpoint.path, nil, routetest.WithJWTBearer(routetest.MintTestJWT(t, schoolClaims)))
+				out := routetest.ExecuteRequest(schoolRouter, req)
+				require.Equal(t, 200, out.Code, "the author keeps access in moto schule: %s", out.Body.String())
+				require.Equal(t, []string{"get", endpoint.call}, s.calls)
+			}
+
+			for _, state := range []string{"sent class letter", "OGS draft"} {
+				if state == "sent class letter" {
+					s.row.PublishedAt = &sent
+				} else {
+					s.row.Sender = nil
+					s.row.PublishedAt = nil
+				}
+				s.calls = nil
+				status, body = announcementRequest(t, resource, token, "GET", "/"+id+"/"+endpoint.path, nil)
+				require.Equal(t, 200, status, "%s: %s", state, body)
+				require.Equal(t, []string{"get", endpoint.call}, s.calls)
+			}
+		})
+	}
 }
