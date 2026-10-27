@@ -112,15 +112,20 @@ test("a log shipment answered late cannot restore the source session after expli
   let shipped!: () => void;
   const shipment = new Promise<void>((resolve) => (shipped = resolve));
   // Answer the shipment only after the cookie deletion, unless the product
-  // waits for it first; then answer it after two seconds.
+  // waits for it first; then answer it after two seconds. The answer applies
+  // the session cookie the request left with, as the real route does. Node
+  // cannot resolve *.localhost in CI, so the route itself is not called.
   await context.route("**/api/logs", async (route) => {
     shipped();
-    const response = await route.fetch();
+    const sentWith = (await context.cookies(source)).filter(
+      (cookie) => cookie.name === "mfa-localhost.session-token",
+    );
     await Promise.race([
       signout,
       new Promise((resolve) => setTimeout(resolve, 2_000)),
     ]);
-    await route.fulfill({ response });
+    await context.addCookies(sentWith);
+    await route.fulfill({ status: 200, json: {} });
   });
   await page.getByRole("button", { name: "Einrichtung wechseln" }).click();
   await page.getByText("School B", { exact: true }).click();
