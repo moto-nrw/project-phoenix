@@ -73,6 +73,11 @@ func (s *service) BookParentConference(ctx context.Context, child ParentConferen
 		if err := s.requireChangeable(conference, minute); err != nil {
 			return err
 		}
+		if booking != nil {
+			if err := s.requireChangeable(conference, booking.SlotStartMinute); err != nil {
+				return err
+			}
+		}
 		if booking == nil {
 			err = s.bookParentConferenceSlot(txCtx, conference, child, minute)
 		} else {

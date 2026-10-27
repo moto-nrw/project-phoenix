@@ -240,6 +240,81 @@ func TestParentConferenceIntegration_FamilyMovesAndCancelsUntil24HoursBefore(t *
 	require.ErrorIs(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), db, service.CancelParentConferenceBooking, conferenceChild(family), id), calendarSvc.ErrNotFound)
 }
 
+func TestParentConferenceIntegration_MoveChecksBothSlotDeadlines(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupParentConferenceService(t, db, time.Time{})
+	lehrkraft, account := createTestLehrkraft(t, db, "Frist", "Pruefung")
+	testpkg.CreateTestClassTeacher(t, db, lehrkraft.ID, "1a")
+	family := testpkg.CreateTestParentGuardianChain(t, db)
+	child := conferenceChild(family)
+	id := conferenceID(t, createConference(t, db, service, account.ID, conferenceDay("1a")))
+
+	_, err := testpkg.TenantQuery3(t, testpkg.Ctx(t), db, service.BookParentConference, child, id, "14:00")
+	require.NoError(t, err)
+	// At 13:16 UTC the next day's 14:00 Berlin slot is within 24 hours,
+	// while 14:45 is still outside the change window.
+	late := setupParentConferenceService(t, db, time.Date(2026, 3, 3, 13, 16, 0, 0, time.UTC))
+	_, err = testpkg.TenantQuery3(t, testpkg.Ctx(t), db, late.BookParentConference, child, id, "14:45")
+	require.ErrorIs(t, err, calendarSvc.ErrParentConferenceChangeClosed)
+
+	offers, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), db, late.ListChildParentConferences, child)
+	require.NoError(t, err)
+	offer := findOffer(t, offers, formatInt64(id))
+	require.NotNil(t, offer.Booking)
+	assert.Equal(t, "14:00", offer.Booking.StartTime)
+	require.ErrorIs(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), db, late.CancelParentConferenceBooking, child, id), calendarSvc.ErrParentConferenceChangeClosed)
+	parentEvents, err := service.ListMyParentEvents(testpkg.Ctx(t), family.AccountID, portalDate(2026, 3, 2), portalDate(2026, 3, 8))
+	require.NoError(t, err)
+	event := findConferenceEvent(parentEvents)
+	require.NotNil(t, event)
+	assert.Equal(t, "14:00", event.StartTime)
+	assert.False(t, event.Cancelled)
+
+	// A destination inside the window is also forbidden even if the
+	// existing booking remains changeable.
+	other := testpkg.CreateTestParentGuardianChain(t, db)
+	_, err = testpkg.TenantQuery3(t, testpkg.Ctx(t), db, service.BookParentConference, conferenceChild(other), id, "14:45")
+	require.NoError(t, err)
+	_, err = testpkg.TenantQuery3(t, testpkg.Ctx(t), db, late.BookParentConference, conferenceChild(other), id, "14:15")
+	require.ErrorIs(t, err, calendarSvc.ErrParentConferenceChangeClosed)
+}
+
+func TestParentConferenceIntegration_ClassChangeCancelsExistingBookings(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupParentConferenceService(t, db, time.Time{})
+	lehrkraft, account := createTestLehrkraft(t, db, "Klassen", "Wechsel")
+	testpkg.CreateTestClassTeacher(t, db, lehrkraft.ID, "1a")
+	testpkg.CreateTestClassTeacher(t, db, lehrkraft.ID, "2b")
+	family := testpkg.CreateTestParentGuardianChain(t, db)
+	id := conferenceID(t, createConference(t, db, service, account.ID, conferenceDay("1a")))
+	_, err := testpkg.TenantQuery3(t, testpkg.Ctx(t), db, service.BookParentConference, conferenceChild(family), id, "14:00")
+	require.NoError(t, err)
+
+	// Equivalent spelling keeps the class and its booking.
+	unchanged, err := testpkg.TenantQuery2(t, calendarContext(t, account.ID), db, service.UpdateSchoolParentConference, id, conferenceDay(" 1A "))
+	require.NoError(t, err)
+	assert.Equal(t, 1, unchanged.BookedCount)
+
+	changed, err := testpkg.TenantQuery2(t, calendarContext(t, account.ID), db, service.UpdateSchoolParentConference, id, conferenceDay("2b"))
+	require.NoError(t, err)
+	assert.Equal(t, "2b", changed.SchoolClass)
+	assert.Zero(t, changed.BookedCount)
+	for _, slot := range changed.Slots {
+		assert.False(t, slot.Booked)
+	}
+	var stored int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM calendar.parent_conference_bookings WHERE conference_id = ?`, id).Scan(context.Background(), &stored))
+	assert.Zero(t, stored)
+
+	parentEvents, err := service.ListMyParentEvents(testpkg.Ctx(t), family.AccountID, portalDate(2026, 3, 2), portalDate(2026, 3, 8))
+	require.NoError(t, err)
+	event := findConferenceEvent(parentEvents)
+	require.NotNil(t, event)
+	assert.True(t, event.Cancelled, "changing the class cancels the old family's appointment")
+}
+
 func TestParentConferenceIntegration_AChildOfAnotherClassSeesAndBooksNothing(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

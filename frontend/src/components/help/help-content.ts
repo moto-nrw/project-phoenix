@@ -8969,6 +8969,7 @@ function teacherParentConferenceTopic(): HelpTopic {
     ],
     differences: [
       "Sie ändern den Tag mit `Ändern`. Eltern mit Buchung bekommen eine Nachricht. Fällt ein gebuchtes Zeitfenster weg, ist diese Buchung abgesagt.",
+      "Wählen Sie eine andere Klasse, werden alle bisherigen Buchungen abgesagt. Die Eltern bekommen eine Nachricht.",
       "Sie löschen den Tag mit `Löschen`. Alle Buchungen sind dann abgesagt, und die Eltern bekommen eine Nachricht.",
       "`Neuer Elternsprechtag` ist grau? Ihnen ist keine Klasse zugeordnet.",
     ],

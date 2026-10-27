@@ -14,8 +14,8 @@ import (
 
 // The Lehrkraft's side of the Elternsprechtag in moto schule (#4801). A
 // Lehrkraft offers a day for a class she teaches and changes only her own
-// days. A change of the day keeps every booking whose slot still exists and
-// moves its appointment along; a booking whose slot is gone is cancelled.
+// days. A change of the day keeps every booking whose class and slot remain
+// and moves its appointment along; other bookings are cancelled.
 // Both tell the family through the appointment mail and push.
 
 type (
@@ -100,8 +100,8 @@ func (s *service) CreateSchoolParentConference(ctx context.Context, req ParentCo
 }
 
 // UpdateSchoolParentConference changes one of the Lehrkraft's days. The
-// bookings follow the change: kept where their slot remains, cancelled
-// where it is gone.
+// bookings follow the change: kept where their class and slot remain,
+// cancelled otherwise.
 func (s *service) UpdateSchoolParentConference(ctx context.Context, id int64, req ParentConferenceRequest) (*ParentConferenceView, error) {
 	store, err := s.parentConferences()
 	if err != nil {
@@ -122,7 +122,7 @@ func (s *service) UpdateSchoolParentConference(ctx context.Context, id int64, re
 		if err != nil {
 			return mapParentConferenceError(err)
 		}
-		if err := s.followParentConferenceChange(txCtx, updated); err != nil {
+		if err := s.followParentConferenceChange(txCtx, updated, current.SchoolClass); err != nil {
 			return err
 		}
 		view, err = s.parentConferenceView(txCtx, updated)
@@ -157,15 +157,16 @@ func (s *service) DeleteSchoolParentConference(ctx context.Context, id int64) er
 }
 
 // followParentConferenceChange moves the appointment of every booking whose
-// slot remains and cancels every booking whose slot is gone.
-func (s *service) followParentConferenceChange(ctx context.Context, conference *schoolcalendar.ParentConference) error {
+// class and slot remain; all other bookings are cancelled.
+func (s *service) followParentConferenceChange(ctx context.Context, conference *schoolcalendar.ParentConference, previousClass string) error {
 	bookings, err := s.cfg.ParentConferences.ListParentConferenceBookings(ctx, []int64{conference.ID})
 	if err != nil {
 		return err
 	}
+	sameClass := normalizeCalendarClass(conference.SchoolClass) == normalizeCalendarClass(previousClass)
 	var gone []int64
 	for _, booking := range bookings {
-		if schoolcalendar.HasParentConferenceSlot(conference.ParentConferenceFields, booking.SlotStartMinute) {
+		if sameClass && schoolcalendar.HasParentConferenceSlot(conference.ParentConferenceFields, booking.SlotStartMinute) {
 			if err := s.moveParentConferenceAppointment(ctx, conference, booking); err != nil {
 				return err
 			}
