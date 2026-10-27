@@ -268,14 +268,21 @@ func (m *BookingMaterialization) sourcedTemplateSegment(
 		return careplan.LinkedSegment{}, false
 	}
 	group := careplan.LinkedGroup{ID: tmpl.ID, IsTemplate: true, CalendarPeriodID: tmpl.CalendarPeriodID}
-	if templateWithoutPeriod(group, schedules) {
-		// Neither the template nor a schedule names a planning period: the
-		// template-save resync plans such a template with a period-less row
-		// (sourcedTemplateDraft), so this feed must too. Skipping it would let
-		// a correction delete rows it never re-creates (#5114).
-		return careplan.LinkedSegment{Group: group, Schedules: schedules}, true
+	resolve := m.catalog.ResolveTemplatePeriod
+	if !schedulesShareOnePeriod(group, schedules) {
+		// The schedules name no single planning period: none at all (#5114)
+		// or different ones (#5153). The template resync plans such a
+		// template on the template's own pin, period-less without one
+		// (templateResync → sourcedTemplateDraft), so this feed must too.
+		// Skipping it would let a correction delete rows it never re-creates.
+		if group.CalendarPeriodID == nil {
+			return careplan.LinkedSegment{Group: group, Schedules: schedules}, true
+		}
+		resolve = func(ctx context.Context, group careplan.LinkedGroup) (careplan.LinkedPeriod, error) {
+			return m.catalog.deps.Calendar.FindPeriod(ctx, *group.CalendarPeriodID)
+		}
 	}
-	period, err := m.catalog.ResolveTemplatePeriod(ctx, group)
+	period, err := resolve(ctx, group)
 	if err != nil {
 		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "calendar period not resolvable", err)
 		return careplan.LinkedSegment{}, false
@@ -287,18 +294,22 @@ func (m *BookingMaterialization) sourcedTemplateSegment(
 	return careplan.LinkedSegment{Group: group, Period: &period, Schedules: schedules}, true
 }
 
-// templateWithoutPeriod reports whether neither the template nor any of its
-// schedules carries a calendar_period_id.
-func templateWithoutPeriod(group careplan.LinkedGroup, schedules []careplan.LinkedSchedule) bool {
-	if group.CalendarPeriodID != nil {
-		return false
-	}
+// schedulesShareOnePeriod reports whether every schedule resolves the same
+// calendar_period_id, its own or else the template's — the condition under
+// which ResolveTemplatePeriod succeeds.
+func schedulesShareOnePeriod(group careplan.LinkedGroup, schedules []careplan.LinkedSchedule) bool {
+	var shared *int64
 	for _, schedule := range schedules {
-		if schedule.CalendarPeriodID != nil {
+		periodID := schedule.CalendarPeriodID
+		if periodID == nil {
+			periodID = group.CalendarPeriodID
+		}
+		if periodID == nil || (shared != nil && *shared != *periodID) {
 			return false
 		}
+		shared = periodID
 	}
-	return true
+	return shared != nil
 }
 
 func addSourcedSegmentDraft(
