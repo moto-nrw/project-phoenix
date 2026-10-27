@@ -141,28 +141,43 @@ func seedPresenceHistoryStatusDays(rt *Runtime, statuses []presenceHistoryStatus
 	statusDays := 0
 	created := make([]presenceHistoryStatusDay, 0)
 	for _, status := range statuses {
-		dates := make([]string, 0, len(status.dates))
-		for _, date := range status.dates {
-			dates = append(dates, date.String())
+		before, err := readPresenceHistoryStatusDays(rt, status)
+		if err != nil {
+			return statusDays, created, err
 		}
-		raw, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/status-days", status.studentID), map[string]any{
-			"status": status.status, "dates": dates, "reason": "Von den Eltern gemeldet",
+		pending, existing, err := pendingPresenceHistoryStatusDays(status, before)
+		if err != nil {
+			return statusDays, created, err
+		}
+		statusDays += len(status.dates)
+		if len(pending.dates) == 0 {
+			continue
+		}
+		raw, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/status-days", pending.studentID), map[string]any{
+			"status": pending.status, "dates": presenceHistoryStatusDateStrings(pending), "reason": "Von den Eltern gemeldet",
 		})
 		if err != nil {
-			recovered, recoveryErr := recoverPresenceHistoryStatusDays(rt, status, fmt.Errorf("seed past %s days: %w", status.status, err))
+			if presenceHistoryStatusConflict(err) {
+				return statusDays, created, fmt.Errorf("seed past %s days: %w", status.status, err)
+			}
+			recovered, recoveryErr := recoverPresenceHistoryStatusDays(rt, pending, existing, fmt.Errorf("seed past %s days: %w", status.status, err))
 			created = appendUniquePresenceHistoryStatusDays(created, recovered)
 			return statusDays, created, recoveryErr
 		}
-		rows, err := createdPresenceHistoryStatusDays(raw, status)
+		rows, err := createdPresenceHistoryStatusDays(raw, pending)
 		created = appendUniquePresenceHistoryStatusDays(created, rows)
 		if err != nil {
-			recovered, recoveryErr := recoverPresenceHistoryStatusDays(rt, status, err)
+			recovered, recoveryErr := recoverPresenceHistoryStatusDays(rt, pending, existing, err)
 			created = appendUniquePresenceHistoryStatusDays(created, recovered)
 			return statusDays, created, recoveryErr
 		}
-		statusDays += len(dates)
 	}
 	return statusDays, created, nil
+}
+
+func presenceHistoryStatusConflict(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == 409
 }
 
 // createdPresenceHistoryStatusDays extracts the status-day IDs that the
@@ -183,20 +198,81 @@ func createdPresenceHistoryStatusDays(raw []byte, status presenceHistoryStatus) 
 	return created, nil
 }
 
-// recoverPresenceHistoryStatusDays returns the requested status rows after a
-// response may have failed after the server committed the write.
-func recoverPresenceHistoryStatusDays(rt *Runtime, status presenceHistoryStatus, cause error) ([]presenceHistoryStatusDay, error) {
+// recoverPresenceHistoryStatusDays returns only rows that appeared after the
+// request started, so a conflict can never turn into a destructive rollback.
+func recoverPresenceHistoryStatusDays(rt *Runtime, status presenceHistoryStatus, before []presenceHistoryStatusDay, cause error) ([]presenceHistoryStatusDay, error) {
 	recovered, recoveryErr := findPresenceHistoryStatusDays(rt, status)
+	recovered = newPresenceHistoryStatusDays(recovered, before)
 	if recoveryErr != nil {
 		return recovered, errors.Join(cause, recoveryErr)
 	}
 	return recovered, cause
 }
 
+func readPresenceHistoryStatusDays(rt *Runtime, status presenceHistoryStatus) ([]presenceHistoryStatusDayResponse, error) {
+	from, until := presenceHistoryStatusRange(status)
+	raw, err := rt.Client.Get(fmt.Sprintf("/api/students/%d/status-days?from=%s&to=%s", status.studentID, from, until))
+	if err != nil {
+		return nil, fmt.Errorf("read past %s days: %w", status.status, err)
+	}
+	var response struct {
+		Data []presenceHistoryStatusDayResponse `json:"data"`
+	}
+	if err := parseJSON(raw, &response); err != nil {
+		return nil, fmt.Errorf("read past %s days: %w", status.status, err)
+	}
+	return response.Data, nil
+}
+
+func pendingPresenceHistoryStatusDays(status presenceHistoryStatus, rows []presenceHistoryStatusDayResponse) (presenceHistoryStatus, []presenceHistoryStatusDay, error) {
+	wanted := make(map[string]bool, len(status.dates))
+	for _, date := range status.dates {
+		wanted[date.String()] = true
+	}
+	existing := make([]presenceHistoryStatusDay, 0, len(status.dates))
+	for _, row := range rows {
+		if row.ID == 0 || !wanted[row.Date] {
+			continue
+		}
+		if row.Status != status.status {
+			return presenceHistoryStatus{}, nil, fmt.Errorf("seed past %s days: status on %s is already %s", status.status, row.Date, row.Status)
+		}
+		existing = append(existing, presenceHistoryStatusDay{studentID: status.studentID, id: row.ID})
+		delete(wanted, row.Date)
+	}
+	pending := presenceHistoryStatus{studentID: status.studentID, status: status.status}
+	for _, date := range status.dates {
+		if wanted[date.String()] {
+			pending.dates = append(pending.dates, date)
+		}
+	}
+	return pending, existing, nil
+}
+
+func presenceHistoryStatusDateStrings(status presenceHistoryStatus) []string {
+	dates := make([]string, 0, len(status.dates))
+	for _, date := range status.dates {
+		dates = append(dates, date.String())
+	}
+	return dates
+}
+
 // findPresenceHistoryStatusDays recovers status rows after a successful write
 // returned an incomplete body. The route would have rejected an active row on
 // a requested day, so an exact status/date match belongs to this seed write.
 func findPresenceHistoryStatusDays(rt *Runtime, status presenceHistoryStatus) ([]presenceHistoryStatusDay, error) {
+	rows, err := readPresenceHistoryStatusDays(rt, status)
+	if err != nil {
+		return nil, fmt.Errorf("recover past %s days: %w", status.status, err)
+	}
+	created, wanted := presenceHistoryStatusDaysFromResponse(rows, status)
+	if len(wanted) != 0 {
+		return created, fmt.Errorf("recover past %s days: response missed %d status days", status.status, len(wanted))
+	}
+	return created, nil
+}
+
+func presenceHistoryStatusRange(status presenceHistoryStatus) (calendar.Date, calendar.Date) {
 	from, until := status.dates[0], status.dates[0]
 	for _, date := range status.dates[1:] {
 		if date.Before(from) {
@@ -206,22 +282,7 @@ func findPresenceHistoryStatusDays(rt *Runtime, status presenceHistoryStatus) ([
 			until = date
 		}
 	}
-	raw, err := rt.Client.Get(fmt.Sprintf("/api/students/%d/status-days?from=%s&to=%s", status.studentID, from, until))
-	if err != nil {
-		return nil, fmt.Errorf("recover past %s days: %w", status.status, err)
-	}
-	var response struct {
-		Data []presenceHistoryStatusDayResponse `json:"data"`
-	}
-	parseErr := parseJSON(raw, &response)
-	created, wanted := presenceHistoryStatusDaysFromResponse(response.Data, status)
-	if parseErr != nil {
-		return created, fmt.Errorf("recover past %s days: %w", status.status, parseErr)
-	}
-	if len(wanted) != 0 {
-		return created, fmt.Errorf("recover past %s days: response missed %d status days", status.status, len(wanted))
-	}
-	return created, nil
+	return from, until
 }
 
 func presenceHistoryStatusDaysFromResponse(rows []presenceHistoryStatusDayResponse, status presenceHistoryStatus) ([]presenceHistoryStatusDay, map[string]bool) {
@@ -252,6 +313,20 @@ func appendUniquePresenceHistoryStatusDays(days, added []presenceHistoryStatusDa
 		}
 	}
 	return days
+}
+
+func newPresenceHistoryStatusDays(after, before []presenceHistoryStatusDay) []presenceHistoryStatusDay {
+	known := make(map[presenceHistoryStatusDay]bool, len(before))
+	for _, day := range before {
+		known[day] = true
+	}
+	created := make([]presenceHistoryStatusDay, 0, len(after))
+	for _, day := range after {
+		if !known[day] {
+			created = append(created, day)
+		}
+	}
+	return created
 }
 
 // rollbackPresenceHistoryStatusDays clears only the status rows the current

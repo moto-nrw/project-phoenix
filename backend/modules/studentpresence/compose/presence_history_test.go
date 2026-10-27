@@ -36,12 +36,16 @@ func TestRecordPresenceHistoryWritesFinishedPastDays(t *testing.T) {
 			SessionStart: at(12, 0), SessionEnd: at(16, 45), Entry: entry, Exit: exit}
 	}
 
-	written, err := history.RecordPresenceHistory(ctx, []compose.PastPresenceDay{
+	days := []compose.PastPresenceDay{
 		{StudentID: first.ID, Date: day, DeviceID: device.ID, CheckIn: at(11, 50), CheckOut: at(15, 30), Visit: visit(at(12, 0), at(15, 25))},
 		{StudentID: second.ID, Date: day, DeviceID: device.ID, CheckIn: at(12, 10), CheckOut: at(16, 0), Visit: visit(at(12, 15), at(15, 55))},
-	})
+	}
+	written, err := history.RecordPresenceHistory(ctx, days)
 	require.NoError(t, err)
 	assert.Equal(t, 2, written)
+	written, err = history.RecordPresenceHistory(ctx, days)
+	require.NoError(t, err)
+	assert.Equal(t, 2, written, "a retry reuses the deterministic history")
 
 	attendance, err := module.ListAttendance(ctx, studentpresence.AttendanceFilter{
 		StudentIDs: []int64{first.ID, second.ID}, FromDate: day.String(), UntilDate: day.String(), StudentOrder: true,
