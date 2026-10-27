@@ -32,20 +32,6 @@ let cachedTenantId: number | undefined;
 
 const TTL_MS = 10_000; // 10 second cache window
 
-/**
- * How often the tenant SessionProvider asks its session route, in seconds.
- * TenantProviders passes it as `refetchInterval`; primeSessionCache keeps
- * the provider's answer exactly that long (#4989).
- */
-export const SESSION_REFETCH_INTERVAL_SECONDS = 4 * 60;
-
-/**
- * A primed session stays until the provider's next poll replaces it, plus a
- * grace for a late poll. When a poll fails, the entry runs out and the next
- * request asks the session route itself.
- */
-const PRIMED_TTL_MS = SESSION_REFETCH_INTERVAL_SECONDS * 1000 + 30_000;
-
 /** Whether the session's own end (cookie lifetime) has passed. */
 function sessionEnded(
   session: Awaited<ReturnType<typeof getSession>>,
@@ -102,10 +88,11 @@ export function clearSessionCache() {
  * page load paid its own /api/auth/session round trip although the provider
  * was hydrated with the same session moments earlier (#2973).
  *
- * A session with access stays until the provider's next poll, so a page
- * change never asks the session route again (#4989); each answer of the
- * provider replaces it. An answer without access (logout here or in another
- * tab, a failed or revoked refresh) drops a signed-in entry and any lookup in
+ * A session with access stays for the same 10 s window as a looked-up one:
+ * a school switch on another subdomain replaces the shared cookie without
+ * telling this tab's provider, so the cache must ask the route again soon
+ * (#5116 review). An answer without access (logout here or in another tab,
+ * a failed or revoked refresh) drops a signed-in entry and any lookup in
  * flight: no later request passes as signed in. An answer without access
  * that the cache already holds stays; dropping it would send every request
  * to the session route again.
@@ -118,7 +105,7 @@ export function primeSessionCache(
     return;
   }
   cachedTenantId = (session.user as { tenantId?: number }).tenantId;
-  cached = { session, expiry: Date.now() + PRIMED_TTL_MS };
+  cached = { session, expiry: Date.now() + TTL_MS };
   // A lookup still in flight predates this session; its result must not
   // overwrite the fresher seed (see the invariant in getCachedSession).
   inflight = null;

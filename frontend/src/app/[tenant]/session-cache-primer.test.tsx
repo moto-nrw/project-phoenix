@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getCachedSession, sessionFetch } from "~/lib/session-cache";
+import { setTestClock, TEST_CLOCK_INSTANT } from "~/test/clock";
 import { mockSessionData } from "~/test/mocks/next-auth";
 import { SessionCachePrimer } from "./providers";
 
@@ -100,5 +101,22 @@ describe("SessionCachePrimer with the real SessionProvider", () => {
     );
     // Only the provider's own request; the cache took its answer.
     expect(sessionRequests()).toBe(1);
+  });
+
+  // Review of #5116: a school switch on another school's subdomain replaces
+  // the domain-wide cookie. BroadcastChannel and storage events stay within
+  // one origin, so this tab's provider keeps reporting the old school. The
+  // cache must still ask the session route once its 10 s window has passed;
+  // a cache that trusted the provider until its next poll served the old
+  // school for minutes while the BFF already answered for the new one.
+  it("learns a school switch on another subdomain once its window has passed", async () => {
+    renderTab(mockSessionData({ user: { id: "a", tenantId: 1 } }));
+    expect((await getCachedSession())?.user?.tenantId).toBe(1);
+
+    sessionAnswer = mockSessionData({ user: { id: "a", tenantId: 2 } });
+    setTestClock(new Date(TEST_CLOCK_INSTANT.getTime() + 10_001));
+
+    expect((await getCachedSession())?.user?.tenantId).toBe(2);
+    expect(sessionRequests()).toBeGreaterThanOrEqual(1);
   });
 });

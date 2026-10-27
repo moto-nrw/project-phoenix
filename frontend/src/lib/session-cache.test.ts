@@ -413,11 +413,10 @@ describe("sessionFetch", () => {
   });
 });
 
-// #4989: the tenant SessionProvider polls every SESSION_REFETCH_INTERVAL_SECONDS
-// and re-primes the cache with each answer. A page change between two polls
-// must not ask /api/auth/session; losing the sign-in must never leave a
-// signed-in session behind.
-describe("primeSessionCache with the provider's lifetime", () => {
+// #4989: the tenant SessionProvider re-primes the cache with each answer.
+// Losing the sign-in must never leave a signed-in session behind, and a
+// primed session keeps the cache's 10 s window.
+describe("primeSessionCache when the sign-in ends or changes", () => {
   let originalFetch: typeof fetch;
   const mockFetch = vi.fn();
   let now: ReturnType<typeof vi.spyOn>;
@@ -436,32 +435,18 @@ describe("primeSessionCache with the provider's lifetime", () => {
     now.mockRestore();
   });
 
-  it("serves the provider's session until its next poll", async () => {
+  // Review of #5116: a school switch on another subdomain does not reach
+  // this tab's provider, so a primed session must not outlive the window of
+  // a looked-up one.
+  it("keeps a primed session no longer than the 10 s window", async () => {
     const { getCachedSession, primeSessionCache } = await freshModule();
-    primeSessionCache(session("primed"));
+    primeSessionCache(session("primed", 1));
+    mockGetSession.mockResolvedValueOnce(session("primed", 2));
 
-    now.mockReturnValue(1_000_000 + 60_000);
+    now.mockReturnValue(1_000_000 + 10_001);
     const result = await getCachedSession();
 
-    expect(result?.user?.id).toBe("primed");
-    expect(mockGetSession).not.toHaveBeenCalled();
-  });
-
-  it("asks the session route itself once a poll is overdue", async () => {
-    const {
-      getCachedSession,
-      primeSessionCache,
-      SESSION_REFETCH_INTERVAL_SECONDS,
-    } = await freshModule();
-    primeSessionCache(session("primed"));
-    mockGetSession.mockResolvedValueOnce(session("fresh"));
-
-    now.mockReturnValue(
-      1_000_000 + SESSION_REFETCH_INTERVAL_SECONDS * 1000 + 30_001,
-    );
-    const result = await getCachedSession();
-
-    expect(result?.user?.id).toBe("fresh");
+    expect(result?.user?.tenantId).toBe(2);
     expect(mockGetSession).toHaveBeenCalledTimes(1);
   });
 

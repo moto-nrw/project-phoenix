@@ -51,7 +51,6 @@ vi.mock("swr", () => ({
 }));
 
 vi.mock("~/lib/session-cache", () => ({
-  SESSION_REFETCH_INTERVAL_SECONDS: 240,
   primeSessionCache: (...args: unknown[]) => {
     childEffectOrder.push("prime");
     mockPrimeSessionCache(...args);
@@ -158,28 +157,6 @@ describe("TenantProviders with a server snapshot", () => {
     );
   });
 
-  // The provider's poll is what keeps a primed session current (#4989).
-  it("polls the session route at the interval the session cache relies on", () => {
-    render(
-      <TenantProviders
-        tenantSlug="school-a"
-        tenant={tenant}
-        routingMode="subdomain"
-        session={session}
-        shell={shell}
-      >
-        <div />
-      </TenantProviders>,
-    );
-
-    expect(mockSessionProvider).toHaveBeenCalledWith(
-      expect.objectContaining({
-        refetchInterval: 240,
-        refetchOnWindowFocus: false,
-      }),
-    );
-  });
-
   it("leaves a missing server snapshot for Auth.js to resolve", () => {
     render(
       <TenantProviders
@@ -212,6 +189,7 @@ describe("TenantProviders with a server snapshot", () => {
     expect(mockPrimeSessionCache).toHaveBeenCalledWith(session);
     expect(childEffectOrder).toEqual([
       "prime",
+      "seed school-a:user-context",
       "seed school-a:reminders",
       "seed school-a:staff-notices-today:1",
       "child",
@@ -233,8 +211,9 @@ describe("TenantProviders with a server snapshot", () => {
       </TenantProviders>,
     );
 
-    expect(mockSwrMutate).toHaveBeenCalledTimes(2);
+    expect(mockSwrMutate).toHaveBeenCalledTimes(3);
     for (const [key, seed] of [
+      ["school-a:user-context", shell.userContext],
       ["school-a:reminders", shell.reminders],
       ["school-a:staff-notices-today:1", shell.staffNoticesToday],
     ] as const) {
