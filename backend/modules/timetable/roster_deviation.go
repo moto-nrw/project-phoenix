@@ -93,6 +93,19 @@ type deviationCandidate struct {
 // DetectRosterDeviation applies the rule to one roster. It returns nil when
 // no offering passes or the best one matches the roster exactly.
 func DetectRosterDeviation(roster TemplateFutureRoster, bookings []OfferingWeekdayBooking) *RosterDeviation {
+	deviation := SuggestOfferingSource(roster, bookings)
+	if deviation == nil || (deviation.UnbookedCount == 0 && deviation.MissingCount == 0) {
+		return nil
+	}
+	return deviation
+}
+
+// SuggestOfferingSource applies the rule to the children of a Regeltermin
+// that is still being planned (#5104). Unlike DetectRosterDeviation it also
+// answers when the best offering matches the roster exactly: nothing
+// deviates yet, but connecting keeps the roster in step with later
+// bookings. It returns nil when no offering passes.
+func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekdayBooking) *RosterDeviation {
 	planned := plannedRosterSlots(roster)
 	candidates := rosterDeviationCandidates(roster, planned, bookings)
 	if len(candidates) == 0 {
@@ -100,9 +113,6 @@ func DetectRosterDeviation(roster TemplateFutureRoster, bookings []OfferingWeekd
 	}
 	best := candidates[0]
 	unbooked, missing := distinctSlotStudents(planned, best.booked), distinctSlotStudents(best.booked, planned)
-	if unbooked == 0 && missing == 0 {
-		return nil
-	}
 	refs := make([]OfferingRef, 0, len(candidates))
 	for _, candidate := range candidates {
 		refs = append(refs, candidate.offering)

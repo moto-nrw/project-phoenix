@@ -277,6 +277,15 @@ var queryBudgets = map[string]queryBudget{
 	// budgeted as services.enrollment.offering_weekday_bookings.reads. Flat
 	// from 3 to 8 Regeltermine.
 	"api.timetable.templates.roster_deviations": {max: 16},
+	// modules/timetable — GET /api/timetable/offering-sources/suggestion and
+	// /preview (#5104): a Regeltermin still being planned sends its children,
+	// so the suggestion issues no statement of its own: it reads only Care
+	// Plan's bookings (stubbed here, budgeted as
+	// services.enrollment.offering_weekday_bookings.reads). The preview adds
+	// the two name reads (student persons, person names). Flat from 3 to 8
+	// children.
+	"api.timetable.offering_sources.suggestion": {max: 0, exact: true},
+	"api.timetable.offering_sources.preview":    {max: 2, exact: true},
 	// modules/timetable/http — GET /pickup-extensions (#3261), day tasks only: tenant
 	// transaction and tenant setup, task read, one batched block read,
 	// student and person names. Flat in the number of open tasks.

@@ -1039,6 +1039,12 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/offering-sources/combined-counts": [
     "GET tenant /api/timetable/offering-sources/combined-counts",
   ],
+  "api/timetable/offering-sources/preview": [
+    "GET tenant /api/timetable/offering-sources/preview",
+  ],
+  "api/timetable/offering-sources/suggestion": [
+    "GET tenant /api/timetable/offering-sources/suggestion",
+  ],
   "api/timetable/operations/active-groups/[id]/roster": [
     "GET tenant /api/timetable/operations/active-groups/id%2F1/roster",
   ],

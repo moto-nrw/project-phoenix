@@ -313,6 +313,12 @@ func (rs *Resource) mountTemplateRoutes(r chi.Router, withTx common.Middleware) 
 	// (Mehrfach-Quelle): exakte Vorschau für den Regeltermin-Editor.
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Get("/offering-sources/combined-counts", rs.getCombinedOfferingSourceCounts)
+	// #5104: Vorschlag und Vorschau für einen Regeltermin, der noch geplant
+	// wird; der Dialog schickt die geplanten Kinder pro Wochentag mit.
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Get("/offering-sources/suggestion", rs.suggestDraftOfferingSource)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Get("/offering-sources/preview", rs.previewDraftOfferingSource)
 	r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
 		Get("/templates/{id}", rs.getTemplate)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
