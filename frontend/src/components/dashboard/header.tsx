@@ -124,10 +124,11 @@ function schoolTitleForPath(pathname: string): string | null {
   return null;
 }
 
-// Caterer-Portal (ADR 0077): eine Seite, auf dem Caterer-Host ohne
-// /caterer-Präfix.
+// Caterer-Portal (ADR 0077): die Bestellungen und das Konto (#4496), auf
+// dem Caterer-Host ohne /caterer-Präfix.
 function catererTitleForPath(pathname: string): string | null {
   if (pathname === "/" || pathname === "/caterer") return "Bestellungen";
+  if (pathname === "/konto" || pathname === "/caterer/konto") return "Konto";
   return null;
 }
 
@@ -485,7 +486,9 @@ export function Header() {
                         ? tParentNav("settings")
                         : mode === "school"
                           ? "Einstellungen"
-                          : undefined
+                          : mode === "caterer"
+                            ? "Konto"
+                            : undefined
                   }
                   onClose={close}
                   onLogout={() => setIsLogoutModalOpen(true)}

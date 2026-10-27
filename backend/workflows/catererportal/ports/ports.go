@@ -22,6 +22,7 @@ type Caterers interface {
 	SchoolCaterer(ctx context.Context) (identityaccess.CatererSupply, bool, error)
 	CatererSchools(ctx context.Context, accountID int64) (identityaccess.Caterer, []int64, error)
 	LoginCatererWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	ChangeCatererPassword(ctx context.Context, accountID int64, currentPassword, newPassword, ipAddress, userAgent string) error
 }
 
 // MealOrders is the Meal Plan's orders as the school and its caterer read
