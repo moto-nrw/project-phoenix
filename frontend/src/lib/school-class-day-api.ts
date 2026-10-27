@@ -459,7 +459,7 @@ export async function withdrawAbsenceReportSchool(
 // davon entschuldigt und unentschuldigt, für Klassenbuch und Zeugnis.
 
 /** Gezählte Tage eines Kindes oder der ganzen Klasse. */
-export interface AbsenceListCounts {
+interface AbsenceListCounts {
   readonly absentDays: number;
   readonly excusedDays: number;
   readonly unexcusedDays: number;
@@ -524,7 +524,7 @@ function absenceListCounts(raw: BackendAbsenceListCounts): AbsenceListCounts {
   };
 }
 
-export function mapAbsenceList(raw: BackendAbsenceList): AbsenceList {
+function mapAbsenceList(raw: BackendAbsenceList): AbsenceList {
   return {
     schoolClass: raw.school_class,
     from: raw.from,
