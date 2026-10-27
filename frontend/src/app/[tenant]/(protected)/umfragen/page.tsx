@@ -238,7 +238,6 @@ function SurveysContent() {
             title: "Noch keine Umfragen",
             description:
               "Fragen Sie Eltern oder das Team nach ihrer Meinung, auf Wunsch anonym.",
-            action: createButton,
           }
         : view === "fuer-sie" && openToAnswer.length === 0
           ? {

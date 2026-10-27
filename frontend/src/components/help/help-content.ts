@@ -3831,7 +3831,7 @@ function studentNotesTopic(): HelpTopic {
       "Ein Hinweis trägt `Übernommen aus den Betreuernotizen`? Der stammt aus dem früheren Textfeld und hat deshalb keinen Verfasser.",
     ],
     troubleshootingDetails: [
-      "Es fehlt `Neue Notiz`? Dann dürfen Sie dieses Kind nur lesen.",
+      "Es fehlt der Reiter `Notizen`? Dann darf Ihre Rolle keine Notizen sehen. Fragen Sie Ihre Leitung.",
       "Ein Angebot fehlt unter `Bezug`? Dort stehen nur Angebote, in denen das Kind heute angemeldet ist.",
       "Es fehlt `Gruppenleitung` oder `Angebotsleitung`? Wählen Sie zuerst unter `Bezug` die Gruppe oder das Angebot.",
     ],

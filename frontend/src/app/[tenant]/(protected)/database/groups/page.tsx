@@ -276,15 +276,6 @@ function GroupsPageContent() {
                   size={48}
                 />
               ),
-              action:
-                searchTerm || roomFilter !== "all" ? undefined : (
-                  <DatabaseCreateAction
-                    label="Gruppe"
-                    ariaLabel="Gruppe erstellen"
-                    showMobileFab={false}
-                    onClick={() => setShowCreateModal(true)}
-                  />
-                ),
             }
           : null
       }

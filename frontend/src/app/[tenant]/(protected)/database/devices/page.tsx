@@ -346,14 +346,6 @@ function DevicesPageContent() {
                   size={48}
                 />
               ),
-              action: searchTerm ? undefined : (
-                <DatabaseCreateAction
-                  label="Gerät"
-                  ariaLabel="Gerät registrieren"
-                  showMobileFab={false}
-                  onClick={() => setShowCreateModal(true)}
-                />
-              ),
             }
           : null
       }

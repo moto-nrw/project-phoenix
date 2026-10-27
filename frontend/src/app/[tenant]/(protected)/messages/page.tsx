@@ -245,7 +245,6 @@ function MessagesInboxContent() {
                 : messagingEnabled
                   ? "Hier erscheinen Unterhaltungen mit den Eltern. Über „Neue Nachricht“ können Sie selbst eine beginnen."
                   : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule ausgeschaltet.",
-              action: filtersActive ? undefined : composeButton,
             }
           : null
       }

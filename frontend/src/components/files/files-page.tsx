@@ -208,18 +208,6 @@ export function FilesPage() {
               description: canManage
                 ? "Legen Sie den ersten Ordner an und wählen Sie, wer ihn sehen darf."
                 : "Sobald die Leitung einen Ordner für Sie freigibt, erscheint er hier.",
-              // Der Leerzustand ist der naechste Schritt, nicht nur eine
-              // Feststellung: die Aktion, die ihn beendet, steht darin.
-              action: canManage ? (
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={() => setFolderModal({ open: true, folder: null })}
-                >
-                  Neuer Ordner
-                </Button>
-              ) : undefined,
             }
           : null
       }
