@@ -273,6 +273,18 @@ type ActivityGroupCommand interface {
 	ArchiveTemplate(context.Context, int64) (int64, error)
 	UpdateGroupOfferingSource(context.Context, int64, OfferingSourceInput) error
 	ReplaceGroupTargets(context.Context, int64, []GroupTargetInput) error
+	// UpdateTemplateRosterReview writes the roster review of a template
+	// (#5103); it reports the rows changed.
+	UpdateTemplateRosterReview(context.Context, int64, TemplateRosterReviewUpdate) (int64, error)
+}
+
+// TemplateRosterReviewUpdate is a roster review write (#5103). Source turns
+// the segment's Zielgruppe into the offering source in place;
+// ManualRosterConfirmed stores "Bleibt von Hand gepflegt" on the series
+// root. A nil field stays untouched.
+type TemplateRosterReviewUpdate struct {
+	Source                *OfferingSourceInput
+	ManualRosterConfirmed *bool
 }
 
 type Capability interface {

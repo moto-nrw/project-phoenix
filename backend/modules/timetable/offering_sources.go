@@ -28,6 +28,24 @@ type OfferingSourceSupport interface {
 	// TemplateRosterMaintenance derives the roster indicator of each template
 	// with a constant number of reads, keyed by template id.
 	TemplateRosterMaintenance(ctx context.Context, templates []TemplateRosterMaintenanceQuery) (map[int64]TemplateRosterMaintenance, error)
+	// OfferingWeekdayBookings lists the approved bookings of the active
+	// offerings fitting the calendar period with the weekdays they plan on
+	// or after from (#5103); empty while Betreuungsangebote are switched
+	// off.
+	OfferingWeekdayBookings(ctx context.Context, calendarPeriodID *int64, from calendar.Date) ([]OfferingWeekdayBooking, error)
+}
+
+// OfferingWeekdayBooking is one child's approved booking of an offering with
+// the ISO weekdays it plans (#5103).
+type OfferingWeekdayBooking struct {
+	OfferingID   int64
+	OfferingName string
+	StudentID    int64
+	SchoolClass  string
+	// GradeLevel is the Jahrgang derived from the school class; nil when
+	// the class carries none.
+	GradeLevel *int
+	Weekdays   []int
 }
 
 // OfferingSourceOption is one selectable Betreuungsangebot of the editor with

@@ -20,6 +20,8 @@ import (
 type TimetablePlanning struct {
 	Planning        arrivalTimetable.Planning
 	SeriesConverter timetable.InstanceSeriesConversion
+	// RosterReview compares hand-kept Regeltermine with the bookings (#5103).
+	RosterReview timetable.TemplateRosterReview
 }
 
 // buildTimetablePlanning binds the planning over the lifecycle. A split
@@ -46,7 +48,7 @@ func buildTimetablePlanning(
 		return TimetablePlanning{}, fmt.Errorf("compose timetable templates: %w", err)
 	}
 	templateDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
-	templates, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
+	templates, rosterReview, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
 	if err != nil {
 		return TimetablePlanning{}, fmt.Errorf("compose timetable templates: %w", err)
 	}
@@ -68,5 +70,6 @@ func buildTimetablePlanning(
 			ConflictDetection: lifecycle.Conflicts, AttendanceCorrections: corrections, Deviations: lifecycle.Deviations,
 		},
 		SeriesConverter: converter,
+		RosterReview:    rosterReview,
 	}, nil
 }

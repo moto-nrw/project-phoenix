@@ -104,8 +104,11 @@ type Dependencies struct {
 	// AttendanceCorrections corrects completed blocks and Deviations applies
 	// the Vertretungsplan saves (slice S3). TimetableData serves the planner's
 	// reads from the Timetable owner (#3551).
-	Templates             timetable.TemplateAdministration
-	RecurrenceLock        timetable.RecurrenceWriteLock
+	Templates      timetable.TemplateAdministration
+	RecurrenceLock timetable.RecurrenceWriteLock
+	// RosterReview compares hand-kept Regeltermine with the bookings and
+	// connects them to a Betreuungsangebot (#5103).
+	RosterReview          timetable.TemplateRosterReview
 	AttendanceCorrections timetable.AttendanceCorrections
 	Deviations            timetable.StaffDeviations
 	TimetableData         timetable.TimetableDataCapability

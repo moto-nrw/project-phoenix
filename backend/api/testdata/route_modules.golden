@@ -314,7 +314,9 @@ basis
 	GET /api/timetable/student/{id}/day
 	GET /api/timetable/student/{id}/week
 	GET /api/timetable/templates
+	GET /api/timetable/templates/roster-deviations
 	GET /api/timetable/templates/{id}
+	GET /api/timetable/templates/{id}/offering-preview
 	GET /api/users/
 	GET /api/users/{id}
 	GET /auth/account
@@ -583,6 +585,7 @@ basis
 	POST /api/timetable/substitutions/bulk
 	POST /api/timetable/templates
 	POST /api/timetable/templates/{id}/end
+	POST /api/timetable/templates/{id}/offering-connection
 	POST /api/timetable/templates/{id}/split
 	POST /api/users/
 	POST /auth/accounts/{accountId}/caregiver-capability
@@ -742,6 +745,7 @@ basis
 	PUT /api/timetable/planning-tracks/order
 	PUT /api/timetable/planning-tracks/{id}
 	PUT /api/timetable/templates/{id}
+	PUT /api/timetable/templates/{id}/manual-roster
 	PUT /api/users/{id}
 	PUT /auth/accounts/{accountId}/
 	PUT /auth/accounts/{accountId}/mfa/override

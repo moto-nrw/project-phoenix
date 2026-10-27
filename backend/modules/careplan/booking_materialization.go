@@ -87,6 +87,11 @@ type OfferingSourceEditor interface {
 	// TemplateRosterMaintenanceFeeds resolves the offering-side facts of the
 	// roster indicator with a constant number of reads.
 	TemplateRosterMaintenanceFeeds(ctx context.Context, templates []TemplateRosterFeedQuery) (map[int64]TemplateRosterFeeds, error)
+	// OfferingWeekdayBookings lists the approved bookings of the active
+	// offerings fitting the calendar period with the weekdays they plan on or
+	// after from (#5103). Empty while the school has Betreuungsangebote
+	// switched off. A constant number of reads.
+	OfferingWeekdayBookings(ctx context.Context, calendarPeriodID *int64, from calendar.Date) ([]OfferingWeekdayBooking, error)
 }
 
 // BookingMaterializer is what an Enrollment decision asks of Care Plan when

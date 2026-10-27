@@ -16,26 +16,29 @@ import (
 )
 
 type groupRow struct {
-	bun.BaseModel         `bun:"table:activities.groups,alias:group"`
-	ID                    int64          `bun:"id,pk,autoincrement"`
-	TenantID              int64          `bun:"tenant_id,notnull"`
-	CreatedAt             time.Time      `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt             time.Time      `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	Name                  string         `bun:"name"`
-	MaxParticipants       int            `bun:"max_participants,nullzero"`
-	RequiredStaff         *int           `bun:"required_staff"`
-	IsOpen                bool           `bun:"is_open"`
-	CategoryID            int64          `bun:"category_id"`
-	PlanningTrackID       *int64         `bun:"planning_track_id"`
-	PlannedRoomID         *int64         `bun:"planned_room_id"`
-	CreatedBy             *int64         `bun:"created_by"`
-	Type                  string         `bun:"type"`
-	EducationGroupID      *int64         `bun:"education_group_id"`
-	ListKind              *string        `bun:"list_kind"`
-	IsTemplate            bool           `bun:"is_template"`
-	IsSystem              bool           `bun:"is_system"`
-	ArchivedAt            *time.Time     `bun:"archived_at"`
-	SeriesRootID          *int64         `bun:"series_root_id"`
+	bun.BaseModel    `bun:"table:activities.groups,alias:group"`
+	ID               int64      `bun:"id,pk,autoincrement"`
+	TenantID         int64      `bun:"tenant_id,notnull"`
+	CreatedAt        time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt        time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	Name             string     `bun:"name"`
+	MaxParticipants  int        `bun:"max_participants,nullzero"`
+	RequiredStaff    *int       `bun:"required_staff"`
+	IsOpen           bool       `bun:"is_open"`
+	CategoryID       int64      `bun:"category_id"`
+	PlanningTrackID  *int64     `bun:"planning_track_id"`
+	PlannedRoomID    *int64     `bun:"planned_room_id"`
+	CreatedBy        *int64     `bun:"created_by"`
+	Type             string     `bun:"type"`
+	EducationGroupID *int64     `bun:"education_group_id"`
+	ListKind         *string    `bun:"list_kind"`
+	IsTemplate       bool       `bun:"is_template"`
+	IsSystem         bool       `bun:"is_system"`
+	ArchivedAt       *time.Time `bun:"archived_at"`
+	SeriesRootID     *int64     `bun:"series_root_id"`
+	// ManualRosterConfirmed is read only: SetSeriesManualRosterConfirmed
+	// writes it on the series root (#5103).
+	ManualRosterConfirmed bool           `bun:"manual_roster_confirmed,scanonly"`
 	CalendarPeriodID      *int64         `bun:"calendar_period_id"`
 	TargetGroupType       string         `bun:"target_group_type"`
 	TargetGradeLevel      *int16         `bun:"target_grade_level"`
@@ -375,6 +378,78 @@ func (s *Store) UpdateGroupOfferingSource(ctx context.Context, id int64, fields 
 	}
 	_, err = rowsAffected(result, "updated group offering sources", &stats)
 	return stats, err
+}
+
+// UpdateTemplateRosterReview writes a roster review (#5103) on an active
+// template row: the offering source in place of the Zielgruppe (target
+// mirror fields cleared; the caller replaces the dynamic targets and resyncs
+// the roster), and "Bleibt von Hand gepflegt" on the template's series root.
+// It reports the rows the last statement changed.
+func (s *Store) UpdateTemplateRosterReview(ctx context.Context, id int64, update timetable.TemplateRosterReviewUpdate) (int64, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	stats := domain.OperationStats{}
+	var rows int64
+	if update.Source != nil {
+		if rows, err = connectTemplateOfferingSource(ctx, db, tenantID, id, *update.Source, &stats); err != nil || rows == 0 {
+			return rows, stats, err
+		}
+	}
+	if update.ManualRosterConfirmed != nil {
+		rows, err = setSeriesManualRosterConfirmed(ctx, db, tenantID, id, *update.ManualRosterConfirmed, &stats)
+	}
+	return rows, stats, err
+}
+
+func connectTemplateOfferingSource(ctx context.Context, db bun.IDB, tenantID, id int64, source timetable.OfferingSourceInput, stats *domain.OperationStats) (int64, error) {
+	offeringIDs, err := jsonText(source.CareOfferingIDs)
+	if err != nil {
+		return 0, fmt.Errorf("timetable postgres: encode source care offering IDs: %w", err)
+	}
+	grades, err := jsonText(source.GradeLevels)
+	if err != nil {
+		return 0, fmt.Errorf("timetable postgres: encode source grade levels: %w", err)
+	}
+	classes, err := jsonText(source.SchoolClasses)
+	if err != nil {
+		return 0, fmt.Errorf("timetable postgres: encode source school classes: %w", err)
+	}
+	stats.Queries++
+	started := time.Now()
+	result, err := db.NewUpdate().Table("activities.groups").
+		Set("target_group_type = ?", timetable.TargetGroupTypeOffering).
+		Set("target_grade_level = NULL").Set("target_school_class = NULL").
+		Set("source_care_offering_ids = ?", offeringIDs).Set("source_grade_levels = ?", grades).
+		Set("source_school_classes = ?", classes).Set("updated_at = ?", time.Now()).
+		Where("tenant_id = ?", tenantID).Where("id = ?", id).
+		Where("is_template = TRUE").Where("archived_at IS NULL").Exec(ctx)
+	stats.StatementDuration += time.Since(started)
+	if err != nil {
+		return 0, classifyWriteError("connect template offering source", err, stats)
+	}
+	return rowsAffected(result, "connected template offering sources", stats)
+}
+
+func setSeriesManualRosterConfirmed(ctx context.Context, db bun.IDB, tenantID, id int64, confirmed bool, stats *domain.OperationStats) (int64, error) {
+	stats.Queries++
+	started := time.Now()
+	result, err := db.NewRaw(`
+		UPDATE activities.groups AS series_root
+		SET manual_roster_confirmed = ?, updated_at = ?
+		FROM activities.groups AS segment
+		WHERE segment.tenant_id = ? AND segment.id = ?
+			AND segment.is_template = TRUE AND segment.archived_at IS NULL
+			AND series_root.tenant_id = segment.tenant_id
+			AND series_root.id = COALESCE(segment.series_root_id, segment.id)`,
+		confirmed, time.Now(), tenantID, id,
+	).Exec(ctx)
+	stats.StatementDuration += time.Since(started)
+	if err != nil {
+		return 0, classifyWriteError("set series manual roster", err, stats)
+	}
+	return rowsAffected(result, "series manual roster flags", stats)
 }
 
 func templateUpdateQuery(db bun.IDB, tenantID, id int64, fields timetable.TemplateUpdate, offeringIDs, grades, classes any) *bun.UpdateQuery {

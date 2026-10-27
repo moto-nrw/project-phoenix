@@ -330,6 +330,17 @@ func (rs *Resource) mountTemplateRoutes(r chi.Router, withTx common.Middleware) 
 		Post("/templates/{id}/end", rs.endTemplate)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Delete("/templates/{id}", rs.archiveTemplate)
+	// Roster review (#5103): hand-kept Regeltermine that drift from the
+	// bookings, the preview and the switch to a Betreuungsangebot as
+	// source, and "Bleibt von Hand gepflegt".
+	r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
+		Get("/templates/roster-deviations", rs.listTemplateRosterDeviations)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Get("/templates/{id}/offering-preview", rs.previewTemplateOfferingSource)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Post("/templates/{id}/offering-connection", rs.connectTemplateOfferingSource)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Put("/templates/{id}/manual-roster", rs.setTemplateManualRoster)
 }
 
 // mountPlanningTrackRoutes registers the planning tracks of the planner.
