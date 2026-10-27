@@ -180,6 +180,31 @@ describe("useUserContext", () => {
       fetchMock.mockRestore();
     });
 
+    it("preserves structured HTTP failures", async () => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: "general.unavailable",
+            detail: "settings unavailable",
+            details: { section: "school_switches" },
+            instance: "request-navigation-123",
+          }),
+          { status: 503 },
+        ),
+      );
+      renderHook(() => useUserContext());
+      const fetcher = vi.mocked(useImmutableSWR).mock.calls[0]![1];
+
+      await expect(fetcher()).rejects.toMatchObject({
+        name: "ApiError",
+        status: 503,
+        code: "general.unavailable",
+        detail: "settings unavailable",
+        details: { section: "school_switches" },
+        requestId: "request-navigation-123",
+      });
+    });
+
     it("does not cache incomplete user context data", async () => {
       const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue({
         ok: true,

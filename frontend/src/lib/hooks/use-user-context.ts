@@ -19,6 +19,7 @@
 
 "use client";
 
+import { apiErrorFromResponse } from "~/lib/api-error";
 import { useImmutableSWR } from "~/lib/swr";
 import type { UserContextResponse } from "~/lib/user-context-types";
 
@@ -69,7 +70,10 @@ export function useUserContext(enabled = true): UseUserContextReturn {
       });
 
       if (!response.ok) {
-        throw new Error(`User context fetch failed: ${response.status}`);
+        throw await apiErrorFromResponse(
+          response,
+          `User context fetch failed: ${response.status}`,
+        );
       }
 
       const json = (await response.json()) as ApiResponse<UserContextResponse>;

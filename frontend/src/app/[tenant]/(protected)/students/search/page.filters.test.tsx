@@ -199,7 +199,8 @@ vi.mock("~/lib/active-api", () => ({
   },
 }));
 
-vi.mock("~/lib/hooks/use-user-context", () => ({
+vi.mock("~/lib/hooks/use-user-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/hooks/use-user-context")>()),
   useUserContext: () => mockUseUserContext(),
 }));
 

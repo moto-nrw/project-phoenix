@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -15,6 +16,8 @@ import { fetchStudents } from "~/lib/student-api";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
+
+vi.unmock("swr");
 
 const {
   mockUseSession,
@@ -1590,6 +1593,72 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     expect(screen.getByTestId("detail-students")).toHaveTextContent("pending");
+  });
+
+  it("does not reuse the previous day's children while the selected day loads", async () => {
+    const { useSWRAuth: useRealSWRAuth, SWRConfig } =
+      await vi.importActual<typeof import("~/lib/swr")>("~/lib/swr");
+    const { timetableService } = await import("~/lib/timetable-api");
+    const nextInstance = { ...instance, id: "43", date: "2026-05-05" };
+    setupSWR({ instances: [instance, nextInstance] });
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    mockUseSWRAuth.mockImplementation(
+      function useDetailSWR(key, fetcher, options) {
+        const isDetail = key?.includes("-detail-");
+        const response = useRealSWRAuth(
+          isDetail ? key : null,
+          fetcher,
+          options,
+        );
+        return isDetail ? response : base(key);
+      },
+    );
+    let finishNextDay!: (
+      value: Awaited<ReturnType<typeof timetableService.getWeek>>,
+    ) => void;
+    vi.mocked(timetableService.getWeek)
+      .mockResolvedValueOnce({
+        from: instance.date,
+        to: instance.date,
+        instances: [
+          {
+            ...instance,
+            students: [
+              {
+                studentId: "21",
+                status: "present",
+                careDayStatus: "scheduled",
+              },
+            ],
+          },
+        ],
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishNextDay = resolve;
+          }),
+      );
+    setUrl("view=woche&block=42");
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <BetreuungsplanView />
+      </SWRConfig>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-students")).toHaveTextContent("1"),
+    );
+
+    act(() => setUrl("view=woche&block=43"));
+    expect(screen.getByTestId("detail-students")).toHaveTextContent("pending");
+    await act(async () =>
+      finishNextDay({
+        from: nextInstance.date,
+        to: nextInstance.date,
+        instances: [nextInstance],
+      }),
+    );
+    expect(screen.getByTestId("detail-students")).toHaveTextContent("0");
   });
 
   // Regeltermine braucht nur die Serienansicht und das Detailpanel (#4996).

@@ -1156,6 +1156,7 @@ function TimetablesContent() {
         detailDateISO ?? "",
         planFilter,
       ),
+    { keepPreviousData: false },
   );
   // Jede Aktualisierung der Woche (Anwesenheit, Lebenszyklus, Echtzeit) holt
   // auch die Kinderzeilen des offenen Termins neu.

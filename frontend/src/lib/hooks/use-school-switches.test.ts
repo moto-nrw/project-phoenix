@@ -5,9 +5,12 @@ const { mockUseUserContext } = vi.hoisted(() => ({
   mockUseUserContext: vi.fn(),
 }));
 
-vi.mock("~/lib/hooks/use-user-context", () => ({
+vi.mock("~/lib/hooks/use-user-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/hooks/use-user-context")>()),
   useUserContext: mockUseUserContext,
 }));
+
+import { IncompleteUserContextError } from "./use-user-context";
 
 import {
   useSchoolDayTimes,
@@ -71,6 +74,42 @@ describe("useSchoolSwitches", () => {
     expect(
       renderHook(() => useSchoolParentInviteMode()).result.current.error,
     ).toBe(failure);
+  });
+
+  it("preserves a refresh failure even with cached switches", () => {
+    const failure = new Error("navigation refresh failed");
+    context({ schoolSwitches: switches, error: failure });
+
+    expect(
+      renderHook(() => useSchoolParentInviteMode()).result.current,
+    ).toEqual({ mode: "direct", isLoading: false, error: failure });
+  });
+
+  it("ignores optional-section failures only when their response has switches", () => {
+    const failure = new IncompleteUserContextError({
+      educationalGroups: [],
+      supervisedGroups: [],
+      currentStaff: null,
+      educationalGroupIds: [],
+      educationalGroupRoomNames: [],
+      supervisedRoomNames: [],
+      incomplete: true,
+      unavailableSections: ["supervised_groups"],
+      schoolSwitches: switches,
+    });
+    context({ schoolSwitches: switches, error: failure });
+    expect(
+      renderHook(() => useSchoolParentInviteMode()).result.current,
+    ).toEqual({ mode: "direct", isLoading: false, error: undefined });
+
+    const withoutSwitches = new IncompleteUserContextError({
+      ...failure.userContext,
+      schoolSwitches: null,
+    });
+    context({ schoolSwitches: switches, error: withoutSwitches });
+    expect(
+      renderHook(() => useSchoolParentInviteMode()).result.current.error,
+    ).toBe(withoutSwitches);
   });
 
   it("skips the request when disabled", () => {
