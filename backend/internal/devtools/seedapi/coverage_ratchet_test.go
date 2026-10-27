@@ -60,8 +60,12 @@ var seedCoverageExemptions = map[string]string{
 	"education.homework_feedback": "not in prod yet (migration newer than the deployed image); needs homework of a Lehrkraft, which the seeder seeds none of",
 	// The class handover (#4794) is written the same way: only a Lehrkraft
 	// through moto schule, for today and an assigned class.
-	"active.class_handovers":               "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
-	"active.class_handover_children":       "not in prod yet (migration newer than the deployed image); written only with active.class_handovers",
+	"active.class_handovers":         "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
+	"active.class_handover_children": "not in prod yet (migration newer than the deployed image); written only with active.class_handovers",
+	// The Elternsprechtag (#4801) is offered only by a Lehrkraft for an
+	// assigned class through moto schule, and families book only such a day.
+	"calendar.parent_conferences":          "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class offers it, and the seeder seeds none",
+	"calendar.parent_conference_bookings":  "not in prod yet (migration newer than the deployed image); needs a Sprechtag of a Lehrkraft, which the seeder seeds none of",
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",

@@ -23,6 +23,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	schoolcalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -566,8 +567,48 @@ func newSchoolContentRetentionSteps(db transactionruntime.Database, settings ret
 	if err != nil {
 		return nil, fmt.Errorf("compose worker grade transition retention: %w", err)
 	}
-	return schoolContentRetentionSteps(
+	steps := schoolContentRetentionSteps(
 		settings, announcements, timetable.NewStaffNoticeRetention(timetableCompose.NewStaffNoticeRepository(db.Pool()), calendar.TodayDate),
 		appointments, transitions, fileStorageCompose.NewCleanupRetention(), homework,
-	), nil
+	)
+	if conferences := BuildServeParentConferences(db); conferences != nil {
+		steps = append(steps, parentConferenceRetentionSteps(conferences, appointments, calendar.TodayDate)...)
+	}
+	return steps, nil
+}
+
+// parentConferenceRetentionSteps delete the Elternsprechtag of past school
+// years (#4801): when a school year ends, its bookings end. The School
+// Calendar deletes the days with their bookings, Appointments the
+// appointments that showed the bookings in the calendars. The school year
+// starts on 1 August (schoolcalendar.DefaultSchoolYear); the logged window
+// is the number of days since that start.
+func parentConferenceRetentionSteps(conferences schoolcalendarModule.ParentConferences, appointments appointmentsModule.AppointmentRetention, today func() calendar.Date) []schedulerPorts.RetentionStep {
+	schoolYearStart := func() (calendar.Date, int, error) {
+		day := today()
+		_, start, _ := schoolcalendarModule.DefaultSchoolYear(day.String())
+		startDate, err := calendar.ParseDate(start)
+		if err != nil {
+			return "", 0, fmt.Errorf("parent conference retention: school year start: %w", err)
+		}
+		return startDate, startDate.DaysUntil(day), nil
+	}
+	return []schedulerPorts.RetentionStep{
+		ownerRetentionStep(auditModels.DeletionTypeParentConferenceRetention, func(ctx context.Context) (int, int, error) {
+			start, days, err := schoolYearStart()
+			if err != nil {
+				return 0, 0, err
+			}
+			deleted, err := conferences.DeleteParentConferencesBefore(ctx, start)
+			return deleted, days, err
+		}),
+		ownerRetentionStep(auditModels.DeletionTypeParentConferenceRetention, func(ctx context.Context) (int, int, error) {
+			start, days, err := schoolYearStart()
+			if err != nil {
+				return 0, 0, err
+			}
+			deleted, err := appointments.DeleteParentConferenceAppointmentsBefore(ctx, appointmentsModule.Date(start.String()))
+			return deleted, days, err
+		}),
+	}
 }

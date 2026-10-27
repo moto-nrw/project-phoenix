@@ -593,7 +593,7 @@ describe("getParentHelpTopicForPath", () => {
     // 24 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
     // 25 seit #4781 („An einer Umfrage teilnehmen“).
     // 26 seit #4661 („Für die Ferienbetreuung anmelden“).
-    expect(parentTopics).toHaveLength(26);
+    expect(parentTopics).toHaveLength(27);
     expect(
       parentTopics.every(
         (topic) =>
@@ -629,7 +629,7 @@ describe("getParentHelpTopicForPath", () => {
 
     // 24 seit #4800: der Elternbrief an die eigene Klasse (23 seit #4795,
     // 22 seit #4901).
-    expect(teacherTopics).toHaveLength(24);
+    expect(teacherTopics).toHaveLength(25);
     expect([...visible]).toEqual(
       expect.arrayContaining([
         HELP_TOPICS.teacherHomework,

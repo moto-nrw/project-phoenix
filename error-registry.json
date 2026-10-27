@@ -2806,6 +2806,18 @@
       "legacy": "school_setup_incomplete"
     },
     {
+      "code": "school.parent_conference_slot_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "school.parent_conference_slot_taken"
+    },
+    {
+      "code": "school.parent_conference_change_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "school.parent_conference_change_closed"
+    },
+    {
       "code": "settings.admin_only",
       "class": "permission",
       "parameters": [],

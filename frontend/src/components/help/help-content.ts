@@ -7677,6 +7677,41 @@ function parentCalendarTopic(): HelpTopic {
   };
 }
 
+/** `/parents/children/<id>/elternsprechtag`: Termin buchen (#4801). */
+function parentConferenceTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.parentConference,
+    title: "Einen Termin am Elternsprechtag buchen",
+    question: "Wie buche ich einen Termin bei der Lehrkraft?",
+    summary:
+      "Bietet die Lehrkraft einen Elternsprechtag an, buchen Sie eine freie Zeit für Ihr Kind.",
+    group: "nachrichten",
+    audience: "parent",
+    icon: "CalendarPlus",
+    steps: [
+      "Tippen Sie unten auf `Kinder` und wählen Sie Ihr Kind.",
+      "Wählen Sie bei `Elternsprechtag` die Schaltfläche `Termin buchen`.",
+      "Tippen Sie unter `Freie Zeiten` auf eine Uhrzeit.",
+    ],
+    result:
+      "Der Termin ist gebucht. Er steht in Ihrem Kalender, und Sie bekommen eine Nachricht.",
+    notes: [
+      "Sie buchen einen Termin je Kind. Haben Sie zwei Kinder in der Klasse, buchen Sie für jedes Kind einzeln.",
+      "Tippen Sie auf eine andere Zeit, um Ihren Termin zu verschieben. Mit `Termin absagen` sagen Sie ab.",
+    ],
+    differences: [
+      "Sie sehen nur freie Zeiten. Was andere Familien gebucht haben, sehen Sie nicht.",
+      "Ändert die Lehrkraft den Tag oder sagt ihn ab, bekommen Sie eine Nachricht.",
+    ],
+    troubleshootingDetails: [
+      "Sie sehen keinen `Elternsprechtag`? Dann bietet die Lehrkraft der Klasse zurzeit keinen an.",
+      "Sie können nicht mehr buchen oder absagen? Bis 24 Stunden vor dem Termin ist das in der App möglich. Danach wenden Sie sich direkt an die Lehrkraft.",
+      "Die Buchung wird abgelehnt? Vielleicht dürfen Sie für dieses Kind keine Termine buchen. Fragen Sie die Schule.",
+    ],
+    related: [HELP_TOPICS.parentCalendar, HELP_TOPICS.parentChildOverview],
+  };
+}
+
 /** `/parents/meal-plan`: Wochenplan des Mittagessens, nur mit Freischaltung. */
 function parentMealPlanTopic(): HelpTopic {
   return {
@@ -8098,6 +8133,7 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
   parentNewsTopic(),
   parentSurveysTopic(),
   parentCalendarTopic(),
+  parentConferenceTopic(),
   parentMealPlanTopic(),
 
   // --- Anmeldung ---
@@ -8898,6 +8934,50 @@ function teacherParentLettersTopic(): HelpTopic {
     related: [
       HELP_TOPICS.teacherMessages,
       HELP_TOPICS.teacherCalendar,
+      HELP_TOPICS.teacherNoClasses,
+    ],
+  };
+}
+
+/** `/school/elternsprechtag`: Elternsprechtag einer eigenen Klasse (#4801). */
+function teacherParentConferenceTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherParentConference,
+    title: "Einen Elternsprechtag anbieten",
+    question: "Wie biete ich den Eltern meiner Klasse Gesprächstermine an?",
+    summary:
+      "Sie legen einen Tag mit Zeitfenstern an. Die Eltern buchen in der Eltern-App ein Zeitfenster je Kind.",
+    group: "nachrichten",
+    audience: "teacher",
+    icon: "CalendarCheck",
+    requirements: ["Ihnen ist die Klasse zugeordnet."],
+    steps: [
+      "Öffnen Sie `Kalender`.",
+      "Wählen Sie `Elternsprechtag`.",
+      "Wählen Sie `Neuer Elternsprechtag`.",
+      "Wählen Sie die Klasse und den Tag.",
+      "Geben Sie `Beginn`, `Ende` und die `Dauer je Gespräch` an. Eine Pause und den Raum können Sie dazuschreiben.",
+      "Wählen Sie `Speichern`.",
+    ],
+    result:
+      "Die Eltern der Klasse sehen die freien Zeitfenster in der Eltern-App und buchen eines je Kind. Jede Buchung steht in Ihrem Kalender und im Kalender der Eltern.",
+    notes: [
+      "Wählen Sie den Tag in der Liste. Dort sehen Sie, welches Kind wann kommt. Mit `Drucken` drucken Sie die Liste.",
+      "Eltern buchen, verschieben oder sagen ab, bis 24 Stunden vor dem Termin. Danach melden sie sich bei Ihnen.",
+      "Unter `Einstellungen` schalten Sie `Buchungen am Elternsprechtag` ein. Dann bekommen Sie einen Hinweis, wenn Eltern buchen, verschieben oder absagen.",
+    ],
+    differences: [
+      "Sie ändern den Tag mit `Ändern`. Eltern mit Buchung bekommen eine Nachricht. Fällt ein gebuchtes Zeitfenster weg, ist diese Buchung abgesagt.",
+      "Sie löschen den Tag mit `Löschen`. Alle Buchungen sind dann abgesagt, und die Eltern bekommen eine Nachricht.",
+      "`Neuer Elternsprechtag` ist grau? Ihnen ist keine Klasse zugeordnet.",
+    ],
+    troubleshootingDetails: [
+      "Eltern finden keinen Termin? Die Eltern sehen den Tag nur, wenn ihr Kind in der Klasse ist und sie Zugang zur Eltern-App haben.",
+      "Am Ende des Schuljahres löscht moto die Elternsprechtage und ihre Buchungen.",
+    ],
+    related: [
+      HELP_TOPICS.teacherCalendar,
+      HELP_TOPICS.teacherParentLetters,
       HELP_TOPICS.teacherNoClasses,
     ],
   };
@@ -9800,6 +9880,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherNoticesTopic(),
   teacherParentLettersTopic(),
   teacherCalendarTopic(),
+  teacherParentConferenceTopic(),
 
   // --- Wenn etwas nicht klappt ---
   teacherLoginProblemTopic(),

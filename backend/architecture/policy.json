@@ -4173,6 +4173,14 @@
       "write_owner": "appointments"
     },
     {
+      "name": "calendar.parent_conference_bookings",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "calendar.parent_conferences",
+      "write_owner": "school-calendar"
+    },
+    {
       "name": "calendar.recurrence_rules",
       "write_owner": "appointments"
     },

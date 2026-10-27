@@ -860,6 +860,7 @@ eltern_app
 	DELETE /parent/me/children/{studentId}/care-exception  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	DELETE /parent/me/children/{studentId}/consents/photo  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	DELETE /parent/me/children/{studentId}/meal-participation/{date}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	DELETE /parent/me/children/{studentId}/parent-conferences/{conferenceId}/booking  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	DELETE /parent/me/notification-preferences/  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	DELETE /parent/me/push/subscriptions  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -911,6 +912,7 @@ eltern_app
 	GET /parent/me/children/{studentId}/master-data/requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/meal-participation  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/meal-plan  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	GET /parent/me/children/{studentId}/parent-conferences  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/pickup-change-requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/pickup-permission-requests  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	GET /parent/me/children/{studentId}/pickup-requests/{requestId}/proof  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -994,6 +996,7 @@ eltern_app
 	PUT /parent/me/children/{studentId}/meal-participation  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/meal-participation/weeks/{date}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/meal-participation/{date}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+	PUT /parent/me/children/{studentId}/parent-conferences/{conferenceId}/booking  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
 	PUT /parent/me/notification-preferences/{type}  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
@@ -1089,6 +1092,7 @@ online_anmeldung
 
 unterricht_vormittag
 	DELETE /school/calendar/appointments/{appointmentId}
+	DELETE /school/calendar/parent-conferences/{conferenceId}
 	DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
 	DELETE /school/class-day/day-hints/{schoolClass}/{date}
 	DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
@@ -1100,6 +1104,8 @@ unterricht_vormittag
 	GET /school-sse/events
 	GET /school/calendar/feed
 	GET /school/calendar/my
+	GET /school/calendar/parent-conferences
+	GET /school/calendar/parent-conferences/{conferenceId}
 	GET /school/class-day/
 	GET /school/class-day/arrival-exceptions
 	GET /school/class-day/arrival-exceptions/block-start
@@ -1133,6 +1139,7 @@ unterricht_vormittag
 	POST /school/auth/switch-school  (#4895 Schulportal: Anmeldung prüft das Modul in Identity & Access)
 	POST /school/calendar/appointments
 	POST /school/calendar/feed/rotate
+	POST /school/calendar/parent-conferences
 	POST /school/calendar/recipients/{recipientId}/response
 	POST /school/class-day/class-trips/{schoolClass}
 	POST /school/class-day/homework/{schoolClass}
@@ -1151,6 +1158,7 @@ unterricht_vormittag
 	POST /school/supervisions/{id}/students/{student_id}/check-in
 	POST /school/supervisions/{id}/students/{student_id}/check-out
 	PUT /school/calendar/appointments/{appointmentId}
+	PUT /school/calendar/parent-conferences/{conferenceId}
 	PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
 	PUT /school/class-day/day-hints/{schoolClass}/{date}
 	PUT /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}

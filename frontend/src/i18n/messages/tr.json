@@ -2893,7 +2893,9 @@
       "school": {
         "no_school_portal_role": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "setup_completed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "setup_incomplete": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "setup_incomplete": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "parent_conference_slot_taken": "Bu saat az önce başkası tarafından alındı. Lütfen başka bir saat seçin.",
+        "parent_conference_change_closed": "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Sonrasında lütfen doğrudan öğretmenle iletişime geçin."
       },
       "students": {
         "absence_read_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
@@ -3374,5 +3376,36 @@
     "participated": "Yanıtlandı",
     "needsAnswer": "Yanıt gerekli",
     "questionLabel": "Soru {number} / {total}"
+  },
+  "parentConference": {
+    "entryTitle": "Veli görüşmesi",
+    "entryDescription": "Öğretmen görüşme saatleri sunuyor. {child} için bir saat ayırırsınız.",
+    "entryBooked": "Randevunuz: {date}, {time}",
+    "entryAction": "Randevu al",
+    "entryActionBooked": "Randevuyu gör",
+    "title": "Veli görüşmesi",
+    "description": "{child} adlı çocuğun öğretmeniyle bir görüşme randevusu alın. Yalnızca boş saatleri görürsünüz.",
+    "back": "{child} sayfasına dön",
+    "empty": "Şu anda {child} adlı çocuğun sınıfı için veli görüşmesi yok.",
+    "dayTitle": "{date} tarihindeki veli görüşmesi",
+    "teacher": "Öğretmen: {teacher}",
+    "room": "Oda: {room}",
+    "timeRange": "{from}–{to}",
+    "bookingTitle": "Randevunuz",
+    "freeTitle": "Boş saatler",
+    "chooseHint": "Randevu almak için bir saate dokunun.",
+    "moveHint": "Randevunuzu değiştirmek için başka bir saate dokunun.",
+    "noFree": "Boş saat kalmadı.",
+    "rule": "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Randevu daha sonra takviminizde görünür.",
+    "locked": "Randevunuza 24 saatten az kaldı. Değişiklik için lütfen doğrudan öğretmenle iletişime geçin.",
+    "cancel": "Randevuyu iptal et",
+    "cancelTitle": "Randevu iptal edilsin mi?",
+    "cancelBody": "Saat {time} randevunuz iptal edilecek. Bu saat diğer aileler için boşalır.",
+    "cancelConfirm": "İptal et",
+    "keep": "Koru",
+    "booked": "Saat {time} randevunuz alındı.",
+    "cancelled": "Randevunuz iptal edildi.",
+    "errorObject": "veli görüşmesi",
+    "errorObjectBooking": "randevu"
   }
 }

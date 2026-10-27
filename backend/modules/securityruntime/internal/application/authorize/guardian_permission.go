@@ -62,6 +62,12 @@ const (
 	// presets receive it; seeing the connected accounts stays covered by
 	// parent_portal.access.
 	GuardianPermissionRelatedAccountsManage = "parent_portal.related_accounts.manage"
+	// GuardianPermissionConferenceBook allows a guardian to book, move or
+	// cancel this child's slot at a Lehrkraft's Elternsprechtag (#4801).
+	// Seeing the Sprechtag stays covered by parent_portal.access; booking
+	// commits the family to a meeting, so only the full guardian presets
+	// receive it.
+	GuardianPermissionConferenceBook = "parent_portal.conference.book"
 )
 
 const (
@@ -90,6 +96,7 @@ var fullParentPortalPermissions = []string{
 	GuardianPermissionMealParticipationManage,
 	GuardianPermissionDeclarationSubmit,
 	GuardianPermissionRelatedAccountsManage,
+	GuardianPermissionConferenceBook,
 }
 
 // Guardian permission checks and grants are authorization concerns, not data

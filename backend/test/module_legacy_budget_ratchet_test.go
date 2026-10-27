@@ -184,7 +184,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/studentpresence/compose adds exactly 7 LOC.
 // ADR 0123: the mail constructor and the mail renderer of
 // modules/parentbilling/compose add exactly 9 LOC.
-const moduleComposeBudgetTotal = 12685
+// ADR 0126: the Elternsprechtag constructor of modules/schoolcalendar/compose
+// adds exactly 7 LOC.
+const moduleComposeBudgetTotal = 12692
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -237,11 +239,12 @@ var moduleComposeBudgets = map[string]int{
 	"modules/parentbilling/compose":               44,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
-	"modules/peopledirectory/compose":       973,
-	"modules/presenceprojection/compose":    7,
-	"modules/requestreview/compose":         12,
-	"modules/schedulerruntime/compose":      45,
-	"modules/schoolcalendar/compose":        148,
+	"modules/peopledirectory/compose":    973,
+	"modules/presenceprojection/compose": 7,
+	"modules/requestreview/compose":      12,
+	"modules/schedulerruntime/compose":   45,
+	// Raised by ADR 0126: the Elternsprechtag constructor (+7).
+	"modules/schoolcalendar/compose":        155,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/schoolmembership/compose": 196,

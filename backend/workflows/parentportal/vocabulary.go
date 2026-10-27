@@ -32,6 +32,7 @@ type (
 	CareScheduleRequestCapabilities = care.CareScheduleRequestCapabilities
 	CareScheduleWeekday             = care.CareScheduleWeekday
 	ChildCareSchedule               = care.ChildCareSchedule
+	Child                           = care.Child
 	ChildConsent                    = care.ChildConsent
 	ChildFeatureFlags               = care.ChildFeatureFlags
 	ChildGuardian                   = care.ChildGuardian

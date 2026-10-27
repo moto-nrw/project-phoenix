@@ -783,6 +783,10 @@ export const ERROR_CATALOG = {
         "Die Einrichtung der Schule ist schon abgeschlossen. Bitte laden Sie die Seite neu.",
       "school.setup_incomplete":
         "Die Einrichtung ist noch nicht fertig. Bitte schließen Sie zuerst die offenen Schritte ab.",
+      "school.parent_conference_slot_taken":
+        "Dieser Termin ist gerade vergeben worden. Bitte wählen Sie eine andere Uhrzeit.",
+      "school.parent_conference_change_closed":
+        "Bis 24 Stunden vor dem Termin können Sie buchen, umbuchen oder absagen. Danach wenden Sie sich bitte direkt an die Lehrkraft.",
       "settings.admin_only": "Diese Einstellung ändert nur die Schule selbst.",
       "settings.attendance_retention_below_visible":
         "Das Team sieht die Anwesenheit {visible_days} Tage zurück. Die Aufbewahrung muss mindestens so lang sein.",
@@ -1808,6 +1812,10 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.holiday_quote_invalid":
         "The fee cannot be calculated for these weeks. Please reload the page.",
+      "school.parent_conference_slot_taken":
+        "Someone has just booked this time. Please choose another time.",
+      "school.parent_conference_change_closed":
+        "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly.",
       "staff.external_access_invalid":
         "Please choose which access this person gets.",
       "staff.external_email_invalid":
@@ -2215,6 +2223,10 @@ export const ERROR_CATALOG = {
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "parent_billing.holiday_quote_invalid":
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
+      "school.parent_conference_slot_taken":
+        "Это время только что заняли. Пожалуйста, выберите другое время.",
+      "school.parent_conference_change_closed":
+        "Записаться, перенести или отменить встречу можно не позднее чем за 24 часа. После этого обратитесь, пожалуйста, напрямую к учителю.",
       "students.care_exception_raced":
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
       "students.care_offerings_disabled":
@@ -2601,6 +2613,10 @@ export const ERROR_CATALOG = {
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "parent_billing.holiday_quote_invalid":
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
+      "school.parent_conference_slot_taken":
+        "Kjo orë sapo u rezervua. Ju lutemi zgjidhni një orë tjetër.",
+      "school.parent_conference_change_closed":
+        "Mund të rezervoni, ndryshoni ose anuloni deri 24 orë para takimit. Pas kësaj, ju lutemi kontaktoni drejtpërdrejt mësuesin.",
       "students.care_exception_raced":
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
       "students.care_offerings_disabled":
@@ -2976,6 +2992,10 @@ export const ERROR_CATALOG = {
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "parent_billing.holiday_quote_invalid":
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
+      "school.parent_conference_slot_taken":
+        "Ten termin został właśnie zajęty. Proszę wybrać inną godzinę.",
+      "school.parent_conference_change_closed":
+        "Rezerwację można dokonać, zmienić lub odwołać najpóźniej 24 godziny przed spotkaniem. Później prosimy o bezpośredni kontakt z nauczycielem.",
       "students.care_exception_raced":
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
       "students.care_offerings_disabled":
@@ -3355,6 +3375,10 @@ export const ERROR_CATALOG = {
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "parent_billing.holiday_quote_invalid":
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
+      "school.parent_conference_slot_taken":
+        "Bu saat az önce başkası tarafından alındı. Lütfen başka bir saat seçin.",
+      "school.parent_conference_change_closed":
+        "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Sonrasında lütfen doğrudan öğretmenle iletişime geçin.",
       "students.care_exception_raced":
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
       "students.care_offerings_disabled":
@@ -3727,6 +3751,10 @@ export const ERROR_CATALOG = {
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "parent_billing.holiday_quote_invalid":
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
+      "school.parent_conference_slot_taken":
+        "Цей час щойно забронювали. Будь ласка, виберіть інший час.",
+      "school.parent_conference_change_closed":
+        "Забронювати, перенести або скасувати зустріч можна не пізніше ніж за 24 години. Після цього зверніться, будь ласка, безпосередньо до вчителя.",
       "students.care_exception_raced":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
       "students.care_offerings_disabled":

@@ -2893,7 +2893,9 @@
       "school": {
         "no_school_portal_role": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "setup_completed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "setup_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "setup_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "parent_conference_slot_taken": "Kjo orë sapo u rezervua. Ju lutemi zgjidhni një orë tjetër.",
+        "parent_conference_change_closed": "Mund të rezervoni, ndryshoni ose anuloni deri 24 orë para takimit. Pas kësaj, ju lutemi kontaktoni drejtpërdrejt mësuesin."
       },
       "students": {
         "absence_read_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
@@ -3374,5 +3376,36 @@
     "participated": "U përgjigj",
     "needsAnswer": "Nevojitet përgjigje",
     "questionLabel": "Pyetja {number} nga {total}"
+  },
+  "parentConference": {
+    "entryTitle": "Takimi me prindërit",
+    "entryDescription": "Mësuesi ofron orare takimi. Ju rezervoni një për {child}.",
+    "entryBooked": "Takimi juaj: {date}, {time}",
+    "entryAction": "Rezervo një orë",
+    "entryActionBooked": "Shiko takimin",
+    "title": "Takimi me prindërit",
+    "description": "Rezervoni një takim me mësuesin e {child}. Shihni vetëm oraret e lira.",
+    "back": "Kthehu te {child}",
+    "empty": "Aktualisht nuk ka takim me prindërit për klasën e {child}.",
+    "dayTitle": "Takimi me prindërit më {date}",
+    "teacher": "Mësuesi: {teacher}",
+    "room": "Salla: {room}",
+    "timeRange": "{from}–{to}",
+    "bookingTitle": "Takimi juaj",
+    "freeTitle": "Orare të lira",
+    "chooseHint": "Prekni një orë për ta rezervuar.",
+    "moveHint": "Prekni një orë tjetër për ta zhvendosur takimin.",
+    "noFree": "Nuk ka më orare të lira.",
+    "rule": "Mund të rezervoni, zhvendosni ose anuloni deri 24 orë para takimit. Takimi shfaqet më pas në kalendarin tuaj.",
+    "locked": "Takimi juaj është pas më pak se 24 orësh. Për ndryshim, ju lutemi kontaktoni drejtpërdrejt mësuesin.",
+    "cancel": "Anulo takimin",
+    "cancelTitle": "Ta anuloni takimin?",
+    "cancelBody": "Takimi juaj në orën {time} do të anulohet. Ora bëhet e lirë për familjet e tjera.",
+    "cancelConfirm": "Anulo",
+    "keep": "Mbaje",
+    "booked": "Takimi juaj në orën {time} u rezervua.",
+    "cancelled": "Takimi juaj u anulua.",
+    "errorObject": "takimin me prindërit",
+    "errorObjectBooking": "rezervimin"
   }
 }

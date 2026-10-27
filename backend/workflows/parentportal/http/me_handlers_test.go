@@ -28,6 +28,10 @@ import (
 type fakeParentService struct {
 	declarationProof *parentService.DeclarationProof
 
+	conferenceChild    *parentService.Child
+	conferenceChildErr error
+	gotConferenceBook  []bool
+
 	getProfile    *parentService.Profile
 	getProfileErr error
 

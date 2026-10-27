@@ -2893,7 +2893,9 @@
       "school": {
         "no_school_portal_role": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "setup_completed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "setup_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "setup_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "parent_conference_slot_taken": "Ten termin został właśnie zajęty. Proszę wybrać inną godzinę.",
+        "parent_conference_change_closed": "Rezerwację można dokonać, zmienić lub odwołać najpóźniej 24 godziny przed spotkaniem. Później prosimy o bezpośredni kontakt z nauczycielem."
       },
       "students": {
         "absence_read_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
@@ -3374,5 +3376,36 @@
     "participated": "Odpowiedź wysłana",
     "needsAnswer": "Wymagana odpowiedź",
     "questionLabel": "Pytanie {number} z {total}"
+  },
+  "parentConference": {
+    "entryTitle": "Wywiadówka",
+    "entryDescription": "Nauczyciel oferuje terminy rozmów. Rezerwujesz termin dla {child}.",
+    "entryBooked": "Twój termin: {date}, {time}",
+    "entryAction": "Zarezerwuj termin",
+    "entryActionBooked": "Zobacz termin",
+    "title": "Wywiadówka",
+    "description": "Zarezerwuj rozmowę z nauczycielem {child}. Widzisz tylko wolne terminy.",
+    "back": "Wróć do {child}",
+    "empty": "Obecnie nie ma wywiadówki dla klasy {child}.",
+    "dayTitle": "Wywiadówka {date}",
+    "teacher": "Nauczyciel: {teacher}",
+    "room": "Sala: {room}",
+    "timeRange": "{from}–{to}",
+    "bookingTitle": "Twój termin",
+    "freeTitle": "Wolne terminy",
+    "chooseHint": "Dotknij godziny, aby ją zarezerwować.",
+    "moveHint": "Dotknij innej godziny, aby przenieść swój termin.",
+    "noFree": "Nie ma już wolnych terminów.",
+    "rule": "Możesz zarezerwować, przenieść lub odwołać termin najpóźniej 24 godziny przed rozmową. Termin pojawi się potem w Twoim kalendarzu.",
+    "locked": "Do Twojego terminu zostało mniej niż 24 godziny. Aby go zmienić, skontaktuj się bezpośrednio z nauczycielem.",
+    "cancel": "Odwołaj termin",
+    "cancelTitle": "Odwołać termin?",
+    "cancelBody": "Twój termin o {time} zostanie odwołany. Ta godzina będzie wolna dla innych rodzin.",
+    "cancelConfirm": "Odwołaj",
+    "keep": "Zachowaj",
+    "booked": "Twój termin o {time} jest zarezerwowany.",
+    "cancelled": "Twój termin został odwołany.",
+    "errorObject": "wywiadówkę",
+    "errorObjectBooking": "rezerwację"
   }
 }

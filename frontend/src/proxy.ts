@@ -472,6 +472,8 @@ const SCHOOL_PROTECTED_PATHS = [
   "/kalender",
   // Elternbriefe der Lehrkraft an ihre Klasse (#4800).
   "/elternbriefe",
+  // Elternsprechtag der Lehrkraft für eine ihrer Klassen (#4801).
+  "/elternsprechtag",
   "/einstellungen",
 ];
 const SCHOOL_INVITATION_API_PATHS = [

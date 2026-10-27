@@ -32,6 +32,15 @@ Caterer-Konten und Betriebe sind schulübergreifend; eine Schule darf sie nicht
 allein löschen oder als eigenen Bestand ausgeben. Einladungs-Hashes bleiben
 von der Rückgabe ausgeschlossen.
 
+Migration 1.15.683 ergänzt den Elternsprechtag (#4801):
+`calendar.parent_conferences` (Tag einer Lehrkraft für eine Klasse, Personen-FK
+`organizer_staff_id` und das Konto für ihren Hinweis) und
+`calendar.parent_conference_bookings` (gebuchtes Zeitfenster je Kind, mit
+`student_id`, `guardian_profile_id` und dem Termin im Kalender). Beide sind
+`tenant`, werden zurückgegeben und mit der Schule gelöscht. Der nächtliche Lauf
+löscht Tage und Buchungen zum Beginn des neuen Schuljahres (1. August)
+zusammen mit den Terminen der Buchungen.
+
 **Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
 liest den freigegebenen Katalogbestand in einer schreibgeschützten
 `REPEATABLE READ`-Transaktion über eine eigene administrative Leserolle.

@@ -194,6 +194,7 @@ export const HELP_TOPICS = {
   parentNews: "elternbriefe-lesen",
   parentSurveys: "an-einer-umfrage-der-ogs-teilnehmen",
   parentCalendar: "als-elternteil-den-kalender-ansehen",
+  parentConference: "einen-termin-am-elternsprechtag-buchen",
   parentMealPlan: "mittagessen-ansehen",
   parentEnroll: "mein-kind-anmelden",
   parentEnrollStatus: "anmeldung-weiter-bearbeiten",
@@ -239,6 +240,7 @@ export const HELP_TOPICS = {
   teacherNotices: "als-lehrkraft-tagesinformationen-lesen",
   teacherCalendar: "als-lehrkraft-den-kalender-nutzen",
   teacherParentLetters: "einen-elternbrief-an-meine-klasse-schreiben",
+  teacherParentConference: "einen-elternsprechtag-anbieten",
   teacherLoginProblem: "anmeldung-bei-moto-schule-klappt-nicht",
   teacherNoClasses: "mir-wird-keine-klasse-angezeigt",
   teacherFeatureMissing: "als-lehrkraft-fehlt-mir-ein-bereich",
@@ -383,6 +385,7 @@ const SCHOOL_PREFIX_HELP_TOPICS: ReadonlyArray<
 > = [
   ["/nachrichten", HELP_TOPICS.teacherMessages],
   ["/elternbriefe", HELP_TOPICS.teacherParentLetters],
+  ["/elternsprechtag", HELP_TOPICS.teacherParentConference],
 ];
 
 /** Finds the help article for a page of the parents portal. */
@@ -392,6 +395,10 @@ export function getParentHelpTopicForPath(
   const path = pathname.replace(/^\/parents(?=\/|$)/, "") || "/";
   const exactTopic = PARENT_EXACT_HELP_TOPICS[path];
   if (exactTopic) return exactTopic;
+  // Der Elternsprechtag eines Kindes (#4801) liegt unter dessen Seite.
+  if (/^\/children\/[^/]+\/elternsprechtag$/.test(path)) {
+    return HELP_TOPICS.parentConference;
+  }
 
   for (const [prefix, topic] of PARENT_PREFIX_HELP_TOPICS) {
     if (matchesPathPrefix(path, prefix)) return topic;

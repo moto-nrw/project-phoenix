@@ -98,6 +98,9 @@ const (
 	// The surveys (#4781) after the school's parent and staff message windows.
 	DeletionTypeParentSurveyRetention = "parent_survey_retention"
 	DeletionTypeStaffSurveyRetention  = "staff_survey_retention"
+	// The Elternsprechtag days with their bookings once the school year they
+	// lay in has ended (#4801).
+	DeletionTypeParentConferenceRetention = "parent_conference_retention"
 	// The protocols of #4044 and the setting protocol, each after its fixed
 	// window.
 	DeletionTypeStudentDeletionLogRetention       = "student_deletion_log_retention"
@@ -151,6 +154,7 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeRemovedFileRetention,
 		DeletionTypeParentSurveyRetention,
 		DeletionTypeStaffSurveyRetention,
+		DeletionTypeParentConferenceRetention,
 		DeletionTypeAuthEventRetention,
 		DeletionTypeDataAccessLogRetention,
 		DeletionTypeDeletionLogRetention,

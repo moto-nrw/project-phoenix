@@ -285,6 +285,10 @@ var queryBudgets = map[string]queryBudget{
 	"services.schedule.bulk_cancel_dry_run": {max: 6, exact: true},
 	// modules/schoolcalendar/portal — ListMyStaffEvents over a week, 8 appointments.
 	"services.calendar.list_my_staff_events": {max: 11},
+	// Elternsprechtag (#4801): days, bookings and names or teachers in one
+	// batch each.
+	"services.calendar.list_school_parent_conferences": {max: 12},
+	"services.calendar.list_child_parent_conferences":  {max: 10},
 	// modules/schoolcalendar/portal — one authenticated CalDAV snapshot. The operation
 	// resolves the capability owner once, then batch-loads the shared personal
 	// calendar projection regardless of the number of returned VEVENTs.
