@@ -32,6 +32,7 @@ import {
 } from "./requests/use-request-feed";
 
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
+import { itemKey } from "./requests/case-model";
 
 // Die Liste hält ihre Seiten im SWR-Cache (#4988): echtes SWR, ein eigener
 // Cache je Render und eine angemeldete Sitzung für useSWRAuth.
@@ -1699,6 +1700,167 @@ describe("AggregatedRequestList", () => {
       state: "pending" as const,
     };
   }
+
+  it.each(["merged", "withdrawal"] as const)(
+    "preserves the remounted refresh when unmounted %s pagination completes",
+    async (kind) => {
+      const oldPage = deferred<void>();
+      const refresh = deferred<void>();
+      let refreshing = false;
+      mockListHistory.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          await oldPage.promise;
+          return { items: [openItem("excused", "obsolete")] };
+        }
+        if (refreshing) {
+          await refresh.promise;
+          return { items: [openItem("excused", "replacement")] };
+        }
+        return {
+          items: Array.from({ length: 25 }, (_, i) =>
+            openItem("excused", String(i)),
+          ),
+          next_cursor: "next",
+        };
+      });
+      mockListWithdrawals.mockImplementation(async (params) => {
+        if (params?.page === 2) {
+          await oldPage.promise;
+          return {
+            items: [withdrawalItem("obsolete")],
+            total: 26,
+            page: 2,
+            pageSize: 25,
+          };
+        }
+        if (refreshing) await refresh.promise;
+        return {
+          items: [withdrawalItem(refreshing ? "replacement" : "first")],
+          total: refreshing ? 1 : 26,
+          page: 1,
+          pageSize: 25,
+        };
+      });
+      const wrapper = providersWith(new Map());
+      const hook = () =>
+        useFeeds({ ...NO_FILTERS, includeCareWithdrawals: true });
+      const first = renderHook(hook, { wrapper });
+      const current = () =>
+        kind === "merged"
+          ? first.result.current.feed
+          : first.result.current.withdrawals;
+      await waitFor(() => expect(current().hasMore).toBe(true));
+      let loading!: Promise<void>;
+      act(() => {
+        loading = current().loadMore();
+      });
+      first.unmount();
+      refreshing = true;
+      const second = renderHook(hook, { wrapper });
+      await waitFor(() =>
+        expect(
+          kind === "merged" ? mockListHistory : mockListWithdrawals,
+        ).toHaveBeenCalledTimes(3),
+      );
+      await act(async () => {
+        oldPage.resolve();
+        await loading;
+      });
+      await act(async () => {
+        refresh.resolve();
+      });
+      await waitFor(() =>
+        expect(
+          kind === "merged"
+            ? second.result.current.feed.items
+            : second.result.current.withdrawals.items,
+        ).toEqual(
+          kind === "merged"
+            ? [openItem("excused", "replacement")]
+            : [withdrawalItem("replacement")],
+        ),
+      );
+    },
+  );
+
+  it("removes decided requests from another filter's cached source buffers", async () => {
+    await clearDefaultCache();
+    const decided = stampedItem(
+      "master_data",
+      "decided",
+      "2026-08-28T09:00:00Z",
+    );
+    const remaining = stampedItem(
+      "excused",
+      "remaining",
+      "2026-08-28T08:00:00Z",
+    );
+    const firstItems = Array.from({ length: 25 }, (_, i) =>
+      stampedItem("enrollment", String(i), "2026-08-29T09:00:00Z"),
+    );
+    mockListOpen.mockResolvedValue({ items: [decided, remaining] });
+    mockListEnrollment.mockResolvedValue({ items: firstItems });
+    const filters = { ...NO_FILTERS, includeEnrollment: true };
+    const { result, rerender } = renderHook(
+      (filters) => useFeeds(filters, "open"),
+      {
+        initialProps: filters,
+        wrapper: DefaultCacheProviders,
+      },
+    );
+    await waitFor(() => expect(result.current.feed.items).toEqual(firstItems));
+    mockListEnrollment.mockResolvedValue({ items: [] });
+    mockListOpen.mockResolvedValue({ items: [decided] });
+    rerender({ ...filters, search: "Mia" });
+    await waitFor(() => expect(result.current.feed.items).toEqual([decided]));
+    await act(async () => {
+      result.current.feed.setItems((items) =>
+        items.filter((item) => itemKey(item) !== itemKey(decided)),
+      );
+    });
+    mockListOpen.mockRejectedValue(new Error("refresh failed"));
+    rerender(filters);
+    await waitFor(() => expect(result.current.feed.error).toBeTruthy());
+    await act(async () => {
+      await result.current.feed.loadMore();
+    });
+    expect(result.current.feed.items).toEqual([...firstItems, remaining]);
+    await clearDefaultCache();
+  });
+
+  it("rejects pending pages after a local decision changes the snapshot", async () => {
+    const oldPage = deferred<void>();
+    const decided = openItem("master_data", "decided");
+    const firstItems = [
+      decided,
+      ...Array.from({ length: 24 }, (_, i) => openItem("excused", String(i))),
+    ];
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.cursor) {
+        await oldPage.promise;
+        return { items: [decided] };
+      }
+      return { items: firstItems, next_cursor: "next" };
+    });
+    const { result } = renderHook(() => useFeeds(NO_FILTERS, "open"), {
+      wrapper: providersWith(new Map()),
+    });
+    await waitFor(() => expect(result.current.feed.items).toEqual(firstItems));
+    let loading!: Promise<void>;
+    act(() => {
+      loading = result.current.feed.loadMore();
+    });
+    await act(async () => {
+      result.current.feed.setItems((items) =>
+        items.filter((item) => itemKey(item) !== itemKey(decided)),
+      );
+    });
+    await act(async () => {
+      oldPage.resolve();
+      await loading;
+    });
+    expect(result.current.feed.items).toEqual(firstItems.slice(1));
+  });
 
   it.each(["merged", "withdrawal"] as const)(
     "does not discard an uncached filter's initial response when old %s pagination completes",

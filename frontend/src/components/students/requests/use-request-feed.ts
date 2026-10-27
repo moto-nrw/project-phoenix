@@ -256,6 +256,7 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   loadFirst,
   loadNext,
   autoLoad,
+  updateSnapshot,
   reportError,
   clearError,
 }: {
@@ -271,6 +272,8 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   loadNext: (base: S) => Promise<(current: S) => S>;
   /** Soll nach `snapshot` noch eine Seite ohne Zutun folgen? */
   autoLoad: (snapshot: S) => boolean;
+  /** Wendet lokale Änderungen auch auf gepufferte Zeilen an. */
+  updateSnapshot?: (current: S, update: (items: T[]) => T[]) => S;
   reportError: ReportLoadError;
   clearError: () => void;
 }) {
@@ -283,6 +286,10 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   const latest = useRef({ key, data, isValidating });
   useLayoutEffect(() => {
     latest.current = { key, data, isValidating };
+    return () => {
+      // Nach dem Unmount darf diese Instanz keinen neuen Abgleich verwerfen.
+      latest.current = { key: null, data: undefined, isValidating: false };
+    };
   });
   const updateFamily = useTenantMutateMatching([family]);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -304,7 +311,13 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   const setItems = useCallback(
     (update: (current: T[]) => T[]) => {
       const apply = (current: S | undefined) =>
-        current && { ...current, items: update(current.items) };
+        current && {
+          ...(updateSnapshot
+            ? updateSnapshot(current, update)
+            : { ...current, items: update(current.items) }),
+          // Auch lokale Änderungen ersetzen den Stand laufender Folgeseiten.
+          snapshot: Symbol(),
+        };
       void mutate(apply, { revalidate: latest.current.isValidating });
       // Dieselbe Änderung gilt für alle Ansichten und Filter der Liste: eine
       // entschiedene Anfrage käme sonst beim Filterwechsel zurück.
@@ -314,7 +327,7 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
           except: [key],
         });
     },
-    [key, mutate, updateFamily],
+    [key, mutate, updateFamily, updateSnapshot],
   );
 
   const loadMoreRef = useRef<() => Promise<void>>(async () => undefined);
@@ -442,6 +455,13 @@ export function useMergedRequestFeed(
     view,
     object: LIST_OBJECT,
     logEvent: "aggregated_request_list_load_more_failed",
+    updateSnapshot: (current, update) => {
+      const feed = cloneFeedState(current.feed);
+      for (const source of Object.values(feed)) {
+        source.buffer = update(source.buffer);
+      }
+      return { ...current, items: update(current.items), feed };
+    },
     loadFirst: () => loadFirstRequestPage(sources),
     loadNext,
     autoLoad,
