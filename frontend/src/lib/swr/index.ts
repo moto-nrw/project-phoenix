@@ -23,6 +23,7 @@ export {
   useImmutableSWR,
   useTenantMutate,
   useTenantMutateMatching,
+  useTenantUpdateMatching,
 } from "./hooks";
 
 // Re-export SWR utilities that consumers might need

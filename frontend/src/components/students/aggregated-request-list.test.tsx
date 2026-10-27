@@ -2132,4 +2132,156 @@ describe("AggregatedRequestList", () => {
       expect(result.current.withdrawals.error).toBeNull();
     },
   );
+  // Eine Entscheidung in Filter B, während die erste Antwort von Filter A
+  // noch aussteht: A darf danach nicht im Ladeskelett hängen bleiben (#4988).
+  it("beendet die erste Ladung eines Filters nach einer Entscheidung in einem anderen", async () => {
+    await clearDefaultCache();
+    const pending = deferred<void>();
+    const decided = openItem("master_data", "decided");
+    const remaining = openItem("excused", "remaining");
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.search === "Mia") return { items: [decided] };
+      await pending.promise;
+      return { items: [remaining] };
+    });
+    const { result, rerender } = renderHook(
+      (filters) => useFeeds(filters, "open"),
+      { initialProps: NO_FILTERS, wrapper: DefaultCacheProviders },
+    );
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(1));
+    expect(result.current.feed.loading).toBe(true);
+    rerender({ ...NO_FILTERS, search: "Mia" });
+    await waitFor(() => expect(result.current.feed.items).toEqual([decided]));
+
+    await act(async () => {
+      result.current.feed.setItems((items) =>
+        items.filter((item) => itemKey(item) !== itemKey(decided)),
+      );
+    });
+    rerender(NO_FILTERS);
+    await act(async () => {
+      pending.resolve();
+    });
+
+    await waitFor(() => expect(result.current.feed.loading).toBe(false));
+    expect(result.current.feed.items).toEqual([remaining]);
+    await clearDefaultCache();
+  });
+
+  it("beendet die erste Ladung eines Filters ohne Entscheidung (Gegenprobe)", async () => {
+    await clearDefaultCache();
+    const pending = deferred<void>();
+    const decided = openItem("master_data", "decided");
+    const remaining = openItem("excused", "remaining");
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.search === "Mia") return { items: [decided] };
+      await pending.promise;
+      return { items: [remaining] };
+    });
+    const { result, rerender } = renderHook(
+      (filters) => useFeeds(filters, "open"),
+      { initialProps: NO_FILTERS, wrapper: DefaultCacheProviders },
+    );
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(1));
+    expect(result.current.feed.loading).toBe(true);
+    rerender({ ...NO_FILTERS, search: "Mia" });
+    await waitFor(() => expect(result.current.feed.items).toEqual([decided]));
+
+    rerender(NO_FILTERS);
+    await act(async () => {
+      pending.resolve();
+    });
+
+    await waitFor(() => expect(result.current.feed.loading).toBe(false));
+    expect(result.current.feed.items).toEqual([remaining]);
+    await clearDefaultCache();
+  });
+
+  it("zeigt den ersten Filter nach einer Entscheidung im zweiten fertig an", async () => {
+    await clearDefaultCache();
+    const pending = deferred<void>();
+    const decided = openItem("master_data", "decided");
+    const remaining = openItem("excused", "remaining");
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.search === "Mia") {
+        await pending.promise;
+        return { items: [remaining] };
+      }
+      return { items: [decided, remaining] };
+    });
+    const firstFilter = { ...NO_FILTERS, search: "Mia" };
+    const { rerender } = renderComponent(
+      <AggregatedRequestList view="open" filters={firstFilter} />,
+      { wrapper: DefaultCacheProviders },
+    );
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(1));
+    rerender(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    fireEvent.click(await screen.findByText("master-item-decided"));
+
+    rerender(<AggregatedRequestList view="open" filters={firstFilter} />);
+    await act(async () => {
+      pending.resolve();
+    });
+
+    expect(
+      await screen.findByText("excused-item-remaining"),
+    ).toBeInTheDocument();
+    await clearDefaultCache();
+  });
+
+  // Filter A hat schon Daten, und sein Abgleich läuft, während in Filter B
+  // entschieden wird: zurück in A bleibt die Anfrage weg, und der frische
+  // Stand erscheint statt der alten Antwort des Abgleichs (#4988).
+  it("zeigt nach der Rückkehr den frischen Stand, wenn der Abgleich während der Entscheidung lief", async () => {
+    await clearDefaultCache();
+    const staleRefresh = deferred<void>();
+    const decided = openItem("master_data", "decided");
+    const remaining = openItem("excused", "remaining");
+    const fresh = openItem("excused", "fresh");
+    let unfilteredCalls = 0;
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.search === "Mia") return { items: [decided] };
+      unfilteredCalls += 1;
+      if (unfilteredCalls === 1) return { items: [decided, remaining] };
+      if (unfilteredCalls === 2) {
+        // Der Abgleich, der vor der Entscheidung begann.
+        await staleRefresh.promise;
+        return { items: [decided, remaining] };
+      }
+      return { items: [remaining, fresh] };
+    });
+    const { rerender } = renderComponent(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      { wrapper: DefaultCacheProviders },
+    );
+    await screen.findByText("excused-item-remaining");
+    act(() => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+    await waitFor(() => expect(unfilteredCalls).toBe(2));
+
+    const filtered = { ...NO_FILTERS, search: "Mia" };
+    rerender(<AggregatedRequestList view="open" filters={filtered} />);
+    await waitFor(() =>
+      expect(
+        screen.queryByText("excused-item-remaining"),
+      ).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByText("master-item-decided"));
+
+    rerender(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    // Anker: A steht sofort aus dem Cache, ohne die entschiedene Anfrage.
+    expect(screen.getByText("excused-item-remaining")).toBeInTheDocument();
+    expect(screen.queryByText("master-item-decided")).not.toBeInTheDocument();
+
+    await act(async () => {
+      staleRefresh.resolve();
+    });
+    expect(await screen.findByText("excused-item-fresh")).toBeInTheDocument();
+    expect(screen.queryByText("master-item-decided")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Anfragen werden geladen" }),
+    ).not.toBeInTheDocument();
+    await clearDefaultCache();
+  });
 });

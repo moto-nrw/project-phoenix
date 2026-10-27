@@ -17,6 +17,7 @@
 // swr/no-direct-import permits package imports inside this shared wrapper only.
 import useSWR, {
   mutate as swrMutate,
+  useSWRConfig,
   type SWRConfiguration,
   type SWRResponse,
 } from "swr";
@@ -185,13 +186,7 @@ export function useTenantMutate() {
  * on the returned function.
  *
  * **Clearing instead of revalidating**: pass `{ clear: true }` to DELETE the
- * matching cache entries without refetching.
- *
- * **Updating instead of revalidating**: pass `{ update }` to apply the same
- * change to every matching entry without refetching, e.g. a decided request
- * removed from every filter and view variant of a list. `except` names
- * unprefixed keys that stay untouched, e.g. the entry a mounted list just
- * updated itself. The global `keepPreviousData`
+ * matching cache entries without refetching. The global `keepPreviousData`
  * config means a plain revalidation still serves the stale entry first
  * (`isLoading` stays false on remount) — when consumers must never act on
  * pre-mutation data, the entry has to go so the next mount loads fresh with
@@ -217,30 +212,58 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
   const joined = substrings.join("|");
 
   return useCallback(
-    (options?: {
-      clear?: boolean;
-      update?: (current: unknown) => unknown;
-      except?: readonly string[];
-    }) => {
+    (options?: { clear?: boolean }) => {
       const needles = joined.length > 0 ? joined.split("|") : [];
-      const kept = new Set(
-        (options?.except ?? []).map((key) => scopedKey(key, slug, null)),
-      );
       const matches = (key: unknown): boolean => {
-        if (typeof key !== "string" || kept.has(key)) return false;
+        if (typeof key !== "string") return false;
         // Limit to the active tenant so cross-tenant caches (multi-tab) stay put.
         if (slug && !key.startsWith(`${slug}:`)) return false;
         return needles.some((needle) => key.includes(needle));
       };
-      if (options?.update) {
-        return swrMutate(matches, options.update, { revalidate: false });
-      }
       if (options?.clear) {
         return swrMutate(matches, undefined, { revalidate: false });
       }
       return swrMutate(matches);
     },
     [slug, joined],
+  );
+}
+
+/**
+ * Hook that applies one change to every cached variant of a list in the
+ * active tenant, e.g. a decided request removed from every filter and view
+ * variant of the Anfragen list (#4988). Keys match like
+ * `useTenantMutateMatching`; `except` names unprefixed keys that stay
+ * untouched, e.g. the entry a mounted list just updated itself.
+ *
+ * Every matching entry is revalidated, which drops SWR's marker of a request
+ * in flight: its next mount fetches fresh instead of deduping against a
+ * request whose answer no longer applies. Entries without data are only
+ * revalidated, never mutated: a data mutation makes SWR discard their pending
+ * first answer while a remount still dedupes against it, and the list would
+ * stay loading for good.
+ */
+export function useTenantUpdateMatching(substrings: readonly string[]) {
+  const slug = useTenantSlugSafe();
+  const { cache, mutate } = useSWRConfig();
+  const joined = substrings.join("|");
+
+  return useCallback(
+    (update: (current: unknown) => unknown, except: readonly string[] = []) => {
+      const needles = joined.length > 0 ? joined.split("|") : [];
+      const kept = new Set(except.map((key) => scopedKey(key, slug, null)));
+      const matches = (key: unknown): key is string => {
+        if (typeof key !== "string" || kept.has(key)) return false;
+        if (slug && !key.startsWith(`${slug}:`)) return false;
+        return needles.some((needle) => key.includes(needle));
+      };
+      const hasData = (key: string) => cache.get(key)?.data !== undefined;
+      void mutate((key) => matches(key) && !hasData(key));
+      return mutate((key) => matches(key) && hasData(key), update, {
+        revalidate: true,
+      });
+    },
+    [cache, mutate, slug, joined],
   );
 }
 

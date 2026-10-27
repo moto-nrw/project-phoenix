@@ -54,7 +54,7 @@ import {
   type FeedSource,
   type FeedState,
 } from "~/lib/request-feed";
-import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { useSWRAuth, useTenantUpdateMatching } from "~/lib/swr";
 import type { AnyItem } from "./case-model";
 import type { AggregatedRequestFilters } from "./filters";
 
@@ -291,7 +291,7 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
       latest.current = { key: null, data: undefined, isValidating: false };
     };
   });
-  const updateFamily = useTenantMutateMatching([family]);
+  const updateFamily = useTenantUpdateMatching([family]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [autoLoadFailed, setAutoLoadFailed] = useState(false);
   // Laden und Abgleich im Hintergrund melden ihren Fehler über denselben
@@ -322,10 +322,7 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
       // Dieselbe Änderung gilt für alle Ansichten und Filter der Liste: eine
       // entschiedene Anfrage käme sonst beim Filterwechsel zurück.
       if (key)
-        void updateFamily({
-          update: (current) => apply(current as S | undefined),
-          except: [key],
-        });
+        void updateFamily((current) => apply(current as S | undefined), [key]);
     },
     [key, mutate, updateFamily, updateSnapshot],
   );

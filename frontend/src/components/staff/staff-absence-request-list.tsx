@@ -40,7 +40,7 @@ import {
   staffAbsenceService,
   type StaffAbsenceRequestRow,
 } from "~/lib/staff-api";
-import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { useSWRAuth, useTenantUpdateMatching } from "~/lib/swr";
 
 const logger = createLogger({ component: "StaffAbsenceRequestList" });
 
@@ -123,7 +123,7 @@ export function StaffAbsenceRequestList({
       dedupingInterval: 0,
     },
   );
-  const updateOtherLists = useTenantMutateMatching([
+  const updateOtherLists = useTenantUpdateMatching([
     `staff-absence-requests:${accountId}:`,
   ]);
   const loadError = useSwrLoadError(error, "die Liste der Anträge", () =>
@@ -167,13 +167,13 @@ export function StaffAbsenceRequestList({
       // und Filtern; er käme sonst beim Filterwechsel zurück (#4988). Eine
       // Rückfrage lässt ihn offen.
       if (listKey && decidedId)
-        void updateOtherLists({
-          update: (current) =>
+        void updateOtherLists(
+          (current) =>
             (current as StaffAbsenceRequestRow[] | undefined)?.filter(
               (row) => row.id !== decidedId,
             ),
-          except: [listKey],
-        });
+          [listKey],
+        );
       swrMutate(
         (key) =>
           typeof key === "string" && key.includes("staff-pending-absences-"),
