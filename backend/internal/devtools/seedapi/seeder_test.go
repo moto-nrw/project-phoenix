@@ -998,6 +998,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	// The first staff members the seed creates; the Frühbetreuung's
 	// deviation needs the second.
 	var planningStaffIDs []map[string]any
+	// The full workflow reads and writes these through the staff payroll API.
+	// Keeping them here makes its final payroll-status read prove that the
+	// endpoint-specific requests persisted the expected demo numbers.
+	staffPersonnelNumbers := make(map[int64]string)
 	manualStudents := make(map[int64]map[string]any)
 	manualAttendance := make(map[int64]string)
 	manualSettingWrites := make(map[string]json.RawMessage)
@@ -1107,7 +1111,44 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		authorization := r.Header.Get("Authorization")
 		manualAuth := authorization == "Bearer manual-admin-token"
 		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/" {
-			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{"id": "7001"}, {"id": "7002"}}})
+			return
+		}
+		if !manualAuth && strings.HasPrefix(r.URL.Path, "/api/staff/") && strings.HasSuffix(r.URL.Path, "/payroll-number") {
+			var staffID int64
+			parsed, err := fmt.Sscanf(r.URL.Path, "/api/staff/%d/payroll-number", &staffID)
+			require.NoError(t, err)
+			require.Equal(t, 1, parsed)
+
+			switch r.Method {
+			case seedHTTPMethodGet:
+				number, ok := staffPersonnelNumbers[staffID]
+				if !ok {
+					_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"staff_id": staffID, "personnel_number": nil}})
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"staff_id": staffID, "personnel_number": number}})
+			case seedHTTPMethodPut:
+				var body struct {
+					PersonnelNumber string `json:"personnel_number"`
+					Note            string `json:"note"`
+				}
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				require.NotEmpty(t, body.PersonnelNumber)
+				require.Equal(t, "Personalnummer aus der Lohnabrechnung übernommen", body.Note)
+				staffPersonnelNumbers[staffID] = body.PersonnelNumber
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"staff_id": staffID, "personnel_number": body.PersonnelNumber}})
+			default:
+				w.WriteHeader(seedHTTPStatusNotFound)
+			}
+			return
+		}
+		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/settings/payroll-status" {
+			require.Equal(t, map[int64]string{7001: "70001", 7002: "70002"}, staffPersonnelNumbers)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+				"lodas_header_complete": true, "configured_categories": 7, "total_categories": 7,
+				"staff_total": 2, "staff_without_personnel_number": 0,
+			}})
 			return
 		}
 		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {
