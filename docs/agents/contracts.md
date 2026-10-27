@@ -235,6 +235,34 @@ Keep behavioral cross-school tests alongside policies. The code/test evidence
 does not prove the deployed catalog; human verification is described in
 [RLS coverage verification](../operations/rls-coverage-3842.md).
 
+## Client IP and rate limits
+
+The backend rate limiter keys a request with a valid Bearer JWT by account
+and every other request by client IP; security events and audit rows log
+that IP. The IP crosses four hops:
+
+1. Cloudflare sets `CF-Connecting-IP`.
+2. Caddy trusts only the Cloudflare ranges (`trusted_proxies`) and sends
+   exactly one `X-Forwarded-For {client_ip}` to frontend and backend.
+3. Every server-side backend call of the frontend forwards
+   `canonicalForwardedFor` (rightmost valid `X-Forwarded-For`, `X-Real-IP`
+   fallback) through `frontend/src/lib/client-headers.server.ts`:
+   `clientIdentityHeaders(request.headers)` with a request at hand,
+   `incomingClientForwardHeaders()` without one. The shared proxy factories
+   and portal wrappers already do this.
+4. The backend takes the rightmost entry
+   (`ClientIPFromXFFTrustedProxies(1)` and `syncClientIPToRemoteAddr` in
+   `backend/api/serve_middleware.go`). Trusting one hop is safe only while
+   backend ports are reachable from loopback and the Docker network alone.
+
+A server-side call without the header reaches the backend as the frontend
+container, so all visitors share one bucket: scanner bursts on
+`/auth/tenant/resolve` then refused real tenant lookups with 429. A new
+server-side backend call forwards the client IP; a cached fetch keeps the IP
+out of its cache key (`resolveTenantCached` in
+`frontend/src/app/[tenant]/layout.tsx`). Each limiter rejection writes one
+`RATE_LIMIT_EXCEEDED` event; a 429 a handler writes itself writes none.
+
 ## Portal session isolation
 
 Each portal has its own NextAuth instance, cookie, and base path.

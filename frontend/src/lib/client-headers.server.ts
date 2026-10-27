@@ -147,6 +147,42 @@ export function requestIdHeaders(
   return requestId ? { [REQUEST_ID_HEADER]: requestId } : {};
 }
 
+/**
+ * The client headers every server-side backend call sends: the canonical
+ * client IP, the browser's User-Agent, its analytics session and the
+ * Vorgangskennung, each only when the incoming request carries it. Without
+ * them the backend rate-limits and audits the frontend container, so all
+ * visitors share one bucket.
+ */
+export function clientIdentityHeaders(
+  incoming: HeaderReader,
+): Record<string, string> {
+  const forwardedFor = canonicalForwardedFor(incoming);
+  const userAgent = incoming.get("user-agent");
+  return {
+    ...(forwardedFor && { "X-Forwarded-For": forwardedFor }),
+    ...(userAgent && { "User-Agent": userAgent }),
+    ...analyticsSessionHeaders(incoming),
+    ...requestIdHeaders(incoming),
+  };
+}
+
+/**
+ * `clientIdentityHeaders` of the request being handled, for helpers that do
+ * not receive the request (portal route wrappers, server components, Auth.js
+ * callbacks). Outside a request scope there are none.
+ */
+export async function incomingClientForwardHeaders(): Promise<
+  Record<string, string>
+> {
+  try {
+    const { headers } = await import("next/headers");
+    return clientIdentityHeaders(await headers());
+  } catch {
+    return {};
+  }
+}
+
 export function canonicalForwardedFor(headers: HeaderReader | null): string {
   const forwardedFor = lastHeaderValue(headers?.get("x-forwarded-for"));
   if (forwardedFor) {
