@@ -13,7 +13,6 @@ import {
   tenantBase as base,
   waitForAnimations,
 } from "./tenant-session";
-import { selectOverflowAction } from "./overflow-menu";
 import {
   berlinTodayISO,
   parseISODate,
@@ -627,10 +626,12 @@ test.describe("Dienstplan UI-Flow", () => {
       await openWeek(page, TODAY);
 
       // (b) Krank melden -> SickReportModal -> speichern -> "Fällt aus".
-      const personMenu = personRow(page, person).getByRole("button", {
-        name: `Aktionen für ${person.first_name} ${person.last_name}`,
-      });
-      await selectOverflowAction(page, personMenu, "Krank melden");
+      await personRow(page, person)
+        .getByRole("button", {
+          name: `Aktionen für ${person.first_name} ${person.last_name}`,
+        })
+        .click();
+      await page.getByRole("menuitem", { name: "Krank melden" }).click();
       const sick = page.getByRole("dialog");
       await expect(
         sick.getByRole("heading", {
@@ -652,7 +653,14 @@ test.describe("Dienstplan UI-Flow", () => {
       );
 
       // (a) "Für heute abwesend melden" -> /vertretung?d=heute.
-      await selectOverflowAction(page, personMenu, "Für heute abwesend melden");
+      await personRow(page, person)
+        .getByRole("button", {
+          name: `Aktionen für ${person.first_name} ${person.last_name}`,
+        })
+        .click();
+      await page
+        .getByRole("menuitem", { name: "Für heute abwesend melden" })
+        .click();
       await page.waitForURL((url) => url.pathname.endsWith("/vertretung"), {
         timeout: 60000,
       });
