@@ -62,6 +62,7 @@ const (
 	KeyParentCareModeRequestEnabled          = configModel.KeyParentCareModeRequestEnabled
 	KeyParentCarePickupRequestEnabled        = configModel.KeyParentCarePickupRequestEnabled
 	KeyParentExcusedRequiresApproval         = configModel.KeyParentExcusedRequiresApproval
+	KeyParentNewsEnabled                     = configModel.KeyParentNewsEnabled
 	KeyParentNotesEnabled                    = configModel.KeyParentNotesEnabled
 	KeyParentPickupChangeCutoffTime          = configModel.KeyParentPickupChangeCutoffTime
 	KeyParentPickupChangeEnabled             = configModel.KeyParentPickupChangeEnabled
@@ -80,6 +81,8 @@ const (
 	KeyStudentAbsenceEditScope               = configModel.KeyStudentAbsenceEditScope
 	KeyStudentPhotosEnabled                  = configModel.KeyStudentPhotosEnabled
 	KeyTimetableChildrenPerStaffRatio        = configModel.KeyTimetableChildrenPerStaffRatio
+	KeyTimetableDayEndTime                   = configModel.KeyTimetableDayEndTime
+	KeyTimetableDayStartTime                 = configModel.KeyTimetableDayStartTime
 	KeyTimetableEnabled                      = configModel.KeyTimetableEnabled
 	KeyMealPlanEnabled                       = configModel.KeyMealPlanEnabled
 	KeyMealRegistrationEnabled               = configModel.KeyMealRegistrationEnabled
@@ -106,8 +109,9 @@ const (
 	OverviewScopeAllStaff = configModel.OverviewScopeAllStaff
 	OverviewScopeOwn      = configModel.OverviewScopeOwn
 
-	ParentInviteModeDirect   = configModel.ParentInviteModeDirect
-	ParentInviteModeDisabled = configModel.ParentInviteModeDisabled
+	ParentInviteModeDirect        = configModel.ParentInviteModeDirect
+	ParentInviteModeDisabled      = configModel.ParentInviteModeDisabled
+	ParentInviteModeStaffApproval = configModel.ParentInviteModeStaffApproval
 
 	PresenceModeBinary   = configModel.PresenceModeBinary
 	PresenceModeDetailed = configModel.PresenceModeDetailed

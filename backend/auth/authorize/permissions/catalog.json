@@ -61,6 +61,10 @@
   },
   {
     "resource": "class_day",
+    "action": "absence_report_write"
+  },
+  {
+    "resource": "class_day",
     "action": "all_classes"
   },
   {

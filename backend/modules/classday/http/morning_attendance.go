@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Morning attendance through "moto schule" (#4790): the Lehrkraft marks each
@@ -96,6 +97,7 @@ func (rs *Resource) putMorningAttendance(w http.ResponseWriter, r *http.Request)
 	}
 	if err := rs.ClassDay.RecordMorningAttendance(r.Context(), classday.MorningAttendanceWrite{
 		SchoolClass: class, Date: classday.Date(date.String()), RecordedBy: staffID, Marks: marks,
+		ActorAccountID: int64(sessiontoken.ClaimsFromCtx(r.Context()).ID),
 	}); err != nil {
 		common.RenderError(w, r, morningAttendanceErrorRenderer(err))
 		return

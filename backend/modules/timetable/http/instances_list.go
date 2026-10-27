@@ -1,6 +1,6 @@
 // Package timetablehttp — WP-F2 backend prerequisite: weekly instance list.
 //
-//	GET /api/timetable/instances?from=YYYY-MM-DD&to=YYYY-MM-DD[&group_id=&staff_id=&room_id=]
+//	GET /api/timetable/instances?from=YYYY-MM-DD&to=YYYY-MM-DD[&group_id=&staff_id=&room_id=][&view=slim]
 //
 // Lists all materialized activity instances in the requested window for the
 // current tenant, optionally narrowed to one OGS group, one staff member
@@ -180,12 +180,20 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	slim, err := parseInstanceListView(r.URL.Query().Get("view"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 
 	enriched, err := rs.listWindow(r.Context(), from, to, filter)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"list instances failed", err))
 		return
+	}
+	if slim {
+		slimInstances(enriched)
 	}
 
 	resp := weeklyInstancesResponse{

@@ -146,6 +146,7 @@ import {
   useStaffMessagingEnabled,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
+  useTimetableEnabled,
 } from "~/lib/tenant-context";
 import useSWR from "swr";
 
@@ -1931,24 +1932,13 @@ describe("MobileBottomNav", () => {
     });
 
     it("keeps calendar periods and payroll reachable when timetable.enabled is false", () => {
-      mockUseSWRDefault.mockReturnValue({
-        data: {
-          tabs: [
-            {
-              categories: [
-                { items: [{ key: "timetable.enabled", value: false }] },
-              ],
-            },
-          ],
-        },
-        error: undefined,
-        isLoading: false,
-        isValidating: false,
-        mutate: vi.fn(),
-      } as unknown as ReturnType<typeof useSWR>);
-
-      render(<MobileBottomNav />);
-      openDrawer();
+      vi.mocked(useTimetableEnabled).mockReturnValue(false);
+      try {
+        render(<MobileBottomNav />);
+        openDrawer();
+      } finally {
+        vi.mocked(useTimetableEnabled).mockReturnValue(true);
+      }
 
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       // Der Dienstplan folgt seit #4894 seinem Modul, nicht dem
@@ -1960,13 +1950,15 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Übergaben")).toBeInTheDocument();
     });
 
-    it("reads timetable.enabled from the tenant-scoped SWR key", () => {
+    it("reads its switches from the tenant resolve, not the settings schema (#4996)", () => {
       render(<MobileBottomNav />);
+      openDrawer();
 
-      expect(mockUseSWRDefault).toHaveBeenCalledWith(
+      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
+      expect(mockUseSWRDefault).not.toHaveBeenCalledWith(
         "test-tenant:settings-schema",
-        expect.any(Function),
-        expect.any(Object),
+        expect.anything(),
+        expect.anything(),
       );
     });
   });

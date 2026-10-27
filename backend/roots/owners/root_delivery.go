@@ -38,6 +38,9 @@ type DeliveryNotifications struct {
 	Preferences         deliveryCompose.NotificationPreferenceService
 	StaffParentMessages deliveryCompose.StaffParentMessageNotifier
 	AbsenceNotifier     deliveryCompose.AbsenceNotifier
+	// UnreportedAbsences tells the Schulverwaltung about children missing
+	// without a report (#4791).
+	UnreportedAbsences deliveryContract.UnreportedAbsenceNotifier
 }
 
 // BuildDeliveryNotifications binds the notification router over the realtime
@@ -75,14 +78,20 @@ func BuildDeliveryNotifications(
 	schoolClasses := deliveryContract.SchoolClassRecipients{
 		Reach:   deliverySchoolClassReach{students: people.Students, assignments: assignments, staff: people.Staff},
 		Consent: preferences, Subscribers: consent, Accounts: identity, Permissions: securityruntime.HasPermission,
+		Office: deliverySchoolOffice{staff: people.Staff},
 	}
 	absences, err := deliveryCompose.NewTenantAbsenceNotifier(unit, notifier, recipients, db.Pool(), logger.With("producer", "absence_notifications"), schoolClasses)
 	if err != nil {
 		return DeliveryNotifications{}, err
 	}
+	unreported, ok := absences.(deliveryContract.UnreportedAbsenceNotifier)
+	if !ok {
+		return DeliveryNotifications{}, fmt.Errorf("absence notifier does not send the notice about children missing without a report")
+	}
 	return DeliveryNotifications{
-		Notifier:    notifier,
-		Preferences: preferences,
+		UnreportedAbsences: unreported,
+		Notifier:           notifier,
+		Preferences:        preferences,
 		StaffParentMessages: deliveryCompose.NewStaffParentMessageNotifier(notifier, recipients,
 			messaging.ParentMessageThread, db.Pool(), logger.With("producer", "staff_parent_message_notifications")),
 		AbsenceNotifier: absences,

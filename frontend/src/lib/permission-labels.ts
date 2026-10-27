@@ -75,6 +75,7 @@ export const actionLabels: Record<string, string> = {
   homework_write: "Hausaufgaben eintragen",
   handover_write: "Klasse an die OGS übergeben",
   parent_letter_write: "Elternbriefe an die Klasse",
+  absence_report_write: "Meldung nachtragen",
   "*": "Alle",
 };
 
@@ -256,6 +257,8 @@ const permissionDescriptions: Record<string, string> = {
   // Schul-Portal (moto schule)
   "class_day:read": "Tagesansicht der eigenen Klassen ansehen",
   "class_day:all_classes": "Alle Klassen der Schule sehen, auch ohne Zuweisung",
+  "class_day:absence_report_write":
+    "Für ein Kind, das ohne Meldung fehlt, eine Krankmeldung oder Entschuldigung nachtragen",
   "class_day:arrival_exception_write":
     "Für eine eigene Klasse an einem Tag eine andere Ankunftszeit eintragen",
   "class_day:class_trip_write":
