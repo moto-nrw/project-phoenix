@@ -228,3 +228,27 @@ func TestDetectRosterDeviationOfferingKind(t *testing.T) {
 		assert.Equal(t, timetable.RosterOfferingAny, timetable.RosterOfferingKindFor(timetable.GroupTypeExternal, nil))
 	})
 }
+
+// TestSuggestOfferingSource: a Regeltermin being planned (#5104) gets the
+// offering even when its children match the bookings exactly; the hint of
+// an existing one stays silent then. Below the rule both stay silent.
+func TestSuggestOfferingSource(t *testing.T) {
+	t.Parallel()
+	class := studentRange(1001, 4)
+	roster := classRoster([]int{1, 3}, class, "Klasse 1b")
+	bookings := []timetable.OfferingWeekdayBooking{}
+	for _, studentID := range class {
+		bookings = append(bookings, booking(randstundeID, "Randstunde", studentID, "Klasse 1b", 1, 3))
+	}
+
+	assert.Nil(t, timetable.DetectRosterDeviation(roster, bookings), "an exact match is no deviation")
+	suggestion := timetable.SuggestOfferingSource(roster, bookings)
+	require.NotNil(t, suggestion)
+	assert.Equal(t, timetable.OfferingRef{ID: randstundeID, Name: "Randstunde"}, suggestion.Offering)
+	assert.Equal(t, []string{"Klasse 1b"}, suggestion.SchoolClasses)
+	assert.Zero(t, suggestion.UnbookedCount)
+	assert.Zero(t, suggestion.MissingCount)
+
+	small := classRoster([]int{1, 3}, class[:2], "Klasse 1b")
+	assert.Nil(t, timetable.SuggestOfferingSource(small, bookings[:2]), "fewer than three children")
+}
