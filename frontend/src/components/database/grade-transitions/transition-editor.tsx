@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/form-error-alert";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import {
   createGradeTransition,
   fetchSuggestedMappings,
@@ -344,7 +345,7 @@ export function TransitionEditor({
                   </div>
                   <div className="w-56 shrink-0">
                     <CustomSelect
-                      ariaLabel={`Aktion für Klasse ${row.fromClass}`}
+                      ariaLabel={`Aktion für ${schoolClassLabel(row.fromClass)}`}
                       value={row.mode}
                       options={MODE_OPTIONS.map((o) => ({
                         value: o.value,
@@ -379,7 +380,7 @@ export function TransitionEditor({
                       variant="ghost"
                       size="compact"
                       onClick={() => removeRow(index)}
-                      aria-label={`Klasse ${row.fromClass} nicht ändern`}
+                      aria-label={`${schoolClassLabel(row.fromClass)} nicht ändern`}
                     >
                       Nicht ändern
                     </Button>

@@ -68,6 +68,7 @@ import {
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 import { Button } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
@@ -2054,7 +2055,7 @@ function SchoolClassListEditor({
               <button
                 type="button"
                 onClick={() => onChange(value.filter((c) => c !== cls))}
-                aria-label={`Klasse ${cls} entfernen`}
+                aria-label={`${schoolClassLabel(cls)} entfernen`}
                 className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />

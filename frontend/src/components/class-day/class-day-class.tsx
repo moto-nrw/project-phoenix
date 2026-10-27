@@ -302,7 +302,7 @@ export function ClassDayClass({
   // Klasse meldet sich über ihren Code (fehlende Berechtigung).
   const loadError = useSwrLoadError(
     error,
-    `die Klasse ${schoolClassLabel(schoolClass)}`,
+    `die ${schoolClassLabel(schoolClass)}`,
     () => refetchReport(),
   );
 
@@ -891,7 +891,7 @@ export function ClassDayClass({
           <EmptyState
             className="mt-4"
             title="Keine Kinder gefunden"
-            description={`Für die Klasse ${report.school_class} sind keine Kinder hinterlegt.`}
+            description={`Für die ${schoolClassLabel(report.school_class)} sind keine Kinder hinterlegt.`}
           />
         )}
 

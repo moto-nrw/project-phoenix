@@ -219,6 +219,23 @@ describe("TimetableRosterContent student meta (#4356)", () => {
     expect(screen.queryByText(/Gruppe:/)).not.toBeInTheDocument();
   });
 
+  // #5101: a school that stores „Klasse 2a“ must not read „Klasse Klasse 2a“.
+  it("names a class stored with its prefix only once", () => {
+    renderRoster(
+      roster([
+        rosterRow("1", "Anna", {
+          currentlyPresent: true,
+          schoolClass: "Klasse 2a",
+        }),
+      ]),
+    );
+
+    const nameLine = screen.getByText("Anna").parentElement as HTMLElement;
+    expect(within(nameLine).getByText("2a")).toBeInTheDocument();
+    expect(nameLine).toHaveTextContent(/Klasse 2a\s*Gruppe Sonnengruppe/);
+    expect(nameLine).not.toHaveTextContent(/Klasse Klasse/);
+  });
+
   it("keeps the unplanned marker and leaves out missing values", () => {
     renderRoster(
       roster([

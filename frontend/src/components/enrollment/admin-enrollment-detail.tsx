@@ -73,6 +73,7 @@ import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrol
 import { AdminEnrollmentSignature } from "~/components/enrollment/admin-enrollment-signature";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
@@ -630,7 +631,7 @@ function ChildInformationCard({
             </span>
             {child.target_school_class ? (
               <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-                Klasse {child.target_school_class}
+                {schoolClassLabel(child.target_school_class)}
               </span>
             ) : child.target_grade_level ? (
               <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
@@ -815,7 +816,7 @@ function ReviewSidebar({
                 </h3>
                 <p className="mt-1 text-xs text-gray-500">
                   {child.target_school_class
-                    ? `Klasse ${child.target_school_class}`
+                    ? schoolClassLabel(child.target_school_class)
                     : child.target_grade_level
                       ? `${child.target_grade_level}. Klasse`
                       : "Keine Klassenstufe"}

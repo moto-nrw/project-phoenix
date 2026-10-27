@@ -33,6 +33,7 @@ import type {
   TargetGroupType,
 } from "~/lib/timetable-types";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
 import type { Staff } from "~/lib/staff-api";
 
@@ -603,7 +604,7 @@ export function StepPersonalKinder({
                                 toggleSourceSchoolClass(schoolClass)
                               }
                             />
-                            Klasse {schoolClass} (
+                            {schoolClassLabel(schoolClass)} (
                             {sourceClassCounts[
                               normalizeSchoolClass(schoolClass)
                             ] ?? 0}

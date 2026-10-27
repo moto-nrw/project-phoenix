@@ -16,6 +16,7 @@ import { Archive, Palette, Users } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
@@ -70,11 +71,7 @@ function summarizeTargets(template: TimetableTemplate): string | null {
   const labels = targets.map((target) => {
     if (target.type === "jahrgang") return `Jahrgang ${target.gradeLevel}`;
     if (target.type === "klasse") {
-      const schoolClass = target.schoolClass?.trim();
-      if (!schoolClass) return "Klasse";
-      return /^klasse(?:\s|$)/i.test(schoolClass)
-        ? schoolClass
-        : `Klasse ${schoolClass}`;
+      return schoolClassLabel(target.schoolClass ?? "") || "Klasse";
     }
     return target.educationGroupName ?? "Gruppe";
   });
