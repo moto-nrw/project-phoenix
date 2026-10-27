@@ -797,7 +797,8 @@
       "badges": {
         "primary": "Kryesor",
         "canPickup": "Mund ta marrë",
-        "emergency": "Kontakt emergjence"
+        "emergency": "Kontakt emergjence",
+        "self": "Ky jeni ju"
       },
       "editContact": "Ndrysho",
       "managePickup": "Menaxho lejen e marrjes",

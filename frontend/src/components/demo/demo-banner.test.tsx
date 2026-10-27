@@ -175,11 +175,15 @@ describe("DemoBanner", () => {
     trigger.focus();
     await user.keyboard("{Enter}");
     const items = await screen.findAllByRole("menuitemradio");
-    expect(items.map((item) => item.textContent)).toEqual([
-      "Betreuungskraft",
-      "OGS-Leitung",
-      "Elternteil",
-    ]);
+    // Each role names itself; its line underneath only describes it.
+    expect(items).toHaveLength(3);
+    ["Betreuungskraft", "OGS-Leitung", "Elternteil"].forEach((name, index) =>
+      expect(items[index]).toHaveAccessibleName(name),
+    );
+    // The visitor is also the parent of one child (#5033).
+    expect(items[2]).toHaveAccessibleDescription(
+      "Die Eltern-App für Ihr eigenes Kind an der Schule: Abholung, Krankmeldung, Nachrichten.",
+    );
     expect(items[0]).toHaveAttribute("aria-checked", "true");
     expect(items[0]).toHaveFocus();
     await user.keyboard("{ArrowDown}");
