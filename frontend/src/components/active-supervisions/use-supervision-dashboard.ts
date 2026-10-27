@@ -244,6 +244,20 @@ export interface SupervisionDashboard {
   readonly loadError: FormError | null;
 }
 
+/**
+ * The session a cached aggregate was resolved for, if the aggregate still
+ * lists it. Older payloads without `selectedGroupId` restore nothing.
+ */
+function cachedSessionId(
+  data: BFFDashboardResponse | undefined,
+): string | null {
+  const sessionId = data?.selectedGroupId;
+  if (!sessionId) return null;
+  return data.supervisedGroups.some((group) => group.id === sessionId)
+    ? sessionId
+    : null;
+}
+
 /** The aggregate refuses a caller without supervision (HTTP 403). */
 function isNoAccessError(err: unknown): boolean {
   return (
@@ -284,20 +298,7 @@ export function useSupervisionDashboard(
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((prev) => prev + 1), []);
 
-  // Selection state — genuine UI state, not a copy of server data.
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [selectedOpenRoomId, setSelectedOpenRoomId] = useState<string | null>(
-    null,
-  );
-  const [selectedTimetableInstanceId, setSelectedTimetableInstanceId] =
-    useState<string | null>(null);
-  const [isSwitchingSession, setIsSwitchingSession] = useState(false);
   const { show: showActionError } = useApiErrorDisplay();
-
-  // The selected session for the fetcher. The SWR key is contractually
-  // stable (SSE invalidation matches on its prefix), so the selection cannot
-  // ride in the key — this ref is the request parameter instead.
-  const requestedGroupIdRef = useRef<string | null>(null);
 
   // SWR-based aggregate fetching with caching. The key prefix
   // "active-supervision-dashboard-" is invalidated by global SSE on relevant
@@ -367,6 +368,30 @@ export function useSupervisionDashboard(
       revalidateOnFocus: true,
     },
   );
+
+  // A remount (browser back, another visit) finds the aggregate in the SWR
+  // cache; its resolved session is the one the page showed last. Until the
+  // URL and sidebar memory pick a session, that one is the session on screen
+  // and the one every request asks for, so restoring it needs no new request
+  // (#4988). The cache key carries tenant and account: the restored session
+  // is always the caller's own.
+  const [restoredSessionId] = useState(() => cachedSessionId(dashboardData));
+
+  // Selection state — genuine UI state, not a copy of server data.
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [selectedOpenRoomId, setSelectedOpenRoomId] = useState<string | null>(
+    null,
+  );
+  const [selectedTimetableInstanceId, setSelectedTimetableInstanceId] =
+    useState<string | null>(null);
+  const [isSwitchingSession, setIsSwitchingSession] = useState(false);
+
+  // The selected session for the fetcher. The SWR key is contractually
+  // stable (SSE invalidation matches on its prefix), so the selection cannot
+  // ride in the key — this ref is the request parameter instead. Seeded with
+  // the restored session so the background revalidation asks for the session
+  // on screen; the fetcher above reads it only after mount.
+  const requestedGroupIdRef = useRef<string | null>(restoredSessionId);
 
   // Retain the latest aggregate across renders where SWR reports no data
   // (key roll, transient cache states). This is the documented exception to
@@ -647,14 +672,18 @@ export function useSupervisionDashboard(
 
   // The caller's own selected session. A shared room is not one of them, so
   // while one is open this stays null and `currentOpenRoom` carries the view.
+  // Before a selection exists, the resolved session is the one whose children
+  // are shown, so it is also the one the header and the roster belong to.
   const currentRoom = useMemo(
     () =>
       selectedOpenRoomId
         ? null
-        : (allRooms.find((r) => r.id === selectedRoomId) ??
+        : (allRooms.find(
+            (r) => r.id === (selectedRoomId ?? resolvedRoom?.id),
+          ) ??
           allRooms[0] ??
           null),
-    [selectedOpenRoomId, allRooms, selectedRoomId],
+    [selectedOpenRoomId, allRooms, selectedRoomId, resolvedRoom],
   );
 
   const hasAccess: boolean | null = isNoAccessError(dashboardError)
@@ -741,7 +770,9 @@ export function useSupervisionDashboard(
   // A shared room asks the aggregate for nothing: it arrives complete with
   // every response, so opening one leaves the caller's own selection alone
   // instead of re-running the request for a session it does not have.
-  const explicitDesiredGroupId = selectedOpenRoomId ? null : selectedRoomId;
+  const explicitDesiredGroupId = selectedOpenRoomId
+    ? null
+    : (selectedRoomId ?? restoredSessionId);
   const resolvedGroupId = resolvedRoom?.id ?? null;
   const hasSnapshot = snapshot !== null;
 
@@ -769,6 +800,18 @@ export function useSupervisionDashboard(
       const targetRoom = allRoomsBase.find((r) => r.id === sessionId);
       if (!targetRoom) return;
 
+      // The retained aggregate already shows this session and every request
+      // asks for it (the remount restoring the last view, #4988): select it
+      // without the loading state; SWR revalidates it in the background.
+      if (
+        resolvedRoom?.id === sessionId &&
+        requestedGroupIdRef.current === sessionId
+      ) {
+        setSelectedTimetableInstanceId(null);
+        setSelectedRoomId(sessionId);
+        return;
+      }
+
       setIsSwitchingSession(true);
       setSelectedTimetableInstanceId(null);
       setSelectedRoomId(sessionId);
@@ -792,7 +835,13 @@ export function useSupervisionDashboard(
         setIsSwitchingSession(false);
       }
     },
-    [selectedRoomId, allRoomsBase, mutateDashboard, showActionError],
+    [
+      selectedRoomId,
+      allRoomsBase,
+      resolvedRoom,
+      mutateDashboard,
+      showActionError,
+    ],
   );
 
   const selectOpenRoom = useCallback((roomId: string) => {

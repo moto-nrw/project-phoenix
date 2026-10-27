@@ -22,8 +22,20 @@ import {
 } from "~/lib/change-request-list-api";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { SWRConfig, type Cache } from "~/lib/swr";
 
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
+
+// Die Liste hält ihre Seiten im SWR-Cache (#4988): echtes SWR, ein eigener
+// Cache je Render und eine angemeldete Sitzung für useSWRAuth.
+vi.unmock("swr");
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    status: "authenticated",
+    data: { user: { id: "1", token: "test-token" } },
+  }),
+}));
 
 // Nur die Netzaufrufe ersetzen, den Rest des Moduls stehen lassen: die Liste
 // braucht von dort auch Fehlerklassen und reine Hilfsfunktionen, und ein
@@ -128,8 +140,26 @@ vi.mock("~/components/students/request-history-item", () => ({
   ),
 }));
 
+function providersWith(cache: Cache) {
+  return function Providers({
+    children,
+  }: Readonly<{ children: React.ReactNode }>) {
+    return (
+      <ToastProvider>
+        <SWRConfig value={{ provider: () => cache, dedupingInterval: 0 }}>
+          {children}
+        </SWRConfig>
+      </ToastProvider>
+    );
+  };
+}
+
 const render = (ui: React.ReactNode) =>
-  renderComponent(ui, { wrapper: ToastProvider });
+  renderComponent(ui, { wrapper: providersWith(new Map()) });
+
+/** Rendert mit einem Cache, den ein späterer Render wiederfindet. */
+const renderWithCache = (ui: React.ReactNode, cache: Cache) =>
+  renderComponent(ui, { wrapper: providersWith(cache) });
 
 const mockListOpen = vi.mocked(listAggregatedOpenRequests);
 const mockBulkApprove = vi.mocked(bulkApproveParentRequests);
@@ -1282,6 +1312,74 @@ describe("AggregatedRequestList", () => {
     // Die erneut geladene, leere Liste steht da (nicht nur ein Ladeskelett).
     expect(await screen.findByText("Keine offenen Anfragen.")).toBeVisible();
     expect(screen.queryByText(/konnte nicht bearbeitet werden/)).toBeNull();
+  });
+
+  it("zeigt beim erneuten Öffnen sofort die geladene Liste und gleicht sie ohne Skelett ab", async () => {
+    const cache: Cache = new Map();
+    mockListOpen.mockResolvedValue({ items: [openItem("excused", "4")] });
+    const first = renderWithCache(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      cache,
+    );
+    await screen.findByText("excused-item-4");
+    first.unmount();
+
+    // Der Abgleich bringt eine geänderte Antwort.
+    let resolveRevalidation!: (value: { items: never[] }) => void;
+    mockListOpen.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRevalidation = resolve;
+      }) as never,
+    );
+    renderWithCache(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      cache,
+    );
+
+    // Anker: die Liste steht im selben Render, ohne auf den Abruf zu warten.
+    expect(screen.getByText("excused-item-4")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Anfragen werden geladen" }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      resolveRevalidation({
+        items: [openItem("excused", "4"), openItem("master_data", "5")],
+      });
+    });
+
+    expect(await screen.findByText("master-item-5")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Anfragen werden geladen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("meldet einen gescheiterten Abgleich vor Ort und lässt die Liste stehen", async () => {
+    const cache: Cache = new Map();
+    mockListOpen.mockResolvedValue({ items: [openItem("excused", "4")] });
+    const first = renderWithCache(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      cache,
+    );
+    await screen.findByText("excused-item-4");
+    first.unmount();
+
+    mockListOpen.mockRejectedValueOnce(
+      new ApiError("page unavailable", 503, { code: "general.unavailable" }),
+    );
+    renderWithCache(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      cache,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Liste der Anfragen ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("excused-item-4")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
   });
 
   it("meldet das fehlende Recht über den Code, nicht über den Backend-Satz", async () => {

@@ -33,7 +33,6 @@ import {
   type AggregatedOpenRequest,
   type BulkApproveRequestRef,
   type ParentRequestKind,
-  type RequestReviewAccess,
 } from "~/lib/change-request-list-api";
 import {
   bucketCases,
@@ -99,18 +98,16 @@ export function AggregatedRequestList({
   const reasonRequired = staffReasonRequired(
     tenant?.tenant?.parentRequestReasonPolicy,
   );
-  const [reviewAccess, setReviewAccess] = useState<
-    RequestReviewAccess | undefined
-  >(undefined);
-  const sources = useRequestSources(view, filters, setReviewAccess);
-  const feed = useMergedRequestFeed(sources, view);
+  const sources = useRequestSources(view, filters);
+  const feed = useMergedRequestFeed(sources, view, filters);
   const {
     items,
     setItems,
     hasMore,
     loading,
     loadingMore,
-    error,
+    reviewAccess,
+    error: listError,
     clearError,
     reportError,
   } = feed;
@@ -126,9 +123,11 @@ export function AggregatedRequestList({
     loading: withdrawalsLoading,
     loadingMore: withdrawalsLoadingMore,
     hasMore: withdrawalsHaveMore,
+    error: withdrawalsError,
     load: loadWithdrawals,
     loadMore: loadMoreWithdrawals,
   } = withdrawalsFeed;
+  const error = listError ?? withdrawalsError;
   const { success: showSuccess } = useToast();
   const { show: showActionError } = useApiErrorDisplay();
   const [selectedCaseKey, setSelectedCaseKey] = useState<string | null>(null);
@@ -144,34 +143,23 @@ export function AggregatedRequestList({
   // doesn't refetch — it already removed the decided row optimistically.
   const suppressSelfReloadRef = useRef(false);
 
+  // Ereignisse anderer Flächen gleichen die offene Liste im Hintergrund ab;
+  // Fokus und Sichtbarkeit übernimmt SWR (#4988).
+  const reloadFeed = feed.reload;
   useEffect(() => {
     if (view !== "open") return;
     const handler = () => {
       if (suppressSelfReloadRef.current) return;
-      void feed.reload();
+      void reloadFeed();
       void loadWithdrawals();
-    };
-    const onFocus = () => {
-      void feed.reload();
-      void loadWithdrawals();
-    };
-    const onVisibility = () => {
-      if (typeof document !== "undefined" && !document.hidden) {
-        void feed.reload();
-        void loadWithdrawals();
-      }
     };
     window.addEventListener("change-requests-refresh", handler);
     window.addEventListener("messages-unread-refresh", handler);
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("change-requests-refresh", handler);
       window.removeEventListener("messages-unread-refresh", handler);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [view, feed, loadWithdrawals]);
+  }, [view, reloadFeed, loadWithdrawals]);
 
   const handleDecided = useCallback(
     (key: string, decidedNotice: string) => {
@@ -194,8 +182,8 @@ export function AggregatedRequestList({
   // wird neu geladen, statt eine Entscheidung vorzutäuschen, die nicht galt.
   // Den Grund hat die Stelle gemeldet, an der entschieden wurde.
   const handleStale = useCallback(() => {
-    void feed.reload();
-  }, [feed]);
+    void reloadFeed();
+  }, [reloadFeed]);
 
   const openCases = useMemo(
     () => (view === "open" ? groupOpenCases(items, withdrawals) : []),

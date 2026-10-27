@@ -1,12 +1,44 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render as renderComponent,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
 import type { StaffAbsenceRequestRow } from "~/lib/staff-api";
+import { SWRConfig, type Cache } from "~/lib/swr";
 import { catalogText } from "~/test/error-catalog-text";
 
 import { StaffAbsenceRequestList } from "./staff-absence-request-list";
+
+// Die Anträge liegen im SWR-Cache (#4988): echtes SWR, ein eigener Cache je
+// Render und eine angemeldete Sitzung für useSWRAuth.
+vi.unmock("swr");
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    status: "authenticated",
+    data: { user: { id: "1", token: "test-token" } },
+  }),
+}));
+
+function providersWith(cache: Cache) {
+  return function Providers({
+    children,
+  }: Readonly<{ children: React.ReactNode }>) {
+    return (
+      <SWRConfig value={{ provider: () => cache, dedupingInterval: 0 }}>
+        {children}
+      </SWRConfig>
+    );
+  };
+}
+
+const render = (ui: React.ReactNode, cache: Cache = new Map()) =>
+  renderComponent(ui, { wrapper: providersWith(cache) });
 
 const { listRequests, approve } = vi.hoisted(() => ({
   listRequests: vi.fn(),
@@ -234,6 +266,72 @@ describe("StaffAbsenceRequestList", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     expect(await screen.findByText("Mira Muster")).toBeInTheDocument();
+  });
+
+  it("zeigt beim erneuten Öffnen sofort die geladenen Anträge und gleicht sie ab", async () => {
+    const cache: Cache = new Map();
+    listRequests.mockResolvedValueOnce([openRow()]);
+    const first = render(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+      cache,
+    );
+    await screen.findByText("Mira Muster");
+    first.unmount();
+
+    listRequests.mockResolvedValueOnce([
+      openRow(),
+      { ...openRow(), id: "20", staff_name: "Tom Neu" },
+    ]);
+    render(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+      cache,
+    );
+
+    // Anker: die Anträge stehen im selben Render, ohne auf den Abruf zu warten.
+    expect(screen.getByText("Mira Muster")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Anträge werden geladen" }),
+    ).not.toBeInTheDocument();
+    expect(await screen.findByText("Tom Neu")).toBeInTheDocument();
+    expect(listRequests).toHaveBeenCalledTimes(2);
+  });
+
+  it("meldet einen gescheiterten Abgleich über der stehenden Liste", async () => {
+    const cache: Cache = new Map();
+    listRequests.mockResolvedValueOnce([openRow()]);
+    const first = render(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+      cache,
+    );
+    await screen.findByText("Mira Muster");
+    first.unmount();
+
+    listRequests.mockRejectedValueOnce(
+      new ApiError("boom", 500, { code: "general.server" }),
+    );
+    render(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+      cache,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Liste der Anträge"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Mira Muster")).toBeInTheDocument();
   });
 
   it("meldet eine abgelehnte Genehmigung über den gemeinsamen Fehlerweg", async () => {

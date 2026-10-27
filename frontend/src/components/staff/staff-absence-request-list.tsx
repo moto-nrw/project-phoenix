@@ -10,9 +10,10 @@
  * Eltern-Reiter, damit beide Reiter gleich aussehen.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { TrayIcon } from "@phosphor-icons/react/ssr";
+import { useSession } from "next-auth/react";
 import { useSWRConfig } from "swr";
 
 import {
@@ -27,21 +28,19 @@ import {
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import {
-  useApiErrorDisplay,
-  useApiLoadError,
-  useToast,
-} from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import {
   absenceRowLabel,
   dispatchAbsencesRefresh,
   formatAbsenceRange,
 } from "~/lib/absence-helpers";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
   staffAbsenceService,
   type StaffAbsenceRequestRow,
 } from "~/lib/staff-api";
+import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "StaffAbsenceRequestList" });
 
@@ -85,18 +84,9 @@ export function StaffAbsenceRequestList({
 }>) {
   const toast = useToast();
   const { mutate: swrMutate } = useSWRConfig();
-  const [rows, setRows] = useState<StaffAbsenceRequestRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const loadError = useApiLoadError();
-  const showLoadError = loadError.show;
-  const clearLoadError = loadError.clear;
+  const { data: session } = useSession();
+  const accountId = session?.user.id;
   const { show: showActionError } = useApiErrorDisplay();
-  const loadVersion = useRef(0);
-  // Ein neuer Ladeversuch (auch „Wiederholen“) zählt hoch und lädt neu.
-  const [attempt, setAttempt] = useState(0);
-  // Synchron gesetzt: der Katalogtext lädt nach, bis dahin darf kein
-  // Leerzustand („Keine offenen Anträge“) aufblitzen.
-  const [failed, setFailed] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [denyModal, setDenyModal] = useState<StaffAbsenceRequestRow | null>(
     null,
@@ -104,51 +94,56 @@ export function StaffAbsenceRequestList({
   const [questionModal, setQuestionModal] =
     useState<StaffAbsenceRequestRow | null>(null);
 
-  // Solange geladen wird, meldet die Liste `null`: der Seitenkopf zeigt dann
-  // einen Skelett-Balken statt einer falschen Null.
-  const reportedCount = loading || failed ? null : rows.length;
-  useEffect(() => {
-    onCountChange?.(reportedCount);
-  }, [onCountChange, reportedCount]);
-
-  const load = useCallback(
+  // Die Anträge liegen im SWR-Cache, je Konto, Ansicht und Filter (#4988):
+  // beim erneuten Öffnen steht die Liste sofort, der Abgleich läuft im
+  // Hintergrund. Beim Wechsel von Ansicht oder Filter zeigt die Liste ihr
+  // Skelett statt der Zeilen des alten Filters; ein Fehlschlag steht mit
+  // „Wiederholen“ vor Ort, statt still wiederholt zu werden.
+  const {
+    data: rows,
+    error,
+    mutate,
+  } = useSWRAuth<StaffAbsenceRequestRow[]>(
+    accountId
+      ? `staff-absence-requests:${accountId}:${view}:${JSON.stringify([
+          filters.search,
+          filters.types,
+        ])}`
+      : null,
     () =>
       staffAbsenceService.listRequests(view, {
         search: filters.search,
         types: filters.types,
       }),
-    [view, filters],
+    { keepPreviousData: false, shouldRetryOnError: false },
   );
+  const loadError = useSwrLoadError(error, "die Liste der Anträge", () =>
+    mutate(),
+  );
+  // Die Zeilen, die beim letzten Entscheiden galten. Scheitert das Neuladen
+  // danach, wären sie falsch; dann steht der Fehler an ihrer Stelle.
+  const [rowsAtDecision, setRowsAtDecision] = useState<
+    StaffAbsenceRequestRow[] | undefined
+  >(undefined);
+  const loading = rows === undefined && error === undefined;
+  // Synchron aus dem SWR-Fehler: der Katalogtext lädt nach, bis dahin darf
+  // kein Leerzustand („Keine offenen Anträge“) aufblitzen.
+  const failed =
+    error !== undefined && (rows === undefined || rows === rowsAtDecision);
 
   useEffect(() => {
-    let cancelled = false;
-    const version = ++loadVersion.current;
-    setLoading(true);
-    setFailed(false);
-    clearLoadError();
-    load()
-      .then((data) => {
-        if (!cancelled && version === loadVersion.current) setRows(data);
-      })
-      .catch((err: unknown) => {
-        if (cancelled || version !== loadVersion.current) return;
-        logger.warn("absence_request_list_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        setRows([]);
-        setFailed(true);
-        void showLoadError(err, {
-          object: "die Liste der Anträge",
-          retry: () => setAttempt((value) => value + 1),
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [load, attempt, showLoadError, clearLoadError]);
+    if (error === undefined) return;
+    logger.warn("absence_request_list_load_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }, [error]);
+
+  // Solange geladen wird, meldet die Liste `null`: der Seitenkopf zeigt dann
+  // einen Skelett-Balken statt einer falschen Null.
+  const reportedCount = loading || failed ? null : (rows?.length ?? null);
+  useEffect(() => {
+    onCountChange?.(reportedCount);
+  }, [onCountChange, reportedCount]);
 
   // Nach einer Entscheidung neu laden statt die Zeile zu entfernen: eine
   // Rückfrage lässt den Antrag offen, genehmigt und abgelehnt verschwinden
@@ -156,33 +151,14 @@ export function StaffAbsenceRequestList({
   // Seitenleiste, Verweis auf der Mitarbeiter-Seite, Reiter der
   // Mitarbeitenden-Detailseite hören auf diese beiden Signale.
   const afterDecision = useCallback(() => {
-    const version = ++loadVersion.current;
-    load()
-      .then((data) => {
-        if (version !== loadVersion.current) return;
-        setRows(data);
-        setFailed(false);
-        clearLoadError();
-      })
-      .catch((err: unknown) => {
-        if (version !== loadVersion.current) return;
-        logger.warn("absence_request_list_reload_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        // Die alte Liste wäre jetzt falsch; der Fehler steht an ihrer Stelle.
-        setRows([]);
-        setFailed(true);
-        void showLoadError(err, {
-          object: "die Liste der Anträge",
-          retry: () => setAttempt((value) => value + 1),
-        });
-      });
+    setRowsAtDecision(rows);
+    void mutate();
     swrMutate(
       (key) =>
         typeof key === "string" && key.includes("staff-pending-absences-"),
     );
     dispatchAbsencesRefresh();
-  }, [load, swrMutate, showLoadError, clearLoadError]);
+  }, [mutate, rows, swrMutate]);
 
   const handleApprove = async (row: StaffAbsenceRequestRow) => {
     setBusyId(row.id);
@@ -214,101 +190,114 @@ export function StaffAbsenceRequestList({
 
   const hasFilters = filters.search.trim() !== "" || filters.types.length > 0;
 
-  if (failed) {
-    return <LoadErrorAlert error={loadError.error} />;
+  if (failed || rows === undefined) {
+    return <LoadErrorAlert error={loadError} />;
   }
+
+  // Ein gescheiterter Abgleich im Hintergrund: die Liste bleibt stehen, der
+  // Fehler steht mit „Wiederholen“ darüber.
+  const revalidationError = <LoadErrorAlert error={loadError} />;
 
   if (rows.length === 0) {
     return (
-      <EmptyState
-        icon={<TrayIcon size={32} aria-hidden="true" />}
-        title={
-          view === "open"
-            ? "Keine offenen Anträge."
-            : "Noch keine entschiedenen Anträge."
-        }
-        description={
-          hasFilters
-            ? "Für die aktuelle Suche und Filter gibt es keine Treffer."
-            : undefined
-        }
-        variant="compact"
-      />
+      <>
+        {revalidationError}
+        <EmptyState
+          icon={<TrayIcon size={32} aria-hidden="true" />}
+          title={
+            view === "open"
+              ? "Keine offenen Anträge."
+              : "Noch keine entschiedenen Anträge."
+          }
+          description={
+            hasFilters
+              ? "Für die aktuelle Suche und Filter gibt es keine Treffer."
+              : undefined
+          }
+          variant="compact"
+        />
+      </>
     );
   }
 
   if (view === "history") {
     return (
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <RequestRowHeader view="history" />
-        {rows.map((row) => (
-          <RequestReviewCard
-            key={row.id}
-            type="absence"
-            typeLabel={absenceRowLabel(row)}
-            childName={staffLabel(row)}
-            summary={formatAbsenceRange(row.date_start, row.date_end)}
-            submittedAt={row.requested_at}
-            history={{
-              status: HISTORY_STATUS[row.status] ?? row.status,
-              decidedAt:
-                row.status === "canceled"
-                  ? (row.updated_at ?? "")
-                  : (row.approved_at ?? ""),
-              decidedByName: decidedByLabel(row),
-              reason: row.decision_note,
-            }}
-          >
-            {row.note && (
-              <p className="text-sm text-gray-700">
-                <span className="font-medium">Notiz:</span> {row.note}
-              </p>
-            )}
-          </RequestReviewCard>
-        ))}
-      </div>
+      <>
+        {revalidationError}
+        <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+          <RequestRowHeader view="history" />
+          {rows.map((row) => (
+            <RequestReviewCard
+              key={row.id}
+              type="absence"
+              typeLabel={absenceRowLabel(row)}
+              childName={staffLabel(row)}
+              summary={formatAbsenceRange(row.date_start, row.date_end)}
+              submittedAt={row.requested_at}
+              history={{
+                status: HISTORY_STATUS[row.status] ?? row.status,
+                decidedAt:
+                  row.status === "canceled"
+                    ? (row.updated_at ?? "")
+                    : (row.approved_at ?? ""),
+                decidedByName: decidedByLabel(row),
+                reason: row.decision_note,
+              }}
+            >
+              {row.note && (
+                <p className="text-sm text-gray-700">
+                  <span className="font-medium">Notiz:</span> {row.note}
+                </p>
+              )}
+            </RequestReviewCard>
+          ))}
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
-      <ul className="divide-y divide-gray-100">
-        {rows.map((row) => (
-          <AbsenceRequestRow
-            key={row.id}
-            row={row}
-            staffName={staffLabel(row)}
-            isBusy={busyId === row.id}
-            showActions
-            onApprove={() => {
-              void handleApprove(row);
-            }}
-            onDeny={() => setDenyModal(row)}
-            onQuestion={() => setQuestionModal(row)}
-          />
-        ))}
-      </ul>
+    <>
+      {revalidationError}
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-5">
+        <ul className="divide-y divide-gray-100">
+          {rows.map((row) => (
+            <AbsenceRequestRow
+              key={row.id}
+              row={row}
+              staffName={staffLabel(row)}
+              isBusy={busyId === row.id}
+              showActions
+              onApprove={() => {
+                void handleApprove(row);
+              }}
+              onDeny={() => setDenyModal(row)}
+              onQuestion={() => setQuestionModal(row)}
+            />
+          ))}
+        </ul>
 
-      {denyModal && (
-        <DenyAbsenceModal
-          absence={denyModal}
-          onClose={() => setDenyModal(null)}
-          onDenied={() => {
-            afterDecision();
-            setDenyModal(null);
-          }}
-        />
-      )}
-      {questionModal && (
-        <QuestionAbsenceModal
-          absence={questionModal}
-          onClose={() => setQuestionModal(null)}
-          onQuestioned={() => {
-            afterDecision();
-            setQuestionModal(null);
-          }}
-        />
-      )}
-    </div>
+        {denyModal && (
+          <DenyAbsenceModal
+            absence={denyModal}
+            onClose={() => setDenyModal(null)}
+            onDenied={() => {
+              afterDecision();
+              setDenyModal(null);
+            }}
+          />
+        )}
+        {questionModal && (
+          <QuestionAbsenceModal
+            absence={questionModal}
+            onClose={() => setQuestionModal(null)}
+            onQuestioned={() => {
+              afterDecision();
+              setQuestionModal(null);
+            }}
+          />
+        )}
+      </div>
+    </>
   );
 }
