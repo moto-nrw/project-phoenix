@@ -21,7 +21,15 @@ type (
 	ChildOfferingSet            = capability.ChildOfferingSet
 	RestoreOutcome              = capability.RestoreOutcome
 	OfferingAdjustment          = capability.OfferingAdjustmentRecord
+	RosterImpact                = capability.RosterImpact
 )
+
+// ChildOfferingsUpdate is the corrected child with the effect of the
+// correction on the child's Regeltermine (#5102).
+type ChildOfferingsUpdate struct {
+	Child        *RequestChild
+	RosterImpact RosterImpact
+}
 
 // DecideOutcome is the refreshed child plus the post-commit guardian
 // invitation an approval owes.
@@ -98,7 +106,7 @@ type DecisionService interface {
 	Get(ctx context.Context, requestID int64) (*RequestSummary, error)
 	Decide(ctx context.Context, input DecideInput) (*DecideOutcome, error)
 	RestoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*RestoreOutcome, error)
-	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
+	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*ChildOfferingsUpdate, error)
 	ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*OfferingAdjustment, error)
 	ListChildOfferings(ctx context.Context, requestID int64) (map[int64]ChildOfferingSet, error)
 	ExportPhase(ctx context.Context, phaseID, actorAccountID int64, actorRole, format, childStatusFilter string) (*PhaseExport, error)
@@ -169,12 +177,16 @@ func (c decisionService) RestoreWithdrawn(ctx context.Context, requestID, restor
 	return c.owner.RestoreWithdrawn(ctx, requestID, restoredBy)
 }
 
-func (c decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error) {
+func (c decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*ChildOfferingsUpdate, error) {
 	value, err := c.owner.UpdateChildOfferings(ctx, input)
 	if err != nil {
 		return nil, err
 	}
-	return childValue(value)
+	child, err := childValue(value.Child)
+	if err != nil {
+		return nil, err
+	}
+	return &ChildOfferingsUpdate{Child: child, RosterImpact: value.RosterImpact}, nil
 }
 
 func (c decisionService) ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*OfferingAdjustment, error) {

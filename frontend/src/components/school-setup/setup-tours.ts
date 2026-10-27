@@ -19,6 +19,11 @@ export interface SetupTourStop {
    * (etwa auf dem Handy), öffnet die Tour die Seite selbst.
    */
   nav?: true;
+  /**
+   * Die Stelle gibt es nur kurz, etwa einen Eintrag in einem aufgeklappten
+   * Menü. „Zurück“ geht über sie hinweg zur Station davor, die sie öffnet.
+   */
+  skipOnBack?: true;
   /** Entfällt, wenn diese Stelle schon sichtbar ist (Bereich schon offen). */
   skipWhenVisible?: string;
   /**
@@ -118,6 +123,9 @@ function viaSidebar(path: string, label: string): SetupTourStop[] {
   ];
 }
 
+/** Die Karte „Neue Einladung“, erkannt an ihrem Senden-Knopf. */
+const INVITE_FORM = 'div:has(> form [data-setup-tour="invite-submit"])';
+
 const IMPORT_SUBMIT = '[data-setup-tour="student-import-submit"]';
 
 /** Zweige einer Tour, auf eigener Seite und mit eigener Zählung. */
@@ -169,15 +177,26 @@ export const SETUP_TOURS: Readonly<
       {
         target: create,
         title: "Personal einladen",
-        // „+ Personal“ klappt auf: einladen oder externe Person anlegen
-        // (#4573). Die nächste Station wartet auf das Einladungsformular.
-        text: "Wählen Sie „+ Personal“ und danach „Personal einladen“.",
+        text: "Wählen Sie „+ Personal“.",
         advance: "click",
+      },
+      {
+        // „+ Personal“ klappt auf, wenn die Schule auch Externe anlegen
+        // darf (#4573). Sonst öffnet der Knopf das Formular direkt, und
+        // diese Station entfällt. Am Formular statt am Klick erkannt: Mit
+        // der Tastatur gewählt, löst der Eintrag keinen Klick aus.
+        target: '[data-setup-tour="invite-create"]',
+        title: "Einladung wählen",
+        text: "Wählen Sie „Personal einladen“.",
+        advance: "click",
+        advanceWhenVisible: INVITE_FORM,
+        skipOnBack: true,
+        missingText: "Wählen Sie „Zurück“ und dann noch einmal „+ Personal“.",
       },
       {
         // Die Karte „Neue Einladung“ (Kopf und Formular), erkannt an ihrem
         // Senden-Knopf; die Markierung endet über dem Knopf.
-        target: 'div:has(> form [data-setup-tour="invite-submit"])',
+        target: INVITE_FORM,
         endBefore: '[data-setup-tour="invite-submit"]',
         title: "Angaben eintragen",
         text: "An die E-Mail-Adresse schickt moto die Einladung. Die Rolle bestimmt, was die Person sehen und ändern darf. Mit dem Namen erkennen Sie die Person in der Liste, auch bevor sie die Einladung annimmt. Die Position ist freiwillig.",

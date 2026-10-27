@@ -151,6 +151,7 @@ export const HELP_TOPICS = {
   leadStaffNotices: "tagesinformationen-schreiben",
   leadCalendarPeriods: "schuljahr-und-ferien-eintragen",
   leadCarePlan: "betreuungsplan-erstellen",
+  leadRosterDeviation: "regeltermin-mit-angebot-verbinden",
   leadCancelBlock: "termin-absagen",
   leadDutyRoster: "dienstplan-erstellen",
   leadSubstitutionPlan: "vertretung-planen",

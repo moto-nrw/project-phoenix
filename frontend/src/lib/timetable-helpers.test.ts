@@ -58,6 +58,7 @@ import {
   offeringPhaseStartWarning,
   parseTimeToMinutes,
   resolveTemplateCalendarPeriodId,
+  findOccurrenceSeriesTemplate,
   toISODate,
   weekdayDatesInRange,
 } from "./timetable-helpers";
@@ -1553,6 +1554,48 @@ describe("resolveTemplateCalendarPeriodId", () => {
         schedules: [{ calendarPeriodId: undefined }],
       } as TimetableTemplate),
     ).toBe("5");
+  });
+});
+
+describe("findOccurrenceSeriesTemplate", () => {
+  const pinned = {
+    id: "7",
+    calendarPeriodId: "2",
+    schedules: [{ calendarPeriodId: "2" }],
+  } as TimetableTemplate;
+  const unpinned = {
+    id: "8",
+    schedules: [{ calendarPeriodId: undefined }],
+  } as TimetableTemplate;
+
+  it("finds the Regeltermin of an occurrence in its own period", () => {
+    expect(
+      findOccurrenceSeriesTemplate([pinned, unpinned], {
+        activityGroupId: "7",
+        calendarPeriodId: "2",
+      }),
+    ).toBe(pinned);
+    expect(
+      findOccurrenceSeriesTemplate([pinned], {
+        activityGroupId: "7",
+        calendarPeriodId: "3",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("finds a Regeltermin without a period pin, which serves every period", () => {
+    expect(
+      findOccurrenceSeriesTemplate([pinned, unpinned], {
+        activityGroupId: "8",
+        calendarPeriodId: "2",
+      }),
+    ).toBe(unpinned);
+    expect(
+      findOccurrenceSeriesTemplate([pinned, unpinned], {
+        activityGroupId: undefined,
+        calendarPeriodId: "2",
+      }),
+    ).toBeUndefined();
   });
 });
 

@@ -159,6 +159,12 @@ export function useSetupTour<K extends string>(
   }, [router]);
   const pathname = usePathname();
   const [tour, setTour] = useState<TourState<K> | null>(null);
+  // Der Stand, an dem ein verzögerter Klick-Wechsel prüft, ob die Tour
+  // inzwischen schon weiter ist.
+  const tourRef = useRef(tour);
+  useEffect(() => {
+    tourRef.current = tour;
+  }, [tour]);
   // Das Suchergebnis gehört zu genau einer Station. So zeigt eine neue
   // Station nie auf die Stelle der vorigen, bevor ihre eigene gefunden ist.
   const [search, setSearch] = useState<{
@@ -231,9 +237,15 @@ export function useSetupTour<K extends string>(
   // Kindakte), öffnet „Zurück“ diese Seite wieder. Eine vorige Station auf
   // einer dritten Seite lässt sich nicht wieder öffnen; dann gibt es kein
   // „Zurück“, statt dass die Tour auf eine Seite wartet, die nie kommt.
+  // Stationen mit `skipOnBack` (ein Menüeintrag) überspringt „Zurück“.
+  let previousIndex = tour ? tour.index - 1 : -1;
+  const stops = definition?.stops ?? [];
+  while (previousIndex > 0 && stops[previousIndex]?.skipOnBack) {
+    previousIndex -= 1;
+  }
   const previousStop =
-    definition && tour && tour.index > 0
-      ? definition.stops[tour.index - 1]
+    definition && previousIndex >= 0
+      ? definition.stops[previousIndex]
       : undefined;
   const previousNeedsPage =
     previousStop !== undefined &&
@@ -250,8 +262,16 @@ export function useSetupTour<K extends string>(
     if (!tour || !canGoBack || !previousStop || !definition) return;
     closeOverlayLeftBehind(target, previousStop);
     if (previousNeedsPage) routerRef.current.push(definition.path);
-    setTour({ ...tour, index: tour.index - 1, reviewing: true });
-  }, [tour, canGoBack, previousStop, previousNeedsPage, definition, target]);
+    setTour({ ...tour, index: previousIndex, reviewing: true });
+  }, [
+    tour,
+    canGoBack,
+    previousStop,
+    previousIndex,
+    previousNeedsPage,
+    definition,
+    target,
+  ]);
 
   const start = useCallback(
     (step: K) => {
@@ -442,7 +462,12 @@ export function useSetupTour<K extends string>(
         setSearch(null);
         return;
       }
-      window.setTimeout(next, ADVANCE_DELAY_MS);
+      // Ist die Tour bis dahin schon weiter (etwa weil das Fenster schneller
+      // da war), bleibt der Wechsel aus; sonst setzte er sie zurück.
+      const clicked = tourRef.current;
+      window.setTimeout(() => {
+        if (tourRef.current === clicked) next();
+      }, ADVANCE_DELAY_MS);
     };
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);

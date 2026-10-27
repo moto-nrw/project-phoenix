@@ -270,6 +270,22 @@ var queryBudgets = map[string]queryBudget{
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
 	"api.timetable.templates.list": {max: 11},
+	// modules/timetable — GET /api/timetable/templates/roster-deviations
+	// (#5103): the period's template list with its indicator reads, then the
+	// future rosters (schedules, enrollment rows, alumni, targets and target
+	// members) in one batch. Care Plan's booking read is stubbed here and
+	// budgeted as services.enrollment.offering_weekday_bookings.reads. Flat
+	// from 3 to 8 Regeltermine.
+	"api.timetable.templates.roster_deviations": {max: 16},
+	// modules/timetable — GET /api/timetable/offering-sources/suggestion and
+	// /preview (#5104): a Regeltermin still being planned sends its children,
+	// so the suggestion issues no statement of its own: it reads only Care
+	// Plan's bookings (stubbed here, budgeted as
+	// services.enrollment.offering_weekday_bookings.reads). The preview adds
+	// the two name reads (student persons, person names). Flat from 3 to 8
+	// children.
+	"api.timetable.offering_sources.suggestion": {max: 0, exact: true},
+	"api.timetable.offering_sources.preview":    {max: 2, exact: true},
 	// modules/timetable/http — GET /pickup-extensions (#3261), day tasks only: tenant
 	// transaction and tenant setup, task read, one batched block read,
 	// student and person names. Flat in the number of open tasks.
@@ -328,7 +344,11 @@ var queryBudgets = map[string]queryBudget{
 	// Source validation adds one batched read each for the offering catalog,
 	// its auto-add rules, periods, phases and series roots; flat from 3 to 8.
 	"services.enrollment.template_roster_maintenance_feeds.reads": {max: 5},
-	"services.enrollment.rollover_review_queue.reads":             {max: 3},
+	// modules/careplan — OfferingWeekdayBookings (#5103): the care-offerings
+	// setting, the offerings, the phases (with the period) and the approved
+	// children in one batch. Flat in the number of approved children.
+	"services.enrollment.offering_weekday_bookings.reads": {max: 6},
+	"services.enrollment.rollover_review_queue.reads":     {max: 3},
 	// modules/schoolcalendar/portal — appointment target resolution, 8 explicit guardians.
 	"services.calendar.resolve_targets.reads": {max: 5, exact: true},
 	// modules/schoolcalendar/portal — reminder scan, 8 due appointments; writes scale with

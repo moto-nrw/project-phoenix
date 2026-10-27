@@ -242,7 +242,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	careBookingDeps, err := owners.BookingMaterializationOwners(
 		reposTimetable.Timetable, rosterReconciler, persons, reposCalendar.SchoolCalendar(), repos.Enrollment(), approvedOfferings,
-		studentAudits.EnrollmentOfferingAdjustment, repos.Person, guardianAccess, pickupBaselines, students.CarePlan,
+		studentAudits.EnrollmentOfferingAdjustment, repos.Person, guardianAccess, pickupBaselines, students.CarePlan, mustStudentTemplateDays(db, reposTimetable, today),
 	)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err

@@ -39,7 +39,7 @@ func bookingDependencies(deps BookingMaterializationDependencies, catalog *appli
 	return application.BookingMaterializationDependencies{
 		Catalog: catalog, Rosters: deps.Rosters, Templates: deps.Templates, Periods: deps.Periods,
 		Enrollment: deps.Enrollment, Students: deps.Students, Settings: deps.Settings, Bookings: deps.Bookings,
-		Withdrawals: deps.Withdrawals, Audit: deps.Audit, Pickup: deps.Pickup,
+		Withdrawals: deps.Withdrawals, Audit: deps.Audit, Pickup: deps.Pickup, ManualPlans: deps.ManualPlans,
 		RunInTx:                     tenant.NewTransactionRunner().RunInTx,
 		LockTemplateRecurrence:      deps.LockTemplateRecurrence,
 		ResyncPickupAutoExcusals:    deps.ResyncPickupAutoExcusals,
@@ -65,6 +65,7 @@ type BookingMaterializationDependencies struct {
 	Withdrawals BookingWithdrawals
 	Audit       AdjustmentAudit
 	Pickup      BookingPickup
+	ManualPlans ports.BookingManualPlans
 
 	LockTemplateRecurrence      func(context.Context) error
 	ResyncPickupAutoExcusals    func(ctx context.Context, studentIDs []int64) error

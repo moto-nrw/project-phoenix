@@ -3,9 +3,26 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-const { createExternal } = vi.hoisted(() => ({ createExternal: vi.fn() }));
+const {
+  createExternal,
+  getOfferingPreview,
+  getOfferingSuggestion,
+  getDraftOfferingPreview,
+} = vi.hoisted(() => ({
+  createExternal: vi.fn(),
+  getOfferingPreview: vi.fn(),
+  getOfferingSuggestion: vi.fn(),
+  getDraftOfferingPreview: vi.fn(),
+}));
 vi.mock("~/lib/staff-api", () => ({
   staffService: { createExternal, inviteExternal: vi.fn() },
+}));
+vi.mock("~/lib/timetable-api", () => ({
+  timetableService: {
+    getOfferingPreview,
+    getOfferingSuggestion,
+    getDraftOfferingPreview,
+  },
 }));
 
 import { StepPersonalKinder } from "./step-personal-kinder";
@@ -16,7 +33,9 @@ function renderStep(
 ) {
   const update = vi.fn();
   const changeSourceOfferings = vi.fn();
-  render(
+  const element = (
+    extra: Partial<React.ComponentProps<typeof StepPersonalKinder>> = {},
+  ) => (
     <StepPersonalKinder
       form={{ ...emptyForm("2026-08-03"), targetGroupType: "angebot" }}
       update={update}
@@ -75,9 +94,17 @@ function renderStep(
       setWeekdayRoster={vi.fn()}
       applyActiveWeekdayRosterToAll={vi.fn()}
       {...overrides}
-    />,
+      {...extra}
+    />
   );
-  return { update, changeSourceOfferings };
+  const { rerender } = render(element());
+  return {
+    update,
+    changeSourceOfferings,
+    rerenderWith: (
+      extra: Partial<React.ComponentProps<typeof StepPersonalKinder>>,
+    ) => rerender(element(extra)),
+  };
 }
 
 describe("StepPersonalKinder — Klassenfilter (#2482)", () => {
@@ -589,5 +616,174 @@ describe("StepPersonalKinder — externe Person", () => {
     expect(
       screen.queryByRole("button", { name: "Externe Person eintragen" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("StepPersonalKinder — Vorschau pro Wochentag (#5103)", () => {
+  it("previews an existing series switched to an offering per weekday", async () => {
+    getOfferingPreview.mockResolvedValue({
+      from: "2026-10-28",
+      weekdays: [
+        {
+          weekday: 1,
+          added: [],
+          removed: [{ studentId: "5", name: "Ben Kurz" }],
+          keptCount: 3,
+        },
+      ],
+      segments: [
+        { templateId: "8", validFrom: "2026-09-01", validUntil: "2026-10-30" },
+        { templateId: "9", validFrom: "2026-10-30" },
+      ],
+    });
+    renderStep({
+      form: {
+        ...emptyForm("2026-08-03"),
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["42"],
+        sourceFilterMode: "klasse",
+        sourceSchoolClasses: ["1b"],
+      },
+      sourcePreviewTemplateId: "9",
+      sourcePreviewFrom: "2026-10-28",
+    });
+
+    expect(await screen.findByText("Montag")).toBeInTheDocument();
+    expect(screen.getByText("Fällt weg (1): Ben Kurz")).toBeInTheDocument();
+    expect(getOfferingPreview).toHaveBeenCalledWith(
+      "9",
+      { offeringIds: ["42"], gradeLevels: [], schoolClasses: ["1b"] },
+      "2026-10-28",
+    );
+    expect(
+      screen.getByText(/Die Termine vom 28.10.2026 bis 29.10.2026/),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("StepPersonalKinder — Vorschlag „Angebot übernehmen“ (#5104)", () => {
+  const classForm = (
+    overrides: Partial<ReturnType<typeof emptyForm>> = {},
+  ) => ({
+    ...emptyForm("2026-09-14", "4"),
+    listKind: "edge_hours" as const,
+    targetGroupType: "klasse" as const,
+    targetSchoolClasses: ["1b"],
+    weekdays: [1, 3],
+    ...overrides,
+  });
+  const cohort = { label: "Klasse 1b", memberIds: ["11", "12", "13"] };
+  const randstunde = {
+    offering: { id: "7", name: "Randstunde" },
+    gradeLevels: [],
+    schoolClasses: ["1b"],
+    unbookedCount: 1,
+    missingCount: 0,
+    candidates: [{ id: "7", name: "Randstunde" }],
+  };
+  const suggestionLine =
+    "Sollen nur die für „Randstunde“ angemeldeten Kinder kommen? Dann verbinden Sie den Termin mit dem Angebot.";
+
+  it("suggests the offering whose bookings match Klasse 1b on its weekdays", async () => {
+    getOfferingSuggestion.mockReset().mockResolvedValue(randstunde);
+    renderStep({ form: classForm(), targetCohort: cohort });
+
+    expect(await screen.findByText(suggestionLine)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Angebot übernehmen" }),
+    ).toBeInTheDocument();
+    expect(getOfferingSuggestion).toHaveBeenCalledWith({
+      periodId: "4",
+      type: "care",
+      listKind: "edge_hours",
+      roster: { 1: ["11", "12", "13"], 3: ["11", "12", "13"] },
+      schoolClasses: ["1b"],
+      gradeLevels: [],
+    });
+    // The honest text stays above the suggestion.
+    expect(
+      screen.getByText(/Es kommen alle Kinder der Klasse 1b/),
+    ).toBeInTheDocument();
+  });
+
+  it("takes over the offering with the Klassenfilter and previews against the old list", async () => {
+    getOfferingSuggestion.mockReset().mockResolvedValue(randstunde);
+    getDraftOfferingPreview.mockReset().mockResolvedValue({
+      from: "2026-09-14",
+      weekdays: [
+        {
+          weekday: 1,
+          added: [],
+          removed: [{ studentId: "13", name: "Ada Muster" }],
+          keptCount: 2,
+        },
+      ],
+      segments: [],
+    });
+    const changeTargetGroupType = vi.fn();
+    const changeSourceFilterMode = vi.fn();
+    const { update, changeSourceOfferings, rerenderWith } = renderStep({
+      form: classForm(),
+      targetCohort: cohort,
+      changeTargetGroupType,
+      changeSourceFilterMode,
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Angebot übernehmen" }),
+    );
+
+    expect(changeTargetGroupType).toHaveBeenCalledWith("angebot");
+    expect(changeSourceOfferings).toHaveBeenCalledWith(["7"]);
+    expect(changeSourceFilterMode).toHaveBeenCalledWith("klasse");
+    expect(update).toHaveBeenCalledWith("sourceSchoolClasses", ["1b"]);
+
+    rerenderWith({
+      form: classForm({
+        targetGroupType: "angebot",
+        targetSchoolClasses: [],
+        sourceCareOfferingIds: ["7"],
+        sourceFilterMode: "klasse",
+        sourceSchoolClasses: ["1b"],
+      }),
+      sourceFilteredCount: 2,
+    });
+
+    expect(await screen.findByText(/Fällt weg \(1\)/)).toBeInTheDocument();
+    expect(getDraftOfferingPreview).toHaveBeenCalledWith(
+      "4",
+      { offeringIds: ["7"], gradeLevels: [], schoolClasses: ["1b"] },
+      { 1: ["11", "12", "13"], 3: ["11", "12", "13"] },
+      "2026-09-14",
+    );
+    expect(screen.queryByText(suggestionLine)).not.toBeInTheDocument();
+  });
+
+  it("shows only the honest text when no offering matches", async () => {
+    getOfferingSuggestion.mockReset().mockResolvedValue(null);
+    renderStep({ form: classForm(), targetCohort: cohort });
+
+    await waitFor(() => expect(getOfferingSuggestion).toHaveBeenCalled());
+    expect(
+      screen.getByText(/Es kommen alle Kinder der Klasse 1b/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Angebot übernehmen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not ask with fewer than three children", async () => {
+    getOfferingSuggestion.mockReset().mockResolvedValue(randstunde);
+    renderStep({
+      form: classForm(),
+      targetCohort: { label: "Klasse 1b", memberIds: ["11", "12"] },
+    });
+
+    // Anchor: the step rendered its honest text.
+    expect(
+      screen.getByText(/Es kommen alle Kinder der Klasse 1b/),
+    ).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(getOfferingSuggestion).not.toHaveBeenCalled();
   });
 });

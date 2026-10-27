@@ -30,11 +30,11 @@ type templateAdministration struct {
 var _ timetable.TemplateAdministration = (*templateAdministration)(nil)
 
 // NewTemplateAdministration composes the Timetable owner's template writes.
-func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (timetable.TemplateAdministration, error) {
+func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (timetable.TemplateAdministration, timetable.TemplateRosterReview, error) {
 	if deps.Groups == nil || deps.Categories == nil || deps.Schedules == nil || deps.Enrollments == nil ||
 		deps.Supervisors == nil || noInstanceRows(deps.Instances) || deps.InstanceStaff == nil || noParticipantRows(deps.Participants) ||
 		deps.Timeframes == nil || deps.EducationGroups == nil || deps.RecurrenceLock == nil || deps.Transactions == nil {
-		return nil, errors.New("timetable template administration: required dependency is nil")
+		return nil, nil, errors.New("timetable template administration: required dependency is nil")
 	}
 	split, err := NewTemplateSplitService(TemplateSplitDependencies{
 		GroupRepo:            deps.Groups,
@@ -58,10 +58,11 @@ func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (t
 		Today:                deps.Today,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	templates := newTemplateAdministrationService(deps)
-	return &templateAdministration{templateAdministrationQueries: templates, templates: templates, split: split, templateEnder: split}, nil
+	return &templateAdministration{templateAdministrationQueries: templates, templates: templates, split: split, templateEnder: split},
+		&templateRosterReview{templates: templates}, nil
 }
 
 func (a *templateAdministration) CreateTemplate(ctx context.Context, cmd timetable.CreateTemplateCommand) (*timetable.CreateTemplateResult, error) {
