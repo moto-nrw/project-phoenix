@@ -70,13 +70,8 @@ func (s *service) BookParentConference(ctx context.Context, child ParentConferen
 			offer, err = s.parentConferenceOffer(txCtx, conference, child.StudentID)
 			return err
 		}
-		if err := s.requireChangeable(conference, minute); err != nil {
+		if err := s.requireBookingChangeable(conference, booking, minute); err != nil {
 			return err
-		}
-		if booking != nil {
-			if err := s.requireChangeable(conference, booking.SlotStartMinute); err != nil {
-				return err
-			}
 		}
 		if booking == nil {
 			err = s.bookParentConferenceSlot(txCtx, conference, child, minute)
@@ -171,6 +166,18 @@ func (s *service) childParentConference(ctx context.Context, store schoolcalenda
 		}
 	}
 	return conference, nil, nil
+}
+
+// requireBookingChangeable checks the destination and, when moving, the
+// existing booking so a later slot cannot bypass the original deadline.
+func (s *service) requireBookingChangeable(conference *schoolcalendar.ParentConference, booking *schoolcalendar.ParentConferenceBooking, minute int) error {
+	if err := s.requireChangeable(conference, minute); err != nil {
+		return err
+	}
+	if booking != nil {
+		return s.requireChangeable(conference, booking.SlotStartMinute)
+	}
+	return nil
 }
 
 // requireChangeable refuses a slot that starts in less than 24 hours.
