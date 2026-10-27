@@ -29,6 +29,7 @@ export const nodeLogicTestFiles = [
   "src/components/dashboard/header/breadcrumb-utils.test.ts",
   "src/components/help/help-content.test.ts",
   "src/components/school-setup/school-setup-steps.test.ts",
+  "src/components/school-setup/setup-tour-targets.test.ts",
   "src/components/school/shell/school-nav-active.test.ts",
   "src/components/school/shell/school-nav-badge.test.ts",
   "src/components/school/supervisions/view-model.test.ts",

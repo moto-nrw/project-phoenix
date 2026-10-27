@@ -41,12 +41,14 @@ export const MISSING_SEED_ACCESS =
 export async function loginToTenant(
   page: Page,
   access: SeedAccess,
+  // Ein anderes Seed-Profil als das Standardprofil (etwa `manuell`).
+  base = tenantBase,
 ): Promise<void> {
   // `domcontentloaded` statt `load`: der Next-Dev-Server hält über SSE
   // Verbindungen offen, das `load`-Event kann dadurch hängen.
-  await loginToLocalTenant(page, tenantBase, access);
+  await loginToLocalTenant(page, base, access);
 
-  const res = await page.request.get(`${tenantBase}/api/auth/session`);
+  const res = await page.request.get(`${base}/api/auth/session`);
   expect(res.ok(), `Session laden fehlgeschlagen (${res.status()})`).toBe(true);
   const session = (await res.json()) as { user?: { id?: string } };
   const accountId = session.user?.id;

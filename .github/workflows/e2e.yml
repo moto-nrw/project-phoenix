@@ -33,6 +33,33 @@ on:
       - "frontend/package.json"
       - "frontend/pnpm-lock.yaml"
       - "frontend/pnpm-workspace.yaml"
+      # Die geführten Touren (e2e/onboarding-tours.spec.ts): Definitionen,
+      # Hook, Sprechblase und jede Datei, die eine `data-setup-tour`-Stelle
+      # rendert. src/components/school-setup/setup-tour-targets.test.ts
+      # schlägt fehl, wenn hier eine solche Datei fehlt.
+      - "frontend/src/components/school-setup/**"
+      - "frontend/src/components/staff-onboarding/**"
+      - "frontend/src/components/ui/coach-mark.tsx"
+      - "frontend/src/components/ui/page-header/OverflowMenu.tsx"
+      - "frontend/src/components/ui/database/database-form.tsx"
+      - "frontend/src/components/database/database-create-action.tsx"
+      - "frontend/src/components/dashboard/sidebar*.tsx"
+      - "frontend/src/components/dashboard/mobile-bottom-nav.tsx"
+      - "frontend/src/components/admin/invitation-form.tsx"
+      - "frontend/src/components/active-supervisions/planned-now-section.tsx"
+      - "frontend/src/components/active-supervisions/states.tsx"
+      - "frontend/src/components/guardians/guardian-form-modal.tsx"
+      - "frontend/src/components/guardians/guardian-list.tsx"
+      - "frontend/src/components/guardians/student-guardian-manager.tsx"
+      - "frontend/src/components/students/student-card.tsx"
+      - "frontend/src/components/students/student-create-modal.tsx"
+      - "frontend/src/components/students/students-list.tsx"
+      - "frontend/src/app/**/database/personal/page.tsx"
+      - "frontend/src/app/**/database/students/page.tsx"
+      - "frontend/src/app/**/database/students/import/page.tsx"
+      - "frontend/src/app/**/ogs-groups/overview/page.tsx"
+      - "frontend/src/app/**/students/search/page.tsx"
+      - "frontend/src/app/**/time-tracking/page.tsx"
 
 concurrency:
   group: e2e-${{ github.head_ref || github.run_id }}
