@@ -210,6 +210,71 @@ describe("InstanceDetailModal", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  // Die Wochenliste kommt ohne Kinderzeilen (#4996): bis sie da sind, steht
+  // unter der Überschrift „Kinder“ ein angesagter Ladehinweis, nie eine
+  // Liste, in der alle als „Erwartet“ stehen.
+  it("announces the children as loading under their heading", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ students: [] })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        studentsPending
+      />,
+    );
+
+    const status = screen.getByText("Kinder werden geladen…");
+    expect(status).toHaveAttribute("role", "status");
+    expect(
+      screen.getByRole("heading", { name: "Kinder" }).parentElement,
+    ).toContainElement(status);
+    expect(screen.queryByText("Erwartet")).not.toBeInTheDocument();
+  });
+
+  it("shows the load error of the children under their heading", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ students: [] })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        studentsPending
+        studentsLoadError={{
+          message: "Die Liste der Kinder ist gerade nicht erreichbar.",
+          attempt: 0,
+        }}
+      />,
+    );
+
+    const alert = screen.getByText(
+      "Die Liste der Kinder ist gerade nicht erreichbar.",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Kinder" }).parentElement,
+    ).toContainElement(alert);
+    expect(
+      screen.queryByText("Kinder werden geladen…"),
+    ).not.toBeInTheDocument();
+  });
+
+  // Ein Dienst hat keine Kinder: kein Ladehinweis, der danach ersatzlos
+  // verschwindet.
+  it("loads no children for a duty", () => {
+    render(
+      <InstanceDetailModal
+        instance={instance({ activityType: "duty", students: [] })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        studentsPending
+      />,
+    );
+
+    // Anker: das Panel steht, mit der Notiz des Termins.
+    expect(screen.getByText("ohne Nuesse")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Kinder werden geladen…"),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the complete 255-character title", () => {
     const longTitle = "T".repeat(255);
 

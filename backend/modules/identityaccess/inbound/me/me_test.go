@@ -50,7 +50,8 @@ func setupUserContextRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, module := setupUserContextModule(t)
-	resource := me.NewResource(module.Caller(), module, rootAPI.TenantSessionChain, nativeUploads.UploadFiles{})
+	resource := me.NewResource(module.Caller(), module, rootAPI.TenantSessionChain, nativeUploads.UploadFiles{},
+		rootAPI.NewAuthTestSettings(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db)))
 
 	return &testContext{
 		db: db,

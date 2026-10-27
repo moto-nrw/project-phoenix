@@ -19,7 +19,6 @@ import { createLogger } from "~/lib/logger";
 import { mapProfileResponse, type BackendProfile } from "~/lib/profile-helpers";
 import type { UnreadAnnouncement } from "~/lib/hooks/use-announcements";
 import type { RemindersResult } from "~/lib/reminders-api";
-import type { SettingsSchema } from "~/lib/settings-api";
 import type { ShellBootstrap, ShellCounts } from "~/lib/shell-seed";
 import type {
   SupervisedGroupPayload,
@@ -313,23 +312,20 @@ async function loadCounts(
 
 /**
  * Loads, in parallel, everything the tenant app shell fetched one request at
- * a time after hydration (#2973): navigation context, settings schema,
- * profile, group and supervision navigation, the account's tenants, and the
- * sidebar badge counts. Runs once per full page load in the tenant layout;
- * client-side navigations reuse the hydrated caches. `token` is the session's
- * access token, which the browser's session never carries (#5005).
+ * a time after hydration (#2973): navigation context, profile, group and
+ * supervision navigation, the account's tenants, and the sidebar badge
+ * counts. The settings schema stays out (#4996): only the settings page loads
+ * it. Runs once per full page load in the tenant layout; client-side
+ * navigations reuse the hydrated caches. `token` is the session's access
+ * token, which the browser's session never carries (#5005).
  */
 export async function loadShellBootstrap(
   session: Session,
   tenant: TenantInfo,
   token: string,
 ): Promise<ShellBootstrap> {
-  const canReadConfig =
-    isAdmin(session) || hasPermission(session, "config:read");
-
   const [
     userContext,
-    settingsSchema,
     profile,
     accountTenants,
     reminders,
@@ -343,16 +339,6 @@ export async function loadShellBootstrap(
       // retries); leave that path to the browser instead of caching it.
       return context.incomplete ? undefined : context;
     }),
-    canReadConfig
-      ? optional("settingsSchema", async (signal) => {
-          const response = await apiGet<Envelope<SettingsSchema>>(
-            "/api/settings/schema",
-            token,
-            { signal },
-          );
-          return response.data;
-        })
-      : Promise.resolve(undefined),
     optional("profile", async (signal) => {
       const response = await apiGet<Envelope<BackendProfile>>(
         "/api/me/profile",
@@ -395,7 +381,6 @@ export async function loadShellBootstrap(
   return {
     accountId: session.user.id,
     userContext,
-    settingsSchema,
     profile,
     accountTenants,
     reminders,

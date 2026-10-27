@@ -38462,6 +38462,50 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me.SchoolSettings.ResolveBool",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform",
+      "binding_digest": "117b8ae7b0ccf9cc7f2d9194166334a5",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only settings lookup: identity-access reads the school switches of the signed-in navigation context (#4996) through modules/identityaccess/inbound/me.SchoolSettings.ResolveBool inside the request tenant transaction. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me.SchoolSettings.ResolveBool",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform",
+      "binding_digest": "487db5ae7aba1ac5f9a2ed3ae533d6ed",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only settings lookup: identity-access reads the school switches of the signed-in navigation context (#4996) through modules/identityaccess/inbound/me.SchoolSettings.ResolveBool inside the request tenant transaction. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me.SchoolSettings.ResolveString",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "1b8779220b9eeeb82b51a5f08ab2a5c9",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only settings lookup: identity-access reads the school switches of the signed-in navigation context (#4996) through modules/identityaccess/inbound/me.SchoolSettings.ResolveString inside the request tenant transaction. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me.SchoolSettings.ResolveString",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform",
+      "binding_digest": "9240d8f903f3c242c1811ef88e6398b1",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only settings lookup: identity-access reads the school switches of the signed-in navigation context (#4996) through modules/identityaccess/inbound/me.SchoolSettings.ResolveString inside the request tenant transaction. No persistent, lock or scope effect."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.CallerActivities.SupervisedActivityGroupIDs",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.CallerActivities.SupervisedActivityGroupIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.CallerActivityGroups.SupervisedActivityGroupIDs",

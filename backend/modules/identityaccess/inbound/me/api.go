@@ -7,6 +7,7 @@ package me
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -29,19 +30,23 @@ type Rows interface {
 
 // Resource handles the /api/me routes.
 type Resource struct {
-	uploads common.UploadStorage
-	caller  identityaccess.CallerContext
-	rows    Rows
-	router  chi.Router
+	uploads  common.UploadStorage
+	caller   identityaccess.CallerContext
+	rows     Rows
+	settings SchoolSettings
+	router   chi.Router
 }
 
 // NewResource mounts the /api/me routes behind the tenant security chain.
 // Every route runs in the request's tenant transaction.
-func NewResource(caller identityaccess.CallerContext, rows Rows, configureSession func(chi.Router), uploads common.UploadStorage) *Resource {
+func NewResource(caller identityaccess.CallerContext, rows Rows, configureSession func(chi.Router), uploads common.UploadStorage, settings SchoolSettings) *Resource {
 	if uploads == nil {
 		panic("me resource: upload storage is required")
 	}
-	res := &Resource{caller: caller, rows: rows, router: chi.NewRouter(), uploads: uploads}
+	if settings == nil {
+		panic("me resource: school settings are required")
+	}
+	res := &Resource{caller: caller, rows: rows, settings: settings, router: chi.NewRouter(), uploads: uploads}
 	configureSession(res.router)
 	withTx := common.TenantTxMiddleware
 
@@ -116,6 +121,11 @@ func (res *Resource) teacherRow(ctx context.Context) (any, error) {
 
 func (res *Resource) getNavigation(w http.ResponseWriter, r *http.Request) {
 	navigation, err := res.navigationRow(r.Context())
+	if errors.Is(err, errSchoolSwitchesUnavailable) {
+		// Like the tenant resolve: the settings failure stays in the log.
+		common.RenderError(w, r, common.ErrorInternalServerWrap(http.StatusText(http.StatusInternalServerError), err))
+		return
+	}
 	res.respond(w, r, navigation, err, "Navigation context retrieved successfully")
 }
 
@@ -124,7 +134,15 @@ func (res *Resource) navigationRow(ctx context.Context) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	return res.rows.NavigationRow(ctx, navigation)
+	row, err := res.rows.NavigationRow(ctx, navigation)
+	if err != nil {
+		return nil, err
+	}
+	switches, err := loadSchoolSwitches(ctx, res.settings)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", errSchoolSwitchesUnavailable, err)
+	}
+	return withSchoolSwitches(row, switches)
 }
 
 // getMyGroups renders the caller's educational groups. The substitution

@@ -73,7 +73,6 @@ beforeEach(() => {
 describe("loadShellBootstrap", () => {
   it("loads every shell field an admin's sidebar renders, in one pass", async () => {
     routeBackend({
-      "/api/settings/schema": { data: { tabs: [] } },
       "/api/me/profile": {
         data: { id: 7, first_name: "Ada", last_name: "L", email: "a@b" },
       },
@@ -139,7 +138,9 @@ describe("loadShellBootstrap", () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(shell.userContext?.incomplete).toBe(false);
-    expect(shell.settingsSchema).toEqual({ tabs: [] });
+    // The settings schema stays out of the shell (#4996): the navigation
+    // reads its switches from the tenant resolve.
+    expect(calledEndpoints()).not.toContain("/api/settings/schema");
     expect(shell.profile?.firstName).toBe("Ada");
     expect(shell.accountTenants?.[0]?.organizationName).toBe("Org");
     expect(shell.supervision).toEqual({
@@ -190,7 +191,6 @@ describe("loadShellBootstrap", () => {
       ACCESS_TOKEN,
     );
 
-    expect(shell.settingsSchema).toBeUndefined();
     expect(shell.supervision?.overviewOk).toBe(false);
     expect(shell.counts).toEqual({
       staffAbsencesPending: undefined,
@@ -239,7 +239,6 @@ describe("loadShellBootstrap", () => {
     routeBackend({
       "/api/me/profile": new Error("500"),
       "/auth/account/tenants": new Error("500"),
-      "/api/settings/schema": new Error("500"),
       "/api/students/ogs-group-navigation": new Error("500"),
       "/api/active/supervisors/all": new Error("API error (403)"),
       "/api/me/groups/supervised": {
@@ -261,7 +260,6 @@ describe("loadShellBootstrap", () => {
 
     expect(shell.userContext).toBeUndefined();
     expect(shell.profile).toBeUndefined();
-    expect(shell.settingsSchema).toBeUndefined();
     expect(shell.accountTenants).toBeUndefined();
     expect(shell.reminders).toBeUndefined();
     expect(shell.announcements).toBeUndefined();
@@ -307,6 +305,7 @@ describe("loadShellBootstrap", () => {
       supervisedRoomNames: [],
       incomplete: true,
       unavailableSections: ["supervised_groups"],
+      schoolSwitches: null,
     });
 
     const shell = await loadShellBootstrap(session(), tenant, ACCESS_TOKEN);
