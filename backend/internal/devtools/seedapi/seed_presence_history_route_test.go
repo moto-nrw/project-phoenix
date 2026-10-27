@@ -43,9 +43,10 @@ func TestOperatorPresenceHistoryWriterPostsChunksAsOperator(t *testing.T) {
 
 	date := calendar.NewDate(2026, time.October, 20)
 	checkIn := date.BerlinMidnight().Add(8 * time.Hour)
+	var deviceID int64 = 7
 	days := make([]PastPresenceDay, 1100)
 	for i := range days {
-		days[i] = PastPresenceDay{StudentID: int64(1000 + i), Date: date, DeviceID: 7, CheckIn: checkIn, CheckOut: checkIn.Add(7 * time.Hour)}
+		days[i] = PastPresenceDay{StudentID: int64(1000 + i), Date: date, DeviceID: deviceID, CheckIn: checkIn, CheckOut: checkIn.Add(7 * time.Hour)}
 	}
 	days[0].Visit = &PastVisit{ActivityGroupID: 50, RoomID: 90, SessionStart: checkIn, SessionEnd: checkIn.Add(2 * time.Hour), Entry: checkIn.Add(time.Hour), Exit: checkIn.Add(90 * time.Minute)}
 	rt := &Runtime{
@@ -60,7 +61,7 @@ func TestOperatorPresenceHistoryWriterPostsChunksAsOperator(t *testing.T) {
 	assert.Equal(t, []int{500, 500, 100}, sizes, "no request exceeds the route's limit")
 	assert.Equal(t, []string{"Bearer operator-token", "Bearer operator-token", "Bearer operator-token"}, auths)
 	assert.Equal(t, date, first.Date)
-	assert.Equal(t, int64(7), first.DeviceID)
+	assert.Equal(t, deviceID, first.DeviceID)
 	assert.True(t, first.CheckIn.Equal(checkIn))
 	require.NotNil(t, first.Visit)
 	visit := *first.Visit
