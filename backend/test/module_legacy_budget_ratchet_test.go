@@ -184,7 +184,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/studentpresence/compose adds exactly 7 LOC.
 // ADR 0123: the mail constructor and the mail renderer of
 // modules/parentbilling/compose add exactly 9 LOC.
-const moduleComposeBudgetTotal = 12685
+// ADR 0128: the student template days constructor of
+// modules/timetable/compose (+5) and Care Plan's manual plans port of
+// modules/careplan/compose (+1).
+const moduleComposeBudgetTotal = 12691
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -196,8 +199,9 @@ const moduleComposeBudgetTotal = 12685
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
 	// ADR 0103: the signature ledger constructor, construction only.
-	"modules/auditlog/compose":             189,
-	"modules/careplan/compose":             1644,
+	"modules/auditlog/compose": 189,
+	// Raised by ADR 0128: the manual plans port of the booking materialization (+1).
+	"modules/careplan/compose":             1645,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
@@ -254,10 +258,11 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 250,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       1142,
-	"modules/timetableblockdisplay/compose":           9,
-	"modules/timetableenrollmentprovenance/compose":   10,
-	"modules/timetableprojection/compose":             7,
+	// Raised by ADR 0128: the student template days constructor (+5).
+	"modules/timetable/compose":                     1147,
+	"modules/timetableblockdisplay/compose":         9,
+	"modules/timetableenrollmentprovenance/compose": 10,
+	"modules/timetableprojection/compose":           7,
 	// Raised by ADR 0105: the Träger transaction binding (+4).
 	"modules/transactionruntime/compose": 137,
 	"modules/workforce/compose":          887,

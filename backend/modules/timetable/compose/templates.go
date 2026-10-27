@@ -49,3 +49,8 @@ func NewRosterReconciler(
 func NewInstanceAutoEnd(instances ports.LegacyInstanceReads, completion timetable.InstanceLifecycle, logger *slog.Logger) (timetable.InstanceAutoEnd, error) {
 	return application.NewInstanceAutoEnd(instances, completion, logger)
 }
+
+// NewStudentTemplateDays composes the hand planning of #5102 (ADR 0128).
+func NewStudentTemplateDays(deps ports.StudentTemplateDaysDependencies) (timetable.StudentTemplateDays, error) {
+	return application.NewStudentTemplateDays(deps)
+}

@@ -20,6 +20,9 @@ import (
 type TimetablePlanning struct {
 	Planning        arrivalTimetable.Planning
 	SeriesConverter timetable.InstanceSeriesConversion
+	// StudentTemplateDays removes a child from a hand-maintained Regeltermin
+	// on weekdays a booking change took away (#5102).
+	StudentTemplateDays timetable.StudentTemplateDays
 }
 
 // buildTimetablePlanning binds the planning over the lifecycle. A split
@@ -67,6 +70,6 @@ func buildTimetablePlanning(
 			Templates: templates, RecurrenceLock: owner.RecurrenceLock, Data: data,
 			ConflictDetection: lifecycle.Conflicts, AttendanceCorrections: corrections, Deviations: lifecycle.Deviations,
 		},
-		SeriesConverter: converter,
+		SeriesConverter: converter, StudentTemplateDays: owner.StudentTemplateDays,
 	}, nil
 }

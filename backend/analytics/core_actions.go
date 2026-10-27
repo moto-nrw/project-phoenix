@@ -466,6 +466,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/timetable/templates/{id}"}:                                                    notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/end"}:                                               notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/split"}:                                             notCaptured,
+	{http.MethodPost, "/api/timetable/templates/{id}/students/{studentId}/remove-days"}:                  notCaptured,
 	{http.MethodPost, "/api/users/"}:                                                                     notCaptured,
 	{http.MethodDelete, "/api/users/{id}"}:                                                               notCaptured,
 	{http.MethodPut, "/api/users/{id}"}:                                                                  notCaptured,

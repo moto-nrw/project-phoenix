@@ -584,6 +584,7 @@ basis
 	POST /api/timetable/templates
 	POST /api/timetable/templates/{id}/end
 	POST /api/timetable/templates/{id}/split
+	POST /api/timetable/templates/{id}/students/{studentId}/remove-days
 	POST /api/users/
 	POST /auth/accounts/{accountId}/caregiver-capability
 	POST /auth/invitations/

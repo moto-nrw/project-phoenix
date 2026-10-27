@@ -84,8 +84,9 @@ type offeringChangeLifecycle struct {
 	careplan.OfferingChangeCapability
 }
 
-func (l offeringChangeLifecycle) Decide(ctx context.Context, input careplan.OfferingChangeDecisionInput) error {
-	return mapOfferingLifecycleError(l.OfferingChangeCapability.Decide(ctx, input))
+func (l offeringChangeLifecycle) Decide(ctx context.Context, input careplan.OfferingChangeDecisionInput) (careplan.RosterImpact, error) {
+	impact, err := l.OfferingChangeCapability.Decide(ctx, input)
+	return impact, mapOfferingLifecycleError(err)
 }
 
 func (l offeringChangeLifecycle) Edit(ctx context.Context, requestID int64, input careplan.CreateOfferingChangeInput, expectedVersion string) (*careplan.OfferingChangeRequest, error) {

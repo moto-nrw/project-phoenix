@@ -210,6 +210,43 @@ type OfferingAdjustmentResult struct {
 	Offerings          map[int64]CareOffering
 	Overridden         []OfferingOverride
 	CompleteWithdrawal bool
+	// RosterImpact tells the office what the adjustment did to the child's
+	// Regeltermine (#5102).
+	RosterImpact RosterImpact
+}
+
+// RosterImpact is the effect of a booking change on the child's
+// Regeltermine from EffectiveFrom on (#5102). Weekdays are ISO (1 = Monday).
+type RosterImpact struct {
+	// EffectiveFrom is the first day the change rewrites.
+	EffectiveFrom calendar.Date
+	// Adjusted are the Regeltermine whose booking-created rows the change
+	// rewrote, with the weekdays the child left or joined there.
+	Adjusted []AdjustedRosterTemplate
+	// NotAdjusted are the Regeltermine that keep planning the child on a
+	// weekday the change took away, because staff maintain them by hand: a
+	// hand roster row, a Klasse/Jahrgang/Gruppe target or an occurrence
+	// roster. Only weekdays no remaining booking feeds there are listed.
+	NotAdjusted []ManualRosterTemplate
+}
+
+// AdjustedRosterTemplate is one Regeltermin series the change rewrote.
+type AdjustedRosterTemplate struct {
+	TemplateID      int64
+	Name            string
+	RemovedWeekdays []int
+	AddedWeekdays   []int
+}
+
+// ManualRosterTemplate is one hand-maintained Regeltermin series that keeps
+// the child on weekdays the change took away.
+type ManualRosterTemplate struct {
+	TemplateID int64
+	Name       string
+	Weekdays   []int
+	// ViaTarget is true when a Klasse, Jahrgang or Gruppe target includes
+	// the child: occurrences created later add the child again.
+	ViaTarget bool
 }
 
 // OfferingAdjustmentSnapshot is one offering in the before and after

@@ -5156,10 +5156,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.Decide",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access",
-      "binding_digest": "4091f116d1ffca1ae56c17e39692d1b8",
+      "binding_digest": "d64cd6c4342d68c6b5ac45952748bdd6",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #5102: Decide now returns the roster impact; the read is unchanged."
     },
     {
       "source_owner": "care-plan",
@@ -5167,10 +5167,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.Decide",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access",
-      "binding_digest": "4a319d15566b18e56e25e32387d95f19",
+      "binding_digest": "bd38cf9a16e320af0ccf98a4e0ddaf8b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #5102: Decide now returns the roster impact; the read is unchanged."
     },
     {
       "source_owner": "care-plan",
@@ -5178,12 +5178,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.Decide",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
       "target_owner": "",
-      "binding_digest": "28b614411b064aec8f3997b422d2a542",
+      "binding_digest": "abe1ba879f12f651e0759a217d01ba20",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0128",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Exposed by #4836 callable resolution (ADR 0098); re-keyed when Decide started returning the roster impact (#5102, ADR 0128). A changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "care-plan",
@@ -5191,12 +5191,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.Decide",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": "",
-      "binding_digest": "c2d5c1afab813af1dbff639f4f04bb83",
+      "binding_digest": "ab23b3120589c581c00d291449fb08a9",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0128",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); re-keyed when Decide started returning the roster impact (#5102, ADR 0128). A changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "care-plan",
@@ -5204,12 +5204,12 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.Decide",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChangeDependencies.Today",
       "target_owner": "",
-      "binding_digest": "28b614411b064aec8f3997b422d2a542",
+      "binding_digest": "abe1ba879f12f651e0759a217d01ba20",
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0098",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.OfferingChangeDependencies.Today. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0128",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/careplan/internal/application.OfferingChangeDependencies.Today. Exposed by #4836 callable resolution (ADR 0098); re-keyed when Decide started returning the roster impact (#5102, ADR 0128). A changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "care-plan",
@@ -10901,6 +10901,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.BookingProjection.RequestChildOfferingsAtDate; modules/enrollment/booking_reads.go:58. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingManualPlans.ManualStudentPlan",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingManualPlans.ManualStudentPlan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.ManualStudentPlan",
+      "target_owner": "timetable-activities",
+      "binding_digest": "3cd43c1185503b9684d1e8e3c14f965d",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read: Care Plan asks Timetable which Regeltermine still plan the child on weekdays a booking change took away (#5102, ADR 0128). Target modules/timetable.StudentTemplateDays.ManualStudentPlan reads roster rows, occurrences, schedules and targets; no owned-row mutation or locking read."
     },
     {
       "source_owner": "care-plan",
@@ -98311,6 +98322,32 @@
       "classification": "platform",
       "adr": "0098",
       "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/timetable.ConflictDetectionCapability.DetectStartConflicts. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.RemoveStudentTemplateDays",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.StudentTemplateDays.RemoveStudentTemplateDays",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.now",
+      "target_owner": "",
+      "binding_digest": "bce0691363986b21d9f00ecde07f6eeb",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0128",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow: the root clock that bounds the removal to today. Exact boundary: unresolved:callable:roots/owners.now. Approved for #5102 by ADR 0128; a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.RemoveStudentTemplateDays",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.StudentTemplateDays.RemoveStudentTemplateDays",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/ports.StudentTemplateDaysDependencies.Today",
+      "target_owner": "",
+      "binding_digest": "bce0691363986b21d9f00ecde07f6eeb",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0128",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow: the root clock that bounds the removal to today. Exact boundary: unresolved:function:modules/timetable/ports.StudentTemplateDaysDependencies.Today. Approved for #5102 by ADR 0128; a changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "timetable-activities",

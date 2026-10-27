@@ -952,6 +952,7 @@ POST /api/timetable/substitutions/bulk
 POST /api/timetable/templates
 POST /api/timetable/templates/{id}/end
 POST /api/timetable/templates/{id}/split
+POST /api/timetable/templates/{id}/students/{studentId}/remove-days
 POST /api/users/
 POST /api/work-time-models/
 POST /auth/accounts/{accountId}/caregiver-capability

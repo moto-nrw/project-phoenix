@@ -104,7 +104,10 @@ type Dependencies struct {
 	// AttendanceCorrections corrects completed blocks and Deviations applies
 	// the Vertretungsplan saves (slice S3). TimetableData serves the planner's
 	// reads from the Timetable owner (#3551).
-	Templates             timetable.TemplateAdministration
+	Templates timetable.TemplateAdministration
+	// StudentTemplateDays removes a child from a hand-maintained Regeltermin
+	// on the weekdays a booking change took away (#5102).
+	StudentTemplateDays   timetable.StudentTemplateDays
 	RecurrenceLock        timetable.RecurrenceWriteLock
 	AttendanceCorrections timetable.AttendanceCorrections
 	Deviations            timetable.StaffDeviations
