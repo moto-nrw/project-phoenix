@@ -159,6 +159,10 @@ type announcementResponse struct {
 	EmailAudience           string           `json:"email_audience"`
 	// SystemKind marks rows the system wrote (cancellation notice, #2601).
 	SystemKind *string `json:"system_kind,omitempty"`
+	// SenderName and SenderSchoolClass name the Lehrkraft of a class letter
+	// (#4800); the OGS reads such a letter but does not change it.
+	SenderName        *string `json:"sender_name,omitempty"`
+	SenderSchoolClass *string `json:"sender_school_class,omitempty"`
 	// Scheduled reminder (#3162): when it is due, its wording, and when it
 	// actually went out.
 	ReminderAt     *time.Time `json:"reminder_at,omitempty"`
@@ -208,7 +212,7 @@ func toOptionResponses(options []announcementService.ParentAnnouncementOption) [
 }
 
 func toAnnouncementResponse(a *announcementService.ParentAnnouncement) announcementResponse {
-	return announcementResponse{
+	resp := announcementResponse{
 		ID:                          strconv.FormatInt(a.ID, 10),
 		Title:                       a.Title,
 		Body:                        a.Body,
@@ -234,6 +238,11 @@ func toAnnouncementResponse(a *announcementService.ParentAnnouncement) announcem
 		SystemKind:                  a.SystemKind,
 		declarationSettingsResponse: toDeclarationSettingsResponse(a),
 	}
+	if a.Sender != nil {
+		resp.SenderName = &a.Sender.Name
+		resp.SenderSchoolClass = &a.Sender.SchoolClass
+	}
+	return resp
 }
 
 // toInput maps the wire request to the service input, parsing stringified
@@ -280,6 +289,10 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]announcementResponse, 0, len(rows))
 	for _, a := range rows {
+		// A Lehrkraft's draft (#4800) is hers until she sends it.
+		if a.IsClassLetter() && a.PublishedAt == nil {
+			continue
+		}
 		out = append(out, toAnnouncementResponse(&a))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Announcements retrieved")

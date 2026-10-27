@@ -56,6 +56,9 @@ func TestClassLetterKeepsItsSenderAndBelongsToItsAuthor(t *testing.T) {
 	require.NotNil(t, letter.SenderSchoolClass)
 	assert.Equal(t, "Lena Lehrerin", *letter.SenderName, "the sender is trimmed")
 	assert.Equal(t, "1a", *letter.SenderSchoolClass)
+	require.Len(t, letter.Targets, 1)
+	require.NotNil(t, letter.Targets[0].TargetRefText)
+	assert.Equal(t, "1a", *letter.Targets[0].TargetRefText, "the target is spelled like the sender class")
 
 	var ogs *announcement.StaffParentAnnouncement
 	require.NoError(t, inTenant(func(c context.Context) error {

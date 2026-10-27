@@ -42,6 +42,8 @@ func normalizeClassLetter(ctx context.Context, in *Input, sender *ClassLetterSen
 	if in.EmailAudience != StaffEmailAudiencePortalOnly {
 		return fmt.Errorf("%w: a class letter reaches the portal audience only", ErrValidation)
 	}
+	// The target carries the class as the school spells it, like the sender.
+	targets[0].TargetRefText = &class
 	in.Sender = &ClassLetterSender{Name: name, SchoolClass: class}
 	return nil
 }

@@ -465,6 +465,8 @@ const SCHOOL_PROTECTED_PATHS = [
   "/tagesinformationen",
   // Kalender der Lehrkraft mit Schulterminen (#4798).
   "/kalender",
+  // Elternbriefe der Lehrkraft an ihre Klasse (#4800).
+  "/elternbriefe",
   "/einstellungen",
 ];
 const SCHOOL_INVITATION_API_PATHS = [

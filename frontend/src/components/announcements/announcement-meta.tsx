@@ -250,7 +250,7 @@ export function targetChips(
         chips.push("Offene Anmeldungen");
         break;
       case "class":
-        chips.push(`Klasse ${t.ref_text ?? "?"}`);
+        chips.push(t.ref_text ? schoolClassLabel(t.ref_text) : "Klasse ?");
         break;
       case "group":
         chips.push(groupNames.get(t.ref_id ?? "") ?? "Gruppe");

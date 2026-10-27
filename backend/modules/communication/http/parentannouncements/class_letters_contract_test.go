@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -131,6 +132,8 @@ func TestClassLetterRoutesWriteOnlyToReachedClasses(t *testing.T) {
 	require.Equal(t, 201, out.Code, out.Body.String())
 	require.NotNil(t, route.contract.input.Sender)
 	assert.Equal(t, communication.ParentLetterSender{Name: "Lena Lehrerin", SchoolClass: "3b"}, *route.contract.input.Sender)
+	assert.Contains(t, out.Body.String(), `"sender_name":"Lena Lehrerin"`, "the response names the sender")
+	assert.Contains(t, out.Body.String(), `"sender_school_class":"3b"`)
 
 	out = route.do(t, "POST", "/", classLetterBody("4a"), writePermission)
 	require.Equal(t, 403, out.Code, out.Body.String())
@@ -177,4 +180,36 @@ func TestClassLetterRoutesReachOnlyTheOwnLetters(t *testing.T) {
 	for _, author := range route.contract.authors {
 		assert.Equal(t, int64(route.claims.ID), author)
 	}
+}
+
+// TestOGSListShowsSentClassLettersOnly pins the OGS side of #4800: a sent
+// class letter stands in the OGS list with its sender, a draft of the
+// Lehrkraft stays hers until she sends it.
+func TestOGSListShowsSentClassLettersOnly(t *testing.T) {
+	t.Parallel()
+	route := newClassLetterRoute(t)
+	sent := time.Date(2026, 10, 27, 8, 0, 0, 0, time.UTC)
+	letter := route.contract.letters[11]
+	letter.PublishedAt = &sent
+	route.contract.letters[11] = letter
+	resource := announcement.NewResource(ogsListContract{route.contract}, nil)
+	claims := routetest.DefaultTestClaims()
+	claims.Permissions = []string{permissions.AdminWildcard}
+	claims.IsAdmin = true
+	req := routetest.NewAuthenticatedRequest(t, "GET", "/?include_inactive=true", nil, routetest.WithJWTBearer(routetest.MintTestJWT(t, claims)))
+	out := routetest.ExecuteRequest(resource.Router(rootAPI.ProtectedTenantRoutes), req)
+
+	require.Equal(t, 200, out.Code, out.Body.String())
+	assert.Contains(t, out.Body.String(), `"id":"11"`)
+	assert.Contains(t, out.Body.String(), `"sender_school_class":"3b"`)
+	assert.Contains(t, out.Body.String(), `"id":"13"`, "the OGS's own announcements stay listed")
+	assert.NotContains(t, out.Body.String(), `"id":"12"`, "a draft of a Lehrkraft stays out")
+}
+
+// ogsListContract serves the list without the author mark of moto schule.
+type ogsListContract struct{ *classLetterContract }
+
+func (s ogsListContract) ListParentAnnouncements(context.Context, bool) ([]communication.ParentAnnouncement, error) {
+	c := s.classLetterContract
+	return []communication.ParentAnnouncement{c.letters[11], c.letters[12], c.letters[13]}, nil
 }

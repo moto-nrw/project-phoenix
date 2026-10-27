@@ -72,7 +72,7 @@ describe("SchoolBottomNav", () => {
       "min-[480px]:inline",
     );
     expect(screen.getByRole("link", { name: "Elternbriefe" })).toHaveClass(
-      "px-3",
+      "px-2.5",
     );
   });
 
