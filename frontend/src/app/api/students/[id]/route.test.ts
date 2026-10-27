@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { NextRequest } from "next/server";
 import { ApiResponseError } from "~/lib/api-response-error.server";
 import { GET, PUT, PATCH, DELETE } from "./route";
 import {
@@ -33,6 +34,10 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
 }));
 
 vi.mock("~/lib/student-privacy-helpers", () => ({
+  DEFAULT_PRIVACY_CONSENT: {
+    privacy_consent_accepted: false,
+    data_retention_days: 30,
+  },
   fetchPrivacyConsent: vi.fn(() =>
     Promise.resolve({
       privacy_consent_accepted: true,
@@ -103,7 +108,9 @@ describe("GET /api/students/[id]", () => {
     const request = createMockRequest("/api/students/123");
     const response = await GET(request, createMockContext({ id: "123" }));
 
-    expect(mockApiGet).toHaveBeenCalledWith("/api/students/123", "test-token");
+    expect(mockApiGet).toHaveBeenCalledWith("/api/students/123", "test-token", {
+      signal: expect.any(AbortSignal),
+    });
     expect(response.status).toBe(200);
 
     const json = await parseJsonResponse<{
@@ -172,22 +179,46 @@ describe("GET /api/students/[id]", () => {
       );
     }
 
-    function routeApiGet(responses: Record<string, () => Promise<unknown>>) {
-      mockApiGet.mockImplementation((path: string) => {
-        const respond = responses[path];
-        if (!respond) throw new Error(`unexpected GET ${path}`);
-        return respond();
-      });
-    }
+    type Respond = (signal?: AbortSignal) => Promise<unknown>;
 
-    function getStudent() {
-      return GET(
-        createMockRequest(STUDENT_PATH),
-        createMockContext({ id: "123" }),
+    function routeApiGet(responses: Record<string, Respond>) {
+      mockApiGet.mockImplementation(
+        (path: string, _token: string, options?: { signal?: AbortSignal }) => {
+          const respond = responses[path];
+          if (!respond) throw new Error(`unexpected GET ${path}`);
+          return respond(options?.signal);
+        },
       );
     }
 
+    // A backend call that never answers on its own, like fetch it only settles
+    // when its signal aborts.
+    function hangUntilAborted(seen: AbortSignal[]): Respond {
+      return (signal) => {
+        if (signal) seen.push(signal);
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        });
+      };
+    }
+
+    function getStudent(request = createMockRequest(STUDENT_PATH)) {
+      return GET(request, createMockContext({ id: "123" }));
+    }
+
+    function sessionWith(permissions: string[]): ExtendedSession {
+      return {
+        ...defaultSession,
+        user: { ...defaultSession.user, permissions },
+      } as ExtendedSession;
+    }
+
+    const withSignal = { signal: expect.any(AbortSignal) as unknown };
+
     beforeEach(async () => {
+      mockAuth.mockResolvedValue(sessionWith(["users:read"]));
       await useRealConsentHelper();
     });
 
@@ -211,9 +242,17 @@ describe("GET /api/students/[id]", () => {
       const pending = getStudent();
 
       await vi.waitFor(() => {
-        expect(mockApiGet).toHaveBeenCalledWith(CONSENT_PATH, "test-token");
+        expect(mockApiGet).toHaveBeenCalledWith(
+          CONSENT_PATH,
+          "test-token",
+          withSignal,
+        );
       });
-      expect(mockApiGet).toHaveBeenCalledWith(STUDENT_PATH, "test-token");
+      expect(mockApiGet).toHaveBeenCalledWith(
+        STUDENT_PATH,
+        "test-token",
+        withSignal,
+      );
 
       consent.resolve({ data: { accepted: true, data_retention_days: 14 } });
       student.resolve(studentBody);
@@ -269,7 +308,11 @@ describe("GET /api/students/[id]", () => {
 
       const pending = getStudent();
       await vi.waitFor(() => {
-        expect(mockApiGet).toHaveBeenCalledWith(CONSENT_PATH, "test-token");
+        expect(mockApiGet).toHaveBeenCalledWith(
+          CONSENT_PATH,
+          "test-token",
+          withSignal,
+        );
       });
       student.reject(problem(404, "general.input"));
       const response = await pending;
@@ -294,6 +337,90 @@ describe("GET /api/students/[id]", () => {
       expect(response.status).toBe(503);
       const json = await parseJsonResponse<{ code: string }>(response);
       expect(json.code).toBe("general.unavailable");
+    });
+
+    // A failed student read must not wait for a consent read that hangs: the
+    // request answers at once and the consent read is cancelled.
+    it("answers the student 404 at once and cancels a hanging consent read", async () => {
+      const consentSignals: AbortSignal[] = [];
+      routeApiGet({
+        [STUDENT_PATH]: () => Promise.reject(problem(404, "general.input")),
+        [CONSENT_PATH]: hangUntilAborted(consentSignals),
+      });
+
+      const response = await getStudent();
+
+      expect(response.status).toBe(404);
+      const json = await parseJsonResponse<{ code: string }>(response);
+      expect(json.code).toBe("general.input");
+      expect(consentSignals).toHaveLength(1);
+      expect(consentSignals[0]?.aborted).toBe(true);
+    });
+
+    it("cancels both backend calls when the browser drops the request", async () => {
+      const signals: AbortSignal[] = [];
+      routeApiGet({
+        [STUDENT_PATH]: hangUntilAborted(signals),
+        [CONSENT_PATH]: hangUntilAborted(signals),
+      });
+      const browser = new AbortController();
+      const request = new NextRequest(`http://localhost:3000${STUDENT_PATH}`, {
+        signal: browser.signal,
+      });
+
+      const pending = getStudent(request);
+      await vi.waitFor(() => {
+        expect(signals).toHaveLength(2);
+      });
+      browser.abort();
+      await pending;
+
+      expect(signals.every((signal) => signal.aborted)).toBe(true);
+    });
+
+    // The consent route demands users:read. Without it the backend answers
+    // 403 and the route the defaults, so the call is not made at all and does
+    // not spend the caller's read budget.
+    it.each([[[]], [["students:read"]]])(
+      "does not request the consent for a session with %j",
+      async (permissions: string[]) => {
+        mockAuth.mockResolvedValue(sessionWith(permissions));
+        routeApiGet({
+          [STUDENT_PATH]: () => Promise.resolve(studentBody),
+        });
+
+        const response = await getStudent();
+
+        expect(response.status).toBe(200);
+        const json = await parseJsonResponse<{
+          data: {
+            id: string;
+            privacy_consent_accepted: boolean;
+            data_retention_days: number;
+          };
+        }>(response);
+        expect(json.data.id).toBe("123");
+        expect(json.data.privacy_consent_accepted).toBe(false);
+        expect(json.data.data_retention_days).toBe(30);
+        expect(mockApiGet).toHaveBeenCalledTimes(1);
+        expect(mockApiGet).not.toHaveBeenCalledWith(
+          CONSENT_PATH,
+          expect.anything(),
+          expect.anything(),
+        );
+      },
+    );
+
+    it("does not answer a student 404 with a consent request for a session without users:read", async () => {
+      mockAuth.mockResolvedValue(sessionWith(["students:read"]));
+      routeApiGet({
+        [STUDENT_PATH]: () => Promise.reject(problem(404, "general.input")),
+      });
+
+      const response = await getStudent();
+
+      expect(response.status).toBe(404);
+      expect(mockApiGet).toHaveBeenCalledTimes(1);
     });
 
     it("fails the request when the consent read answers 5xx", async () => {
