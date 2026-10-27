@@ -68,6 +68,9 @@ func NewPresenceHistory(store ports.Store, tx ports.Transaction) *PresenceHistor
 // retention windows, which count from creation, treat it like a row recorded
 // on that day.
 func (w *PresenceHistoryWriter) RecordPresenceHistory(ctx context.Context, days []studentpresence.PastPresenceDay) (int, error) {
+	if len(days) == 0 {
+		return 0, nil
+	}
 	if err := validatePastPresenceDays(days, calendar.TodayDate()); err != nil {
 		return 0, err
 	}

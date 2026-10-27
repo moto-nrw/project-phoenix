@@ -73,6 +73,17 @@ func TestRecordPresenceHistoryWritesFinishedPastDays(t *testing.T) {
 	assert.Equal(t, room.ID, sessions[0].RoomID)
 }
 
+func TestRecordPresenceHistoryAcceptsAnEmptyBatch(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	history := compose.NewPresenceHistory(compose.Dependencies{DB: db})
+
+	written, err := history.RecordPresenceHistory(testpkg.Ctx(t), nil)
+
+	require.NoError(t, err)
+	assert.Zero(t, written)
+}
+
 // A day that is not in the past, or a visit outside its attendance, rejects
 // the whole batch before anything is written.
 func TestRecordPresenceHistoryRejectsDaysNoCareDayProduced(t *testing.T) {

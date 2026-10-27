@@ -99,12 +99,12 @@ type presenceHistoryStudent struct {
 // care days, so the absences are its only missing days.
 type seedPresenceHistoryStep struct{ seeder *Seeder }
 
-func (seedPresenceHistoryStep) Name() string { return "Seeding presence history" }
+func (seedPresenceHistoryStep) Name() string { return "Anwesenheits- und Raumverlauf wird angelegt" }
 
 func (s seedPresenceHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	write := s.seeder.options.PresenceHistory
 	if write == nil {
-		fmt.Println("  no database for the presence history, past attendance skipped")
+		fmt.Println("  keine Datenbank für den Anwesenheitsverlauf, vergangene Anwesenheiten werden übersprungen")
 		return nil
 	}
 	input, err := presenceHistoryInputFor(rt, s.seeder.definition)
@@ -128,7 +128,7 @@ func seedPresenceHistoryPlan(ctx context.Context, rt *Runtime, schoolID int64, w
 	if err != nil {
 		return rollbackPresenceHistoryStatusDays(rt, createdStatusDays, fmt.Errorf("seed presence history: %w", err))
 	}
-	fmt.Printf("  %d past care days attended, %d sick or excused, %d unexplained\n", written, statusDays, plan.unexplained)
+	fmt.Printf("  %d vergangene Betreuungstage mit Anwesenheit, %d Krankheitstage oder entschuldigte Fehltage, %d Fehltage ohne Meldung\n", written, statusDays, plan.unexplained)
 	return nil
 }
 
