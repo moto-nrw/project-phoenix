@@ -6,6 +6,7 @@
  * callbacks, and NextAuth module augmentation.
  */
 
+import "server-only";
 import { validateSessionToken } from "./token-validation";
 import type { JwtPayload } from "./jwt-payload";
 import type { DefaultSession, NextAuthConfig, Session, User } from "next-auth";

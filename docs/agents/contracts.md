@@ -260,11 +260,14 @@ passes through the allowlist in `frontend/src/server/auth/browser-session.ts`,
 and the layout snapshots map the cookie without them. BFF routes authenticate
 through the session cookie, not a browser `Authorization` header. A session
 whose access token is gone always carries `error`, which `hasSessionAccess`
-checks. `src/app/api/auth/session-tokens.test.ts` checks every session route;
-`src/lib/browser-token-ratchet.test.ts` pins the types and walks the syntax
-tree of every module outside `server/`, `app/api/` and `*.server.ts` for
-credential reads on session values (casts, renames, intermediate variables
-included). Open: login, MFA, passkey login, tenant switch, Träger Absprung
+checks. Three guards hold this: `src/app/api/auth/session-tokens.test.ts`
+checks every session route at runtime; the dependency-cruiser rule
+`browser-not-to-server-auth` forbids every import from `src/server/**`,
+type imports included, outside `server/`, `app/api/` and `*.server.ts`, and
+the auth modules carry `import "server-only"`; `src/lib/browser-token-ratchet.test.ts`
+pins the types and walks the syntax tree of those browser modules for
+credential reads on session values (casts, renames, type aliases,
+intermediate variables included). Open: login, MFA, passkey login, tenant switch, Träger Absprung
 and staff-preview start still hand freshly minted tokens through browser
 JavaScript into Auth.js (`signIn`/`update`).
 

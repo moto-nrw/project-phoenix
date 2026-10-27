@@ -26,7 +26,10 @@ checklist. Local values belong in `.env.local` using `.env.example` as the templ
 Server-only wrappers carry a `.server.ts` suffix (`lib/route-wrapper.server.ts`, `lib/api-helpers.server.ts`, `lib/operator/route-wrapper.server.ts`, `lib/parent/route-wrapper.server.ts`).
 
 Read the existing server-only wrappers and keep server auth/env imports out
-of client components. A dynamic import is not itself an authorization or
+of client components. Modules outside `src/server/`, `src/app/api/` and
+`*.server.ts` import nothing from `src/server/`, not even a type
+(dependency-cruiser rule `browser-not-to-server-auth`, #5005); the auth
+modules there carry `import "server-only"`. A dynamic import is not itself an authorization or
 server-only boundary; inspect the caller and execution path.
 
 The same applies to `auth` and any other server-only import in mixed files.

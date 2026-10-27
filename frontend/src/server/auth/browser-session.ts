@@ -1,3 +1,4 @@
+import "server-only";
 import type { Session } from "next-auth";
 import type { ServerSession } from "./shared";
 

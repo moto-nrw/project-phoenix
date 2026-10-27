@@ -42,12 +42,25 @@ const SESSION_CALLS = new Set([
   "uncachedAuth",
 ]);
 
-/** Annotations that declare a session, its user or the cookie's content. */
-const SESSION_TYPE = /\b(?:Session|ServerSession|User|AuthUser|JWT)\b/;
+/** Types that declare a session, its user or the cookie's content. */
+const SESSION_TYPES = ["Session", "ServerSession", "User", "AuthUser", "JWT"];
 
-/** Modules that hand out tokens and are server-only. */
-const SERVER_ONLY_MODULE =
-  /^(?:(?:~|@)\/server\/auth(?:\/[\w-]+)?|next-auth\/jwt)$/;
+/**
+ * Whether a module specifier reaches server code: anything under src/server
+ * (alias or relative path, type imports included) or next-auth/jwt.
+ * dependency-cruiser enforces the same boundary on the resolved graph
+ * (browser-not-to-server-auth in .dependency-cruiser.cjs).
+ */
+function importsServerCode(fileName: string, specifier: string): boolean {
+  if (specifier === "next-auth/jwt") return true;
+  if (/^(?:~|@)\/server(?:\/|$)/.test(specifier)) return true;
+  if (!specifier.startsWith(".")) return false;
+  const target = path
+    .relative(SRC_ROOT, path.resolve(path.dirname(fileName), specifier))
+    .split(path.sep)
+    .join("/");
+  return target === "server" || target.startsWith("server/");
+}
 
 interface Finding {
   line: number;
@@ -141,8 +154,38 @@ function findBrowserTokenReads(fileName: string, source: string): Finding[] {
     return false;
   };
 
+  // Local aliases of a session type (`type TokenSession = ServerSession`,
+  // `interface X extends Session`) count as that type.
+  const sessionTypes = new Set(SESSION_TYPES);
+  const namesSessionType = (text: string) =>
+    [...text.matchAll(/[A-Za-z_$][\w$]*/g)].some(([name]) =>
+      sessionTypes.has(name),
+    );
+  for (let grown = true; grown;) {
+    grown = false;
+    const collect = (node: ts.Node) => {
+      const aliasOf =
+        ts.isTypeAliasDeclaration(node) &&
+        namesSessionType(node.type.getText(file));
+      const extendsSession =
+        ts.isInterfaceDeclaration(node) &&
+        (node.heritageClauses ?? []).some((clause) =>
+          namesSessionType(clause.getText(file)),
+        );
+      if (
+        (aliasOf || extendsSession) &&
+        !sessionTypes.has((node as ts.DeclarationStatement).name!.getText(file))
+      ) {
+        sessionTypes.add((node as ts.DeclarationStatement).name!.getText(file));
+        grown = true;
+      }
+      ts.forEachChild(node, collect);
+    };
+    collect(file);
+  }
+
   const declaresSession = (type: ts.TypeNode | undefined) =>
-    type !== undefined && SESSION_TYPE.test(type.getText(file));
+    type !== undefined && namesSessionType(type.getText(file));
 
   // Binds the names of a destructured session-derived value; reports the
   // credential fields among them when `report` is set.
@@ -251,13 +294,13 @@ function findBrowserTokenReads(fileName: string, source: string): Finding[] {
       (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
       node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier) &&
-      SERVER_ONLY_MODULE.test(node.moduleSpecifier.text)
+      importsServerCode(fileName, node.moduleSpecifier.text)
     ) {
       findings.push({ line: line(node), rule: "server-only import" });
     } else if (
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
-      SERVER_ONLY_MODULE.test(stringKey(node.arguments[0]) ?? "")
+      importsServerCode(fileName, stringKey(node.arguments[0], false) ?? "")
     ) {
       findings.push({ line: line(node), rule: "server-only import" });
     }
@@ -302,8 +345,11 @@ const clientModules = () =>
       ({ relative }) => !isServerOnly(relative) && !isTestOrStory(relative),
     );
 
+// Fixtures sit in src/lib, so relative imports resolve like a real module's.
 const reads = (source: string) =>
-  findBrowserTokenReads("fixture.tsx", source).map(({ rule }) => rule);
+  findBrowserTokenReads(path.join(SRC_ROOT, "lib/fixture.tsx"), source).map(
+    ({ rule }) => rule,
+  );
 
 describe("browser token ratchet (#5005)", () => {
   const modules = clientModules();
@@ -418,13 +464,31 @@ describe("browser token ratchet (#5005)", () => {
       `import { auth } from "~/server/auth";
        import type { ServerSession } from "~/server/auth/shared";
        import { getToken } from "next-auth/jwt";
-       const mod = await import("~/server/auth/tenant-route");`,
+       const mod = await import("~/server/auth/tenant-route");
+       import { limit } from "@/server/node-header-limit";`,
       [
         "server-only import",
         "server-only import",
         "server-only import",
         "server-only import",
+        "server-only import",
       ],
+    ],
+    // Reported in review round 2: a relative type import and a type alias.
+    [
+      "a relative server type import behind a type alias",
+      `import type { ServerSession } from "../server/auth/shared";
+       import { getCachedSession } from "./session-cache";
+       type TokenSession = ServerSession;
+       function read({ user }: TokenSession) { return user.token; }
+       export async function loadProfile() { return read((await getCachedSession())!); }`,
+      ["server-only import", "token"],
+    ],
+    [
+      "an interface extending a session",
+      `interface Carrier extends Session { extra: string }
+       const pick = (value: Carrier) => (value as any).refreshToken;`,
+      ["refreshToken"],
     ],
   ])("reports %s", (_case, source, expected) => {
     expect(reads(source)).toEqual(expected);

@@ -1,3 +1,4 @@
+import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { cache } from "react";
 import * as Sentry from "@sentry/nextjs";
