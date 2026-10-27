@@ -861,11 +861,18 @@ function TenantPageTabs({
       disabled && "cursor-not-allowed opacity-50",
     );
 
-  const renderInner = (item: TenantPageTab) => (
+  const renderInner = (item: TenantPageTab, active: boolean) => (
     <>
       {item.label}
       {item.badge !== undefined && item.badge > 0 && (
-        <span className="bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums">
+        <span
+          className={cn(
+            "bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums",
+            // Auf dem Telefon ist der aktive Reiter eine dunkle Pille; dunkle
+            // Schrift auf hellgrünem Hauch verschwand dort (#5146).
+            active && "max-sm:bg-white/20 max-sm:text-white",
+          )}
+        >
           {item.badge}
         </span>
       )}
@@ -906,7 +913,7 @@ function TenantPageTabs({
             onChange(item.value);
           }}
         >
-          {renderInner(item)}
+          {renderInner(item, active)}
         </Link>
       );
     }
@@ -922,7 +929,7 @@ function TenantPageTabs({
         onClick={() => onChange(item.value)}
         className={className}
       >
-        {renderInner(item)}
+        {renderInner(item, active)}
       </button>
     );
   };
