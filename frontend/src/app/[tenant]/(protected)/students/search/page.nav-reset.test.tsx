@@ -287,7 +287,7 @@ describe("StudentSearchPage: click on the navigation entry of this page (#3374)"
     expect(mockMutateStudents).not.toHaveBeenCalled();
   });
 
-  it("clears a name search, which lives outside the URL", async () => {
+  it("clears a name search", async () => {
     const { navLink } = renderOnSearchPage("");
     const unfilteredKey = studentKeys.at(-1);
 
@@ -301,6 +301,25 @@ describe("StudentSearchPage: click on the navigation entry of this page (#3374)"
 
     await waitFor(() => {
       expect(studentKeys.at(-1)).toBe(unfilteredKey);
+    });
+    expect(
+      (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
+        .value,
+    ).toBe("");
+  });
+
+  it("removes a restored name search from the URL", async () => {
+    const { navLink } = renderOnSearchPage("?search=Mila");
+
+    expect(
+      (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
+        .value,
+    ).toBe("Mila");
+
+    fireEvent.click(navLink);
+
+    await waitFor(() => {
+      expect(window.location.search).toBe("");
     });
     expect(
       (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)

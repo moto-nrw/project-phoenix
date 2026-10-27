@@ -1180,7 +1180,9 @@ function SearchPageContent() {
     (
       patch: Partial<
         Record<
-          (typeof FILTER_QUERY_PARAMS)[number] | typeof DATE_QUERY_PARAM,
+          | (typeof FILTER_QUERY_PARAMS)[number]
+          | typeof DATE_QUERY_PARAM
+          | typeof SEARCH_QUERY_PARAM,
           string
         >
       >,
@@ -1866,6 +1868,7 @@ function SearchPageContent() {
     updateUrlParams({
       ...Object.fromEntries(FILTER_QUERY_PARAMS.map((key) => [key, ""])),
       [DATE_QUERY_PARAM]: "",
+      [SEARCH_QUERY_PARAM]: "",
     });
     removeStoredFilters(storageKey);
   }, [storageKey, updateUrlParams]);
