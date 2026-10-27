@@ -1165,7 +1165,7 @@ function TimetablesContent() {
   }, [data, detailSWRKey, tenantMutate]);
   const detailStudentsLoadError = useSwrLoadError(
     detailError,
-    "die Kinder des Termins",
+    "die Liste der Kinder",
     () => (detailSWRKey ? tenantMutate(detailSWRKey) : undefined),
   );
   const detailInstance = useMemo(() => {

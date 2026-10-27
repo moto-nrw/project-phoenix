@@ -472,6 +472,7 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     seriesPeriodId,
     seriesRosterMaintenance,
     studentsPending,
+    studentsLoadError,
   }: {
     instance: { id: string; students?: unknown[] } | null;
     onClose: () => void;
@@ -497,9 +498,15 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     seriesPeriodId?: string;
     seriesRosterMaintenance?: unknown;
     studentsPending?: boolean;
+    studentsLoadError?: { message?: string } | string | null;
   }) =>
     instance ? (
       <div>
+        <span data-testid="detail-students-error">
+          {typeof studentsLoadError === "object"
+            ? (studentsLoadError?.message ?? "")
+            : (studentsLoadError ?? "")}
+        </span>
         <span data-testid="detail-students">
           {studentsPending ? "pending" : String(instance.students?.length ?? 0)}
         </span>
@@ -1659,6 +1666,26 @@ describe("BetreuungsplanView", () => {
       }),
     );
     expect(screen.getByTestId("detail-students")).toHaveTextContent("0");
+  });
+
+  it("names the children's list in the load error of an open block", async () => {
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    mockUseSWRAuth.mockImplementation((key: string | null) =>
+      key?.includes("-detail-")
+        ? {
+            error: new ApiError("down", 503, { code: "general.unavailable" }),
+            isLoading: false,
+          }
+        : base(key),
+    );
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-students-error")).toHaveTextContent(
+        catalogText("general.unavailable", "die Liste der Kinder"),
+      ),
+    );
   });
 
   // Regeltermine braucht nur die Serienansicht und das Detailpanel (#4996).

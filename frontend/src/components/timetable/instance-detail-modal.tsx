@@ -652,14 +652,19 @@ export function InstanceDetailModal({
     instance.date >= today;
   const students = useMemo(() => studentsForInstance(instance), [instance]);
   // Nachgeladene Kinderzeilen (#4996): bis sie da sind, Ladehinweis oder
-  // Fehler an ihrer Stelle.
+  // Fehler an ihrer Stelle, unter derselben Überschrift wie die Liste. Ein
+  // Dienst hat keine Kinder, also auch nichts nachzuladen.
   const studentRowsState: React.ReactNode =
-    studentsLoadError !== null ? (
-      <LoadErrorAlert error={studentsLoadError} />
+    instance?.activityType === "duty" ? null : studentsLoadError !== null ? (
+      <Section title="Kinder">
+        <LoadErrorAlert error={studentsLoadError} />
+      </Section>
     ) : studentsPending ? (
-      <p role="status" className="text-sm text-gray-500">
-        Kinder werden geladen…
-      </p>
+      <Section title="Kinder">
+        <p role="status" className="text-sm text-gray-500">
+          Kinder werden geladen…
+        </p>
+      </Section>
     ) : null;
   // Same split the header counts use (#1747): an assignment row still reads
   // "expected" when the care plan does not place the child here today, so it
