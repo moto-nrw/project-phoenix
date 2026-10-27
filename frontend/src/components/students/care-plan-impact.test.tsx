@@ -143,7 +143,7 @@ describe("CarePlanImpact", () => {
 
     expect(
       screen.getByText(
-        /plant alle Kinder der Klasse, des Jahrgangs oder der Gruppe/,
+        "Plant alle Kinder der Zielgruppe. Ein Entfernen hält hier nicht.",
       ),
     ).toBeInTheDocument();
     expect(

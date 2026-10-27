@@ -212,9 +212,7 @@ function ManualTemplateEntry({
       </span>
       {template.viaTarget ? (
         <span className="text-gray-600">
-          Der Regeltermin plant alle Kinder der Klasse, des Jahrgangs oder der
-          Gruppe. Damit das Kind dauerhaft fehlt, verbinden Sie ihn mit dem
-          Angebot.
+          Plant alle Kinder der Zielgruppe. Ein Entfernen hält hier nicht.
         </span>
       ) : null}
       <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
