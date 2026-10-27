@@ -13,8 +13,11 @@ sql() {
 }
 
 # The last part of a demo slug scopes the school's accounts; six characters
-# of the slug alphabet, like a visitor's order.
-suffix=$(LC_ALL=C tr -dc 'abcdefghijkmnpqrstuvwxyz23456789' < /dev/urandom | head -c 6)
+# of the slug alphabet, like a visitor's order. No pipe from /dev/urandom:
+# under pipefail its reader's SIGPIPE ends the script with 141.
+alphabet=abcdefghijkmnpqrstuvwxyz23456789
+suffix=''
+for _ in 1 2 3 4 5 6; do suffix+=${alphabet:RANDOM%${#alphabet}:1}; done
 slug="deploy-smoke-$suffix"
 sql "INSERT INTO platform.demo_school_states (name, school_name, first_name, last_name)
      VALUES ('$slug', 'Deploy-Smoke', 'Deploy', 'Smoke')" > /dev/null

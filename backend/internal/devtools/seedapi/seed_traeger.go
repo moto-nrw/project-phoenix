@@ -120,8 +120,8 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 		return err
 	}
 	token, err := seedHolidayRegistrations(rt, auth, periodID, published, schools[0])
-	if errors.Is(err, errSeedHolidayCaptchaRefused) {
-		fmt.Println("  WARNING: the server's Turnstile key refuses the test token; the holiday period stays without registrations")
+	if errors.Is(err, errSeedHolidayRegistrationRefused) {
+		fmt.Printf("  WARNING: %v; the holiday period stays without registrations\n", err)
 		rt.Values[seedHolidayRegistrationsSkippedKey] = true
 		return nil
 	}
@@ -226,8 +226,8 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	}
 	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, registration)
 	var refused *APIError
-	if errors.As(err, &refused) && refused.Code == seedCaptchaFailed {
-		return "", errSeedHolidayCaptchaRefused
+	if errors.As(err, &refused) && slices.Contains(seedHolidayRefusals, refused.Code) {
+		return "", fmt.Errorf("%w: %s", errSeedHolidayRegistrationRefused, refused.Code)
 	}
 	if err != nil {
 		return "", fmt.Errorf("register for the holiday period: %w", err)
@@ -351,13 +351,16 @@ func seedHolidayDuplicate(registration map[string]any) map[string]any {
 const seedTurnstileTestToken = "XXXX.DUMMY.TOKEN.XXXX"
 
 // The public holiday registration always requires Turnstile (ADR 0110). The
-// demo server holds a real Turnstile key, which refuses the test token: the
-// holiday step there publishes the period without registrations and skips
-// what builds on them, the billing run and the confirmation letters,
-// instead of failing every demo school order.
-const seedCaptchaFailed = "enrollment.captcha_failed"
+// demo server holds a real Turnstile key, which refuses the test token. It
+// also counts every attempt per Träger, sender e-mail and IP address, and
+// all demo schools share one Träger and the seeded parent's address: after
+// five orders a day the server refuses the attempt before the captcha. On
+// either refusal the holiday step publishes the period without
+// registrations and skips what builds on them, the billing run and the
+// confirmation letters, instead of failing every demo school order.
+var seedHolidayRefusals = []string{"enrollment.captcha_failed", seedSubmissionRateLimited}
 
-var errSeedHolidayCaptchaRefused = errors.New("the server's Turnstile key refuses the test token")
+var errSeedHolidayRegistrationRefused = errors.New("the server refuses the seeded holiday registration")
 
 // seedHolidayRegistrationsSkippedKey marks a run whose holiday period has no
 // registrations, so the confirmation letters step has no run to write for.
