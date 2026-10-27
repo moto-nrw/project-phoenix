@@ -139,21 +139,49 @@ func (a absenceList) build(ctx context.Context, query classday.AbsenceListQuery)
 		until = today
 	}
 	ahead := until.Before(period.From)
-	children, err := a.deps.Children(ctx, schoolClass)
-	if err != nil {
-		return nil, err
-	}
 	participationFrom, participationUntil := period.From, until
 	if ahead {
 		participationFrom, participationUntil = today, today
 	}
+	children, participation, err := a.children(ctx, schoolClass, participationFrom, participationUntil)
+	if err != nil {
+		return nil, err
+	}
+
+	if ahead {
+		report.Children = children
+		return report, nil
+	}
+	from := period.From
+	if from.Before(availableFrom) {
+		report.Incomplete = true
+		from = availableFrom
+	}
+	if from.After(until) {
+		report.Children = children
+		return report, nil
+	}
+	report.CountedUntil = until
+	if err := a.count(ctx, report, children, participation, from, until); err != nil {
+		return nil, err
+	}
+	return report, nil
+}
+
+// children keeps every child who participated on any requested day.
+func (a absenceList) children(ctx context.Context, schoolClass string, from, until calendar.Date) ([]classday.AbsenceListChild, map[calendar.Date]map[int64]bool, error) {
+	children, err := a.deps.Children(ctx, schoolClass)
+	if err != nil {
+		return nil, nil, err
+	}
+	participationFrom, participationUntil := from, until
 	ids := make([]int64, 0, len(children))
 	for _, child := range children {
 		ids = append(ids, child.StudentID)
 	}
 	participation, err := a.deps.Participation.ParticipatingStudentIDsByDate(ctx, ids, participationFrom, participationUntil)
 	if err != nil {
-		return nil, fmt.Errorf("absence list: participation: %w", err)
+		return nil, nil, fmt.Errorf("absence list: participation: %w", err)
 	}
 	kept := make([]classday.AbsenceListChild, 0, len(children))
 	for _, child := range children {
@@ -171,28 +199,19 @@ func (a absenceList) build(ctx context.Context, query classday.AbsenceListQuery)
 		}
 		return children[i].FirstName < children[j].FirstName
 	})
-	if ahead {
-		report.Children = children
-		return report, nil
-	}
-	from := period.From
-	if from.Before(availableFrom) {
-		report.Incomplete = true
-		from = availableFrom
-	}
-	if from.After(until) {
-		report.Children = children
-		return report, nil
-	}
-	report.CountedUntil = until
+	return children, participation, nil
+}
+
+// count applies the retained window and each child's dated participation.
+func (a absenceList) count(ctx context.Context, report *classday.AbsenceListReport, children []classday.AbsenceListChild, participation map[calendar.Date]map[int64]bool, from, until calendar.Date) error {
 	schoolDays, err := a.schoolDays(ctx, from, until)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	report.SchoolDays = len(schoolDays)
 	days, err := a.childDays(ctx, children, from, until)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for i := range children {
 		childID := children[i].StudentID
@@ -208,7 +227,7 @@ func (a absenceList) build(ctx context.Context, query classday.AbsenceListQuery)
 		addAbsenceCounts(&report.Totals, children[i].AbsenceListCounts)
 	}
 	report.Children = children
-	return report, nil
+	return nil
 }
 
 // period checks the requested period, or preselects the current half-year

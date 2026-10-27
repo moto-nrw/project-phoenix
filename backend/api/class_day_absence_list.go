@@ -60,20 +60,10 @@ func withClassDayAbsenceList(
 			return children, nil
 		}
 	}
-
 	if settings != nil {
-		morning.AbsenceList.AvailableFrom = func(ctx context.Context, today timezone.Date) (timezone.Date, error) {
-			marksDays, err := settings.ResolveInt(ctx, configModels.KeyGDPRMorningAttendanceRetentionDays)
-			if err != nil {
-				return "", err
-			}
-			statusDays, err := settings.ResolveInt(ctx, configModels.KeyGDPRStatusDayRetentionDays)
-			if err != nil {
-				return "", err
-			}
-			return today.AddDays(-min(marksDays, statusDays)), nil
-		}
+		morning.AbsenceList.AvailableFrom = classDayAbsenceSettings{settings: settings}.AvailableFrom
 	}
+
 	if marks != nil {
 		morning.AbsenceList.Marks = classDayMorningMarks{marks: marks}
 	}
@@ -90,6 +80,25 @@ func withClassDayAbsenceList(
 		morning.AbsenceList.Renderer = ClassDaySlotListRenderer{Renderer: renderer}
 	}
 	return morning
+}
+
+// classDayAbsenceSettings applies the shorter of the source retention windows.
+type classDayAbsenceSettings struct {
+	settings interface {
+		ResolveInt(context.Context, string) (int, error)
+	}
+}
+
+func (b classDayAbsenceSettings) AvailableFrom(ctx context.Context, today timezone.Date) (timezone.Date, error) {
+	marksDays, err := b.settings.ResolveInt(ctx, configModels.KeyGDPRMorningAttendanceRetentionDays)
+	if err != nil {
+		return "", err
+	}
+	statusDays, err := b.settings.ResolveInt(ctx, configModels.KeyGDPRStatusDayRetentionDays)
+	if err != nil {
+		return "", err
+	}
+	return today.AddDays(-min(marksDays, statusDays)), nil
 }
 
 // classDayMorningMarks reads Student Presence's morning marks of a period.
