@@ -1,0 +1,67 @@
+name: Caddy Cloudflare ranges
+
+# Caddy trusts CF-Connecting-IP only from the Cloudflare ranges listed in
+# deploy/caddy/Caddyfile (#5091). When Cloudflare publishes a new range, the
+# backend sees Cloudflare edge IPs instead of client IPs for that edge, and all
+# its visitors share one rate-limit bucket. Nothing on the server notices, so
+# this job compares the file with the published lists, fails with the diff and
+# opens one issue until someone updates and rolls out the Caddyfile.
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caddy-cloudflare-ranges
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    name: Compare trusted_proxies with Cloudflare
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Compare ranges
+        id: compare
+        run: |
+          set +e
+          node scripts/check-caddyfile.mjs --cloudflare deploy/caddy/Caddyfile > result.txt 2>&1
+          code=$?
+          cat result.txt
+          { echo '```'; cat result.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          exit "$code"
+
+      # Exit 1 is a real difference; exit 2 (Cloudflare unreachable) only
+      # fails the run, a later run retries.
+      - name: Open an issue for the difference
+        if: failure() && steps.compare.outputs.code == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE: 'Caddyfile: Cloudflare-IP-Bereiche weichen ab'
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          existing="$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            echo "issue #$existing is still open"
+            exit 0
+          fi
+          {
+            echo "Der Abgleich in $RUN_URL hat Abweichungen zwischen \`trusted_proxies\` in \`deploy/caddy/Caddyfile\` und https://www.cloudflare.com/ips/ gefunden."
+            echo
+            echo '```'
+            cat result.txt
+            echo '```'
+            echo
+            echo 'Datei anpassen und auf dem Server ausrollen: docs/agents/operations.md, Abschnitt „Caddy reverse proxy“.'
+          } > body.md
+          gh issue create --title "$TITLE" --body-file body.md

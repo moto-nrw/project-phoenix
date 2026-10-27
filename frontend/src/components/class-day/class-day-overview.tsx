@@ -19,9 +19,15 @@ import { useCallback, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import NavigationLink from "~/components/ui/navigation-link";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatCard } from "~/components/ui/stat-card";
 import { getUserDisplayName } from "~/lib/auth-utils";
@@ -33,6 +39,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import type {
+  AbsenceReportStatus,
   ClassDayClasses,
   SchoolDayChild,
   SchoolDayReport,
@@ -51,6 +58,7 @@ import {
 import type { SchoolDayListKey } from "./school-day";
 import { statusLabel } from "./status-labels";
 import { useClassDayRefresh } from "./use-class-day-refresh";
+import { useSchoolAbsenceReports } from "./use-school-absence-reports";
 
 const logger = createLogger({ component: "ClassDayOverview" });
 
@@ -207,10 +215,37 @@ function childNote(
   child: SchoolDayChild,
   list: SchoolDayListKey,
 ): string | null {
-  if (list !== "kinder" && list !== "fehlen") return null;
-  if (child.status) return statusLabel(child.status);
+  // Eine Meldung, die die Schulverwaltung nachgetragen hat (#4791), sagt
+  // das in jeder Liste: nur sie nimmt die Meldung zurück.
+  const bySchool = child.status_by_school ? "nachgetragen" : null;
+  if (list !== "kinder" && list !== "fehlen") return bySchool;
+  if (child.status) {
+    return [statusLabel(child.status), bySchool].filter(Boolean).join(", ");
+  }
+  if (child.unreported) return "ohne Meldung";
   if (list === "kinder" && child.list_entry) return "keine Betreuung";
   return null;
+}
+
+/** Die Aktion, die ein Kind der Liste für die Schulverwaltung trägt (#4791). */
+function absenceReportMenu(
+  child: SchoolDayChild,
+  canReport: boolean,
+  onEnter: (status: AbsenceReportStatus) => void,
+  onWithdraw: () => void,
+): readonly OverflowMenuEntry[] {
+  if (!canReport || !child.student_id || child.list_entry) return [];
+  if (child.unreported) {
+    return [
+      { kind: "header", label: "Meldung eintragen" },
+      { label: statusLabel("sick"), onClick: () => onEnter("sick") },
+      { label: statusLabel("excused"), onClick: () => onEnter("excused") },
+    ];
+  }
+  if (child.status_by_school) {
+    return [{ label: "Meldung zurücknehmen", onClick: onWithdraw }];
+  }
+  return [];
 }
 
 export interface ClassDayOverviewProps {
@@ -226,12 +261,27 @@ export interface ClassDayOverviewProps {
    * lädt die Startseite sie einmal statt einen Report je Klasse.
    */
   readonly fetchSchoolDay?: (date: string) => Promise<SchoolDayReport>;
+  /** Meldung nachtragen (#4791), nur für die Schulverwaltung. */
+  readonly reportAbsence?: (
+    schoolClass: string,
+    date: string,
+    studentId: string,
+    status: AbsenceReportStatus,
+  ) => Promise<void>;
+  /** Nachgetragene Meldung zurücknehmen (#4791). */
+  readonly withdrawAbsenceReport?: (
+    schoolClass: string,
+    date: string,
+    studentId: string,
+  ) => Promise<void>;
 }
 
 export function ClassDayOverview({
   fetchClasses,
   fetchClassDay,
   fetchSchoolDay,
+  reportAbsence,
+  withdrawAbsenceReport,
 }: ClassDayOverviewProps) {
   const greeting = useTimeBasedGreeting();
   const { data: session } = useSession();
@@ -350,6 +400,15 @@ export function ClassDayOverview({
     [schoolMode, reloadSchoolDay, reloadReports],
   );
   useClassDayRefresh(refreshReports);
+
+  const absenceReports = useSchoolAbsenceReports({
+    dateISO,
+    report: reportAbsence,
+    withdraw: withdrawAbsenceReport,
+    onChanged: reloadSchoolDay,
+  });
+  const canReportAbsences =
+    absenceReports.available && schoolDay?.can_report_absences === true;
 
   const reports = useMemo<Record<string, ClassLine>>(() => {
     if (schoolMode) return schoolDay ? schoolDayLines(schoolDay) : {};
@@ -552,6 +611,24 @@ export function ClassDayOverview({
                               Liste schließen
                             </ButtonLink>
                           </div>
+                          {/* Bei offener Rückfrage steht der Fehler dort. */}
+                          <FormErrorAlert
+                            message={
+                              absenceReports.withdrawTarget
+                                ? null
+                                : absenceReports.error
+                            }
+                            className="mt-2"
+                          />
+                          {open.key === "ohne-meldung" && (
+                            <p className="mt-1 text-sm text-gray-600">
+                              Die Lehrkraft hat diese Kinder als fehlend
+                              eingetragen. Es gibt keine Krankmeldung.
+                              {canReportAbsences
+                                ? " Rufen die Eltern an, tragen Sie die Meldung hier ein."
+                                : ""}
+                            </p>
+                          )}
                           {groups.length === 0 ? (
                             <p className="mt-2 text-sm text-gray-500">
                               An diesem Tag stehen keine Kinder in dieser Liste.
@@ -579,6 +656,21 @@ export function ClassDayOverview({
                                   <ul className="mt-1 space-y-0.5 text-sm text-gray-700">
                                     {group.children.map((child) => {
                                       const note = childNote(child, open.key);
+                                      const target = {
+                                        schoolClass: group.schoolClass,
+                                        child,
+                                      };
+                                      const menu = absenceReportMenu(
+                                        child,
+                                        canReportAbsences,
+                                        (status) =>
+                                          void absenceReports.enter(
+                                            target,
+                                            status,
+                                          ),
+                                        () =>
+                                          absenceReports.askWithdraw(target),
+                                      );
                                       return (
                                         <li
                                           key={
@@ -586,13 +678,35 @@ export function ClassDayOverview({
                                               ? `entry-${child.list_entry_id}`
                                               : `student-${child.student_id}`
                                           }
+                                          className="flex min-w-0 items-center justify-between gap-2"
                                         >
-                                          {child.last_name}, {child.first_name}
-                                          {note && (
-                                            <span className="text-gray-500">
-                                              {" "}
-                                              · {note}
-                                            </span>
+                                          <span className="min-w-0">
+                                            {child.last_name},{" "}
+                                            {child.first_name}
+                                            {note && (
+                                              <span className="text-gray-500">
+                                                {" "}
+                                                · {note}
+                                              </span>
+                                            )}
+                                          </span>
+                                          {menu.length > 0 && (
+                                            <OverflowMenu
+                                              items={menu}
+                                              ariaLabel={
+                                                child.unreported
+                                                  ? `Meldung für ${child.first_name} ${child.last_name} eintragen`
+                                                  : `Meldung für ${child.first_name} ${child.last_name} zurücknehmen`
+                                              }
+                                              triggerSize="sm"
+                                              triggerContent={
+                                                absenceReports.isPending(target)
+                                                  ? "Wird gespeichert …"
+                                                  : child.unreported
+                                                    ? "Meldung eintragen"
+                                                    : "Zurücknehmen"
+                                              }
+                                            />
                                           )}
                                         </li>
                                       );
@@ -627,6 +741,21 @@ export function ClassDayOverview({
             </>
           )}
       </section>
+      <ConfirmationModal
+        isOpen={absenceReports.withdrawTarget !== null}
+        onClose={absenceReports.closeWithdraw}
+        onConfirm={() => void absenceReports.confirmWithdraw()}
+        title="Meldung zurücknehmen?"
+        confirmText="Zurücknehmen"
+        isConfirmLoading={absenceReports.withdrawing}
+      >
+        <FormErrorAlert message={absenceReports.error} className="mb-3" />
+        <p className="text-sm text-gray-700">
+          {absenceReports.withdrawTarget
+            ? `${absenceReports.withdrawTarget.child.first_name} ${absenceReports.withdrawTarget.child.last_name} steht dann wieder unter „Fehlen ohne Meldung“. Die OGS sieht den Status nicht mehr.`
+            : null}
+        </p>
+      </ConfirmationModal>
     </div>
   );
 }

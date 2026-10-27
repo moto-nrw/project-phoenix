@@ -481,6 +481,42 @@
       "legacy": "staff_managed_guardian_protected"
     },
     {
+      "code": "classday.absence_report_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.absence_report_conflict"
+    },
+    {
+      "code": "classday.absence_report_no_school_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.absence_report_no_school_day"
+    },
+    {
+      "code": "classday.absence_report_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.absence_report_not_found"
+    },
+    {
+      "code": "classday.absence_report_not_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.absence_report_not_missing"
+    },
+    {
+      "code": "classday.absence_report_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.absence_report_not_today"
+    },
+    {
+      "code": "classday.absence_report_unknown_child",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.absence_report_unknown_child"
+    },
+    {
       "code": "classday.arrival_exception_class_not_found",
       "class": "business_rejection",
       "parameters": [],

@@ -34,12 +34,13 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import type { ParentInviteMode } from "~/lib/user-context-types";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "GuardianApprovalQueue" });
 
 /** Values of the `guardians.parent_invite_mode` setting. */
-export type GuardianInviteMode = "disabled" | "direct" | "staff_approval";
+type GuardianInviteMode = ParentInviteMode;
 
 export type GuardianInviteModeState =
   | { readonly status: "loading" }

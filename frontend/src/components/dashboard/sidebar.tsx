@@ -62,8 +62,8 @@ import { useStaffNoticesPending } from "~/lib/hooks/use-staff-notices-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
+import { useSchoolParentNewsEnabled } from "~/lib/hooks/use-school-switches";
 import type { ModuleVisibility } from "~/lib/module-register";
 import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 import { useHelpHref } from "~/lib/hooks/use-help-href";
@@ -82,7 +82,6 @@ import {
   sidebarRowClasses,
 } from "~/components/dashboard/sidebar-geometry";
 import { navigationIcons } from "~/lib/navigation-icons";
-import { getSettingValue } from "~/lib/settings-api";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
@@ -728,32 +727,17 @@ function SidebarContent({
   const staffMessagingEnabled = useStaffMessagingEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
-  // Fetch the settings schema for anyone the backend lets read config, not just
-  // admins: a non-admin config reader (custom config-manager) must also see
-  // the feature flags. Admins stay in (their other flag, timetable.enabled,
-  // depends on this too). The Essensplan switch comes from the tenant resolve.
-  // Announcers are admin:* holders (see canAnnounce), who satisfy config:read
-  // via the wildcard, so they are already covered here.
-  const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
-  const { data: settingsSchema } = useSettingsSchema(canReadConfig, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    shouldRetryOnError: false,
-  });
-
-  const parentNewsEnabled =
-    getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
+  // Aus dem Navigationskontext (#4996): die Navigation lädt für ihre Schulschalter
+  // nicht das ganze Settings-Schema.
+  const parentNewsEnabled = useSchoolParentNewsEnabled();
 
   // Vom Tenant-Resolve (#3873): eine Küchenrolle hält meals:*, aber kein
   // config:read und liest das Settings-Schema nicht.
   const mealPlanEnabled = useMealPlanEnabled();
 
-  // Planung-Akkordeon (#1946): nur verstecken, wenn timetable.enabled explizit
-  // false liefert — `!== false` statt `=== true`, damit der Bereich beim
-  // Schema-Laden nicht kurz verschwindet (gleiches Muster wie das Route-Gate
-  // in betreuungsplan-view.tsx).
-  const timetableEnabled =
-    getSettingValue(settingsSchema, "timetable.enabled") !== false;
+  // Planung-Akkordeon (#1946): dasselbe timetable.enabled wie der
+  // Tagesplan-Eintrag und das Route-Gate in betreuungsplan-view.tsx.
+  const timetableEnabled = tagesplanEnabled;
 
   // Nur die Seiten des Betreuungsplans hängen an timetable.enabled.
   // Kalenderzeiträume bleiben erreichbar (Anmeldephasen verknüpfen sich mit

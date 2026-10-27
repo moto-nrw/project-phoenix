@@ -99,6 +99,12 @@ export function StudentRow({
             {reported}
           </p>
         ) : null}
+        {/* Die Schulverwaltung hat die Meldung nachgetragen (#4791). */}
+        {row.status && row.status_by_school ? (
+          <p className="truncate text-xs text-gray-500">
+            Von der Schulverwaltung nachgetragen
+          </p>
+        ) : null}
         {/* Hinweise an die OGS für dieses Kind (#4795). Ganzer Text statt
             abgeschnitten: der Hinweis ist die Nachricht selbst. */}
         {(row.day_hints ?? []).map((hint) => (

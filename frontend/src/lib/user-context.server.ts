@@ -1,6 +1,8 @@
 import { apiGet } from "~/lib/api-helpers.server";
 import type {
   EducationalGroup,
+  ParentInviteMode,
+  SchoolSwitches,
   SupervisedGroup,
   UserContextResponse,
 } from "~/lib/user-context-types";
@@ -34,12 +36,38 @@ interface BackendStaff {
   email?: string;
 }
 
+interface BackendSchoolSwitches {
+  parent_news_enabled: boolean;
+  parent_invite_mode: string;
+  timetable_day_start_time: string;
+  timetable_day_end_time: string;
+}
+
 interface BackendNavigationContext {
   educational_groups: BackendEducationalGroup[];
   supervised_groups: BackendActiveGroup[] | null;
   current_staff: BackendStaff | null;
   incomplete: boolean;
   unavailable_sections: string[];
+  school_switches?: BackendSchoolSwitches;
+}
+
+function parseInviteMode(raw: string): ParentInviteMode | undefined {
+  return raw === "disabled" || raw === "direct" || raw === "staff_approval"
+    ? raw
+    : undefined;
+}
+
+function mapSchoolSwitches(
+  data: BackendSchoolSwitches | undefined,
+): SchoolSwitches | null {
+  if (!data) return null;
+  return {
+    parentNewsEnabled: data.parent_news_enabled === true,
+    parentInviteMode: parseInviteMode(data.parent_invite_mode),
+    timetableDayStartTime: data.timetable_day_start_time,
+    timetableDayEndTime: data.timetable_day_end_time,
+  };
 }
 
 /**
@@ -128,5 +156,6 @@ export async function loadUserContext(
     supervisedRoomNames,
     incomplete: result.data.incomplete,
     unavailableSections: result.data.unavailable_sections,
+    schoolSwitches: mapSchoolSwitches(result.data.school_switches),
   };
 }

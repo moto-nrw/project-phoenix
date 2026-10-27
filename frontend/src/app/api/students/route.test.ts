@@ -170,6 +170,42 @@ describe("GET /api/students", () => {
     }
   });
 
+  // The Betreuungsplan reads the names only (#4996).
+  it("maps the names-only view without inventing other fields", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      status: "success",
+      data: [{ id: 7, first_name: "Anna", last_name: "Muster" }],
+      pagination: {
+        current_page: 1,
+        page_size: 500,
+        total_pages: 1,
+        total_records: 1,
+      },
+      message: "Students retrieved successfully",
+    });
+
+    const request = createMockRequest("/api/students?view=names&page_size=500");
+    const response = await GET(request, createMockContext());
+    const json = await parseJsonResponse<{
+      data: { data: Array<Record<string, unknown>> };
+    }>(response);
+
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/students?view=names&page_size=500",
+      "test-token",
+    );
+    expect(json.data.data).toEqual([
+      {
+        id: "7",
+        name: "Anna Muster",
+        first_name: "Anna",
+        second_name: "Muster",
+        school_class: "",
+        current_location: "",
+      },
+    ]);
+  });
+
   it("handles null response gracefully", async () => {
     mockApiGet.mockResolvedValueOnce(null);
 

@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -7,10 +8,16 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
-import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import {
+  useTimetableEnabled,
+  useWeekendFollowsFriday,
+} from "~/lib/tenant-context";
+import { fetchStudents } from "~/lib/student-api";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
+
+vi.unmock("swr");
 
 const {
   mockUseSession,
@@ -464,8 +471,10 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     fetchParticipantNames,
     seriesPeriodId,
     seriesRosterMaintenance,
+    studentsPending,
+    studentsLoadError,
   }: {
-    instance: { id: string } | null;
+    instance: { id: string; students?: Array<{ note?: string }> } | null;
     onClose: () => void;
     onLifecycleAction: (
       action: "start" | "complete" | "cancel" | "reopen",
@@ -488,9 +497,22 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     fetchParticipantNames?: boolean;
     seriesPeriodId?: string;
     seriesRosterMaintenance?: unknown;
+    studentsPending?: boolean;
+    studentsLoadError?: { message?: string } | string | null;
   }) =>
     instance ? (
       <div>
+        <span data-testid="detail-students-error">
+          {typeof studentsLoadError === "object"
+            ? (studentsLoadError?.message ?? "")
+            : (studentsLoadError ?? "")}
+        </span>
+        <span data-testid="detail-students">
+          {studentsPending ? "pending" : String(instance.students?.length ?? 0)}
+        </span>
+        <span data-testid="detail-student-note">
+          {instance.students?.[0]?.note ?? ""}
+        </span>
         <span data-testid="detail-can-manage-pool">
           {String(canManageStaffPool)}
         </span>
@@ -790,8 +812,6 @@ function setupSWR({
   periods = [period],
   periodsState = "ready" as "ready" | "loading" | "error",
   templates = [template],
-  settingsSchema = null,
-  settingsSchemaLoading = false,
   careOfferingLink = null,
   gaps = [] as GapInstance[],
   gapsState = "ready" as "ready" | "loading" | "error",
@@ -806,8 +826,6 @@ function setupSWR({
   periods?: Array<typeof period>;
   periodsState?: "ready" | "loading" | "error";
   templates?: TimetableTemplate[];
-  settingsSchema?: unknown;
-  settingsSchemaLoading?: boolean;
   /** null = the planner admin cannot read enrollment (status "unknown"). */
   careOfferingLink?: { total: number; linked: number } | null;
   gaps?: GapInstance[];
@@ -824,11 +842,6 @@ function setupSWR({
     if (key === null) return {};
     if (key === "timetable-care-offering-link") {
       return { data: careOfferingLink, isLoading: false };
-    }
-    if (key === "settings-schema") {
-      return settingsSchemaLoading
-        ? { isLoading: true }
-        : { data: settingsSchema, isLoading: false };
     }
     if (key === "database-calendar-periods-list") {
       if (periodsState === "loading") return { isLoading: true };
@@ -1111,6 +1124,28 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     expect(mockBootstrap).not.toHaveBeenCalled();
+  });
+
+  // Raster und Detailpanel brauchen nur Namen: die Namens-Projektion statt
+  // der vollen Kinderliste (#4996), und kein Settings-Schema.
+  it("loads the student roster as names only", async () => {
+    setupSWR();
+    render(<BetreuungsplanView />);
+
+    const call = mockUseSWRAuth.mock.calls.find(
+      ([key]) => key === "timetable-student-list",
+    );
+    expect(call).toBeDefined();
+    await (call![1] as () => Promise<unknown>)();
+    expect(fetchStudents).toHaveBeenCalledWith({
+      page_size: 500,
+      view: "names",
+    });
+    expect(mockUseSWRAuth).not.toHaveBeenCalledWith(
+      "settings-schema",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it("skips the tenant student roster without users:read", () => {
@@ -1512,6 +1547,239 @@ describe("BetreuungsplanView", () => {
       expect(screen.queryByText("detail-close")).not.toBeInTheDocument(),
     );
     expect(urlParams().has("block")).toBe(false);
+  });
+
+  // Die Woche kommt ohne Kinderzeilen (#4996): das Detailpanel bekommt sie aus
+  // dem vollständig nachgeladenen Tag des Termins.
+  it("loads the children of the open block with its whole day", async () => {
+    const { timetableService } = await import("~/lib/timetable-api");
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    mockUseSWRAuth.mockImplementation((key: string | null) =>
+      key?.includes("-detail-")
+        ? {
+            data: {
+              from: instance.date,
+              to: instance.date,
+              instances: [
+                {
+                  ...instance,
+                  students: [
+                    {
+                      studentId: "21",
+                      status: "present",
+                      careDayStatus: "scheduled",
+                    },
+                  ],
+                },
+              ],
+            },
+          }
+        : base(key),
+    );
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("detail-students")).toHaveTextContent("1");
+    const detail = mockUseSWRAuth.mock.calls.find(
+      ([key]) => typeof key === "string" && key.includes("-detail-"),
+    ) as [string, () => Promise<unknown>] | undefined;
+    expect(detail?.[0]).toMatch(
+      new RegExp(`^timetable-week-.+-detail-${instance.date}$`),
+    );
+    void detail![1]();
+    expect(timetableService.getWeek).toHaveBeenLastCalledWith(
+      instance.date,
+      instance.date,
+      { groupId: null, staffId: null, roomId: null },
+    );
+  });
+
+  it("refreshes the open block's notes even when the slim week is unchanged", async () => {
+    const { useSWRAuth: useRealSWRAuth, SWRConfig } =
+      await vi.importActual<typeof import("~/lib/swr")>("~/lib/swr");
+    const { timetableService } = await import("~/lib/timetable-api");
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    const revalidators = new Map<string, () => Promise<unknown>>();
+    const week = {
+      from: instance.date,
+      to: instance.date,
+      instances: [instance],
+    };
+    let note = "Alte Notiz";
+    vi.mocked(timetableService.getWeek).mockImplementation(
+      async (_from, _to, _filter, options) =>
+        options?.view === "slim"
+          ? week
+          : {
+              ...week,
+              instances: [
+                {
+                  ...instance,
+                  students: [{ studentId: "21", status: "absent", note }],
+                },
+              ],
+            },
+    );
+    mockUseSWRAuth.mockImplementation(
+      function usePlanSWR(key, fetcher, options) {
+        const isPlan = key?.startsWith("timetable-week-");
+        const response = useRealSWRAuth(isPlan ? key : null, fetcher, options);
+        if (isPlan) revalidators.set(key, () => response.mutate());
+        return isPlan ? response : base(key);
+      },
+    );
+    await mockTenantMutate.withImplementation(
+      (key: string) => revalidators.get(key)?.(),
+      async () => {
+        setUrl("view=woche&block=42");
+        render(
+          <SWRConfig value={{ provider: () => new Map() }}>
+            <BetreuungsplanView />
+          </SWRConfig>,
+        );
+        await waitFor(() =>
+          expect(screen.getByTestId("detail-student-note")).toHaveTextContent(
+            "Alte Notiz",
+          ),
+        );
+
+        // Nur die Notiz ändert sich. Die schlanke Wochenantwort behält exakt
+        // dieselbe Referenz, und es gibt keine zusätzliche SSE-Benachrichtigung.
+        note = "Neue Notiz";
+        fireEvent.click(screen.getByText("detail-attendance"));
+        await waitFor(() =>
+          expect(mockPatchAttendance).toHaveBeenCalledWith("42", "21", {
+            status: "present",
+          }),
+        );
+        await waitFor(() =>
+          expect(screen.getByTestId("detail-student-note")).toHaveTextContent(
+            "Neue Notiz",
+          ),
+        );
+      },
+    );
+  });
+
+  it("shows the children as loading until the block's day arrives", () => {
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    mockUseSWRAuth.mockImplementation((key: string | null) =>
+      key?.includes("-detail-") ? { isLoading: true } : base(key),
+    );
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("detail-students")).toHaveTextContent("pending");
+  });
+
+  it("does not reuse the previous day's children while the selected day loads", async () => {
+    const { useSWRAuth: useRealSWRAuth, SWRConfig } =
+      await vi.importActual<typeof import("~/lib/swr")>("~/lib/swr");
+    const { timetableService } = await import("~/lib/timetable-api");
+    const nextInstance = { ...instance, id: "43", date: "2026-05-05" };
+    setupSWR({ instances: [instance, nextInstance] });
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    mockUseSWRAuth.mockImplementation(
+      function useDetailSWR(key, fetcher, options) {
+        const isDetail = key?.includes("-detail-");
+        const response = useRealSWRAuth(
+          isDetail ? key : null,
+          fetcher,
+          options,
+        );
+        return isDetail ? response : base(key);
+      },
+    );
+    let finishNextDay!: (
+      value: Awaited<ReturnType<typeof timetableService.getWeek>>,
+    ) => void;
+    vi.mocked(timetableService.getWeek)
+      .mockResolvedValueOnce({
+        from: instance.date,
+        to: instance.date,
+        instances: [
+          {
+            ...instance,
+            students: [
+              {
+                studentId: "21",
+                status: "present",
+                careDayStatus: "scheduled",
+              },
+            ],
+          },
+        ],
+      })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishNextDay = resolve;
+          }),
+      );
+    setUrl("view=woche&block=42");
+    render(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <BetreuungsplanView />
+      </SWRConfig>,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-students")).toHaveTextContent("1"),
+    );
+
+    act(() => setUrl("view=woche&block=43"));
+    expect(screen.getByTestId("detail-students")).toHaveTextContent("pending");
+    await act(async () =>
+      finishNextDay({
+        from: nextInstance.date,
+        to: nextInstance.date,
+        instances: [nextInstance],
+      }),
+    );
+    expect(screen.getByTestId("detail-students")).toHaveTextContent("0");
+  });
+
+  it("names the children's list in the load error of an open block", async () => {
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    mockUseSWRAuth.mockImplementation((key: string | null) =>
+      key?.includes("-detail-")
+        ? {
+            error: new ApiError("down", 503, { code: "general.unavailable" }),
+            isLoading: false,
+          }
+        : base(key),
+    );
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("detail-students-error")).toHaveTextContent(
+        catalogText("general.unavailable", "die Liste der Kinder"),
+      ),
+    );
+  });
+
+  // Regeltermine braucht nur die Serienansicht und das Detailpanel (#4996).
+  it("loads the Regeltermine only for the series view or an open block", () => {
+    setUrl("view=woche");
+    const { unmount } = render(<BetreuungsplanView />);
+    const templateKeys = () =>
+      mockUseSWRAuth.mock.calls
+        .map(([key]) => key)
+        .filter(
+          (key): key is string =>
+            typeof key === "string" && key.startsWith("timetable-templates-"),
+        );
+    expect(mockUseSWRAuth).toHaveBeenCalledWith(
+      expect.stringMatching(/^timetable-week-/),
+      expect.any(Function),
+      { onSuccess: expect.any(Function) },
+    );
+    expect(templateKeys()).toEqual([]);
+    unmount();
+
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+    expect(templateKeys().length).toBeGreaterThan(0);
   });
 
   // #2957: Ohne einen weiteren Plan-Parameter wäre `block` beim Schließen der
@@ -2178,24 +2446,13 @@ describe("BetreuungsplanView", () => {
   });
 
   it("renders the disabled state when the timetable setting is off", () => {
-    setupSWR({
-      settingsSchema: {
-        tabs: [
-          {
-            id: "operations",
-            label: "Betrieb",
-            categories: [
-              {
-                id: "timetable",
-                label: "Betreuungsplan",
-                items: [{ key: "timetable.enabled", value: false }],
-              },
-            ],
-          },
-        ],
-      },
-    });
-    render(<BetreuungsplanView />);
+    setupSWR();
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+    try {
+      render(<BetreuungsplanView />);
+    } finally {
+      vi.mocked(useTimetableEnabled).mockReturnValue(true);
+    }
 
     expect(screen.getByTestId("timetable-disabled-state")).toBeVisible();
     expect(screen.getByText("Betreuungsplan ist deaktiviert")).toBeVisible();
@@ -2203,13 +2460,14 @@ describe("BetreuungsplanView", () => {
     expect(mockBootstrap).not.toHaveBeenCalled();
   });
 
-  it("shows the skeleton while the settings schema loads", () => {
-    setupSWR({ settingsSchemaLoading: true });
+  it("shows the skeleton while the session loads", () => {
+    setupSWR();
+    mockUseSession.mockReturnValue({ status: "loading", data: null });
     render(<BetreuungsplanView />);
 
     // Chrome renders immediately; only the content region skeletonizes
-    // while the settings schema (and therefore timetableDisabled) is
-    // still unresolved.
+    // while the session (and therefore the caller's permissions) is still
+    // unresolved.
     expect(screen.getByText("Betreuungsplan")).toBeVisible();
     // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
     // eigenen Seiten-Skelett.
@@ -2476,12 +2734,13 @@ describe("BetreuungsplanView", () => {
 
     /** SWR-Schlüssel und Fetcher des Instanz-Abrufs der Ansicht. */
     function instanceFetch(view: string) {
-      const call = [...mockUseSWRAuth.mock.calls]
-        .reverse()
-        .find(
-          ([key]) =>
-            typeof key === "string" && key.startsWith(`timetable-${view}-`),
-        ) as [string, () => Promise<unknown>] | undefined;
+      const call = [...mockUseSWRAuth.mock.calls].reverse().find(
+        ([key]) =>
+          typeof key === "string" &&
+          key.startsWith(`timetable-${view}-`) &&
+          // Der nachgeladene Tag eines offenen Blocks teilt das Präfix.
+          !key.includes("-detail-"),
+      ) as [string, () => Promise<unknown>] | undefined;
       expect(call).toBeDefined();
       return { key: call![0], fetcher: call![1] };
     }
@@ -2504,6 +2763,7 @@ describe("BetreuungsplanView", () => {
           expect.any(String),
           expect.any(String),
           { groupId: "5", staffId: "11", roomId: null },
+          { view: "slim" },
         );
         unmount();
       }
@@ -2521,6 +2781,7 @@ describe("BetreuungsplanView", () => {
         "2026-05-04",
         "2026-05-08",
         { groupId: null, staffId: null, roomId: null },
+        { view: "slim" },
       );
     });
 
@@ -2651,6 +2912,7 @@ describe("BetreuungsplanView", () => {
         expect.any(String),
         expect.any(String),
         { groupId: null, staffId: null, roomId: "3" },
+        { view: "slim" },
       );
       expect(
         screen.getByRole("combobox", { name: "Nach Raum filtern" }),

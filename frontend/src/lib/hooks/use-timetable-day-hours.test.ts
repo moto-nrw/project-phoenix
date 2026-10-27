@@ -1,31 +1,19 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockUseSettingsSchema } = vi.hoisted(() => ({
-  mockUseSettingsSchema: vi.fn(),
+const { mockUseTimetableDayTimes } = vi.hoisted(() => ({
+  mockUseTimetableDayTimes: vi.fn(),
 }));
 
-vi.mock("~/lib/hooks/use-settings-schema", () => ({
-  useSettingsSchema: mockUseSettingsSchema,
+vi.mock("~/lib/hooks/use-school-switches", () => ({
+  useSchoolDayTimes: mockUseTimetableDayTimes,
 }));
 
 import { useTimetableDayHours } from "./use-timetable-day-hours";
 
-function schema(startValue: unknown, endValue: unknown) {
-  return {
-    tabs: [
-      {
-        categories: [
-          {
-            items: [
-              { key: "timetable.day_start_time", value: startValue },
-              { key: "timetable.day_end_time", value: endValue },
-            ],
-          },
-        ],
-      },
-    ],
-  };
+// The day comes from the signed-in navigation context since #4996.
+function dayTimes(start: string | undefined, end: string | undefined) {
+  return { start, end };
 }
 
 describe("useTimetableDayHours", () => {
@@ -33,10 +21,8 @@ describe("useTimetableDayHours", () => {
     vi.clearAllMocks();
   });
 
-  it("uses configured start and end times from settings schema", () => {
-    mockUseSettingsSchema.mockReturnValue({
-      data: schema("08:30", "16:15"),
-    });
+  it("uses the configured start and end times of the school", () => {
+    mockUseTimetableDayTimes.mockReturnValue(dayTimes("08:30", "16:15"));
 
     const { result } = renderHook(() => useTimetableDayHours());
 
@@ -49,9 +35,7 @@ describe("useTimetableDayHours", () => {
   });
 
   it("keeps valid same-hour ranges and rounds the grid end up", () => {
-    mockUseSettingsSchema.mockReturnValue({
-      data: schema("08:30", "08:45"),
-    });
+    mockUseTimetableDayTimes.mockReturnValue(dayTimes("08:30", "08:45"));
 
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
       dayStartHour: 8,
@@ -62,7 +46,9 @@ describe("useTimetableDayHours", () => {
   });
 
   it("falls back when settings are missing, malformed or inverted", () => {
-    mockUseSettingsSchema.mockReturnValueOnce({ data: null });
+    mockUseTimetableDayTimes.mockReturnValueOnce(
+      dayTimes(undefined, undefined),
+    );
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
       dayStartHour: 9,
       dayEndHour: 17,
@@ -70,9 +56,7 @@ describe("useTimetableDayHours", () => {
       dayEndTime: "17:00",
     });
 
-    mockUseSettingsSchema.mockReturnValueOnce({
-      data: schema("xx", "99:00"),
-    });
+    mockUseTimetableDayTimes.mockReturnValueOnce(dayTimes("xx", "99:00"));
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
       dayStartHour: 9,
       dayEndHour: 17,
@@ -80,9 +64,7 @@ describe("useTimetableDayHours", () => {
       dayEndTime: "17:00",
     });
 
-    mockUseSettingsSchema.mockReturnValueOnce({
-      data: schema("18:00", "12:00"),
-    });
+    mockUseTimetableDayTimes.mockReturnValueOnce(dayTimes("18:00", "12:00"));
     expect(renderHook(() => useTimetableDayHours()).result.current).toEqual({
       dayStartHour: 9,
       dayEndHour: 17,

@@ -78,15 +78,16 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
-import { getSettingValue } from "~/lib/settings-api";
 import { staffShiftService } from "~/lib/shift-api";
 import { substitutionService } from "~/lib/substitution-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import {
+  useTimetableEnabled,
+  useWeekendFollowsFriday,
+} from "~/lib/tenant-context";
 import { staffNamesFromOverview } from "~/components/timetable/block-staff-names";
 import { timetableService } from "~/lib/timetable-api";
 import {
@@ -289,16 +290,9 @@ function VertretungContent() {
     () => staffShiftService.getOverview(coverageFromISO, coverageToISO),
   );
 
-  // Route-Gate wie in der alten View: Settings-Schema -> timetable.enabled.
-  // fetchSettingsSchema liefert null, wenn der Nutzer keine Settings lesen darf;
-  // die Seite rendert dann normal (bewusster Default, wie /timetables).
-  const { data: settingsSchema, isLoading: settingsSchemaLoading } =
-    useSettingsSchema(status === "authenticated", {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    });
-  const timetableDisabled =
-    getSettingValue(settingsSchema, "timetable.enabled") === false;
+  // Route-Gate wie im Betreuungsplan: timetable.enabled aus der
+  // Tenant-Auflösung (#4996), ohne das Settings-Schema zu laden.
+  const timetableDisabled = !useTimetableEnabled();
 
   // Fetch-Fehler erhalten, damit "Keine Termine"/Null-Lücken nie so gerendert
   // werden, als hätte ein fehlgeschlagener Request Erfolg gehabt.
@@ -636,11 +630,11 @@ function VertretungContent() {
     [selectedInstance, revalidate, staffNames, toast, updateUrlParams],
   );
 
-  // Solange die Session oder das Settings-Schema lädt, ist noch nicht
-  // entscheidbar, ob das Feature aktiv ist und welche Aktionen erlaubt sind.
+  // Solange die Session lädt, ist noch nicht entscheidbar, welche Aktionen
+  // erlaubt sind.
   // Wie im Dienstplan rendert die PlanningContextBar (Titel, Navigation)
   // trotzdem sofort; nur der Inhaltsbereich fällt auf das Skelett zurück.
-  const showSkeleton = status === "loading" || settingsSchemaLoading;
+  const showSkeleton = status === "loading";
   // Erstes Laden der Woche gehört in denselben Zustand: der Inhalt kann noch
   // nichts zeigen. Eine Revalidierung mit vorhandenen Daten nicht — die würde
   // sonst bei jedem Wochenwechsel die ganze Fläche gegen ein Skelett tauschen.

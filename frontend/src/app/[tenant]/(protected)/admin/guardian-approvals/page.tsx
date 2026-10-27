@@ -3,25 +3,15 @@
 import { useState } from "react";
 
 import GuardianApprovalQueue, {
-  type GuardianInviteMode,
   type GuardianInviteModeState,
 } from "~/components/admin/guardian-approval-queue";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { useSchoolParentInviteMode } from "~/lib/hooks/use-school-switches";
+import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { getSettingValue } from "~/lib/settings-api";
-
-const INVITE_MODES: readonly GuardianInviteMode[] = [
-  "disabled",
-  "direct",
-  "staff_approval",
-];
-
-function parseInviteMode(value: unknown): GuardianInviteMode | undefined {
-  return INVITE_MODES.find((mode) => mode === value);
-}
+import { useTenantMutate } from "~/lib/swr";
 
 // Staff approval queue for parent-initiated guardian invitations. Only
 // relevant when a school sets guardians.parent_invite_mode = staff_approval;
@@ -34,45 +24,38 @@ export default function GuardianApprovalsPage() {
   // Request). `null` = noch am Laden.
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   // The queue is empty by design in the other two invite modes, so the empty
-  // state needs to know which one is active. The queue still mounts while this
-  // independent request runs; only its empty-result copy waits for the mode.
-  // A failed or incomplete schema must not make disabled/direct mode look like
-  // an empty staff-approval queue.
+  // state needs to know which one is active. The mode rides on the signed-in
+  // navigation context (#4996), which the tenant layout usually preloads; the
+  // queue still mounts while it loads. A failed request or an unknown mode
+  // must not make disabled/direct mode look like an empty staff-approval
+  // queue.
+  const tenantMutate = useTenantMutate();
   const {
-    data: settingsSchema,
-    error: settingsError,
-    isLoading: isSettingsLoading,
-    isValidating: isSettingsValidating,
-    mutate: retrySettings,
-  } = useSettingsSchema(isReady, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    shouldRetryOnError: false,
-  });
-  const inviteMode = parseInviteMode(
-    getSettingValue(settingsSchema, "guardians.parent_invite_mode"),
-  );
-  // A failed settings request goes through the shared error path (#2517):
-  // catalog text, retry and request ID in the queue's empty area.
-  const settingsLoadError = useSwrLoadError(
-    settingsError,
+    mode: inviteMode,
+    isLoading: isModeLoading,
+    error: modeError,
+  } = useSchoolParentInviteMode(isReady);
+  const retryMode = () => void tenantMutate(USER_CONTEXT_SWR_KEY);
+  // A failed request goes through the shared error path (#2517): catalog
+  // text, retry and request ID in the queue's empty area.
+  const modeLoadError = useSwrLoadError(
+    modeError,
     "die Einladungs-Einstellung",
-    () => retrySettings(),
+    retryMode,
   );
 
-  const inviteModeState: GuardianInviteModeState = isSettingsLoading
-    ? { status: "loading" }
-    : settingsError != null ||
-        settingsSchema == null ||
-        inviteMode === undefined
-      ? {
-          status: "error",
-          isRetrying: isSettingsValidating,
-          retry: () => void retrySettings(),
-          error: settingsLoadError,
-          awaitingError: settingsError != null && settingsLoadError === null,
-        }
-      : { status: "ready", mode: inviteMode };
+  const inviteModeState: GuardianInviteModeState =
+    !isReady || isModeLoading
+      ? { status: "loading" }
+      : modeError != null || inviteMode === undefined
+        ? {
+            status: "error",
+            isRetrying: false,
+            retry: retryMode,
+            error: modeLoadError,
+            awaitingError: modeError != null && modeLoadError === null,
+          }
+        : { status: "ready", mode: inviteMode };
 
   return (
     <TenantPage

@@ -46,6 +46,9 @@ type StatusDayEntry struct {
 	StudentID  int64
 	Status     string
 	ReportedAt time.Time
+	// BySchool marks a sick or excused day the Schulverwaltung entered
+	// afterwards in moto schule (#4791).
+	BySchool bool
 }
 
 // EffectivePickup is one child's effective pickup of a day. PickupTime is
