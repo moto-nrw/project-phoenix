@@ -87,12 +87,16 @@ func fullOperationProfileDefinition() demoProfileDefinition {
 	}
 }
 
-// fullOperationProfileSettings adds the payroll configuration to the
-// Vollbetrieb school only. The Anmeldung profiles reuse fullOperationSettings
-// but seed no Personalnummern, so a complete DATEV setup there would still
-// report every colleague as missing (#5032).
+// fullOperationProfileSettings adds histories and the payroll configuration
+// to the Vollbetrieb school only. The Anmeldung profiles reuse
+// fullOperationSettings but seed neither history nor Personalnummern, so a
+// complete DATEV setup there would still report every colleague as missing
+// (#5032).
 func fullOperationProfileSettings() map[string]SeedSetting {
 	settings := fullOperationSettings()
+	for key, setting := range demoHistorySettings() {
+		settings[key] = setting
+	}
 	for key, setting := range demoPayrollSettings() {
 		settings[key] = setting
 	}
@@ -126,9 +130,6 @@ func demoPayrollSettings() map[string]SeedSetting {
 func fullOperationSettings() map[string]SeedSetting {
 	settings := fullOperationFeatureSettings()
 	for key, setting := range notOfferedModuleSettings() {
-		settings[key] = setting
-	}
-	for key, setting := range demoHistorySettings() {
 		settings[key] = setting
 	}
 	return settings

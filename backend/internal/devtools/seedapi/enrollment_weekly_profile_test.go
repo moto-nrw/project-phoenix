@@ -6,8 +6,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// The enrollment profiles demonstrate enrollment only. They do not seed the
+// two histories of the Vollbetrieb profile, so the settings must stay at the
+// registry defaults instead of opening empty history views.
+func TestEnrollmentProfilesLeaveHistoriesDisabled(t *testing.T) {
+	t.Parallel()
+	for _, definition := range []demoProfileDefinition{enrollmentWeeklyProfileDefinition(), enrollmentBookingsProfileDefinition()} {
+		t.Run(definition.Key, func(t *testing.T) {
+			for _, key := range []string{profileSettingAttendanceLog, profileSettingFeedbackEnabled} {
+				_, enabled := definition.Settings[key]
+				assert.False(t, enabled, key)
+			}
+		})
+	}
+}
 
 func TestWeeklyProfileRejectsBookingDrivenCareDays(t *testing.T) {
 	t.Parallel()
