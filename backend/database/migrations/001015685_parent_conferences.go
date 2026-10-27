@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	parentConferencesVersion     = "1.15.683"
+	parentConferencesVersion     = "1.15.685"
 	parentConferencesDescription = "Elternsprechtag: Lehrkraft legt Zeitfenster an, Eltern buchen je Kind (#4801)"
 )
 

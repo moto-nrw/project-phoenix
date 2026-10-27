@@ -7689,7 +7689,8 @@ function parentConferenceTopic(): HelpTopic {
     audience: "parent",
     icon: "CalendarPlus",
     steps: [
-      "Tippen Sie unten auf `Kinder` und wählen Sie Ihr Kind.",
+      "Tippen Sie unten auf `Mein Kind`.",
+      "Haben Sie mehrere Kinder, wählen Sie oben das Kind.",
       "Wählen Sie bei `Elternsprechtag` die Schaltfläche `Termin buchen`.",
       "Tippen Sie unter `Freie Zeiten` auf eine Uhrzeit.",
     ],

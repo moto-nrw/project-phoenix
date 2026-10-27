@@ -32,7 +32,7 @@ Caterer-Konten und Betriebe sind schulübergreifend; eine Schule darf sie nicht
 allein löschen oder als eigenen Bestand ausgeben. Einladungs-Hashes bleiben
 von der Rückgabe ausgeschlossen.
 
-Migration 1.15.683 ergänzt den Elternsprechtag (#4801):
+Migration 1.15.685 ergänzt den Elternsprechtag (#4801):
 `calendar.parent_conferences` (Tag einer Lehrkraft für eine Klasse, Personen-FK
 `organizer_staff_id` und das Konto für ihren Hinweis) und
 `calendar.parent_conference_bookings` (gebuchtes Zeitfenster je Kind, mit

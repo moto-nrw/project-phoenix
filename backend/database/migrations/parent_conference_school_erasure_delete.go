@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.683 (#4801): the 1.15.681 delete with the two Elternsprechtag tables,
+// 1.15.685 (#4801): the 1.15.681 delete with the two Elternsprechtag tables,
 // calendar.parent_conferences and calendar.parent_conference_bookings.
 func installParentConferenceErasureDelete(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, parentConferenceErasureDeleteSQL)
