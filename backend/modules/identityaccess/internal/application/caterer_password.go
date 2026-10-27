@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
@@ -21,6 +22,9 @@ func (c *CatererAccess) ChangeCatererPassword(ctx context.Context, accountID int
 }
 
 func (c *CatererAccess) changePassword(ctx context.Context, accountID int64, currentPassword, newPassword, ipAddress, userAgent string) error {
+	// The new hash is computed before the transaction, so the account's
+	// login lock is never held across the hashing; the rate limit and the
+	// account lock bound what a refused attempt costs.
 	if err := c.passwords.ValidatePasswordStrength(newPassword); err != nil {
 		return failed("change caterer password", err)
 	}
@@ -43,6 +47,10 @@ func (c *CatererAccess) changePassword(ctx context.Context, accountID int64, cur
 	if refusal != nil {
 		if refusal.schoolID > 0 {
 			c.auth.logFailedLogin(c.runtime.WithTenantID(ctx, refusal.schoolID), accountID, ipAddress, userAgent, "Caterer password change refused")
+		} else {
+			// No school to file the event at: the refusal is logged only,
+			// as at the sign-in.
+			c.logger.Info("caterer password change refused: no school", slog.Int64("account_id", accountID))
 		}
 		return failed("change caterer password", identityaccess.ErrInvalidCredentials)
 	}
