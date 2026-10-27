@@ -432,6 +432,7 @@ GET /api/students/{id}
 GET /api/students/{id}/arrival-schedules
 GET /api/students/{id}/attendance-history
 GET /api/students/{id}/attendance-history/export
+GET /api/students/{id}/care-withdrawals
 GET /api/students/{id}/change-history
 GET /api/students/{id}/companions
 GET /api/students/{id}/current-visit
@@ -499,7 +500,9 @@ GET /api/timetable/planning-tracks/
 GET /api/timetable/student/{id}/day
 GET /api/timetable/student/{id}/week
 GET /api/timetable/templates
+GET /api/timetable/templates/roster-deviations
 GET /api/timetable/templates/{id}
+GET /api/timetable/templates/{id}/offering-preview
 GET /api/users/
 GET /api/users/{id}
 GET /api/work-time-models/
@@ -959,7 +962,9 @@ POST /api/timetable/shift-coverage
 POST /api/timetable/substitutions/bulk
 POST /api/timetable/templates
 POST /api/timetable/templates/{id}/end
+POST /api/timetable/templates/{id}/offering-connection
 POST /api/timetable/templates/{id}/split
+POST /api/timetable/templates/{id}/students/{studentId}/remove-days
 POST /api/users/
 POST /api/work-time-models/
 POST /auth/accounts/{accountId}/caregiver-capability
@@ -1213,6 +1218,7 @@ PUT /api/timetable/periods/{id}
 PUT /api/timetable/planning-tracks/order
 PUT /api/timetable/planning-tracks/{id}
 PUT /api/timetable/templates/{id}
+PUT /api/timetable/templates/{id}/manual-roster
 PUT /api/users/{id}
 PUT /api/work-time-models/{id}
 PUT /auth/accounts/{accountId}/

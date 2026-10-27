@@ -1,7 +1,13 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { REMINDERS_SWR_KEY, type RemindersResult } from "~/lib/reminders-api";
+import {
+  ShellCacheSeeder,
+  shellOwnedEntries,
+  shellSwrConfig,
+} from "~/app/[tenant]/providers";
+import type { RemindersResult } from "~/lib/reminders-api";
+import type { ShellBootstrap } from "~/lib/shell-seed";
 import { SWRConfig } from "~/lib/swr";
 import { useReminders } from "./use-reminders";
 
@@ -21,8 +27,11 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
   }),
 }));
+// SWRs gemeinsamer Cache wie in der App; jeder Test nimmt eine eigene
+// Schule, damit kein Eintrag eines anderen Tests mitzählt.
+const tenantState = vi.hoisted(() => ({ slug: "schule-0" }));
 vi.mock("~/lib/tenant-context", () => ({
-  useTenantSlugSafe: () => "schule-a",
+  useTenantSlugSafe: () => tenantState.slug,
 }));
 const { fetchReminders } = vi.hoisted(() => ({ fetchReminders: vi.fn() }));
 vi.mock("~/lib/reminders-api", async (importOriginal) => ({
@@ -48,26 +57,30 @@ function Reminders({ name }: Readonly<{ name: string }>) {
   return <span data-testid={name}>{count}</span>;
 }
 
-function Shell({ onHome }: Readonly<{ onHome: boolean }>) {
+function Shell({
+  reminders,
+  onHome,
+}: Readonly<{ reminders: RemindersResult | null; onHome: boolean }>) {
+  // Wie TenantProviders: Seed in fallback und cacheData, die Einträge der
+  // Hülle vor dem ersten Leser im Cache.
+  const shell: ShellBootstrap = {
+    accountId: "7",
+    counts: {},
+    ...(reminders ? { reminders } : {}),
+  };
   return (
-    <>
+    <SWRConfig value={shellSwrConfig(shell, tenantState.slug)}>
+      <ShellCacheSeeder entries={shellOwnedEntries(shell, tenantState.slug)} />
       <Reminders name="bell" />
       {onHome && <Reminders name="home-block" />}
-    </>
+    </SWRConfig>
   );
 }
 
-/** Wie TenantProviders: der Server-Seed liegt unter dem Tenant-Key. */
-function seeded(data: RemindersResult | null) {
-  const entries = data ? { [`schule-a:${REMINDERS_SWR_KEY}`]: data } : {};
-  return {
-    provider: () => new Map(),
-    fallback: entries,
-    cacheData: entries,
-  };
-}
-
+let nextSchool = 0;
 beforeEach(() => {
+  nextSchool += 1;
+  tenantState.slug = `schule-${nextSchool}`;
   fetchReminders.mockReset();
   fetchReminders.mockResolvedValue({ ...SHELL_REMINDERS, count: 2 });
 });
@@ -77,20 +90,13 @@ describe("useReminders with the shell cache", () => {
     // Der Wechsel zur Startseite kommt später als SWRs Deduplizierungsfenster
     // (5 s); erst danach zählt eine erneute Abfrage als Request.
     vi.useFakeTimers();
-    const config = seeded(SHELL_REMINDERS);
     const { rerender } = render(
-      <SWRConfig value={config}>
-        <Shell onHome={false} />
-      </SWRConfig>,
+      <Shell reminders={SHELL_REMINDERS} onHome={false} />,
     );
     expect(screen.getByTestId("bell")).toHaveTextContent("1");
     await act(() => vi.advanceTimersByTimeAsync(10_000));
 
-    rerender(
-      <SWRConfig value={config}>
-        <Shell onHome />
-      </SWRConfig>,
-    );
+    rerender(<Shell reminders={SHELL_REMINDERS} onHome />);
     await act(() => vi.advanceTimersByTimeAsync(1_000));
 
     expect(screen.getByTestId("home-block")).toHaveTextContent("1");
@@ -98,12 +104,27 @@ describe("useReminders with the shell cache", () => {
     expect(fetchReminders).not.toHaveBeenCalled();
   });
 
-  it("loads once when the shell holds no reminders", async () => {
+  it("asks the server on the first refresh after the seed", async () => {
     render(
-      <SWRConfig value={seeded(null)}>
-        <Shell onHome />
-      </SWRConfig>,
+      <Shell
+        reminders={{ ...SHELL_REMINDERS, enabled: true }}
+        onHome={false}
+      />,
     );
+    expect(screen.getByTestId("bell")).toHaveTextContent("1");
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent("phoenix:reminders-stale"));
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("bell")).toHaveTextContent("2"),
+    );
+    expect(fetchReminders).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads once when the shell holds no reminders", async () => {
+    render(<Shell reminders={null} onHome />);
 
     await waitFor(() =>
       expect(screen.getByTestId("home-block")).toHaveTextContent("2"),

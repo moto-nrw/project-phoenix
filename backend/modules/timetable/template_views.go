@@ -27,26 +27,29 @@ type TemplateListRow struct {
 	ListKind                  *string
 	Notes                     *string
 	IncludeClosingDays        bool
-	SeriesLastDay             *string
-	ShiftTypeID               *int64
-	ShiftTypeName             string
-	ShiftTypeColor            string
-	EnrollmentCount           int
-	SupervisorCount           int
-	CapacityEnrollmentCount   int
-	CapacitySupervisorCount   int
-	CapacityOccurrenceFound   bool
-	StudentIDs                []int64
-	StaffIDs                  []int64
-	PrimaryStaffID            *int64
-	ScheduleID                int64
-	Weekday                   int
-	StartTime                 *string
-	EndTime                   *string
-	WeekPattern               int
-	CalendarPeriodID          *int64
-	ScheduleValidFrom         *string
-	ScheduleValidUntil        *string
+	// ManualRosterConfirmed is the series root's "Bleibt von Hand gepflegt"
+	// (#5103).
+	ManualRosterConfirmed   bool
+	SeriesLastDay           *string
+	ShiftTypeID             *int64
+	ShiftTypeName           string
+	ShiftTypeColor          string
+	EnrollmentCount         int
+	SupervisorCount         int
+	CapacityEnrollmentCount int
+	CapacitySupervisorCount int
+	CapacityOccurrenceFound bool
+	StudentIDs              []int64
+	StaffIDs                []int64
+	PrimaryStaffID          *int64
+	ScheduleID              int64
+	Weekday                 int
+	StartTime               *string
+	EndTime                 *string
+	WeekPattern             int
+	CalendarPeriodID        *int64
+	ScheduleValidFrom       *string
+	ScheduleValidUntil      *string
 }
 
 type TemplateWeekdayRosterRow struct {

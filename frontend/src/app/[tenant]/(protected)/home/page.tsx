@@ -17,6 +17,7 @@ import { HomeBlockContent } from "~/components/home/home-block-content";
 import { HomeBoard } from "~/components/home/home-board";
 import { NowStrip } from "~/components/home/now-strip";
 import { PickupExtensionTodos } from "~/components/home/pickup-extension-todos";
+import { RosterDeviationTodos } from "~/components/home/roster-deviation-todos";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -512,6 +513,12 @@ function HomeContent() {
         <PickupExtensionTodos
           enabled={timetableEnabled && access.has("schedules:manage")}
         />
+      ) : null}
+
+      {/* Regeltermine, die von den Anmeldungen abweichen (#5103): eine
+          Aufgabe für Planende, deshalb fest über dem Brett. */}
+      {!editing && timetableEnabled && access.has("schedules:manage") ? (
+        <RosterDeviationTodos enabled />
       ) : null}
 
       {/* Die Jetzt-Zone steht fest über dem Brett und ist kein Baustein: die

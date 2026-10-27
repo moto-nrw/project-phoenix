@@ -12,6 +12,7 @@ import (
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -259,13 +260,52 @@ func (rs *Resource) listCareWithdrawals(w http.ResponseWriter, r *http.Request) 
 		renderError(w, r, careExitErrorRenderer(err))
 		return
 	}
+	respondCareWithdrawalPage(w, r, rows, total, filter, "Offene Abmeldungen geladen")
+}
+
+// respondCareWithdrawalPage writes one page of withdrawal tasks in the
+// response type that never carries the exit reason.
+func respondCareWithdrawalPage(w http.ResponseWriter, r *http.Request, rows []careplan.WithdrawalCompletion, total int, filter careplan.CareWithdrawalFilter, message string) {
 	out := make([]careWithdrawalResponse, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, toCareWithdrawalResponse(row))
 	}
 	common.Respond(w, r, http.StatusOK, map[string]any{
 		"items": out, "total": total, "page": filter.Page, "page_size": filter.PageSize,
-	}, "Offene Abmeldungen geladen")
+	}, message)
+}
+
+// listStudentResolvedCareWithdrawals pages the completed withdrawals of one child for
+// its Änderungsprotokoll (#5025). It carries the request log's gate instead of
+// the tenant list's users:delete, so it stays narrower than that list in every
+// other way: the child the caller may read, resolved tasks only, no search,
+// and the response type that never carries the exit reason.
+func (rs *Resource) listStudentResolvedCareWithdrawals(w http.ResponseWriter, r *http.Request) {
+	if rs.CareLifecycleService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+		return
+	}
+	if !securityruntime.CanReviewExcusedAbsenceRequests(sessiontoken.PermissionsFromCtx(r.Context())) {
+		renderError(w, r, common.ErrorForbidden(errors.New("users:absence requires users:read to view the child's withdrawals")))
+		return
+	}
+	student, ok := rs.parseAndGetStudent(w, r)
+	if !ok {
+		return
+	}
+	if !rs.checkStudentReadAccess(r, student) {
+		renderError(w, r, common.ErrorForbidden(errors.New("read access required to view the child's withdrawals")))
+		return
+	}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	filter := careplan.CareWithdrawalFilter{StudentID: student.ID, Page: page, PageSize: pageSize}.Normalized()
+	rows, total, err := rs.CareLifecycleService.ListResolvedWithdrawals(r.Context(), filter)
+	if err != nil {
+		renderError(w, r, careExitErrorRenderer(err))
+		return
+	}
+	respondCareWithdrawalPage(w, r, rows, total, filter, "Abgeschlossene Abmeldungen geladen")
 }
 
 func optionalPositiveQueryID(r *http.Request, key string) (int64, error) {

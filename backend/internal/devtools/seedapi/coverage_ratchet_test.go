@@ -102,8 +102,6 @@ var seedCoverageExemptions = map[string]string{
 	"enrollment.care_offering_auto_triggers": "empty in prod too",
 	"enrollment.request_upload_cleanup":      "holds the file removal of a deleted parent upload (#4783); the seed deletes no upload",
 
-	"feedback.entries": "empty in prod too",
-
 	"iot.push_subscriptions":   "browser/VAPID-bound state; a server-side seed cannot create an honest browser subscription",
 	"iot.pwa_standalone_usage": "not in prod yet (migration newer than the deployed image)",
 

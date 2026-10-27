@@ -164,6 +164,11 @@ var queryBudgets = map[string]queryBudget{
 	// statement that joins the named student directory projection; the
 	// matching test also pins the rows read at one and at four children.
 	"api.students.care_withdrawals.list": {max: 6},
+	// api/students — GET /students/{id}/care-withdrawals (#5025), page_size=1
+	// over four completed withdrawals of one child: the tenant list's six
+	// statements, filtered to the child, plus three for the child read and
+	// the read-access check.
+	"api.students.care_withdrawals.student_list": {max: 9},
 	// workflows/studentdeletion — the permanent deletion behind DELETE
 	// /students/{id} and DELETE /students/care-withdrawals/{id} (#3411), over
 	// the production composition with one and with four linked children.
@@ -265,6 +270,13 @@ var queryBudgets = map[string]queryBudget{
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
 	"api.timetable.templates.list": {max: 11},
+	// modules/timetable — GET /api/timetable/templates/roster-deviations
+	// (#5103): the period's template list with its indicator reads, then the
+	// future rosters (schedules, enrollment rows, alumni, targets and target
+	// members) in one batch. Care Plan's booking read is stubbed here and
+	// budgeted as services.enrollment.offering_weekday_bookings.reads. Flat
+	// from 3 to 8 Regeltermine.
+	"api.timetable.templates.roster_deviations": {max: 16},
 	// modules/timetable/http — GET /pickup-extensions (#3261), day tasks only: tenant
 	// transaction and tenant setup, task read, one batched block read,
 	// student and person names. Flat in the number of open tasks.
@@ -327,7 +339,11 @@ var queryBudgets = map[string]queryBudget{
 	// Source validation adds one batched read each for the offering catalog,
 	// its auto-add rules, periods, phases and series roots; flat from 3 to 8.
 	"services.enrollment.template_roster_maintenance_feeds.reads": {max: 5},
-	"services.enrollment.rollover_review_queue.reads":             {max: 3},
+	// modules/careplan — OfferingWeekdayBookings (#5103): the care-offerings
+	// setting, the offerings, the phases (with the period) and the approved
+	// children in one batch. Flat in the number of approved children.
+	"services.enrollment.offering_weekday_bookings.reads": {max: 6},
+	"services.enrollment.rollover_review_queue.reads":     {max: 3},
 	// modules/schoolcalendar/portal — appointment target resolution, 8 explicit guardians.
 	"services.calendar.resolve_targets.reads": {max: 5, exact: true},
 	// modules/schoolcalendar/portal — reminder scan, 8 due appointments; writes scale with

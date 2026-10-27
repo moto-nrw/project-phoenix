@@ -38,6 +38,8 @@ export interface OverflowMenuItem {
   readonly external?: boolean;
   /** Marks the current item in a navigational overflow menu. */
   readonly selected?: boolean;
+  /** Target of a guided tour (`data-setup-tour`), for an entry a tour points at. */
+  readonly tourTarget?: string;
 }
 
 /** Non-interactive thin divider between item groups. */
@@ -580,6 +582,7 @@ export function OverflowMenu({
                       <a
                         key={`item-${item.label}`}
                         role="menuitem"
+                        data-setup-tour={item.tourTarget}
                         aria-current={item.selected ? "true" : undefined}
                         tabIndex={0}
                         href={item.href}
@@ -596,6 +599,7 @@ export function OverflowMenu({
                     <Link
                       key={`item-${item.label}`}
                       role="menuitem"
+                      data-setup-tour={item.tourTarget}
                       aria-current={item.selected ? "true" : undefined}
                       tabIndex={0}
                       href={item.href}
@@ -612,6 +616,7 @@ export function OverflowMenu({
                     key={`item-${item.label}`}
                     type="button"
                     role="menuitem"
+                    data-setup-tour={item.tourTarget}
                     aria-current={item.selected ? "true" : undefined}
                     disabled={item.disabled}
                     onClick={() => {

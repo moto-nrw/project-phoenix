@@ -328,8 +328,24 @@ func (rs *Resource) mountTemplateRoutes(r chi.Router, withTx common.Middleware) 
 	// future instances.
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Post("/templates/{id}/end", rs.endTemplate)
+	// "Dort auch entfernen" (#5102): after a booking change takes weekdays
+	// away, take the child off a hand-maintained Regeltermin on exactly those
+	// weekdays from the effective date on.
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Post("/templates/{id}/students/{studentId}/remove-days", rs.removeStudentTemplateDays)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Delete("/templates/{id}", rs.archiveTemplate)
+	// Roster review (#5103): hand-kept Regeltermine that drift from the
+	// bookings, the preview and the switch to a Betreuungsangebot as
+	// source, and "Bleibt von Hand gepflegt".
+	r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
+		Get("/templates/roster-deviations", rs.listTemplateRosterDeviations)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Get("/templates/{id}/offering-preview", rs.previewTemplateOfferingSource)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Post("/templates/{id}/offering-connection", rs.connectTemplateOfferingSource)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Put("/templates/{id}/manual-roster", rs.setTemplateManualRoster)
 }
 
 // mountPlanningTrackRoutes registers the planning tracks of the planner.

@@ -19,6 +19,7 @@ import {
   type WeekdayRosterState,
 } from "./form-model";
 import { MultiSelectField } from "./multi-select-field";
+import { OfferingSourcePreview } from "./offering-source-preview";
 import { WeekdayRosterSection } from "./weekday-roster-section";
 import {
   CONFLICT_CHECK_FAILED_HINT,
@@ -106,6 +107,13 @@ export interface StepPersonalKinderProps {
   sourceCountsError: FormError | null;
   /** Namentliche Abweichung zur bisher manuell gepflegten Kinderliste. */
   sourceRosterDiff: { added: string[]; removed: string[] } | null;
+  /**
+   * Bestehender Regeltermin (#5103): mit ihm zeigt der Schritt pro Wochentag,
+   * wer beim Wechsel auf ein Angebot dazukommt und wer wegfällt.
+   */
+  sourcePreviewTemplateId?: string;
+  /** Datum von „Ab jetzt dauerhaft“; sonst ab dem nächsten Termin. */
+  sourcePreviewFrom?: string;
   /** Advisory when series start is before the offering phase service start. */
   sourcePhaseKidsFromWarning: string | null;
   sourceOverlapWarnings: string[];
@@ -175,6 +183,8 @@ export function StepPersonalKinder({
   sourceCountsFailed,
   sourceCountsError,
   sourceRosterDiff,
+  sourcePreviewTemplateId,
+  sourcePreviewFrom,
   sourcePhaseKidsFromWarning,
   sourceOverlapWarnings,
   changeSourceOfferings,
@@ -650,7 +660,13 @@ export function StepPersonalKinder({
                       automatisch auf zukünftige Planungen aus.
                     </p>
                   )}
-                  {sourceRosterDiff ? (
+                  {sourcePreviewTemplateId ? (
+                    <OfferingSourcePreview
+                      templateId={sourcePreviewTemplateId}
+                      form={form}
+                      from={sourcePreviewFrom}
+                    />
+                  ) : sourceRosterDiff ? (
                     <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
                       <p className="text-xs font-semibold text-gray-700">
                         Das ändert sich gegenüber Ihrer bisherigen Kinderliste

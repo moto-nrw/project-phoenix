@@ -104,3 +104,20 @@ func ExplainEmptyOfferingRoster(
 	}
 	return explanation
 }
+
+// OfferingWeekdayBooking is one child's approved booking of an active
+// offering fitting a calendar period, with the weekdays it plans (ISO,
+// 1 = Monday) from a date on (#5103). A child with several links to the same
+// offering appears once, with the union of their weekdays.
+type OfferingWeekdayBooking struct {
+	OfferingID   int64
+	OfferingName string
+	StudentID    int64
+	SchoolClass  string
+	GradeLevel   *int16
+	Weekdays     []int
+	// CountsAsCare and IncludesLunch are the offering's catalog flags; they
+	// tell care blocks, Mensa lists and courses apart.
+	CountsAsCare  bool
+	IncludesLunch bool
+}

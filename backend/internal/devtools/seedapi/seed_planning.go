@@ -72,7 +72,7 @@ func (seedPlanningDemoStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 
-	fmt.Printf("  %d phone numbers, %d arrival plans and 7 recurring plans created\n", phoneCount, arrivalCount)
+	fmt.Printf("  %d phone numbers, %d arrival plans and 8 recurring plans created\n", phoneCount, arrivalCount)
 	return nil
 }
 
@@ -428,9 +428,75 @@ func createSeedTargetVariants(rt *Runtime, roomID, categoryID, trackID int64, st
 		if body["name"] != "Ferienbetreuung" {
 			planFromMonday(body, 6)
 		}
-		if _, err := rt.Client.Post("/api/timetable/templates", body); err != nil {
+		raw, err := rt.Client.Post("/api/timetable/templates", body)
+		if err != nil {
 			return fmt.Errorf("create %s planning variant: %w", body["target_group_type"], err)
 		}
+		// The AG is a Klasse Regeltermin the school keeps by hand on purpose
+		// ("Bleibt von Hand gepflegt", #5103): its roster is no booking.
+		if body["name"] == "AG Klasse 1a" {
+			if err := confirmSeedManualRoster(rt, raw); err != nil {
+				return err
+			}
+		}
+	}
+	return createSeedClassEdgeHours(rt, roomID, categoryID, trackID, staffIDs)
+}
+
+// seedEdgeHoursClass is the class of the Randstunden block that keeps every
+// child of its class by hand, as Schule am Berg did (#5103).
+const seedEdgeHoursClass = "Klasse 1b"
+
+// createSeedClassEdgeHours plans a Randstunden block for Klasse 1b with the
+// Zielgruppe Klasse and every child of the class picked by hand. Only part of
+// the class books Ganztag or Kurzbetreuung, so the Serien view shows the hint
+// "Weicht von Anmeldungen ab" with "Mit Angebot verbinden".
+func createSeedClassEdgeHours(rt *Runtime, roomID, categoryID, trackID int64, staffIDs []int64) error {
+	classIDs := seedClassStudentIDs(rt.FixedSeeder, seedEdgeHoursClass)
+	if len(classIDs) < 3 || len(staffIDs) == 0 {
+		return fmt.Errorf("class edge hours need three children of %s and one staff member", seedEdgeHoursClass)
+	}
+	body := map[string]any{
+		"name": "Randstunde Klasse 1b", "type": "care", "list_kind": "edge_hours",
+		"target_group_type": "klasse", "target_school_class": seedEdgeHoursClass,
+		"targets":  []map[string]any{{"type": "klasse", "school_class": seedEdgeHoursClass}},
+		"weekdays": []int{1, 2, 3, 4, 5}, "start_time": "07:00", "end_time": "07:30",
+		"room_id": roomID, "category_id": categoryID, "planning_track_id": trackID,
+		"week_pattern": 0, "student_ids": classIDs, "staff_ids": staffIDs[:1], "primary_staff_id": staffIDs[0],
+	}
+	planFromMonday(body, 6)
+	if _, err := rt.Client.Post("/api/timetable/templates", body); err != nil {
+		return fmt.Errorf("create class edge hours: %w", err)
+	}
+	return nil
+}
+
+// seedClassStudentIDs lists the seeded children of one school class.
+func seedClassStudentIDs(fs *FixedSeeder, class string) []int64 {
+	ids := make([]int64, 0)
+	for index, id := range fs.studentIDByIndex {
+		if index >= 0 && index < len(DemoStudents) && DemoStudents[index].Class == class {
+			ids = append(ids, id)
+		}
+	}
+	slices.Sort(ids)
+	return ids
+}
+
+// confirmSeedManualRoster marks the created Regeltermin "Bleibt von Hand
+// gepflegt".
+func confirmSeedManualRoster(rt *Runtime, created []byte) error {
+	var response struct {
+		Data struct {
+			TemplateID int64 `json:"template_id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(created, &response); err != nil || response.Data.TemplateID == 0 {
+		return fmt.Errorf("parse planning variant response")
+	}
+	path := fmt.Sprintf("/api/timetable/templates/%d/manual-roster", response.Data.TemplateID)
+	if _, err := rt.Client.Put(path, map[string]any{"confirmed": true}); err != nil {
+		return fmt.Errorf("keep planning variant by hand: %w", err)
 	}
 	return nil
 }
