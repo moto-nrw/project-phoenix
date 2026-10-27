@@ -1,4 +1,9 @@
-import { careWeekDayCount, toISODate as formatDateISO } from "./date-helpers";
+import {
+  berlinTodayISO,
+  careWeekDayCount,
+  parseISODate,
+  toISODate as formatDateISO,
+} from "./date-helpers";
 import type {
   ArrivalException,
   ArrivalNote,
@@ -41,7 +46,7 @@ export function arrivalScheduleSourceLabel(
 }
 
 function getWeekStart(weekOffset = 0): Date {
-  const today = new Date();
+  const today = parseISODate(berlinTodayISO());
   const dayOfWeek = today.getDay();
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   const monday = new Date(today);

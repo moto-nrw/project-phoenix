@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import type { ArrivalSchedule } from "./student-arrival-api";
 import {
@@ -80,12 +80,18 @@ describe("arrival schedule getDayData", () => {
 
 describe("arrival schedule getWeekDays", () => {
   it("includes Saturday and Sunday in today's weekend week when the weekend follows Friday", () => {
-    setTestClock("2026-09-12T12:00:00+02:00"); // Saturday
-    const days = getWeekDays(0, true);
+    // Sunday in Berlin, but already Monday in a browser east of Berlin.
+    setTestClock("2026-09-13T21:30:00Z");
+    vi.stubEnv("TZ", "Asia/Almaty");
+    try {
+      const days = getWeekDays(0, true);
 
-    expect(days).toHaveLength(7);
-    expect(days.map((day) => day.getDay())).toEqual([1, 2, 3, 4, 5, 6, 0]);
-    expect(getWeekDays(1, true)).toHaveLength(5);
+      expect(days).toHaveLength(7);
+      expect(days.map((day) => day.getDay())).toEqual([1, 2, 3, 4, 5, 6, 0]);
+      expect(getWeekDays(1, true)).toHaveLength(5);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("keeps Mo–Fr on a weekday although the weekend follows Friday", () => {
