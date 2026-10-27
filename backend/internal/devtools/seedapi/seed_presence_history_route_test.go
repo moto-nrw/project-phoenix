@@ -59,7 +59,7 @@ func TestOperatorPresenceHistoryWriterPostsChunksAsOperator(t *testing.T) {
 	assert.Equal(t, 1100, written)
 	assert.Equal(t, []int{500, 500, 100}, sizes, "no request exceeds the route's limit")
 	assert.Equal(t, []string{"Bearer operator-token", "Bearer operator-token", "Bearer operator-token"}, auths)
-	assert.Equal(t, "2026-10-20", first.Date)
+	assert.Equal(t, date, first.Date)
 	assert.Equal(t, int64(7), first.DeviceID)
 	assert.True(t, first.CheckIn.Equal(checkIn))
 	require.NotNil(t, first.Visit)

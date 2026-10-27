@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // presenceHistoryRouteChunk is how many days one request carries. The route
@@ -13,7 +15,7 @@ const presenceHistoryRouteChunk = 500
 
 type presenceHistoryRouteDay struct {
 	StudentID int64                      `json:"student_id"`
-	Date      string                     `json:"date"`
+	Date      calendar.Date              `json:"date"`
 	DeviceID  int64                      `json:"device_id"`
 	CheckIn   time.Time                  `json:"check_in"`
 	CheckOut  time.Time                  `json:"check_out"`
@@ -72,7 +74,7 @@ func presenceHistoryRouteDays(days []PastPresenceDay) []presenceHistoryRouteDay 
 	result := make([]presenceHistoryRouteDay, 0, len(days))
 	for _, day := range days {
 		wire := presenceHistoryRouteDay{
-			StudentID: day.StudentID, Date: day.Date.String(), DeviceID: day.DeviceID,
+			StudentID: day.StudentID, Date: day.Date, DeviceID: day.DeviceID,
 			CheckIn: day.CheckIn, CheckOut: day.CheckOut,
 		}
 		if visit := day.Visit; visit != nil {

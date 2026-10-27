@@ -7,12 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// errPresenceHistory rejects a past day that no finished care day could have
-// produced; nothing of the batch is written then.
-var errPresenceHistory = studentpresence.ErrPresenceHistoryInvalid
 
 // pastSessionKey identifies the one session the visits of a day, activity and
 // room share.
@@ -85,6 +82,11 @@ func (w *PresenceHistoryWriter) RecordPresenceHistory(ctx context.Context, days 
 		}
 		return nil
 	})
+	if transactionruntime.IsConstraintViolation(err) {
+		// A child, kiosk, room or session of another school, or of none,
+		// fails the tenant-composite keys: the caller named the wrong day.
+		return 0, fmt.Errorf("%w: %w", studentpresence.ErrPresenceHistoryInvalid, err)
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -137,14 +139,14 @@ func (w *PresenceHistoryWriter) recordPastVisit(ctx context.Context, day student
 		session = recorded
 		records.sessions[key] = session
 	} else if !session.StartTime.Equal(visit.SessionStart) || session.EndTime == nil || !session.EndTime.Equal(visit.SessionEnd) {
-		return fmt.Errorf("%w: visits in room %d on %s name different session bounds", errPresenceHistory, visit.RoomID, day.Date)
+		return fmt.Errorf("%w: visits in room %d on %s name different session bounds", studentpresence.ErrPresenceHistoryInvalid, visit.RoomID, day.Date)
 	}
 	visitKey := pastVisitKey{studentID: day.StudentID, sessionID: session.ID}
 	if matches, existing := matchingPastVisit(records.visits[visitKey], visit); existing {
 		if matches {
 			return nil
 		}
-		return fmt.Errorf("%w: student %d has a different visit in room %d on %s", errPresenceHistory, day.StudentID, visit.RoomID, day.Date)
+		return fmt.Errorf("%w: student %d has a different visit in room %d on %s", studentpresence.ErrPresenceHistoryInvalid, day.StudentID, visit.RoomID, day.Date)
 	}
 	exit := visit.Exit
 	row := &studentpresence.Visit{CreatedAt: visit.Entry, UpdatedAt: exit, StudentID: day.StudentID,
@@ -185,10 +187,10 @@ func (w *PresenceHistoryWriter) loadPastAttendanceRecords(ctx context.Context, s
 				continue
 			}
 			if row.CheckOutTime == nil {
-				return fmt.Errorf("%w: student %d already has open attendance on %s", errPresenceHistory, day.StudentID, day.Date)
+				return fmt.Errorf("%w: student %d already has open attendance on %s", studentpresence.ErrPresenceHistoryInvalid, day.StudentID, day.Date)
 			}
 			if !matchesPastAttendance(row, day) || records.attendance[key] {
-				return fmt.Errorf("%w: student %d already has different attendance on %s", errPresenceHistory, day.StudentID, day.Date)
+				return fmt.Errorf("%w: student %d already has different attendance on %s", studentpresence.ErrPresenceHistoryInvalid, day.StudentID, day.Date)
 			}
 			records.attendance[key] = true
 		}
@@ -210,7 +212,7 @@ func (w *PresenceHistoryWriter) loadPastSessionRecords(ctx context.Context, scop
 				continue
 			}
 			if !matchesPastSession(group, expected) || records.sessions[key].ID != 0 {
-				return fmt.Errorf("%w: room %d already has a different session on %s", errPresenceHistory, key.roomID, key.date)
+				return fmt.Errorf("%w: room %d already has a different session on %s", studentpresence.ErrPresenceHistoryInvalid, key.roomID, key.date)
 			}
 			records.sessions[key] = group
 		}
@@ -317,13 +319,13 @@ func validatePastPresenceDays(days []studentpresence.PastPresenceDay, today cale
 func validatePastPresenceDay(day studentpresence.PastPresenceDay, today calendar.Date) error {
 	switch {
 	case day.StudentID <= 0 || day.DeviceID <= 0:
-		return fmt.Errorf("%w: student and device are required", errPresenceHistory)
+		return fmt.Errorf("%w: student and device are required", studentpresence.ErrPresenceHistoryInvalid)
 	case day.Date == "" || !day.Date.Before(today):
-		return fmt.Errorf("%w: %q is not a day before %s", errPresenceHistory, day.Date, today)
+		return fmt.Errorf("%w: %q is not a day before %s", studentpresence.ErrPresenceHistoryInvalid, day.Date, today)
 	case calendar.DateFromTime(day.CheckIn) != day.Date || calendar.DateFromTime(day.CheckOut) != day.Date:
-		return fmt.Errorf("%w: attendance of student %d leaves %s", errPresenceHistory, day.StudentID, day.Date)
+		return fmt.Errorf("%w: attendance of student %d leaves %s", studentpresence.ErrPresenceHistoryInvalid, day.StudentID, day.Date)
 	case !day.CheckOut.After(day.CheckIn):
-		return fmt.Errorf("%w: student %d leaves before arriving on %s", errPresenceHistory, day.StudentID, day.Date)
+		return fmt.Errorf("%w: student %d leaves before arriving on %s", studentpresence.ErrPresenceHistoryInvalid, day.StudentID, day.Date)
 	}
 	if day.Visit == nil {
 		return nil
@@ -331,11 +333,11 @@ func validatePastPresenceDay(day studentpresence.PastPresenceDay, today calendar
 	visit := day.Visit
 	switch {
 	case visit.ActivityGroupID <= 0 || visit.RoomID <= 0:
-		return fmt.Errorf("%w: visit needs an activity and a room", errPresenceHistory)
+		return fmt.Errorf("%w: visit needs an activity and a room", studentpresence.ErrPresenceHistoryInvalid)
 	case !visit.Exit.After(visit.Entry) || !visit.SessionEnd.After(visit.SessionStart):
-		return fmt.Errorf("%w: visit of student %d on %s ends before it starts", errPresenceHistory, day.StudentID, day.Date)
+		return fmt.Errorf("%w: visit of student %d on %s ends before it starts", studentpresence.ErrPresenceHistoryInvalid, day.StudentID, day.Date)
 	case outside(visit.Entry, visit.Exit, visit.SessionStart, visit.SessionEnd) || outside(visit.Entry, visit.Exit, day.CheckIn, day.CheckOut):
-		return fmt.Errorf("%w: visit of student %d on %s lies outside its session or attendance", errPresenceHistory, day.StudentID, day.Date)
+		return fmt.Errorf("%w: visit of student %d on %s lies outside its session or attendance", studentpresence.ErrPresenceHistoryInvalid, day.StudentID, day.Date)
 	}
 	return nil
 }

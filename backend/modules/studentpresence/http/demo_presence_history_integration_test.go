@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	studentpresencehttp "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
@@ -64,10 +65,10 @@ func TestDemoPresenceHistoryRouteWritesInTheSchoolOfThePath(t *testing.T) {
 	require.Len(t, visits, 1)
 
 	// The tenant-composite foreign keys refuse a child or kiosk of another
-	// school, so a wrong path writes nothing.
+	// school, so a wrong path writes nothing and is the caller's mistake.
 	other := testpkg.NewTenantScope(t, db)
 	rr = post(other.TenantID)
-	assert.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
+	routetest.AssertErrorResponse(t, rr, http.StatusBadRequest)
 	foreign, err := module.ListAttendance(other.Context(), studentpresence.AttendanceFilter{StudentIDs: []int64{student.ID}})
 	require.NoError(t, err)
 	assert.Empty(t, foreign)

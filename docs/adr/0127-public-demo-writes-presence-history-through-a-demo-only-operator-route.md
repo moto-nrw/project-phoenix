@@ -37,7 +37,8 @@ demo one of them is needed.
    `PresenceHistory` in one tenant transaction. The writer's checks stay as
    ADR 0125 states them: only finished days before today, visits inside
    their session and attendance, a retry reuses the seeded rows. A request
-   carries at most 1000 days and 1 MiB. A day the writer rejects answers 400.
+   carries at most 1000 days and 1 MiB. A day the writer rejects answers 400,
+   as does a day the tenant-composite keys refuse (point 4).
 4. The tenant-composite foreign keys refuse a child or kiosk of another
    school on `active.attendance`, a child or session on `active.visits` and
    a room on `active.groups`. The batch runs in one transaction, so a wrong
@@ -66,5 +67,6 @@ demo one of them is needed.
   change to that gate must keep it out of every other environment;
   the `demo presence history` case of `TestRouter`
   (`api/operator_router_test.go`) asserts it.
-- The router golden and the core-action table stay unchanged: the operator
-  routes are outside both, and the golden is built outside the demo.
+- The router golden stays unchanged because it is built outside
+  `APP_ENV=demo`. The core-action table stays unchanged because the operator
+  routes are outside it (`.claude/rules/usage-analytics.md`).

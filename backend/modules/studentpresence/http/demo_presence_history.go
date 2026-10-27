@@ -29,7 +29,7 @@ type DemoPresenceHistoryRequest struct {
 // DemoPresenceHistoryDay is one finished care day of one child.
 type DemoPresenceHistoryDay struct {
 	StudentID int64                     `json:"student_id"`
-	Date      string                    `json:"date"`
+	Date      calendar.Date             `json:"date"`
 	DeviceID  int64                     `json:"device_id"`
 	CheckIn   time.Time                 `json:"check_in"`
 	CheckOut  time.Time                 `json:"check_out"`
@@ -94,11 +94,7 @@ func decodeDemoPresenceHistory(w http.ResponseWriter, r *http.Request) ([]studen
 	}
 	days := make([]studentpresence.PastPresenceDay, 0, len(body.Days))
 	for _, day := range body.Days {
-		date, err := calendar.ParseDate(day.Date)
-		if err != nil {
-			return nil, fmt.Errorf("invalid presence history date %q: %w", day.Date, err)
-		}
-		past := studentpresence.PastPresenceDay{StudentID: day.StudentID, Date: date, DeviceID: day.DeviceID, CheckIn: day.CheckIn, CheckOut: day.CheckOut}
+		past := studentpresence.PastPresenceDay{StudentID: day.StudentID, Date: day.Date, DeviceID: day.DeviceID, CheckIn: day.CheckIn, CheckOut: day.CheckOut}
 		if visit := day.Visit; visit != nil {
 			past.Visit = &studentpresence.PastVisit{
 				ActivityGroupID: visit.ActivityGroupID, RoomID: visit.RoomID,
