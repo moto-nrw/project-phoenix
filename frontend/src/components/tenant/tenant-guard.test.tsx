@@ -963,6 +963,17 @@ describe("TenantGuard", () => {
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
     });
 
+    it("keeps the page hidden when a late answer still names this school", () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      // A lookup that left before the refusal answers with school 1.
+      act(() => answer(1));
+
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
     it("shows the page again when the provider does not answer", () => {
       vi.useFakeTimers();
       render(<Tab />);

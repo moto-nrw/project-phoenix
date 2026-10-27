@@ -150,18 +150,24 @@ function GuardedTenant({
     [redirect],
   );
 
+  const refusedTenantMismatch =
+    refusedSession !== null &&
+    session !== refusedSession.session &&
+    session?.user?.tenantId !== tenant?.tenantId;
   useEffect(() => {
     if (!refusedSession) return;
-    // The provider answered: the mismatch handling below takes over.
-    if (session !== refusedSession.session) {
+    // The provider reports the other school: the mismatch handling below
+    // takes over. An answer with this tab's school (one that left before
+    // the refusal) keeps the page hidden.
+    if (refusedTenantMismatch) {
       setRefusedSession(null);
       return;
     }
-    // Without an answer the page comes back; its next refused request
-    // hides it again.
+    // Without a fitting answer the page comes back; its next refused
+    // request hides it again.
     const timer = setTimeout(() => setRefusedSession(null), REFUSAL_HOLD_MS);
     return () => clearTimeout(timer);
-  }, [session, refusedSession]);
+  }, [refusedSession, refusedTenantMismatch]);
 
   const sessionTenantId = session?.user?.tenantId;
   const sessionScope = session?.user?.scope;
