@@ -842,6 +842,32 @@ func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 	require.Equal(t, http.StatusOK, probe.Code, probe.Body.String())
 }
 
+// The auth limiters' burst follows the per-minute budget (minimum 10), so a
+// school whose staff share one public IP can sign in together.
+func TestBuildAuthRateLimitersBurstFollowsLimit(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		limit string
+		burst int
+	}{{"5", 10}, {"30", 30}} {
+		limiters := buildAuthRateLimiters(nil, tc.limit, false)
+		handler := limiters.auth.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		codes := make([]int, 0, tc.burst+1)
+		for range tc.burst + 1 {
+			req := httptest.NewRequest(http.MethodPost, "/auth/login", nil)
+			req.RemoteAddr = "203.0.113.7:54321"
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+			codes = append(codes, rr.Code)
+		}
+		assert.Equal(t, http.StatusNoContent, codes[tc.burst-1], "limit %s: request %d is within the burst", tc.limit, tc.burst)
+		assert.Equal(t, http.StatusTooManyRequests, codes[tc.burst], "limit %s: request %d exceeds the burst", tc.limit, tc.burst+1)
+	}
+}
+
 // The demo exempts its demo process (a loopback peer) from the auth limiters;
 // every other environment keeps limiting loopback like any other address.
 func TestBuildAuthRateLimitersExemptLoopbackOnlyWhenAsked(t *testing.T) {

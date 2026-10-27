@@ -73,7 +73,7 @@ describe("GET /api/public/login-image/[filename]", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://localhost:8080/public/login-image/logo.png",
-      { signal: expect.any(AbortSignal) },
+      { headers: {}, signal: expect.any(AbortSignal) },
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/png");

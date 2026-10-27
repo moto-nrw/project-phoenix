@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { traegerAuth } from "~/server/auth/traeger";
 import { withTraegerAuth } from "~/server/auth/traeger-route";
-import { incomingAnalyticsSessionHeaders } from "../analytics-session-header.server";
+import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
 import { forwardBackendResponse } from "../backend-proxy-response.server";
 import {
@@ -41,7 +41,7 @@ async function traegerServerFetch<T>(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      ...(await incomingAnalyticsSessionHeaders()),
+      ...(await incomingClientForwardHeaders()),
     },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
@@ -187,7 +187,7 @@ async function traegerServerFile(
     headers: {
       Authorization: `Bearer ${token}`,
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      ...(await incomingAnalyticsSessionHeaders()),
+      ...(await incomingClientForwardHeaders()),
     },
     body,
     cache: "no-store",
@@ -277,7 +277,7 @@ async function traegerServerUpload(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": contentType,
-      ...(await incomingAnalyticsSessionHeaders()),
+      ...(await incomingClientForwardHeaders()),
     },
     body,
     cache: "no-store",

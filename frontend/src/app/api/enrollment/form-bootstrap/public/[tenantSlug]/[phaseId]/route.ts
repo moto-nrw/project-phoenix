@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import {
@@ -54,7 +55,10 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
       )}/${encodeURIComponent(phaseId)}`,
     );
     if (lateInvite) backendUrl.searchParams.set("late_invite", lateInvite);
-    const response = await fetch(backendUrl, { cache: "no-store" });
+    const response = await fetch(backendUrl, {
+      headers: clientIdentityHeaders(request.headers),
+      cache: "no-store",
+    });
     if (!response.ok) {
       return forwardBackendResponse(response, request);
     }
@@ -82,7 +86,10 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
     const profileResponse = await fetch(
       `${getServerApiUrl()}/api/enrollment/me/profile`,
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          ...clientIdentityHeaders(request.headers),
+          Authorization: `Bearer ${token}`,
+        },
         cache: "no-store",
       },
     ).catch((error: unknown) => {

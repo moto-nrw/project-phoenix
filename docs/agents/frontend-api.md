@@ -46,6 +46,11 @@ fetch/error handling; helper-backed success adapters use its tenant adapter.
 Do not move a route across portal auth boundaries to share code. Streaming SSE
 uses its documented exception in [the SSE contract](realtime.md).
 
+Every server-side backend call forwards the browser's client IP; the shared
+factories and wrappers do. A direct fetch adds
+`clientIdentityHeaders(request.headers)` or `incomingClientForwardHeaders()`.
+Why and the full chain: [Client IP and rate limits](contracts.md#client-ip-and-rate-limits).
+
 Backend error responses have one wire contract: the shared route wrappers
 (`route-wrapper.server.ts` and the operator, parent, and school wrappers) propagate
 `ApiResponseError` through `handleApiError`; raw-response factories and the
@@ -127,7 +132,7 @@ A direct fetch outside this inventory needs a reason and a shared proxy path.
 | `enrollment/phases/[id]/export` | Streams a phase export in its backend-selected format. |
 | `files/folders/[folderId]/files` | Multipart folder-file upload uses the shared file-upload validator. |
 | `files/folders/[folderId]/files/[fileId]/download` | Streams folder-file bytes and disposition. |
-| `guardian-invitations/[token]/accept` | Maps invitation password fields and forwards analytics-session headers. |
+| `guardian-invitations/[token]/accept` | Maps invitation password fields and forwards the client headers. |
 | `guardians/payment-overview/export` | Streams payment-overview export bytes with backend disposition. |
 | `import/class-list-entries/template` | Returns the class-list CSV template and backend filename. |
 | `import/opening-balances/template` | Returns the opening-balance CSV template and backend filename. |

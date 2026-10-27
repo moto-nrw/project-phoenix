@@ -13,7 +13,7 @@ const sidecar = existsSync('docker-compose.yml') && readFileSync('docker-compose
 if ((fail === 'stop' && isCompose && args.includes('stop')) ||
     (fail === 'pull' && (args[0] === 'pull' || args.includes('pull'))) ||
     (fail === 'tag' && args[0] === 'tag') ||
-    (fail === 'prune' && args[0] === 'image' && args[1] === 'prune') ||
+    (fail === 'prune' && args[0] === 'rmi') ||
     // The preflight and the migration are both `compose run migrate`; only the
     // trailing command separates them, so each failure mode names its own.
     (fail === 'migrate' && isCompose && args.includes('run') && !call.includes('migrate preflight')) ||
@@ -27,6 +27,9 @@ if ((fail === 'stop' && isCompose && args.includes('stop')) ||
     (fail === 'archive' && args.includes('-tzf')) ||
     (fail === 'restore-uploads' && args.includes('-c'))) exit();
 if (isCompose && args.includes('ps')) console.log(args.at(-1));
+// One container runs the image sha256:1…; sha256:3… is used by none.
+else if (args[0] === 'ps') console.log('container-1');
+else if (args[0] === 'images') console.log(`sha256:${'1'.repeat(64)}\nsha256:${'3'.repeat(64)}`);
 else if (args[0] === 'inspect') {
   const format = args[2];
   console.log(format.includes('.State.Running') ? (fail === 'running' || (fail === 'running-sidecar' && args.at(-1) === 'demo-runtime') ? 'true' : 'false') :

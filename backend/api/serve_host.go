@@ -74,7 +74,7 @@ func mountServeMiddleware(
 
 	// Setup CORS, security logging, and rate limiting
 	setupCORSIfEnabled(router, config.EnableCORS)
-	securityLogger := setupSecurityLogging(router)
+	securityLogger := securityLoggerFromEnv()
 	sessionAuth, err := newSessionTokenAuth()
 	if err != nil {
 		return nil, err
