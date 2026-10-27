@@ -46,6 +46,12 @@ const (
 	// StudentStatusSourceParent marks a status day reported by a
 	// guardian through the parents portal (vs. entered by staff).
 	StudentStatusSourceParent = excusedrequests.StudentStatusSourceParent
+	// StudentStatusSourceSchool marks a sick or excused day the
+	// Schulverwaltung entered in moto schule afterwards, for a child the
+	// Lehrkraft marked absent without a report (#4791). It behaves like a
+	// planned day; only its holders of class_day:absence_report_write take
+	// it back.
+	StudentStatusSourceSchool = "school"
 )
 
 // Date is the calendar date the absence records carry, so the adapters that

@@ -191,6 +191,11 @@ export function useTenantMutate() {
  * pre-mutation data, the entry has to go so the next mount loads fresh with
  * `isLoading: true`.
  *
+ * **Leaving keys out**: `except` names unprefixed keys that are not touched,
+ * e.g. the list a decision was just made in, which already shows its result.
+ * A plain revalidation also drops SWR's marker of a request in flight, so an
+ * entry that is not mounted fetches fresh on its next mount (#4988).
+ *
  * @example
  * ```tsx
  * const refreshRoomConsumers = useTenantMutateMatching([
@@ -211,10 +216,13 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
   const joined = substrings.join("|");
 
   return useCallback(
-    (options?: { clear?: boolean }) => {
+    (options?: { clear?: boolean; except?: readonly string[] }) => {
       const needles = joined.length > 0 ? joined.split("|") : [];
+      const kept = new Set(
+        (options?.except ?? []).map((key) => scopedKey(key, slug, null)),
+      );
       const matches = (key: unknown): boolean => {
-        if (typeof key !== "string") return false;
+        if (typeof key !== "string" || kept.has(key)) return false;
         // Limit to the active tenant so cross-tenant caches (multi-tab) stay put.
         if (slug && !key.startsWith(`${slug}:`)) return false;
         return needles.some((needle) => key.includes(needle));

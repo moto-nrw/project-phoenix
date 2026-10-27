@@ -68,6 +68,7 @@
     "role": "Parent",
     "childProfile": "Child profile",
     "loading": "Loading...",
+    "sectionLoading": "Loading content",
     "feedback": "Feedback",
     "help": "Help",
     "settings": "Settings",
@@ -818,7 +819,8 @@
       "badges": {
         "primary": "Primary",
         "canPickup": "May pick up",
-        "emergency": "Emergency contact"
+        "emergency": "Emergency contact",
+        "self": "This is you"
       },
       "editContact": "Edit",
       "managePickup": "Manage pickup permission",
@@ -2523,6 +2525,12 @@
         "staff_managed_guardian_protected": "You cannot access {object}. Please contact the school."
       },
       "classday": {
+        "absence_report_conflict": "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
+        "absence_report_no_school_day": "Today is not a school day. A report can only be entered on school days.",
+        "absence_report_not_found": "This report no longer exists. Please reload the page.",
+        "absence_report_not_missing": "This child already has a report or is not marked as absent. Please reload the page.",
+        "absence_report_not_today": "A report can only be entered for today. Please open today.",
+        "absence_report_unknown_child": "This child is not in this class today. Please reload the page.",
         "arrival_exception_class_not_found": "{object} could not be changed. Please check its current status.",
         "arrival_exception_editor_required": "You cannot access {object}. Please contact the school.",
         "arrival_exception_past_date": "{object} could not be saved. Please check your entries.",

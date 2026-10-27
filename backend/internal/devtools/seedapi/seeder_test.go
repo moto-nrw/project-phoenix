@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"os"
 	"path/filepath"
@@ -935,6 +937,9 @@ type fullSeedAPITrace struct {
 	devicePIN          string
 	deviceRequests     int
 	rejectedDevicePINs int
+	// parentSubmissions are the bodies of the enrollment forms the seeded
+	// parents send through the parents portal.
+	parentSubmissions []map[string]any
 }
 
 func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
@@ -1035,6 +1040,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		}
 		if trace != nil && trace.enforceDevicePIN && serveDevicePIN(t, trace, w, r) {
 			return
+		}
+		if trace != nil && strings.HasPrefix(r.URL.Path, "/parent/enrollments/") && strings.HasSuffix(r.URL.Path, "/submit") {
+			raw, err := io.ReadAll(r.Body)
+			require.NoError(t, err)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(raw, &body))
+			trace.parentSubmissions = append(trace.parentSubmissions, body)
+			r.Body = io.NopCloser(bytes.NewReader(raw))
 		}
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/enrollment/legal-documents" {
 			// Handle this multipart response before the profile mocks decode JSON.

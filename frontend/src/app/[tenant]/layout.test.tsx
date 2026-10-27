@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+import { fireEvent, render as renderUi, screen } from "@testing-library/react";
 import type { TenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,8 +20,38 @@ vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
 
+const { headersMock } = vi.hoisted(() => ({
+  headersMock: vi.fn(
+    async () => new Headers({ host: "school-a.localhost:3000" }),
+  ),
+}));
 vi.mock("next/headers", () => ({
-  headers: vi.fn(async () => new Headers({ host: "school-a.localhost:3000" })),
+  headers: headersMock,
+}));
+
+// Stands in for Next's data cache: entries are keyed by keyParts and
+// arguments only, as in unstable_cache, and a throwing callback stores
+// nothing.
+const { cacheStore, unstableCacheMock } = vi.hoisted(() => {
+  const cacheStore = new Map<string, unknown>();
+  const unstableCacheMock = vi.fn(
+    (
+      cb: (...args: unknown[]) => Promise<unknown>,
+      keyParts: string[],
+      _options: { revalidate: number; tags: string[] },
+    ) =>
+      async (...args: unknown[]) => {
+        const key = JSON.stringify([keyParts, args]);
+        if (cacheStore.has(key)) return cacheStore.get(key);
+        const result = await cb(...args);
+        cacheStore.set(key, result);
+        return result;
+      },
+  );
+  return { cacheStore, unstableCacheMock };
+});
+vi.mock("next/cache", () => ({
+  unstable_cache: unstableCacheMock,
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -44,7 +75,6 @@ vi.mock("~/env", () => ({
 }));
 
 const { bareTenantHost, default: TenantLayout } = await import("./layout");
-const { tenantResolutionRateLimitedError } = await import("~/sentry.shared");
 const { setTestClock, TEST_CLOCK_INSTANT } = await import("~/test/clock");
 
 beforeEach(() => {
@@ -52,8 +82,41 @@ beforeEach(() => {
   readTenantSessionSnapshotMock.mockReset();
   readTenantSessionSnapshotMock.mockResolvedValue(null);
   notFoundMock.mockClear();
+  headersMock.mockClear();
+  headersMock.mockImplementation(
+    async () => new Headers({ host: "school-a.localhost:3000" }),
+  );
+  cacheStore.clear();
+  unstableCacheMock.mockClear();
   vi.restoreAllMocks();
 });
+
+function tenantResponse() {
+  return new Response(
+    JSON.stringify({
+      status: "success",
+      data: {
+        tenant_id: 1,
+        slug: "school-a",
+        name: "School A",
+        subdomain: "school-a",
+        organization_id: 2,
+        organization_name: "Organization",
+        settings: {},
+        grade_level_max: 4,
+      },
+    }),
+    { status: 200 },
+  );
+}
+
+function visitorHeaders(ip: string) {
+  return new Headers({
+    host: "school-a.localhost:3000",
+    "user-agent": "Browser/1",
+    "x-forwarded-for": ip,
+  });
+}
 
 describe("bareTenantHost", () => {
   it("strips an invalid local tenant subdomain and keeps the port", () => {
@@ -124,8 +187,61 @@ describe("TenantLayout", () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     expect(fetchSpy).toHaveBeenCalledWith(
       "http://server:8080/auth/tenant/resolve?slug=school-a",
-      { next: { revalidate: 300, tags: ["tenant-school-a"] } },
+      { headers: {}, cache: "no-store" },
     );
+    // The lookup stays cached for five minutes under the slug and its
+    // revalidation tag, which the settings routes purge.
+    expect(unstableCacheMock).toHaveBeenCalledWith(
+      expect.any(Function),
+      ["tenant-resolve", "school-a"],
+      { revalidate: 300, tags: ["tenant-school-a"] },
+    );
+  });
+
+  it("charges a cache miss to the visitor's IP", async () => {
+    // Without the header the backend rate-limits the frontend container,
+    // and all visitors share one bucket.
+    headersMock.mockImplementation(async () => visitorHeaders("203.0.113.5"));
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(tenantResponse());
+
+    await TenantLayout({
+      children: null,
+      params: Promise.resolve({ tenant: "school-a" }),
+    });
+
+    expect(fetchSpy).toHaveBeenCalledExactlyOnceWith(
+      "http://server:8080/auth/tenant/resolve?slug=school-a",
+      {
+        headers: {
+          "X-Forwarded-For": "203.0.113.5",
+          "User-Agent": "Browser/1",
+        },
+        cache: "no-store",
+      },
+    );
+  });
+
+  it("shares the cached lookup across visitors instead of keying it by IP", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => tenantResponse());
+    const render = async (ip: string) => {
+      headersMock.mockImplementation(async () => visitorHeaders(ip));
+      return TenantLayout({
+        children: null,
+        params: Promise.resolve({ tenant: "school-a" }),
+      });
+    };
+
+    await expect(render("203.0.113.5")).resolves.toBeTruthy();
+    await expect(render("198.51.100.9")).resolves.toBeTruthy();
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    for (const [, keyParts] of unstableCacheMock.mock.calls) {
+      expect(keyParts).toEqual(["tenant-resolve", "school-a"]);
+    }
   });
 
   it("asks the backend about an unknown tenant only once per minute", async () => {
@@ -153,9 +269,45 @@ describe("TenantLayout", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
-  it("marks a rate-limited lookup so Sentry can drop it", async () => {
+  it("shows a waiting page with a full reload when the lookup is rate limited", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 429 }));
+    const reloadSpy = vi
+      .spyOn(globalThis.location, "reload")
+      .mockImplementation(() => undefined);
+
+    const page = await TenantLayout({
+      children: <p>Schulinhalt</p>,
+      params: Promise.resolve({ tenant: "school-busy" }),
+    });
+    renderUi(page);
+
+    // Anker: die Warteseite ist gerendert, nicht der Schulinhalt.
+    expect(
+      screen.getByRole("heading", { name: "Bitte kurz warten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Seite lädt gerade nicht. Das liegt nicht an Ihnen. Bitte warten Sie eine Minute. Laden Sie die Seite dann neu.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Schulinhalt")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Neu laden" }));
+    expect(reloadSpy).toHaveBeenCalledOnce();
+
+    // The rejection is not cached: the next load asks the backend again.
+    await TenantLayout({
+      children: null,
+      params: Promise.resolve({ tenant: "school-busy" }),
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps other lookup failures on the error path", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(null, { status: 429 }),
+      new Response(null, { status: 503 }),
     );
 
     await expect(
@@ -163,7 +315,7 @@ describe("TenantLayout", () => {
         children: null,
         params: Promise.resolve({ tenant: "school-busy" }),
       }),
-    ).rejects.toMatchObject({ name: tenantResolutionRateLimitedError });
+    ).rejects.toThrow("Tenant resolution failed with HTTP 503");
   });
 
   it("does not run refresh-capable auth callbacks from the server layout", async () => {

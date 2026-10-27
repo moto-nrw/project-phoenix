@@ -40,7 +40,6 @@ import {
   type ChildMasterData,
   type MasterDataChange,
   type MasterDataChangeInput,
-  getChildFeatures,
   getChildMasterData,
   submitMasterDataRequest,
   updateMasterDataField,
@@ -51,6 +50,7 @@ import {
 } from "~/components/parent/shell/parent-section";
 import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
+import { useChildRequests } from "~/components/parent/child-requests-context";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ChildMasterDataRequestModal } from "~/components/parent/child-master-data-request-modal";
 import {
@@ -188,6 +188,7 @@ export function useChildMasterData(
   const [loading, setLoading] = useState(true);
   const t = useTranslations("parentMasterData");
   const { error, show, clear } = useApiLoadError();
+  const childRequests = useChildRequests();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -195,7 +196,7 @@ export function useChildMasterData(
     try {
       const [md, feats] = await Promise.all([
         getChildMasterData(studentId),
-        getChildFeatures(studentId),
+        childRequests.features(studentId),
       ]);
       setData(md);
       setFeatures(feats);
@@ -211,7 +212,7 @@ export function useChildMasterData(
     } finally {
       setLoading(false);
     }
-  }, [clear, show, studentId, t]);
+  }, [clear, childRequests, show, studentId, t]);
   // The retry runs the latest load, not the one of the failed attempt.
   const loadRef = useRef(load);
   useLayoutEffect(() => {

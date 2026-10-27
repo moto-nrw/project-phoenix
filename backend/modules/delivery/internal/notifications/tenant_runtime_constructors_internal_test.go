@@ -29,7 +29,13 @@ type (
 	stubRecipients     struct{ StaffRecipientResolver }
 	stubConsent        struct{ ConsentStore }
 	stubPrefSettings   struct{ PreferenceSettings }
-	stubGuardianSchool struct{ GuardianSchools }
+	stubGuardianSchool struct {
+		GuardianSchools
+		AccountPermissions
+	}
+	// stubGuardianSchoolOnly answers the guardian schools but not the
+	// account permissions (#4791).
+	stubGuardianSchoolOnly struct{ GuardianSchools }
 )
 
 func lazyTestDatabase() *bun.DB {
@@ -110,6 +116,7 @@ func TestTenantConstructorsRejectAMissingDependency(t *testing.T) {
 	_, missing["preferences settings"] = NewTenantPreferenceService(runtime, stubConsent{}, nil, db, stubGuardianSchool{}, permits)
 	_, missing["preferences database"] = NewTenantPreferenceService(runtime, stubConsent{}, stubPrefSettings{}, nil, stubGuardianSchool{}, permits)
 	_, missing["preferences schools"] = NewTenantPreferenceService(runtime, stubConsent{}, stubPrefSettings{}, db, nil, permits)
+	_, missing["preferences account permissions"] = NewTenantPreferenceService(runtime, stubConsent{}, stubPrefSettings{}, db, stubGuardianSchoolOnly{}, permits)
 	_, missing["preferences permissions"] = NewTenantPreferenceService(runtime, stubConsent{}, stubPrefSettings{}, db, stubGuardianSchool{}, nil)
 	_, missing["push subscriptions database"] = NewTenantPushSubscriptionService(runtime, nil, stubPushSubscriptions{}, stubGuardianSchool{}, VAPIDConfig{}, nil)
 	_, missing["push subscriptions repository"] = NewTenantPushSubscriptionService(runtime, db, nil, stubGuardianSchool{}, VAPIDConfig{}, nil)

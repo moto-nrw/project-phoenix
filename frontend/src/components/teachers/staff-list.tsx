@@ -16,6 +16,7 @@ import {
   externalStaffLabel,
   staffDisplayName,
 } from "~/lib/staff-helpers";
+import { displayEmail } from "~/lib/demo-build";
 import type { Teacher } from "@/lib/teacher-api";
 
 interface StaffListProps {
@@ -56,7 +57,8 @@ function buildSubtitle(teacher: Teacher): string {
       : null;
   const roleLine = [displayRole, position].filter(Boolean).join(" · ");
   if (roleLine) return roleLine;
-  if (teacher.email) return teacher.email;
+  const email = displayEmail(teacher.email);
+  if (email) return email;
   return "–";
 }
 

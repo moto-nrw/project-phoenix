@@ -9,7 +9,10 @@ import {
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
-import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import {
+  useTimetableEnabled,
+  useWeekendFollowsFriday,
+} from "~/lib/tenant-context";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { catalogText } from "~/test/error-catalog-text";
 
@@ -75,6 +78,7 @@ vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useWeekendFollowsFriday: vi.fn(() => false),
+  useTimetableEnabled: vi.fn(() => true),
 }));
 
 vi.mock("~/lib/timetable-api", () => ({
@@ -261,8 +265,6 @@ interface SwrState {
   gapsLoading?: boolean;
   staffData?: Array<{ id: string; name: string }>;
   staffError?: Error;
-  settingsSchema?: unknown;
-  settingsLoading?: boolean;
   /** Dienstplan-Übersicht für den Abdeckungshinweis; ohne sie kein Hinweis. */
   coverageData?: {
     dienstplanInUse: boolean;
@@ -290,19 +292,12 @@ function setupSWR(state: SwrState = {}) {
     gapsLoading = false,
     staffData = [{ id: "11", name: "Ada Staff" }],
     staffError,
-    settingsSchema = null,
-    settingsLoading = false,
     coverageData,
     coverageError,
   } = state;
 
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
-    if (key === "settings-schema") {
-      return settingsLoading
-        ? { isLoading: true }
-        : { data: settingsSchema, isLoading: false };
-    }
     if (key.startsWith("vertretung-staff-list-")) {
       return {
         data: { appointments: [], staff: staffData },
@@ -1033,22 +1028,13 @@ describe("VertretungView", () => {
   });
 
   it("renders the disabled state when timetable.enabled is false", () => {
-    setupSWR({
-      settingsSchema: {
-        tabs: [
-          {
-            id: "operations",
-            categories: [
-              {
-                id: "timetable",
-                items: [{ key: "timetable.enabled", value: false }],
-              },
-            ],
-          },
-        ],
-      },
-    });
-    render(<VertretungView />);
+    setupSWR();
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+    try {
+      render(<VertretungView />);
+    } finally {
+      vi.mocked(useTimetableEnabled).mockReturnValue(true);
+    }
 
     expect(screen.getByTestId("vertretung-disabled-state")).toBeVisible();
     expect(

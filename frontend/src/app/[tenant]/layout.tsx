@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
@@ -21,7 +22,8 @@ import {
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { isValidTenantSlug } from "~/lib/tenant-slug";
 import { env } from "~/env";
-import { tenantResolutionRateLimitedError } from "~/sentry.shared";
+import { TenantBusyPage } from "~/components/tenant/tenant-busy-page";
+import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
 
 interface TenantResolveResponse {
   tenant_id: number;
@@ -63,10 +65,10 @@ interface TenantResolveResponse {
 
 // Next's data cache keeps only 200 responses, so a 404 for an unknown slug
 // was never cached: every scanner request for a made-up subdomain reached the
-// backend. Its anonymous rate limit counts all of them under this server's IP,
-// so a scan burst answered real tenant lookups with 429 (FRONTEND-1B). Unknown
-// slugs are remembered briefly; a school created meanwhile resolves after at
-// most this TTL.
+// backend. Its anonymous rate limit counted all of them under this server's
+// IP, so a scan burst answered real tenant lookups with 429 (FRONTEND-1B); the
+// lookup now forwards the visitor's IP as well. Unknown slugs are remembered
+// briefly; a school created meanwhile resolves after at most this TTL.
 const UNKNOWN_TENANT_TTL_MS = 60_000;
 const UNKNOWN_TENANT_LIMIT = 1_000;
 const unknownTenantUntil = new Map<string, number>();
@@ -87,37 +89,76 @@ function rememberUnknownTenant(slug: string): void {
   unknownTenantUntil.set(slug, Date.now() + UNKNOWN_TENANT_TTL_MS);
 }
 
+/** A non-200 answer of the tenant lookup; never cached. */
+class TenantResolveStatusError extends Error {
+  constructor(readonly status: number) {
+    super(`Tenant resolution failed with HTTP ${status}`);
+  }
+}
+
+/**
+ * The lookup is cached per slug for all visitors and invalidated by
+ * revalidateTag(`tenant-${slug}`). Its key holds the slug only, so the
+ * client headers travel in the closure, not in the key: a miss asks the
+ * backend under the IP of the visitor who caused it, a hit asks nobody.
+ * fetch() itself cannot do this, because Next keys its data cache by the
+ * request headers, which would split the cache per client IP. Only a 200 is
+ * stored; any other status throws and stays uncached.
+ */
+function resolveTenantCached(
+  slug: string,
+  forwardHeaders: Record<string, string>,
+): Promise<TenantResolveResponse> {
+  return unstable_cache(
+    async () => {
+      const { getServerApiUrl } = await import("~/lib/server-api-url");
+      const res = await fetch(
+        `${getServerApiUrl()}/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`,
+        { headers: forwardHeaders, cache: "no-store" },
+      );
+      if (!res.ok) throw new TenantResolveStatusError(res.status);
+      const json = (await res.json()) as { data: TenantResolveResponse };
+      return json.data;
+    },
+    ["tenant-resolve", slug],
+    { revalidate: 300, tags: [`tenant-${slug}`] },
+  )();
+}
+
+/**
+ * The backend rate limit rejected the lookup (HTTP 429). Scanner bursts cause
+ * it, not a defect, and the backend counts every rejection in its rate-limit
+ * metric. The layout shows a waiting page instead of throwing (#5090): an
+ * error boundary would show a generic crash, report it to Sentry and retry
+ * only on the client, without running this layout again.
+ */
+const TENANT_RATE_LIMITED = "rate-limited";
+
 /**
  * Resolve tenant metadata on the server side.
  * Uses the backend API to validate the tenant slug.
  */
-async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
+async function fetchTenantInfo(
+  slug: string,
+): Promise<TenantInfo | typeof TENANT_RATE_LIMITED | null> {
   if (isRememberedUnknownTenant(slug)) return null;
 
-  const { getServerApiUrl } = await import("~/lib/server-api-url");
-  const res = await fetch(
-    `${getServerApiUrl()}/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`,
-    { next: { revalidate: 300, tags: [`tenant-${slug}`] } },
-  );
-
-  if (res.status === 404) {
-    rememberUnknownTenant(slug);
-    return null;
-  }
-  if (res.status === 429) {
-    const error = new Error("Tenant resolution was rate limited (HTTP 429)");
-    error.name = tenantResolutionRateLimitedError;
+  let data: TenantResolveResponse;
+  try {
+    data = await resolveTenantCached(
+      slug,
+      await incomingClientForwardHeaders(),
+    );
+  } catch (error) {
+    if (!(error instanceof TenantResolveStatusError)) throw error;
+    if (error.status === 404) {
+      rememberUnknownTenant(slug);
+      return null;
+    }
+    if (error.status === 429) return TENANT_RATE_LIMITED;
     throw error;
   }
-  if (!res.ok) {
-    throw new Error(`Tenant resolution failed with HTTP ${res.status}`);
-  }
 
-  const json = (await res.json()) as {
-    status: string;
-    data: TenantResolveResponse;
-  };
-  const data = json.data;
   return {
     tenantId: data.tenant_id,
     slug: data.slug,
@@ -255,6 +296,9 @@ export default async function TenantLayout({
 
   const tenant = await fetchTenantInfo(tenantSlug);
 
+  if (tenant === TENANT_RATE_LIMITED) {
+    return <TenantBusyPage />;
+  }
   if (!tenant) {
     await redirectToTenantSelection();
     throw new Error("Tenant redirect did not complete");

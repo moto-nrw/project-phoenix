@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { useTranslations } from "next-intl";
 import { MobilePageHelpTarget } from "~/components/help/mobile-page-help-target";
 import { BackLink } from "~/components/ui/back-link";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -132,35 +133,41 @@ export function ParentSectionSkeleton({
   showHeader?: boolean;
   className?: string;
 }>) {
+  const t = useTranslations("parentNav");
+  // Die Fläche selbst ist nur Grafik. Der Status sagt Screenreadern, dass
+  // hier noch Inhalt kommt, etwa beim ersten Öffnen eines Reiters (#4994).
   return (
     <div
       data-testid="parent-page-section-skeleton"
       className={`moto-content-surface overflow-hidden rounded-2xl border shadow-sm ${className}`}
-      aria-hidden="true"
+      role="status"
     >
-      {showHeader ? (
-        <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-5">
-          <Skeleton className="size-10 shrink-0 rounded-xl" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-5 w-40 max-w-2/3" />
-            <Skeleton className="h-3 w-56 max-w-full" />
-          </div>
-        </div>
-      ) : null}
-      <div className="divide-y divide-gray-100 px-4 sm:px-5">
-        {Array.from({ length: rows }, (_, rowIndex) => (
-          <div
-            key={rowIndex}
-            data-testid="parent-page-section-row-skeleton"
-            className="flex min-h-16 items-center gap-3 py-3"
-          >
+      <span className="sr-only">{t("sectionLoading")}</span>
+      <div aria-hidden="true">
+        {showHeader ? (
+          <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-5">
+            <Skeleton className="size-10 shrink-0 rounded-xl" />
             <div className="min-w-0 flex-1 space-y-2">
-              <Skeleton className="h-4 w-2/3" />
-              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-5 w-40 max-w-2/3" />
+              <Skeleton className="h-3 w-56 max-w-full" />
             </div>
-            <Skeleton className="h-8 w-12 shrink-0 rounded-lg" />
           </div>
-        ))}
+        ) : null}
+        <div className="divide-y divide-gray-100 px-4 sm:px-5">
+          {Array.from({ length: rows }, (_, rowIndex) => (
+            <div
+              key={rowIndex}
+              data-testid="parent-page-section-row-skeleton"
+              className="flex min-h-16 items-center gap-3 py-3"
+            >
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-2/3" />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+              <Skeleton className="h-8 w-12 shrink-0 rounded-lg" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

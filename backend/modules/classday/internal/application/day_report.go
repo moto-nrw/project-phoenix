@@ -50,8 +50,11 @@ func newDayReports(deps ClassDayDependencies) *dayReports {
 // them is keyed by student ID for the same date, and the builder reads them
 // together.
 type classDayFacts struct {
-	statuses           map[int64]string
-	statusReportedAt   map[int64]time.Time
+	statuses         map[int64]string
+	statusReportedAt map[int64]time.Time
+	// statusBySchool marks a winning status the Schulverwaltung entered
+	// afterwards in moto schule (#4791).
+	statusBySchool     map[int64]bool
 	departures         map[int64]string
 	arrivals           map[int64]string
 	pickups            map[int64]string
@@ -66,6 +69,7 @@ func newClassDayFacts() classDayFacts {
 	return classDayFacts{
 		statuses:           map[int64]string{},
 		statusReportedAt:   map[int64]time.Time{},
+		statusBySchool:     map[int64]bool{},
 		departures:         map[int64]string{},
 		arrivals:           map[int64]string{},
 		pickups:            map[int64]string{},
@@ -186,7 +190,7 @@ func rosterStudentIDs(rows []DayRosterRow) []int64 {
 func (s *dayReports) classDayPlanFacts(ctx context.Context, studentIDs []int64, date calendar.Date, arrivals bool) (classDayFacts, error) {
 	facts := newClassDayFacts()
 	var err error
-	if facts.statuses, facts.statusReportedAt, err = s.classDayStatuses(ctx, studentIDs, date); err != nil {
+	if facts.statuses, facts.statusReportedAt, facts.statusBySchool, err = s.classDayStatusFacts(ctx, studentIDs, date); err != nil {
 		return facts, err
 	}
 	loadTimes := s.classDayEffectivePickups

@@ -299,3 +299,228 @@ describe("ClassDayOverview for the Schulverwaltung", () => {
     expect(fetchSchoolDay).not.toHaveBeenCalled();
   });
 });
+
+// Fehlen ohne Meldung (#4791): die Schulverwaltung trägt für ein Kind, das
+// die Lehrkraft als fehlend eingetragen hat und das niemand gemeldet hat,
+// „krank“ oder „entschuldigt“ nach, und nimmt ihre eigene Meldung zurück.
+describe("ClassDayOverview: Meldung nachtragen", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    navigation.search = "";
+    setTestClock(new Date("2026-09-09T12:00:00+02:00")); // Mittwoch
+  });
+
+  const classes = () =>
+    Promise.resolve({
+      classes: ["1a"],
+      can_write_arrival_exception: false,
+      can_view_school_day: true,
+    });
+
+  function unreportedDay(
+    date: string,
+    reported: "sick" | null,
+    canReport = true,
+  ): SchoolDayReport {
+    const child = reported
+      ? {
+          student_id: "5",
+          first_name: "Dana",
+          last_name: "Dorn",
+          missing: true,
+          status: reported,
+          status_by_school: true,
+        }
+      : {
+          student_id: "5",
+          first_name: "Dana",
+          last_name: "Dorn",
+          missing: true,
+          unreported: true,
+        };
+    return {
+      ...schoolDay(date),
+      can_report_absences: canReport,
+      totals: {
+        ...schoolDay(date).totals,
+        unreported: reported ? 0 : 1,
+        sick: reported ? 1 : 0,
+      },
+      classes: [
+        {
+          school_class: "1a",
+          totals: schoolDay(date).totals,
+          children: [child],
+        },
+      ],
+    };
+  }
+
+  it("enters a report and reloads the list", async () => {
+    navigation.search = "tag=2026-09-09&liste=ohne-meldung";
+    let reported = false;
+    const fetchSchoolDay = vi.fn((date: string) =>
+      Promise.resolve(unreportedDay(date, reported ? "sick" : null)),
+    );
+    const reportAbsence = vi.fn(() => {
+      reported = true;
+      return Promise.resolve();
+    });
+    render(
+      <ClassDayOverview
+        fetchClasses={classes}
+        fetchClassDay={(_, date) => Promise.resolve(report(date))}
+        fetchSchoolDay={fetchSchoolDay}
+        reportAbsence={reportAbsence}
+        withdrawAbsenceReport={vi.fn(() => Promise.resolve())}
+      />,
+    );
+
+    expect(await screen.findByText("Fehlen ohne Meldung: 1")).toBeVisible();
+    expect(screen.getByText(/Es gibt keine Krankmeldung/)).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Meldung für Dana Dorn eintragen",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Krank" }));
+
+    await waitFor(() =>
+      expect(reportAbsence).toHaveBeenCalledWith(
+        "1a",
+        "2026-09-09",
+        "5",
+        "sick",
+      ),
+    );
+    await waitFor(() => expect(fetchSchoolDay).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Fehlen ohne Meldung: 0")).toBeVisible();
+  });
+
+  // Die Lehrkraft hat das Kind inzwischen wieder als da eingetragen: die
+  // Meldung scheitert, und die Liste lädt neu, statt das Kind stehen zu lassen.
+  it("reloads the list when a report fails", async () => {
+    navigation.search = "tag=2026-09-09&liste=ohne-meldung";
+    let stale = true;
+    const fetchSchoolDay = vi.fn((date: string) =>
+      Promise.resolve(
+        stale
+          ? unreportedDay(date, null)
+          : {
+              ...unreportedDay(date, null),
+              totals: { ...unreportedDay(date, null).totals, unreported: 0 },
+            },
+      ),
+    );
+    const reportAbsence = vi.fn(() => {
+      stale = false;
+      return Promise.reject(new Error("not missing"));
+    });
+    render(
+      <ClassDayOverview
+        fetchClasses={classes}
+        fetchClassDay={(_, date) => Promise.resolve(report(date))}
+        fetchSchoolDay={fetchSchoolDay}
+        reportAbsence={reportAbsence}
+        withdrawAbsenceReport={vi.fn(() => Promise.resolve())}
+      />,
+    );
+
+    expect(await screen.findByText("Fehlen ohne Meldung: 1")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Meldung für Dana Dorn eintragen",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Krank" }));
+
+    await waitFor(() => expect(reportAbsence).toHaveBeenCalled());
+    await waitFor(() => expect(fetchSchoolDay).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Fehlen ohne Meldung: 0")).toBeVisible();
+  });
+
+  it("shows a failed withdrawal once, in the dialog", async () => {
+    navigation.search = "tag=2026-09-09&liste=krank";
+    render(
+      <ClassDayOverview
+        fetchClasses={classes}
+        fetchClassDay={(_, date) => Promise.resolve(report(date))}
+        fetchSchoolDay={(date) => Promise.resolve(unreportedDay(date, "sick"))}
+        reportAbsence={vi.fn(() => Promise.resolve())}
+        withdrawAbsenceReport={vi.fn(() =>
+          Promise.reject(new Error("withdraw failed")),
+        )}
+      />,
+    );
+
+    expect(await screen.findByText(/nachgetragen/)).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Meldung für Dana Dorn zurücknehmen",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Meldung zurücknehmen" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zurücknehmen" }),
+    );
+    await waitFor(() => expect(screen.getAllByRole("alert")).toHaveLength(1));
+  });
+
+  it("asks before it takes the school's report back", async () => {
+    navigation.search = "tag=2026-09-09&liste=krank";
+    const withdrawAbsenceReport = vi.fn(() => Promise.resolve());
+    render(
+      <ClassDayOverview
+        fetchClasses={classes}
+        fetchClassDay={(_, date) => Promise.resolve(report(date))}
+        fetchSchoolDay={(date) => Promise.resolve(unreportedDay(date, "sick"))}
+        reportAbsence={vi.fn(() => Promise.resolve())}
+        withdrawAbsenceReport={withdrawAbsenceReport}
+      />,
+    );
+
+    expect(await screen.findByText(/nachgetragen/)).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Meldung für Dana Dorn zurücknehmen",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Meldung zurücknehmen" }),
+    );
+    expect(await screen.findByText("Meldung zurücknehmen?")).toBeVisible();
+    expect(withdrawAbsenceReport).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Zurücknehmen" }));
+    await waitFor(() =>
+      expect(withdrawAbsenceReport).toHaveBeenCalledWith(
+        "1a",
+        "2026-09-09",
+        "5",
+      ),
+    );
+  });
+
+  it("offers no report without the right", async () => {
+    navigation.search = "tag=2026-09-09&liste=ohne-meldung";
+    render(
+      <ClassDayOverview
+        fetchClasses={classes}
+        fetchClassDay={(_, date) => Promise.resolve(report(date))}
+        fetchSchoolDay={(date) =>
+          Promise.resolve(unreportedDay(date, null, false))
+        }
+        reportAbsence={vi.fn(() => Promise.resolve())}
+        withdrawAbsenceReport={vi.fn(() => Promise.resolve())}
+      />,
+    );
+
+    expect(await screen.findByText("Dorn, Dana")).toBeVisible();
+    expect(
+      screen.queryByRole("button", {
+        name: "Meldung für Dana Dorn eintragen",
+      }),
+    ).not.toBeInTheDocument();
+  });
+});

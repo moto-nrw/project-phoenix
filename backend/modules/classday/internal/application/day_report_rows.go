@@ -124,6 +124,8 @@ func classDayRow(row DayRosterRow, weekday string, facts classDayFacts) classday
 		PickupChanged: pickupChanged,
 		PickupRegular: pickupRegular,
 		ReportedAt:    classDayReportedAt(facts, row.StudentID, status, pickupChanged),
+		// A class-list-only entry has no status day at all.
+		StatusBySchool: !row.ListEntry && status != "" && facts.statusBySchool[row.StudentID],
 	}
 }
 

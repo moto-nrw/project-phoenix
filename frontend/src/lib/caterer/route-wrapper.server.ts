@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { catererAuth } from "~/server/auth/caterer";
 import { withCatererAuth } from "~/server/auth/caterer-route";
-import { incomingAnalyticsSessionHeaders } from "../analytics-session-header.server";
+import { incomingClientForwardHeaders } from "../client-headers.server";
 import { handleApiError } from "../api-helpers.server";
 import {
   backendResponseError,
@@ -55,7 +55,7 @@ async function catererServerFetch<T>(
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      ...(await incomingAnalyticsSessionHeaders()),
+      ...(await incomingClientForwardHeaders()),
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
   });

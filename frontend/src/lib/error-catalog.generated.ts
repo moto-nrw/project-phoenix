@@ -135,6 +135,18 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "care.sick_note_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "classday.absence_report_conflict":
+        "Für dieses Kind steht heute schon etwas, zum Beispiel eine frühere Abholung. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
+      "classday.absence_report_no_school_day":
+        "Heute ist kein Schultag. Eine Meldung lässt sich nur an Schultagen eintragen.",
+      "classday.absence_report_not_found":
+        "Diese Meldung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "classday.absence_report_not_missing":
+        "Für dieses Kind liegt schon eine Meldung vor, oder es ist nicht als fehlend eingetragen. Bitte laden Sie die Seite neu.",
+      "classday.absence_report_not_today":
+        "Eine Meldung lässt sich nur für heute eintragen. Bitte öffnen Sie den heutigen Tag.",
+      "classday.absence_report_unknown_child":
+        "Dieses Kind ist heute nicht in dieser Klasse. Bitte laden Sie die Seite neu.",
       "classday.arrival_exception_class_not_found":
         "{object} wurde nicht gefunden. Bitte laden Sie die Seite neu.",
       "classday.arrival_exception_editor_required":
@@ -1557,6 +1569,18 @@ export const ERROR_CATALOG = {
         "{object} contains invalid details. Please check your entries.",
       "care.sick_note_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "classday.absence_report_conflict":
+        "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
+      "classday.absence_report_no_school_day":
+        "Today is not a school day. A report can only be entered on school days.",
+      "classday.absence_report_not_found":
+        "This report no longer exists. Please reload the page.",
+      "classday.absence_report_not_missing":
+        "This child already has a report or is not marked as absent. Please reload the page.",
+      "classday.absence_report_not_today":
+        "A report can only be entered for today. Please open today.",
+      "classday.absence_report_unknown_child":
+        "This child is not in this class today. Please reload the page.",
       "classday.class_handover_no_school_day":
         "Today is not a school day. A class can only be handed over on school days.",
       "classday.class_handover_not_found":
@@ -2002,6 +2026,18 @@ export const ERROR_CATALOG = {
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "care.sick_note_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "classday.absence_report_conflict":
+        "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
+      "classday.absence_report_no_school_day":
+        "Today is not a school day. A report can only be entered on school days.",
+      "classday.absence_report_not_found":
+        "This report no longer exists. Please reload the page.",
+      "classday.absence_report_not_missing":
+        "This child already has a report or is not marked as absent. Please reload the page.",
+      "classday.absence_report_not_today":
+        "A report can only be entered for today. Please open today.",
+      "classday.absence_report_unknown_child":
+        "This child is not in this class today. Please reload the page.",
       "classday.class_handover_no_school_day":
         "Сегодня не учебный день. Передать класс можно только в учебные дни.",
       "classday.class_handover_not_found":
@@ -2378,6 +2414,18 @@ export const ERROR_CATALOG = {
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "care.sick_note_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "classday.absence_report_conflict":
+        "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
+      "classday.absence_report_no_school_day":
+        "Today is not a school day. A report can only be entered on school days.",
+      "classday.absence_report_not_found":
+        "This report no longer exists. Please reload the page.",
+      "classday.absence_report_not_missing":
+        "This child already has a report or is not marked as absent. Please reload the page.",
+      "classday.absence_report_not_today":
+        "A report can only be entered for today. Please open today.",
+      "classday.absence_report_unknown_child":
+        "This child is not in this class today. Please reload the page.",
       "classday.class_handover_no_school_day":
         "Sot nuk është ditë shkolle. Klasa dorëzohet vetëm në ditë shkolle.",
       "classday.class_handover_not_found":
@@ -2766,6 +2814,18 @@ export const ERROR_CATALOG = {
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "care.sick_note_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "classday.absence_report_conflict":
+        "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
+      "classday.absence_report_no_school_day":
+        "Today is not a school day. A report can only be entered on school days.",
+      "classday.absence_report_not_found":
+        "This report no longer exists. Please reload the page.",
+      "classday.absence_report_not_missing":
+        "This child already has a report or is not marked as absent. Please reload the page.",
+      "classday.absence_report_not_today":
+        "A report can only be entered for today. Please open today.",
+      "classday.absence_report_unknown_child":
+        "This child is not in this class today. Please reload the page.",
       "classday.class_handover_no_school_day":
         "Dziś nie ma lekcji. Klasę można przekazać tylko w dni szkolne.",
       "classday.class_handover_not_found":
@@ -3143,6 +3203,18 @@ export const ERROR_CATALOG = {
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "care.sick_note_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "classday.absence_report_conflict":
+        "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
+      "classday.absence_report_no_school_day":
+        "Today is not a school day. A report can only be entered on school days.",
+      "classday.absence_report_not_found":
+        "This report no longer exists. Please reload the page.",
+      "classday.absence_report_not_missing":
+        "This child already has a report or is not marked as absent. Please reload the page.",
+      "classday.absence_report_not_today":
+        "A report can only be entered for today. Please open today.",
+      "classday.absence_report_unknown_child":
+        "This child is not in this class today. Please reload the page.",
       "classday.class_handover_no_school_day":
         "Bugün okul günü değil. Sınıf yalnızca okul günlerinde teslim edilebilir.",
       "classday.class_handover_not_found":
@@ -3522,6 +3594,18 @@ export const ERROR_CATALOG = {
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "care.sick_note_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "classday.absence_report_conflict":
+        "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
+      "classday.absence_report_no_school_day":
+        "Today is not a school day. A report can only be entered on school days.",
+      "classday.absence_report_not_found":
+        "This report no longer exists. Please reload the page.",
+      "classday.absence_report_not_missing":
+        "This child already has a report or is not marked as absent. Please reload the page.",
+      "classday.absence_report_not_today":
+        "A report can only be entered for today. Please open today.",
+      "classday.absence_report_unknown_child":
+        "This child is not in this class today. Please reload the page.",
       "classday.class_handover_no_school_day":
         "Сьогодні не навчальний день. Передати клас можна лише в навчальні дні.",
       "classday.class_handover_not_found":

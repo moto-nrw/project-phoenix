@@ -54,28 +54,6 @@ const emailExistingEnqueueSQL = `
 		AND idempotency_key = ?
 	LIMIT 1`
 
-const emailClaimSQL = `
-	UPDATE platform.email_outbox
-	SET status = 'claimed', lease_token = uuid_generate_v4()::text,
-		lease_expires_at = ?, updated_at = ?
-	WHERE id IN (
-		SELECT id FROM platform.email_outbox
-		WHERE (status = 'pending' AND next_retry_at <= ?)
-			OR (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%')
-		ORDER BY next_retry_at, id FOR UPDATE SKIP LOCKED LIMIT ?
-	) RETURNING *`
-
-const pushClaimSQL = `
-	UPDATE platform.push_outbox
-	SET status = 'claimed', lease_token = uuid_generate_v4()::text,
-		lease_expires_at = ?, updated_at = ?
-	WHERE id IN (
-		SELECT id FROM platform.push_outbox
-		WHERE (status = 'pending' AND next_retry_at <= ?)
-			OR (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%')
-		ORDER BY next_retry_at, id FOR UPDATE SKIP LOCKED LIMIT ?
-	) RETURNING *`
-
 const emailDeadLetterExpiredDispatchSQL = `UPDATE platform.email_outbox
 	SET status = 'dead_letter', attempts = attempts + 1, last_error = ?, dead_letter_at = ?,
 		lease_token = NULL, lease_expires_at = NULL, updated_at = ?

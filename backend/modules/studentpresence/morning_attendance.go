@@ -68,3 +68,12 @@ type MorningAttendanceRetention interface {
 
 // ErrMorningAttendanceInvalid refuses a malformed morning attendance write.
 var ErrMorningAttendanceInvalid = errors.New("morning attendance mark is invalid")
+
+// MorningAbsenceGuard holds an absent morning mark until the caller commits.
+// Writers of that mark serialize through the same row lock.
+type MorningAbsenceGuard interface {
+	RequireAbsentMorningAttendance(context.Context, int64, calendar.Date) error
+}
+
+// ErrMorningAttendanceNotAbsent means the teacher has corrected the mark.
+var ErrMorningAttendanceNotAbsent = errors.New("child is no longer marked absent")

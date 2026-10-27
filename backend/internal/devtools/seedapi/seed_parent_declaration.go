@@ -208,7 +208,7 @@ func seedDeclarationAnswer(rt *Runtime) error {
 		if !child.CanSubmit {
 			continue
 		}
-		if err := submitSeedDeclaration(rt, auth, item, child.StudentID, "agreed", parent.Name); err != nil {
+		if err := submitSeedDeclaration(rt, auth, item, child.StudentID, "agreed", parentSignName(rt.seedVisitor(), parent)); err != nil {
 			return err
 		}
 		if _, err := rt.Client.PostWithAuth(auth, "/parent/me/news/"+item.ID+"/read", map[string]any{

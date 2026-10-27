@@ -76,10 +76,10 @@ type studentListParams struct {
 	// filters run in memory after the fetch, so a paginated page would hide
 	// matching children past the page boundary and silently shorten the list.
 	fetchAll bool
-	// slimView selects the Kindersuche wire projection (#2097). Purely a
-	// marshalling choice made after filtering and pagination — see
-	// list_projection.go.
-	slimView bool
+	// view selects the wire projection: full, the Kindersuche's slim one
+	// (#2097) or names only (#4996). Purely a marshalling choice made after
+	// filtering and pagination — see list_projection.go.
+	view string
 	// careStatus decides which side of the enrollment interval the list
 	// shows (#2487). Empty or "running" — the default every operational
 	// screen uses — hides children whose care has ended; "ended" shows only
@@ -131,17 +131,18 @@ func parseCareStatus(value string, canReadEnded bool) (string, error) {
 }
 
 // parseStudentListView resolves the `view` query parameter. Empty and "full"
-// keep the historical projection; only "slim" opts into the Kindersuche shape
-// (#2097). An unknown value is rejected instead of silently serving the full
-// payload, so a typo in a caller surfaces immediately.
-func parseStudentListView(value string) (bool, error) {
+// keep the historical projection; "slim" opts into the Kindersuche shape
+// (#2097) and "names" into the name lookup (#4996). An unknown value is
+// rejected instead of silently serving the full payload, so a typo in a
+// caller surfaces immediately.
+func parseStudentListView(value string) (string, error) {
 	switch value {
 	case "", StudentListViewFull:
-		return false, nil
-	case StudentListViewSlim:
-		return true, nil
+		return StudentListViewFull, nil
+	case StudentListViewSlim, StudentListViewNames:
+		return value, nil
 	default:
-		return false, fmt.Errorf("invalid view %q: must be %q or %q", value, StudentListViewFull, StudentListViewSlim)
+		return "", fmt.Errorf("invalid view %q: must be %q, %q or %q", value, StudentListViewFull, StudentListViewSlim, StudentListViewNames)
 	}
 }
 
