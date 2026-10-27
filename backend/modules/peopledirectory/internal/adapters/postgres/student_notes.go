@@ -407,7 +407,6 @@ func (s *StudentNoteStore) ListSchoolShared(
 		Where(`"note".tenant_id = ?`, scope.TenantID).
 		Where(`"note".student_id = ?`, studentID).
 		Where(`"note".shared_with_school`).
-		Where(`"note".origin = ?`, domain.StudentNoteOriginStaff).
 		Where(`"note".deleted_at IS NULL`).
 		OrderExpr(`"note".created_at DESC, "note".id DESC`).
 		Scan(ctx)

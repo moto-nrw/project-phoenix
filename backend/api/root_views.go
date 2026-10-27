@@ -187,7 +187,7 @@ func buildClassDayViews(
 		// The day hints (#4795) and the notes the OGS released for the
 		// school (#4797), read only by the staff member School Structure
 		// assigns to the child's class.
-		DayHintDependencies: classdayCompose.DayHintDependencies{
+		StudentNoteDependencies: classdayCompose.StudentNoteDependencies{
 			DayHints: persons, Today: calendar.CalendarDateClock(env.Now), SharedNotes: persons, ClassTeachers: classTeachers,
 		},
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},

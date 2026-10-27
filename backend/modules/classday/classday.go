@@ -376,8 +376,7 @@ type DayReport struct {
 	CanWriteHomework bool `json:"can_write_homework"`
 	// CanReadSharedNotes is true when the caller is assigned to this class in
 	// education.class_teachers and may open the notes the OGS released for
-	// the school (#4797). class_day:all_classes alone never sets it. The HTTP
-	// layer sets it.
+	// the school (#4797). class_day:all_classes alone never sets it.
 	CanReadSharedNotes bool `json:"can_read_shared_notes"`
 	// Handover is the class's handover to the OGS on the date (#4794), nil
 	// while the class has not been handed over.
@@ -739,9 +738,6 @@ type SharedNotesRequest struct {
 // reads them; class_day:all_classes widens nothing here, so the
 // Schulverwaltung sees none. The view is read-only.
 type SharedNotes interface {
-	// MayReadSharedNotes reports whether the caller is assigned to the class
-	// in education.class_teachers.
-	MayReadSharedNotes(ctx context.Context, schoolClass string) (bool, error)
 	// StudentSharedNotes returns the shared notes of one child of an
 	// assigned class and writes one GDPR access-log row per call.
 	// ErrClassNotAssigned when the caller is not assigned to the class,

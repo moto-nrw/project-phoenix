@@ -439,5 +439,5 @@ export async function fetchSharedNotesSchool(
   const response = await authFetch<ProxyResponse<StudentSharedNotes>>(
     `/api/school/class-day/shared-notes/${encodeURIComponent(schoolClass)}/students/${encodeURIComponent(studentId)}`,
   );
-  return { ...response.data, notes: response.data.notes ?? [] };
+  return response.data;
 }

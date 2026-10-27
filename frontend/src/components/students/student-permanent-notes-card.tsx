@@ -11,8 +11,7 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   NOTE_KIND_PERMANENT,
   NOTE_ORIGIN_MASTER_DATA,
-  NOTE_SHARED_WITH_SCHOOL_ACCESSIBLE_LABEL,
-  NOTE_SHARED_WITH_SCHOOL_LABEL,
+  NOTE_SHARED_WITH_SCHOOL_BADGE,
   NOTE_VISIBILITY_ALL_STAFF,
   studentNotesService,
   type StudentNote,
@@ -53,12 +52,7 @@ function HintRow({ note }: { readonly note: StudentNote }) {
           />
         ) : null}
         {note.sharedWithSchool ? (
-          <StatusBadge
-            compact
-            tone="green"
-            label={NOTE_SHARED_WITH_SCHOOL_LABEL}
-            accessibleLabel={NOTE_SHARED_WITH_SCHOOL_ACCESSIBLE_LABEL}
-          />
+          <StatusBadge {...NOTE_SHARED_WITH_SCHOOL_BADGE} />
         ) : null}
       </div>
     </li>

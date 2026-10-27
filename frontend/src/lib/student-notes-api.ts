@@ -23,10 +23,18 @@ export const NOTE_ORIGIN_MASTER_DATA = "master_data";
 /** Hinweis der Lehrkraft für einen Tag, geschrieben in moto schule (#4795). */
 export const NOTE_ORIGIN_SCHOOL = "school";
 
-/** Kennzeichen einer Notiz, die die Lehrkraft der Klasse in moto schule liest (#4797). */
-export const NOTE_SHARED_WITH_SCHOOL_LABEL = "Für die Schule freigegeben";
-export const NOTE_SHARED_WITH_SCHOOL_ACCESSIBLE_LABEL =
-  "Für die Schule freigegeben: Die Lehrkraft der Klasse liest diese Notiz.";
+/**
+ * Kennzeichen einer Notiz, die die Lehrkraft der Klasse in moto schule liest
+ * (#4797): die Props des `StatusBadge` an der Notiz, in der Chronik wie bei
+ * den dauerhaften Hinweisen.
+ */
+export const NOTE_SHARED_WITH_SCHOOL_BADGE = {
+  compact: true,
+  tone: "green",
+  label: "Für die Schule freigegeben",
+  accessibleLabel:
+    "Für die Schule freigegeben: Die Lehrkraft der Klasse liest diese Notiz.",
+} as const;
 
 export interface StudentNote {
   id: string;

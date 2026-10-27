@@ -334,12 +334,12 @@ export function ClassDayClass({
   // Link, und nur bei Kindern mit OGS-Datensatz.
   const sharedNotesHref =
     report?.can_read_shared_notes === true
-      ? (row: ClassDayRow) =>
-          !row.list_entry && row.student_id > 0
-            ? schoolPath(
-                classDayChildPath(schoolClass, String(row.student_id), dateISO),
-              )
-            : undefined
+      ? (row: ClassDayRow) => {
+          if (row.list_entry || row.student_id <= 0) return undefined;
+          return schoolPath(
+            classDayChildPath(schoolClass, String(row.student_id), dateISO),
+          );
+        }
       : undefined;
   const classHints = report && !weekend ? (report.class_day_hints ?? []) : [];
   const canWriteDayHints =

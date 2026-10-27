@@ -217,12 +217,6 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 	report.CanHandOver = report.CanHandOver && common.HasPermission(permissions.ClassDayHandoverWrite, granted)
 	// Homework needs only the permission: the class is assigned.
 	report.CanWriteHomework = common.HasPermission(permissions.ClassDayHomeworkWrite, granted)
-	// The shared notes of the OGS go to the Lehrkraft of the class only
-	// (#4797); class_day:all_classes does not open them.
-	if report.CanReadSharedNotes, err = rs.mayReadSharedNotes(r, class); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
 
 	common.Respond(w, r, http.StatusOK, report, "Class day retrieved successfully")
 }

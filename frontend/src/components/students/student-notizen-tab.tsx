@@ -29,8 +29,7 @@ import {
   NOTE_KIND_PERMANENT,
   NOTE_ORIGIN_MASTER_DATA,
   NOTE_ORIGIN_SCHOOL,
-  NOTE_SHARED_WITH_SCHOOL_ACCESSIBLE_LABEL,
-  NOTE_SHARED_WITH_SCHOOL_LABEL,
+  NOTE_SHARED_WITH_SCHOOL_BADGE,
   NOTE_VISIBILITY_ALL_STAFF,
   NOTE_VISIBILITY_CARE_TEAM,
   NOTE_VISIBILITY_GROUP_LEADS,
@@ -291,12 +290,7 @@ function NoteMeta({
       ) : null}
       {/* Die Lehrkraft der Klasse liest diese Notiz (#4797). */}
       {note.sharedWithSchool ? (
-        <StatusBadge
-          compact
-          tone="green"
-          label={NOTE_SHARED_WITH_SCHOOL_LABEL}
-          accessibleLabel={NOTE_SHARED_WITH_SCHOOL_ACCESSIBLE_LABEL}
-        />
+        <StatusBadge {...NOTE_SHARED_WITH_SCHOOL_BADGE} />
       ) : null}
     </div>
   );
@@ -327,6 +321,7 @@ function NoteForm({
   readonly idPrefix: string;
 }) {
   const tooLong = draft.body.length > MAX_BODY_LENGTH;
+  const sharedWithSchool = draft.sharedWithSchool ?? false;
   return (
     <div className="space-y-4">
       <Textarea
@@ -421,13 +416,10 @@ function NoteForm({
         </div>
       </div>
       {/* Freigabe für die Schule (#4797): standardmäßig aus. */}
-      <ChoiceTile
-        selected={draft.sharedWithSchool ?? false}
-        className="items-start p-3"
-      >
+      <ChoiceTile selected={sharedWithSchool} className="items-start p-3">
         <Checkbox
           id={`${idPrefix}-shared-with-school`}
-          checked={draft.sharedWithSchool ?? false}
+          checked={sharedWithSchool}
           onChange={(event) =>
             onChange({ ...draft, sharedWithSchool: event.target.checked })
           }

@@ -137,6 +137,12 @@ func TestSharedNotesRefuseTheSchoolAdministration(t *testing.T) {
 	code, _ := f.read(t, admin, f.path(f.class, f.studentID), classDayReadPermission, classDayAllClassesPermission)
 	assert.Equal(t, http.StatusForbidden, code, "class_day:all_classes does not open the shared notes")
 	assert.Zero(t, f.accessRows(t, account.ID))
+
+	// The class view the Schulverwaltung reaches offers no link either.
+	f.claims, admin = admin, f.claims
+	report := f.dayReport(t, classDayReadPermission, classDayAllClassesPermission)
+	f.claims = admin
+	assert.Equal(t, false, report["can_read_shared_notes"])
 }
 
 func TestSharedNotesWithdrawalTakesEffectImmediately(t *testing.T) {

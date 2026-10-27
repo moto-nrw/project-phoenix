@@ -13,16 +13,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// DayHintDependencies are the day-hint seam of moto schule (#4795): without
-// DayHints the day-hint capabilities answer classday.ErrDayHintsNotConfigured
-// and the day report carries no hints. Today defaults to the Berlin calendar
-// day.
-//
-// The seam also carries the second note read of moto schule, the notes the
+// StudentNoteDependencies are the People Directory note seams of moto
+// schule. The Lehrkraft's day hint (#4795): without DayHints the day-hint
+// capabilities answer classday.ErrDayHintsNotConfigured and the day report
+// carries no hints; Today defaults to the Berlin calendar day. The notes the
 // OGS released for the school (#4797): People Directory's SharedNotes and
-// School Structure's ClassTeachers. Without both the shared-notes capability
+// School Structure's ClassTeachers; without both the shared-notes capability
 // answers classday.ErrSharedNotesNotConfigured and no class offers the view.
-type DayHintDependencies struct {
+type StudentNoteDependencies struct {
 	DayHints      DayHints
 	Today         func() calendar.Date
 	SharedNotes   SharedNoteReader

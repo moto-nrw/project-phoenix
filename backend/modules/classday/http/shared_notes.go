@@ -23,15 +23,6 @@ var sharedNotesErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: classday.ErrSharedNoteStudentNotInClass, Render: common.ErrorNotFound},
 }, common.ErrorInternalServer)
 
-// mayReadSharedNotes asks the capability whether the caller is assigned to
-// the class; without the seam no class offers the view.
-func (rs *Resource) mayReadSharedNotes(r *http.Request, schoolClass string) (bool, error) {
-	if rs.SharedNotes == nil {
-		return false, nil
-	}
-	return rs.SharedNotes.MayReadSharedNotes(r.Context(), schoolClass)
-}
-
 // getSharedNotes handles GET /school/class-day/shared-notes/{schoolClass}/students/{studentId}.
 func (rs *Resource) getSharedNotes(w http.ResponseWriter, r *http.Request) {
 	if rs.SharedNotes == nil {

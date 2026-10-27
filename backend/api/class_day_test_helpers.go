@@ -81,7 +81,7 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		BlockStarts:                   activeTimetable.TimetableOperations,
 		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
 		TripStatusDays:                classDayTestTrips(db, hub, people, rCare, clocks),
-		DayHintDependencies: classdayCompose.DayHintDependencies{
+		StudentNoteDependencies: classdayCompose.StudentNoteDependencies{
 			DayHints: people, Today: calendar.CalendarDateClock(clocks...), SharedNotes: people, ClassTeachers: staffGroups,
 		},
 		HomeworkDependencies: classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(owners.MustNewUnobservedTimetable(db))},
