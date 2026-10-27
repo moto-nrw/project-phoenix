@@ -1,15 +1,30 @@
 /**
- * Ungelesene Anmeldungen (#3778): der Zähler und sein Neu-zählen-Ereignis.
+ * Ungelesene Anmeldungen (#3778): der Zähler und sein Neu-zählen-Auslöser.
  * Eigenes kleines Modul, weil Seitenleiste und mobiles Menü auf jeder Seite
  * geladen sind und nicht die ganze Anmeldungs-API mitziehen sollen.
  */
 
-/** Fenster-Ereignis, nach dem das Anmeldungen-Badge neu zählt. */
-export const ENROLLMENTS_UNREAD_REFRESH_EVENT = "enrollments-unread-refresh";
+import { mutate } from "~/lib/swr";
 
-/** Lässt das Anmeldungen-Badge neu zählen. */
+/**
+ * SWR-Schlüssel des Zählers; useEnrollmentsUnread hängt das Konto an,
+ * useSWRAuth stellt die Schule davor.
+ */
+export const ENROLLMENTS_UNREAD_SWR_KEY = "enrollments-unread-count";
+
+function isEnrollmentsUnreadKey(key: unknown): boolean {
+  return (
+    typeof key === "string" && key.includes(`${ENROLLMENTS_UNREAD_SWR_KEY}:`)
+  );
+}
+
+/**
+ * Lässt das Anmeldungen-Badge neu zählen: ein Request je Konto, egal wie
+ * viele Stellen den Zähler gerade zeigen (#4989). Ein Ereignis je Stelle
+ * hätte jede einzeln laden lassen.
+ */
 export function announceEnrollmentReadChange() {
-  globalThis.window?.dispatchEvent(new Event(ENROLLMENTS_UNREAD_REFRESH_EVENT));
+  void mutate(isEnrollmentsUnreadKey);
 }
 
 /**
