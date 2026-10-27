@@ -636,6 +636,27 @@ describe("SchoolSetupWizard", () => {
     ).toHaveTextContent("Station 6 von 7");
   });
 
+  it("goes on when the menu entry was chosen with the keyboard", async () => {
+    setupState = newSchool();
+    pathname = "/database/personal";
+    render(<SchoolSetupWizard />);
+    const create = visibleTarget("create");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
+    await screen.findByRole("dialog", { name: "Personal einladen" });
+    await waitForHighlight();
+    fireEvent.click(create);
+    const entry = visibleTarget("invite-create");
+    await screen.findByRole("dialog", { name: "Einladung wählen" });
+
+    // Enter auf dem Eintrag: kein Klick, aber das Fenster geht auf.
+    entry.remove();
+    inviteForm();
+    expect(
+      await screen.findByRole("dialog", { name: "Angaben eintragen" }),
+    ).toHaveTextContent("Station 6 von 7");
+  });
+
   it("tells the person to click the spot when there is no Weiter", async () => {
     setupState = newSchool();
     pathname = "/database/personal";

@@ -178,14 +178,14 @@ export const SETUP_TOURS: Readonly<
       {
         // „+ Personal“ klappt auf, wenn die Schule auch Externe anlegen
         // darf (#4573). Sonst öffnet der Knopf das Formular direkt, und
-        // diese Station entfällt.
+        // diese Station entfällt. Am Formular statt am Klick erkannt: Mit
+        // der Tastatur gewählt, löst der Eintrag keinen Klick aus.
         target: '[data-setup-tour="invite-create"]',
         title: "Einladung wählen",
         text: "Wählen Sie „Personal einladen“.",
         advance: "click",
-        skipWhenVisible: INVITE_FORM,
-        missingText:
-          "Das Menü ist zu. Wählen Sie „Zurück“ und dann noch einmal „+ Personal“.",
+        advanceWhenVisible: INVITE_FORM,
+        missingText: "Wählen Sie „Zurück“ und dann noch einmal „+ Personal“.",
       },
       {
         // Die Karte „Neue Einladung“ (Kopf und Formular), erkannt an ihrem
