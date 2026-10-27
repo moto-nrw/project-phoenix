@@ -2994,7 +2994,7 @@ describe("EnrollmentFormEditor", () => {
 
     expect(screen.getByLabelText("Frage im Elternformular")).toHaveAttribute(
       "placeholder",
-      "z. B. Wie sind Sie auf uns aufmerksam geworden?",
+      "z. B. Wie haben Sie von uns erfahren?",
     );
     expect(
       screen.getByText(
@@ -3003,7 +3003,7 @@ describe("EnrollmentFormEditor", () => {
     ).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Frage im Elternformular"), {
-      target: { value: "Wie sind Sie auf uns aufmerksam geworden?" },
+      target: { value: "Wie haben Sie von uns erfahren?" },
     });
     fireEvent.click(
       screen.getByRole("button", { name: "Formularvorlage erstellen" }),
@@ -3014,7 +3014,7 @@ describe("EnrollmentFormEditor", () => {
         "Kontaktformular",
         expect.arrayContaining([
           expect.objectContaining({
-            label: "Wie sind Sie auf uns aufmerksam geworden?",
+            label: "Wie haben Sie von uns erfahren?",
             applies_to_child: false,
           }),
         ]),

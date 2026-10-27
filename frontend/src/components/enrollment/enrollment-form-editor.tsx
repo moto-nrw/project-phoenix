@@ -3732,7 +3732,7 @@ function FieldEditorRow({
                       placeholder={
                         isTargetField && target
                           ? RESERVED_TARGETS[target].label
-                          : "z. B. Wie sind Sie auf uns aufmerksam geworden?"
+                          : "z. B. Wie haben Sie von uns erfahren?"
                       }
                       disabled={disabled}
                       {...labelError.controlProps}
