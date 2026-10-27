@@ -7,6 +7,7 @@
  * Import from "~/server/auth/school" in school-app code.
  */
 
+import "server-only";
 import NextAuth from "next-auth";
 
 import { schoolAuthConfig } from "./school-config";

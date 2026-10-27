@@ -104,14 +104,15 @@ describe("studentDocumentsService.upload", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", fetchMock);
-    mockGetCachedSession.mockResolvedValue({ user: { token: "jwt-token" } });
+    mockGetCachedSession.mockResolvedValue({ user: { id: "1" } });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("posts multipart form data with a bearer token and no Content-Type", async () => {
+  // The route reads the session cookie; the browser holds no token (#5005).
+  it("posts multipart form data without Authorization or Content-Type", async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 201 }));
 
     await studentDocumentsService.upload("42", pdf(), "attest");
@@ -122,7 +123,7 @@ describe("studentDocumentsService.upload", () => {
     expect(init.method).toBe("POST");
     // Setting Content-Type here would clobber the multipart boundary the
     // browser generates for a FormData body.
-    expect(init.headers).toEqual({ Authorization: "Bearer jwt-token" });
+    expect(init.headers).toBeUndefined();
 
     const body = init.body as FormData;
     expect(body).toBeInstanceOf(FormData);
@@ -139,8 +140,11 @@ describe("studentDocumentsService.upload", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("refuses to upload when the session carries no token", async () => {
-    mockGetCachedSession.mockResolvedValueOnce({ user: {} });
+  it("refuses to upload when the callback stripped the session", async () => {
+    mockGetCachedSession.mockResolvedValueOnce({
+      user: {},
+      error: "RefreshTokenError",
+    });
 
     await expect(
       studentDocumentsService.upload("42", pdf(), "attest"),

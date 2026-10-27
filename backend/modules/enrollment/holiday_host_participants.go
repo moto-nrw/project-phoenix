@@ -37,6 +37,11 @@ type HostedHolidayWeek struct {
 	StartsOn     calendar.Date `json:"starts_on"`
 	EndsOn       calendar.Date `json:"ends_on"`
 	Participants int           `json:"participants"`
+	// GuestGroupID is the group the school picked for the week's holiday
+	// guests (#4666), nil before it picked one; Guests counts the guests in
+	// it whose access has not ended.
+	GuestGroupID *int64 `json:"guest_group_id"`
+	Guests       int    `json:"guests"`
 }
 
 // HolidayParticipant is one confirmed child of a hosted week with the

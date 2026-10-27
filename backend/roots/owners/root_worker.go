@@ -393,7 +393,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			notifications, err = BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, DeliveryModuleOf(delivery), settings.Service,
-				consent, identity, people, structure, workTime, messaging)
+				consent, identity, people, structure, workTime, messaging, membership)
 			return
 		},
 		func() (err error) {
@@ -543,7 +543,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 	if err != nil {
 		return nil, err
 	}
-	return NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, deviceFleet, carePlan, persons, people,
+	return NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, audit.Persistence.DataAccessLog, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
 		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, schoolNames(tracker))

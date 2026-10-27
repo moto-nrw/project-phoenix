@@ -373,6 +373,7 @@ const historicalDeclarationFeedSQL = `
 		SELECT DISTINCT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
 			a.response_type, a.response_deadline, a.delivery_mode, a.system_kind,
+				a.sender_name, a.sender_school_class,
 			a.reminder_sent_at,
 			CASE WHEN a.reminder_sent_at IS NOT NULL THEN a.reminder_text END AS reminder_text,
 			par.read_at AS read_at,
@@ -415,14 +416,7 @@ func (p *Projection) HistoricalDeclarationFeed(ctx context.Context, accountID in
 	}
 	items := make([]*contract.ParentAnnouncementFeedItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, &contract.ParentAnnouncementFeedItem{
-			ID: row.ID, TenantID: row.TenantID, Title: row.Title, Body: row.Body, Priority: row.Priority,
-			LinkURL: row.LinkURL, RequiresAcknowledgement: row.RequiresAcknowledgement,
-			PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,
-			ResponseDeadline: row.ResponseDeadline, DeliveryMode: row.DeliveryMode, SystemKind: row.SystemKind,
-			ReminderSentAt: row.ReminderSentAt, ReminderText: row.ReminderText,
-			ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt,
-		})
+		items = append(items, row.item())
 	}
 	return items, nil
 }

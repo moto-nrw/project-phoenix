@@ -178,6 +178,7 @@ basis
 	GET /api/guardians/{id}/payment
 	GET /api/guardians/{id}/phone-numbers/
 	GET /api/guardians/{id}/students
+	GET /api/holiday-guests/{studentId}
 	GET /api/holiday-weeks/
 	GET /api/holiday-weeks/{weekId}/participants
 	GET /api/holiday-weeks/{weekId}/participants/export
@@ -394,6 +395,8 @@ basis
 	GET /traeger/billing-runs/{id}
 	GET /traeger/billing-runs/{id}/documents/{documentID}/letter
 	GET /traeger/billing-runs/{id}/export
+	GET /traeger/billing-runs/{id}/letters/print
+	GET /traeger/billing-runs/{id}/mailings
 	GET /traeger/contribution-rules/
 	GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 	GET /traeger/holiday-periods/
@@ -660,8 +663,10 @@ basis
 	POST /traeger/auth/mfa/verify
 	POST /traeger/billing-runs/
 	POST /traeger/billing-runs/{id}/corrections
+	POST /traeger/billing-runs/{id}/documents/{documentID}/mailings
 	POST /traeger/billing-runs/{id}/letters
 	POST /traeger/billing-runs/{id}/letters/preview
+	POST /traeger/billing-runs/{id}/mailings
 	POST /traeger/billing-runs/{id}/release
 	POST /traeger/contribution-rules/
 	POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm
@@ -699,6 +704,7 @@ basis
 	PUT /api/guardians/{id}
 	PUT /api/guardians/{id}/payment
 	PUT /api/guardians/{id}/phone-numbers/{phoneId}
+	PUT /api/holiday-weeks/{weekId}/guest-group
 	PUT /api/me/profile
 	PUT /api/notifications/email-subscriptions/{type}
 	PUT /api/notifications/preferences/{type}
@@ -1090,6 +1096,7 @@ unterricht_vormittag
 	DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 	DELETE /school/notifications/preferences/
 	DELETE /school/notifications/push/subscriptions
+	DELETE /school/parent-letters/{announcementId}
 	GET /school-sse/events
 	GET /school/calendar/feed
 	GET /school/calendar/my
@@ -1097,8 +1104,16 @@ unterricht_vormittag
 	GET /school/class-day/arrival-exceptions
 	GET /school/class-day/arrival-exceptions/block-start
 	GET /school/class-day/classes
+	GET /school/class-day/school-day
 	GET /school/notifications/preferences/
 	GET /school/notifications/push/public-key
+	GET /school/parent-letters/
+	GET /school/parent-letters/{announcementId}
+	GET /school/parent-letters/{announcementId}/declaration-export
+	GET /school/parent-letters/{announcementId}/declaration-status
+	GET /school/parent-letters/{announcementId}/letter-status
+	GET /school/parent-letters/{announcementId}/recipients
+	GET /school/parent-letters/{announcementId}/stats
 	GET /school/staff-messages/
 	GET /school/staff-messages/recipients
 	GET /school/staff-messages/threads/{threadID}
@@ -1123,6 +1138,11 @@ unterricht_vormittag
 	POST /school/class-day/homework/{schoolClass}
 	POST /school/notifications/push/subscriptions
 	POST /school/notifications/test
+	POST /school/parent-letters/
+	POST /school/parent-letters/{announcementId}/publish
+	POST /school/parent-letters/{announcementId}/remind
+	POST /school/parent-letters/{announcementId}/resend-failed
+	POST /school/parent-letters/{announcementId}/unpublish
 	POST /school/staff-messages/threads/open
 	POST /school/staff-messages/threads/{threadID}
 	POST /school/staff-notices/{noticeId}/acknowledge

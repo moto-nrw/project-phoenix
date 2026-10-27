@@ -96,7 +96,7 @@ var notifications_init_benachrichtigungen_1Definitions = []config.Definition{
 	{
 		Key:             config.KeyNotificationsAbsenceReportedEnabled,
 		Label:           "Hinweis bei Krankmeldung",
-		Description:     "OGS-Admins können einen Hinweis bekommen. Bei festen Gruppen auch die Betreuung der Gruppe. Jede Person entscheidet im eigenen Profil.",
+		Description:     "OGS-Admins können einen Hinweis bekommen. Bei festen Gruppen auch die Betreuung der Gruppe. In moto schule auch die Lehrkräfte der Klasse und die Schulverwaltung. Jede Person entscheidet selbst.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",

@@ -9,6 +9,7 @@ import React, {
   useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
+import { sessionIdentityKey } from "~/lib/session-access";
 import { fetchProfile as apiFetchProfile } from "~/lib/profile-api";
 import { createLogger } from "~/lib/logger";
 import { useLatest } from "~/lib/hooks/use-latest";
@@ -54,8 +55,10 @@ export function ProfileProvider({
   const isRefreshingRef = React.useRef<boolean>(false);
   const lastRefreshRef = React.useRef<number>(0);
 
-  // Store token in ref to avoid dependency loops
-  const tokenRef = useLatest(session?.user?.token);
+  // The signed-in identity the profile belongs to (the browser session
+  // carries no token, #5005). Stored in a ref to avoid dependency loops.
+  const sessionKey = sessionIdentityKey(session);
+  const sessionKeyRef = useLatest(sessionKey);
 
   // Use a ref for the refresh function to break dependency cycles
   const refreshRef = React.useRef<((silent?: boolean) => Promise<void>) | null>(
@@ -64,8 +67,7 @@ export function ProfileProvider({
 
   // Fetch profile data from API
   const fetchProfileData = useCallback(async () => {
-    const token = tokenRef.current;
-    if (!token) {
+    if (!sessionKeyRef.current) {
       setState((prev) => ({
         ...prev,
         profile: null,
@@ -101,7 +103,7 @@ export function ProfileProvider({
         isLoading: false,
       }));
     }
-  }, [tokenRef]);
+  }, [sessionKeyRef]);
 
   // Refresh profile with debouncing
   const refreshProfile = useCallback(
@@ -168,8 +170,8 @@ export function ProfileProvider({
 
   // Initial load and refresh on session changes only
   useEffect(() => {
-    // Only refresh when token actually changes (not on every render)
-    if (session?.user?.token) {
+    // Only refresh when the identity actually changes (not on every render)
+    if (sessionKey) {
       // The server snapshot IS the initial load; the debounce starts now, as
       // it would after a fetched load.
       if (seededRef.current) {
@@ -188,7 +190,7 @@ export function ProfileProvider({
         isLoading: false,
       });
     }
-  }, [session?.user?.token]); // Only depend on token
+  }, [sessionKey]); // Only depend on the identity
 
   const contextValue = useMemo(
     () => ({ ...state, refreshProfile, updateProfileData }),

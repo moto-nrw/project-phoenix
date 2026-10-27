@@ -28,7 +28,10 @@ type Resource struct {
 	// DayHints writes the day hints (#4795); the capability serves both
 	// facades. Without it the day-hint routes answer "not configured".
 	DayHints classday.DayHints
-	logger   *slog.Logger
+	// SchoolDay serves the school-wide day overview (#4802); the capability
+	// serves both facades. Without it the route answers "not configured".
+	SchoolDay classday.SchoolDay
+	logger    *slog.Logger
 }
 
 // NewResource creates the class-day resource over the projection's
@@ -38,7 +41,8 @@ func NewResource(capability classday.ClassDay, logger *slog.Logger) *Resource {
 		logger = slog.Default()
 	}
 	hints, _ := capability.(classday.DayHints)
-	return &Resource{ClassDay: capability, DayHints: hints, logger: logger}
+	schoolDay, _ := capability.(classday.SchoolDay)
+	return &Resource{ClassDay: capability, DayHints: hints, SchoolDay: schoolDay, logger: logger}
 }
 
 // SchoolRouter returns the class-day surface gated to school-scope tokens.
@@ -62,6 +66,9 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 
 	r.With(read, withTx).Get("/classes", rs.getMyClasses)
 	r.With(read, withTx).Get("/", rs.getClassDay)
+	// School-wide day overview (#4802): every class at once, only for the
+	// holders of class_day:all_classes (Schulverwaltung).
+	r.With(read, common.RequiresPermission(permissions.ClassDayAllClasses), withTx).Get("/school-day", rs.getSchoolDay)
 
 	// Class-wide arrival day exceptions (#2970): the list is readable with
 	// class_day:read, the writes and the preset lookup need the write
@@ -115,6 +122,10 @@ type ClassesResponse struct {
 	// on Friday's plan (operations.weekend_follows_friday, #3921). The class
 	// views then load the weekend like a school day instead of skipping it.
 	WeekendFollowsFriday bool `json:"weekend_follows_friday"`
+	// CanViewSchoolDay is true when the caller holds class_day:all_classes
+	// (#4802): the start page then loads the school-wide day overview once
+	// instead of one class report per class.
+	CanViewSchoolDay bool `json:"can_view_school_day"`
 }
 
 // getMyClasses returns the school classes assigned to the caller.
@@ -127,7 +138,10 @@ func (rs *Resource) getMyClasses(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	resp := ClassesResponse{Classes: classes}
+	resp := ClassesResponse{
+		Classes:          classes,
+		CanViewSchoolDay: rs.SchoolDay != nil && common.HasPermission(permissions.ClassDayAllClasses, sessiontoken.PermissionsFromCtx(r.Context())),
+	}
 	// Without the write seam the flag stays false instead of failing the
 	// list: the classes are the answer, the flag is an extra.
 	resp.CanWriteArrivalException, err = rs.canWriteArrivalException(r)
@@ -158,14 +172,9 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	date := calendar.TodayDate()
-	if raw := strings.TrimSpace(r.URL.Query().Get("date")); raw != "" {
-		parsed, err := calendar.ParseDate(raw)
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("ungültiges Datum, erwartet JJJJ-MM-TT")))
-			return
-		}
-		date = parsed
+	date, ok := dateQueryOrToday(w, r)
+	if !ok {
+		return
 	}
 
 	class, ok := rs.requireAssignedClass(w, r, r.URL.Query().Get("class"))
@@ -202,6 +211,16 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 	report.CanWriteHomework = common.HasPermission(permissions.ClassDayHomeworkWrite, granted)
 
 	common.Respond(w, r, http.StatusOK, report, "Class day retrieved successfully")
+}
+
+// dateQueryOrToday reads the optional ?date=YYYY-MM-DD, today without it,
+// and renders 400 for a broken date.
+func dateQueryOrToday(w http.ResponseWriter, r *http.Request) (calendar.Date, bool) {
+	raw := strings.TrimSpace(r.URL.Query().Get("date"))
+	if raw == "" {
+		return calendar.TodayDate(), true
+	}
+	return parseArrivalExceptionDate(w, r, raw)
 }
 
 // requireAssignedClass resolves the class against the caller's assignments

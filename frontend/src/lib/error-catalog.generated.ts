@@ -211,6 +211,10 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
         "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "communication.class_letter_class_not_reachable":
+        "Diese Klasse ist Ihnen nicht zugeordnet. Bitte wählen Sie eine eigene Klasse.",
+      "communication.class_letter_read_only":
+        "Diesen Elternbrief hat eine Lehrkraft geschrieben. Nur sie kann ihn ändern, senden oder löschen.",
       "devices.tag_scan_already_resolved":
         "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu.",
       "devices.tag_scan_not_found":
@@ -373,6 +377,10 @@ export const ERROR_CATALOG = {
         "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Liste neu.",
       "enrollment.hosted_holiday_week_not_found":
         "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
+      "enrollment.holiday_guest_not_found":
+        "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
+      "enrollment.holiday_guest_group_invalid":
+        "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
       "enrollment.holiday_registration_frozen":
         "Die Anmeldung ist eingefroren. Wählen Sie zuerst „Wieder öffnen“.",
       "enrollment.holiday_registration_invalid":
@@ -1416,6 +1424,12 @@ export const ERROR_CATALOG = {
         "Schreiben und Übersicht gibt es erst nach der Freigabe. Bitte geben Sie den Lauf zuerst frei.",
       "parent_billing.letterhead_too_long":
         "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
+      "parent_billing.billing_letters_missing":
+        "Es gibt noch keine Bestätigungsschreiben. Bitte erstellen Sie zuerst die Schreiben.",
+      "parent_billing.letter_mail_pending":
+        "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
+      "parent_billing.recipient_email_missing":
+        "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
     },
   },
   en: {
@@ -1572,6 +1586,10 @@ export const ERROR_CATALOG = {
       "communication.survey_already_answered":
         "You have already taken part in this survey. Your answer cannot be changed.",
       "communication.survey_not_open": "This survey no longer accepts answers.",
+      "communication.class_letter_class_not_reachable":
+        "This class is not assigned to you. Please choose one of your own classes.",
+      "communication.class_letter_read_only":
+        "A teacher wrote this parent letter. Only that teacher can change, send or delete it.",
       "enrollment.captcha_failed":
         "The security check did not work. Please try again.",
       "enrollment.captcha_required": "Please complete the security check.",
@@ -1660,6 +1678,10 @@ export const ERROR_CATALOG = {
         "This registration no longer exists. Please reload the list.",
       "enrollment.hosted_holiday_week_not_found":
         "There is no participant list for this week any more. It is only available until the last day of the week.",
+      "enrollment.holiday_guest_not_found":
+        "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",
+      "enrollment.holiday_guest_group_invalid":
+        "This group no longer exists. Please choose another group.",
       "enrollment.holiday_registration_frozen":
         "The registration is frozen. Choose “Reopen” first.",
       "enrollment.holiday_registration_invalid":

@@ -3,17 +3,11 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "AuthAPI" });
 
-// Singleton to manage token refresh and prevent concurrent refreshes
+// Singleton to manage session renewal and prevent concurrent renewals
 class TokenRefreshManager {
-  private refreshPromise: Promise<{
-    access_token: string;
-    refresh_token: string;
-  } | null> | null = null;
+  private refreshPromise: Promise<boolean> | null = null;
 
-  async refreshToken(): Promise<{
-    access_token: string;
-    refresh_token: string;
-  } | null> {
+  async refreshToken(): Promise<boolean> {
     // If a refresh is already in progress, return the existing promise
     if (this.refreshPromise) {
       logger.debug(
@@ -26,25 +20,23 @@ class TokenRefreshManager {
     this.refreshPromise = this.doRefresh();
 
     try {
-      const result = await this.refreshPromise;
-      return result;
+      return await this.refreshPromise;
     } finally {
       // Clear the promise after it completes (success or failure)
       this.refreshPromise = null;
     }
   }
 
-  private async doRefresh(): Promise<{
-    access_token: string;
-    refresh_token: string;
-  } | null> {
+  private async doRefresh(): Promise<boolean> {
     try {
       // Check if we're in a browser context
       if (globalThis.window === undefined) {
         logger.error("token refresh attempted from server context");
-        return null;
+        return false;
       }
 
+      // The route renews the session server-side and answers without a
+      // token (#5005); its Set-Cookie carries the rotated session.
       const response = await fetch("/api/auth/token", {
         method: "POST",
         headers: {
@@ -55,17 +47,13 @@ class TokenRefreshManager {
 
       if (!response.ok) {
         logger.error("token refresh failed", { status: response.status });
-        return null;
+        return false;
       }
 
-      const data = (await response.json()) as {
-        access_token: string;
-        refresh_token: string;
-      };
-      return data;
+      return true;
     } catch (error) {
       logger.error("error refreshing token", { error: String(error) });
-      return null;
+      return false;
     }
   }
 }
@@ -74,13 +62,10 @@ class TokenRefreshManager {
 const tokenRefreshManager = new TokenRefreshManager();
 
 /**
- * Function to refresh the authentication token
- * @returns Promise with the new tokens or null if refresh failed
+ * Renew the session's tokens on the server.
+ * @returns whether the session still holds a token afterwards
  */
-export async function refreshToken(): Promise<{
-  access_token: string;
-  refresh_token: string;
-} | null> {
+export async function refreshToken(): Promise<boolean> {
   return tokenRefreshManager.refreshToken();
 }
 
@@ -115,14 +100,14 @@ export async function handleAuthFailure(): Promise<boolean> {
     }
 
     // Try to refresh the token one more time
-    const newTokens = await refreshToken();
+    const refreshed = await refreshToken();
 
-    if (newTokens) {
+    if (refreshed) {
       // Token refresh successful. The /api/auth/token route called auth()
       // which refreshed tokens via the JWT callback and cached them in
-      // refreshCache (module-level, 5-min TTL). The cookie is NOT updated
-      // here — callers must trigger getSession() (e.g. Axios interceptor,
-      // SessionProvider refetchInterval) to persist via Set-Cookie.
+      // refreshCache (module-level, 5-min TTL). Callers still trigger
+      // getSession() (sessionFetch, SessionProvider refetchInterval) before
+      // they retry, so the next request reads the current cookie.
       sessionStorage.setItem("lastSuccessfulRefresh", Date.now().toString());
       return true;
     }

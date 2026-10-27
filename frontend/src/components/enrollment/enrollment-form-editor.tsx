@@ -3732,7 +3732,7 @@ function FieldEditorRow({
                       placeholder={
                         isTargetField && target
                           ? RESERVED_TARGETS[target].label
-                          : "z. B. Allergien oder Hinweise"
+                          : "z. B. Wie haben Sie von uns erfahren?"
                       }
                       disabled={disabled}
                       {...labelError.controlProps}
@@ -3925,7 +3925,7 @@ function FieldEditorRow({
                   hint={
                     field.type === "file"
                       ? "Dateien gelten immer für die ganze Anmeldung."
-                      : "Die Frage erscheint für jedes angemeldete Kind."
+                      : "Für Fragen zum Kind, etwa zu Allergien oder zum Schwimmen. Die Frage erscheint dann für jedes angemeldete Kind."
                   }
                   disabled={disabled || isTargetField || field.type === "file"}
                 />

@@ -178,6 +178,9 @@ func (s *demoScheduler) prepareLeased(ctx context.Context, order DemoSchoolOrder
 		"final", failed,
 		"error", errors.Join(err, failErr),
 	)
+	if failed {
+		reportDemoOrderFailed(order.Slug, err)
+	}
 }
 
 func (s *demoScheduler) rememberFailedDeferredRequeue(slug string) { s.failedRequeues.add(slug) }

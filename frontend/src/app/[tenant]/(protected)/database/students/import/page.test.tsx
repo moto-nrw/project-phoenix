@@ -19,7 +19,7 @@ import StudentImportPage from "./page";
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { id: "1" } },
     status: "authenticated",
   })),
 }));
@@ -243,9 +243,8 @@ describe("StudentImportPage", () => {
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/import/students/template?format=xlsx",
-        expect.objectContaining({
-          headers: { Authorization: "Bearer test-token" },
-        }),
+        // The route reads the session cookie (#5005).
+        { credentials: "include" },
       );
     });
   });
@@ -1113,15 +1112,15 @@ describe("StudentImportPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("handles missing token gracefully", async () => {
-    // Ohne Token ist die Anmeldung abgelaufen: der gemeinsame Fehlerweg
+  it("handles a stripped session gracefully", async () => {
+    // Ohne gültige Sitzung ist die Anmeldung abgelaufen: der gemeinsame Fehlerweg
     // schickt zur Anmeldung (#2517).
     const assign = vi
       .spyOn(window.location, "assign")
       .mockImplementation(() => undefined);
     const useSession = await import("next-auth/react");
     vi.mocked(useSession.useSession).mockReturnValueOnce({
-      data: { user: { token: undefined } },
+      data: { user: { id: "1" }, error: "RefreshTokenError" },
       status: "authenticated",
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession.useSession>);
@@ -1136,15 +1135,15 @@ describe("StudentImportPage", () => {
     assign.mockRestore();
   });
 
-  it("handles missing token in template download", async () => {
-    // Ohne Token ist die Anmeldung abgelaufen: der gemeinsame Fehlerweg
+  it("handles a stripped session in template download", async () => {
+    // Ohne gültige Sitzung ist die Anmeldung abgelaufen: der gemeinsame Fehlerweg
     // schickt zur Anmeldung (#2517).
     const assign = vi
       .spyOn(window.location, "assign")
       .mockImplementation(() => undefined);
     const useSession = await import("next-auth/react");
     vi.mocked(useSession.useSession).mockReturnValueOnce({
-      data: { user: { token: undefined } },
+      data: { user: { id: "1" }, error: "RefreshTokenError" },
       status: "authenticated",
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession.useSession>);

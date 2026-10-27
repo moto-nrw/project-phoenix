@@ -81,6 +81,12 @@ export interface Announcement {
   response_deadline?: string;
   /** Set on rows the system wrote, e.g. the cancellation notice (#2601). */
   system_kind?: "care_cancellation";
+  /**
+   * A class letter of a Lehrkraft from moto schule (#4800): her name and the
+   * class it went to. The OGS reads such a letter but does not change it.
+   */
+  sender_name?: string;
+  sender_school_class?: string;
   options: AnnouncementOption[];
   delivery_mode: AnnouncementDeliveryMode;
   email_audience: AnnouncementEmailAudience;
@@ -114,6 +120,11 @@ export function isDeclaration(announcement: Announcement): boolean {
 /** True when the announcement is a binding Elternbrief. */
 export function isLetter(announcement: Announcement): boolean {
   return announcement.delivery_mode === "letter";
+}
+
+/** True when a Lehrkraft wrote the announcement in moto schule (#4800). */
+export function isClassLetter(announcement: Announcement): boolean {
+  return !!announcement.sender_school_class;
 }
 
 /** True when the announcement asks the parents a question. */
@@ -413,10 +424,30 @@ async function request<T>(
 
 const BASE = "/api/parent-announcements";
 
+/**
+ * The routes of a class letter in moto schule (#4800): the same announcement
+ * calls behind the school session. Every call below takes the base; the OGS
+ * portal uses the default.
+ */
+export const SCHOOL_PARENT_LETTERS_BASE = "/api/school/parent-letters";
+
+/**
+ * Calls an announcement route of the given portal. Without a base the call
+ * stays exactly the OGS call, so its default applies.
+ */
+export function withApiBase<T>(
+  call: (id: string, base?: string) => Promise<T>,
+  id: string,
+  base: string | undefined,
+): Promise<T> {
+  return base === undefined ? call(id) : call(id, base);
+}
+
 export async function fetchAnnouncements(
   includeInactive = true,
+  base = BASE,
 ): Promise<Announcement[]> {
-  const url = includeInactive ? `${BASE}?include_inactive=true` : BASE;
+  const url = includeInactive ? `${base}?include_inactive=true` : base;
   const data = await request<Announcement[]>(
     url,
     undefined,
@@ -432,9 +463,10 @@ export async function fetchAnnouncements(
  */
 export async function fetchAnnouncement(
   id: string,
+  base = BASE,
 ): Promise<Announcement | undefined> {
   return request<Announcement>(
-    `${BASE}/${encodeURIComponent(id)}`,
+    `${base}/${encodeURIComponent(id)}`,
     undefined,
     "Elternmitteilung konnte nicht geladen werden",
   );
@@ -450,9 +482,10 @@ function jsonBody(body: AnnouncementInput): RequestInit {
 
 export async function createAnnouncement(
   input: AnnouncementInput,
+  base = BASE,
 ): Promise<Announcement> {
   const data = await request<Announcement>(
-    BASE,
+    base,
     jsonBody(input),
     "Elternmitteilung konnte nicht erstellt werden",
   );
@@ -491,17 +524,23 @@ export async function updateAnnouncementReminder(
   return data;
 }
 
-export async function deleteAnnouncement(id: string): Promise<void> {
+export async function deleteAnnouncement(
+  id: string,
+  base = BASE,
+): Promise<void> {
   await request<unknown>(
-    `${BASE}/${encodeURIComponent(id)}`,
+    `${base}/${encodeURIComponent(id)}`,
     { method: "DELETE" },
     "Elternmitteilung konnte nicht gelöscht werden",
   );
 }
 
-export async function publishAnnouncement(id: string): Promise<Announcement> {
+export async function publishAnnouncement(
+  id: string,
+  base = BASE,
+): Promise<Announcement> {
   const data = await request<Announcement>(
-    `${BASE}/${encodeURIComponent(id)}/publish`,
+    `${base}/${encodeURIComponent(id)}/publish`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -514,9 +553,12 @@ export async function publishAnnouncement(id: string): Promise<Announcement> {
   return data;
 }
 
-export async function unpublishAnnouncement(id: string): Promise<Announcement> {
+export async function unpublishAnnouncement(
+  id: string,
+  base = BASE,
+): Promise<Announcement> {
   const data = await request<Announcement>(
-    `${BASE}/${encodeURIComponent(id)}/unpublish`,
+    `${base}/${encodeURIComponent(id)}/unpublish`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -531,9 +573,10 @@ export async function unpublishAnnouncement(id: string): Promise<Announcement> {
 
 export async function fetchAnnouncementStats(
   id: string,
+  base = BASE,
 ): Promise<AnnouncementStats> {
   const data = await request<AnnouncementStats>(
-    `${BASE}/${encodeURIComponent(id)}/stats`,
+    `${base}/${encodeURIComponent(id)}/stats`,
     undefined,
     "Statistik konnte nicht geladen werden",
   );
@@ -569,9 +612,12 @@ export async function fetchPollChildren(id: string): Promise<PollChild[]> {
  * Notifies the guardians of children without an answer. Returns how many people
  * were reached so the UI can say "8 Eltern erinnert" instead of a silent OK.
  */
-export async function remindUnanswered(id: string): Promise<number> {
+export async function remindUnanswered(
+  id: string,
+  base = BASE,
+): Promise<number> {
   const data = await request<{ reminded_count: number }>(
-    `${BASE}/${encodeURIComponent(id)}/remind`,
+    `${base}/${encodeURIComponent(id)}/remind`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -583,9 +629,12 @@ export async function remindUnanswered(id: string): Promise<number> {
 }
 
 /** The Elternbrief recipient matrix: per person, per child, plus the counts. */
-export async function fetchLetterStatus(id: string): Promise<LetterStatus> {
+export async function fetchLetterStatus(
+  id: string,
+  base = BASE,
+): Promise<LetterStatus> {
   const data = await request<LetterStatus>(
-    `${BASE}/${encodeURIComponent(id)}/letter-status`,
+    `${base}/${encodeURIComponent(id)}/letter-status`,
     undefined,
     "Status konnte nicht geladen werden",
   );
@@ -616,9 +665,10 @@ export async function fetchLetterStatus(id: string): Promise<LetterStatus> {
  */
 export async function fetchDeclarationStatus(
   id: string,
+  base = BASE,
 ): Promise<DeclarationStatus> {
   const data = await request<DeclarationStatus>(
-    `${BASE}/${encodeURIComponent(id)}/declaration-status`,
+    `${base}/${encodeURIComponent(id)}/declaration-status`,
     undefined,
     "Status konnte nicht geladen werden",
   );
@@ -627,8 +677,12 @@ export async function fetchDeclarationStatus(
 }
 
 /** Download address of the Einverständnis report (PDF) or history (CSV). */
-function declarationExportUrl(id: string, format: "csv" | "pdf"): string {
-  return `${BASE}/${encodeURIComponent(id)}/declaration-export?format=${format}`;
+function declarationExportUrl(
+  id: string,
+  format: "csv" | "pdf",
+  base: string,
+): string {
+  return `${base}/${encodeURIComponent(id)}/declaration-export?format=${format}`;
 }
 
 /**
@@ -639,8 +693,9 @@ function declarationExportUrl(id: string, format: "csv" | "pdf"): string {
 export async function downloadDeclarationExport(
   id: string,
   format: "csv" | "pdf",
+  base = BASE,
 ): Promise<void> {
-  const response = await transportFetch(declarationExportUrl(id, format));
+  const response = await transportFetch(declarationExportUrl(id, format, base));
   if (!response.ok) {
     await throwApiError(response, "Die Datei konnte nicht erstellt werden");
   }
@@ -652,9 +707,12 @@ export async function downloadDeclarationExport(
 }
 
 /** Re-queue only the mails that failed. Separate from remindUnanswered. */
-export async function resendFailedEmails(id: string): Promise<number> {
+export async function resendFailedEmails(
+  id: string,
+  base = BASE,
+): Promise<number> {
   const data = await request<{ resent_count: number }>(
-    `${BASE}/${encodeURIComponent(id)}/resend-failed`,
+    `${base}/${encodeURIComponent(id)}/resend-failed`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -667,9 +725,10 @@ export async function resendFailedEmails(id: string): Promise<number> {
 
 export async function fetchAnnouncementRecipients(
   id: string,
+  base = BASE,
 ): Promise<AnnouncementRecipient[]> {
   const data = await request<AnnouncementRecipient[]>(
-    `${BASE}/${encodeURIComponent(id)}/recipients`,
+    `${base}/${encodeURIComponent(id)}/recipients`,
     undefined,
     "Empfängerliste konnte nicht geladen werden",
   );

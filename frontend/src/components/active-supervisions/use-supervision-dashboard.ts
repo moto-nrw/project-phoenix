@@ -137,8 +137,11 @@ interface BFFDashboardResponse {
 }
 
 export interface SupervisionDashboardOptions {
-  /** Bearer token of the signed-in user; no fetch while absent. */
-  readonly sessionToken: string | undefined;
+  /**
+   * Identity of the signed-in session (sessionIdentityKey); no fetch while
+   * null. The browser session carries no token (#5005).
+   */
+  readonly sessionKey: string | null;
   /** `?session=` — precise session (active group) selection from the URL. */
   readonly sessionParam: string | null;
   /** Legacy `?room=` entry point (sidebar, old links). */
@@ -275,7 +278,7 @@ function isNoAccessError(err: unknown): boolean {
 export function useSupervisionDashboard(
   options: SupervisionDashboardOptions,
 ): SupervisionDashboard {
-  const { sessionToken, sessionParam, roomParam } = options;
+  const { sessionKey, sessionParam, roomParam } = options;
   const router = useTenantRouter();
   const { data: session } = useSession();
   const memory = useSidebarMemory();
@@ -310,7 +313,7 @@ export function useSupervisionDashboard(
     mutate: mutateDashboard,
     isLoading: isDashboardLoading,
   } = useSWRAuth<BFFDashboardResponse>(
-    sessionToken
+    sessionKey
       ? `active-supervision-dashboard-${refreshKey}-${accountId}`
       : null,
     async () => {
@@ -322,9 +325,9 @@ export function useSupervisionDashboard(
           groupId && /^[1-9]\d{0,18}$/.test(groupId)
             ? `?group_id=${encodeURIComponent(groupId)}`
             : "";
+        // The route reads the session cookie.
         return transportFetch(`/api/active-supervision-dashboard${query}`, {
           headers: {
-            Authorization: `Bearer ${sessionToken}`,
             "Content-Type": "application/json",
           },
         });
@@ -374,12 +377,11 @@ export function useSupervisionDashboard(
   // "storing information from previous renders" pattern), replacing the
   // former dozen per-field setState copies.
   const [snapshot, setSnapshot] = useState<BFFDashboardResponse | null>(null);
-  const [snapshotSessionToken, setSnapshotSessionToken] =
-    useState(sessionToken);
-  if (snapshotSessionToken !== sessionToken) {
-    // A token change can mean another account signed in on this tenant. Do
-    // not retain the previous account's aggregate while the new key loads.
-    setSnapshotSessionToken(sessionToken);
+  const [snapshotSessionKey, setSnapshotSessionKey] = useState(sessionKey);
+  if (snapshotSessionKey !== sessionKey) {
+    // Another account or set of rights on this tenant. Do not retain the
+    // previous session's aggregate while the new key loads.
+    setSnapshotSessionKey(sessionKey);
     setSnapshot(null);
   } else if (
     dashboardData &&

@@ -26,7 +26,10 @@ checklist. Local values belong in `.env.local` using `.env.example` as the templ
 Server-only wrappers carry a `.server.ts` suffix (`lib/route-wrapper.server.ts`, `lib/api-helpers.server.ts`, `lib/operator/route-wrapper.server.ts`, `lib/parent/route-wrapper.server.ts`).
 
 Read the existing server-only wrappers and keep server auth/env imports out
-of client components. A dynamic import is not itself an authorization or
+of client components. Modules outside `src/server/`, `src/app/api/` and
+`*.server.ts` import nothing from `src/server/`, not even a type
+(dependency-cruiser rule `browser-not-to-server-auth`, #5005); the auth
+modules there carry `import "server-only"`. A dynamic import is not itself an authorization or
 server-only boundary; inspect the caller and execution path.
 
 The same applies to `auth` and any other server-only import in mixed files.
@@ -42,6 +45,11 @@ and error handling (operator/parent/school wrappers live under `lib/operator/`,
 fetch/error handling; helper-backed success adapters use its tenant adapter.
 Do not move a route across portal auth boundaries to share code. Streaming SSE
 uses its documented exception in [the SSE contract](realtime.md).
+
+Every server-side backend call forwards the browser's client IP; the shared
+factories and wrappers do. A direct fetch adds
+`clientIdentityHeaders(request.headers)` or `incomingClientForwardHeaders()`.
+Why and the full chain: [Client IP and rate limits](contracts.md#client-ip-and-rate-limits).
 
 Backend error responses have one wire contract: the shared route wrappers
 (`route-wrapper.server.ts` and the operator, parent, and school wrappers) propagate
@@ -124,7 +132,7 @@ A direct fetch outside this inventory needs a reason and a shared proxy path.
 | `enrollment/phases/[id]/export` | Streams a phase export in its backend-selected format. |
 | `files/folders/[folderId]/files` | Multipart folder-file upload uses the shared file-upload validator. |
 | `files/folders/[folderId]/files/[fileId]/download` | Streams folder-file bytes and disposition. |
-| `guardian-invitations/[token]/accept` | Maps invitation password fields and forwards analytics-session headers. |
+| `guardian-invitations/[token]/accept` | Maps invitation password fields and forwards the client headers. |
 | `guardians/payment-overview/export` | Streams payment-overview export bytes with backend disposition. |
 | `import/class-list-entries/template` | Returns the class-list CSV template and backend filename. |
 | `import/opening-balances/template` | Returns the opening-balance CSV template and backend filename. |
@@ -170,7 +178,9 @@ Helper-backed custom handlers without a direct `fetch` have narrower reasons:
 `statistics/report` whitelist audit-sensitive queries, retry refreshed tenant
 sessions, and keep their established no-store success envelope;
 `auth/password` validates and renames password fields before `apiPost`;
-`auth/token` reads the local session; `logs` and `parent/logs` ingest client
+`auth/token` renews the tenant session and answers 204 without a token;
+`auth/staff-preview/end` takes the running preview's token from the session
+cookie; `logs` and `parent/logs` ingest client
 telemetry. `enrollment/legal-documents/[filename]` retries deletion with a
 refreshed tenant token. `timetable/betreuungsplan/export`,
 `timetable/lists/export`, `rooms/export`, `staff-shifts/export`,

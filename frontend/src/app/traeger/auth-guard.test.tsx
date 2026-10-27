@@ -39,7 +39,7 @@ describe("TraegerAuthGuard", () => {
   });
 
   it("renders the portal for a live Träger session", () => {
-    mockUseSession.mockReturnValue(session({ scope: "org", token: "access" }));
+    mockUseSession.mockReturnValue(session({ scope: "org" }));
     render(
       <TraegerAuthGuard>
         <p>Schulen</p>
@@ -66,12 +66,11 @@ describe("TraegerAuthGuard", () => {
   // The session callback keeps scope org after the refresh ended for good;
   // the page must not stay open with stale content.
   it.each([
-    [
-      "an expired refresh",
-      session({ scope: "org", token: "access" }, "RefreshTokenExpired"),
-    ],
-    ["a missing access token", session({ scope: "org", token: "" })],
-    ["another scope", session({ scope: "school", token: "access" })],
+    ["an expired refresh", session({ scope: "org" }, "RefreshTokenExpired")],
+    // No browser session carries a token (#5005): the callback marks a
+    // session without one with an error.
+    ["a missing access token", session({ scope: "org" }, "RefreshTokenError")],
+    ["another scope", session({ scope: "school" })],
   ])("sends %s back to the Träger login", (_case, value) => {
     mockUseSession.mockReturnValue(value);
     render(

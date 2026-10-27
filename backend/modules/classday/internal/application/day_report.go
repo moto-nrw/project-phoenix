@@ -20,6 +20,7 @@ const studentStatusDayCancelled = "cancelled"
 // dayReports builds the per-class day view (#1772) and the per-child
 // supervision sheet (#2527) and records every read in the GDPR log.
 type dayReports struct {
+	caller            ports.Caller
 	rosters           DayRosters
 	statusDays        StatusDays
 	times             EffectiveDayTimes
@@ -37,7 +38,7 @@ type dayReports struct {
 
 func newDayReports(deps ClassDayDependencies) *dayReports {
 	return &dayReports{
-		rosters: deps.Rosters, statusDays: deps.StatusDays, times: deps.Times, careDays: deps.CareDays,
+		caller: deps.Caller, rosters: deps.Rosters, statusDays: deps.StatusDays, times: deps.Times, careDays: deps.CareDays,
 		classExceptions: deps.ClassArrivalExceptions, companions: deps.Companions,
 		students: deps.Students, emergencyContacts: deps.EmergencyContacts,
 		accessLog: deps.AccessLog, morning: newMorningAttendance(deps), homework: newHomework(deps), handover: newClassHandover(deps),
@@ -138,7 +139,7 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date cale
 		}
 	}
 	report := buildClassDayReportFor(schoolClass, date, weekday, strings.Join(roster.PhaseNames, ", "), roster.Rows, facts)
-	report.EnrollmentKnown = len(roster.PhaseNames) > 0
+	applyEnrollmentKnown(report, len(roster.PhaseNames) > 0)
 	if weekday != "" {
 		if report.ClassArrivalException, err = s.classDayArrivalException(ctx, schoolClass, date); err != nil {
 			return nil, err
@@ -146,12 +147,6 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date cale
 	}
 	if err := s.applyClassDayEntries(ctx, report, date, actor.AccountID); err != nil {
 		return nil, err
-	}
-	if !report.EnrollmentKnown {
-		// Without a covering phase the stays/leaves split is unknowable —
-		// zero the counters so no consumer can print "alle gehen nach Hause".
-		report.Totals.Staying = 0
-		report.Totals.Leaving = 0
 	}
 	if err := s.recordClassDayViewAudit(ctx, report, actor.AccountID, actor.Roles); err != nil {
 		return nil, err
@@ -162,21 +157,43 @@ func (s *dayReports) classDay(ctx context.Context, schoolClass string, date cale
 // classDaySchoolDayFacts loads the day facts of a school day: statuses,
 // departures, effective times and the "kommt heute nicht" cancellations.
 func (s *dayReports) classDaySchoolDayFacts(ctx context.Context, roster *DayRoster, date calendar.Date, weekday string) (classDayFacts, error) {
-	facts := newClassDayFacts()
-	studentIDs := make([]int64, 0, len(roster.Rows))
-	for _, row := range roster.Rows {
-		if row.StudentID > 0 {
-			studentIDs = append(studentIDs, row.StudentID)
-		}
-	}
-	var err error
-	if facts.statuses, facts.statusReportedAt, err = s.classDayStatuses(ctx, studentIDs, date); err != nil {
+	facts, err := s.classDayPlanFacts(ctx, rosterStudentIDs(roster.Rows), date, true)
+	if err != nil {
 		return facts, err
 	}
 	if facts.departures, err = s.classDayDepartures(ctx, roster.Students, date, weekday); err != nil {
 		return facts, err
 	}
-	if err := s.classDayEffectiveTimes(ctx, studentIDs, date, &facts); err != nil {
+	return facts, nil
+}
+
+// rosterStudentIDs lists the students with an OGS record among the rows.
+func rosterStudentIDs(rows []DayRosterRow) []int64 {
+	studentIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.StudentID > 0 {
+			studentIDs = append(studentIDs, row.StudentID)
+		}
+	}
+	return studentIDs
+}
+
+// classDayPlanFacts loads the day facts every roster count needs, each in
+// one read for all listed students: statuses, effective times and the
+// "kommt heute nicht" cancellations. Without arrivals only the pickups are
+// read: the school-wide overview shows no times. The departures are the
+// class view's own.
+func (s *dayReports) classDayPlanFacts(ctx context.Context, studentIDs []int64, date calendar.Date, arrivals bool) (classDayFacts, error) {
+	facts := newClassDayFacts()
+	var err error
+	if facts.statuses, facts.statusReportedAt, err = s.classDayStatuses(ctx, studentIDs, date); err != nil {
+		return facts, err
+	}
+	loadTimes := s.classDayEffectivePickups
+	if arrivals {
+		loadTimes = s.classDayEffectiveTimes
+	}
+	if err := loadTimes(ctx, studentIDs, date, &facts); err != nil {
 		return facts, err
 	}
 	cancelled, err := s.classDayCancellations(ctx, studentIDs, date, &facts)

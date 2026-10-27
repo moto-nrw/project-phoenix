@@ -39,8 +39,12 @@ jobs:
           ENVIRONMENT: ${{ inputs.environment }}
           REF_NAME: ${{ github.ref }}
         run: |
-          if [[ "$ENVIRONMENT" = "production" || "$ENVIRONMENT" = "demo" ]] && [ "$REF_NAME" != "refs/heads/main" ]; then
-            echo "Production and demo rollbacks must run from refs/heads/main, got $REF_NAME"
+          if [ "$ENVIRONMENT" = "production" ] && [ "$REF_NAME" != "refs/heads/main" ]; then
+            echo "Production rollbacks must run from refs/heads/main, got $REF_NAME"
+            exit 1
+          fi
+          if [ "$ENVIRONMENT" = "demo" ] && [ "$REF_NAME" != "refs/heads/main" ] && [ "$REF_NAME" != "refs/heads/development" ]; then
+            echo "Demo rollbacks must run from refs/heads/main or refs/heads/development, got $REF_NAME"
             exit 1
           fi
           case "$ENVIRONMENT" in

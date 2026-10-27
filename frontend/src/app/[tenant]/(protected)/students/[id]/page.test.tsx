@@ -48,7 +48,6 @@ vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: {
       user: {
-        token: "test-token",
         permissions: ["config:manage", "users:read"],
       },
     },
@@ -211,6 +210,20 @@ vi.mock("~/components/students/student-detail-components", () => ({
 }));
 
 // Mock des Bearbeiten-Zustands im Stammdaten-Reiter (kein Modal mehr).
+vi.mock("~/components/students/holiday-guest-section", () => ({
+  HolidayGuestSection: ({
+    studentId,
+    canRead,
+  }: {
+    studentId: string;
+    canRead: boolean;
+  }) => (
+    <div data-testid="holiday-guest-section">
+      {studentId}:{String(canRead)}
+    </div>
+  ),
+}));
+
 vi.mock("~/components/students/personal-info-edit-panel", () => ({
   PersonalInfoEditPanel: ({
     onCancel,
@@ -627,7 +640,6 @@ describe("StudentDetailPage", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
-          token: "test-token",
           // Staff with absence rights; the route of every absence write
           // checks users:update or users:absence (ADR 0091 gate).
           permissions: [
@@ -1820,7 +1832,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:manage", "users:update", "users:read"],
           },
         },
@@ -2222,7 +2233,7 @@ describe("StudentDetailPage", () => {
   describe("Action Card Visibility", () => {
     it("hides check-in actions without users:checkin", () => {
       vi.mocked(useSession).mockReturnValue({
-        data: { user: { token: "test-token", permissions: ["config:manage"] } },
+        data: { user: { permissions: ["config:manage"] } },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
 
@@ -2343,7 +2354,7 @@ describe("StudentDetailPage", () => {
       (_view, hasFullAccess) => {
         vi.mocked(useSession).mockReturnValue({
           data: {
-            user: { token: "test-token", permissions: ["students:read"] },
+            user: { permissions: ["students:read"] },
           },
           status: "authenticated",
         } as ReturnType<typeof useSession>);
@@ -2377,7 +2388,7 @@ describe("StudentDetailPage", () => {
     it("loads and offers nothing a students:read session cannot use", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
-          user: { token: "test-token", permissions: ["students:read"] },
+          user: { permissions: ["students:read"] },
         },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
@@ -2408,7 +2419,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:manage", "users:update", "users:read"],
           },
         },
@@ -2426,7 +2436,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:manage", "users:read"],
           },
         },
@@ -2445,7 +2454,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:read", "users:read"],
           },
         },
@@ -2474,7 +2482,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
@@ -2499,7 +2506,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
@@ -2533,7 +2539,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["schedules:read", "users:read"],
           },
         },
@@ -2713,6 +2718,35 @@ describe("StudentDetailPage", () => {
       expect(
         screen.getByRole("tab", { name: "Stammdaten" }),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("Holiday guest (#4666)", () => {
+    it("shows only the holiday guest sheet instead of the sections of the record", () => {
+      mockUseStudentData.mockReturnValue({
+        ...mockUseStudentData(),
+        student: { ...mockStudent, school_class: "Feriengast" },
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("holiday-guest-section")).toHaveTextContent(
+        "1:true",
+      );
+      expect(
+        screen.queryByRole("tablist", { name: "Bereiche der Kindakte" }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps the sections of the record for a child of the school", () => {
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tablist", { name: "Bereiche der Kindakte" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("holiday-guest-section"),
+      ).not.toBeInTheDocument();
     });
   });
 });

@@ -7,6 +7,7 @@
  * Import from "~/server/auth/parent" in parent-app code.
  */
 
+import "server-only";
 import NextAuth from "next-auth";
 
 import { parentAuthConfig } from "./parent-config";

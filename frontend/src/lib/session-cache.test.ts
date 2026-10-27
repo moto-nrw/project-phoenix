@@ -26,8 +26,9 @@ async function freshModule(): Promise<SessionCacheModule> {
   return import("./session-cache");
 }
 
-function session(token: string, tenantId = 1) {
-  return mockSessionData({ user: { token, tenantId } });
+// The browser session carries no token (#5005); `id` tells sessions apart.
+function session(id: string, tenantId = 1) {
+  return mockSessionData({ user: { id, tenantId } });
 }
 
 describe("getCachedSession", () => {
@@ -42,7 +43,7 @@ describe("getCachedSession", () => {
     const first = await getCachedSession();
     const second = await getCachedSession();
 
-    expect(first?.user?.token).toBe("token-a");
+    expect(first?.user?.id).toBe("token-a");
     expect(second).toBe(first);
     expect(mockGetSession).toHaveBeenCalledTimes(1);
   });
@@ -62,7 +63,7 @@ describe("getCachedSession", () => {
 
     expect(mockGetSession).toHaveBeenCalledTimes(1);
     for (const result of results) {
-      expect(result?.user?.token).toBe("token-b");
+      expect(result?.user?.id).toBe("token-b");
     }
   });
 
@@ -77,7 +78,7 @@ describe("getCachedSession", () => {
     mockGetSession.mockResolvedValueOnce(session("token-new"));
     const result = await getCachedSession();
 
-    expect(result?.user?.token).toBe("token-new");
+    expect(result?.user?.id).toBe("token-new");
     expect(mockGetSession).toHaveBeenCalledTimes(2);
     now.mockRestore();
   });
@@ -91,7 +92,7 @@ describe("getCachedSession", () => {
     mockGetSession.mockResolvedValueOnce(session("token-new"));
     const result = await getCachedSession();
 
-    expect(result?.user?.token).toBe("token-new");
+    expect(result?.user?.id).toBe("token-new");
     expect(mockGetSession).toHaveBeenCalledTimes(2);
   });
 
@@ -136,7 +137,7 @@ describe("getCachedSession", () => {
     mockGetSession.mockResolvedValueOnce(session("token-fresh"));
     const result = await getCachedSession();
 
-    expect(result?.user?.token).toBe("token-fresh");
+    expect(result?.user?.id).toBe("token-fresh");
     expect(mockGetSession).toHaveBeenCalledTimes(2);
   });
 
@@ -169,7 +170,7 @@ describe("getCachedSession", () => {
 
     // The fresh result must be the one cached now.
     const cached = await getCachedSession();
-    expect(cached?.user?.token).toBe("token-fresh");
+    expect(cached?.user?.id).toBe("token-fresh");
     expect(mockGetSession).toHaveBeenCalledTimes(2);
   });
 });
@@ -185,7 +186,7 @@ describe("primeSessionCache", () => {
 
     const result = await getCachedSession();
 
-    expect(result?.user?.token).toBe("primed");
+    expect(result?.user?.id).toBe("primed");
     expect(mockGetSession).not.toHaveBeenCalled();
   });
 
@@ -204,7 +205,7 @@ describe("primeSessionCache", () => {
     await stale;
 
     const result = await getCachedSession();
-    expect(result?.user?.token).toBe("primed");
+    expect(result?.user?.id).toBe("primed");
     expect(mockGetSession).toHaveBeenCalledTimes(1);
   });
 
@@ -217,7 +218,7 @@ describe("primeSessionCache", () => {
     clearSessionCache();
     const result = await getCachedSession();
 
-    expect(result?.user?.token).toBe("fresh");
+    expect(result?.user?.id).toBe("fresh");
     expect(mockGetSession).toHaveBeenCalledTimes(1);
   });
 });
@@ -293,6 +294,26 @@ describe("sessionFetch", () => {
     expect(error).toMatchObject({
       status: 503,
       code: "general.unavailable",
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("refuses a session the callback stripped without sending the request", async () => {
+    const { sessionFetch } = await freshModule();
+    const { ApiError } = await import("./api-error");
+    mockGetSession.mockResolvedValueOnce({
+      ...session("token-a"),
+      error: "RefreshTokenError",
+    });
+
+    const error = await sessionFetch("/api/test").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 401,
+      code: "general.permission",
     });
     expect(mockFetch).not.toHaveBeenCalled();
   });

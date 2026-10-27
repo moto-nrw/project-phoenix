@@ -761,6 +761,24 @@ function itemSafeId(value: string): string {
 }
 
 /**
+ * Who signs the item (#4800): a class letter names the Lehrkraft, her class
+ * and the school; a letter of the OGS the school alone.
+ */
+function senderLabel(
+  item: ParentAnnouncement,
+  t: ReturnType<typeof useTranslations<"parentDashboard">>,
+): string {
+  if (!item.sender_name || !item.sender_school_class) return item.school_name;
+  return t("newsSender", {
+    name: item.sender_name,
+    // The text names the class itself: "3a", even where the school
+    // stores "Klasse 3a".
+    schoolClass: item.sender_school_class.replace(/^klasse\s+/i, ""),
+    school: item.school_name,
+  });
+}
+
+/**
  * Compact feed card: type, title, preview and completion state.
  *
  * A poll is NOT answered here. The card only flags that an answer is due and
@@ -810,7 +828,7 @@ export function NewsCard({
           {item.title}
         </span>
         <span className="mt-0.5 block text-xs text-gray-500">
-          {item.school_name}
+          {senderLabel(item, t)}
           {item.published_at
             ? ` · ${formatDate(item.published_at, false, locale)}`
             : ""}
@@ -967,8 +985,8 @@ function NewsMessageSection({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h4 id={headingId} className="text-base font-semibold text-gray-950">
           {isDeclarationItem(item)
-            ? t("newsDeclarationFrom", { school: item.school_name })
-            : t("newsMessageFrom", { school: item.school_name })}
+            ? t("newsDeclarationFrom", { school: senderLabel(item, t) })
+            : t("newsMessageFrom", { school: senderLabel(item, t) })}
         </h4>
         {item.published_at && (
           <time className="text-sm text-gray-500">

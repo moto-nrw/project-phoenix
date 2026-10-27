@@ -28,13 +28,17 @@ func TestSchoolPortalCatalogue(t *testing.T) {
 	for _, def := range TypesForPortal(PortalSchool) {
 		keys = append(keys, def.Key)
 	}
-	assert.Equal(t, []string{TypeStaffMessage}, keys)
+	assert.Equal(t, []string{TypeSchoolClassAbsenceReported, TypeStaffMessage}, keys)
 
 	staffMessage, _ := GetType(TypeStaffMessage)
 	pickup, _ := GetType(TypePickupUpcoming)
+	classAbsence, _ := GetType(TypeSchoolClassAbsenceReported)
 	assert.True(t, OfferedInPortal(staffMessage, PortalSchool))
 	assert.True(t, OfferedInPortal(staffMessage, PortalStaff), "still offered in the OGS portal")
 	assert.False(t, OfferedInPortal(pickup, PortalSchool), "supervision reminders never address a Lehrkraft")
+	assert.True(t, OfferedInPortal(classAbsence, PortalSchool))
+	assert.False(t, OfferedInPortal(classAbsence, PortalStaff), "the class notice exists only in moto schule (#4792)")
+	assert.Equal(t, "Krankmeldungen meiner Klassen", classAbsence.Label)
 }
 
 // A school registration rebinds the browser endpoint: the school a Lehrkraft
@@ -155,6 +159,14 @@ func TestSchoolPushDeliveryIsLimitedToSupportedTypes(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*deliveryModels.PushSubscription{staffSub, schoolSub}, supported)
+
+	schoolOnly, err := channel.resolveEventSubscriptions(context.Background(), Event{
+		Type:     TypeSchoolClassAbsenceReported,
+		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*deliveryModels.PushSubscription{schoolSub}, schoolOnly,
+		"a school-only type never reaches an OGS device of the same account (#4792)")
 }
 
 // The same split holds for the devices: a test fired in moto schule reaches

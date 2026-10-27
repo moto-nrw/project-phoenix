@@ -83,6 +83,14 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
     portalPath: true,
     badge: "notices",
   },
+  // Briefe der Lehrkraft an die Eltern ihrer Klasse (#4800).
+  {
+    key: "parentLetters",
+    href: "/school/elternbriefe",
+    label: "Elternbriefe",
+    concept: "news",
+    portalPath: true,
+  },
   // Termine der OGS, Schließtage, Ferien und die eigenen Schultermine (#4798).
   {
     key: "calendar",

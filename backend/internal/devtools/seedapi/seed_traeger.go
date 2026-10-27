@@ -119,6 +119,11 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 		return err
 	}
 	token, err := seedHolidayRegistrations(rt, auth, periodID, published, schools[0])
+	if errors.Is(err, errSeedHolidayRegistrationRefused) {
+		fmt.Printf("  WARNING: %v; the holiday period stays without registrations\n", err)
+		rt.Values[seedHolidayRegistrationsSkippedKey] = true
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -130,20 +135,25 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err := seedHolidayRegistrationPrefill(ctx, rt, token); err != nil {
 		return err
 	}
-	return seedHolidayParticipantList(rt)
+	weekID, err := seedHolidayParticipantList(rt)
+	if err != nil || weekID == 0 {
+		return err
+	}
+	return seedHolidayGuests(rt, weekID)
 }
 
 // seedHolidayParticipantList reads the participant list of the first hosted
 // week as the hosting school's admin (#4665): the confirmed siblings, counted
 // per time model and home school, and the read in the school's access log. A
 // run without a school session, like the step's own tests, reads nothing.
-func seedHolidayParticipantList(rt *Runtime) error {
+// It returns the week it read.
+func seedHolidayParticipantList(rt *Runtime) (int64, error) {
 	if rt.TenantAuth.Token == "" {
-		return nil
+		return 0, nil
 	}
 	raw, err := rt.Client.GetWithAuth(rt.TenantAuth, "/api/holiday-weeks/")
 	if err != nil {
-		return fmt.Errorf("list the hosted holiday weeks: %w", err)
+		return 0, fmt.Errorf("list the hosted holiday weeks: %w", err)
 	}
 	var envelope struct {
 		Data []struct {
@@ -152,15 +162,49 @@ func seedHolidayParticipantList(rt *Runtime) error {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return fmt.Errorf("decode the hosted holiday weeks: %w", err)
+		return 0, fmt.Errorf("decode the hosted holiday weeks: %w", err)
 	}
 	if len(envelope.Data) == 0 || envelope.Data[0].Participants == 0 {
-		return fmt.Errorf("the hosting school sees no confirmed child in its first holiday week")
+		return 0, fmt.Errorf("the hosting school sees no confirmed child in its first holiday week")
 	}
 	if _, err := rt.Client.GetWithAuth(rt.TenantAuth, fmt.Sprintf("/api/holiday-weeks/%d/participants", envelope.Data[0].ID)); err != nil {
-		return fmt.Errorf("read the holiday participant list: %w", err)
+		return 0, fmt.Errorf("read the holiday participant list: %w", err)
 	}
 	fmt.Printf("  Ausrichtende OGS: participant list with %d confirmed child(ren) read\n", envelope.Data[0].Participants)
+	return envelope.Data[0].ID, nil
+}
+
+// seedHolidayGuests creates the group "Feriengruppe" at the hosting school
+// and picks it for the first hosted week (#4666): the confirmed holiday
+// guest of the siblings' registration joins it with its booked care, its
+// emergency contact and its pickup person. The sibling of the hosting school
+// stays in its own group. The step fails when no guest joins.
+func seedHolidayGuests(rt *Runtime, weekID int64) error {
+	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/groups", map[string]any{"name": "Feriengruppe", "teacher_ids": []int64{}})
+	if err != nil {
+		return fmt.Errorf("create the holiday group: %w", err)
+	}
+	groupID, err := decodeSeedEntityID(raw)
+	if err != nil {
+		return fmt.Errorf("read the holiday group: %w", err)
+	}
+	raw, err = rt.Client.PutWithAuth(rt.TenantAuth, fmt.Sprintf("/api/holiday-weeks/%d/guest-group", weekID),
+		map[string]any{"group_id": fmt.Sprint(groupID)})
+	if err != nil {
+		return fmt.Errorf("take the holiday guests into the group: %w", err)
+	}
+	var envelope struct {
+		Data struct {
+			Guests int `json:"guests"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("decode the holiday guest transfer: %w", err)
+	}
+	if envelope.Data.Guests == 0 {
+		return fmt.Errorf("no holiday guest joined the holiday group")
+	}
+	fmt.Printf("  Ausrichtende OGS: %d holiday guest(s) in the Feriengruppe\n", envelope.Data.Guests)
 	return nil
 }
 
@@ -179,6 +223,10 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 		return "", fmt.Errorf("show the holiday contribution: %w", err)
 	}
 	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, registration)
+	var refused *APIError
+	if errors.As(err, &refused) && slices.Contains(seedHolidayRefusals, refused.Code) {
+		return "", fmt.Errorf("%w: %s", errSeedHolidayRegistrationRefused, refused.Code)
+	}
 	if err != nil {
 		return "", fmt.Errorf("register for the holiday period: %w", err)
 	}
@@ -299,6 +347,22 @@ func seedHolidayDuplicate(registration map[string]any) map[string]any {
 // seedTurnstileTestToken is the token Cloudflare's Turnstile test keys of
 // the dev and CI environments accept (dev.env.example).
 const seedTurnstileTestToken = "XXXX.DUMMY.TOKEN.XXXX"
+
+// The public holiday registration always requires Turnstile (ADR 0110). The
+// demo server holds a real Turnstile key, which refuses the test token. It
+// also counts every attempt per Träger, sender e-mail and IP address, and
+// all demo schools share one Träger and the seeded parent's address: after
+// five orders a day the server refuses the attempt before the captcha. On
+// either refusal the holiday step publishes the period without
+// registrations and skips what builds on them, the billing run and the
+// confirmation letters, instead of failing every demo school order.
+var seedHolidayRefusals = []string{"enrollment.captcha_failed", seedSubmissionRateLimited}
+
+var errSeedHolidayRegistrationRefused = errors.New("the server refuses the seeded holiday registration")
+
+// seedHolidayRegistrationsSkippedKey marks a run whose holiday period has no
+// registrations, so the confirmation letters step has no run to write for.
+const seedHolidayRegistrationsSkippedKey = "traeger.holiday_registrations_skipped"
 
 // seedHolidayRegistration builds the public registration of two siblings for
 // the published period: a child of homeSchool for the first week and a

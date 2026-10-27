@@ -1,17 +1,21 @@
-import type { NextRequest } from "next/server";
 import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withPrivateNoStore } from "~/lib/private-no-store";
+import { withTenantAuth } from "~/server/auth/tenant-route";
+import type { ServerAuthRequest } from "~/server/auth/route-handler";
 
 async function PUTHandler(
-  request: NextRequest,
+  request: ServerAuthRequest,
   context: { params: Promise<{ accountId: string }> },
 ) {
   const { accountId } = await context.params;
   return forwardJsonPost(
     request,
     `/auth/accounts/${encodeURIComponent(accountId)}/mfa/override`,
-    { method: "PUT", hasBody: true },
+    {
+      sessionToken: request.auth?.user?.token ?? null,
+      method: "PUT",
+      hasBody: true,
+    },
   );
 }
 
-export const PUT = withPrivateNoStore(PUTHandler);
+export const PUT = withTenantAuth(PUTHandler);

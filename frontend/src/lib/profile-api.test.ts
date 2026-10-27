@@ -12,11 +12,13 @@ vi.mock("./session-cache", () => {
     getCachedSession,
     clearSessionCache: vi.fn(),
     sessionFetch: vi.fn(async (url: string, init?: RequestInit) => {
+      // Same gate as the real sessionFetch (hasSessionAccess, #5005).
       const session = (await getCachedSession()) as {
-        user?: { token?: string };
+        user?: { id?: string };
+        error?: string;
       } | null;
-      const token = session?.user?.token;
-      if (!token) throw new Error("No authentication token available");
+      if (!session?.user || session.error)
+        throw new Error("No authentication token available");
       return fetch(url, {
         ...init,
         headers: {
@@ -91,7 +93,7 @@ describe("profile-api", () => {
 
     // Default session mock
     mockedGetSession.mockResolvedValue({
-      user: { id: "1", token: "test-token" },
+      user: { id: "1" },
       expires: "2099-01-01",
     });
 
@@ -153,9 +155,10 @@ describe("profile-api", () => {
       );
     });
 
-    it("throws error when session user has no token", async () => {
+    it("throws error when the session was stripped", async () => {
       mockedGetSession.mockResolvedValue({
         user: { id: "1" },
+        error: "RefreshTokenError",
         expires: "2099-01-01",
       } as never);
 
@@ -337,15 +340,14 @@ describe("profile-api", () => {
         "/api/me/profile/avatar",
         expect.objectContaining({
           method: "POST",
-          headers: {
-            Authorization: "Bearer test-token",
-          },
         }),
       );
 
-      // Verify FormData was created with the file
+      // Verify FormData was created with the file; the route reads the
+      // session cookie, so no Authorization header goes out (#5005).
       const callArgs = mockFetch.mock.calls[0];
       expect(callArgs).toBeDefined();
+      expect(callArgs?.[1]?.headers).toBeUndefined();
       const body = callArgs?.[1]?.body as FormData;
       expect(body).toBeInstanceOf(FormData);
       expect(body.get("avatar")).toBe(mockFile);

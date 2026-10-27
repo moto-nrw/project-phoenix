@@ -590,6 +590,88 @@ type SupervisionSheetInput struct {
 	ActorRole         string
 }
 
+// SchoolDayTotals summarize the school-wide day overview (#4802), for the
+// whole school or one class.
+type SchoolDayTotals struct {
+	// DayTotals are the class view's own counts (students, staying, leaving,
+	// absent, list entries), so a class reads the same numbers here and on
+	// its own page.
+	DayTotals
+	// Missing counts the children whose school-morning status is "absent"
+	// (#4790): marked by the Lehrkraft, or filled in from a reported sick,
+	// excused or class-trip day.
+	Missing int `json:"missing"`
+	// Sick, Excused and ClassTrip count the reported day statuses.
+	Sick      int `json:"sick"`
+	Excused   int `json:"excused"`
+	ClassTrip int `json:"class_trip"`
+	// Changes counts the children whose day differs from their plan: a
+	// reported day status or a changed pickup time, as in the class view.
+	Changes int `json:"changes"`
+}
+
+// After-school outcomes of a child in the school-wide day overview.
+const (
+	SchoolDayStays    = "stays"
+	SchoolDayGoesHome = "goes_home"
+)
+
+// SchoolDayChild is one child of the school-wide day overview, reduced to
+// what its numbers count: the name, the day status, the morning status and
+// whether the child stays in the OGS. No times, departures or contacts.
+type SchoolDayChild struct {
+	StudentID int64 `json:"student_id,string,omitempty"`
+	// ListEntry marks a class-list-only entry (#2382); ListEntryID carries
+	// its id as a JSON string.
+	ListEntry   bool   `json:"list_entry,omitempty"`
+	ListEntryID int64  `json:"list_entry_id,string,omitempty"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	// Status is the day status as in the class view ("sick", "excused",
+	// "class_trip", "cancelled"), empty without one.
+	Status string `json:"status,omitempty"`
+	// Missing is true when the school-morning status is "absent".
+	Missing bool `json:"missing,omitempty"`
+	// AfterSchool is SchoolDayStays or SchoolDayGoesHome, empty for a child
+	// with a day status, a class-list-only entry and whenever the totals
+	// leave Staying and Leaving at zero.
+	AfterSchool string `json:"after_school,omitempty"`
+	// Changed marks a day that differs from the child's plan.
+	Changed bool `json:"changed,omitempty"`
+}
+
+// SchoolDayClass is one class of the school-wide day overview.
+type SchoolDayClass struct {
+	SchoolClass string           `json:"school_class"`
+	Totals      SchoolDayTotals  `json:"totals"`
+	Children    []SchoolDayChild `json:"children"`
+}
+
+// SchoolDayReport is the school-wide day overview of moto schule (#4802).
+// Its JSON shape is the wire contract of GET /school/class-day/school-day.
+type SchoolDayReport struct {
+	Date Date `json:"date"`
+	// Weekday is the plan day key ("mon".."fri"), empty on a weekend that
+	// does not follow Friday's plan.
+	Weekday   string `json:"weekday"`
+	SchoolDay bool   `json:"school_day"`
+	// EnrollmentKnown is false when no enrollment phase covers the date.
+	EnrollmentKnown bool             `json:"enrollment_known"`
+	Totals          SchoolDayTotals  `json:"totals"`
+	Classes         []SchoolDayClass `json:"classes"`
+}
+
+// SchoolDay is the school-wide day overview of moto schule (#4802), a facade
+// of its own beside ClassDay. The class rosters, day statuses, plans and
+// morning marks of every class are read once for the whole school, not once
+// per class. The capability ClassDay returns implements it; the HTTP adapter
+// serves it only to holders of class_day:all_classes.
+type SchoolDay interface {
+	// SchoolDayReport builds the overview of every class the caller may see
+	// on the date and records the access in the GDPR log.
+	SchoolDayReport(ctx context.Context, date Date, actor Actor) (*SchoolDayReport, error)
+}
+
 // DayHints is the day-hint write of the school portal (#4795), a facade of its
 // own beside ClassDay: the Lehrkraft writes today's hint for an assigned class
 // or one of its children. The day report carries the hints; this writes them.

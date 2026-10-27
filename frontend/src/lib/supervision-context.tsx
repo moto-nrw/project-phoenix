@@ -9,6 +9,7 @@ import React, {
   useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
+import { sessionIdentityKey } from "~/lib/session-access";
 import {
   canReadSupervisionData,
   hasEffectiveAdminScope,
@@ -128,7 +129,9 @@ export function SupervisionProvider({
   initial?: SupervisionSnapshot | null;
 }>) {
   const { data: session } = useSession();
-  const sessionToken = session?.user?.token;
+  // Whose data the provider shows (the browser session carries no token,
+  // #5005): a changed account, school or set of rights starts a new load.
+  const sessionKey = sessionIdentityKey(session);
 
   const [state, setState] = useState<SupervisionState>(() =>
     initialState(initial),
@@ -142,13 +145,13 @@ export function SupervisionProvider({
   const pendingFullRefreshRef = React.useRef(false);
   const pendingRefreshWaiterRef = React.useRef<RefreshWaiter | null>(null);
 
-  // Store token and admin status in refs to avoid dependency loops.
+  // Store session identity and admin status in refs to avoid dependency loops.
   // EVERY caller with `groups:read` tries the school-wide overview endpoint
   // first — admins and caregivers alike (#2380). The server-side scope
   // setting is the single source of truth for whether all rooms are visible;
   // a 403 means this school keeps the caller on their own supervisions, and
   // the staff endpoint answers instead.
-  const tokenRef = useLatest(sessionToken);
+  const sessionKeyRef = useLatest(sessionKey);
   const sessionHasEffectiveAdminScope = hasEffectiveAdminScope(session);
 
   // The tenant's configured scope tells us whether asking for the school-wide
@@ -233,7 +236,7 @@ export function SupervisionProvider({
 
   // Check if user has any groups (as teacher or representative)
   const checkGroups = useCallback(async () => {
-    const token = tokenRef.current;
+    const hasSession = sessionKeyRef.current !== null;
     const generation = schoolGenerationRef.current;
     const applyCurrent = (
       groupList: NavigationEducationalGroup[],
@@ -243,7 +246,7 @@ export function SupervisionProvider({
         applyGroups(groupList, loadFailed);
       }
     };
-    if (!token) {
+    if (!hasSession) {
       setState((prev) => ({
         ...prev,
         hasGroups: false,
@@ -277,7 +280,7 @@ export function SupervisionProvider({
     } catch {
       applyCurrent([], true);
     }
-  }, [applyGroups, tokenRef]);
+  }, [applyGroups, sessionKeyRef]);
 
   const applySupervision = useCallback((next: DerivedSupervision) => {
     setState((prev) => {
@@ -291,12 +294,12 @@ export function SupervisionProvider({
 
   // Check if user is supervising an active room (also fetches Schulhof status)
   const checkSupervision = useCallback(async () => {
-    const token = tokenRef.current;
+    const hasSession = sessionKeyRef.current !== null;
     const generation = schoolGenerationRef.current;
     const applyCurrent = (next: DerivedSupervision) => {
       if (generation === schoolGenerationRef.current) applySupervision(next);
     };
-    if (!token) {
+    if (!hasSession) {
       applySupervision(EMPTY_SUPERVISION_STATE);
       return;
     }
@@ -396,7 +399,7 @@ export function SupervisionProvider({
       // On error the open-room list is unreachable too, so just clear.
       applyCurrent(EMPTY_SUPERVISION_STATE);
     }
-  }, [applySupervision, canReadGroupsRef, mayHaveOverviewRef, tokenRef]);
+  }, [applySupervision, canReadGroupsRef, mayHaveOverviewRef, sessionKeyRef]);
 
   // Check Schulhof status and add to supervised rooms if exists
   // Refresh all supervision states with debouncing
@@ -520,14 +523,14 @@ export function SupervisionProvider({
   }, [overviewScope]);
 
   // The session moved to another school, the URL school changed, or the two
-  // started/stopped matching (#3375). The token effect below cannot cover
+  // started/stopped matching (#3375). The session effect below cannot cover
   // this: its load is throttled away when the switch follows the first load
   // within five seconds, and the other school's groups then stay until the
-  // five-minute resync. Declared before the token effect so that one finds the
-  // load already started.
+  // five-minute resync. Declared before the session effect so that one finds
+  // the load already started.
   const previousSchoolRef = React.useRef({
     sessionTenantId,
-    sessionToken,
+    sessionKey,
     urlTenantSlug,
     urlTenantRoutingMode,
     urlTenantId,
@@ -547,7 +550,7 @@ export function SupervisionProvider({
     const previous = previousSchoolRef.current;
     previousSchoolRef.current = {
       sessionTenantId,
-      sessionToken,
+      sessionKey,
       urlTenantSlug,
       urlTenantRoutingMode,
       urlTenantId,
@@ -556,7 +559,7 @@ export function SupervisionProvider({
     };
     const sessionChanged =
       previous.sessionTenantId !== sessionTenantId ||
-      previous.sessionToken !== sessionToken;
+      previous.sessionKey !== sessionKey;
     const schoolIdentityChanged =
       previous.sessionTenantId !== sessionTenantId ||
       previous.urlTenantSlug !== urlTenantSlug ||
@@ -603,7 +606,7 @@ export function SupervisionProvider({
     void refreshRef.current?.({ silent: true, force: true });
   }, [
     sessionTenantId,
-    sessionToken,
+    sessionKey,
     urlTenantSlug,
     urlTenantRoutingMode,
     urlTenantId,
@@ -615,7 +618,7 @@ export function SupervisionProvider({
   // Initial load and refresh on session changes only
   useEffect(() => {
     // Only refresh when session actually changes (not on every render)
-    if (session?.user?.token) {
+    if (sessionKey) {
       // The server snapshot IS the initial load; count it as one so the
       // 5-second throttle applies exactly as after a fetched load.
       if (seededRef.current) {
@@ -639,13 +642,13 @@ export function SupervisionProvider({
         isLoadingSupervision: false,
       });
     }
-  }, [session?.user?.token]); // Only depend on token
+  }, [sessionKey]); // Only depend on the session identity
 
   // SSE is a trigger channel, not durable state. A low-frequency resync
   // repairs missed events or an unavailable connection without restoring the
   // former per-minute request load.
   useEffect(() => {
-    if (!session?.user?.token) return;
+    if (!sessionKey) return;
 
     const interval = setInterval(() => {
       refreshRef.current?.({ silent: true, force: true }).catch(() => {
@@ -653,12 +656,12 @@ export function SupervisionProvider({
       });
     }, RESYNC_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [session?.user?.token]);
+  }, [sessionKey]);
 
   // SSE announces access changes and activity lifecycle changes. The provider
   // owns these raw fetches, so it also owns the precise refresh scope.
   useEffect(() => {
-    if (!session?.user?.token) return;
+    if (!sessionKey) return;
 
     const handleStale = (event: Event) => {
       const groupsOnly =
@@ -684,7 +687,7 @@ export function SupervisionProvider({
       pendingFullRefreshRef.current = false;
       window.removeEventListener("phoenix:supervision-stale", handleStale);
     };
-  }, [session?.user?.token]);
+  }, [sessionKey]);
 
   const value = useMemo<SupervisionContextType>(
     () => ({

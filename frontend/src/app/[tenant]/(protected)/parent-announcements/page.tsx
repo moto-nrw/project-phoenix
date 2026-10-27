@@ -59,6 +59,7 @@ import {
 } from "~/components/announcements/announcement-reminder-dialog";
 import {
   AnnouncementStatusBadge,
+  classLetterReadOnlyNote,
   describeReminder,
   KIND_PARAM,
   kindFromParam,
@@ -114,6 +115,7 @@ import type { Activity } from "~/lib/activity-helpers";
 import {
   createAnnouncement,
   fetchAnnouncements,
+  isClassLetter,
   publishAnnouncement,
   updateAnnouncement,
   announcementAttachmentDownloadUrl,
@@ -360,7 +362,12 @@ function ParentAnnouncementsContent() {
   useEffect(() => {
     if (!editRequestId || announcements === undefined) return;
     const requested = announcements.find((a) => a.id === editRequestId);
-    if (requested && requested.status === "draft" && !requested.system_kind) {
+    if (
+      requested &&
+      requested.status === "draft" &&
+      !requested.system_kind &&
+      !isClassLetter(requested)
+    ) {
       setEditing(requested);
       setIsFormOpen(true);
     }
@@ -559,6 +566,11 @@ function ParentAnnouncementsContent() {
           <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
             {row.body}
           </p>
+          {isClassLetter(row) && (
+            <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
+              {classLetterReadOnlyNote(row)}
+            </p>
+          )}
         </div>
       ),
     },

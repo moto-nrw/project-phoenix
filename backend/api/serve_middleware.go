@@ -175,15 +175,15 @@ func parseAllowedOrigins(originsEnv string) (exact []string, wildcardSuffixes []
 	return exact, wildcardSuffixes
 }
 
-// setupSecurityLogging configures security logging middleware if enabled
-func setupSecurityLogging(router chi.Router) *customMiddleware.SecurityLogger {
+// securityLoggerFromEnv returns the security logger the rate limiters log
+// their rejections to, nil unless SECURITY_LOGGING_ENABLED is set. The
+// limiters are the only source of RATE_LIMIT_EXCEEDED events: one rejection,
+// one event.
+func securityLoggerFromEnv() *customMiddleware.SecurityLogger {
 	if os.Getenv("SECURITY_LOGGING_ENABLED") != "true" {
 		return nil
 	}
-
-	securityLogger := customMiddleware.NewSecurityLogger()
-	router.Use(customMiddleware.SecurityLoggingMiddleware(securityLogger))
-	return securityLogger
+	return customMiddleware.NewSecurityLogger()
 }
 
 // demoLoopbackExempt reports whether the rate limiters let loopback peers
@@ -257,10 +257,14 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 			authLimit = parsed
 		}
 	}
+	// The burst matches one minute's budget, at least 10: a school's staff
+	// share one public IP, so a morning sign-in wave (login plus MFA) arrives
+	// at once.
+	burst := max(10, authLimit)
 	limiters := authRateLimiters{
-		auth:         customMiddleware.NewRateLimiter(authLimit, 10), // allow reasonable burst for login attempts
-		emailConfirm: customMiddleware.NewRateLimiter(authLimit, 10),
-		invitation:   customMiddleware.NewRateLimiter(authLimit, 10),
+		auth:         customMiddleware.NewRateLimiter(authLimit, burst),
+		emailConfirm: customMiddleware.NewRateLimiter(authLimit, burst),
+		invitation:   customMiddleware.NewRateLimiter(authLimit, burst),
 	}
 	if exemptLoopback {
 		limiters.auth.ExemptLoopback()
@@ -282,11 +286,7 @@ func authRateLimitersFromEnv() authRateLimiters {
 	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
 		return authRateLimiters{}
 	}
-	var securityLogger *customMiddleware.SecurityLogger
-	if os.Getenv("SECURITY_LOGGING_ENABLED") == "true" {
-		securityLogger = customMiddleware.NewSecurityLogger()
-	}
-	return buildAuthRateLimiters(securityLogger, os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"), demoLoopbackExempt())
+	return buildAuthRateLimiters(securityLoggerFromEnv(), os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"), demoLoopbackExempt())
 }
 
 // authMiddleware is the auth limiter's middleware, nil while rate limiting is

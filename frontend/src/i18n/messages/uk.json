@@ -423,6 +423,7 @@
     "newsAcknowledgementHint": "Так ви лише підтверджуєте, що прочитали лист батькам.",
     "newsMessageFrom": "Лист батькам від {school}",
     "newsDeclarationFrom": "Згода · {school}",
+    "newsSender": "{name}, клас {schoolClass}, {school}",
     "newsRead": "Прочитано",
     "newsStaleError": "Цей лист батькам уже не актуальний. Оновіть сторінку.",
     "newsPoll": "Опитування",
@@ -2545,7 +2546,9 @@
         "survey_not_open": "Це опитування більше не приймає відповіді.",
         "survey_already_answered": "Ви вже брали участь у цьому опитуванні. Відповідь змінити не можна.",
         "survey_not_draft": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "survey_anonymous": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "survey_anonymous": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "class_letter_class_not_reachable": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "class_letter_read_only": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "enrollment": {
         "form_attachment_invalid": "Перевірте назву та PDF-файл.",
@@ -2680,7 +2683,9 @@
         "holiday_registration_not_found": "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
         "holiday_registration_state_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "holiday_week_booked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "hosted_holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "hosted_holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "holiday_guest_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "holiday_guest_group_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані."
       },
       "files": {
         "announcement_published": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2839,6 +2844,7 @@
         "billing_letter_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_letters_exist": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_letters_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "billing_letters_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_empty": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2850,9 +2856,11 @@
         "contribution_rule_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "holiday_quote_invalid": "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
         "invoice_number_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "letter_mail_pending": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "letterhead_too_long": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "number_range_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
-        "number_range_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "number_range_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "recipient_email_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",

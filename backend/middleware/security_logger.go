@@ -50,45 +50,11 @@ func (sl *SecurityLogger) LogEvent(eventType string, r *http.Request, details ma
 	sl.getLogger().Info("security event", attrs...)
 }
 
-// LogRateLimitExceeded logs rate limit violations
+// LogRateLimitExceeded logs a rate limit rejection. The RateLimiter is its
+// only caller, so each rejection yields one event; a 429 a handler writes
+// itself (e.g. an MFA send limit) is no limiter rejection and is not logged.
 func (sl *SecurityLogger) LogRateLimitExceeded(r *http.Request) {
 	sl.LogEvent(EventRateLimitExceed, r, map[string]interface{}{
 		"timestamp": time.Now().Unix(),
 	})
-}
-
-// SecurityLoggingMiddleware logs security-relevant requests
-func SecurityLoggingMiddleware(sl *SecurityLogger) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Wrap response writer to capture status code
-			wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-
-			next.ServeHTTP(wrapped, r)
-
-			// Log based on response
-			if wrapped.statusCode == http.StatusTooManyRequests {
-				sl.LogRateLimitExceeded(r)
-			}
-		})
-	}
-}
-
-// responseWriter wraps http.ResponseWriter to capture status code
-type responseWriter struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func (rw *responseWriter) WriteHeader(code int) {
-	rw.statusCode = code
-	rw.ResponseWriter.WriteHeader(code)
-}
-
-// Flush implements http.Flusher by delegating to the underlying ResponseWriter.
-// This is required for SSE (Server-Sent Events) to work when this middleware is active.
-func (rw *responseWriter) Flush() {
-	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
-	}
 }

@@ -82,8 +82,7 @@ export default function OperatorSchoolDetailPage({ params }: PageProps) {
 
 function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const { slug, schoolSlug } = use(params);
-  const { status, data: session } = useSession();
-  const operatorBearerToken = session?.user?.token ?? "";
+  const { status } = useSession();
   const isAuthenticated = status === "authenticated";
   const router = useRouter();
   const pathname = usePathname();
@@ -672,7 +671,6 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
           }}
           scope="operator"
           schoolId={mfaSchoolContext.id}
-          bearerToken={operatorBearerToken}
           accountId={mfaAccount.accountId}
           accountLabel={`${mfaAccount.firstName} ${mfaAccount.lastName}`.trim()}
         />

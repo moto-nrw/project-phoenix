@@ -652,6 +652,46 @@ describe("createPublicJsonProxy", () => {
   });
 });
 
+describe("client header forwarding", () => {
+  const clientRequest = () =>
+    request("/api/tenant/resolve?slug=a", {
+      headers: {
+        "user-agent": "Browser/1",
+        "x-forwarded-for": "198.51.100.1, 203.0.113.9",
+      },
+    });
+
+  // The backend rate-limits per client IP; a route that sends none puts all
+  // visitors into the frontend container's single bucket.
+  it("forwards the canonical client IP and User-Agent by default", async () => {
+    const GET = createPublicJsonProxy({
+      method: "GET",
+      path: "/auth/tenant/resolve",
+      contentTypeOnGet: false,
+    });
+
+    await GET(clientRequest());
+
+    expect(fetchHeaders()).toEqual({
+      "X-Forwarded-For": "203.0.113.9",
+      "User-Agent": "Browser/1",
+    });
+  });
+
+  it("sends no client headers with forwardClientHeaders: false", async () => {
+    const GET = createPublicJsonProxy({
+      method: "GET",
+      path: "/auth/tenant/resolve",
+      contentTypeOnGet: false,
+      forwardClientHeaders: false,
+    });
+
+    await GET(clientRequest());
+
+    expect(fetchHeaders()).toEqual({});
+  });
+});
+
 describe("createTenantApiAdapter", () => {
   it("rejects a request without a session token before running the handler", async () => {
     mockAuth.mockResolvedValueOnce(null);

@@ -47,8 +47,6 @@ export const TenantMismatchSwitching: Story = {
           user: {
             id: "1",
             roles: ["admin"],
-            token: "test-token",
-            refreshToken: "test-refresh-token",
             tenantId: 2,
             scope: "",
           },
@@ -79,8 +77,6 @@ export const OperatorSessionOnTenant: Story = {
           user: {
             id: "1",
             roles: ["operator"],
-            token: "test-token",
-            refreshToken: "test-refresh-token",
             tenantId: 1,
             scope: "platform",
           },
@@ -112,8 +108,6 @@ export const ExpiredSession: Story = {
           user: {
             id: "1",
             roles: ["admin"],
-            token: "",
-            refreshToken: "",
             tenantId: 1,
             scope: "",
           },

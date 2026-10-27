@@ -15,6 +15,7 @@ import {
   useLayoutEffect,
 } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
@@ -99,6 +100,7 @@ import {
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
   GroupTransfer,
@@ -455,14 +457,13 @@ function OGSGroupPageContent() {
     error: liveError,
     mutate: reloadLive,
   } = useSWRAuth<OgsLiveViewData>(
-    session?.user?.token ? `ogs-students-${selectedGroupId ?? "auto"}` : null,
+    hasSessionAccess(session)
+      ? `ogs-students-${selectedGroupId ?? "auto"}`
+      : null,
     async () => {
       logger.debug("SWR fetching aggregated OGS live view");
       const start = performance.now();
-      const data = await fetchOgsGroupLive(
-        session?.user?.token,
-        selectedGroupId,
-      );
+      const data = await fetchOgsGroupLive(selectedGroupId);
       logger.debug("SWR fetch complete", {
         duration_ms: (performance.now() - start).toFixed(0),
       });
@@ -1218,6 +1219,11 @@ function OGSGroupPageContent() {
                   }
                   extraContent={
                     <>
+                      {student.school_class === HOLIDAY_GUEST_SCHOOL_CLASS && (
+                        <StudentInfoRow icon={<SchoolClassIcon />}>
+                          Feriengast
+                        </StudentInfoRow>
+                      )}
                       {student.pending_excused_note !== undefined && (
                         <StudentPendingExcusedRow
                           note={student.pending_excused_note}

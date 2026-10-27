@@ -9,6 +9,7 @@ import {
   apiErrorFromResponse,
   unavailableApiError,
 } from "./api-error";
+import { hasSessionAccess } from "./session-access";
 import { getCachedSession, sessionFetch } from "./session-cache";
 
 export type StaffDocumentCategory =
@@ -111,8 +112,7 @@ class StaffDocumentsService {
       if (error instanceof ApiError) throw error;
       throw unavailableApiError(error);
     });
-    const token = session?.user?.token;
-    if (!token) {
+    if (!hasSessionAccess(session)) {
       throw new ApiError("Authentication required", 401, {
         code: "general.permission",
       });
@@ -127,7 +127,6 @@ class StaffDocumentsService {
       response = await fetch(`/api/staff/${staffId}/documents`, {
         method: "POST",
         body: formData,
-        headers: { Authorization: `Bearer ${token}` },
       });
     } catch (error) {
       throw unavailableApiError(error);

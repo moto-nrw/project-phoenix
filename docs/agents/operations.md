@@ -180,7 +180,7 @@ keys through 1Password/Signal, never Slack/email.
 
 1. `sops environments/staging.sops.env` decrypts into the editor and re-encrypts.
 2. Push to `development` deploys staging; push to `main` deploys production.
-   Demo deploys only through manual dispatch from `main`; see
+   Demo deploys only through manual dispatch from `main` or `development`; see
    [demo environment](../operations/demo-environment.md) for host setup and ports.
 3. CI decrypts and copies `.env` and compose to `~/<environment>/` and the release
    scripts to `~/scripts/<environment>/`. Staging and production deploy

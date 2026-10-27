@@ -22,6 +22,7 @@ type Renderer struct {
 
 var (
 	_ application.LetterRenderer = (*Renderer)(nil)
+	_ application.LetterCombiner = (*Renderer)(nil)
 	_ application.TableRenderer  = (*Renderer)(nil)
 )
 
@@ -43,6 +44,19 @@ func (r *Renderer) RenderLetter(letter application.Letter, filenameBase string) 
 	}, filenameBase)
 	if errors.Is(err, lists.ErrLetterheadTooLong) {
 		return parentbilling.BillingLetterFile{}, fmt.Errorf("%w: %w", parentbilling.ErrLetterheadTooLong, err)
+	}
+	if err != nil {
+		return parentbilling.BillingLetterFile{}, err
+	}
+	return parentbilling.BillingLetterFile{Filename: file.Filename, ContentType: file.ContentType, Data: file.Data}, nil
+}
+
+// CombineLetters puts the stored letters of a run into one PDF to print
+// (#4670).
+func (r *Renderer) CombineLetters(letters [][]byte, title, filenameBase string) (parentbilling.BillingLetterFile, error) {
+	file, err := r.letters.CombineLetters(letters, title, filenameBase)
+	if errors.Is(err, lists.ErrNoLetters) {
+		return parentbilling.BillingLetterFile{}, fmt.Errorf("%w: %w", parentbilling.ErrBillingLettersMissing, err)
 	}
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err

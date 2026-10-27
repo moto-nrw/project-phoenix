@@ -56,6 +56,10 @@ vi.mock("~/lib/logger", () => {
   };
 });
 
+// The server auth modules import "server-only", whose default export throws
+// outside Next.js's react-server condition (#5005). Tests import them in Node.
+vi.mock("server-only", () => ({}));
+
 // Avoid Zod validation while keeping required runtime values explicit.
 vi.mock("~/env", () => ({
   env: {

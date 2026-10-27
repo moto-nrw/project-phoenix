@@ -6,6 +6,7 @@
  * SignIn page: "/" (tenant login, resolved by subdomain proxy)
  */
 
+import "server-only";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
