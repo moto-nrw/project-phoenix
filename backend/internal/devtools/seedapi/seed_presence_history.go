@@ -444,28 +444,40 @@ func planPresenceHistory(input presenceHistoryInput) presenceHistoryPlan {
 		if !input.careDays(day) {
 			continue
 		}
-		occupancy := map[int64]int{}
-		for index, student := range input.students {
-			if student.lastDay != nil && day.After(*student.lastDay) {
-				continue
-			}
-			absent, status := plannedAbsence(index, day)
-			switch {
-			case !absent:
-				session, ok := weightedAvailableSession(input.sessions, occupancy, presenceRoll(index, day, "room"))
-				if ok {
-					occupancy[session.roomID]++
-				}
-				plan.days = append(plan.days, pastPresenceDay(input, berlin, index, student.id, day, session, ok))
-			case status == "":
-				plan.unexplained++
-			default:
-				addPresenceStatus(statuses, student.id, status, day)
-			}
-		}
+		days, unexplained := planPresenceHistoryDay(input, berlin, day, statuses)
+		plan.days = append(plan.days, days...)
+		plan.unexplained += unexplained
 	}
 	plan.statuses = sortedPresenceStatuses(statuses)
 	return plan
+}
+
+// planPresenceHistoryDay decides the past of every child on one care day. A
+// separate occupancy map keeps a room within capacity for this day only.
+func planPresenceHistoryDay(input presenceHistoryInput, berlin *time.Location, day calendar.Date, statuses map[int64]map[string][]calendar.Date) ([]PastPresenceDay, int) {
+	occupancy := map[int64]int{}
+	days := make([]PastPresenceDay, 0, len(input.students))
+	unexplained := 0
+	for index, student := range input.students {
+		if student.lastDay != nil && day.After(*student.lastDay) {
+			continue
+		}
+		absent, status := plannedAbsence(index, day)
+		if absent {
+			if status == "" {
+				unexplained++
+			} else {
+				addPresenceStatus(statuses, student.id, status, day)
+			}
+			continue
+		}
+		session, ok := weightedAvailableSession(input.sessions, occupancy, presenceRoll(index, day, "room"))
+		if ok {
+			occupancy[session.roomID]++
+		}
+		days = append(days, pastPresenceDay(input, berlin, index, student.id, day, session, ok))
+	}
+	return days, unexplained
 }
 
 // plannedAbsence decides whether a child stays away on a day and, if so,
