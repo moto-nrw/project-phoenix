@@ -13,6 +13,7 @@ import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
 import { withParentAuth } from "~/server/auth/parent-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
+import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { problemResponse } from "~/lib/api-helpers.server";
 
@@ -42,6 +43,7 @@ async function GETHandler(
       method: "GET",
       headers: {
         Authorization: `Bearer ${bearer}`,
+        ...clientIdentityHeaders(request.headers),
         ...(await incomingAnalyticsSessionHeaders()),
       },
       cache: "no-store",
