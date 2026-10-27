@@ -301,6 +301,42 @@ describe("CarePlanView", () => {
     ).toBe(true);
   });
 
+  it("keeps a navigated week stable after Berlin Monday midnight", () => {
+    setTestClock(new Date("2026-09-13T23:59:00+02:00")); // Sunday
+    vi.useFakeTimers();
+    setSWR(
+      { data: mockDay, isLoading: false, error: null },
+      { data: mockWeek, isLoading: false, error: null },
+    );
+    const onVisibleDateRangeChange = vi.fn();
+    render(
+      <CarePlanView
+        studentId="1"
+        statusDays={[]}
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+
+    selectTab("Woche");
+    fireEvent.click(screen.getByRole("button", { name: "Vorherige Woche" }));
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-08-31",
+      "2026-09-04",
+    );
+
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-08-31",
+      "2026-09-04",
+    );
+    expect(
+      screen.getByRole("button", { name: "Diese Woche" }),
+    ).toBeInTheDocument();
+  });
+
   it("selects the current weekend day after the school setting loads", async () => {
     setTestClock(new Date("2026-09-12T12:00:00+02:00"));
     setSWR(
