@@ -249,6 +249,12 @@ func containsTraeger(organizations []identityaccess.TraegerOrganization, organiz
 	})
 }
 
+// InAdminUnit reports an ambient administrative transaction: the unit the
+// participating Träger commands of the operator join (#5144).
+func (s *AccountAuthentication) InAdminUnit(ctx context.Context) bool {
+	return s.runtime.HasTransaction(ctx) && s.runtime.IsAdminTx(ctx)
+}
+
 // AssignTraegerRole grants a Träger role. It participates in the caller's
 // administrative transaction, which the Träger membership command of
 // Organisation & Tenancy owns; it never opens one itself.

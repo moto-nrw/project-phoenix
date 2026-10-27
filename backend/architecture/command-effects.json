@@ -44370,6 +44370,18 @@
     },
     {
       "source_owner": "organization-tenancy",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.InviteTraegerAccount",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.InviteTraegerAccount",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.InviteTraegerAccountForOperator",
+      "target_owner": "identity-access",
+      "binding_digest": "ad3d7d1d13ba245a588356e1a65ddb91",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded leaf command (ADR 0067 #4538 command participation): Identity \u0026 Access takes the Verwaltung lock of the Träger, refuses a member's address, spends the address's open Träger invitation, stores the new one and queues its mail through its own delivery port on the operator's administrative unit, which the operator invitation of Organisation \u0026 Tenancy owns together with the operator audit (ADR 0084, #5144). It refuses without that ambient administrative transaction and opens no unit, commit or scope switch itself."
+    },
+    {
+      "source_owner": "organization-tenancy",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.ProvisioningIdentity.ListAllAccounts",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ProvisioningIdentity.ListAllAccounts",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CompareAccountsBySchoolName",
