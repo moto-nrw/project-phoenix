@@ -501,8 +501,9 @@ func parseThreadMessageIDs(raw []byte) (int64, int64, error) {
 // parent-managed contact (#4780), so the child profile shows a pickup
 // permission limited to Tuesdays and Thursdays, approves the contact as the
 // collector of the next care day, and files an open request to walk home
-// alone four days out. Every one carries the drawn demo signature, so the
-// proofs open for the parent and the OGS.
+// alone four days out. The latter moves by one weekday when it would collide
+// with the existing open pickup request. Every one carries the drawn demo
+// signature, so the proofs open for the parent and the OGS.
 func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID int64) error {
 	raw, err := rt.Client.GetWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/pickup-permission-requests", studentID))
 	if err != nil {
@@ -515,7 +516,7 @@ func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID
 	if err := seedDecideCareRequest(rt, studentID, permissionID, "Danke, die Abholberechtigung ist eingetragen."); err != nil {
 		return err
 	}
-	collectorDate := seedWeekdayOnOrAfter(todaySeedDate())
+	collectorDate, aloneDate := seedParentPickupPermissionDays(todaySeedDate())
 	collectorSignature, err := seedPickupSignature(rt, auth, studentID, map[string]any{
 		"kind": "day_pickup", "person_name": "Gisela Hahn", "date": collectorDate.String(),
 	})
@@ -538,7 +539,6 @@ func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID
 	if err := seedDecideCareRequest(rt, studentID, collectorID, "Alles klar, wir geben Ihr Kind Gisela mit."); err != nil {
 		return err
 	}
-	aloneDate := seedWeekdayOnOrAfter(todaySeedDate().AddDays(4))
 	aloneSignature, err := seedPickupSignature(rt, auth, studentID, map[string]any{
 		"kind": "day_pickup", "date": aloneDate.String(), "departure_mode": "alone",
 	})
@@ -554,6 +554,17 @@ func seedParentPickupPermissions(rt *Runtime, auth AuthRef, studentID, contactID
 		return fmt.Errorf("seed walking home alone request: %w", err)
 	}
 	return nil
+}
+
+// seedParentPickupPermissionDays keeps the open walking-home request clear
+// of Felix's already pending pickup change on the third school day.
+func seedParentPickupPermissionDays(today seedDate) (collectorDate, aloneDate seedDate) {
+	collectorDate = seedWeekdayOnOrAfter(today)
+	aloneDate = seedWeekdayOnOrAfter(today.AddDays(4))
+	if aloneDate == seedSchoolDayAfter(today, 3) {
+		aloneDate = seedWeekdayOnOrAfter(aloneDate.AddDays(1))
+	}
+	return collectorDate, aloneDate
 }
 
 // seedPickupSignature uses the same server-generated declaration that the
