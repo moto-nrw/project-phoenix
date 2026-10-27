@@ -2591,7 +2591,9 @@ describe("StudentDetailPage", () => {
         render(<StudentDetailPage />);
 
         // Anker: die eingeschränkte Ansicht hat keine Betreuungszeiten.
-        expect(await screen.findByText("Max Mustermann")).toBeVisible();
+        expect(await screen.findByTestId("readonly-name")).toHaveTextContent(
+          "Max Mustermann",
+        );
         expect(
           screen.queryByTestId("care-schedule-manager"),
         ).not.toBeInTheDocument();
