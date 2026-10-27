@@ -118,6 +118,8 @@ describe("teachersConfig", () => {
     expect(emailItem?.value(demoTeacher)).toBe("–");
     expect(teachersConfig.list.item.description?.(demoTeacher)).toBe("");
     render(<>{accountItem?.value({ ...demoTeacher, account_id: "42" })}</>);
+    // Anker: Der Kontobereich ist geladen; nur die technische Adresse fehlt.
+    expect(screen.getByText("Konto-ID:")).toBeInTheDocument();
     expect(screen.queryByText("E-Mail:")).not.toBeInTheDocument();
   });
 
