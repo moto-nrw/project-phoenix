@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useMinuteClock } from "~/lib/pickup-helpers";
+import { setTestClock } from "~/test/clock";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
@@ -64,9 +65,9 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useBreadcrumb: () => ({ breadcrumb: {} }),
 }));
 
-// Feste Uhr: 10:00 Berliner Zeit, damit die "Jetzt"-Linie deterministisch ist.
+// Die Testuhr liefert den Zeitpunkt der gemeinsamen, eingefrorenen Uhr.
 vi.mock("~/lib/pickup-helpers", () => ({
-  useMinuteClock: vi.fn(() => new Date("2026-08-31T08:00:00Z")),
+  useMinuteClock: vi.fn(() => new Date()),
 }));
 
 vi.mock("~/lib/timetable-operations-api", async (importOriginal) => {
@@ -139,7 +140,8 @@ const replace = vi.fn();
 describe("TagesplanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useMinuteClock).mockReturnValue(new Date("2026-08-31T08:00:00Z"));
+    setTestClock("2026-09-09T10:00:00+02:00");
+    vi.mocked(useMinuteClock).mockImplementation(() => new Date());
     searchParams.current = new URLSearchParams();
     vi.mocked(useTimetableEnabled).mockReturnValue(true);
     vi.mocked(useOperationalOverviewScope).mockReturnValue("all_staff");
@@ -656,9 +658,7 @@ describe("TagesplanView", () => {
   // der Reihe nach hören.
   describe("parallel blocks (#5020)", () => {
     it("does not mark a block ending at midnight as missed before midnight", () => {
-      vi.mocked(useMinuteClock).mockReturnValue(
-        new Date("2026-08-31T21:30:00Z"),
-      );
+      setTestClock("2026-09-09T23:30:00+02:00");
       setSWR({
         data: [
           makeInstance({
