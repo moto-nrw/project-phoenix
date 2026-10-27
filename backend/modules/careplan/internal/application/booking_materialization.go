@@ -30,6 +30,10 @@ type BookingMaterializationDependencies struct {
 	Withdrawals ports.BookingWithdrawals
 	Audit       ports.AdjustmentAudit
 	Pickup      ports.BookingPickup
+	// ManualPlans names the hand-maintained Regeltermine an adjustment
+	// leaves the child in (#5102). Focused tests may leave it nil; the
+	// impact then lists no such Regeltermin.
+	ManualPlans ports.BookingManualPlans
 
 	// RunInTx joins the ambient tenant transaction or opens one.
 	RunInTx func(context.Context, func(context.Context) error) error

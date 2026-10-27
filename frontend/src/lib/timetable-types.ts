@@ -545,6 +545,11 @@ export interface TimetableTemplate {
    * (#3140). Undefined when the backend could not derive it.
    */
   rosterMaintenance?: TemplateRosterMaintenance;
+  /**
+   * The school keeps the children of this series by hand on purpose
+   * (#5103); no deviation hint is shown.
+   */
+  manualRosterConfirmed?: boolean;
 }
 
 export type RosterMaintenanceMode = "automatic" | "partial" | "manual";
@@ -655,6 +660,8 @@ export interface BackendTimetableTemplate {
     BackendTemplateProtectedStudentAssignment[] | null;
   resolved_from_template_id?: number | null;
   roster_maintenance?: BackendTemplateRosterMaintenance | null;
+  /** „Bleibt von Hand gepflegt“ for the whole series (#5103). */
+  manual_roster_confirmed?: boolean;
 }
 
 interface BackendTemplateWeekdayAssignment {

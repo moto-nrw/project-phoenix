@@ -87,6 +87,11 @@ type OfferingSourceEditor interface {
 	// TemplateRosterMaintenanceFeeds resolves the offering-side facts of the
 	// roster indicator with a constant number of reads.
 	TemplateRosterMaintenanceFeeds(ctx context.Context, templates []TemplateRosterFeedQuery) (map[int64]TemplateRosterFeeds, error)
+	// OfferingWeekdayBookings lists the approved bookings of the active
+	// offerings fitting the calendar period with the weekdays they plan on or
+	// after from (#5103). Empty while the school has Betreuungsangebote
+	// switched off. A constant number of reads.
+	OfferingWeekdayBookings(ctx context.Context, calendarPeriodID *int64, from calendar.Date) ([]OfferingWeekdayBooking, error)
 }
 
 // BookingMaterializer is what an Enrollment decision asks of Care Plan when
@@ -210,6 +215,43 @@ type OfferingAdjustmentResult struct {
 	Offerings          map[int64]CareOffering
 	Overridden         []OfferingOverride
 	CompleteWithdrawal bool
+	// RosterImpact tells the office what the adjustment did to the child's
+	// Regeltermine (#5102).
+	RosterImpact RosterImpact
+}
+
+// RosterImpact is the effect of a booking change on the child's
+// Regeltermine from EffectiveFrom on (#5102). Weekdays are ISO (1 = Monday).
+type RosterImpact struct {
+	// EffectiveFrom is the first day the change rewrites.
+	EffectiveFrom calendar.Date
+	// Adjusted are the Regeltermine whose booking-created rows the change
+	// rewrote, with the weekdays the child left or joined there.
+	Adjusted []AdjustedRosterTemplate
+	// NotAdjusted are the Regeltermine that keep planning the child on a
+	// weekday the change took away, because staff maintain them by hand: a
+	// hand roster row, a Klasse/Jahrgang/Gruppe target or an occurrence
+	// roster. Only weekdays no remaining booking feeds there are listed.
+	NotAdjusted []ManualRosterTemplate
+}
+
+// AdjustedRosterTemplate is one Regeltermin series the change rewrote.
+type AdjustedRosterTemplate struct {
+	TemplateID      int64
+	Name            string
+	RemovedWeekdays []int
+	AddedWeekdays   []int
+}
+
+// ManualRosterTemplate is one hand-maintained Regeltermin series that keeps
+// the child on weekdays the change took away.
+type ManualRosterTemplate struct {
+	TemplateID int64
+	Name       string
+	Weekdays   []int
+	// ViaTarget is true when a Klasse, Jahrgang or Gruppe target includes
+	// the child: occurrences created later add the child again.
+	ViaTarget bool
 }
 
 // OfferingAdjustmentSnapshot is one offering in the before and after

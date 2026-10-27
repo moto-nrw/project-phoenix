@@ -42,10 +42,11 @@ func (s *OfferingChanges) LockConflictRequest(ctx context.Context, requestID int
 // DecideConflictRequest decides one request of the group like the review
 // would.
 func (s *OfferingChanges) DecideConflictRequest(ctx context.Context, decision careplan.OfferingConflictDecision) error {
-	return s.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	_, err := s.Decide(ctx, careplan.OfferingChangeDecisionInput{
 		RequestID: decision.RequestID, Approve: decision.Approve, Reason: decision.Reason,
 		ReviewedBy: decision.ReviewerID, ActorRole: decision.ActorRole, ExpectedVersion: decision.ExpectedVersion,
 	})
+	return err
 }
 
 // WriteStaffValue books the offerings the staff member chose instead of any
@@ -59,8 +60,9 @@ func (s *OfferingChanges) WriteStaffValue(ctx context.Context, write careplan.Of
 	if write.Selections == nil {
 		return fmt.Errorf("%w: selections are required", careplan.ErrOfferingChangeInvalid)
 	}
-	return s.ApplyDirectOfferingAdjustment(ctx, careplan.DirectOfferingAdjustmentInput{
+	_, err := s.ApplyDirectOfferingAdjustment(ctx, careplan.DirectOfferingAdjustmentInput{
 		StudentID: write.StudentID, EffectiveFrom: write.EffectiveFrom, Selections: write.Selections,
 		Reason: write.Reason, ActorAccountID: write.ReviewerID, ActorRole: write.ActorRole,
 	})
+	return err
 }

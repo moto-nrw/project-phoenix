@@ -68,6 +68,7 @@ type TimetableHTTPTestOptions struct {
 // the recurrence gate.
 type TimetableHTTPTestModule struct {
 	Templates             timetable.TemplateAdministration
+	RosterReview          timetable.TemplateRosterReview
 	Data                  timetable.TimetableDataCapability
 	ConflictDetection     timetable.ConflictDetectionCapability
 	AttendanceCorrections timetable.AttendanceCorrections
@@ -115,7 +116,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 			return TimetableHTTPTestModule{}, err
 		}
 	}
-	templates, err := timetableCompose.NewTemplateAdministration(timetablePorts.TemplateAdministrationDependencies{
+	templates, rosterReview, err := timetableCompose.NewTemplateAdministration(timetablePorts.TemplateAdministrationDependencies{
 		Groups:               r.Timetable,
 		Categories:           r.ActivityCategory,
 		Schedules:            r.ActivitySchedule,
@@ -154,7 +155,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		return TimetableHTTPTestModule{}, err
 	}
 	return TimetableHTTPTestModule{
-		Templates:             templates,
+		Templates: templates, RosterReview: rosterReview,
 		Data:                  data,
 		ConflictDetection:     conflicts,
 		AttendanceCorrections: corrections,

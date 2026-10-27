@@ -593,7 +593,7 @@ describe("getParentHelpTopicForPath", () => {
     // 94 seit #4665: Die Kinder einer Ferienwoche ansehen.
     // 96 seit #4666: Die Feriengruppe wählen und das geteilte Feriengäste
     // betreuen.
-    expect(leadTopics).toHaveLength(96);
+    expect(leadTopics).toHaveLength(97);
     expect(
       leadTopics.every(
         (topic) =>

@@ -76,6 +76,9 @@ import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { TemplateList } from "~/components/timetable/template-list";
+import { ConnectOfferingModal } from "~/components/timetable/connect-offering-modal";
+import { useRosterDeviations } from "~/components/timetable/use-roster-deviations";
+import type { RosterDeviation } from "~/lib/roster-deviation";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
@@ -138,6 +141,7 @@ import {
   careDayISO,
   nextCareDayISO,
   previousCareDayISO,
+  findOccurrenceSeriesTemplate,
   resolveTemplateCalendarPeriodId,
   toISODate,
   type TimetableView,
@@ -184,6 +188,8 @@ const ALLOWED_URL_PARAMS = [
   "group",
   "staff",
   "room",
+  // „Zu prüfen“ in der Serienansicht (#5103).
+  "pruefen",
 ] as const;
 
 type ViewParam = "tag" | "woche" | "monat" | "serien";
@@ -369,6 +375,12 @@ function TimetablesContent() {
   const [archivingTemplate, setArchivingTemplate] =
     useState<TimetableTemplate | null>(null);
   const [archiveLoading, setArchiveLoading] = useState(false);
+  // „Mit Angebot verbinden“ (#5103): der Regeltermin und seine Abweichung.
+  const [connecting, setConnecting] = useState<{
+    template: TimetableTemplate;
+    deviation: RosterDeviation;
+  } | null>(null);
+  const [manualRosterBusy, setManualRosterBusy] = useState(false);
   const [convertingInstance, setConvertingInstance] =
     useState<EnrichedInstance | null>(null);
   // Anlegen eines Kalenderzeitraums; bearbeitet wird auf /calendar-periods.
@@ -945,6 +957,13 @@ function TimetablesContent() {
     () => templateData?.templates ?? [],
     [templateData?.templates],
   );
+  // Abweichungen von den Anmeldungen (#5103): Hinweis an Karte und Termin.
+  const rosterDeviations = useRosterDeviations(
+    templatePeriodID,
+    status === "authenticated",
+    templateData,
+  );
+  const reviewOnly = params.pruefen === "1";
   const modalCalendarPeriods = useMemo(() => {
     const periodIDs = new Set(assignedPeriods.map((period) => period.id));
     if (templatePeriodID) periodIDs.add(templatePeriodID);
@@ -1152,6 +1171,15 @@ function TimetablesContent() {
     () =>
       visibleInstances.find((inst) => inst.id === selectedInstanceId) ?? null,
     [visibleInstances, selectedInstanceId],
+  );
+  // Der Regeltermin des geöffneten Termins, aus der Serienliste desselben
+  // Zeitraums (#3140, #5103).
+  const selectedSeriesTemplate = useMemo(
+    () =>
+      selectedInstance
+        ? findOccurrenceSeriesTemplate(templates, selectedInstance)
+        : undefined,
+    [selectedInstance, templates],
   );
   // Die Woche kommt ohne Kinderzeilen (#4996). Für den geöffneten Termin lädt
   // die Ansicht seinen Tag vollständig nach; der Schlüssel beginnt wie der der
@@ -1437,6 +1465,48 @@ function TimetablesContent() {
       updateUrlParams,
     ],
   );
+
+  // „Bleibt von Hand gepflegt“ und „Hinweis wieder zeigen“ (#5103). Kein
+  // Dialog ist offen, deshalb kommt ein Fehler als Toast mit Katalogtext.
+  const handleManualRoster = useCallback(
+    async (template: TimetableTemplate, confirmed: boolean) => {
+      setManualRosterBusy(true);
+      try {
+        await timetableService.setManualRosterConfirmed(template.id, confirmed);
+        toast.success(
+          confirmed
+            ? `„${template.name}“ bleibt von Hand gepflegt.`
+            : `Der Hinweis zu „${template.name}“ wird wieder gezeigt.`,
+        );
+        if (templatePeriodID) {
+          await tenantMutate(`timetable-templates-${templatePeriodID}`);
+        }
+      } catch (err) {
+        logger.error("manual_roster_confirmation_failed", {
+          template_id: template.id,
+          confirmed,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showActionError(err, {
+          object: confirmed
+            ? "das Ausblenden des Hinweises"
+            : "das Einblenden des Hinweises",
+        });
+      } finally {
+        setManualRosterBusy(false);
+      }
+    },
+    [showActionError, templatePeriodID, tenantMutate, toast],
+  );
+
+  // Nach „Mit Angebot verbinden“ (#5103) ändern sich Kinderlisten im Plan.
+  const handleOfferingConnected = useCallback(async () => {
+    if (templatePeriodID) {
+      await tenantMutate(`timetable-templates-${templatePeriodID}`);
+    }
+    await tenantMutate(swrKey);
+    await tenantMutate(gapsSWRKey);
+  }, [gapsSWRKey, swrKey, templatePeriodID, tenantMutate]);
 
   // Aufrufer ist der Löschdialog im Termin-Formular; er zeigt den Fehler
   // selbst, weil er über den Toasts liegt.
@@ -1865,14 +1935,26 @@ function TimetablesContent() {
         onLifecycleAction={handleLifecycle}
         canManage={canManageSchedules}
         fetchParticipantNames={!canReadTenantRosters}
-        seriesRosterMaintenance={
-          selectedInstance?.activityGroupId
-            ? templates.find(
-                (template) =>
-                  template.id === selectedInstance.activityGroupId &&
-                  resolveTemplateCalendarPeriodId(template) ===
-                    selectedInstance.calendarPeriodId,
-              )?.rosterMaintenance
+        seriesRosterMaintenance={selectedSeriesTemplate?.rosterMaintenance}
+        seriesRosterDeviation={
+          selectedSeriesTemplate
+            ? rosterDeviations.get(selectedSeriesTemplate.id)
+            : undefined
+        }
+        seriesManualRosterConfirmed={
+          selectedSeriesTemplate?.manualRosterConfirmed === true
+        }
+        rosterDecisionBusy={manualRosterBusy}
+        onConnectOffering={
+          canManageSchedules && selectedSeriesTemplate
+            ? (deviation) =>
+                setConnecting({ template: selectedSeriesTemplate, deviation })
+            : undefined
+        }
+        onSetManualRoster={
+          canManageSchedules && selectedSeriesTemplate
+            ? (confirmed) =>
+                void handleManualRoster(selectedSeriesTemplate, confirmed)
             : undefined
         }
         seriesPeriodId={
@@ -1922,7 +2004,12 @@ function TimetablesContent() {
           canManageSchedules ? handleAttendancePatch : undefined
         }
         editDeferred={false}
-        suspended={eventModalOpen || poolInstance !== null || periodModalOpen}
+        suspended={
+          eventModalOpen ||
+          poolInstance !== null ||
+          periodModalOpen ||
+          connecting !== null
+        }
         onOpenPool={setPoolInstance}
         canManageStaffPool={canManageSchedules}
       />
@@ -1937,6 +2024,16 @@ function TimetablesContent() {
           void tenantMutate(gapsSWRKey);
         }}
       />
+
+      {connecting && (
+        <ConnectOfferingModal
+          isOpen
+          templateName={connecting.template.name}
+          deviation={connecting.deviation}
+          onClose={() => setConnecting(null)}
+          onConnected={handleOfferingConnected}
+        />
+      )}
 
       <TimetableEventModal
         canCheckShiftCoverage={canCheckShiftCoverage}
@@ -2334,6 +2431,15 @@ function TimetablesContent() {
           }}
           onApply={(template) => void handleApplyTemplate(template)}
           onArchive={openArchiveConfirm}
+          deviations={rosterDeviations}
+          onConnect={(template, deviation) =>
+            setConnecting({ template, deviation })
+          }
+          onKeepManual={(template) => void handleManualRoster(template, true)}
+          reviewOnly={reviewOnly}
+          onReviewOnlyChange={(next) =>
+            updateUrlParams({ pruefen: next ? "1" : null })
+          }
         />
       )}
     </TenantPage>

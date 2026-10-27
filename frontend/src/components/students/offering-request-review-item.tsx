@@ -6,6 +6,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import {
   RequestReviewCard,
   ReviewDiffPanel,
@@ -13,6 +14,13 @@ import {
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { formatDate, isoWeekNumber } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  describeAdjustment,
+  mapRosterImpact,
+  type RosterImpact,
+  type RosterImpactWire,
+} from "~/lib/roster-impact";
+import { CarePlanImpact } from "~/components/students/care-plan-impact";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -162,6 +170,25 @@ export function OfferingRequestReviewItem({
   // greift (#2484).
   const [editingDate, setEditingDate] = useState(false);
   const [confirmationRequired, setConfirmationRequired] = useState(false);
+  // Die Freigabe ist gespeichert, aber von Hand gepflegte Regeltermine
+  // planen das Kind weiter ein (#5102).
+  const [applied, setApplied] = useState<{
+    notice: string;
+    impact: RosterImpact;
+  } | null>(null);
+
+  const approvalNotice = (impact: RosterImpact | null) => {
+    const base = `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}.`;
+    if (impact) {
+      return impact.adjusted.length > 0
+        ? `${base} Automatisch angepasst: ${impact.adjusted.map((template) => `${template.name} (${describeAdjustment(template)})`).join(", ")}.`
+        : `${base} Die angezeigten Folgeänderungen sind auch übernommen.`;
+    }
+    return approvalPreview &&
+      approvalPreview.manual_planning_conflicts.length > 0
+      ? `${base} Bitte prüfen Sie jetzt im Betreuungsplan: ${joinNames(approvalPreview.manual_planning_conflicts.map((conflict) => conflict.activity_group_name))}.`
+      : `${base} Die angezeigten Folgeänderungen sind auch übernommen.`;
+  };
 
   const decide = async (approve: boolean, confirmWithdrawal = false) => {
     const trimmed = reason.trim();
@@ -183,25 +210,31 @@ export function OfferingRequestReviewItem({
       // Die hinteren Argumente nur anhängen, wenn es sie gibt: eine Anfrage
       // ohne Komplett-Abmeldung und ohne bekannte Fassung schickt denselben
       // Aufruf wie vorher.
+      let impactWire: RosterImpactWire | undefined;
       if (expectedVersion) {
-        await decideOfferingChangeRequest(
+        impactWire = await decideOfferingChangeRequest(
           ...args,
           confirmWithdrawal,
           expectedVersion,
         );
       } else if (confirmWithdrawal) {
-        await decideOfferingChangeRequest(...args, true);
+        impactWire = await decideOfferingChangeRequest(...args, true);
       } else {
-        await decideOfferingChangeRequest(...args);
+        impactWire = await decideOfferingChangeRequest(...args);
       }
-      onDecided(
-        approve
-          ? approvalPreview &&
-            approvalPreview.manual_planning_conflicts.length > 0
-            ? `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}. Bitte prüfen Sie jetzt im Betreuungsplan: ${joinNames(approvalPreview.manual_planning_conflicts.map((conflict) => conflict.activity_group_name))}.`
-            : `Die Änderung ist übernommen und gilt ab ${formatDate(effectiveFrom)}. Die angezeigten Folgeänderungen sind auch übernommen.`
-          : "Die Anfrage zum Angebot ist abgelehnt.",
-      );
+      const impact = approve ? mapRosterImpact(impactWire) : null;
+      const notice = approve
+        ? approvalNotice(impact)
+        : "Die Anfrage zum Angebot ist abgelehnt.";
+      if (impact && impact.notAdjusted.length > 0) {
+        // Von Hand gepflegte Regeltermine behalten das Kind (#5102): die
+        // Karte bleibt stehen, bis die OGS sie geprüft hat.
+        setApprovalPreview(null);
+        setBusy(false);
+        setApplied({ notice, impact });
+        return;
+      }
+      onDecided(notice);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const code = err instanceof ApiError ? err.code : undefined;
@@ -363,6 +396,25 @@ export function OfferingRequestReviewItem({
     }
     return "So haben es die Eltern eingetragen.";
   })();
+
+  if (applied) {
+    return (
+      <div className="flex flex-col gap-3 px-4 py-3 sm:px-5">
+        <Alert type="success" message={applied.notice} />
+        <CarePlanImpact impact={applied.impact} studentId={row.student_id} />
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => onDecided(applied.notice)}
+          >
+            Fertig
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const selectableRange =
     row.earliest_effective_from && row.latest_effective_from

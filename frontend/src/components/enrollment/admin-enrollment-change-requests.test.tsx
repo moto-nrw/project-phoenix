@@ -37,6 +37,14 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
   };
 });
 
+vi.mock("next-auth/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next-auth/react")>()),
+  useSession: () => ({
+    data: { user: { id: "1", token: "t", permissions: ["schedules:manage"] } },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => path,
 }));
@@ -221,6 +229,50 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
     );
     expect(refreshListener).toHaveBeenCalledTimes(1);
     window.removeEventListener("change-requests-refresh", refreshListener);
+  });
+
+  // #5102: an approved booking change names its effect on the Regeltermine.
+  it("shows the effect on the Betreuungsplan per child after approving", async () => {
+    mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce(
+      baseChangeRequest,
+    );
+    mocks.approveEnrollmentChangeRequest.mockResolvedValueOnce({
+      ...baseChangeRequest,
+      status: "approved",
+      roster_impacts: [
+        {
+          child_id: "5",
+          student_id: "42",
+          first_name: "Mia",
+          roster_impact: {
+            effective_from: "2026-09-14",
+            adjusted: [],
+            not_adjusted: [
+              {
+                template_id: "9",
+                name: "RDST 1b",
+                weekdays: [5],
+                via_target: true,
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
+    await screen.findByText("Änderungsanfrage prüfen");
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Passt." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+
+    expect(
+      await screen.findByText(
+        "Auswirkung auf den Betreuungsplan für Mia ab 14.09.2026",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("RDST 1b")).toBeInTheDocument();
   });
 
   it("shows a failed load where the request is missing", async () => {

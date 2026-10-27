@@ -94,6 +94,8 @@ import { ToggleChip } from "~/components/ui/toggle-chip";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
+import { mapRosterImpact, type RosterImpact } from "~/lib/roster-impact";
+import { CarePlanImpact } from "~/components/students/care-plan-impact";
 import {
   useTenant,
   useCareOfferingsEnabled,
@@ -165,26 +167,31 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const [approvalWithoutOfferingChildId, setApprovalWithoutOfferingChildId] =
     useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    clearLoadError();
-    try {
-      const fresh = await getAdminRequest(requestId);
-      setData(fresh);
-      // Das Öffnen hat die Anmeldung für diese Person gelesen (#3778).
-      announceAdminRequestOpened();
-    } catch (err) {
-      logger.error("admin_enrollment_detail_load_failed", {
-        error: err instanceof Error ? err.message : "unknown",
-      });
-      await showLoadError(err, {
-        object: "die Anmeldung",
-        retry: () => void reloadRef.current(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [requestId, clearLoadError, showLoadError]);
+  // `quiet` refreshes without the page's loading state, so a card that just
+  // saved keeps showing its result (#5102).
+  const load = useCallback(
+    async (options?: { quiet?: boolean }) => {
+      if (!options?.quiet) setLoading(true);
+      clearLoadError();
+      try {
+        const fresh = await getAdminRequest(requestId);
+        setData(fresh);
+        // Das Öffnen hat die Anmeldung für diese Person gelesen (#3778).
+        announceAdminRequestOpened();
+      } catch (err) {
+        logger.error("admin_enrollment_detail_load_failed", {
+          error: err instanceof Error ? err.message : "unknown",
+        });
+        await showLoadError(err, {
+          object: "die Anmeldung",
+          retry: () => void reloadRef.current(),
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [requestId, clearLoadError, showLoadError],
+  );
   useLayoutEffect(() => {
     reloadRef.current = load;
   });
@@ -476,7 +483,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                     setReasons((prev) => ({ ...prev, [child.id]: value }))
                   }
                   onDecide={(status) => requestDecision(child, status)}
-                  onOfferingsChanged={() => void load()}
+                  onOfferingsChanged={() => void load({ quiet: true })}
                   onDataCorrected={handleDataCorrected}
                   onDelete={() =>
                     setDeletionTarget({
@@ -1393,6 +1400,8 @@ export function ChildOfferingAdjustment({
     offerings: Array<{ offering_id: string; selected_days?: string[] }>;
   } | null>(null);
   const [withdrawalCreated, setWithdrawalCreated] = useState(false);
+  // Was die letzte Korrektur im Betreuungsplan bewirkt hat (#5102).
+  const [rosterImpact, setRosterImpact] = useState<RosterImpact | null>(null);
   useEffect(() => {
     if (!careOfferingsEnabled) setEditing(false);
   }, [careOfferingsEnabled]);
@@ -1449,6 +1458,7 @@ export function ChildOfferingAdjustment({
   const openEditor = async () => {
     if (!careOfferingsEnabled) return;
     setEditing(true);
+    setRosterImpact(null);
     errors.clear();
     catalogError.clear();
     setDays(initialManualOfferingDays(child.offerings));
@@ -1571,10 +1581,11 @@ export function ChildOfferingAdjustment({
     },
     completeWithdrawalConfirmed: boolean,
   ) => {
-    await updateAdminChildOfferings(requestId, child.id, {
+    const updated = await updateAdminChildOfferings(requestId, child.id, {
       ...input,
       completeWithdrawalConfirmed,
     });
+    setRosterImpact(mapRosterImpact(updated?.roster_impact));
     setWithdrawalCreated(completeWithdrawalConfirmed);
     if (completeWithdrawalConfirmed) {
       window.dispatchEvent(new Event("change-requests-refresh"));
@@ -1844,6 +1855,15 @@ export function ChildOfferingAdjustment({
             onSave={() => void handleSave()}
             saving={saving}
             disabled={loading || !catalogLoaded}
+          />
+        </div>
+      ) : null}
+
+      {rosterImpact && !editing ? (
+        <div className="mt-3">
+          <CarePlanImpact
+            impact={rosterImpact}
+            studentId={child.created_student_id}
           />
         </div>
       ) : null}
