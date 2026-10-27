@@ -11,6 +11,10 @@ import (
 const (
 	maxRateLimitRetries = 3
 	maxRetryDelay       = 60 * time.Second
+	// seedSubmissionRateLimited is the limit of public registrations: its
+	// windows last an hour or a day, so a replay within a minute only counts
+	// another attempt and keeps the demo visitor waiting.
+	seedSubmissionRateLimited = "enrollment.submission_rate_limited"
 )
 
 // retryingAdapter covers every HTTP operation the seed workflow performs,
@@ -50,7 +54,8 @@ func (a *retryingAdapter) retry(ctx context.Context, request func() error) error
 	for attempt := 0; ; attempt++ {
 		err := request()
 		var apiErr *APIError
-		if err == nil || attempt >= maxRateLimitRetries || !errors.As(err, &apiErr) || apiErr.StatusCode != 429 {
+		if err == nil || attempt >= maxRateLimitRetries || !errors.As(err, &apiErr) || apiErr.StatusCode != 429 ||
+			apiErr.Code == seedSubmissionRateLimited {
 			return err
 		}
 		if waitErr := a.sleep(ctx, retryDelay(apiErr.RetryAfter, time.Now())); waitErr != nil {

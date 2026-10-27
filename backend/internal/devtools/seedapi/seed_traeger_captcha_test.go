@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -17,7 +18,23 @@ import (
 // skips the run it never got.
 func TestSeedTraegerHolidayPeriodStepSkipsTheRegistrationsWhenTurnstileRefusesTheTestToken(t *testing.T) {
 	t.Parallel()
+	for _, refusal := range []struct {
+		status int
+		body   string
+	}{
+		{http.StatusBadRequest, `{"status":400,"code":"enrollment.captcha_failed","detail":"captcha verification failed"}`},
+		// Every demo order counts against the one demo Träger and seeded address.
+		{http.StatusTooManyRequests, `{"status":429,"code":"enrollment.submission_rate_limited","detail":"too many submission attempts"}`},
+	} {
+		t.Run(fmt.Sprint(refusal.status), func(t *testing.T) {
+			t.Parallel()
+			assertSeedHolidayRefusalSkipsTheRegistrations(t, refusal.status, refusal.body)
+		})
+	}
+}
 
+func assertSeedHolidayRefusalSkipsTheRegistrations(t *testing.T, status int, body string) {
+	t.Helper()
 	var calls []string
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		calls = append(calls, r.Method+" "+r.URL.Path)
@@ -34,8 +51,8 @@ func TestSeedTraegerHolidayPeriodStepSkipsTheRegistrationsWhenTurnstileRefusesTh
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[` +
 				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`))
 		case "/traeger/holiday-registrations/link-key":
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"status":400,"code":"enrollment.captcha_failed","detail":"captcha verification failed"}`))
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(body))
 		default:
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":9}}`))
 		}
@@ -77,8 +94,8 @@ func TestSeedTraegerHolidayPeriodStepStillFailsOnOtherRegistrationErrors(t *test
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5,"status":"published","public_token":"link-key","weeks":[` +
 				`{"id":51,"time_models":[{"id":61},{"id":62}]},{"id":52,"time_models":[{"id":63},{"id":64}]}]}}`))
 		case "/traeger/holiday-registrations/link-key":
-			w.WriteHeader(http.StatusTooManyRequests)
-			_, _ = w.Write([]byte(`{"status":429,"code":"enrollment.submission_rate_limited","detail":"too many submissions"}`))
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"status":400,"code":"enrollment.holiday_registration_invalid","detail":"the guardian e-mail is missing"}`))
 		default:
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
 		}
