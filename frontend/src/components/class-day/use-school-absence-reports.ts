@@ -79,6 +79,10 @@ export function useSchoolAbsenceReports({
         error: cause instanceof Error ? cause.message : String(cause),
       });
       void errors.show(cause, { object: "die Meldung", retry });
+      // Die Liste kann veraltet sein, etwa wenn die Lehrkraft das Kind
+      // inzwischen als da eingetragen hat: neu laden, damit es verschwindet.
+      // Scheitert auch das, bleibt die Meldung oben der sichtbare Fehler.
+      void onChanged().catch(() => undefined);
       return false;
     } finally {
       setPending(null);

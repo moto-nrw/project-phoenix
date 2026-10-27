@@ -611,8 +611,13 @@ export function ClassDayOverview({
                               Liste schließen
                             </ButtonLink>
                           </div>
+                          {/* Bei offener Rückfrage steht der Fehler dort. */}
                           <FormErrorAlert
-                            message={absenceReports.error}
+                            message={
+                              absenceReports.withdrawTarget
+                                ? null
+                                : absenceReports.error
+                            }
                             className="mt-2"
                           />
                           {open.key === "ohne-meldung" && (
