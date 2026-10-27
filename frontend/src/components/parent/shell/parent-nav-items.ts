@@ -107,6 +107,14 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     gate: "mealPlan",
   },
   {
+    // Dokumente des Traegers (#4671), etwa Bestaetigungsschreiben der Ferien.
+    kind: "link",
+    key: "documents",
+    href: "/parents/documents",
+    tKey: "documents",
+    concept: "documents",
+  },
+  {
     // Die Anleitung liegt ausserhalb des Portals, auf der oeffentlichen
     // /help-Strecke. `role=parent` ueberspringt ihre Eingangsfrage: wer
     // hier klickt, ist ein Elternteil. Die drei OGS-Einstellungen aendern in

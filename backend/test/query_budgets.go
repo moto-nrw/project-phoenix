@@ -124,6 +124,12 @@ var queryBudgets = map[string]queryBudget{
 	// caller's child, then reads all requests once. The test uses three requests
 	// to prevent a per-row request lookup.
 	"workflows.parentportal.pickup_permission_requests.list": {max: 12},
+	// workflows/parentportal — GET /parent/me/documents (#4671, ADR 0126):
+	// the account's children with their relationships, the Träger of their
+	// schools and the account's address in one administrative transaction,
+	// then per Träger its binding, the sent documents of the address and one
+	// trail entry per run. Flat in the number of documents.
+	"workflows.parentportal.billing_documents.list": {max: 16},
 	// modules/enrollment/http — GET /phases/{id}/responses: phase plus four batched
 	// response sources inside the tenant transaction. The matching test proves
 	// the total stays flat from three to eight children.

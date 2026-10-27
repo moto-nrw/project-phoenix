@@ -5018,6 +5018,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.recipient_email_missing"
+    },
+    {
+      "code": "parent_billing.parent_document_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.parent_document_not_found"
     }
   ]
 }
