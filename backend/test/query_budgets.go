@@ -164,6 +164,11 @@ var queryBudgets = map[string]queryBudget{
 	// statement that joins the named student directory projection; the
 	// matching test also pins the rows read at one and at four children.
 	"api.students.care_withdrawals.list": {max: 6},
+	// api/students — GET /students/{id}/care-withdrawals (#5025), page_size=1
+	// over four completed withdrawals of one child: the tenant list's six
+	// statements, filtered to the child, plus three for the child read and
+	// the read-access check.
+	"api.students.care_withdrawals.student_list": {max: 9},
 	// workflows/studentdeletion — the permanent deletion behind DELETE
 	// /students/{id} and DELETE /students/care-withdrawals/{id} (#3411), over
 	// the production composition with one and with four linked children.

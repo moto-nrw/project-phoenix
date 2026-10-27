@@ -251,6 +251,14 @@ export async function fetchCareWithdrawals(
   if (params.page) query.set("page", String(params.page));
   if (params.pageSize) query.set("page_size", String(params.pageSize));
   if (params.state) query.set("state", params.state);
+  return fetchCareWithdrawalPage("/api/students/care-withdrawals", query);
+}
+
+/** Eine Seite Abmeldungen von einer der beiden Listen-Routen. */
+async function fetchCareWithdrawalPage(
+  path: string,
+  query: URLSearchParams,
+): Promise<CareWithdrawalPage> {
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   const envelope = await request<
     Envelope<{
@@ -259,13 +267,32 @@ export async function fetchCareWithdrawals(
       page: number;
       page_size: number;
     }>
-  >(`/api/students/care-withdrawals${suffix}`, "GET");
+  >(`${path}${suffix}`, "GET");
   return {
     items: envelope.data.items.map(mapCareWithdrawal),
     total: envelope.data.total,
     page: envelope.data.page,
     pageSize: envelope.data.page_size,
   };
+}
+
+/**
+ * Die abgeschlossenen Abmeldungen eines Kindes, seitenweise (#5025). Die
+ * Route verlangt users:update oder users:absence und Lesezugriff auf das Kind,
+ * nicht users:delete wie die Liste der Schule; sie kennt weder Suche noch
+ * offene Abmeldungen.
+ */
+export async function fetchStudentCareWithdrawalHistory(
+  studentId: string,
+  params: { page?: number; pageSize?: number } = {},
+): Promise<CareWithdrawalPage> {
+  const query = new URLSearchParams();
+  if (params.page) query.set("page", String(params.page));
+  if (params.pageSize) query.set("page_size", String(params.pageSize));
+  return fetchCareWithdrawalPage(
+    `/api/students/${encodeURIComponent(studentId)}/care-withdrawals`,
+    query,
+  );
 }
 
 export async function fetchStudentCareWithdrawal(
