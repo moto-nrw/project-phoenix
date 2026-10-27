@@ -41,6 +41,16 @@ function providersWith(cache: Cache) {
 const render = (ui: React.ReactNode, cache: Cache = new Map()) =>
   renderComponent(ui, { wrapper: providersWith(cache) });
 
+/** Der Standard-Cache von SWR, wie ihn die App nutzt. */
+function DefaultCache({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <SWRConfig value={{ dedupingInterval: 0 }}>{children}</SWRConfig>;
+}
+
+const clearDefaultCache = () =>
+  act(async () => {
+    await mutate(() => true, undefined, { revalidate: false });
+  });
+
 const { listRequests, approve } = vi.hoisted(() => ({
   listRequests: vi.fn(),
   approve: vi.fn(),
@@ -173,14 +183,18 @@ describe("StaffAbsenceRequestList", () => {
   });
 
   it("genehmigt einen Antrag und lädt die Liste neu", async () => {
+    // Wie in der App: der Standard-Cache von SWR; das Neuladen nach der
+    // Entscheidung läuft über ein globales mutate.
+    await clearDefaultCache();
     listRequests.mockResolvedValueOnce([openRow()]).mockResolvedValueOnce([]);
     approve.mockResolvedValue(undefined);
 
-    render(
+    renderComponent(
       <StaffAbsenceRequestList
         view="open"
         filters={{ search: "", types: [] }}
       />,
+      { wrapper: DefaultCache },
     );
 
     await screen.findByText("Mira Muster");
@@ -190,6 +204,8 @@ describe("StaffAbsenceRequestList", () => {
     expect(
       await screen.findByText("Keine offenen Anträge."),
     ).toBeInTheDocument();
+    await waitFor(() => expect(listRequests).toHaveBeenCalledTimes(2));
+    await clearDefaultCache();
   });
 
   it("nennt eine gelöschte Entscheiderin Unbekannt, eine Rücknahme niemanden", async () => {
@@ -336,7 +352,9 @@ describe("StaffAbsenceRequestList", () => {
   });
 
   it("behält eine Genehmigung nach gescheitertem Abgleich und erneutem Öffnen", async () => {
-    const cache: Cache = new Map();
+    // Wie in der App: der Standard-Cache von SWR, kein eigener Provider; den
+    // Abgleich nach der Entscheidung löst ein globales mutate aus.
+    await clearDefaultCache();
     const other = { ...openRow(), id: "20", staff_name: "Tom Neu" };
     listRequests.mockResolvedValueOnce([openRow(), other]);
     const list = (
@@ -345,7 +363,7 @@ describe("StaffAbsenceRequestList", () => {
         filters={{ search: "", types: [] }}
       />
     );
-    const first = render(list, cache);
+    const first = renderComponent(list, { wrapper: DefaultCache });
     // Anker: die offene Liste ist geladen und enthält den zu entscheidenden Antrag.
     await screen.findByText("Mira Muster");
 
@@ -360,7 +378,7 @@ describe("StaffAbsenceRequestList", () => {
       catalogText("general.server", "die Liste der Anträge"),
     );
     first.unmount();
-    render(list, cache);
+    renderComponent(list, { wrapper: DefaultCache });
 
     // Anker: der andere offene Antrag steht sofort aus dem Cache.
     expect(screen.getByText("Tom Neu")).toBeInTheDocument();
@@ -371,14 +389,11 @@ describe("StaffAbsenceRequestList", () => {
     expect(screen.getAllByRole("button", { name: "Genehmigen" })).toHaveLength(
       1,
     );
+    await clearDefaultCache();
   });
 
   it("zeigt einen genehmigten Antrag nach dem Filterwechsel nicht wieder", async () => {
     // Wie in der App: der Standard-Cache von SWR, kein eigener Provider.
-    const clearDefaultCache = () =>
-      act(async () => {
-        await mutate(() => true, undefined, { revalidate: false });
-      });
     await clearDefaultCache();
     const other = { ...openRow(), id: "20", staff_name: "Tom Neu" };
     listRequests.mockResolvedValue([openRow(), other]);
@@ -387,7 +402,7 @@ describe("StaffAbsenceRequestList", () => {
         view="open"
         filters={{ search: "", types: [] }}
       />,
-      { wrapper: ({ children }) => <SWRConfig>{children}</SWRConfig> },
+      { wrapper: DefaultCache },
     );
     await screen.findByText("Tom Neu");
 
@@ -417,6 +432,57 @@ describe("StaffAbsenceRequestList", () => {
     expect(screen.getByText("Tom Neu")).toBeInTheDocument();
     expect(screen.queryByText("Mira Muster")).not.toBeInTheDocument();
     await clearDefaultCache();
+  });
+
+  // Runde 3 (#4988): die Genehmigung wird erst fertig, nachdem schon zu
+  // einem anderen Filter gewechselt wurde. Zurück im ursprünglichen Filter
+  // darf der genehmigte Antrag nicht wieder erscheinen.
+  it("entfernt einen Antrag, dessen Genehmigung erst nach einem Filterwechsel fertig wird", async () => {
+    let finishApproval!: () => void;
+    const pendingApproval = new Promise<void>((resolve) => {
+      finishApproval = resolve;
+    });
+    const other = { ...openRow(), id: "20", staff_name: "Tom Neu" };
+    const original = [openRow(), other];
+    listRequests.mockImplementation(
+      async (_view: string, filters: { search?: string }) =>
+        filters.search ? [other] : original,
+    );
+    approve.mockReturnValue(pendingApproval);
+    const { rerender } = render(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+    );
+    await screen.findByText("Mira Muster");
+    fireEvent.click(screen.getAllByRole("button", { name: "Genehmigen" })[0]!);
+    await waitFor(() => expect(approve).toHaveBeenCalledWith("17"));
+
+    rerender(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "Tom", types: [] }}
+      />,
+    );
+    await screen.findByText("Tom Neu");
+    expect(screen.queryByText("Mira Muster")).not.toBeInTheDocument();
+    await act(async () => {
+      finishApproval();
+      await pendingApproval;
+    });
+
+    // Der Abgleich bleibt aus: es zählt, was der Cache zeigt.
+    listRequests.mockImplementation(() => new Promise(() => undefined));
+    rerender(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+    );
+    // Anker: der ursprüngliche Filter steht sofort aus dem Cache.
+    expect(screen.getByText("Tom Neu")).toBeInTheDocument();
+    expect(screen.queryByText("Mira Muster")).not.toBeInTheDocument();
   });
 
   it("meldet eine abgelehnte Genehmigung über den gemeinsamen Fehlerweg", async () => {

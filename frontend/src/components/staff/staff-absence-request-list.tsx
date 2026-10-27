@@ -10,7 +10,7 @@
  * Eltern-Reiter, damit beide Reiter gleich aussehen.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { TrayIcon } from "@phosphor-icons/react/ssr";
 import { useSession } from "next-auth/react";
@@ -40,7 +40,14 @@ import {
   staffAbsenceService,
   type StaffAbsenceRequestRow,
 } from "~/lib/staff-api";
-import { useSWRAuth, useTenantUpdateMatching } from "~/lib/swr";
+import {
+  addListOverlay,
+  applyListOverlays,
+  startListFetch,
+  useListOverlays,
+} from "~/lib/list-overlays";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "StaffAbsenceRequestList" });
 
@@ -98,24 +105,26 @@ export function StaffAbsenceRequestList({
   // beim erneuten Öffnen steht die Liste sofort, der Abgleich läuft im
   // Hintergrund. Beim Wechsel von Ansicht oder Filter zeigt die Liste ihr
   // Skelett statt der Zeilen des alten Filters; ein Fehlschlag steht mit
-  // „Wiederholen“ vor Ort, statt still wiederholt zu werden.
+  // „Wiederholen“ vor Ort, statt still wiederholt zu werden. Der Cache hält
+  // nur Antworten des Servers; Entscheidungen gehen als Überlagerung an alle
+  // Ansichten und Filter (siehe `~/lib/list-overlays`).
+  const family = `staff-absence-requests:${accountId}:`;
   const listKey = accountId
-    ? `staff-absence-requests:${accountId}:${view}:${JSON.stringify([
-        filters.search,
-        filters.types,
-      ])}`
+    ? `${family}${view}:${JSON.stringify([filters.search, filters.types])}`
     : null;
-  const {
-    data: rows,
-    error,
-    mutate,
-  } = useSWRAuth<StaffAbsenceRequestRow[]>(
+  const { data, error, mutate } = useSWRAuth<{
+    fetchedAt: number;
+    rows: StaffAbsenceRequestRow[];
+  }>(
     listKey,
-    () =>
-      staffAbsenceService.listRequests(view, {
+    async () => {
+      const fetchedAt = startListFetch();
+      const rows = await staffAbsenceService.listRequests(view, {
         search: filters.search,
         types: filters.types,
-      }),
+      });
+      return { fetchedAt, rows };
+    },
     {
       keepPreviousData: false,
       shouldRetryOnError: false,
@@ -123,22 +132,32 @@ export function StaffAbsenceRequestList({
       dedupingInterval: 0,
     },
   );
-  const updateOtherLists = useTenantUpdateMatching([
-    `staff-absence-requests:${accountId}:`,
-  ]);
+  const slug = useTenantSlugSafe();
+  const list = `${slug ?? ""}|${family}`;
+  const overlays = useListOverlays<StaffAbsenceRequestRow>(list);
+  const rows = useMemo(
+    () =>
+      data &&
+      applyListOverlays(
+        data.rows,
+        data.fetchedAt,
+        overlays,
+        (current, update) => update(current),
+      ),
+    [data, overlays],
+  );
+  const revalidateLists = useTenantMutateMatching([family]);
   const loadError = useSwrLoadError(error, "die Liste der Anträge", () =>
     mutate(),
   );
-  // Die Zeilen, die beim letzten Entscheiden galten. Scheitert das Neuladen
-  // danach, wären sie falsch; dann steht der Fehler an ihrer Stelle.
-  const [rowsAtDecision, setRowsAtDecision] = useState<
-    StaffAbsenceRequestRow[] | undefined
-  >(undefined);
-  const loading = rows === undefined && error === undefined;
+  // Der Stand, der beim letzten Entscheiden galt. Scheitert das Neuladen
+  // danach, wäre er falsch; dann steht der Fehler an seiner Stelle.
+  const [dataAtDecision, setDataAtDecision] = useState<typeof data>(undefined);
+  const loading = data === undefined && error === undefined;
   // Synchron aus dem SWR-Fehler: der Katalogtext lädt nach, bis dahin darf
   // kein Leerzustand („Keine offenen Anträge“) aufblitzen.
   const failed =
-    error !== undefined && (rows === undefined || rows === rowsAtDecision);
+    error !== undefined && (data === undefined || data === dataAtDecision);
 
   useEffect(() => {
     if (error === undefined) return;
@@ -154,40 +173,28 @@ export function StaffAbsenceRequestList({
     onCountChange?.(reportedCount);
   }, [onCountChange, reportedCount]);
 
-  // Nach einer Entscheidung den Cache bereinigen und neu laden: eine
-  // Rückfrage lässt den Antrag offen, genehmigt und abgelehnt verschwinden
-  // aus der Arbeitsliste auch dann, wenn der Abgleich fehlschlägt. Dazu die
-  // Zähler auffrischen: Badge der Seitenleiste, Verweis auf der Mitarbeiter-
-  // Seite und Reiter der Mitarbeitenden-Detailseite hören auf diese Signale.
+  // Nach einer Entscheidung verschwindet ein genehmigter oder abgelehnter
+  // Antrag sofort aus allen Ansichten und Filtern dieser Liste für Schule und
+  // Konto, auch aus der, in der entschieden wurde (#4988); eine Rückfrage
+  // lässt ihn offen. Danach gleichen alle ab. Dazu die Zähler auffrischen:
+  // Badge der Seitenleiste, Verweis auf der Mitarbeiter-Seite und Reiter der
+  // Mitarbeitenden-Detailseite hören auf diese Signale.
   const afterDecision = useCallback(
     (decidedId?: string) => {
-      setRowsAtDecision(rows);
-      if (decidedId) {
-        void mutate(
-          (current) => current?.filter((row) => row.id !== decidedId),
-          { revalidate: true },
+      setDataAtDecision(data);
+      if (decidedId !== undefined) {
+        addListOverlay<StaffAbsenceRequestRow>(list, (current) =>
+          current.filter((row) => row.id !== decidedId),
         );
-      } else {
-        void mutate();
       }
-      // Ein entschiedener Antrag verschwindet auch aus den anderen Ansichten
-      // und Filtern; er käme sonst beim Filterwechsel zurück (#4988). Eine
-      // Rückfrage lässt ihn offen.
-      if (listKey && decidedId)
-        void updateOtherLists(
-          (current) =>
-            (current as StaffAbsenceRequestRow[] | undefined)?.filter(
-              (row) => row.id !== decidedId,
-            ),
-          [listKey],
-        );
+      void revalidateLists();
       swrMutate(
         (key) =>
           typeof key === "string" && key.includes("staff-pending-absences-"),
       );
       dispatchAbsencesRefresh();
     },
-    [listKey, mutate, rows, swrMutate, updateOtherLists],
+    [data, list, revalidateLists, swrMutate],
   );
 
   const handleApprove = async (row: StaffAbsenceRequestRow) => {

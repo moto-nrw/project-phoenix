@@ -6,7 +6,6 @@ import {
   useSWRWithId,
   useTenantMutate,
   useTenantMutateMatching,
-  useTenantUpdateMatching,
 } from "./hooks";
 
 // Mock next-auth/react
@@ -14,17 +13,14 @@ vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
 
-const { mockSwrMutate, mockSwrCache } = vi.hoisted(() => ({
+const { mockSwrMutate } = vi.hoisted(() => ({
   mockSwrMutate: vi.fn(),
-  mockSwrCache: new Map<string, { data?: unknown }>(),
 }));
 
-// Mock swr. The context's cache and mutate stay the same objects across
-// renders, as SWR's own context does.
+// Mock swr
 vi.mock("swr", () => ({
   default: vi.fn(),
   mutate: mockSwrMutate,
-  useSWRConfig: () => ({ cache: mockSwrCache, mutate: mockSwrMutate }),
 }));
 
 const { mockUseTenantSlugSafe } = vi.hoisted(() => ({
@@ -599,6 +595,25 @@ describe("SWR Hooks", () => {
       expect(matcher("school-a:unrelated")).toBe(false);
     });
 
+    it("leaves the keys named in `except` out of the revalidation", () => {
+      // A decision revalidates every other filter and view variant of its
+      // list; the variant it was made in already shows its result (#4988).
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+      const { result } = renderHook(() =>
+        useTenantMutateMatching(["request-feed:7:"]),
+      );
+      void result.current({ except: ['request-feed:7:open:[""]'] });
+
+      const lastCall = mockSwrMutate.mock.calls.at(-1);
+      // A plain revalidation: no data, so no answer in flight is discarded.
+      expect(lastCall).toHaveLength(1);
+      const matcher = lastCall?.[0] as (key: unknown) => boolean;
+      expect(matcher('school-a:request-feed:7:open:["Mia"]')).toBe(true);
+      expect(matcher('school-a:request-feed:7:history:[""]')).toBe(true);
+      expect(matcher('school-a:request-feed:7:open:[""]')).toBe(false);
+      expect(matcher('school-b:request-feed:7:open:["Mia"]')).toBe(false);
+    });
+
     it("returns the same callback when called with a fresh array of identical contents", () => {
       // Stability guard: callers pass a literal array each render. Without
       // the joined-string dep, useCallback would re-create the function every
@@ -617,43 +632,6 @@ describe("SWR Hooks", () => {
 
       rerender({ subs: ["a", "c"] }); // genuinely different contents
       expect(result.current).not.toBe(firstCallback);
-    });
-  });
-  describe("useTenantUpdateMatching", () => {
-    it("applies the change to every variant with data except the keys named in `except`", () => {
-      // A list that just updated its own entry applies the same change to its
-      // other filter and view variants (#4988); its own entry stays as is.
-      // Every variant is revalidated, so a request still in flight for it is
-      // not deduped against on its next mount.
-      mockUseTenantSlugSafe.mockReturnValue("school-a");
-      mockSwrCache.clear();
-      mockSwrCache.set('school-a:request-feed:7:open:["Mia"]', { data: {} });
-      mockSwrCache.set('school-a:request-feed:7:open:[""]', { data: {} });
-      mockSwrCache.set('school-a:request-feed:7:history:[""]', {});
-      mockSwrCache.set('school-b:request-feed:7:open:["Mia"]', { data: {} });
-      const update = vi.fn();
-      const { result } = renderHook(() =>
-        useTenantUpdateMatching(["request-feed:7:"]),
-      );
-      void result.current(update, ['request-feed:7:open:[""]']);
-
-      const [withoutData, withData] = mockSwrMutate.mock.calls.slice(-2);
-      // Entries with data get the change and are revalidated.
-      expect(withData?.[1]).toBe(update);
-      expect(withData?.[2]).toEqual({ revalidate: true });
-      const updated = withData?.[0] as (key: unknown) => boolean;
-      expect(updated('school-a:request-feed:7:open:["Mia"]')).toBe(true);
-      expect(updated('school-a:request-feed:7:history:[""]')).toBe(false);
-      expect(updated('school-a:request-feed:7:open:[""]')).toBe(false);
-      expect(updated('school-b:request-feed:7:open:["Mia"]')).toBe(false);
-      // Entries without data are only revalidated, never mutated.
-      expect(withoutData).toHaveLength(1);
-      const revalidated = withoutData?.[0] as (key: unknown) => boolean;
-      expect(revalidated('school-a:request-feed:7:history:[""]')).toBe(true);
-      expect(revalidated('school-a:request-feed:7:open:["Mia"]')).toBe(false);
-      expect(revalidated('school-a:request-feed:7:open:[""]')).toBe(false);
-      expect(revalidated('school-b:request-feed:7:open:["Mia"]')).toBe(false);
-      mockSwrCache.clear();
     });
   });
 });

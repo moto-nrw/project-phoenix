@@ -2079,8 +2079,12 @@ describe("AggregatedRequestList", () => {
         oldPage.resolve();
         await loading;
       });
+      // Bis die Antwort des Abgleichs da ist, gilt der bisherige Stand samt
+      // Folgeseite; die Seite berührt den Cache nicht (#4988).
       expect(current().items).toEqual(
-        kind === "merged" ? firstItems : [withdrawalItem("first")],
+        kind === "merged"
+          ? [...firstItems, openItem("excused", "obsolete")]
+          : [withdrawalItem("first"), withdrawalItem("obsolete")],
       );
       await act(async () => {
         refresh.resolve();
@@ -2356,4 +2360,106 @@ describe("AggregatedRequestList", () => {
     ).not.toBeInTheDocument();
     await clearDefaultCache();
   });
+  // Runde 3 (#4988): die Entscheidung in Filter A wird erst fertig, nachdem
+  // schon zu Filter B gewechselt wurde. Zurück in A darf die Anfrage nicht
+  // wieder erscheinen, auch ohne neuen Abgleich.
+  it("entfernt eine Anfrage, deren Entscheidung erst nach einem Filterwechsel fertig wird", async () => {
+    const decided = openItem("master_data", "decided");
+    const remaining = openItem("excused", "remaining");
+    mockListOpen.mockImplementation(async (params) => ({
+      items: params?.search ? [remaining] : [decided, remaining],
+    }));
+    const { result, rerender } = renderHook(
+      (filters) => useFeeds(filters, "open"),
+      { initialProps: NO_FILTERS, wrapper: providersWith(new Map()) },
+    );
+    await waitFor(() =>
+      expect(result.current.feed.items).toEqual([decided, remaining]),
+    );
+    // Die Entscheidung behält die Funktion aus dem Render, in dem sie begann.
+    const finishDecision = result.current.feed.setItems;
+    rerender({ ...NO_FILTERS, search: "other" });
+    await waitFor(() => expect(result.current.feed.items).toEqual([remaining]));
+
+    await act(async () => {
+      finishDecision((items) =>
+        items.filter((item) => itemKey(item) !== itemKey(decided)),
+      );
+    });
+    mockListOpen.mockImplementation(() => new Promise(() => undefined));
+    rerender(NO_FILTERS);
+
+    expect(result.current.feed.items.map(itemKey)).toEqual([
+      itemKey(remaining),
+    ]);
+  });
+
+  // Runde 3 (#4988): ein Abgleich läuft, ein zweiter ersetzt ihn, der erste
+  // scheitert danach mit 503, und es wird nachgeladen. Die Antwort des
+  // zweiten Abgleichs muss stehen bleiben.
+  it.each([false, true])(
+    "behält die Antwort des neueren Abgleichs nach einem späten 503 (Nachladen: %s)",
+    async (paginate) => {
+      const stale = deferred<void>();
+      const fresh = deferred<void>();
+      const decided = openItem("master_data", "decided");
+      const first = Array.from({ length: 24 }, (_, i) =>
+        openItem("excused", String(i)),
+      );
+      let firstPageCalls = 0;
+      mockListOpen.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          return { items: [openItem("excused", "page-two")] };
+        }
+        firstPageCalls += 1;
+        if (firstPageCalls === 2) await stale.promise;
+        if (firstPageCalls >= 3) {
+          await fresh.promise;
+          return { items: [openItem("excused", "fresh")] };
+        }
+        return { items: [decided, ...first], next_cursor: "next" };
+      });
+      const { result } = renderHook(() => useFeeds(NO_FILTERS, "open"), {
+        wrapper: providersWith(new Map()),
+      });
+      await waitFor(() => expect(result.current.feed.items).toHaveLength(25));
+      let staleReload!: Promise<void>;
+      act(() => {
+        staleReload = result.current.feed.reload();
+      });
+      await waitFor(() => expect(firstPageCalls).toBe(2));
+      await act(async () => {
+        result.current.feed.setItems((items) =>
+          items.filter((item) => itemKey(item) !== itemKey(decided)),
+        );
+      });
+      // Ein neuerer Abgleich, etwa durch ein Ereignis einer anderen Fläche.
+      act(() => {
+        void result.current.feed.reload();
+      });
+      await waitFor(() => expect(firstPageCalls).toBeGreaterThanOrEqual(3));
+      await act(async () => {
+        stale.reject(
+          new ApiError("old request failed", 503, {
+            code: "general.unavailable",
+          }),
+        );
+        await staleReload;
+      });
+      if (paginate) {
+        await act(async () => {
+          await result.current.feed.loadMore();
+        });
+      }
+      await act(async () => {
+        fresh.resolve();
+      });
+
+      await waitFor(() =>
+        expect(result.current.feed.items.map(itemKey)).toEqual([
+          itemKey(openItem("excused", "fresh")),
+        ]),
+      );
+    },
+  );
 });

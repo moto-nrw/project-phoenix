@@ -17,7 +17,6 @@
 // swr/no-direct-import permits package imports inside this shared wrapper only.
 import useSWR, {
   mutate as swrMutate,
-  useSWRConfig,
   type SWRConfiguration,
   type SWRResponse,
 } from "swr";
@@ -192,6 +191,11 @@ export function useTenantMutate() {
  * pre-mutation data, the entry has to go so the next mount loads fresh with
  * `isLoading: true`.
  *
+ * **Leaving keys out**: `except` names unprefixed keys that are not touched,
+ * e.g. the list a decision was just made in, which already shows its result.
+ * A plain revalidation also drops SWR's marker of a request in flight, so an
+ * entry that is not mounted fetches fresh on its next mount (#4988).
+ *
  * @example
  * ```tsx
  * const refreshRoomConsumers = useTenantMutateMatching([
@@ -212,10 +216,13 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
   const joined = substrings.join("|");
 
   return useCallback(
-    (options?: { clear?: boolean }) => {
+    (options?: { clear?: boolean; except?: readonly string[] }) => {
       const needles = joined.length > 0 ? joined.split("|") : [];
+      const kept = new Set(
+        (options?.except ?? []).map((key) => scopedKey(key, slug, null)),
+      );
       const matches = (key: unknown): boolean => {
-        if (typeof key !== "string") return false;
+        if (typeof key !== "string" || kept.has(key)) return false;
         // Limit to the active tenant so cross-tenant caches (multi-tab) stay put.
         if (slug && !key.startsWith(`${slug}:`)) return false;
         return needles.some((needle) => key.includes(needle));
@@ -226,44 +233,6 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
       return swrMutate(matches);
     },
     [slug, joined],
-  );
-}
-
-/**
- * Hook that applies one change to every cached variant of a list in the
- * active tenant, e.g. a decided request removed from every filter and view
- * variant of the Anfragen list (#4988). Keys match like
- * `useTenantMutateMatching`; `except` names unprefixed keys that stay
- * untouched, e.g. the entry a mounted list just updated itself.
- *
- * Every matching entry is revalidated, which drops SWR's marker of a request
- * in flight: its next mount fetches fresh instead of deduping against a
- * request whose answer no longer applies. Entries without data are only
- * revalidated, never mutated: a data mutation makes SWR discard their pending
- * first answer while a remount still dedupes against it, and the list would
- * stay loading for good.
- */
-export function useTenantUpdateMatching(substrings: readonly string[]) {
-  const slug = useTenantSlugSafe();
-  const { cache, mutate } = useSWRConfig();
-  const joined = substrings.join("|");
-
-  return useCallback(
-    (update: (current: unknown) => unknown, except: readonly string[] = []) => {
-      const needles = joined.length > 0 ? joined.split("|") : [];
-      const kept = new Set(except.map((key) => scopedKey(key, slug, null)));
-      const matches = (key: unknown): key is string => {
-        if (typeof key !== "string" || kept.has(key)) return false;
-        if (slug && !key.startsWith(`${slug}:`)) return false;
-        return needles.some((needle) => key.includes(needle));
-      };
-      const hasData = (key: string) => cache.get(key)?.data !== undefined;
-      void mutate((key) => matches(key) && !hasData(key));
-      return mutate((key) => matches(key) && hasData(key), update, {
-        revalidate: true,
-      });
-    },
-    [cache, mutate, slug, joined],
   );
 }
 

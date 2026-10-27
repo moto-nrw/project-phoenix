@@ -54,7 +54,14 @@ import {
   type FeedSource,
   type FeedState,
 } from "~/lib/request-feed";
-import { useSWRAuth, useTenantUpdateMatching } from "~/lib/swr";
+import {
+  addListOverlay,
+  applyListOverlays,
+  startListFetch,
+  useListOverlays,
+} from "~/lib/list-overlays";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import type { AnyItem } from "./case-model";
 import type { AggregatedRequestFilters } from "./filters";
 
@@ -192,6 +199,7 @@ function requestFeedParts(
 async function loadFirstRequestPage(
   sources: readonly RequestFeedSource[],
 ): Promise<RequestFeedSnapshot> {
+  const fetchedAt = startListFetch();
   let reviewAccess: RequestReviewAccess | undefined;
   const reporting = sources.map((source) => ({
     key: source.key,
@@ -204,7 +212,7 @@ async function loadFirstRequestPage(
   const feed = createFeedState<AnyItem>(reporting);
   const page = await takeMergedPage(reporting, feed, PAGE_SIZE);
   return {
-    snapshot: Symbol(),
+    fetchedAt,
     items: page.items,
     hasMore: page.hasMore,
     pages: 1,
@@ -227,25 +235,30 @@ function shouldAutoLoad(pages: number, items: readonly AnyItem[]): boolean {
 }
 
 /**
- * Was eine Liste im Cache hält. `snapshot` kennzeichnet jede geladene erste
- * Seite einzeln: auch eine inhaltsgleiche beginnt einen neuen Stand, an den
- * keine Seite eines älteren mehr angehängt wird.
+ * Was eine Liste im Cache hält. `fetchedAt` ist die Nummer des Abrufs der
+ * ersten Seite (`startListFetch`): sie kennzeichnet den Stand und entscheidet,
+ * welche lokalen Änderungen für ihn noch gelten.
  */
 interface PagedSnapshot<T> {
-  readonly snapshot: symbol;
+  readonly fetchedAt: number;
   readonly items: T[];
   readonly hasMore: boolean;
 }
 
 /**
- * Erste Seite, Nachladen und lokale Änderungen einer Liste im SWR-Cache.
+ * Erste Seite, Nachladen und lokale Änderungen einer Liste.
  *
- * Koordiniert wird über den Cache-Eintrag, nicht über diese Instanz:
- * `isValidating` gilt je Schlüssel für alle Instanzen, auch für einen Abgleich,
- * den eine inzwischen verlassene Seite gestartet hat. SWR verwirft eine
- * laufende Antwort, sobald derselbe Schlüssel mutiert wird. Deshalb lädt die
- * Liste während eines Abgleichs nichts nach und hängt keine Seite an, und
- * eine Entscheidung während eines Abgleichs gleicht danach erneut ab.
+ * Der SWR-Cache hält je Ansicht und Filter nur die erste Seite, so wie der
+ * Server sie geliefert hat; diese Liste verändert ihn nie. Folgeseiten leben
+ * im Zustand dieser Instanz und gelten nur, solange die erste Seite, von der
+ * aus sie geholt wurden, noch angezeigt wird. Lokale Änderungen (Entscheiden
+ * usw.) gehen als Überlagerung an alle Ansichten und Filter der Liste für
+ * diese Schule und dieses Konto (`addListOverlay`) und gelten für jeden Stand,
+ * der vor ihnen abgerufen wurde.
+ *
+ * Weil nichts den Cache verändert, verwirft SWR keinen laufenden Abruf, und
+ * Nachladen, Abgleich und Entscheidungen brauchen keine Absprache und keine
+ * Sperre.
  */
 function usePagedFeed<T, S extends PagedSnapshot<T>>({
   key,
@@ -256,7 +269,7 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   loadFirst,
   loadNext,
   autoLoad,
-  updateSnapshot,
+  applyUpdate,
   reportError,
   clearError,
 }: {
@@ -272,8 +285,8 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   loadNext: (base: S) => Promise<(current: S) => S>;
   /** Soll nach `snapshot` noch eine Seite ohne Zutun folgen? */
   autoLoad: (snapshot: S) => boolean;
-  /** Wendet lokale Änderungen auch auf gepufferte Zeilen an. */
-  updateSnapshot?: (current: S, update: (items: T[]) => T[]) => S;
+  /** Setzt eine lokale Änderung der Zeilen in den Stand der Liste um. */
+  applyUpdate: (current: S, update: (items: T[]) => T[]) => S;
   reportError: ReportLoadError;
   clearError: () => void;
 }) {
@@ -283,23 +296,26 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
     isValidating,
     mutate,
   } = useSWRAuth<S>(key, loadFirst, feedSwrOptions(view));
-  const latest = useRef({ key, data, isValidating });
+  const slug = useTenantSlugSafe();
+  const list = `${slug ?? ""}|${family}`;
+  const overlays = useListOverlays<T>(list);
+  // Die nachgeladenen Seiten zur ersten Seite `fetchedAt`.
+  const [pages, setPages] = useState<{ fetchedAt: number; state: S } | null>(
+    null,
+  );
+  const base = data && pages?.fetchedAt === data.fetchedAt ? pages.state : data;
+  const shown = useMemo(
+    () =>
+      base && applyListOverlays(base, base.fetchedAt, overlays, applyUpdate),
+    [applyUpdate, base, overlays],
+  );
+  // Die angezeigte erste Seite, gelesen erst, wenn eine Folgeseite ankommt.
+  const dataRef = useRef(data);
   useLayoutEffect(() => {
-    latest.current = { key, data, isValidating };
-    return () => {
-      // Nach dem Unmount darf diese Instanz keinen neuen Abgleich verwerfen.
-      latest.current = { key: null, data: undefined, isValidating: false };
-    };
+    dataRef.current = data;
   });
-  const updateFamily = useTenantUpdateMatching([family]);
-  const [pagination, setPagination] = useState<{
-    key: string | null;
-  } | null>(null);
-  const loadingMore = pagination !== null && pagination.key === key;
-  useLayoutEffect(() => {
-    // Ein alter Filter darf das Nachladen des neuen nicht blockieren.
-    setPagination(null);
-  }, [key]);
+  const [pending, setPending] = useState<{ fetchedAt: number } | null>(null);
+  const loadingPage = pending !== null && pending.fetchedAt === data?.fetchedAt;
   const [autoLoadFailed, setAutoLoadFailed] = useState(false);
   // Laden und Abgleich im Hintergrund melden ihren Fehler über denselben
   // Fehlerpfad (#2513, #4988); die geladene Liste bleibt dabei stehen.
@@ -314,46 +330,39 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
     clearError();
   }, [clearError, key]);
 
-  /** Ändert die geladenen Zeilen, z. B. nach einer Entscheidung. */
+  const revalidateFamily = useTenantMutateMatching([family]);
+  /**
+   * Ändert die geladenen Zeilen, z. B. nach einer Entscheidung: als
+   * Überlagerung für alle Ansichten und Filter der Liste. Alle anderen gleichen
+   * danach ab, damit sie beim nächsten Öffnen frisch laden; die Liste, in der
+   * entschieden wurde, zeigt das Ergebnis schon.
+   */
   const setItems = useCallback(
     (update: (current: T[]) => T[]) => {
-      const apply = (current: S | undefined) =>
-        current && {
-          ...(updateSnapshot
-            ? updateSnapshot(current, update)
-            : { ...current, items: update(current.items) }),
-          // Auch lokale Änderungen ersetzen den Stand laufender Folgeseiten.
-          snapshot: Symbol(),
-        };
-      void mutate(apply, { revalidate: latest.current.isValidating });
-      // Dieselbe Änderung gilt für alle Ansichten und Filter der Liste: eine
-      // entschiedene Anfrage käme sonst beim Filterwechsel zurück.
-      if (key)
-        void updateFamily((current) => apply(current as S | undefined), [key]);
+      addListOverlay(list, update);
+      void revalidateFamily({ except: key ? [key] : [] });
     },
-    [key, mutate, updateFamily, updateSnapshot],
+    [key, list, revalidateFamily],
   );
 
   const loadMoreRef = useRef<() => Promise<void>>(async () => undefined);
   const loadMore = useCallback(async () => {
-    if (!data?.hasMore || loadingMore || isValidating) return;
-    const base = data;
-    // Die Seite gehört nur zu dem Stand, von dem aus sie geholt wurde.
-    const isCurrent = () =>
-      latest.current.key === key &&
-      latest.current.data?.snapshot === base.snapshot &&
-      !latest.current.isValidating;
-    const request = { key };
-    setPagination(request);
+    if (!shown?.hasMore || loadingPage) return;
+    const { fetchedAt } = shown;
+    const isCurrent = () => dataRef.current?.fetchedAt === fetchedAt;
+    const request = { fetchedAt };
+    setPending(request);
     clearError();
     try {
-      const append = await loadNext(base);
+      const append = await loadNext(shown);
       if (!isCurrent()) return;
-      await mutate(
-        (current) =>
-          current?.snapshot === base.snapshot ? append(current) : current,
-        { revalidate: false },
-      );
+      setPages((prev) => {
+        const current =
+          prev?.fetchedAt === fetchedAt ? prev.state : dataRef.current;
+        return current?.fetchedAt === fetchedAt
+          ? { fetchedAt, state: append(current) }
+          : prev;
+      });
       setAutoLoadFailed(false);
     } catch (err) {
       // Der Fehler eines ersetzten Stands betrifft die aktuelle Liste nicht.
@@ -364,56 +373,56 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
       reportError(err, object, () => void loadMoreRef.current());
       setAutoLoadFailed(true);
     } finally {
-      // Ein alter Abruf darf den Ladezustand seines Nachfolgers nicht löschen.
-      setPagination((current) => (current === request ? null : current));
+      setPending((current) => (current === request ? null : current));
     }
-  }, [
-    clearError,
-    data,
-    isValidating,
-    key,
-    loadNext,
-    loadingMore,
-    logEvent,
-    mutate,
-    object,
-    reportError,
-  ]);
+  }, [clearError, loadNext, loadingPage, logEvent, object, reportError, shown]);
   useEffect(() => {
     loadMoreRef.current = loadMore;
   });
   useEffect(() => {
     if (
       view === "open" &&
-      data?.hasMore &&
-      !loadingMore &&
-      !isValidating &&
+      shown?.hasMore &&
+      !loadingPage &&
       !autoLoadFailed &&
-      autoLoad(data)
+      autoLoad(shown)
     )
       void loadMore();
-  }, [
-    autoLoad,
-    autoLoadFailed,
-    data,
-    isValidating,
-    loadMore,
-    loadingMore,
-    view,
-  ]);
+  }, [autoLoad, autoLoadFailed, loadMore, loadingPage, shown, view]);
 
   return {
-    data,
-    items: data?.items,
-    hasMore: data?.hasMore ?? false,
+    data: shown,
+    items: shown?.items,
+    hasMore: shown?.hasMore ?? false,
     loading: data === undefined && swrError === undefined,
-    // Während eines Abgleichs wartet „Weitere Einträge laden“ auf dessen Stand.
-    loadingMore: loadingMore || (isValidating && data !== undefined),
+    // Während eines Abgleichs wartet „Weitere Einträge laden“ auf dessen
+    // Stand; das ist nur Anzeige, keine Sperre.
+    loadingMore: loadingPage || (isValidating && data !== undefined),
     error,
     reload,
     setItems,
     loadMore,
   };
+}
+
+/** Eine Änderung der Zeilen, auch in den noch nicht gezeigten Puffern. */
+function updateRequestFeed(
+  current: RequestFeedSnapshot,
+  update: (items: AnyItem[]) => AnyItem[],
+): RequestFeedSnapshot {
+  const feed = cloneFeedState(current.feed);
+  for (const source of Object.values(feed)) {
+    source.buffer = update(source.buffer);
+  }
+  return { ...current, items: update(current.items), feed };
+}
+
+/** Eine Änderung der Zeilen einer Liste ohne Puffer. */
+function updateItems<T, S extends PagedSnapshot<T>>(
+  current: S,
+  update: (items: T[]) => T[],
+): S {
+  return { ...current, items: update(current.items) };
 }
 
 export function useMergedRequestFeed(
@@ -461,13 +470,7 @@ export function useMergedRequestFeed(
     view,
     object: LIST_OBJECT,
     logEvent: "aggregated_request_list_load_more_failed",
-    updateSnapshot: (current, update) => {
-      const feed = cloneFeedState(current.feed);
-      for (const source of Object.values(feed)) {
-        source.buffer = update(source.buffer);
-      }
-      return { ...current, items: update(current.items), feed };
-    },
+    applyUpdate: updateRequestFeed,
     loadFirst: () => loadFirstRequestPage(sources),
     loadNext,
     autoLoad,
@@ -552,10 +555,12 @@ export function useWithdrawalFeed(
     view,
     object: WITHDRAWAL_OBJECT,
     logEvent: "care_withdrawal_list_load_more_failed",
+    applyUpdate: updateItems,
     loadFirst: async () => {
+      const fetchedAt = startListFetch();
       const page = await fetchWithdrawalPage(view, filters, 1);
       return {
-        snapshot: Symbol(),
+        fetchedAt,
         items: page.items,
         hasMore: page.items.length < page.total,
         nextPage: 2,
