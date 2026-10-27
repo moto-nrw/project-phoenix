@@ -143,6 +143,8 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
   // gesetzt, damit der normale Submit-Handler den aktuellen Rollenentwurf
   // nimmt, aber die bereits gespeicherten Felder auslässt.
   const retryRoleOnlyRef = useRef(false);
+  // The public demo hides its technical seed addresses (#5033).
+  const email = displayEmail(teacher.email);
   const errors = useApiFormError(formRef);
 
   const displayRole = teacher.account_role
@@ -293,7 +295,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
             </DataGrid>
           </InfoSection>
 
-          {displayEmail(teacher.email) ? (
+          {email ? (
             <InfoSection
               title="E-Mail"
               icon={
@@ -306,7 +308,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
               accentColor="blue"
             >
               <EmailActions
-                email={displayEmail(teacher.email)}
+                email={email}
                 name={
                   teacher.name ||
                   `${teacher.first_name ?? ""} ${teacher.last_name ?? ""}`.trim()

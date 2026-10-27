@@ -777,7 +777,9 @@ function SupervisorItem({
         </div>
         {displayEmail(supervisor.email) && (
           <>
-            <p className="mt-1 text-sm text-gray-500">{supervisor.email}</p>
+            <p className="mt-1 text-sm text-gray-500">
+              {displayEmail(supervisor.email)}
+            </p>
             <Button
               type="button"
               variant="primary"

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -582,8 +581,7 @@ func seedPickupSignature(rt *Runtime, auth AuthRef, studentID int64, declaration
 // seedFirstParentName is the name the first parent signs with.
 func seedFirstParentName(rt *Runtime) string {
 	if len(rt.Parents) > 0 && rt.Parents[0].Name != "" {
-		first, last := parentFormName(rt.seedVisitor(), rt.Parents[0])
-		return strings.TrimSpace(first + " " + last)
+		return parentSignName(rt.seedVisitor(), rt.Parents[0])
 	}
 	return "Sabine Schneider"
 }

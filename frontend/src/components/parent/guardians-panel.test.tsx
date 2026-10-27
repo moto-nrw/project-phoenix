@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import type React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GuardiansPanel from "./guardians-panel";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { catalogText } from "~/test/error-catalog-text";
@@ -100,6 +100,10 @@ const editableGuardian: ChildGuardian = {
 };
 
 describe("GuardiansPanel", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.listChildGuardians.mockResolvedValue([editableGuardian]);
@@ -338,12 +342,42 @@ describe("GuardiansPanel", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("juergen@example.test")).toBeInTheDocument();
     expect(screen.getByText("petra@example.test")).toBeInTheDocument();
-    // The parent finds their own account among the others (#5033).
-    expect(screen.getAllByText("Das sind Sie")).toHaveLength(1);
+    // Outside the public demo a parent's own row carries no marker (#5033).
+    expect(screen.queryByText("Das sind Sie")).not.toBeInTheDocument();
     expect(
       screen.queryByText("magdalena@example.test"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("klaus@example.test")).not.toBeInTheDocument();
+  });
+
+  // The demo visitor is the parent of one child and carries the name of a
+  // seed parent; the marker says which row is the visitor (#5033).
+  it("marks the parent's own rows in the demo build", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
+    mocks.listChildGuardians.mockResolvedValue([
+      { ...editableGuardian, is_self: true },
+    ]);
+    mocks.listRelatedAccounts.mockResolvedValue([
+      {
+        guardian_profile_id: "7",
+        first_name: "Helga",
+        last_name: "Schneider",
+        email: "helga@example.test",
+        relationship_type: "relative",
+        is_primary: false,
+        status: "active",
+        is_self: true,
+      },
+    ]);
+
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Verbundene Konten" }),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Das sind Sie")).toHaveLength(2);
   });
 
   it("separates contacts and accounts with the standard section spacing", async () => {

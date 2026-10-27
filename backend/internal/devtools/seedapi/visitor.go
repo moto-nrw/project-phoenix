@@ -45,6 +45,13 @@ func parentFormName(visitor visitorName, parent ParentCredentials) (string, stri
 	return visitorDisplayName(visitor, isVisitorParent(parent), seedFirst, seedLast, displaced.FirstName, displaced.LastName)
 }
 
+// parentSignName is the full name a seeded parent signs with, after the
+// same rule as parentFormName.
+func parentSignName(visitor visitorName, parent ParentCredentials) string {
+	first, last := parentFormName(visitor, parent)
+	return strings.TrimSpace(first + " " + last)
+}
+
 // isVisitorParent reports whether the parent account is the one the visitor
 // signs in as. Its key stays the seed name the visitor replaced.
 func isVisitorParent(parent ParentCredentials) bool {

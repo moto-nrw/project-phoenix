@@ -212,7 +212,7 @@ export default function GuardianPickerPanel({
                 </p>
                 {displayEmail(selected.email) && (
                   <p className="truncate text-xs text-gray-500">
-                    {selected.email}
+                    {displayEmail(selected.email)}
                   </p>
                 )}
                 {selected.linkedChildrenCount !== undefined &&
@@ -341,7 +341,7 @@ export default function GuardianPickerPanel({
                     </p>
                     {displayEmail(guardian.email) && (
                       <p className="truncate text-xs text-gray-500">
-                        {guardian.email}
+                        {displayEmail(guardian.email)}
                       </p>
                     )}
                     {guardian.linkedChildrenCount !== undefined &&

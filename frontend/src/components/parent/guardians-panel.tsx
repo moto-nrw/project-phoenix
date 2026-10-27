@@ -36,7 +36,7 @@ import {
   updateGuardianRelationship,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
-import { displayEmail } from "~/lib/demo-build";
+import { displayEmail, isDemoBuild } from "~/lib/demo-build";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
@@ -680,7 +680,7 @@ function ConnectedAccountRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">{name}</p>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-          {account.is_self ? (
+          {account.is_self && isDemoBuild() ? (
             <StatusBadge tone="blue" label={t("guardians.badges.self")} />
           ) : null}
           <StatusBadge
@@ -760,9 +760,10 @@ function GuardianRow({
   const relationshipLabel = isRelationshipType(g.relationship_type)
     ? t(`guardians.relationships.${g.relationship_type}`)
     : t("guardians.relationships.contact");
+  const email = displayEmail(g.email);
   const hasContact =
     g.phones.length > 0 ||
-    Boolean(displayEmail(g.email)) ||
+    Boolean(email) ||
     Boolean(g.address_street ?? g.address_city ?? g.address_postal_code);
   const hasDetails = hasContact || Boolean(g.pickup_notes);
   // Von der Schule verwaltete Kontakte (social_worker) weist das Backend ab,
@@ -788,7 +789,8 @@ function GuardianRow({
                 {t("guardians.badges.primary")}
               </span>
             )}
-            {g.is_self && (
+            {/* The demo visitor is this child's parent (#5033). */}
+            {g.is_self && isDemoBuild() && (
               <StatusBadge tone="blue" label={t("guardians.badges.self")} />
             )}
           </div>
@@ -852,7 +854,7 @@ function GuardianRow({
                         .join(" · ")}
                     />
                   ))}
-                  {displayEmail(g.email) && (
+                  {email && (
                     <ContactLine
                       icon={
                         <MotoDuotoneIcon
@@ -861,7 +863,7 @@ function GuardianRow({
                           size={16}
                         />
                       }
-                      text={displayEmail(g.email)}
+                      text={email}
                     />
                   )}
                   {(g.address_street ??

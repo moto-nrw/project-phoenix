@@ -13,8 +13,8 @@ export function isDemoBuild(): boolean {
 const DEMO_SEED_ADDRESS = /@demo-[a-z0-9-]+\.moto-ogs\.de$/i;
 
 /**
- * The address shown for a person. The public demo hides its seed addresses,
- * as the header does (#3891): they are technical, and the visitor's own
+ * The address shown for a person. The public demo hides its seed addresses
+ * (the header hides every address, #3891): they are technical, and the visitor's own
  * caregiver and parent keep the address of the seed person whose name they
  * took (#5033). An address someone typed in the demo stays visible.
  */
