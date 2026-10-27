@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock dependencies before imports
 vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
+  getSession: vi.fn(() => Promise.resolve({ user: { id: "1" } })),
 }));
 
 vi.mock("./auth-failure", () => ({
@@ -106,7 +106,6 @@ describe("api.ts helper functions", () => {
           dayStatus: "comes_today",
           page: 2,
           pageSize: 25,
-          token: "test-token",
         });
 
         expect(fetchWithRetry).toHaveBeenCalled();
@@ -123,7 +122,8 @@ describe("api.ts helper functions", () => {
       }
     });
 
-    it("includes room filter and falls back to the session token when no token is provided", async () => {
+    // The browser session carries no token (#5005); the BFF reads the cookie.
+    it("includes room filter and passes no token", async () => {
       const { fetchWithRetry } = await import("./api-helpers");
       const { getSession } = await import("next-auth/react");
       vi.mocked(fetchWithRetry).mockResolvedValue({
@@ -131,7 +131,7 @@ describe("api.ts helper functions", () => {
         response: new Response(),
       });
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "session-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
@@ -142,11 +142,11 @@ describe("api.ts helper functions", () => {
           roomId: "room-7",
         });
 
-        expect(getSession).toHaveBeenCalled();
+        // No session lookup for a token: the route reads the cookie.
+        expect(getSession).not.toHaveBeenCalled();
         expect(fetchWithRetry).toHaveBeenCalledWith(
           expect.stringContaining("room_id=room-7"),
-          "session-token",
-          expect.any(Object),
+          expect.objectContaining({ onAuthFailure: expect.any(Function) }),
         );
       } finally {
         restore();
@@ -223,9 +223,7 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        const result = await studentService.getStudents({
-          token: "test-token",
-        });
+        const result = await studentService.getStudents({});
         expect(result.students).toBeDefined();
       } finally {
         restore();
@@ -254,9 +252,7 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        const result = await studentService.getStudents({
-          token: "test-token",
-        });
+        const result = await studentService.getStudents({});
         expect(result.students).toBeDefined();
       } finally {
         restore();
@@ -277,9 +273,7 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        const result = await studentService.getStudents({
-          token: "test-token",
-        });
+        const result = await studentService.getStudents({});
         expect(result.students).toEqual(mockStudents);
       } finally {
         restore();
@@ -297,9 +291,9 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        await expect(
-          studentService.getStudents({ token: "test-token" }),
-        ).rejects.toThrow("Authentication failed");
+        await expect(studentService.getStudents()).rejects.toThrow(
+          "Authentication failed",
+        );
       } finally {
         restore();
       }
@@ -317,9 +311,10 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        await expect(
-          studentService.getStudents({ token: "test-token" }),
-        ).rejects.toMatchObject({ status: 403, code: "general.permission" });
+        await expect(studentService.getStudents()).rejects.toMatchObject({
+          status: 403,
+          code: "general.permission",
+        });
       } finally {
         restore();
       }
@@ -338,9 +333,9 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        await expect(
-          studentService.getStudents({ token: "test-token" }),
-        ).rejects.toThrow("Error fetching students: API error: 429");
+        await expect(studentService.getStudents()).rejects.toThrow(
+          "Error fetching students: API error: 429",
+        );
 
         expect(consoleWarn).toHaveBeenCalledWith("api operation rate limited", {
           context: "Error fetching students",
@@ -371,9 +366,7 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        await expect(
-          studentService.getStudents({ token: "test-token" }),
-        ).rejects.toThrow(
+        await expect(studentService.getStudents()).rejects.toThrow(
           "Error fetching students: Request failed with status code 429",
         );
 
@@ -567,14 +560,11 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        const result = await studentService.getSchoolClasses({
-          token: "test-token",
-        });
+        const result = await studentService.getSchoolClasses();
 
         expect(result).toEqual(["1a", "2b"]);
         expect(fetchWithRetry).toHaveBeenCalledWith(
           "/api/students/school-classes",
-          "test-token",
           expect.any(Object),
         );
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
@@ -598,9 +588,7 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        const result = await studentService.getSchoolClasses({
-          token: "test-token",
-        });
+        const result = await studentService.getSchoolClasses();
 
         expect(result).toEqual(["1a", "2b"]);
       } finally {
@@ -618,27 +606,26 @@ describe("api.ts helper functions", () => {
           data: ["3c", " 4d "],
           response: new Response(),
         });
-        await expect(
-          studentService.getSchoolClasses({ token: "test-token" }),
-        ).resolves.toEqual(["3c", "4d"]);
+        await expect(studentService.getSchoolClasses()).resolves.toEqual([
+          "3c",
+          "4d",
+        ]);
 
         vi.mocked(fetchWithRetry).mockResolvedValueOnce({
           data: { success: true, data: { not: "an array" } },
           response: new Response(),
         });
-        await expect(
-          studentService.getSchoolClasses({ token: "test-token" }),
-        ).resolves.toEqual([]);
+        await expect(studentService.getSchoolClasses()).resolves.toEqual([]);
       } finally {
         restore();
       }
     });
 
-    it("uses getSession when no token is provided and fails on null data", async () => {
+    it("fails on null data", async () => {
       const { fetchWithRetry } = await import("./api-helpers");
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "session-token" },
+        user: { id: "1" },
       } as never);
       vi.mocked(fetchWithRetry).mockResolvedValue({
         data: null,
@@ -654,7 +641,6 @@ describe("api.ts helper functions", () => {
         );
         expect(fetchWithRetry).toHaveBeenCalledWith(
           "/api/students/school-classes",
-          "session-token",
           expect.any(Object),
         );
       } finally {
@@ -674,9 +660,10 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        await expect(
-          studentService.getSchoolClasses({ token: "test-token" }),
-        ).rejects.toMatchObject({ status: 403, code: "general.permission" });
+        await expect(studentService.getSchoolClasses()).rejects.toMatchObject({
+          status: 403,
+          code: "general.permission",
+        });
       } finally {
         restore();
       }
@@ -1150,7 +1137,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -1174,7 +1161,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -1203,9 +1190,7 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        const result = await studentService.getStudents({
-          token: "test-token",
-        });
+        const result = await studentService.getStudents({});
         expect(result.students).toEqual([]);
       } finally {
         restore();
@@ -1223,9 +1208,7 @@ describe("api.ts helper functions", () => {
 
       const restore = setupBrowserEnv();
       try {
-        const result = await studentService.getStudents({
-          token: "test-token",
-        });
+        const result = await studentService.getStudents({});
         expect(result.students).toEqual([]);
       } finally {
         restore();
@@ -1252,7 +1235,6 @@ describe("api.ts helper functions", () => {
           schoolClass: "3a",
           page: 3,
           pageSize: 100,
-          token: "test-token",
         });
 
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
@@ -1280,7 +1262,6 @@ describe("api.ts helper functions", () => {
       try {
         await studentService.getStudents({
           search: "Test",
-          token: "test-token",
         });
 
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
@@ -1308,7 +1289,6 @@ describe("api.ts helper functions", () => {
         await studentService.getStudents({
           search: "Test",
           includePickupTimes: true,
-          token: "test-token",
         });
 
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
@@ -1331,7 +1311,6 @@ describe("api.ts helper functions", () => {
       try {
         await studentService.getStudents({
           search: "Test",
-          token: "test-token",
         });
 
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
@@ -1355,7 +1334,6 @@ describe("api.ts helper functions", () => {
         await studentService.getStudents({
           search: "Test",
           includeArrivalTimes: true,
-          token: "test-token",
         });
 
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
@@ -1380,7 +1358,6 @@ describe("api.ts helper functions", () => {
           bus: "yes",
           photoConsent: "no",
           pickupStatus: "pickedUp",
-          token: "test-token",
         });
 
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
@@ -1405,7 +1382,6 @@ describe("api.ts helper functions", () => {
       try {
         await studentService.getStudents({
           search: "Test",
-          token: "test-token",
         });
 
         const callUrl = vi.mocked(fetchWithRetry).mock.calls[0]?.[0];
@@ -1435,7 +1411,6 @@ describe("api.ts helper functions", () => {
         expect(result).toBeDefined();
         expect(fetchWithRetry).toHaveBeenCalledWith(
           expect.stringContaining("/api/students/1"),
-          expect.any(String),
           expect.any(Object),
         );
       } finally {
@@ -1493,7 +1468,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
@@ -1528,7 +1503,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
@@ -1563,7 +1538,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
@@ -1593,7 +1568,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
@@ -1628,7 +1603,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
@@ -1664,7 +1639,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
@@ -1694,7 +1669,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
@@ -1728,7 +1703,7 @@ describe("api.ts helper functions", () => {
         });
         const { getSession } = await import("next-auth/react");
         vi.mocked(getSession).mockResolvedValue({
-          user: { token: "test-token" },
+          user: { id: "1" },
         } as never);
         const { studentService } = await import("./api");
         const restore = setupBrowserEnv();
@@ -1788,7 +1763,7 @@ describe("api.ts helper functions", () => {
         });
         const { getSession } = await import("next-auth/react");
         vi.mocked(getSession).mockResolvedValue({
-          user: { token: "test-token" },
+          user: { id: "1" },
         } as never);
         const { studentService } = await import("./api");
         const restore = setupBrowserEnv();
@@ -1850,7 +1825,7 @@ describe("api.ts helper functions", () => {
         });
         const { getSession } = await import("next-auth/react");
         vi.mocked(getSession).mockResolvedValue({
-          user: { token: "test-token" },
+          user: { id: "1" },
         } as never);
         const { studentService } = await import("./api");
         const restore = setupBrowserEnv();
@@ -1959,7 +1934,7 @@ describe("api.ts helper functions", () => {
         });
         const { getSession } = await import("next-auth/react");
         vi.mocked(getSession).mockResolvedValue({
-          user: { token: "test-token" },
+          user: { id: "1" },
         } as never);
         const { studentService } = await import("./api");
         const restore = setupBrowserEnv();
@@ -2042,7 +2017,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { roomService } = await import("./api");
@@ -2072,7 +2047,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { roomService } = await import("./api");
@@ -2101,7 +2076,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -2128,7 +2103,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { roomService } = await import("./api");
@@ -2159,7 +2134,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -2186,7 +2161,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -2209,7 +2184,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -2232,7 +2207,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -2261,7 +2236,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -2286,7 +2261,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -2312,7 +2287,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -2337,7 +2312,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -2366,7 +2341,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { groupService } = await import("./api");
@@ -2395,7 +2370,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { roomService } = await import("./api");
@@ -2429,7 +2404,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { roomService } = await import("./api");
@@ -2453,7 +2428,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { roomService } = await import("./api");
@@ -2475,16 +2450,16 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
 
       const restore = setupBrowserEnv();
       try {
-        await expect(
-          studentService.getStudents({ token: "test" }),
-        ).rejects.toThrow("Error fetching students");
+        await expect(studentService.getStudents()).rejects.toThrow(
+          "Error fetching students",
+        );
       } finally {
         restore();
       }
@@ -2499,16 +2474,17 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
 
       const restore = setupBrowserEnv();
       try {
-        await expect(
-          studentService.getStudents({ token: "test" }),
-        ).rejects.toMatchObject({ status: 503, noResponse: true });
+        await expect(studentService.getStudents()).rejects.toMatchObject({
+          status: 503,
+          noResponse: true,
+        });
       } finally {
         restore();
       }
@@ -2523,7 +2499,7 @@ describe("api.ts helper functions", () => {
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
-        user: { token: "test-token" },
+        user: { id: "1" },
       } as never);
 
       const { studentService } = await import("./api");
@@ -2563,7 +2539,6 @@ describe("api.ts helper functions", () => {
           groupId: "42",
           page: 5,
           pageSize: 10,
-          token: "test-token",
         });
 
         const url = vi.mocked(fetchWithRetry).mock.calls[0]?.[0] ?? "";

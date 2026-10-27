@@ -1,5 +1,4 @@
 import { apiErrorFromText, transportFetch } from "./api-error";
-import { getCachedSession } from "./session-cache";
 
 /**
  * Laufgemeinschaft ("läuft mit"): the children a child walks home with.
@@ -137,16 +136,10 @@ function unwrap<T>(value: ApiWrapper<T> | T): T {
   return value as T;
 }
 
-async function authHeaders(): Promise<HeadersInit> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  const session = await getCachedSession();
-  if (session?.user?.token) {
-    headers.Authorization = `Bearer ${session.user.token}`;
-  }
-  return headers;
-}
+// BFF routes read the session cookie; the browser holds no token (#5005).
+const JSON_HEADERS: Record<string, string> = {
+  "Content-Type": "application/json",
+};
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -254,7 +247,7 @@ export async function fetchStudentCompanions(
     `/api/students/${studentId}/companions`,
     {
       method: "GET",
-      headers: await authHeaders(),
+      headers: JSON_HEADERS,
       credentials: "include",
     },
   );

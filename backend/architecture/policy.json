@@ -4313,6 +4313,18 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_guest_contacts",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_guests",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_host_groups",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.holiday_period_weeks",
       "write_owner": "enrollment"
     },
@@ -4442,6 +4454,10 @@
     },
     {
       "name": "parent_billing.document_letters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.document_mailings",
       "write_owner": "parent-billing"
     },
     {

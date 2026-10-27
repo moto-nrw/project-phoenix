@@ -10,6 +10,7 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from "@simplewebauthn/browser";
+import { hasSessionAccess } from "./session-access";
 import { getCachedSession } from "./session-cache";
 
 export type PasskeyScope = "tenant" | "operator";
@@ -50,25 +51,24 @@ function extractOptions<TOptions>(
   return maybeWrapped.publicKey ?? (response.options as TOptions);
 }
 
-async function currentBearerToken(): Promise<string> {
-  const session = await getCachedSession();
-  const token = session?.user?.token;
-  if (!token) {
+/**
+ * Passkey management acts for the signed-in account. Its BFF routes read the
+ * session cookie; the browser holds no token (#5005).
+ */
+async function requireSession(): Promise<void> {
+  if (!hasSessionAccess(await getCachedSession())) {
     throw new ApiError("Nicht angemeldet.", 401);
   }
-  return token;
 }
 
 async function requestJson<T>(
   url: string,
   body?: unknown,
-  token?: string,
   method: "GET" | "POST" | "DELETE" = "POST",
 ): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   // A request that never reaches the API is general.unavailable (#2517);
   // an AbortError stays an AbortError.
@@ -143,11 +143,10 @@ async function finishPasskeyLogin(
 export async function startPasskeyEnrollment(
   scope: PasskeyScope,
 ): Promise<EnrollmentChallengeResponse> {
-  const token = await currentBearerToken();
+  await requireSession();
   return requestJson<EnrollmentChallengeResponse>(
     `${basePath(scope)}/enrollment/challenge`,
     {},
-    token,
   );
 }
 
@@ -155,18 +154,17 @@ export async function registerPasskey(
   scope: PasskeyScope,
   params: { code: string; name: string },
 ): Promise<PasskeyCredentialSummary> {
-  const token = await currentBearerToken();
+  await requireSession();
   const start = await requestJson<
     CeremonyResponse<PublicKeyCredentialCreationOptionsJSON>
-  >(
-    `${basePath(scope)}/register/options`,
-    { code: params.code, name: params.name },
-    token,
-  );
+  >(`${basePath(scope)}/register/options`, {
+    code: params.code,
+    name: params.name,
+  });
   const registration = await startRegistration({
     optionsJSON: extractOptions(start),
   });
-  return finishPasskeyRegistration(scope, token, start.session_id, {
+  return finishPasskeyRegistration(scope, start.session_id, {
     name: params.name,
     response: registration,
   });
@@ -174,7 +172,6 @@ export async function registerPasskey(
 
 async function finishPasskeyRegistration(
   scope: PasskeyScope,
-  token: string,
   sessionID: string,
   params: { name: string; response: RegistrationResponseJSON },
 ): Promise<PasskeyCredentialSummary> {
@@ -185,18 +182,16 @@ async function finishPasskeyRegistration(
       name: params.name,
       response: params.response,
     },
-    token,
   );
 }
 
 export async function listPasskeys(
   scope: PasskeyScope,
 ): Promise<PasskeyCredentialSummary[]> {
-  const token = await currentBearerToken();
+  await requireSession();
   return requestJson<PasskeyCredentialSummary[]>(
     basePath(scope),
     undefined,
-    token,
     "GET",
   );
 }
@@ -205,11 +200,6 @@ export async function revokePasskey(
   scope: PasskeyScope,
   id: string,
 ): Promise<void> {
-  const token = await currentBearerToken();
-  await requestJson<void>(
-    `${basePath(scope)}/${id}`,
-    undefined,
-    token,
-    "DELETE",
-  );
+  await requireSession();
+  await requestJson<void>(`${basePath(scope)}/${id}`, undefined, "DELETE");
 }

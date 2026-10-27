@@ -11,6 +11,7 @@
  * BasePath: "/api/parent/auth"
  */
 
+import "server-only";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestClassParentLetterSenderConstraint pins what 1.15.680 lets a parent
+// TestClassParentLetterSenderConstraint pins what 1.15.682 lets a parent
 // announcement hold for a class letter (#4800): sender name and class
 // together, neither of them blank, or neither at all.
 func TestClassParentLetterSenderConstraint(t *testing.T) {
@@ -38,7 +38,7 @@ func TestClassParentLetterSenderConstraint(t *testing.T) {
 	assert.Error(t, insert("Lena Lehrerin", " "), "the class is not blank")
 }
 
-// TestClassParentLetterGrant pins who 1.15.680 lets write a class letter:
+// TestClassParentLetterGrant pins who 1.15.682 lets write a class letter:
 // the system roles lehrkraft and schulverwaltung, not the Betreuer role and
 // not a school's own role of the same name, also on a rerun.
 func TestClassParentLetterGrant(t *testing.T) {

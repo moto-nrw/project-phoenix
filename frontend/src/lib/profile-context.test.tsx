@@ -43,7 +43,6 @@ describe("ProfileContext", () => {
 
   const mockSession = mockSessionData({
     user: {
-      token: "mock-token",
       email: "john.doe@example.com",
     },
     expires: "2025-01-01T00:00:00Z",
@@ -154,7 +153,9 @@ describe("ProfileContext", () => {
       consoleWarnSpy.mockRestore();
     });
 
-    it("should attempt to refresh when session token changes (subject to debounce)", async () => {
+    // The browser session carries no token (#5005): a poll that only
+    // prolongs the session leaves the identity and the profile untouched.
+    it("keeps the profile when a session poll only prolongs the session", async () => {
       const wrapper = ({ children }: { children: ReactNode }) => (
         <ProfileProvider>{children}</ProfileProvider>
       );
@@ -168,7 +169,7 @@ describe("ProfileContext", () => {
 
       const newSession = {
         ...mockSession,
-        user: { ...mockSession.user, token: "new-token" },
+        expires: "2025-01-02T00:00:00Z",
       };
 
       // Update the mock before rerendering
@@ -178,8 +179,7 @@ describe("ProfileContext", () => {
         update: vi.fn(),
       });
 
-      // The profile provider detects token changes, but debounce may prevent immediate refresh
-      // This test verifies the provider doesn't crash and maintains state when token changes
+      // This test verifies the provider doesn't crash and maintains state
       expect(result.current.profile).toEqual(mockProfile);
       expect(result.current.isLoading).toBe(false);
     });
@@ -586,7 +586,6 @@ describe("ProfileContext", () => {
         user: {
           ...mockSession.user,
           tenantId: 2,
-          token: "new-token-for-tenant-2",
         },
       };
 
@@ -598,7 +597,7 @@ describe("ProfileContext", () => {
 
       rerender();
 
-      // The token change triggers a new fetch
+      // The school change triggers a new fetch
       await waitFor(() => {
         expect(profileApi.fetchProfile).toHaveBeenCalled();
       });
@@ -686,14 +685,13 @@ describe("ProfileContext", () => {
 
       rerender();
 
-      // Re-login to same tenant (tenantId back to 1) with new token
+      // Re-login to same tenant (tenantId back to 1)
       vi.mocked(nextAuthReact.useSession).mockReturnValue({
         data: {
           ...mockSession,
           user: {
             ...mockSession.user,
             tenantId: 1,
-            token: "fresh-token-after-relogin",
           },
         },
         status: "authenticated",
@@ -703,7 +701,7 @@ describe("ProfileContext", () => {
       rerender();
 
       // Debounce should have been reset (prevTenantIdRef tracked undefined),
-      // so the token change triggers a fresh fetch
+      // so the identity change triggers a fresh fetch
       await waitFor(() => {
         expect(profileApi.fetchProfile).toHaveBeenCalled();
       });

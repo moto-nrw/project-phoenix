@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "./route";
-import { mockSessionData } from "~/test/mocks/next-auth";
+import { mockServerSessionData } from "~/test/mocks/next-auth";
 import { ApiResponseError } from "~/lib/api-response-error.server";
 import {
   type ExtendedSession,
@@ -38,7 +38,7 @@ vi.mock("~/lib/api-helpers.server", async () => {
   };
 });
 
-const defaultSession = mockSessionData() as ExtendedSession;
+const defaultSession = mockServerSessionData() as ExtendedSession;
 
 interface ApiResponse<T> {
   success: boolean;

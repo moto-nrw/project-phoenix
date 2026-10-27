@@ -125,7 +125,7 @@ Seit #4893 gehört jede Route des Produktions-Routers genau einem Modul oder der
 | `appointment-reminders`, `announcement-reminders` | Eltern-App (Erinnerungen an Eltern) |
 | `rollover-deadline` | Online-Anmeldung (Fristen der Rückmeldephasen) |
 | `visit-cleanup`, `timetable-cleanup`, `time-tracking-cleanup`, `student-change-log-cleanup`, `pwa-usage-cleanup`, `staff-message-cleanup`, `token-cleanup`, `staff-document-file-cleanup`, `student-document-file-cleanup`, `file-store-cleanup` | Aufbewahrung, läuft immer |
-| alle übrigen, auch `reminder-notifications` (Abholung und Aktivitäten für das Team) und `email-outbox` | Basis |
+| alle übrigen, auch `reminder-notifications` (Abholung und Aktivitäten für das Team), `email-outbox` und `holiday-guest-reconciliation` (Feriengäste der ausrichtenden OGS, #4666) | Basis |
 
 Die Bereinigungsbefehle `cleanup …` in `backend/cmd/cleanup.go` sind Aufbewahrung oder Basis (`cleanupCommandScopes`, geprüft von `TestEveryCleanupCommandHasAScope`). Das moto-Team ruft sie von Hand für alle Schulen auf.
 
@@ -181,3 +181,4 @@ Das Frontend erklärt beides statt einer Fehlerseite: Die Login-Seiten zeigen ei
 | `/api/class-list-entries`, `/api/students/class-arrival-*`, `/api/students/school-checkin` | Basis | Klassenlisten und Ankunft aus der Schule pflegt das OGS-Team. Das Schulportal der Lehrkräfte ist Unterricht am Vormittag. |
 | `/api/feedback` | Basis | Rückmeldungen der Kinder am Tablet, auch zum Essen. Die Rückmeldung gibt es ohne das Modul Mittagessen. |
 | `/api/holiday-weeks` | Basis | Teilnehmerliste der ausrichtenden OGS (#4665). Die Ferienbetreuung plant der Träger; die Schule, die eine Woche ausrichtet, braucht die Liste unabhängig von ihren gebuchten Modulen. Online-Anmeldung betrifft nur die Anmeldung je Schule. |
+| `/api/holiday-guests`, `/api/holiday-weeks/{weekId}/guest-group` | Basis | Feriengäste der ausrichtenden OGS (#4666): Gruppe der Woche wählen, Betreuung, Notfall und Abholung eines Gasts. Gruppe und Check-in sind Basis; die Gäste kommen mit ihnen, unabhängig von gebuchten Modulen. |

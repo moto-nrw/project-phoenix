@@ -34,6 +34,16 @@ type Message struct {
 	Subject  string
 	Template string
 	Content  any
+	// Attachments are files the mail carries, such as the PDF of a
+	// confirmation letter of a Träger (#4670). Most mails carry none.
+	Attachments []Attachment
+}
+
+// Attachment is one file of a mail.
+type Attachment struct {
+	Filename    string
+	ContentType string
+	Data        []byte
 }
 
 // Email struct holds email address and recipient name.

@@ -178,7 +178,7 @@ describe("ParentLoginPage i18n", () => {
       status: "authenticated",
       data: {
         error: "RefreshTokenExpired",
-        user: { scope: "parent", token: "stale-token" },
+        user: { scope: "parent" },
       },
     });
 
@@ -198,7 +198,7 @@ describe("ParentLoginPage i18n", () => {
       status: "authenticated",
       data: {
         error: "RefreshTokenExpired",
-        user: { scope: "parent", token: "stale-token" },
+        user: { scope: "parent" },
       },
     });
 
@@ -219,7 +219,7 @@ describe("ParentLoginPage i18n", () => {
   it("redirects to the parents portal once the session is published", () => {
     mocks.useSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { scope: "parent", token: "valid-token" } },
+      data: { user: { scope: "parent" } },
     });
 
     render(<ParentLoginPage />);
@@ -239,15 +239,23 @@ describe("ParentLoginPage i18n", () => {
     expect(mocks.redirect).toHaveBeenCalledWith("/parents");
   });
 
-  it("keeps the form for a session without a usable access token", () => {
+  // The browser session carries no token (#5005): a session without a
+  // usable access token is marked with an error and never enters the portal.
+  it("does not redirect a session without a usable access token", async () => {
+    mocks.signOut.mockResolvedValue(undefined);
     mocks.useSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { id: "41", scope: "parent", token: "" } },
+      data: {
+        error: "RefreshTokenError",
+        user: { id: "41", scope: "parent" },
+      },
     });
 
     render(<ParentLoginPage />);
 
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+    await vi.waitFor(() => {
+      expect(mocks.signOut).toHaveBeenCalled();
+    });
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
 

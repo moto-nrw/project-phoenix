@@ -205,6 +205,8 @@ const (
 	CodeEnrollmentGuardianEmailRequired                  = "enrollment.guardian_email_required"
 	CodeEnrollmentGuardianNameRequired                   = "enrollment.guardian_name_required"
 	CodeEnrollmentGuardianPhoneRequired                  = "enrollment.guardian_phone_required"
+	CodeEnrollmentHolidayGuestGroupInvalid               = "enrollment.holiday_guest_group_invalid"
+	CodeEnrollmentHolidayGuestNotFound                   = "enrollment.holiday_guest_not_found"
 	CodeEnrollmentHolidayHostSchoolOutsideTraeger        = "enrollment.holiday_host_school_outside_traeger"
 	CodeEnrollmentHolidayPeriodIncomplete                = "enrollment.holiday_period_incomplete"
 	CodeEnrollmentHolidayPeriodInvalid                   = "enrollment.holiday_period_invalid"
@@ -300,8 +302,6 @@ const (
 	CodeIdentityDemoSchoolPreparing                      = "identity.demo_school_preparing"
 	CodeIdentityDemoSession                              = "identity.demo_session"
 	CodeIdentityEmailAlreadyExists                       = "identity.email_already_exists"
-	CodeIdentityEmailChangeLinkInvalid                   = "identity.email_change_link_invalid"
-	CodeIdentityEmailChangeRateLimited                   = "identity.email_change_rate_limited"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -508,6 +508,8 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.guardian_email_required":                   "input",
 	"enrollment.guardian_name_required":                    "input",
 	"enrollment.guardian_phone_required":                   "input",
+	"enrollment.holiday_guest_group_invalid":               "input",
+	"enrollment.holiday_guest_not_found":                   "business_rejection",
 	"enrollment.holiday_host_school_outside_traeger":       "input",
 	"enrollment.holiday_period_incomplete":                 "business_rejection",
 	"enrollment.holiday_period_invalid":                    "input",
@@ -603,8 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.demo_school_preparing":                       "unavailable",
 	"identity.demo_session":                                "permission",
 	"identity.email_already_exists":                        "business_rejection",
-	"identity.email_change_link_invalid":                   "business_rejection",
-	"identity.email_change_rate_limited":                   "unavailable",
 }
 
 func init() {

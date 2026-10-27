@@ -2683,7 +2683,9 @@
         "holiday_registration_not_found": "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
         "holiday_registration_state_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_week_booked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "hosted_holiday_week_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "hosted_holiday_week_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "holiday_guest_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "holiday_guest_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "files": {
         "announcement_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2842,6 +2844,7 @@
         "billing_letter_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "billing_letters_exist": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "billing_letters_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "billing_letters_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "billing_run_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "billing_run_empty": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "billing_run_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
@@ -2853,9 +2856,11 @@
         "contribution_rule_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_quote_invalid": "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
         "invoice_number_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "letter_mail_pending": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "letterhead_too_long": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "number_range_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-        "number_range_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "number_range_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "recipient_email_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

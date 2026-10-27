@@ -59,6 +59,7 @@ type WorkerDependencies struct {
 	PWAUsageCleanup           PWAUsageCleanup
 	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        BookingConsistencyAudit
+	HolidayGuests             HolidayGuestReconciliation
 	MealOrders                MealOrderSettlement
 	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
 	AutoStart                 InstanceAutoStart

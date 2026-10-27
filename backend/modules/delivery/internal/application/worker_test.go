@@ -92,6 +92,10 @@ func (*workerStore) Cancel(context.Context, int64, domain.Transport, string, int
 	return 0, nil
 }
 
+func (*workerStore) TraegerEmailStatuses(context.Context, int64, string, int64) ([]domain.Intent, error) {
+	return nil, nil
+}
+
 func (*workerStore) Statuses(context.Context, int64, domain.Transport, string, int64) ([]domain.Intent, error) {
 	return nil, nil
 }

@@ -2,6 +2,7 @@
 
 import { useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { useSWRAuth } from "~/lib/swr";
 import { studentService } from "~/lib/api";
 import type { Student, SupervisorContact } from "~/lib/student-helpers";
@@ -198,7 +199,9 @@ export function useStudentData(studentId: string): UseStudentDataResult {
     error: fetchError,
     mutate,
   } = useSWRAuth<StudentDetailResponse>(
-    studentId && session?.user?.token ? `student-detail-${studentId}` : null,
+    studentId && hasSessionAccess(session)
+      ? `student-detail-${studentId}`
+      : null,
     async () => {
       // Fetch student data and user context in parallel
       const [studentResponse, groups, supervisedGroups] = await Promise.all([

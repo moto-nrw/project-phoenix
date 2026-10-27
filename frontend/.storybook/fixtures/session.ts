@@ -2,7 +2,6 @@ import type { Session } from "next-auth";
 
 type StorybookSessionUserOverrides = Partial<Session["user"]> & {
   role?: string;
-  accessToken?: string;
 };
 
 // Mirrors the seeded teacher role (backend migration
@@ -63,16 +62,9 @@ export function mockSessionData(
     expires: string;
   }>,
 ): Session {
-  const {
-    accessToken,
-    isAdmin,
-    permissions,
-    refreshToken,
-    role,
-    roles,
-    token,
-    ...userOverrides
-  } = overrides?.user ?? {};
+  // The browser session carries no token (#5005).
+  const { isAdmin, permissions, role, roles, ...userOverrides } =
+    overrides?.user ?? {};
 
   const resolvedRoles = roles ?? (role ? [role] : ["admin"]);
 
@@ -85,8 +77,6 @@ export function mockSessionData(
       roles: resolvedRoles,
       permissions: permissions ?? ["admin:*"],
       isAdmin: isAdmin ?? resolvedRoles.includes("admin"),
-      token: token ?? accessToken ?? "test-token",
-      refreshToken: refreshToken ?? "test-refresh-token",
       tenantId: 1,
       orgId: 1,
       scope: "",

@@ -21,20 +21,22 @@ import (
 // Träger right "Abrechnung" and runs in the Träger transaction of the
 // session's Träger. The Träger comes from the session, never from the
 // request. The confirmation letters of a released run sit below the run
-// (#4669, ADR 0121).
+// (#4669, ADR 0121), with their mail and their print (#4670, ADR 0123).
 type BillingRunResource struct {
 	runs           capability.BillingRuns
 	letters        capability.BillingLetterService
+	mail           capability.BillingLetterMailService
 	requireBilling common.Middleware
 }
 
 // NewBillingRunResource builds the resource. requireBilling admits only a
 // session with the Träger right "Abrechnung".
-func NewBillingRunResource(runs capability.BillingRuns, letters capability.BillingLetterService, requireBilling common.Middleware) *BillingRunResource {
-	if runs == nil || letters == nil || requireBilling == nil {
-		panic("parent billing http: the billing runs, the letters and the right check are required")
+func NewBillingRunResource(runs capability.BillingRuns, letters capability.BillingLetterService, mail capability.BillingLetterMailService,
+	requireBilling common.Middleware) *BillingRunResource {
+	if runs == nil || letters == nil || mail == nil || requireBilling == nil {
+		panic("parent billing http: the billing runs, the letters, their mail and the right check are required")
 	}
-	return &BillingRunResource{runs: runs, letters: letters, requireBilling: requireBilling}
+	return &BillingRunResource{runs: runs, letters: letters, mail: mail, requireBilling: requireBilling}
 }
 
 // RunRouter returns the routes mounted at /traeger/billing-runs.
@@ -53,6 +55,10 @@ func (rs *BillingRunResource) RunRouter(protectedTraegerRoutes func(chi.Router, 
 		billing.Post("/{id}/letters", rs.createLetters)
 		billing.Post("/{id}/letters/preview", rs.previewLetter)
 		billing.Get("/{id}/documents/{documentID}/letter", rs.letter)
+		billing.Get("/{id}/letters/print", rs.printLetters)
+		billing.Get("/{id}/mailings", rs.mailings)
+		billing.Post("/{id}/mailings", rs.mailAll)
+		billing.Post("/{id}/documents/{documentID}/mailings", rs.mailOne)
 	})
 	return r
 }
@@ -328,6 +334,9 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 		{capability.ErrBillingLettersExist, common.CodeParentBillingBillingLettersExist},
 		{capability.ErrBankAccountMissing, common.CodeParentBillingBankAccountMissing},
 		{capability.ErrLetterheadTooLong, common.CodeParentBillingLetterheadTooLong},
+		{capability.ErrBillingLettersMissing, common.CodeParentBillingBillingLettersMissing},
+		{capability.ErrLetterMailPending, common.CodeParentBillingLetterMailPending},
+		{capability.ErrRecipientEmailMissing, common.CodeParentBillingRecipientEmailMissing},
 	} {
 		if errors.Is(err, conflict.err) {
 			common.RenderError(w, r, common.ErrorConflictWithCode(err, conflict.code))

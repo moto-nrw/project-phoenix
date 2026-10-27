@@ -264,6 +264,7 @@ GET /api/guardians/{id}/delete-preview
 GET /api/guardians/{id}/payment
 GET /api/guardians/{id}/phone-numbers/
 GET /api/guardians/{id}/students
+GET /api/holiday-guests/{studentId}
 GET /api/holiday-weeks/
 GET /api/holiday-weeks/{weekId}/participants
 GET /api/holiday-weeks/{weekId}/participants/export
@@ -631,6 +632,7 @@ GET /school/class-day/
 GET /school/class-day/arrival-exceptions
 GET /school/class-day/arrival-exceptions/block-start
 GET /school/class-day/classes
+GET /school/class-day/school-day
 GET /school/notifications/preferences/
 GET /school/notifications/push/public-key
 GET /school/parent-letters/
@@ -657,6 +659,8 @@ GET /traeger/billing-runs/periods
 GET /traeger/billing-runs/{id}
 GET /traeger/billing-runs/{id}/documents/{documentID}/letter
 GET /traeger/billing-runs/{id}/export
+GET /traeger/billing-runs/{id}/letters/print
+GET /traeger/billing-runs/{id}/mailings
 GET /traeger/contribution-rules/
 GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 GET /traeger/holiday-periods/
@@ -1088,8 +1092,10 @@ POST /traeger/auth/mfa/resend
 POST /traeger/auth/mfa/verify
 POST /traeger/billing-runs/
 POST /traeger/billing-runs/{id}/corrections
+POST /traeger/billing-runs/{id}/documents/{documentID}/mailings
 POST /traeger/billing-runs/{id}/letters
 POST /traeger/billing-runs/{id}/letters/preview
+POST /traeger/billing-runs/{id}/mailings
 POST /traeger/billing-runs/{id}/release
 POST /traeger/contribution-rules/
 POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm
@@ -1136,6 +1142,7 @@ PUT /api/guardians/students/{studentId}/payer
 PUT /api/guardians/{id}
 PUT /api/guardians/{id}/payment
 PUT /api/guardians/{id}/phone-numbers/{phoneId}
+PUT /api/holiday-weeks/{weekId}/guest-group
 PUT /api/iot/*/{id}
 PUT /api/iot/session/{sessionId}/supervisors
 PUT /api/me/profile

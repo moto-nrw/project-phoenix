@@ -240,6 +240,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		// Einrichtungs-Assistent als erledigt erkennt (#2832).
 		seedSchoolSetupStep{},
 		seedStaffOnboardingStep{},
+		// Nach dem letzten Schritt, der Beschäftigte anlegt: Die Abrechnung
+		// zählt alle, auch Besuch, Admin und Externe (#5032).
+		seedPayrollNumbersStep{},
 		verifyProfileStep{definition: seeder.definition},
 	)
 	if seeder.options.OnlyProfile == "" {
@@ -251,7 +254,8 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	}
 	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerBillingLettersStep{}, seedTestTraegerStep{})
 	if !seeder.options.DeferHistory {
-		steps = append(steps, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
+		// Erst jetzt sind alle Kinder der Schule angelegt (#5031).
+		steps = append(steps, seedPresenceHistoryStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 	}
 	steps = append(steps,
 		buildStateStep{seeder: seeder},
@@ -291,6 +295,9 @@ func deferredDemoSteps(seeder *Seeder) []Step {
 		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
 		// The meal orders ran before the phase existed; the bookings follow it.
 		seedRegularBookingsStep{},
+		// The past presence of every child, once the requests have added the
+		// last ones (#5031).
+		seedPresenceHistoryStep{seeder: seeder},
 		seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 }
 

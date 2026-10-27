@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	classParentLettersVersion     = "1.15.680"
+	classParentLettersVersion     = "1.15.682"
 	classParentLettersDescription = "Elternbriefe der Lehrkraft an ihre Klasse aus moto schule (#4800)"
 )
 
@@ -18,10 +18,10 @@ func init() {
 		Version:     classParentLettersVersion,
 		Description: classParentLettersDescription,
 		DependsOn: []string{
-			holidayRegistrationDeletionsVersion, // the last migration before this one
-			parentAnnouncementsVersion,          // the table a class letter is a row of
-			lehrkraftRoleVersion,                // the role the write permission goes to
-			schulverwaltungRoleVersion,          // holds every Lehrkraft permission (#4789)
+			holidayGuestErasureVersion, // the last migration before this one
+			parentAnnouncementsVersion, // the table a class letter is a row of
+			lehrkraftRoleVersion,       // the role the write permission goes to
+			schulverwaltungRoleVersion, // holds every Lehrkraft permission (#4789)
 		},
 	})
 	Migrations.MustRegister(classParentLettersUp, classParentLettersDown)

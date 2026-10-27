@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
+import { hasSessionAccess } from "~/lib/session-access";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface SmartRedirectProps {
@@ -19,20 +20,16 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   const { data: session, status } = useSession();
 
   const { redirectPath, isReady } = useSmartRedirectPath(session);
+  const hasAccess = hasSessionAccess(session);
 
   useEffect(() => {
     // Only redirect if user is authenticated and supervision data is ready
-    if (status === "authenticated" && session?.user?.token && isReady) {
+    if (status === "authenticated" && hasAccess && isReady) {
       onRedirect?.(redirectPath);
     }
-  }, [status, session?.user?.token, isReady, redirectPath, onRedirect]);
+  }, [status, hasAccess, isReady, redirectPath, onRedirect]);
 
-  if (
-    !onRedirect &&
-    status === "authenticated" &&
-    session?.user?.token &&
-    isReady
-  ) {
+  if (!onRedirect && status === "authenticated" && hasAccess && isReady) {
     redirect(tenantPath(redirectPath));
   }
 

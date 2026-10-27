@@ -70,6 +70,11 @@ const (
 	// to a Lehrkraft (or any other class_day:read holder). StudentID stays
 	// NULL; metadata carries school_class, date and student_count.
 	ResourceTypeClassDayView = "class_day_view"
+	// ResourceTypeSchoolDayView records serving the school-wide day overview
+	// of moto schule (#4802): the day numbers and names of every class to a
+	// Schulverwaltung account, deduplicated like the class day view to one
+	// row per actor, report date and calendar day of access.
+	ResourceTypeSchoolDayView = "school_day_view"
 	// ResourceTypeSupervisionStudentSheet records serving ONE child's pickup
 	// and emergency contacts to a supervisor running the block that child is
 	// in (#2527). The class day view (ResourceTypeClassDayView) deliberately
@@ -103,6 +108,17 @@ const (
 	// ResourceTypeHolidayParticipantsExport records an export of that list;
 	// metadata adds the format.
 	ResourceTypeHolidayParticipantsExport = "holiday_participants_export"
+	// ResourceTypeHolidayGuestTransfer records the hosting school copying the
+	// confirmed holiday guests of a week into its group (#4666): name, date
+	// of birth, booked care, emergency contacts and pickup persons of
+	// children of other schools. StudentID is NIL; RangeStart and RangeEnd
+	// span the week; metadata carries week_id, guests and automatic (the
+	// hourly reconciliation under the account that picked the group).
+	ResourceTypeHolidayGuestTransfer = "holiday_guest_transfer"
+	// ResourceTypeHolidayGuestSheet records a staff member opening the
+	// sheet of one holiday guest (#4666): booked care, emergency contacts
+	// and pickup persons. StudentID is SET; metadata carries week_id.
+	ResourceTypeHolidayGuestSheet = "holiday_guest_sheet"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

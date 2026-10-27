@@ -19,6 +19,10 @@ func (tripScope) SchoolMayReportClassTrips(context.Context) (bool, error) { retu
 
 type tripRosters struct{}
 
+func (r tripRosters) SchoolRosterDay(ctx context.Context, date calendar.Date) (*compose.DayRoster, error) {
+	return r.ClassRosterDay(ctx, "", date)
+}
+
 func (tripRosters) ClassRosterDay(context.Context, string, calendar.Date) (*compose.DayRoster, error) {
 	return &compose.DayRoster{Rows: []compose.DayRosterRow{{StudentID: 11}, {StudentID: 12}}}, nil
 }
