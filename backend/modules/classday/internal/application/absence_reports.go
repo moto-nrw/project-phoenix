@@ -96,12 +96,9 @@ func (a absenceReports) WithdrawAbsenceReport(ctx context.Context, in classday.A
 	if in.SchoolClass == "" || in.StudentID <= 0 || in.Actor.AccountID <= 0 {
 		return classday.ErrAbsenceReportInvalid
 	}
-	date, err := parseDate(in.Date)
+	date, err := a.checkToday(in.Date)
 	if err != nil {
-		return fmt.Errorf("%w: %w", classday.ErrAbsenceReportInvalid, err)
-	}
-	if date != a.today() {
-		return classday.ErrAbsenceReportNotToday
+		return err
 	}
 	status, err := a.statusDays.WithdrawSchoolAbsenceReport(ctx, in.SchoolClass, in.StudentID, date)
 	if err != nil {
@@ -119,14 +116,23 @@ func (a absenceReports) record(ctx context.Context, studentID int64, actor class
 	return nil
 }
 
-// checkDay refuses any day but today and a day without school.
-func (a absenceReports) checkDay(ctx context.Context, day classday.Date) (calendar.Date, error) {
+// checkToday refuses any day but today.
+func (a absenceReports) checkToday(day classday.Date) (calendar.Date, error) {
 	date, err := parseDate(day)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", classday.ErrAbsenceReportInvalid, err)
 	}
 	if date != a.today() {
 		return "", classday.ErrAbsenceReportNotToday
+	}
+	return date, nil
+}
+
+// checkDay refuses any day but today and a day without school.
+func (a absenceReports) checkDay(ctx context.Context, day classday.Date) (calendar.Date, error) {
+	date, err := a.checkToday(day)
+	if err != nil {
+		return "", err
 	}
 	weekday, err := classDayPlanKey(ctx, date)
 	if err != nil {
@@ -203,19 +209,14 @@ func (a absenceReports) unreportedAmong(ctx context.Context, studentIDs []int64,
 }
 
 // afterMorningMarks runs once a Lehrkraft's morning marks are stored: when a
-// marked child misses without a report, it tells the Schulverwaltung how many
-// children of the school do.
-func (a absenceReports) afterMorningMarks(ctx context.Context, in classday.MorningAttendanceWrite, date calendar.Date) error {
-	if a.notifier == nil || a.reads == nil || a.morning == nil || a.rosters == nil {
+// child the write newly marked absent misses without a report, it tells the
+// Schulverwaltung how many children of the school do. A save that marks
+// nobody newly absent reads nothing more.
+func (a absenceReports) afterMorningMarks(ctx context.Context, in classday.MorningAttendanceWrite, date calendar.Date, newlyAbsent []int64) error {
+	if a.notifier == nil || a.reads == nil || a.morning == nil || a.rosters == nil || len(newlyAbsent) == 0 {
 		return nil
 	}
-	marked := make([]int64, 0, len(in.Marks))
-	for _, mark := range in.Marks {
-		if mark.StudentID > 0 && mark.Status == classday.MorningAttendanceAbsent {
-			marked = append(marked, mark.StudentID)
-		}
-	}
-	newly, err := a.unreportedAmong(ctx, marked, date)
+	newly, err := a.unreportedAmong(ctx, newlyAbsent, date)
 	if err != nil || len(newly) == 0 {
 		return err
 	}
@@ -249,8 +250,7 @@ func (a absenceReports) schoolUnreported(ctx context.Context, date calendar.Date
 			}
 		}
 	}
-	slices.Sort(ids)
-	return a.unreportedAmong(ctx, slices.Compact(ids), date)
+	return a.unreportedAmong(ctx, ids, date)
 }
 
 // unreportedLabel and absenceReportLabel are the change-history values of a

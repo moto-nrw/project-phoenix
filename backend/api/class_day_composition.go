@@ -16,7 +16,6 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -99,10 +98,7 @@ func NewClassDayTripStatusDays(recorder classDayTripRecorder) classdayCompose.Cl
 type classDayTripStatusDays struct{ recorder classDayTripRecorder }
 
 func (b classDayTripStatusDays) RecordClassTrip(ctx context.Context, schoolClass string, studentIDs []int64, dates []timezone.Date, reason string) error {
-	want := schoolstructure.NormalizeClass(schoolClass)
-	err := b.recorder.RecordClassTrip(ctx, studentIDs, dates, reason, func(class string) bool {
-		return schoolstructure.NormalizeClass(class) == want
-	})
+	err := b.recorder.RecordClassTrip(ctx, studentIDs, dates, reason, sameClass(schoolClass))
 	var conflict *studentpresence.StudentStatusDayConflictError
 	switch {
 	case err == nil:

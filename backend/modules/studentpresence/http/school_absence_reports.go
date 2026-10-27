@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -85,18 +84,10 @@ func (t SchoolAbsenceReports) configured(inClass func(string) bool) error {
 	return nil
 }
 
-// writeContext authorizes the locked child by its class alone and carries
-// the school source; the fan-out is the OGS write's.
+// writeContext is the class-scoped write of moto schule with the school's
+// source.
 func (t SchoolAbsenceReports) writeContext(tenantID int64, status string, inClass func(string) bool) studentpresence.StatusDayWriteContext {
-	return studentpresence.StatusDayWriteContext{
-		TenantID: tenantID,
-		Source:   absencerecords.StudentStatusSourceSchool,
-		StudentService: newStatusDayStudents(t.rs.PeopleDirectory, func(_ context.Context, student *peopleModule.StudentState, locked string) bool {
-			return locked == status && student != nil && inClass(student.SchoolClass)
-		}),
-		AfterCommit: func(studentID int64) {
-			t.rs.broadcastStudentUpdated(tenantID, studentID)
-			t.rs.wakeChildGuardians(tenantID, studentID)
-		},
-	}
+	wc := t.rs.schoolClassWriteContext(tenantID, status, inClass)
+	wc.Source = absencerecords.StudentStatusSourceSchool
+	return wc
 }

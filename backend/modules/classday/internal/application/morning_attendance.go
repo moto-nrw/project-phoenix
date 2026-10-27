@@ -53,8 +53,9 @@ type morningAttendance struct {
 	scope   MorningAttendanceScope
 	rosters DayRosters
 	today   func() calendar.Date
-	// after runs once the marks are stored (#4791); nil runs nothing.
-	after func(ctx context.Context, in classday.MorningAttendanceWrite, date calendar.Date) error
+	// after runs once the marks are stored with the children the write newly
+	// marked absent (#4791); nil runs nothing.
+	after func(ctx context.Context, in classday.MorningAttendanceWrite, date calendar.Date, newlyAbsent []int64) error
 }
 
 func newMorningAttendance(deps ClassDayDependencies) morningAttendance {
@@ -116,6 +117,16 @@ func (m morningAttendance) RecordMorningAttendance(ctx context.Context, in class
 	if err != nil {
 		return err
 	}
+	return m.storeMarks(ctx, in, date, marks)
+}
+
+// storeMarks writes the checked marks and hands the children it newly marked
+// absent to the hook (#4791).
+func (m morningAttendance) storeMarks(ctx context.Context, in classday.MorningAttendanceWrite, date calendar.Date, marks []studentpresence.MorningAttendanceMark) error {
+	newlyAbsent, err := m.newlyAbsent(ctx, date, marks)
+	if err != nil {
+		return err
+	}
 	err = m.store.RecordMorningAttendance(ctx, studentpresence.MorningAttendanceWrite{Date: date, RecordedBy: in.RecordedBy, Marks: marks})
 	if errors.Is(err, studentpresence.ErrMorningAttendanceInvalid) {
 		return fmt.Errorf("%w: %w", classday.ErrMorningAttendanceInvalid, err)
@@ -123,7 +134,40 @@ func (m morningAttendance) RecordMorningAttendance(ctx context.Context, in class
 	if err != nil || m.after == nil {
 		return err
 	}
-	return m.after(ctx, in, date)
+	return m.after(ctx, in, date, newlyAbsent)
+}
+
+// newlyAbsent returns the children with an OGS record the marks set absent
+// that were not marked absent before (#4791). Without the hook it reads
+// nothing.
+func (m morningAttendance) newlyAbsent(ctx context.Context, date calendar.Date, marks []studentpresence.MorningAttendanceMark) ([]int64, error) {
+	if m.after == nil {
+		return nil, nil
+	}
+	absent := make([]studentpresence.MorningAttendanceChild, 0, len(marks))
+	for _, mark := range marks {
+		if mark.Child.StudentID > 0 && mark.Status == classday.MorningAttendanceAbsent {
+			absent = append(absent, mark.Child)
+		}
+	}
+	if len(absent) == 0 {
+		return nil, nil
+	}
+	before, err := m.store.MorningAttendanceOn(ctx, date, absent)
+	if err != nil {
+		return nil, fmt.Errorf("class day morning attendance: load previous marks: %w", err)
+	}
+	wasAbsent := make(map[int64]bool, len(before))
+	for _, entry := range before {
+		wasAbsent[entry.Child.StudentID] = entry.Status == classday.MorningAttendanceAbsent
+	}
+	out := make([]int64, 0, len(absent))
+	for _, child := range absent {
+		if !wasAbsent[child.StudentID] {
+			out = append(out, child.StudentID)
+		}
+	}
+	return out, nil
 }
 
 // rosterMarks maps the marks onto Student Presence's children and refuses

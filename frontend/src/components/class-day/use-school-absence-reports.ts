@@ -58,51 +58,56 @@ export function useSchoolAbsenceReports({
   const [withdrawTarget, setWithdrawTarget] =
     useState<AbsenceReportTarget | null>(null);
 
-  const enter = async (
+  // Ein Schritt mit Fehleranzeige: speichern, die Liste neu laden, bei
+  // einem Fehler die Meldung über der Liste mit „Erneut versuchen“.
+  const run = async (
     target: AbsenceReportTarget,
-    status: AbsenceReportStatus,
-  ) => {
+    action: (studentId: string) => Promise<void>,
+    event: string,
+    retry: () => void,
+  ): Promise<boolean> => {
     const studentId = target.child.student_id;
-    if (!report || !studentId) return;
+    if (!studentId) return false;
     errors.clear();
     setPending(childKey(target));
     try {
-      await report(target.schoolClass, dateISO, studentId, status);
+      await action(studentId);
       await onChanged();
+      return true;
     } catch (cause) {
-      logger.error("absence_report_failed", {
+      logger.error(event, {
         error: cause instanceof Error ? cause.message : String(cause),
       });
-      void errors.show(cause, {
-        object: "die Meldung",
-        retry: () => void enter(target, status),
-      });
+      void errors.show(cause, { object: "die Meldung", retry });
+      return false;
     } finally {
       setPending(null);
     }
   };
 
+  const enter = async (
+    target: AbsenceReportTarget,
+    status: AbsenceReportStatus,
+  ) => {
+    if (!report) return;
+    await run(
+      target,
+      (studentId) => report(target.schoolClass, dateISO, studentId, status),
+      "absence_report_failed",
+      () => void enter(target, status),
+    );
+  };
+
   const confirmWithdraw = async () => {
     const target = withdrawTarget;
-    const studentId = target?.child.student_id;
-    if (!withdraw || !target || !studentId) return;
-    errors.clear();
-    setPending(childKey(target));
-    try {
-      await withdraw(target.schoolClass, dateISO, studentId);
-      await onChanged();
-      setWithdrawTarget(null);
-    } catch (cause) {
-      logger.error("absence_report_withdraw_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void errors.show(cause, {
-        object: "die Meldung",
-        retry: () => void confirmWithdraw(),
-      });
-    } finally {
-      setPending(null);
-    }
+    if (!withdraw || !target) return;
+    const done = await run(
+      target,
+      (studentId) => withdraw(target.schoolClass, dateISO, studentId),
+      "absence_report_withdraw_failed",
+      () => void confirmWithdraw(),
+    );
+    if (done) setWithdrawTarget(null);
   };
 
   return {

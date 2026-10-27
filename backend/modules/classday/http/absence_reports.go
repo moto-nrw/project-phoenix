@@ -3,8 +3,6 @@ package classdayhttp
 import (
 	"errors"
 	"net/http"
-	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -20,10 +18,6 @@ import (
 // class_day:absence_report_write permission and the caller's class reach
 // here; the projection then checks today, the school day, the roster and
 // that the child misses without a report.
-
-// errAbsenceReportsNotConfigured answers when the projection was composed
-// without the absence reports.
-var errAbsenceReportsNotConfigured = errors.New("absence reports are not configured")
 
 // AbsenceReportRequest is the body of
 // PUT /school/class-day/absence-reports/{schoolClass}/{date}/students/{studentId}.
@@ -111,7 +105,7 @@ func (rs *Resource) deleteAbsenceReport(w http.ResponseWriter, r *http.Request) 
 // the child and the acting account; it renders the refusal itself.
 func (rs *Resource) absenceReportTarget(w http.ResponseWriter, r *http.Request) (absenceReportTarget, bool) {
 	if rs.AbsenceReports == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errAbsenceReportsNotConfigured))
+		common.RenderError(w, r, common.ErrorInternalServer(classday.ErrAbsenceReportsNotConfigured))
 		return absenceReportTarget{}, false
 	}
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
@@ -127,9 +121,8 @@ func (rs *Resource) absenceReportTarget(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return absenceReportTarget{}, false
 	}
-	studentID, err := strconv.ParseInt(strings.TrimSpace(chi.URLParam(r, "studentId")), 10, 64)
-	if err != nil || studentID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student id")))
+	studentID, ok := common.ParsePositiveInt64IDWithError(w, r, "studentId", "invalid student id")
+	if !ok {
 		return absenceReportTarget{}, false
 	}
 	// The change history names the actor; a token without a name falls back

@@ -238,8 +238,8 @@ function absenceReportMenu(
   if (child.unreported) {
     return [
       { kind: "header", label: "Meldung eintragen" },
-      { label: "Krank", onClick: () => onEnter("sick") },
-      { label: "Entschuldigt", onClick: () => onEnter("excused") },
+      { label: statusLabel("sick"), onClick: () => onEnter("sick") },
+      { label: statusLabel("excused"), onClick: () => onEnter("excused") },
     ];
   }
   if (child.status_by_school) {

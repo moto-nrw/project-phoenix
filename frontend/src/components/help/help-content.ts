@@ -8253,7 +8253,7 @@ function teacherClassDayTopic(): HelpTopic {
     differences: [
       "An einem Wochenende ohne Betreuung steht `Kein Schultag`.",
       "Sie haben die Rolle `Schulverwaltung`? Dann steht oben `Ganze Schule` mit den Zahlen aller Klassen. Wählen Sie eine Zahl. Darunter stehen dann die Kinder, nach Klassen sortiert. `Liste schließen` blendet sie wieder aus.",
-      "Unter `Fehlen ohne Meldung` stehen die Kinder, die eine Lehrkraft als fehlend eingetragen hat und für die es keine Meldung gibt. Die Liste ändert sich von selbst.",
+      "Unter `Fehlen ohne Meldung` stehen die Kinder, die eine Lehrkraft als fehlend eingetragen hat und für die es keine Meldung gibt. Ist die Benachrichtigung `Fehlt ohne Meldung` eingeschaltet, ändert sich die Liste von selbst.",
     ],
     troubleshootingDetails: [
       "Es steht `Keine Klassen zugewiesen`? Dann hat die OGS Ihnen noch keine Klasse zugeordnet.",
