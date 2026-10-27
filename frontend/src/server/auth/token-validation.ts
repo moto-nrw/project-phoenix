@@ -1,5 +1,6 @@
 import "server-only";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
 import type { JwtPayload } from "./jwt-payload";
 
 type Portal = "tenant" | "platform" | "parent" | "school" | "caterer" | "org";
@@ -26,6 +27,7 @@ export async function validateSessionToken(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
+        ...(await incomingClientForwardHeaders()),
       },
       body: JSON.stringify({
         access_token: accessToken,
