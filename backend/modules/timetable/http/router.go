@@ -328,6 +328,11 @@ func (rs *Resource) mountTemplateRoutes(r chi.Router, withTx common.Middleware) 
 	// future instances.
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Post("/templates/{id}/end", rs.endTemplate)
+	// "Dort auch entfernen" (#5102): after a booking change takes weekdays
+	// away, take the child off a hand-maintained Regeltermin on exactly those
+	// weekdays from the effective date on.
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Post("/templates/{id}/students/{studentId}/remove-days", rs.removeStudentTemplateDays)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Delete("/templates/{id}", rs.archiveTemplate)
 }
