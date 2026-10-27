@@ -403,7 +403,7 @@ function GuardedTenant({
   if (refusedSession) {
     return (
       <div className="flex min-h-[200px] items-center justify-center">
-        <div className="text-sm text-gray-500">Mandant wird gewechselt...</div>
+        <div className="text-sm text-gray-500">Schule wird gewechselt...</div>
       </div>
     );
   }
@@ -525,7 +525,7 @@ function GuardedTenant({
     }
     return (
       <div className="flex min-h-[200px] items-center justify-center">
-        <div className="text-sm text-gray-500">Mandant wird gewechselt...</div>
+        <div className="text-sm text-gray-500">Schule wird gewechselt...</div>
       </div>
     );
   }

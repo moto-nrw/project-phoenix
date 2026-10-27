@@ -206,7 +206,7 @@ describe("TenantGuard", () => {
       </TenantGuard>,
     );
 
-    expect(screen.getByText("Mandant wird gewechselt...")).toBeInTheDocument();
+    expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
   });
 
@@ -742,7 +742,7 @@ describe("TenantGuard", () => {
 
   // #3375: a switch that "succeeds" can still leave the old school in the
   // session cookie. The guard used to try once and then show
-  // "Mandant wird gewechselt..." forever.
+  // "Schule wird gewechselt..." forever.
   describe("when the mismatch survives the switch (#3375)", () => {
     function mismatchedSession() {
       mockUseSession.mockReturnValue({
@@ -813,9 +813,7 @@ describe("TenantGuard", () => {
           mockMutate,
         );
       });
-      expect(
-        screen.getByText("Mandant wird gewechselt..."),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
     });
 
     it("shows the way out after a failed switch instead of an endless wait", async () => {
@@ -829,7 +827,7 @@ describe("TenantGuard", () => {
       ).toBeInTheDocument();
       expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(1);
       expect(
-        screen.queryByText("Mandant wird gewechselt..."),
+        screen.queryByText("Schule wird gewechselt..."),
       ).not.toBeInTheDocument();
     });
 
@@ -944,9 +942,7 @@ describe("TenantGuard", () => {
 
       act(() => reportSessionTenantMismatch());
 
-      expect(
-        screen.getByText("Mandant wird gewechselt..."),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
     });
 
@@ -963,9 +959,7 @@ describe("TenantGuard", () => {
           mockMutate,
         ),
       );
-      expect(
-        screen.getByText("Mandant wird gewechselt..."),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
     });
 
@@ -973,9 +967,7 @@ describe("TenantGuard", () => {
       vi.useFakeTimers();
       render(<Tab />);
       act(() => reportSessionTenantMismatch());
-      expect(
-        screen.getByText("Mandant wird gewechselt..."),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
 
       act(() => vi.advanceTimersByTime(10_000));
 
@@ -1015,7 +1007,7 @@ describe("TenantGuard", () => {
         });
 
         expect(
-          screen.getByText("Mandant wird gewechselt..."),
+          screen.getByText("Schule wird gewechselt..."),
         ).toBeInTheDocument();
         expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
       } finally {
