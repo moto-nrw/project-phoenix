@@ -9,80 +9,31 @@ import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { TraegerRole } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
 
-const logger = createLogger({ component: "TraegerMemberModal" });
+const logger = createLogger({ component: "AssignTraegerMemberModal" });
 
 const ROLES_REQUIRED = "Bitte wählen Sie mindestens eine Rolle.";
 
-/** What differs between assigning an existing account and inviting. */
-interface TraegerMemberMode {
-  readonly formId: string;
-  readonly title: string;
-  readonly emailLabel: string;
-  readonly submitLabel: string;
-  readonly savingLabel: string;
-  readonly successText: string;
-  readonly errorObject: string;
-  readonly logEvent: string;
-  readonly explanation: (organizationName: string) => string;
-  readonly send: (
-    organizationId: string,
-    data: { email: string; roles: TraegerRole[] },
-  ) => Promise<unknown>;
-}
-
-const ASSIGN: TraegerMemberMode = {
-  formId: "assign-traeger-member-form",
-  title: "Person dem Träger-Büro zuordnen",
-  emailLabel: "E-Mail des Kontos",
-  submitLabel: "Zuordnen",
-  savingLabel: "Wird zugeordnet...",
-  successText: "Die Person ist dem Träger-Büro zugeordnet.",
-  errorObject: "die Zuordnung zum Träger-Büro",
-  logEvent: "traeger_member_assign_failed",
-  explanation: (name) =>
-    `Nur für Personen mit moto-Konto. Sie melden sich mit diesem Konto im Träger-Portal von ${name} an. Ohne Konto: „Person einladen“.`,
-  send: (organizationId, data) =>
-    operatorProvisioningService.assignTraegerMember(organizationId, data),
-};
-
-const INVITE: TraegerMemberMode = {
-  formId: "invite-traeger-member-form",
-  title: "Person ins Träger-Büro einladen",
-  emailLabel: "E-Mail-Adresse",
-  submitLabel: "Einladung senden",
-  savingLabel: "Wird gesendet...",
-  successText:
-    "Die Einladung ist verschickt. Das Träger-Büro sieht sie bei den offenen Einladungen.",
-  errorObject: "die Einladung ins Träger-Büro",
-  logEvent: "traeger_member_invite_failed",
-  explanation: (name) =>
-    `Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal von ${name}. Dort legt sie ein Passwort fest oder meldet sich mit ihrem moto-Konto an. Ein Schulkonto braucht sie nicht.`,
-  send: (organizationId, data) =>
-    operatorProvisioningService.inviteTraegerMember(organizationId, data),
-};
-
-interface TraegerMemberModalProps {
-  readonly isOpen: boolean;
-  readonly onClose: () => void;
-  readonly organizationId: string;
-  readonly organizationName: string;
-  readonly onDone: () => Promise<unknown>;
-}
-
 /**
- * Adds a person to the Träger-Büro with one or more Träger roles (#4649,
- * #5144). The first person usually needs Verwaltung, so it is preselected.
+ * Assigns an existing account to the Träger-Büro with one or more Träger
+ * roles (#4649, #5144). The person signs in at the Träger-Portal with the
+ * same account; an e-mail without an account answers
+ * `identity.account_not_found`, so the text points to the invitation.
  */
-function TraegerMemberModal({
-  mode,
+export function AssignTraegerMemberModal({
   isOpen,
   onClose,
   organizationId,
   organizationName,
-  onDone,
-}: TraegerMemberModalProps & { readonly mode: TraegerMemberMode }) {
+  onAssigned,
+}: {
+  readonly isOpen: boolean;
+  readonly onClose: () => void;
+  readonly organizationId: string;
+  readonly organizationName: string;
+  readonly onAssigned: () => Promise<unknown>;
+}) {
   const [email, setEmail] = useState("");
-  const [roles, setRoles] = useState<TraegerRole[]>(["administration"]);
+  const [roles, setRoles] = useState<TraegerRole[]>([]);
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
@@ -92,7 +43,7 @@ function TraegerMemberModal({
   useEffect(() => {
     if (isOpen) {
       setEmail("");
-      setRoles(["administration"]);
+      setRoles([]);
       clearError();
     }
   }, [isOpen, clearError]);
@@ -108,26 +59,28 @@ function TraegerMemberModal({
       }
       setSaving(true);
       try {
-        await mode.send(organizationId, { email: email.trim(), roles });
+        await operatorProvisioningService.assignTraegerMember(organizationId, {
+          email: email.trim(),
+          roles,
+        });
         onClose();
-        toastSuccess(mode.successText);
-        await onDone();
+        toastSuccess(`Die Person ist dem Träger-Büro zugeordnet.`);
+        await onAssigned();
       } catch (error) {
-        logger.error(mode.logEvent, {
+        logger.error("traeger_member_assign_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
-        void showError(error, { object: mode.errorObject });
+        void showError(error, { object: "die Zuordnung zum Träger-Büro" });
       } finally {
         setSaving(false);
       }
     },
     [
-      mode,
       email,
       roles,
       organizationId,
       onClose,
-      onDone,
+      onAssigned,
       clearError,
       invalid,
       showError,
@@ -139,7 +92,7 @@ function TraegerMemberModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={mode.title}
+      title="Person dem Träger-Büro zuordnen"
       footer={
         <>
           <Button type="button" variant="outline" size="md" onClick={onClose}>
@@ -147,29 +100,31 @@ function TraegerMemberModal({
           </Button>
           <Button
             type="submit"
-            form={mode.formId}
+            form="assign-traeger-member-form"
             variant="primary"
             size="md"
             disabled={saving || !email.trim()}
           >
-            {saving ? mode.savingLabel : mode.submitLabel}
+            {saving ? "Wird zugeordnet..." : "Zuordnen"}
           </Button>
         </>
       }
     >
       <form
         ref={formRef}
-        id={mode.formId}
+        id="assign-traeger-member-form"
         onSubmit={(e) => void handleSubmit(e)}
         className="space-y-4"
       >
         <p className="text-sm text-gray-600">
-          {mode.explanation(organizationName)}
+          Nur für Personen mit moto-Konto. Sie melden sich mit diesem Konto im
+          Träger-Portal von {organizationName} an. Ohne Konto: „Person
+          einladen“.
         </p>
         <FormErrorAlert message={formErrors.error} />
         <Input
-          id={`${mode.formId}-email`}
-          label={mode.emailLabel}
+          id="assign-traeger-member-email"
+          label="E-Mail des Kontos"
           name="email"
           error={formErrors.fieldError("email")}
           type="email"
@@ -188,22 +143,4 @@ function TraegerMemberModal({
       </form>
     </Modal>
   );
-}
-
-/**
- * Assigns an existing account to the Träger-Büro (#4649). The person signs
- * in at the Träger-Portal with the same account; an e-mail without an
- * account answers `identity.account_not_found`.
- */
-export function AssignTraegerMemberModal(props: TraegerMemberModalProps) {
-  return <TraegerMemberModal mode={ASSIGN} {...props} />;
-}
-
-/**
- * Invites a person into the Träger-Büro with the Träger-Büro's own
- * invitation (#5144): the mail links to the Träger-Portal, where the person
- * sets a password or confirms an existing moto account.
- */
-export function InviteTraegerMemberModal(props: TraegerMemberModalProps) {
-  return <TraegerMemberModal mode={INVITE} {...props} />;
 }

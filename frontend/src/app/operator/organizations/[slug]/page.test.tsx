@@ -142,6 +142,7 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
 });
 
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog", "aria-modal": true },
   Modal: ({ isOpen, children, title, footer }: any) =>
     isOpen ? (
       <div data-testid="modal">
@@ -935,12 +936,12 @@ describe("OperatorOrganizationDetailPage", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Person zuordnen" }));
       const modal = await screen.findByTestId("modal");
-      expect(
-        within(modal).getByRole("checkbox", { name: /Verwaltung/ }),
-      ).toBeChecked();
       fireEvent.change(within(modal).getByLabelText(/E-Mail des Kontos/), {
         target: { value: " buero@traeger.example " },
       });
+      fireEvent.click(
+        within(modal).getByRole("checkbox", { name: /Verwaltung/ }),
+      );
       fireEvent.click(
         within(modal).getByRole("checkbox", { name: /Abrechnung/ }),
       );
@@ -962,7 +963,7 @@ describe("OperatorOrganizationDetailPage", () => {
       ).toBeInTheDocument();
     });
 
-    it("invites a person without a moto account with several roles (#5144)", async () => {
+    it("invites a person without a moto account with several roles through the Träger-Büro's dialog (#5144)", async () => {
       currentSearchParams = new URLSearchParams("tab=traeger-buero");
       setupSWR({ traegerMembers: [] });
       mockInviteTraegerMember.mockResolvedValue(undefined);
@@ -971,20 +972,21 @@ describe("OperatorOrganizationDetailPage", () => {
       await renderPage();
 
       fireEvent.click(screen.getByRole("button", { name: "Person einladen" }));
-      const modal = await screen.findByTestId("modal");
+      const dialog = await screen.findByRole("dialog");
       expect(
-        within(modal).getByText(/Ein Schulkonto braucht sie nicht\./),
+        within(dialog).getByText(/Ein Schulkonto braucht sie nicht\./),
       ).toBeInTheDocument();
-      fireEvent.change(within(modal).getByLabelText(/E-Mail-Adresse/), {
+      fireEvent.change(within(dialog).getByLabelText(/E-Mail-Adresse/), {
         target: { value: "neu@traeger.example" },
       });
       fireEvent.click(
-        within(modal).getByRole("checkbox", { name: /Abrechnung/ }),
+        within(dialog).getByRole("checkbox", { name: /Verwaltung/ }),
       );
       fireEvent.click(
-        within(screen.getByTestId("modal-footer")).getByRole("button", {
-          name: "Einladung senden",
-        }),
+        within(dialog).getByRole("checkbox", { name: /Abrechnung/ }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Einladung senden" }),
       );
 
       await waitFor(() =>
@@ -1009,21 +1011,16 @@ describe("OperatorOrganizationDetailPage", () => {
       await renderPage();
 
       fireEvent.click(screen.getByRole("button", { name: "Person einladen" }));
-      const modal = await screen.findByTestId("modal");
-      fireEvent.change(within(modal).getByLabelText(/E-Mail-Adresse/), {
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.change(within(dialog).getByLabelText(/E-Mail-Adresse/), {
         target: { value: "neu@traeger.example" },
       });
       fireEvent.click(
-        within(modal).getByRole("checkbox", { name: /Verwaltung/ }),
-      );
-      fireEvent.click(
-        within(screen.getByTestId("modal-footer")).getByRole("button", {
-          name: "Einladung senden",
-        }),
+        within(dialog).getByRole("button", { name: "Einladung senden" }),
       );
 
       expect(
-        await within(modal).findAllByText(
+        await within(dialog).findAllByText(
           "Bitte wählen Sie mindestens eine Rolle.",
         ),
       ).not.toHaveLength(0);
@@ -1046,6 +1043,9 @@ describe("OperatorOrganizationDetailPage", () => {
       fireEvent.change(within(modal).getByLabelText(/E-Mail des Kontos/), {
         target: { value: "unbekannt@example.com" },
       });
+      fireEvent.click(
+        within(modal).getByRole("checkbox", { name: /Verwaltung/ }),
+      );
       fireEvent.click(
         within(screen.getByTestId("modal-footer")).getByRole("button", {
           name: "Zuordnen",

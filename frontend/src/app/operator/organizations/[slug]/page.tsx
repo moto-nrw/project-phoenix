@@ -50,10 +50,8 @@ import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
 import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
-import {
-  AssignTraegerMemberModal,
-  InviteTraegerMemberModal,
-} from "~/app/operator/provisioning/assign-traeger-member-modal";
+import { AssignTraegerMemberModal } from "~/app/operator/provisioning/assign-traeger-member-modal";
+import { InviteTraegerAccountModal } from "~/components/traeger/traeger-account-modals";
 import { TraegerErasureOrderSection } from "./traeger-erasure-order-section";
 import { TestTraegerSection } from "./test-traeger-section";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -787,15 +785,22 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         onClose={() => setAssignTraegerOpen(false)}
         organizationId={organization.id}
         organizationName={organization.name}
-        onDone={() => mutateTraegerMembers()}
+        onAssigned={() => mutateTraegerMembers()}
       />
 
-      <InviteTraegerMemberModal
+      <InviteTraegerAccountModal
         isOpen={inviteTraegerOpen}
         onClose={() => setInviteTraegerOpen(false)}
-        organizationId={organization.id}
-        organizationName={organization.name}
-        onDone={() => mutateTraegerMembers()}
+        onInvited={() => mutateTraegerMembers()}
+        invite={(input) =>
+          operatorProvisioningService.inviteTraegerMember(organization.id, {
+            email: input.email,
+            roles: [...input.roles],
+          })
+        }
+        title="Person ins Träger-Büro einladen"
+        hint={`Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal von ${organization.name}. Dort legt sie ein Passwort fest oder meldet sich mit ihrem moto-Konto an. Ein Schulkonto braucht sie nicht.`}
+        successText="Die Einladung ist verschickt. Das Träger-Büro sieht sie bei den offenen Einladungen."
       />
 
       {mfaResetMember ? (

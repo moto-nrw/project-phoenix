@@ -355,3 +355,56 @@ func TestOperatorDoesNotInviteIntoADeactivatedTraeger(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.traeger_invitations WHERE organization_id = ?`, live).Scan(ctx, &stored))
 	assert.Zero(t, stored, "outside the operator's unit nothing is stored")
 }
+
+// Two invitations of the same address into an empty Träger-Büro must queue:
+// there is no Verwaltung row to lock yet. The first invitation is played by
+// hand: it holds the address lock and has inserted its open invitation. The
+// operator's invitation of the same address waits for it, then replaces it
+// instead of failing on the one-open-invitation index (#5144).
+func TestOperatorInvitationsOfOneAddressQueueInAnEmptyTraegerBuero(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, _ := buildOperatorProvisioningWithIdentity(t, db)
+	ctx := provisioningContext(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	organizationID, _ := provisionTestSchool(t, db, service, operatorID, "traeger-einladung-queue")
+	address := fmt.Sprintf("queue-%d@test.local", testpkg.UniqueTestTenantID(t))
+	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
+	operator := chi.NewRouter()
+	mountOperatorProvisioningRoutes(operator, resource, nil)
+
+	first, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = first.Rollback() }()
+	_, err = first.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", fmt.Sprintf("traeger_invitation:%d:%s", organizationID, address))
+	require.NoError(t, err)
+	_, err = first.ExecContext(ctx, `INSERT INTO auth.traeger_invitations (organization_id, email, token, roles, expires_at)
+		VALUES (?, ?, ?, ARRAY['read_only']::VARCHAR(32)[], now() + interval '1 day')`, organizationID, address, fmt.Sprintf("first-%d", testpkg.UniqueTestTenantID(t)))
+	require.NoError(t, err)
+
+	invited := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		body := bytes.NewBufferString(fmt.Sprintf(`{"email":%q,"roles":["administration"]}`, address))
+		req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/organizations/%d/traeger-members/invitations", organizationID), body)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+		rec := httptest.NewRecorder()
+		operator.ServeHTTP(rec, req)
+		invited <- rec
+	}()
+
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(ctx, &waiting)
+		return err == nil && waiting > 0
+	}, 10*time.Second, 20*time.Millisecond, "the second invitation waits for the first one")
+	require.NoError(t, first.Commit())
+
+	rec := <-invited
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	var open []string
+	require.NoError(t, db.NewRaw(`SELECT array_to_string(roles, ',') FROM auth.traeger_invitations
+		WHERE organization_id = ? AND email = ? AND used_at IS NULL AND revoked_at IS NULL`, organizationID, address).Scan(ctx, &open))
+	assert.Equal(t, []string{"administration"}, open, "the later invitation replaces the earlier one")
+}
