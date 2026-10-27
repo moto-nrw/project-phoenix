@@ -16,6 +16,7 @@ import { fetchStudents } from "~/lib/student-api";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
+import type { RosterDeviation } from "~/lib/roster-deviation";
 
 vi.unmock("swr");
 
@@ -586,6 +587,20 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     ) : null,
 }));
 
+vi.mock("~/components/timetable/connect-offering-modal", () => ({
+  ConnectOfferingModal: ({
+    templateName,
+    deviation,
+  }: {
+    templateName: string;
+    deviation: RosterDeviation;
+  }) => (
+    <div role="dialog" aria-label="Mit Angebot verbinden">
+      {templateName} · {deviation.offering.name}
+    </div>
+  ),
+}));
+
 vi.mock("~/components/timetable/timetable-event-modal", () => ({
   TimetableEventModal: (props: {
     isOpen: boolean;
@@ -822,6 +837,7 @@ function setupSWR({
   instances = [instance],
   filterGroups = [] as Array<{ id: string; name: string }>,
   filterRooms = [] as Array<{ id: string; name: string }>,
+  rosterDeviations,
 }: {
   periods?: Array<typeof period>;
   periodsState?: "ready" | "loading" | "error";
@@ -837,6 +853,8 @@ function setupSWR({
   instances?: (typeof instance)[];
   filterGroups?: Array<{ id: string; name: string }>;
   filterRooms?: Array<{ id: string; name: string }>;
+  /** undefined = the deviation read has not answered yet. */
+  rosterDeviations?: RosterDeviation[];
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -907,6 +925,9 @@ function setupSWR({
     }
     if (key.startsWith("timetable-templates")) {
       return { data: { templates }, isLoading: false };
+    }
+    if (key.startsWith("roster-deviations-")) {
+      return rosterDeviations ? { data: rosterDeviations } : {};
     }
     if (key.startsWith("timetable-")) {
       return {
@@ -1250,6 +1271,80 @@ describe("BetreuungsplanView", () => {
     setUrl("view=serien");
     render(<BetreuungsplanView />);
     expect(screen.getByText("create-template")).toBeVisible();
+  });
+
+  // --- „Mit Angebot verbinden“ aus der Rückmeldung (#5137) ---
+
+  const deviation: RosterDeviation = {
+    templateId: "7",
+    offering: { id: "3", name: "OGS Ganztag" },
+    gradeLevels: [],
+    schoolClasses: ["2a"],
+    unbookedCount: 1,
+    missingCount: 0,
+    candidates: [],
+  };
+
+  it("opens „Mit Angebot verbinden“ once for the linked Regeltermin", async () => {
+    setUrl("view=serien&verbinden=7");
+    setupSWR({ rosterDeviations: [deviation] });
+    render(<BetreuungsplanView />);
+
+    expect(
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toHaveTextContent("Yoga · OGS Ganztag");
+    expect(urlParams().has("verbinden")).toBe(false);
+    expect(urlParams().get("view")).toBe("serien");
+  });
+
+  it("waits for the deviation read before it decides", () => {
+    setUrl("view=serien&verbinden=7");
+    setupSWR();
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("create-template")).toBeVisible();
+    expect(urlParams().get("verbinden")).toBe("7");
+    expect(mockEventModalProps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isOpen: true }),
+    );
+  });
+
+  it("opens the Regeltermin for editing when no offering matches", async () => {
+    setUrl("view=serien&verbinden=7");
+    setupSWR({ rosterDeviations: [] });
+    render(<BetreuungsplanView />);
+
+    await waitFor(() =>
+      expect(mockEventModalProps).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          isOpen: true,
+          initialSeries: expect.objectContaining({ id: "7" }),
+        }),
+      ),
+    );
+    // Anker: der Bearbeiten-Dialog des Regeltermins ist offen.
+    expect(screen.getByText("event-close")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).not.toBeInTheDocument();
+    expect(urlParams().has("verbinden")).toBe(false);
+  });
+
+  it("opens nothing for readers without planning rights", async () => {
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { permissions: ["schedules:read", "users:read"] } },
+    });
+    setUrl("view=serien&verbinden=7");
+    setupSWR({ rosterDeviations: [deviation] });
+    render(<BetreuungsplanView />);
+
+    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    // Leseansicht: die Woche statt der Serienansicht, kein Dialog.
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).not.toBeInTheDocument();
   });
 
   it("writes d on week navigation and view on the segment switch", () => {

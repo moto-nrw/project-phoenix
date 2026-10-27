@@ -11,7 +11,8 @@
  * ist die Woche/der Monat, die/den `d` enthält), `view` ("woche" | "monat" |
  * "serien"), `block` (Instanz-ID des geöffneten InstanceDetailModal) und die
  * Filter `group` (OGS-Gruppe) und `staff` (Person) aus #4766 sowie `room`
- * (Raum) aus #4768.
+ * (Raum) aus #4768. `verbinden` (Regeltermin-ID, #5137) öffnet in der
+ * Serienansicht einmal „Mit Angebot verbinden“ und fällt danach weg.
  * Ungültige Werte fallen still auf die Defaults zurück (heute, "woche"). Die
  * sieben Alt-Parameter (week/month/year/instance/day/period/Alt-view) entfallen
  * ersatzlos; die Jahresansicht ist nicht mehr verlinkbar. Der Dichte-Umschalter
@@ -190,6 +191,8 @@ const ALLOWED_URL_PARAMS = [
   "room",
   // „Zu prüfen“ in der Serienansicht (#5103).
   "pruefen",
+  // Regeltermin-ID, für die „Mit Angebot verbinden“ öffnet (#5137).
+  "verbinden",
 ] as const;
 
 type ViewParam = "tag" | "woche" | "monat" | "serien";
@@ -958,12 +961,50 @@ function TimetablesContent() {
     [templateData?.templates],
   );
   // Abweichungen von den Anmeldungen (#5103): Hinweis an Karte und Termin.
-  const rosterDeviations = useRosterDeviations(
-    templatePeriodID,
-    status === "authenticated",
-    templateData,
-  );
+  const { deviations: rosterDeviations, settled: rosterDeviationsSettled } =
+    useRosterDeviations(
+      templatePeriodID,
+      status === "authenticated",
+      templateData,
+    );
   const reviewOnly = params.pruefen === "1";
+  // „Mit Angebot verbinden“ aus der Rückmeldung nach einer Buchungsänderung
+  // (#5137): öffnet einmal den Dialog des Regeltermins. Findet moto kein
+  // passendes Angebot, öffnet der Regeltermin zum Bearbeiten; dort lässt sich
+  // ein Angebot als Quelle wählen.
+  const connectTemplateID = params.verbinden;
+  useEffect(() => {
+    if (!connectTemplateID || status !== "authenticated") return;
+    // Ohne Planungsrecht gibt es weder Serienansicht noch Dialog.
+    if (!canManageSchedules) {
+      updateUrlParams({ verbinden: null });
+      return;
+    }
+    if (view !== "series" || !templateData || !rosterDeviationsSettled) return;
+    updateUrlParams({ verbinden: null });
+    const template = templates.find((entry) => entry.id === connectTemplateID);
+    if (!template) return;
+    const deviation = rosterDeviations.get(template.id);
+    if (deviation) {
+      setConnecting({ template, deviation });
+      return;
+    }
+    setEditingInstance(null);
+    setConvertingInstance(null);
+    setEditingTemplate(template);
+    setEventDefaultRepeat("weekly");
+    setEventModalOpen(true);
+  }, [
+    connectTemplateID,
+    status,
+    view,
+    templateData,
+    rosterDeviationsSettled,
+    rosterDeviations,
+    templates,
+    canManageSchedules,
+    updateUrlParams,
+  ]);
   const modalCalendarPeriods = useMemo(() => {
     const periodIDs = new Set(assignedPeriods.map((period) => period.id));
     if (templatePeriodID) periodIDs.add(templatePeriodID);

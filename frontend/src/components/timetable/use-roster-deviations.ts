@@ -18,13 +18,17 @@ export function rosterDeviationsKey(periodId: string): string {
  * bookings (#5103), by template id. The hint is information next to the
  * plan: a failed read shows no hint and is logged, the plan itself stays
  * usable. Every reload of the template list reloads the hints too, so a save,
- * a connection or „Bleibt von Hand gepflegt“ shows at once.
+ * a connection or „Bleibt von Hand gepflegt“ shows at once. `settled` turns
+ * true once the first read answered, with hints or with an error.
  */
 export function useRosterDeviations(
   periodId: string | undefined,
   enabled: boolean,
   templatesVersion: unknown,
-): ReadonlyMap<string, RosterDeviation> {
+): {
+  deviations: ReadonlyMap<string, RosterDeviation>;
+  settled: boolean;
+} {
   const tenantMutate = useTenantMutate();
   const { data, error } = useSWRAuth(
     enabled && periodId ? rosterDeviationsKey(periodId) : null,
@@ -50,8 +54,9 @@ export function useRosterDeviations(
     }
   }, [templatesVersion, periodId, tenantMutate]);
 
-  return useMemo(
+  const deviations = useMemo(
     () => new Map((data ?? []).map((entry) => [entry.templateId, entry])),
     [data],
   );
+  return { deviations, settled: data !== undefined || error !== undefined };
 }

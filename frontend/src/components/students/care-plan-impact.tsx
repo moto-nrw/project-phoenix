@@ -2,8 +2,7 @@
 
 import { useId, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import NavigationLink from "~/components/ui/navigation-link";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -33,7 +32,9 @@ interface CarePlanImpactProps {
 /**
  * „Auswirkung auf den Betreuungsplan“ nach einer Buchungsänderung (#5102):
  * was moto automatisch angepasst hat und welche von Hand gepflegten
- * Regeltermine das Kind an weggefallenen Tagen weiter einplanen.
+ * Regeltermine das Kind an weggefallenen Tagen weiter einplanen. Plant ein
+ * Regeltermin über Klasse, Jahrgang oder Gruppe, hält ein Entfernen nicht;
+ * dort führt der Hinweis zu „Mit Angebot verbinden“ (#5137).
  */
 export function CarePlanImpact({
   impact,
@@ -42,8 +43,8 @@ export function CarePlanImpact({
 }: CarePlanImpactProps) {
   const headingId = useId();
   const { data: session } = useSession();
-  const canRemove =
-    studentId !== undefined && hasPermission(session, "schedules:manage");
+  const canManage = hasPermission(session, "schedules:manage");
+  const canRemove = studentId !== undefined && canManage;
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
   const [target, setTarget] = useState<ManualRosterTemplate | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -63,6 +64,14 @@ export function CarePlanImpact({
   const planLink = tenantPath(
     `/betreuungsplan?view=serien&d=${encodeURIComponent(impact.effectiveFrom)}`,
   );
+  const connectLink = (templateId: string) =>
+    `${planLink}&verbinden=${encodeURIComponent(templateId)}`;
+  // Ohne Recht fehlt an einem Eintrag eine Aktion, die andere sehen würden.
+  const actionMissing =
+    !canManage &&
+    impact.notAdjusted.some(
+      (template) => template.viaTarget || studentId !== undefined,
+    );
 
   const closeConfirm = () => {
     if (removing) return;
@@ -137,16 +146,18 @@ export function CarePlanImpact({
                 template={template}
                 removed={removed.has(template.templateId)}
                 canRemove={canRemove}
+                canConnect={canManage}
                 onRemove={setTarget}
                 planLink={planLink}
+                connectLink={connectLink(template.templateId)}
               />
             ))}
           </ul>
-          {canRemove || studentId === undefined ? null : (
+          {actionMissing ? (
             <p className="mt-2 text-xs text-gray-500">
-              Entfernen kann nur, wer den Betreuungsplan bearbeiten darf.
+              Ändern kann nur, wer den Betreuungsplan bearbeiten darf.
             </p>
-          )}
+          ) : null}
         </div>
       ) : null}
       <ConfirmDeleteModal
@@ -162,14 +173,6 @@ export function CarePlanImpact({
               und vergangene Termine bleiben.
             </p>
           ) : null
-        }
-        warningSlot={
-          target?.viaTarget ? (
-            <Alert
-              type="warning"
-              message="Bei einer neuen Planung kommt das Kind wieder dazu. Der Regeltermin plant alle Kinder der Klasse, des Jahrgangs oder der Gruppe. Soll es dauerhaft fehlen, ändern Sie die Kinder im Regeltermin."
-            />
-          ) : undefined
         }
         gate={{ mode: "twoStep", firstStepLabel: "Entfernen" }}
         confirmLabel="Jetzt entfernen"
@@ -187,14 +190,18 @@ function ManualTemplateEntry({
   template,
   removed,
   canRemove,
+  canConnect,
   onRemove,
   planLink,
+  connectLink,
 }: Readonly<{
   template: ManualRosterTemplate;
   removed: boolean;
   canRemove: boolean;
+  canConnect: boolean;
   onRemove: (template: ManualRosterTemplate) => void;
   planLink: string;
+  connectLink: string;
 }>) {
   return (
     <li className="flex flex-col gap-1.5 py-2 text-sm text-gray-700 first:pt-0 last:pb-0">
@@ -203,9 +210,22 @@ function ManualTemplateEntry({
         {formatWeekdayAdverbs(template.weekdays)}:{" "}
         {removed ? "Kind entfernt." : "Kind bleibt eingeplant."}
       </span>
+      {template.viaTarget ? (
+        <span className="text-gray-600">
+          Der Regeltermin plant alle Kinder der Klasse, des Jahrgangs oder der
+          Gruppe. Damit das Kind dauerhaft fehlt, verbinden Sie ihn mit dem
+          Angebot.
+        </span>
+      ) : null}
       <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
         {removed ? (
           <StatusBadge tone="green" label="Entfernt" />
+        ) : template.viaTarget ? (
+          canConnect ? (
+            <ButtonLink href={connectLink} variant="outline" size="compact">
+              Mit Angebot verbinden
+            </ButtonLink>
+          ) : null
         ) : canRemove ? (
           <Button
             type="button"
