@@ -52,7 +52,8 @@ const classParentLettersUpSQL = `
 		ALTER TABLE users.parent_announcements
 			ADD CONSTRAINT chk_parent_announcements_class_letter CHECK (
 				(sender_name IS NULL AND sender_school_class IS NULL)
-				OR (btrim(sender_name) <> '' AND btrim(sender_school_class) <> '')
+				OR (sender_name IS NOT NULL AND sender_school_class IS NOT NULL
+					AND btrim(sender_name) <> '' AND btrim(sender_school_class) <> '')
 			);
 `
 
