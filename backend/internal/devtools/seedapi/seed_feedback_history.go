@@ -8,11 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// feedbackHistoryDays is how far the feedback reaches back: two weeks cover
-// the Feedbackhistorie's default "Letzte 7 Tage" and its 30-day view, well
-// inside the 90 days the school keeps feedback.
-const feedbackHistoryDays = 14
-
 // feedbackHistoryEntry is one rating of a child, written through the regular
 // feedback batch endpoint like the kiosk's.
 type feedbackHistoryEntry struct {
@@ -36,11 +31,15 @@ func (s seedFeedbackHistoryStep) Run(_ context.Context, rt *Runtime) error {
 		fmt.Println("  Feedback ist für diese Schule aus, der Feedbackverlauf wird übersprungen")
 		return nil
 	}
-	input, err := pastCareInputFor(rt, s.seeder.definition)
+	today := calendar.TodayDate()
+	from, until := feedbackHistoryRange(today)
+	if !from.Before(today) {
+		return nil
+	}
+	input, err := pastCareInputFrom(rt, s.seeder.definition, today, from)
 	if err != nil {
 		return err
 	}
-	from, until := input.today.AddDays(-feedbackHistoryDays), input.today.AddDays(-1)
 	var existing struct {
 		Data []struct {
 			ID int64 `json:"id"`
@@ -81,6 +80,18 @@ func (s seedFeedbackHistoryStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Printf("  %d vergangene Feedbacks, davon %d zum Mittagessen\n", len(entries), mensa)
 	return nil
+}
+
+// feedbackHistoryRange covers every past day in the current calendar month,
+// matching the Feedbackhistorie's "Diesen Monat" filter, and retains the
+// previous 14 days for its default "Letzte 7 Tage" filter. At most 30 days
+// are seeded, safely inside the 90-day feedback retention period.
+func feedbackHistoryRange(today calendar.Date) (calendar.Date, calendar.Date) {
+	from := today.AddDays(-14)
+	if monthStart := calendar.NewDate(today.Year(), today.Month(), 1); monthStart.Before(from) {
+		from = monthStart
+	}
+	return from, today.AddDays(-1)
 }
 
 // planFeedbackHistory decides the ratings from a fixed hash of child and day.

@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,8 +32,9 @@ func TestFullOperationProfileEnablesHistories(t *testing.T) {
 func TestFeedbackHistoryPlanRatesPresentDays(t *testing.T) {
 	t.Parallel()
 	input, _ := presenceHistoryFixture()
+	from, _ := feedbackHistoryRange(input.today)
+	input.from = from
 	days := planPresenceHistory(input).days
-	from := input.today.AddDays(-feedbackHistoryDays)
 	entries := planFeedbackHistory(days, from)
 
 	present := map[string]PastPresenceDay{}
@@ -60,6 +63,25 @@ func TestFeedbackHistoryPlanRatesPresentDays(t *testing.T) {
 	assert.Greater(t, values["neutral"], values["negative"])
 	assert.Positive(t, values["negative"])
 	assert.Equal(t, entries, planFeedbackHistory(days, from), "the same day seeds the same feedback")
+}
+
+func TestFeedbackHistoryRangeCoversTheCurrentMonth(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		today calendar.Date
+		from  calendar.Date
+		until calendar.Date
+	}{
+		{calendar.NewDate(2026, time.February, 1), calendar.NewDate(2026, time.January, 18), calendar.NewDate(2026, time.January, 31)},
+		{calendar.NewDate(2026, time.February, 14), calendar.NewDate(2026, time.January, 31), calendar.NewDate(2026, time.February, 13)},
+		{calendar.NewDate(2026, time.February, 15), calendar.NewDate(2026, time.February, 1), calendar.NewDate(2026, time.February, 14)},
+		{calendar.NewDate(2026, time.October, 31), calendar.NewDate(2026, time.October, 1), calendar.NewDate(2026, time.October, 30)},
+	} {
+		from, until := feedbackHistoryRange(tc.today)
+		assert.Equal(t, tc.from, from)
+		assert.Equal(t, tc.until, until)
+		assert.LessOrEqual(t, from.DaysUntil(until), 29)
+	}
 }
 
 // The step writes the history as the school admin in one batch, inside the
