@@ -103,6 +103,17 @@ const (
 	// ResourceTypeHolidayParticipantsExport records an export of that list;
 	// metadata adds the format.
 	ResourceTypeHolidayParticipantsExport = "holiday_participants_export"
+	// ResourceTypeHolidayGuestTransfer records the hosting school copying the
+	// confirmed holiday guests of a week into its group (#4666): name, date
+	// of birth, booked care, emergency contacts and pickup persons of
+	// children of other schools. StudentID is NIL; RangeStart and RangeEnd
+	// span the week; metadata carries week_id, guests and automatic (the
+	// hourly reconciliation under the account that picked the group).
+	ResourceTypeHolidayGuestTransfer = "holiday_guest_transfer"
+	// ResourceTypeHolidayGuestSheet records a staff member opening the
+	// sheet of one holiday guest (#4666): booked care, emergency contacts
+	// and pickup persons. StudentID is SET; metadata carries week_id.
+	ResourceTypeHolidayGuestSheet = "holiday_guest_sheet"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

@@ -74,7 +74,9 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/api/files", moduleRouteBasis},
 	{"/api/groups", moduleRouteBasis},
 	{"/api/guardians", moduleRouteBasis},
-	// The hosting school's participant lists (#4665); see docs/reference/modulschalter.md.
+	// The hosting school's holiday guests (#4666) and participant lists
+	// (#4665); see docs/reference/modulschalter.md.
+	{"/api/holiday-guests", moduleRouteBasis},
 	{"/api/holiday-weeks", moduleRouteBasis},
 	{"/api/import", moduleRouteBasis},
 	{"/api/me", moduleRouteBasis},

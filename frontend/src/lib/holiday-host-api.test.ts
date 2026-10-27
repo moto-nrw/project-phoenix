@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api-error";
 import {
+  assignHolidayGuestGroup,
   downloadHolidayParticipants,
+  fetchHolidayGuestSheet,
   fetchHolidayParticipants,
   fetchHostedHolidayWeeks,
 } from "./holiday-host-api";
@@ -53,6 +55,8 @@ describe("holiday host api", () => {
         startsOn: "2026-09-14",
         endsOn: "2026-09-18",
         participants: 1,
+        guestGroupId: null,
+        guests: 0,
       },
     ]);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-weeks");
@@ -149,5 +153,99 @@ describe("holiday host api", () => {
       expect.any(Blob),
       "teilnehmerliste-2026-09-14.csv",
     );
+  });
+
+  it("maps the group of the holiday guests of a week", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: [{ ...BACKEND_WEEK, guest_group_id: 7, guests: 2 }],
+      }),
+    );
+
+    const [week] = await fetchHostedHolidayWeeks();
+
+    expect(week?.guestGroupId).toBe("7");
+    expect(week?.guests).toBe(2);
+  });
+
+  it("takes the holiday guests into a group and returns their number", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: { week_id: 51, group_id: 7, guests: 2 },
+      }),
+    );
+
+    await expect(assignHolidayGuestGroup("51", "7")).resolves.toBe(2);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("/api/holiday-weeks/51/guest-group");
+    expect(init?.method).toBe("PUT");
+    expect(init?.body).toBe(JSON.stringify({ group_id: "7" }));
+  });
+
+  it("keeps the code of a group that is not the school's", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(400, {
+        status: 400,
+        detail: "holiday guest group is not a group of the school",
+        code: "enrollment.holiday_guest_group_invalid",
+      }),
+    );
+
+    const error = await assignHolidayGuestGroup("51", "8").catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe(
+      "enrollment.holiday_guest_group_invalid",
+    );
+  });
+
+  it("maps the sheet of a holiday guest with care, emergency and pickup", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: {
+          student_id: 91,
+          week_id: 51,
+          starts_on: "2026-09-14",
+          ends_on: "2026-09-18",
+          time_model_name: "bis 13 Uhr",
+          time_model_starts_at: "08:00",
+          time_model_ends_at: "13:00",
+          home_school_id: null,
+          guest_school_name: "Grundschule Melle",
+          emergency_contacts: [
+            {
+              name: "Eva Muster",
+              phone: "0151 2345678",
+              relationship: "Eltern",
+            },
+          ],
+          pickup_contacts: null,
+          read_only: false,
+        },
+      }),
+    );
+
+    await expect(fetchHolidayGuestSheet("91")).resolves.toEqual({
+      studentId: "91",
+      startsOn: "2026-09-14",
+      endsOn: "2026-09-18",
+      timeModelName: "bis 13 Uhr",
+      timeModelStartsAt: "08:00",
+      timeModelEndsAt: "13:00",
+      homeSchoolId: null,
+      guestSchoolName: "Grundschule Melle",
+      emergencyContacts: [
+        { name: "Eva Muster", phone: "0151 2345678", relationship: "Eltern" },
+      ],
+      pickupContacts: [],
+      readOnly: false,
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-guests/91");
   });
 });

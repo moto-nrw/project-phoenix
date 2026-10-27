@@ -1081,6 +1081,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"participants":[]}}`)
 			return
 		}
+		if r.URL.Path == "/api/holiday-weeks/51/guest-group" {
+			// The holiday guest joins the Feriengruppe (#4666).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"week_id":51,"group_id":5,"guests":1}}`)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/traeger/billing-runs/") && !strings.HasSuffix(r.URL.Path, "/release") && r.URL.Path != "/traeger/billing-runs/" {
 			// The preview of the billing run the same step releases (#4668).
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":5,"preview_count":1,"preview_cents":9000,`+

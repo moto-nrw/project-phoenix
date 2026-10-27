@@ -204,6 +204,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/api/guardians/{id}/phone-numbers/{phoneId}"}:                                     notCaptured,
 	{http.MethodPut, "/api/guardians/{id}/phone-numbers/{phoneId}"}:                                        notCaptured,
 	{http.MethodPost, "/api/guardians/{id}/phone-numbers/{phoneId}/set-primary"}:                           notCaptured,
+	{http.MethodPut, "/api/holiday-weeks/{weekId}/guest-group"}:                                            event("holiday_guests_taken_over"),
 	{http.MethodPost, "/api/import/class-list-entries/import"}:                                             notCaptured,
 	{http.MethodPost, "/api/import/class-list-entries/preview"}:                                            notCaptured,
 	{http.MethodPost, "/api/import/opening-balances/import"}:                                               notCaptured,
