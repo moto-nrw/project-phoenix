@@ -80,8 +80,11 @@ func (s *PickupAdjustments) applyPickupAdjustment(
 	if preview.ResolutionRequired && strings.TrimSpace(input.Resolution) == "" {
 		return nil, careplan.ErrPickupAdjustmentResolutionRequired
 	}
+	result := &careplan.PickupAdjustmentResult{Resolution: resolution}
 	if resolution == careplan.PickupAdjustmentResolutionOffering {
-		err = s.applyPickupOffering(ctx, input, preview)
+		var impact careplan.RosterImpact
+		impact, err = s.applyPickupOffering(ctx, input, preview)
+		result.RosterImpact = &impact
 	} else {
 		err = s.applyPickupException(ctx, input, preview)
 	}
@@ -91,7 +94,7 @@ func (s *PickupAdjustments) applyPickupAdjustment(
 	if err := s.applyPickupArrivalSchedules(ctx, input, resolution, today); err != nil {
 		return nil, err
 	}
-	return &careplan.PickupAdjustmentResult{Resolution: resolution}, nil
+	return result, nil
 }
 
 // applyPickupArrivalSchedules writes the arrival rows of a lasting exception
@@ -162,20 +165,21 @@ func (s *PickupAdjustments) applyPickupException(ctx context.Context, input care
 	)
 }
 
-func (s *PickupAdjustments) applyPickupOffering(ctx context.Context, input careplan.PickupAdjustmentApplyInput, preview *careplan.PickupAdjustmentPreview) error {
+func (s *PickupAdjustments) applyPickupOffering(ctx context.Context, input careplan.PickupAdjustmentApplyInput, preview *careplan.PickupAdjustmentPreview) (careplan.RosterImpact, error) {
 	if len(input.Selections) == 0 || preview.OfferingConsequences == nil {
-		return fmt.Errorf("%w: an offering selection preview is required", careplan.ErrPickupAdjustmentInvalid)
+		return careplan.RosterImpact{}, fmt.Errorf("%w: an offering selection preview is required", careplan.ErrPickupAdjustmentInvalid)
 	}
 	if !selectsExactPickupOffering(input.Selections, preview.MatchingOfferings) {
-		return fmt.Errorf("%w: selected care offering does not match the pickup plan", careplan.ErrPickupAdjustmentInvalid)
+		return careplan.RosterImpact{}, fmt.Errorf("%w: selected care offering does not match the pickup plan", careplan.ErrPickupAdjustmentInvalid)
 	}
-	if err := s.deps.Offerings.ApplyDirectOfferingAdjustment(ctx, directOfferingInput(input)); err != nil {
-		return err
+	impact, err := s.deps.Offerings.ApplyDirectOfferingAdjustment(ctx, directOfferingInput(input))
+	if err != nil {
+		return careplan.RosterImpact{}, err
 	}
 	if err := s.deleteManualPickupSchedules(ctx, input.StudentID); err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
-	return s.deps.Audit.RecordPickupPlanForActor(
+	return impact, s.deps.Audit.RecordPickupPlanForActor(
 		ctx, input.StudentID, preview.CurrentPlan, preview.ProposedPlan,
 		"Angebot geändert", input.Reason, input.ActorAccountID,
 	)

@@ -232,7 +232,7 @@ func TestOfferingChangeRequestService_Create_PayloadExcludesAutomaticOfferings(t
 
 	automatic.AutoAddTriggerOfferingIDs = nil
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, automatic))
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, ReviewedBy: env.creatorID, Approve: true,
 	}))
 	links, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.reposEnrollment.Enrollment().RequestChildOfferingsAtDate, fx.childID, enrollmentTest.Date(fx.switchDate))
@@ -327,7 +327,7 @@ func TestOfferingChangeRequestService_Create_UsesSelectionAtEffectiveDate(t *tes
 		}},
 	})
 	require.NoError(t, err)
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID: first.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
 
@@ -421,7 +421,7 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:  row.ID,
 		Approve:    true,
 		ReviewedBy: env.creatorID,
@@ -470,7 +470,7 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalAfterPlannedCareEnd(
 		Set("enrolled_until = ?", fx.switchDate.AddDays(-1)).Where("student_profile_id = ? AND deleted_at IS NULL", fx.studentID).Exec(ctx)
 	require.NoError(t, err)
 
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID})
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID})
 	require.ErrorIs(t, err, careplan.ErrOfferingChangeInvalid)
 }
 
@@ -490,7 +490,7 @@ func TestOfferingChangeRequestService_Decide_CapsRebookingAtPlannedCareEnd(t *te
 		Set("enrolled_until = ?", fx.switchDate).Where("student_profile_id = ? AND deleted_at IS NULL", fx.studentID).Exec(ctx)
 	require.NoError(t, err)
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
 	exclusiveEnd := fx.switchDate.AddDays(1)
@@ -532,7 +532,7 @@ func TestOfferingChangeRequestService_Decide_RebookingObsoletesWithdrawalWithout
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
 	pending, err := pendingWithdrawalForStudent(ctx, repo, fx.studentID)
@@ -605,7 +605,7 @@ func TestOfferingChangeRequestService_Decide_LogsTheDateTheFamilyAskedFor(t *tes
 	require.NoError(t, err)
 
 	confirmed := fx.switchDate.AddDays(7)
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:     row.ID,
 		Approve:       true,
 		ReviewedBy:    env.creatorID,
@@ -640,7 +640,7 @@ func TestOfferingChangeRequestService_Decide_LogsNoWishWhenTheDateIsKept(t *test
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:     row.ID,
 		Approve:       true,
 		ReviewedBy:    env.creatorID,
@@ -672,7 +672,7 @@ func TestOfferingChangeRequestService_Decide_ApprovalRejectsWhenCareOfferingsAre
 	require.NoError(t, err)
 
 	env.settings.boolValues[enrollmentKeys.CareOfferingsEnabled] = false
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:  row.ID,
 		Approve:    true,
 		ReviewedBy: env.creatorID,
@@ -702,14 +702,14 @@ func TestOfferingChangeRequestService_Decide_RejectionNeedsAReasonAndChangesNoth
 	})
 	require.NoError(t, err)
 
-	err = svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	err = decideOfferingChange(ctx, svc, careplan.OfferingChangeDecisionInput{
 		RequestID:  row.ID,
 		Approve:    false,
 		ReviewedBy: env.creatorID,
 	})
 	require.ErrorIs(t, err, careplan.ErrOfferingChangeInvalid)
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:  row.ID,
 		Approve:    false,
 		Reason:     "Kein Platz in der Gruppe",
@@ -750,7 +750,7 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalWhenOfferingIsFull(t
 	fx.newOffering.Capacity = &zeroCapacity
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.newOffering))
 
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:  row.ID,
 		Approve:    true,
 		ReviewedBy: env.creatorID,
@@ -790,7 +790,7 @@ func TestOfferingChangeRequestService_Decide_AllowsLeavingOverCapacityOffering(t
 	fx.oldOffering.Capacity = &zeroCapacity
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:  row.ID,
 		Approve:    true,
 		ReviewedBy: env.creatorID,
@@ -824,7 +824,7 @@ func TestOfferingChangeRequestService_Decide_AllowsRetainingOverCapacityOffering
 	fx.oldOffering.Capacity = &zeroCapacity
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.oldOffering))
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
 
@@ -885,7 +885,7 @@ func TestOfferingChangeRequestService_GetForStudent_ReportsRecentDecision(t *tes
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:  row.ID,
 		Approve:    false,
 		Reason:     "Gruppe ist voll",
@@ -939,7 +939,7 @@ func TestOfferingChangeRequestService_Decide_AppliesTheConfirmedDate(t *testing.
 	require.NoError(t, err)
 
 	confirmed := fx.switchDate.AddDays(7)
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:     row.ID,
 		Approve:       true,
 		ReviewedBy:    env.creatorID,
@@ -988,7 +988,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeToday(t 
 	require.NoError(t, err)
 
 	confirmed := calendar.NewDate(2026, 8, 24).AddDays(-1)
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:     row.ID,
 		Approve:       true,
 		ReviewedBy:    env.creatorID,
@@ -1022,7 +1022,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateAfterTheCarePe
 	require.NoError(t, err)
 
 	confirmed := calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:     row.ID,
 		Approve:       true,
 		ReviewedBy:    env.creatorID,
@@ -1055,7 +1055,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateOnARejection(t
 	require.NoError(t, err)
 
 	confirmed := fx.switchDate
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:     row.ID,
 		Approve:       false,
 		Reason:        "Kein Platz",
@@ -1386,7 +1386,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateWithoutCapacit
 	require.NoError(t, newCareOfferingFixtureRecords(env.repos.CarePlan()).Update(ctx, fx.newOffering))
 
 	confirmed := fx.switchDate.AddDays(7)
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.Decide, careplan.OfferingChangeDecisionInput{
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), decidesOfferingChange(svc), careplan.OfferingChangeDecisionInput{
 		RequestID:     row.ID,
 		Approve:       true,
 		ReviewedBy:    env.creatorID,
@@ -1428,7 +1428,7 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeTheCareP
 
 	// Tomorrow is after today but still before the period begins.
 	confirmed := calendar.NewDate(2026, 8, 24).AddDays(1)
-	err = svc.Decide(ctx, careplan.OfferingChangeDecisionInput{
+	err = decideOfferingChange(ctx, svc, careplan.OfferingChangeDecisionInput{
 		RequestID:     row.ID,
 		Approve:       true,
 		ReviewedBy:    env.creatorID,

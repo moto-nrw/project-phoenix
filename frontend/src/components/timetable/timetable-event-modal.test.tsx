@@ -109,6 +109,10 @@ vi.mock("~/lib/timetable-api", () => ({
     checkShiftCoverage: (probe: unknown) => mockCheckShiftCoverage(probe),
     getOfferingSources: mockGetOfferingSources,
     getCombinedOfferingCounts: mockGetCombinedOfferingCounts,
+    // A stored series with a source also loads the weekday preview (#5103);
+    // its content is covered in step-personal-kinder.test.tsx.
+    getOfferingPreview: () =>
+      Promise.resolve({ from: "2026-09-09", weekdays: [], segments: [] }),
   },
 }));
 

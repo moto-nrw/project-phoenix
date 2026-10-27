@@ -90,6 +90,8 @@ import {
   pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
+import { mapRosterImpact, type RosterImpact } from "~/lib/roster-impact";
+import { CarePlanImpact } from "~/components/students/care-plan-impact";
 import type {
   StudentStatusDay,
   StudentStatusKind,
@@ -138,6 +140,7 @@ async function applyWeeklyPickupAdjustment(
   studentId: string,
   payload: PickupAdjustmentPayload,
   adjustment?: CarePlanWeeklyAdjustment,
+  onRosterImpact?: (impact: RosterImpact | null) => void,
 ): Promise<PickupAdjustmentPreview | undefined> {
   let preview = adjustment?.preview;
   if (!preview) {
@@ -149,7 +152,7 @@ async function applyWeeklyPickupAdjustment(
       return preview;
     }
   }
-  await applyStudentPickupAdjustment(studentId, {
+  const applied = await applyStudentPickupAdjustment(studentId, {
     ...payload,
     preview_token: preview.preview_token,
     resolution: adjustment?.resolution ?? "exception",
@@ -158,6 +161,7 @@ async function applyWeeklyPickupAdjustment(
       ? { complete_withdrawal_confirmed: true }
       : {}),
   });
+  onRosterImpact?.(mapRosterImpact(applied?.roster_impact));
 }
 
 interface CareScheduleManagerProps {
@@ -307,6 +311,8 @@ export function CareScheduleManager({
   // The section's Bearbeiten-Zustand (BAUARTEN-SPEC Bauart 2 Regel 3, #3119):
   // the weekly grid replaces the day cards in place, no overlay.
   const [isEditingWeekly, setIsEditingWeekly] = useState(false);
+  // Was ein Angebotswechsel im Betreuungsplan bewirkt hat (#5102).
+  const [rosterImpact, setRosterImpact] = useState<RosterImpact | null>(null);
   const [statusDayToDelete, setStatusDayToDelete] =
     useState<StudentStatusDay | null>(null);
   const [deletingStatusDayId, setDeletingStatusDayId] = useState<string | null>(
@@ -661,6 +667,7 @@ export function CareScheduleManager({
           studentId,
           basePayload,
           adjustment,
+          setRosterImpact,
         );
         // A returned preview means the plan still waits for a decision, so
         // nothing is written yet, the notes included.
@@ -972,7 +979,10 @@ export function CareScheduleManager({
                     variant="outline"
                     size="md"
                     className="gap-1.5"
-                    onClick={() => setIsEditingWeekly(true)}
+                    onClick={() => {
+                      setRosterImpact(null);
+                      setIsEditingWeekly(true);
+                    }}
                   >
                     <SquarePen
                       className="h-4 w-4 shrink-0"
@@ -1023,6 +1033,11 @@ export function CareScheduleManager({
       </div>
 
       <div className="p-3 sm:p-4">
+        {rosterImpact && !isEditingWeeklyView ? (
+          <div className="mb-3">
+            <CarePlanImpact impact={rosterImpact} studentId={studentId} />
+          </div>
+        ) : null}
         {isEditingWeeklyView && careDaysSource ? (
           // Mounted only while editing: the form seeds its draft once, so a
           // refresh of arrivalData / pickupData cannot overwrite the typing.

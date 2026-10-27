@@ -496,13 +496,13 @@ src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@163 text-[11px]@233 text-[11px]@266 text-[11px]@343 text-[11px]@349 text-[11px]@397
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@302 text-[9px]@422 text-[9px]@1050 text-[11px]@1354 text-[11px]@1380 text-[11px]@1556 text-[10px]@1665 text-[11px]@1688
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@314 text-[9px]@434 text-[9px]@1067 text-[11px]@1381 text-[11px]@1407 text-[11px]@1583 text-[10px]@1692 text-[11px]@1715
 src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@396 text-[11px]@461
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
 src/components/timetable/substitution-slide-over.tsx|text-[10px]@578 text-[9px]@583 text-[11px]@742 text-[11px]@746 text-[10px]@786 text-[10px]@790 text-[10px]@794 text-[10px]@798 text-[11px]@1240
-src/components/timetable/template-card.tsx|text-[11px]@119 text-[11px]@131 text-[10px]@174
+src/components/timetable/template-card.tsx|text-[11px]@128 text-[11px]@142 text-[10px]@202
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@400 text-[9px]@416 text-[10px]@479 text-[11px]@479 text-[11px]@484 text-[10px]@507 text-[10px]@542 text-[11px]@542
