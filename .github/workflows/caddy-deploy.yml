@@ -36,11 +36,14 @@ jobs:
       pull-requests: read
     steps:
       # Full history, blobs on demand: the remote script accepts every version
-      # main ever had as the live file.
+      # main ever had as the live file. The triggering commit, not the branch
+      # tip: main may move on while the run waits for approval or the
+      # concurrency lock, and the approved, deployed and reported revision
+      # must stay the same.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.ref }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           filter: blob:none
 
