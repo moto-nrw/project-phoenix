@@ -50,6 +50,9 @@ export function ChildRequestsProvider({
   const running = useRef(new Map<string, RunningRequest>());
   useEffect(() => {
     const invalidate = (event: Event) => {
+      // In der Capture-Phase kommt auch der Fokus jedes Eingabefelds an. Die
+      // Abschnitte laden nur bei Fokus des Fensters neu, also gilt nur der.
+      if (event.type === "focus" && event.target instanceof Node) return;
       const studentId = (event as CustomEvent<{ studentId?: string | null }>)
         .detail?.studentId;
       for (const [key, request] of running.current) {

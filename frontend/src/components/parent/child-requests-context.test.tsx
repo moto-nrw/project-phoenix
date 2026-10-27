@@ -104,6 +104,25 @@ describe("ChildRequestsProvider (#4994)", () => {
     expect(getSchedule).toHaveBeenCalledTimes(1);
   });
 
+  it("erneuert keine Abrufe, wenn nur ein Eingabefeld den Fokus bekommt", async () => {
+    const pending = deferred<ChildCareSchedule>();
+    const getSchedule = vi
+      .spyOn(parentApi, "getChildCareSchedule")
+      .mockReturnValue(pending.promise);
+    const { result } = renderHook(() => useChildRequests(), {
+      wrapper: withProvider,
+    });
+    const input = document.createElement("input");
+    document.body.append(input);
+    const first = result.current.careSchedule("42");
+    input.focus();
+    pending.resolve(schedule);
+
+    await expect(first).resolves.toBe(schedule);
+    expect(getSchedule).toHaveBeenCalledTimes(1);
+    input.remove();
+  });
+
   it("liefert beiden Betreuungsabschnitten nach einer Änderung frische Daten", async () => {
     const oldSchedule = deferred<ChildCareSchedule>();
     const previousSchedule = {
