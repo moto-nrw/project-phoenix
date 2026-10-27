@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import type { DraftRoster } from "~/lib/offering-suggestion";
 import type {
   OfferingPreview,
   OfferingSelection,
@@ -13,47 +14,44 @@ import { timetableService } from "~/lib/timetable-api";
 const logger = createLogger({ component: "useOfferingPreview" });
 
 /**
- * Loads who joins and who leaves a Regeltermin per weekday when it takes its
- * children from the chosen offerings (#5103). A failed load is shown where
- * the preview is missing, with a retry.
+ * Loads a preview whenever its key changes; a null key loads nothing. A
+ * failed load is shown where the preview is missing, with a retry.
  */
-export function useOfferingPreview(
-  templateId: string | undefined,
-  selection: OfferingSelection,
-  from?: string,
+function usePreviewLoad(
+  key: string | null,
+  load: () => Promise<OfferingPreview>,
+  logFields: Record<string, unknown>,
 ) {
   const [preview, setPreview] = useState<OfferingPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const load = useApiLoadError();
-  const { show, clear } = load;
-  const offeringKey = selection.offeringIds.join(",");
-  const gradeKey = selection.gradeLevels.join(",");
-  const classKey = selection.schoolClasses.join(",");
+  const loadError = useApiLoadError();
+  const { show, clear } = loadError;
+  // The loader closes over the current selection; the key says when it
+  // changed, so the effect never reloads on a new function identity.
+  const loadRef = useRef(load);
+  const logRef = useRef(logFields);
+  useLayoutEffect(() => {
+    loadRef.current = load;
+    logRef.current = logFields;
+  });
 
   useEffect(() => {
-    if (!templateId || offeringKey === "") {
+    if (key === null) {
       setPreview(null);
       return;
     }
     let active = true;
     setLoading(true);
     clear();
-    const current: OfferingSelection = {
-      offeringIds: offeringKey.split(","),
-      gradeLevels: gradeKey === "" ? [] : gradeKey.split(",").map(Number),
-      schoolClasses: classKey === "" ? [] : classKey.split(","),
-    };
-    const request = from
-      ? timetableService.getOfferingPreview(templateId, current, from)
-      : timetableService.getOfferingPreview(templateId, current);
-    request
+    loadRef
+      .current()
       .then((result) => {
         if (active) setPreview(result);
       })
       .catch((err: unknown) => {
         logger.error("offering_preview_failed", {
-          template_id: templateId,
+          ...logRef.current,
           error: err instanceof Error ? err.message : String(err),
         });
         if (!active) return;
@@ -69,7 +67,66 @@ export function useOfferingPreview(
     return () => {
       active = false;
     };
-  }, [templateId, offeringKey, gradeKey, classKey, from, attempt, show, clear]);
+  }, [key, attempt, show, clear]);
 
-  return { preview, loading, error: load.error };
+  return { preview, loading, error: loadError.error };
+}
+
+function selectionKey(selection: OfferingSelection): string {
+  return [
+    selection.offeringIds.join(","),
+    selection.gradeLevels.join(","),
+    selection.schoolClasses.join(","),
+  ].join("|");
+}
+
+/**
+ * Loads who joins and who leaves a Regeltermin per weekday when it takes its
+ * children from the chosen offerings (#5103).
+ */
+export function useOfferingPreview(
+  templateId: string | undefined,
+  selection: OfferingSelection,
+  from?: string,
+) {
+  const key =
+    templateId && selection.offeringIds.length > 0
+      ? `${templateId}|${selectionKey(selection)}|${from ?? ""}`
+      : null;
+  return usePreviewLoad(
+    key,
+    () =>
+      from
+        ? timetableService.getOfferingPreview(templateId!, selection, from)
+        : timetableService.getOfferingPreview(templateId!, selection),
+    { template_id: templateId },
+  );
+}
+
+/**
+ * The same preview for a Regeltermin that is not saved yet (#5104): it
+ * compares the offering's children with the list the editor planned before
+ * the switch.
+ */
+export function useDraftOfferingPreview(
+  periodId: string,
+  selection: OfferingSelection,
+  roster: DraftRoster | null,
+  from?: string,
+) {
+  const key =
+    periodId && roster && selection.offeringIds.length > 0
+      ? `${periodId}|${selectionKey(selection)}|${JSON.stringify(roster)}|${from ?? ""}`
+      : null;
+  return usePreviewLoad(
+    key,
+    () =>
+      timetableService.getDraftOfferingPreview(
+        periodId,
+        selection,
+        roster ?? {},
+        from,
+      ),
+    { period_id: periodId },
+  );
 }

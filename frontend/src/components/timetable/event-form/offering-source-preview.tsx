@@ -2,11 +2,17 @@
 
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { formatDate } from "~/lib/date-helpers";
-import { useOfferingPreview } from "~/lib/hooks/use-offering-preview";
+import {
+  useDraftOfferingPreview,
+  useOfferingPreview,
+} from "~/lib/hooks/use-offering-preview";
+import type { DraftRoster } from "~/lib/offering-suggestion";
 import {
   untouchedSegmentSentence,
+  type OfferingPreview,
   type OfferingSelection,
 } from "~/lib/roster-deviation";
+import type { FormErrorInput } from "~/components/ui/form-error";
 
 import { OfferingPreviewList } from "../offering-preview-list";
 import type { EventFormState } from "./form-model";
@@ -47,7 +53,60 @@ export function OfferingSourcePreview({
   const untouched = preview
     ? untouchedSegmentSentence(preview, templateId)
     : null;
+  return (
+    <PreviewPanel
+      preview={preview}
+      loading={loading}
+      error={error}
+      untouched={untouched}
+    />
+  );
+}
 
+/**
+ * The same preview while a new Regeltermin is planned (#5104): it compares
+ * the offering's children with the list planned before the switch.
+ */
+export function DraftOfferingSourcePreview({
+  periodId,
+  roster,
+  form,
+  from,
+}: Readonly<{
+  periodId: string;
+  /** The children per weekday the editor planned before the switch. */
+  roster: DraftRoster;
+  form: EventFormState;
+  /** First day of the new Regeltermin; omitted means today. */
+  from?: string;
+}>) {
+  const { preview, loading, error } = useDraftOfferingPreview(
+    periodId,
+    formOfferingSelection(form),
+    roster,
+    from,
+  );
+  return (
+    <PreviewPanel
+      preview={preview}
+      loading={loading}
+      error={error}
+      untouched={null}
+    />
+  );
+}
+
+function PreviewPanel({
+  preview,
+  loading,
+  error,
+  untouched,
+}: Readonly<{
+  preview: OfferingPreview | null;
+  loading: boolean;
+  error: FormErrorInput;
+  untouched: string | null;
+}>) {
   return (
     <div className="flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3">
       <p className="text-xs font-semibold text-gray-700">

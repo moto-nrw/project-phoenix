@@ -240,6 +240,8 @@ jobs:
             # script or suite changes; the runner guard reruns when a test
             # file or a Playwright config appears or moves.
             script-tests:
+              - 'frontend/package.json'
+              - 'docs/agents/operations.md'
               - 'monitoring/student-contract/**'
               - 'scripts/student-contract-monitor.test.mjs'
               - 'scripts/runtime-checkpoint-*.py'
@@ -349,7 +351,7 @@ jobs:
       - name: Verify repository script suites
         if: matrix.suite == 'unit'
         run: |
-          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs
+          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs
           node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py
 
