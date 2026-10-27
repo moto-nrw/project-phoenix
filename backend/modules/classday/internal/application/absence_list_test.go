@@ -327,7 +327,7 @@ func TestAbsenceListCountsNoWeekendAsSchoolDay(t *testing.T) {
 // fakeAbsenceParticipation can end one child's participation within a period.
 type fakeAbsenceParticipation struct{ end calendar.Date }
 
-func (f fakeAbsenceParticipation) ParticipatingStudentIDsByDate(_ context.Context, ids []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error) {
+func (f fakeAbsenceParticipation) HistoricalParticipatingStudentIDsByDate(_ context.Context, ids []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error) {
 	result := map[calendar.Date]map[int64]bool{}
 	for day := from; !day.After(to); day = day.AddDays(1) {
 		result[day] = map[int64]bool{}

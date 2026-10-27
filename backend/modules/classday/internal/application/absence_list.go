@@ -56,7 +56,7 @@ type AbsenceListDependencies struct {
 	AvailableFrom func(context.Context, calendar.Date) (calendar.Date, error)
 	Children      func(context.Context, string) ([]classday.AbsenceListChild, error)
 	Participation interface {
-		ParticipatingStudentIDsByDate(context.Context, []int64, calendar.Date, calendar.Date) (map[calendar.Date]map[int64]bool, error)
+		HistoricalParticipatingStudentIDsByDate(context.Context, []int64, calendar.Date, calendar.Date) (map[calendar.Date]map[int64]bool, error)
 	}
 	Marks      AbsenceListMarks
 	StatusDays AbsenceListStatusDays
@@ -179,7 +179,7 @@ func (a absenceList) children(ctx context.Context, schoolClass string, from, unt
 	for _, child := range children {
 		ids = append(ids, child.StudentID)
 	}
-	participation, err := a.deps.Participation.ParticipatingStudentIDsByDate(ctx, ids, participationFrom, participationUntil)
+	participation, err := a.deps.Participation.HistoricalParticipatingStudentIDsByDate(ctx, ids, participationFrom, participationUntil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("absence list: participation: %w", err)
 	}

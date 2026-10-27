@@ -44,7 +44,7 @@ func withClassDayAbsenceList(
 	schoolDays schoolcalendar.Days, accessLog owners.AccessLogLedger, renderer lists.Renderer,
 	settings interface {
 		ResolveInt(context.Context, string) (int, error)
-	}, participation careplan.CareParticipation, reports enrollment.Reports,
+	}, participation careplan.HistoricalCareParticipation, reports enrollment.Reports,
 ) classdayCompose.MorningAttendanceDependencies {
 	morning.AbsenceList.Participation = participation
 	if reports != nil {

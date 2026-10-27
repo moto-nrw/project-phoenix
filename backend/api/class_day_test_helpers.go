@@ -137,7 +137,7 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 // classDayTestMorning is the morning attendance seam with the absence
 // reports (#4791) over the test graph, composed like buildClassDayViews.
 func classDayTestMorning(db transactionruntime.Database, hub *realtime.Hub, people *peopleCompose.Directory, rCare owners.TimetableCarePlanRows,
-	command *auditCompose.Command, presence studentpresence.Owner, unreported *RecordingUnreportedNotifier, settings ActiveSettings, participation careplan.CareParticipation, reports enrollmentOwner.Reports, clocks []func() time.Time,
+	command *auditCompose.Command, presence studentpresence.Owner, unreported *RecordingUnreportedNotifier, settings ActiveSettings, participation careplan.HistoricalCareParticipation, reports enrollmentOwner.Reports, clocks []func() time.Time,
 ) classdayCompose.MorningAttendanceDependencies {
 	audits := owners.NewTestAuditPersistence(db, command)
 	morning := withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},

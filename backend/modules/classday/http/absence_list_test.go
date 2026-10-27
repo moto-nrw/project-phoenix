@@ -8,8 +8,11 @@
 package classdayhttp_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -222,4 +225,41 @@ func TestAbsenceListIncludesEndedCare(t *testing.T) {
 	}
 	require.Contains(t, counts, f.present)
 	assert.Equal(t, absenceListCounts{AbsentDays: 1, UnexcusedDays: 1, NotRecordedDays: 3}, counts[f.present])
+}
+
+func TestAbsenceListPreservesDatedAlumni(t *testing.T) {
+	t.Parallel()
+	f := setupMorningAttendanceFixture(t, morningMonday)
+	end := calendar.Date("2099-02-26")
+	testpkg.SetStudentLifecycle(t, f.db, f.present, "active", nil, &end)
+	insertMorningMark(t, f.db, f.tenantID, f.present, "2099-02-25", "absent")
+	insertMorningMark(t, f.db, f.tenantID, f.present, "2099-02-27", "absent")
+	path := "/absence-list?class=" + f.class + "&from=2099-02-23&to=" + morningMonday
+	read := func() absenceListBody {
+		rec := f.do(t, http.MethodGet, path, "", classDayReadPermission)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var envelope struct {
+			Data absenceListBody `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+		return envelope.Data
+	}
+	before := read()
+	testpkg.SetStudentLifecycle(t, f.db, f.present, "alumnus", nil, &end)
+	after := read()
+	require.Equal(t, before.Children, after.Children, "graduation must preserve rows and retained counts before departure")
+	assert.Equal(t, before.Totals, after.Totals)
+	rec := f.do(t, http.MethodGet, "/absence-list/export?class="+f.class+"&from=2099-02-23&to="+morningMonday+"&format=xlsx", "", classDayReadPermission)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	workbook, err := zip.NewReader(bytes.NewReader(rec.Body.Bytes()), int64(rec.Body.Len()))
+	require.NoError(t, err)
+	var content bytes.Buffer
+	for _, file := range workbook.File {
+		reader, err := file.Open()
+		require.NoError(t, err)
+		_, err = io.Copy(&content, reader)
+		require.NoError(t, err)
+		require.NoError(t, reader.Close())
+	}
+	assert.Contains(t, content.String(), "Da, Paul", "the export must retain the graduate's row too")
 }
