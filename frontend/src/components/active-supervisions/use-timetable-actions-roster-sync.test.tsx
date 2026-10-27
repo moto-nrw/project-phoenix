@@ -19,6 +19,14 @@ vi.mock("~/contexts/ToastContext", () => ({
   useApiFormError: () => formError,
 }));
 
+// The hook reads the session for the account-bound sidebar memory (#5000).
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "7", tenantId: 1 } },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("~/lib/supervision-context", () => ({
   useOptionalSupervision: () => ({ refresh: vi.fn() }),
 }));
@@ -70,7 +78,7 @@ describe("useTimetableActions roster sync after a saved action", () => {
     );
   });
 
-  it("shows the failed list reload with a retry instead of reloading the page", async () => {
+  it("shows the failed list reload with a way to load it again instead of reloading the page", async () => {
     const failure = new ApiError("roster", 503, {
       code: "general.unavailable",
     });
