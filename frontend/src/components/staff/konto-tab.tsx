@@ -22,6 +22,7 @@ import {
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { displayEmail } from "~/lib/demo-build";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import type { Teacher } from "~/lib/teacher-api";
@@ -142,6 +143,8 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
   // gesetzt, damit der normale Submit-Handler den aktuellen Rollenentwurf
   // nimmt, aber die bereits gespeicherten Felder auslässt.
   const retryRoleOnlyRef = useRef(false);
+  // The public demo hides its technical seed addresses (#5033).
+  const email = displayEmail(teacher.email);
   const errors = useApiFormError(formRef);
 
   const displayRole = teacher.account_role
@@ -292,7 +295,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
             </DataGrid>
           </InfoSection>
 
-          {teacher.email ? (
+          {email ? (
             <InfoSection
               title="E-Mail"
               icon={
@@ -305,7 +308,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
               accentColor="blue"
             >
               <EmailActions
-                email={teacher.email}
+                email={email}
                 name={
                   teacher.name ||
                   `${teacher.first_name ?? ""} ${teacher.last_name ?? ""}`.trim()

@@ -7,8 +7,13 @@ const {
   mockGetServerApiUrl,
   mockAuth,
   mockGetClientForwardHeaders,
+  mockIncomingClientForwardHeaders,
   mockRecordBackendProxyMetric,
 } = vi.hoisted(() => ({
+  mockIncomingClientForwardHeaders: vi.fn(async () => ({
+    "X-Forwarded-For": "203.0.113.4",
+    "User-Agent": "operator-browser",
+  })),
   mockFetch: vi.fn(),
   mockRecordBackendProxyMetric: vi.fn(),
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
@@ -35,6 +40,7 @@ vi.mock("~/server/auth/operator", () => ({
 
 vi.mock("~/lib/client-headers.server", () => ({
   getClientForwardHeaders: mockGetClientForwardHeaders,
+  incomingClientForwardHeaders: mockIncomingClientForwardHeaders,
 }));
 
 // Test fixtures below describe backend payloads; materialize actual Fetch
@@ -100,6 +106,27 @@ describe("operatorServerFetch", () => {
         method: "GET",
         headers: expect.objectContaining({
           Authorization: "Bearer my-token",
+        }) as Record<string, unknown>,
+      }),
+    );
+  });
+
+  it("forwards the operator's client IP and User-Agent", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: "success", data: {} }),
+    });
+
+    await operatorApiGet("/api/test", "my-token");
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/api/test",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer my-token",
+          "X-Forwarded-For": "203.0.113.4",
+          "User-Agent": "operator-browser",
         }) as Record<string, unknown>,
       }),
     );

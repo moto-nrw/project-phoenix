@@ -68,6 +68,7 @@
     "role": "Parent",
     "childProfile": "Child profile",
     "loading": "Loading...",
+    "sectionLoading": "Loading content",
     "feedback": "Feedback",
     "help": "Help",
     "settings": "Settings",
@@ -797,7 +798,8 @@
       "badges": {
         "primary": "Primary",
         "canPickup": "May pick up",
-        "emergency": "Emergency contact"
+        "emergency": "Emergency contact",
+        "self": "This is you"
       },
       "editContact": "Edit",
       "managePickup": "Manage pickup permission",
