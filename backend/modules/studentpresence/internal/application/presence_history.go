@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 
 // errPresenceHistory rejects a past day that no finished care day could have
 // produced; nothing of the batch is written then.
-var errPresenceHistory = errors.New("student presence: invalid presence history")
+var errPresenceHistory = studentpresence.ErrPresenceHistoryInvalid
 
 // pastSessionKey identifies the one session the visits of a day, activity and
 // room share.

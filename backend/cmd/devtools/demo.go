@@ -275,6 +275,9 @@ func provisionDemoSchool(ctx context.Context, schools *DemoRuntime, adapter seed
 	}
 	slug := options.TenantSlug
 	options.OnlyProfile, options.StaffPassword, options.StandingDemo = seedapi.DefaultProfileKey, staffPassword, true
+	// The sidecar has no database it may write presence to; the public
+	// demo's server mounts the operator route for the past instead (ADR 0127).
+	options.PresenceHistoryRoute = strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "demo")
 	var schoolID int64
 	stateSaved := false
 	if options.DeferHistory {

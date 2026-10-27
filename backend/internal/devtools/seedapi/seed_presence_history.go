@@ -35,9 +35,10 @@ type PastVisit struct {
 	Entry, Exit              time.Time
 }
 
-// PresenceHistoryWriter records past care days of one school (#5031). No API
-// writes presence after the fact, so the dev tools bind it to the owner of
-// the attendance directly; nil leaves the past without presence.
+// PresenceHistoryWriter records past care days of one school (#5031). No
+// regular API writes presence after the fact, so the dev tools bind it to the
+// owner of the attendance directly, or, in the public demo, to the operator
+// route only its server mounts (ADR 0127); nil leaves the past without presence.
 type PresenceHistoryWriter func(ctx context.Context, schoolID int64, days []PastPresenceDay) (int, error)
 
 // presenceHistoryStatus is one planned absence, recorded through the regular
@@ -103,7 +104,7 @@ type seedPresenceHistoryStep struct{ seeder *Seeder }
 func (seedPresenceHistoryStep) Name() string { return "Anwesenheits- und Raumverlauf wird angelegt" }
 
 func (s seedPresenceHistoryStep) Run(ctx context.Context, rt *Runtime) error {
-	write := s.seeder.options.PresenceHistory
+	write := presenceHistoryWriterFor(s.seeder.options, rt)
 	if write == nil {
 		fmt.Println("  keine Datenbank für den Anwesenheitsverlauf, vergangene Anwesenheiten werden übersprungen")
 		return nil
