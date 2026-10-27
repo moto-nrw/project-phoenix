@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeIdentityDemoAccessInvalid                     = "identity.demo_access_invalid"
 	CodeIdentityDemoAccessRateLimited                 = "identity.demo_access_rate_limited"
 	CodeIdentityDemoAccessUnknown                     = "identity.demo_access_unknown"
 	CodeIdentityDemoCapacityReached                   = "identity.demo_capacity_reached"
@@ -301,10 +302,10 @@ const (
 	CodeTimetableAttendanceFrozen                     = "timetable.attendance_frozen"
 	CodeTimetableAttendanceInvalid                    = "timetable.attendance_invalid"
 	CodeTimetableCalendarPeriodCareOfferingConflict   = "timetable.calendar_period_care_offering_conflict"
-	CodeTimetableCalendarPeriodEndBeforeStart         = "timetable.calendar_period_end_before_start"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.demo_access_invalid":                       "input",
 	"identity.demo_access_rate_limited":                  "unavailable",
 	"identity.demo_access_unknown":                       "input",
 	"identity.demo_capacity_reached":                     "unavailable",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.attendance_frozen":                        "business_rejection",
 	"timetable.attendance_invalid":                       "input",
 	"timetable.calendar_period_care_offering_conflict":   "business_rejection",
-	"timetable.calendar_period_end_before_start":         "input",
 }
 
 func init() {

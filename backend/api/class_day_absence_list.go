@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"errors"
-	"time"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
@@ -167,11 +166,6 @@ func addHolidayPeriodDays(free map[timezone.Date]bool, period schoolcalendar.Cal
 	for day := start; !day.After(end); day = day.AddDays(1) {
 		free[day] = true
 	}
-}
-
-func (l classDayAccessLog) AbsenceListSeenSince(ctx context.Context, actorAccountID int64, schoolClass, from, to string, since time.Time) (bool, error) {
-	return l.repo.ExistsSince(ctx, actorAccountID, auditModels.ResourceTypeClassAbsenceList,
-		map[string]string{"school_class": schoolClass, "from": from, "to": to}, since)
 }
 
 func (l classDayAccessLog) RecordAbsenceList(ctx context.Context, entry classdayCompose.AccessRecord) error {

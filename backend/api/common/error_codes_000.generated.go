@@ -82,6 +82,7 @@ const (
 	CodeCareRequestSharingInvalid                        = "care.request_sharing_invalid"
 	CodeCareSickNoteDisabled                             = "care.sick_note_disabled"
 	CodeCareStaffManagedGuardianProtected                = "care.staff_managed_guardian_protected"
+	CodeClassdayAbsenceListInvalidPeriod                 = "classday.absence_list_invalid_period"
 	CodeClassdayAbsenceReportConflict                    = "classday.absence_report_conflict"
 	CodeClassdayAbsenceReportNoSchoolDay                 = "classday.absence_report_no_school_day"
 	CodeClassdayAbsenceReportNotFound                    = "classday.absence_report_not_found"
@@ -301,7 +302,6 @@ const (
 	CodeIdentityCatererWithoutSchool                     = "identity.caterer_without_school"
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
-	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -385,6 +385,7 @@ var errorCodeClasses0 = map[string]string{
 	"care.request_sharing_invalid":                         "input",
 	"care.sick_note_disabled":                              "permission",
 	"care.staff_managed_guardian_protected":                "permission",
+	"classday.absence_list_invalid_period":                 "input",
 	"classday.absence_report_conflict":                     "business_rejection",
 	"classday.absence_report_no_school_day":                "input",
 	"classday.absence_report_not_found":                    "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.caterer_without_school":                      "permission",
 	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
-	"identity.demo_access_invalid":                         "input",
 }
 
 func init() {

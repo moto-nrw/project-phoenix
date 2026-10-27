@@ -147,6 +147,21 @@ describe("SchoolAbsenceListPage", () => {
     );
   });
 
+  it("asks for the start at the Von field while it is empty", () => {
+    swrData.set(CLASSES_KEY, classes(["3a"]));
+
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText("Bis"), {
+      target: { value: "2026-09-30" },
+    });
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Bitte wählen Sie ein Von-Datum.");
+    // The stub renders the error inside the field's own wrapper.
+    expect(alert.parentElement).toContainElement(screen.getByLabelText("Von"));
+    expect(listKeys()).not.toContain("school-absence-list-3a--2026-09-30");
+  });
+
   it("says that nothing is counted for a period ahead", () => {
     swrData.set(CLASSES_KEY, classes(["3a"]));
     swrData.set(

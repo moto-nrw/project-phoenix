@@ -95,7 +95,7 @@ func TestAbsenceListAPI(t *testing.T) {
 	assert.Equal(t, absenceListCounts{AbsentDays: 2, ExcusedDays: 1, UnexcusedDays: 1, NotRecordedDays: 4}, counts[f.present])
 	assert.Equal(t, absenceListCounts{NotRecordedDays: 4}, counts[f.sick], "present while sick and the class trip are no absence days")
 
-	// Every export is logged with its format; the read once per day.
+	// Every read and every export is logged, the export with its format.
 	rec = f.do(t, http.MethodGet, "/absence-list/export?class="+f.class+"&from=2099-02-23&to=2099-03-06&format=xlsx", "", classDayReadPermission)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", rec.Header().Get("Content-Type"))
@@ -109,16 +109,20 @@ func TestAbsenceListAPI(t *testing.T) {
 	}
 	require.NoError(t, f.db.NewRaw(`SELECT resource_type, COALESCE(metadata->>'format', '') AS format FROM audit.data_access_log
 		WHERE actor_account_id = ? AND resource_type LIKE 'class_absence_list%' ORDER BY id`, f.claims.ID).Scan(testpkg.Ctx(t), &logged))
-	require.Len(t, logged, 2)
+	require.Len(t, logged, 3)
 	assert.Equal(t, "class_absence_list", logged[0].ResourceType)
 	assert.Equal(t, "class_absence_list_export", logged[1].ResourceType)
 	assert.Equal(t, "xlsx", logged[1].Format)
+	assert.Equal(t, "class_absence_list", logged[2].ResourceType, "the second read of the same period is logged again")
 
 	// Another class, a broken period and an unknown format are refused.
 	rec = f.do(t, http.MethodGet, "/absence-list?class="+f.class+"x", "", classDayReadPermission)
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	rec = f.do(t, http.MethodGet, "/absence-list?class="+f.class+"&from=2099-03-06&to=2099-02-23", "", classDayReadPermission)
-	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	for _, period := range []string{"from=2099-03-06&to=2099-02-23", "from=2099-02-30&to=2099-03-06", "from=2099-02-23"} {
+		rec = f.do(t, http.MethodGet, "/absence-list?class="+f.class+"&"+period, "", classDayReadPermission)
+		require.Equal(t, http.StatusBadRequest, rec.Code, period+": "+rec.Body.String())
+		assert.Contains(t, rec.Body.String(), "classday.absence_list_invalid_period", period)
+	}
 	rec = f.do(t, http.MethodGet, "/absence-list/export?class="+f.class+"&format=docx", "", classDayReadPermission)
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	rec = f.do(t, http.MethodGet, path, "")
@@ -150,8 +154,8 @@ func TestAbsenceListQueryBudget(t *testing.T) {
 	addChild(2)
 
 	counter := testpkg.CaptureQueries(t, db)
-	// Each measurement reads a period of its own, so both include the
-	// access-log write the second read of a period skips.
+	// Each measurement reads a period of its own; both write one access-log
+	// row.
 	read := func(from string, children int) int {
 		counter.Reset()
 		rec := testutil.ExecuteWithAuthPermissions(t, router,

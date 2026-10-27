@@ -78,8 +78,9 @@ const (
 	// ResourceTypeClassAbsenceList records serving the absence list of one
 	// class in moto schule (#4793): the absence days of every child of the
 	// class in a period. StudentID stays NULL; metadata carries
-	// school_class, from, to and student_count. Deduplicated like the class
-	// day view to one row per actor, class, period and day of access.
+	// school_class, from, to and student_count. Every read writes its own
+	// row, without deduplication: the page loads the list only on a change
+	// of class or period.
 	ResourceTypeClassAbsenceList = "class_absence_list"
 	// ResourceTypeClassAbsenceListExport records every PDF or Excel export
 	// of that list (#4793); metadata adds the format.

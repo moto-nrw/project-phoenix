@@ -56,11 +56,21 @@ function periodDays(period: Period): number {
   return Math.round((to - from) / 86_400_000) + 1;
 }
 
-function periodError(period: Period): string | null {
-  if (!period.from || !period.to) return "Bitte wählen Sie Von und Bis aus.";
-  if (period.to < period.from) return "Das Bis-Datum liegt vor dem Von-Datum.";
+/** Hinweis zu einem ungültigen Zeitraum, mit dem Feld, an dem er steht. */
+interface PeriodHint {
+  readonly field: keyof Period;
+  readonly text: string;
+}
+
+function periodHint(period: Period): PeriodHint | null {
+  if (!period.from)
+    return { field: "from", text: "Bitte wählen Sie ein Von-Datum." };
+  if (!period.to)
+    return { field: "to", text: "Bitte wählen Sie ein Bis-Datum." };
+  if (period.to < period.from)
+    return { field: "to", text: "Das Bis-Datum liegt vor dem Von-Datum." };
   if (periodDays(period) > MAX_PERIOD_DAYS)
-    return "Wählen Sie höchstens ein Schuljahr.";
+    return { field: "to", text: "Wählen Sie höchstens ein Schuljahr." };
   return null;
 }
 
@@ -177,12 +187,12 @@ export default function SchoolAbsenceListPage() {
   // gültige Eingabe wird geladen (chosenPeriod).
   const [draft, setDraft] = useState<Period | null>(null);
   const fields = draft ?? { from: list?.from ?? "", to: list?.to ?? "" };
-  const fieldError = draft ? periodError(draft) : null;
+  const fieldHint = draft ? periodHint(draft) : null;
   const rows = useMemo(() => [...(list?.children ?? [])], [list]);
 
   const changePeriod = (next: Period) => {
     setDraft(next);
-    if (periodError(next) === null) setChosenPeriod(next);
+    if (periodHint(next) === null) setChosenPeriod(next);
   };
 
   const [exportOpen, setExportOpen] = useState(false);
@@ -232,7 +242,7 @@ export default function SchoolAbsenceListPage() {
         <>
           <SectionCard
             title="Klasse und Zeitraum"
-            description="Krank oder entschuldigt gemeldet zählt als entschuldigt. Klassenfahrt ist kein Fehltag. Nicht erfasst heißt: kein Eintrag an diesem Schultag."
+            description="Nicht erfasst heißt: An diesem Schultag gibt es keinen Eintrag."
             overflow="visible"
             action={
               <Button
@@ -266,6 +276,7 @@ export default function SchoolAbsenceListPage() {
                 id="absence-list-from"
                 value={fields.from}
                 max={fields.to || undefined}
+                error={fieldHint?.field === "from" ? fieldHint.text : undefined}
                 onChange={(from) => changePeriod({ ...fields, from })}
                 calendarLayout="popover"
                 hideClearButton
@@ -275,7 +286,7 @@ export default function SchoolAbsenceListPage() {
                 id="absence-list-to"
                 value={fields.to}
                 min={fields.from || undefined}
-                error={fieldError ?? undefined}
+                error={fieldHint?.field === "to" ? fieldHint.text : undefined}
                 onChange={(to) => changePeriod({ ...fields, to })}
                 calendarLayout="popover"
                 hideClearButton

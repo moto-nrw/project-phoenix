@@ -135,6 +135,8 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "care.sick_note_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "classday.absence_list_invalid_period":
+        "Dieser Zeitraum geht nicht. Bis darf nicht vor Von liegen. Wählen Sie höchstens ein Schuljahr.",
       "classday.absence_report_conflict":
         "Für dieses Kind steht heute schon etwas, zum Beispiel eine frühere Abholung. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
       "classday.absence_report_no_school_day":
@@ -1569,6 +1571,8 @@ export const ERROR_CATALOG = {
         "{object} contains invalid details. Please check your entries.",
       "care.sick_note_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -2026,6 +2030,8 @@ export const ERROR_CATALOG = {
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "care.sick_note_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -2414,6 +2420,8 @@ export const ERROR_CATALOG = {
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "care.sick_note_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -2814,6 +2822,8 @@ export const ERROR_CATALOG = {
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "care.sick_note_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -3203,6 +3213,8 @@ export const ERROR_CATALOG = {
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "care.sick_note_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -3594,6 +3606,8 @@ export const ERROR_CATALOG = {
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "care.sick_note_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":

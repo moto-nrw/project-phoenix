@@ -51,8 +51,8 @@ const MaxAbsenceListDays = 400
 // period is the current school half-year of the school calendar.
 type AbsenceListQuery struct {
 	SchoolClass string
-	From        Date
-	To          Date
+	From        calendar.Date
+	To          calendar.Date
 	Actor       Actor
 }
 
@@ -66,16 +66,16 @@ var ErrAbsenceListNotConfigured = errors.New("absence list is not configured")
 
 // AbsenceListReport is the absence list of one class in one period.
 type AbsenceListReport struct {
-	SchoolClass string `json:"school_class"`
-	From        Date   `json:"from"`
-	To          Date   `json:"to"`
+	SchoolClass string        `json:"school_class"`
+	From        calendar.Date `json:"from"`
+	To          calendar.Date `json:"to"`
 	// PeriodName names the school calendar's half-year the period was
 	// preselected from; empty for a chosen period or without a calendar
 	// entry.
 	PeriodName string `json:"period_name"`
 	// CountedUntil is the last day counted: To, or today when To lies
-	// ahead. Empty when the whole period lies ahead.
-	CountedUntil Date `json:"counted_until"`
+	// ahead. Zero (null) when the whole period lies ahead.
+	CountedUntil calendar.Date `json:"counted_until"`
 	// SchoolDays is the number of school days counted: Monday to Friday
 	// without statutory holidays and school holidays.
 	SchoolDays int                `json:"school_days"`

@@ -42,9 +42,6 @@ type (
 	// AbsenceListLog appends the reads and exports of the absence list to
 	// the GDPR access log.
 	AbsenceListLog interface {
-		// AbsenceListSeenSince reports whether the actor was served the list
-		// of the class and period since the given instant.
-		AbsenceListSeenSince(ctx context.Context, actorAccountID int64, schoolClass, from, to string, since time.Time) (bool, error)
 		RecordAbsenceList(ctx context.Context, entry AccessRecord) error
 		RecordAbsenceListExport(ctx context.Context, entry AccessRecord) error
 	}
@@ -69,8 +66,7 @@ type absenceList struct {
 	today   func() calendar.Date
 }
 
-// AbsenceListReport builds the list of one class and logs the read once per
-// actor, class, period and calendar day of access.
+// AbsenceListReport builds the list of one class and logs every read.
 func (a absenceList) AbsenceListReport(ctx context.Context, query classday.AbsenceListQuery) (*classday.AbsenceListReport, error) {
 	report, err := a.build(ctx, query)
 	if err != nil {
@@ -123,7 +119,7 @@ func (a absenceList) build(ctx context.Context, query classday.AbsenceListQuery)
 		return nil, err
 	}
 	report := &classday.AbsenceListReport{
-		SchoolClass: schoolClass, From: classday.Date(period.From.String()), To: classday.Date(period.To.String()),
+		SchoolClass: schoolClass, From: period.From, To: period.To,
 		PeriodName: period.Name, Children: []classday.AbsenceListChild{},
 	}
 	// Only days up to today count: a day ahead has no mark yet.
@@ -145,7 +141,7 @@ func (a absenceList) build(ctx context.Context, query classday.AbsenceListQuery)
 		report.Children = children
 		return report, nil
 	}
-	report.CountedUntil = classday.Date(until.String())
+	report.CountedUntil = until
 	schoolDays, err := a.schoolDays(ctx, period.From, until)
 	if err != nil {
 		return nil, err
@@ -167,7 +163,7 @@ func (a absenceList) build(ctx context.Context, query classday.AbsenceListQuery)
 // of the school calendar when none was requested.
 // A chosen period carries no name.
 func (a absenceList) period(ctx context.Context, query classday.AbsenceListQuery, today calendar.Date) (HalfYear, error) {
-	if query.From == "" && query.To == "" {
+	if query.From.IsZero() && query.To.IsZero() {
 		halfYear, found, err := a.deps.Calendar.CurrentHalfYear(ctx, today)
 		if err != nil {
 			return HalfYear{}, fmt.Errorf("absence list: current half-year: %w", err)
@@ -177,9 +173,8 @@ func (a absenceList) period(ctx context.Context, query classday.AbsenceListQuery
 		}
 		return halfYear, nil
 	}
-	from, fromErr := calendar.ParseDate(string(query.From))
-	to, toErr := calendar.ParseDate(string(query.To))
-	if fromErr != nil || toErr != nil || to.Before(from) || from.AddDays(classday.MaxAbsenceListDays-1).Before(to) {
+	from, to := query.From, query.To
+	if from.IsZero() || to.IsZero() || to.Before(from) || from.AddDays(classday.MaxAbsenceListDays-1).Before(to) {
 		return HalfYear{}, classday.ErrAbsenceListInvalidPeriod
 	}
 	return HalfYear{From: from, To: to}, nil
@@ -340,21 +335,14 @@ func absenceListChildren(roster *DayRoster) []classday.AbsenceListChild {
 	return children
 }
 
-// recordView writes the GDPR access log of a read: one row per actor, class,
-// period and calendar day of access, so a reload does not flood the
-// append-only table.
+// recordView writes the GDPR access log of a read: one row per read. The
+// page loads the list only when the class or the period changes, not on
+// focus or on a timer, so every row is a deliberate look at the list.
 func (a absenceList) recordView(ctx context.Context, report *classday.AbsenceListReport, actor classday.Actor) error {
 	if a.deps.Log == nil {
 		return nil
 	}
 	const errPrefix = "absence list audit"
-	seen, err := a.deps.Log.AbsenceListSeenSince(ctx, actor.AccountID, report.SchoolClass, string(report.From), string(report.To), calendar.TodayDate().BerlinMidnight())
-	if err != nil {
-		return fmt.Errorf("%s dedupe: %w", errPrefix, err)
-	}
-	if seen {
-		return nil
-	}
 	entry, err := absenceListAccessRecord(errPrefix, report, actor)
 	if err != nil {
 		return err
@@ -366,16 +354,15 @@ func (a absenceList) recordView(ctx context.Context, report *classday.AbsenceLis
 }
 
 func absenceListAccessRecord(errPrefix string, report *classday.AbsenceListReport, actor classday.Actor) (AccessRecord, error) {
-	from, to := calendar.Date(report.From), calendar.Date(report.To)
-	entry, err := newAccessRecord(errPrefix, actor.AccountID, actor.Roles, from.BerlinMidnight(), to.EndOfDay(), time.Now())
+	entry, err := newAccessRecord(errPrefix, actor.AccountID, actor.Roles, report.From.BerlinMidnight(), report.To.EndOfDay(), time.Now())
 	if err != nil {
 		return AccessRecord{}, err
 	}
 	entry.Metadata = map[string]any{
 		"report":        "absence_list",
 		"school_class":  report.SchoolClass,
-		"from":          string(report.From),
-		"to":            string(report.To),
+		"from":          report.From.String(),
+		"to":            report.To.String(),
 		"student_count": len(report.Children),
 	}
 	return entry, nil
@@ -386,14 +373,13 @@ const exportDateLayout = "02.01.2006"
 // absenceListDocument prints the list: one row per child, the class in the
 // last row, the counting rules in the filters.
 func absenceListDocument(report *classday.AbsenceListReport, generatedAt time.Time) classday.ExportDocument {
-	from, to := calendar.Date(report.From), calendar.Date(report.To)
-	subtitle := from.Format(exportDateLayout) + " bis " + to.Format(exportDateLayout)
+	subtitle := report.From.Format(exportDateLayout) + " bis " + report.To.Format(exportDateLayout)
 	if report.PeriodName != "" {
 		subtitle = report.PeriodName + " · " + subtitle
 	}
 	counted := "Noch kein Tag gezählt: Der Zeitraum liegt in der Zukunft."
-	if report.CountedUntil != "" {
-		counted = fmt.Sprintf("Gezählt bis %s · %d Schultage", calendar.Date(report.CountedUntil).Format(exportDateLayout), report.SchoolDays)
+	if !report.CountedUntil.IsZero() {
+		counted = fmt.Sprintf("Gezählt bis %s · %d Schultage", report.CountedUntil.Format(exportDateLayout), report.SchoolDays)
 	}
 	doc := classday.ExportDocument{
 		Title:       "Fehlzeiten der " + schoolClassLabel(report.SchoolClass),

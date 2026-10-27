@@ -8370,7 +8370,7 @@ function teacherAbsenceListTopic(): HelpTopic {
     ],
     result: "Sie sehen die Fehltage jedes Kindes im gewählten Zeitraum.",
     notes: [
-      "Gezählt wird die Anwesenheit am Vormittag und die Meldungen.",
+      "Gezählt werden die Anwesenheit am Vormittag und die Meldungen.",
       "Krank oder entschuldigt gemeldet zählt als entschuldigt. Auch eine Meldung der Schulverwaltung zählt.",
       "Ein Kind war am Vormittag da, ist aber krank gemeldet? Dann zählt der Tag nicht als Fehltag.",
       "Klassenfahrt ist kein Fehltag.",

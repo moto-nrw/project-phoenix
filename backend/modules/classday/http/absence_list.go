@@ -8,9 +8,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Absence list of moto schule (#4793): per child of a class the absence days
@@ -21,12 +24,14 @@ import (
 
 // absenceListClientErrors are the refusals of a bad request: they answer 400
 // and are not logged as failures.
-var absenceListClientErrors = []error{classday.ErrAbsenceListInvalidPeriod, classday.ErrInvalidReportFilter}
+var absenceListClientErrors = []common.ErrorRule{
+	{Target: classday.ErrAbsenceListInvalidPeriod, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, common.CodeClassdayAbsenceListInvalidPeriod)
+	}},
+	{Target: classday.ErrInvalidReportFilter, Render: common.ErrorInvalidRequest},
+}
 
-var absenceListErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: absenceListClientErrors[0], Render: common.ErrorInvalidRequest},
-	{Target: absenceListClientErrors[1], Render: common.ErrorInvalidRequest},
-}, common.ErrorInternalServer)
+var absenceListErrorRenderer = common.RulesRenderer(absenceListClientErrors, common.ErrorInternalServer)
 
 // getAbsenceList handles
 // GET /school/class-day/absence-list?class=…&from=YYYY-MM-DD&to=YYYY-MM-DD.
@@ -89,16 +94,36 @@ func (rs *Resource) absenceListQuery(w http.ResponseWriter, r *http.Request) (cl
 	if !ok {
 		return classday.AbsenceListQuery{}, false
 	}
+	from, fromErr := absenceListDate(r, "from")
+	to, toErr := absenceListDate(r, "to")
+	if err := errors.Join(fromErr, toErr); err != nil {
+		rs.renderAbsenceListError(w, r, classday.AbsenceListQuery{SchoolClass: class}, err)
+		return classday.AbsenceListQuery{}, false
+	}
 	return classday.AbsenceListQuery{
 		SchoolClass: class,
-		From:        classday.Date(strings.TrimSpace(r.URL.Query().Get("from"))),
-		To:          classday.Date(strings.TrimSpace(r.URL.Query().Get("to"))),
+		From:        from,
+		To:          to,
 		Actor:       classday.Actor{AccountID: int64(claims.ID), Roles: strings.Join(claims.Roles, ",")},
 	}, true
 }
 
+// absenceListDate reads one end of the period; a missing end stays zero and
+// the projection decides, a broken one is an invalid period.
+func absenceListDate(r *http.Request, key string) (calendar.Date, error) {
+	value := strings.TrimSpace(r.URL.Query().Get(key))
+	if value == "" {
+		return "", nil
+	}
+	date, err := calendar.ParseDate(value)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w: %w", key, classday.ErrAbsenceListInvalidPeriod, err)
+	}
+	return date, nil
+}
+
 func (rs *Resource) renderAbsenceListError(w http.ResponseWriter, r *http.Request, query classday.AbsenceListQuery, err error) {
-	if !slices.ContainsFunc(absenceListClientErrors, func(target error) bool { return errors.Is(err, target) }) {
+	if !slices.ContainsFunc(absenceListClientErrors, func(rule common.ErrorRule) bool { return errors.Is(err, rule.Target) }) {
 		rs.logger.Error("class day: absence list failed",
 			"school_class", query.SchoolClass,
 			"error", err.Error(),

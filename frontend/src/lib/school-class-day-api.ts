@@ -503,7 +503,7 @@ interface BackendAbsenceList {
   from: string;
   to: string;
   period_name?: string;
-  counted_until?: string;
+  counted_until?: string | null;
   school_days: number;
   children?: Array<
     BackendAbsenceListCounts & {

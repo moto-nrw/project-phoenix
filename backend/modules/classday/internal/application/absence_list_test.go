@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -53,16 +52,6 @@ func (f fakeAbsenceCalendar) SchoolFreeDays(context.Context, calendar.Date, cale
 type fakeAbsenceListLog struct {
 	views   []AccessRecord
 	exports []AccessRecord
-}
-
-func (f *fakeAbsenceListLog) AbsenceListSeenSince(_ context.Context, actorAccountID int64, schoolClass, from, to string, _ time.Time) (bool, error) {
-	for _, entry := range f.views {
-		if entry.ActorAccountID == actorAccountID && fmt.Sprint(entry.Metadata["school_class"]) == schoolClass &&
-			fmt.Sprint(entry.Metadata["from"]) == from && fmt.Sprint(entry.Metadata["to"]) == to {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func (f *fakeAbsenceListLog) RecordAbsenceList(_ context.Context, entry AccessRecord) error {
@@ -122,7 +111,7 @@ func newAbsenceListFixture(marks []MorningMark, statuses []DatedStatusDay, cal f
 	return f
 }
 
-func absenceQuery(from, to classday.Date) classday.AbsenceListQuery {
+func absenceQuery(from, to calendar.Date) classday.AbsenceListQuery {
 	return classday.AbsenceListQuery{SchoolClass: "3a", From: from, To: to, Actor: classday.Actor{AccountID: 42, Roles: "lehrkraft"}}
 }
 
@@ -166,7 +155,7 @@ func TestAbsenceListCountsTheDecidedRules(t *testing.T) {
 	report, err := f.list.AbsenceListReport(context.Background(), absenceQuery("2026-09-07", "2026-09-18"))
 
 	require.NoError(t, err)
-	assert.Equal(t, classday.Date("2026-09-16"), report.CountedUntil)
+	assert.Equal(t, calendar.Date("2026-09-16"), report.CountedUntil)
 	// Mon 7 to Wed 16 without the weekend and the holiday on Friday 11.
 	assert.Equal(t, 7, report.SchoolDays)
 	assert.Equal(t, calendar.Date("2026-09-16"), f.marks.to, "the marks are read up to today only")
@@ -192,15 +181,15 @@ func TestAbsenceListPreselectsTheHalfYear(t *testing.T) {
 	f := newAbsenceListFixture(nil, nil, fakeAbsenceCalendar{halfYear: &half})
 	report, err := f.list.AbsenceListReport(context.Background(), absenceQuery("", ""))
 	require.NoError(t, err)
-	assert.Equal(t, classday.Date("2026-08-10"), report.From)
-	assert.Equal(t, classday.Date("2027-01-29"), report.To)
+	assert.Equal(t, calendar.Date("2026-08-10"), report.From)
+	assert.Equal(t, calendar.Date("2027-01-29"), report.To)
 	assert.Equal(t, "1. Halbjahr 2026/27", report.PeriodName)
 
 	f = newAbsenceListFixture(nil, nil, fakeAbsenceCalendar{})
 	report, err = f.list.AbsenceListReport(context.Background(), absenceQuery("", ""))
 	require.NoError(t, err)
-	assert.Equal(t, classday.Date("2026-08-01"), report.From)
-	assert.Equal(t, classday.Date("2027-01-31"), report.To)
+	assert.Equal(t, calendar.Date("2026-08-01"), report.From)
+	assert.Equal(t, calendar.Date("2027-01-31"), report.To)
 	assert.Empty(t, report.PeriodName)
 
 	assert.Equal(t, HalfYear{From: "2026-02-01", To: "2026-07-31"}, fallbackHalfYear("2026-05-04"))
@@ -213,7 +202,7 @@ func TestAbsenceListRefusesABrokenPeriod(t *testing.T) {
 	t.Parallel()
 
 	f := newAbsenceListFixture(nil, nil, fakeAbsenceCalendar{})
-	for _, period := range [][2]classday.Date{
+	for _, period := range [][2]calendar.Date{
 		{"2026-09-01", ""}, {"", "2026-09-01"}, {"2026-13-01", "2026-12-01"},
 		{"2026-09-10", "2026-09-09"}, {"2026-01-01", "2027-02-05"},
 	} {
@@ -232,15 +221,15 @@ func TestAbsenceListAheadCountsNothing(t *testing.T) {
 	report, err := f.list.AbsenceListReport(context.Background(), absenceQuery("2027-02-01", "2027-07-31"))
 
 	require.NoError(t, err)
-	assert.Empty(t, report.CountedUntil)
+	assert.True(t, report.CountedUntil.IsZero())
 	assert.Zero(t, report.SchoolDays)
 	require.Len(t, report.Children, 2)
 	assert.Equal(t, classday.AbsenceListCounts{}, report.Totals)
 }
 
-// TestAbsenceListLogsReadsAndEveryExport logs a read once per actor, class,
-// period and day, and every export with its format.
-func TestAbsenceListLogsReadsAndEveryExport(t *testing.T) {
+// TestAbsenceListLogsEveryReadAndEveryExport logs every read, also a second
+// one of the same period, and every export with its format.
+func TestAbsenceListLogsEveryReadAndEveryExport(t *testing.T) {
 	t.Parallel()
 
 	f := newAbsenceListFixture(nil, nil, fakeAbsenceCalendar{})
@@ -251,8 +240,8 @@ func TestAbsenceListLogsReadsAndEveryExport(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.list.AbsenceListReport(ctx, query)
 	require.NoError(t, err)
-	require.Len(t, f.log.views, 1)
-	view := f.log.views[0]
+	require.Len(t, f.log.views, 2)
+	view := f.log.views[1]
 	assert.Equal(t, int64(42), view.ActorAccountID)
 	assert.Equal(t, "lehrkraft", view.ActorRole)
 	assert.Nil(t, view.StudentID)
