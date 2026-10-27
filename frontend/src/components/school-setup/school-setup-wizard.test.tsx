@@ -506,7 +506,7 @@ describe("SchoolSetupWizard", () => {
     });
     await waitForHighlight();
     // „Verwaltung“ ist schon offen (Datenverwaltung sichtbar): Station 1 entfällt.
-    expect(bubble).toHaveTextContent("Station 2 von 6");
+    expect(bubble).toHaveTextContent("Station 2 von 7");
     expect(push).not.toHaveBeenCalled();
     expect(
       screen.queryByRole("button", { name: "Weiter" }),
@@ -544,7 +544,7 @@ describe("SchoolSetupWizard", () => {
       name: "Verwaltung öffnen",
     });
     await waitForHighlight();
-    expect(bubble).toHaveTextContent("Station 1 von 6");
+    expect(bubble).toHaveTextContent("Station 1 von 7");
   });
 
   it("starts on the page itself when the person is already there", async () => {
@@ -556,7 +556,7 @@ describe("SchoolSetupWizard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
     expect(
       await screen.findByRole("dialog", { name: "Personal einladen" }),
-    ).toHaveTextContent("Station 4 von 6");
+    ).toHaveTextContent("Station 4 von 7");
     await waitForHighlight();
 
     // Der Klick öffnet das Einladungsfenster: das ganze Formular ist markiert.
@@ -569,7 +569,7 @@ describe("SchoolSetupWizard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
     expect(
       await screen.findByRole("dialog", { name: "Einladung senden" }),
-    ).toHaveTextContent("Station 6 von 6");
+    ).toHaveTextContent("Station 7 von 7");
 
     fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
     expect(
@@ -595,7 +595,7 @@ describe("SchoolSetupWizard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
     expect(
       await screen.findByRole("dialog", { name: "Personal öffnen" }),
-    ).toHaveTextContent("Station 3 von 6");
+    ).toHaveTextContent("Station 3 von 7");
 
     // Obwohl „Personal“ schon sichtbar ist, bleibt „Datenverwaltung öffnen“ stehen.
     fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
@@ -604,7 +604,36 @@ describe("SchoolSetupWizard", () => {
     });
     await act(() => vi.advanceTimersByTimeAsync(450));
     expect(database).toBeInTheDocument();
-    expect(database).toHaveTextContent("Station 2 von 6");
+    expect(database).toHaveTextContent("Station 2 von 7");
+  });
+
+  it("leads through the menu of „+ Personal“ to the invitation form", async () => {
+    setupState = newSchool();
+    pathname = "/database/personal";
+    render(<SchoolSetupWizard />);
+    const create = visibleTarget("create");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
+    await screen.findByRole("dialog", { name: "Personal einladen" });
+    await waitForHighlight();
+
+    // „+ Personal“ klappt ein Menü auf; das Formular kommt erst danach.
+    fireEvent.click(create);
+    const entry = visibleTarget("invite-create");
+    const menuStop = await screen.findByRole("dialog", {
+      name: "Einladung wählen",
+    });
+    expect(menuStop).toHaveTextContent("Station 5 von 7");
+    expect(menuStop).toHaveTextContent("Wählen Sie „Personal einladen“.");
+    await waitForHighlight();
+
+    // Der Eintrag öffnet das Fenster, das Menü schließt sich.
+    inviteForm();
+    fireEvent.click(entry);
+    entry.remove();
+    expect(
+      await screen.findByRole("dialog", { name: "Angaben eintragen" }),
+    ).toHaveTextContent("Station 6 von 7");
   });
 
   it("tells the person to click the spot when there is no Weiter", async () => {
