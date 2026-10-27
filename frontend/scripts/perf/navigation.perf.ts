@@ -2,13 +2,22 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { gotoTolerant, loadAccess, login, tenantBaseUrl } from "./access";
+import {
+  gotoTolerant,
+  loadAccess,
+  loadRoleAccess,
+  login,
+  tenantBaseUrl,
+} from "./access";
 import { RequestRecorder } from "./recorder";
 import {
   INTENT_HOPS,
   NAVIGATION_HOPS,
+  REVISIT_TARGETS,
   type IntentHop,
   type NavigationHop,
+  type PerfRole,
+  type RevisitTarget,
 } from "./targets";
 
 // Seitenwechsel-Messung (#2828). Der kalte Aufruf ist in measure.perf.ts
@@ -192,22 +201,22 @@ function countByPath(records: readonly { path: string }[]): string[] {
 
 /** Der Seitenleisten-Link; liegt er in einer zugeklappten Gruppe, aufklappen. */
 async function sidebarLink(page: Page, hop: NavigationHop) {
+  if (hop.group) {
+    // Ein zugeklappter Bereich behält seine Links im DOM. Sie gelten als
+    // sichtbar, den Klick fängt aber der Bereichskopf ab.
+    const group = page
+      .getByRole("button", { name: hop.group, exact: true })
+      .first();
+    if ((await group.getAttribute("aria-expanded")) === "false") {
+      await group.click();
+    }
+  }
   const sidebar = page.locator("nav").filter({ has: page.getByRole("link") });
   const link = page
     .getByRole("link", { name: hop.linkName, exact: true })
     .filter({ visible: true })
     .first();
   if (await link.count()) return link;
-  if (hop.group) {
-    await page
-      .getByRole("button", { name: hop.group, exact: false })
-      .first()
-      .click();
-    return page
-      .getByRole("link", { name: hop.linkName, exact: true })
-      .filter({ visible: true })
-      .first();
-  }
   return sidebar.getByRole("link", { name: hop.linkName }).first();
 }
 
@@ -571,6 +580,175 @@ test("measure cold click after intent", async ({ browser }) => {
   console.table(rows);
   writeFileSync(
     join(OUT_DIR, "intent.summary.json"),
+    JSON.stringify(rows, null, 2),
+  );
+});
+
+// Rückweg und erneuter Besuch (#4988). Je Ziel und Lauf ein frischer Kontext:
+// Ziel öffnen („kalt“), Zwischenseite, Ziel erneut über die Seitenleiste
+// („warm“), Zwischenseite, Browser-Zurück („rueckweg“). Liegen die Daten im
+// Cache, darf weder warm noch Rückweg auf denselben Abruf warten.
+// PERF_REVISIT=name1,name2 begrenzt die Ziele.
+const REVISIT_STEPS = ["kalt", "warm", "rueckweg"] as const;
+
+interface RevisitResult {
+  name: string;
+  step: (typeof REVISIT_STEPS)[number];
+  repeat: number;
+  toContentMs: number;
+  settleMs: number;
+  documents: number;
+  fallbacks: string[];
+  paths: string[];
+}
+
+async function revisitStep(
+  page: Page,
+  recorder: RecorderLike,
+  target: RevisitTarget,
+  action: () => Promise<unknown>,
+): Promise<Omit<RevisitResult, "name" | "step" | "repeat">> {
+  await armProbe(page);
+  recorder.start();
+  const started = performance.now();
+  await action();
+  await page.waitForURL((url) => url.pathname === target.path, {
+    timeout: 30_000,
+    waitUntil: "commit",
+  });
+  await expect(target.ready(page)).toBeVisible({ timeout: 30_000 });
+  const toContentMs = performance.now() - started;
+  await recorder.waitForQuiet(QUIET);
+  const settleMs = performance.now() - started;
+  const probe = await readProbe(page);
+  const records = recorder.records.filter((record) => !record.noise);
+  return {
+    toContentMs: Math.round(toContentMs),
+    settleMs: Math.round(settleMs),
+    documents: records.filter((record) => record.resourceType === "document")
+      .length,
+    fallbacks: probe.fallbacks,
+    paths: countByPath(records),
+  };
+}
+
+type RecorderLike = Pick<RequestRecorder, "start" | "waitForQuiet" | "records">;
+
+async function openVia(
+  page: Page,
+  recorder: RecorderLike,
+  target: RevisitTarget,
+): Promise<void> {
+  await target.via.link(page).click({ timeout: 15_000 });
+  await page.waitForURL((url) => url.pathname === target.via.path, {
+    timeout: 30_000,
+    waitUntil: "commit",
+  });
+  await expect(target.via.ready(page)).toBeVisible({ timeout: 30_000 });
+  recorder.start();
+  await recorder.waitForQuiet(QUIET);
+}
+
+test("measure revisit", async ({ browser }) => {
+  const only = process.env.PERF_REVISIT?.split(",").filter(Boolean);
+  const targets = REVISIT_TARGETS.filter(
+    (target) => !only || only.includes(target.name),
+  );
+  test.setTimeout(REPEATS * targets.length * 180_000 + 120_000);
+
+  // Je Rolle einmal anmelden; der Hinweis zu Benachrichtigungen legt sich
+  // sonst über die Seitenleiste und merkt sich das Schließen im localStorage.
+  const states = new Map<PerfRole, { storageState: string; baseUrl: string }>();
+  for (const role of new Set(targets.map((target) => target.role))) {
+    const roleAccess = loadRoleAccess(role);
+    const baseUrl = tenantBaseUrl(roleAccess);
+    const state = join(OUT_DIR, `storage-state-revisit-${role}.json`);
+    const setup = await browser.newContext();
+    const setupPage = await setup.newPage();
+    await login(setupPage, roleAccess);
+    await gotoTolerant(setupPage, `${baseUrl}/home`);
+    const dismiss = setupPage.getByRole("button", { name: "Verstanden" });
+    await dismiss.waitFor({ timeout: 10_000 }).catch(() => undefined);
+    if (await dismiss.isVisible()) await dismiss.click();
+    await setup.storageState({ path: state });
+    await setup.close();
+    states.set(role, { storageState: state, baseUrl });
+  }
+
+  const results: RevisitResult[] = [];
+  for (let repeat = 0; repeat < REPEATS; repeat += 1) {
+    for (const target of targets) {
+      const roleState = states.get(target.role)!;
+      const context = await browser.newContext({
+        storageState: roleState.storageState,
+        serviceWorkers: "block",
+      });
+      const page = await context.newPage();
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU_THROTTLE });
+      await cdp.send("Network.emulateNetworkConditions", {
+        offline: false,
+        ...NETWORK,
+      });
+      const recorder = new RequestRecorder(page);
+      try {
+        await gotoTolerant(page, `${roleState.baseUrl}${target.via.path}`);
+        await expect(target.via.ready(page)).toBeVisible({ timeout: 30_000 });
+        recorder.start();
+        await recorder.waitForQuiet(INTENT_SETTLE);
+
+        const steps: Record<RevisitResult["step"], () => Promise<unknown>> = {
+          kalt: () => target.link(page).click({ timeout: 15_000 }),
+          warm: () => target.link(page).click({ timeout: 15_000 }),
+          rueckweg: () => page.goBack({ waitUntil: "commit" }),
+        };
+        for (const step of REVISIT_STEPS) {
+          const result = await revisitStep(page, recorder, target, steps[step]);
+          expect(result.documents, `${target.name} ${step}: kein Reload`).toBe(
+            0,
+          );
+          results.push({ name: target.name, step, repeat, ...result });
+          console.log(
+            `${target.name} ${step} #${repeat}: ${result.toContentMs} ms, Ladehüllen ${result.fallbacks.join(",") || "-"}`,
+          );
+          if (step !== "rueckweg") await openVia(page, recorder, target);
+        }
+      } finally {
+        writeFileSync(
+          join(OUT_DIR, "revisit.json"),
+          JSON.stringify(results, null, 2),
+        );
+        await context.close();
+      }
+    }
+  }
+
+  const rows = targets.flatMap((target) =>
+    REVISIT_STEPS.map((step) => {
+      const runs = results.filter(
+        (result) => result.name === target.name && result.step === step,
+      );
+      return {
+        ziel: target.name,
+        schritt: step,
+        bisInhaltMs: median(runs.map((run) => run.toContentMs)),
+        laeufe: runs.map((run) => run.toContentMs).join("/"),
+        ladehuellen: [...new Set(runs.flatMap((run) => run.fallbacks))].join(
+          ",",
+        ),
+        api: [
+          ...new Set(
+            runs.flatMap((run) =>
+              run.paths.filter((path) => path.includes("/api/")),
+            ),
+          ),
+        ].join(" "),
+      };
+    }),
+  );
+  console.table(rows.map(({ api: _api, ...row }) => row));
+  writeFileSync(
+    join(OUT_DIR, "revisit.summary.json"),
     JSON.stringify(rows, null, 2),
   );
 });

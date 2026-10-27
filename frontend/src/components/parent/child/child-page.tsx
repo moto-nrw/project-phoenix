@@ -43,6 +43,7 @@ import {
 import { parentPath } from "~/lib/parent-url";
 import { requiresGuardianReason } from "~/lib/parent-request-reason";
 import { SharingOptionsProvider } from "~/components/parent/sharing-options-context";
+import { ChildRequestsProvider } from "~/components/parent/child-requests-context";
 import {
   ParentPage,
   ParentPageHeader,
@@ -229,9 +230,12 @@ export function ChildPage({
       {/* key: ein Kindwechsel setzt alle Abschnitte zurueck, damit nie Daten
           des vorigen Kindes unter dem neuen Namen stehen. */}
       {/* Eine Freigabe-Liste pro Kind: alle Abschnitte teilen sich einen
-          einzigen Abruf der möglichen Empfänger. */}
+          einzigen Abruf der möglichen Empfänger. Ebenso teilen sie laufende
+          Abrufe der Schulschalter und des Wochenplans. */}
       <SharingOptionsProvider>
-        <ChildSections key={active.student_id} child={active} />
+        <ChildRequestsProvider>
+          <ChildSections key={active.student_id} child={active} />
+        </ChildRequestsProvider>
       </SharingOptionsProvider>
     </ParentPage>
   );
@@ -459,12 +463,24 @@ function ChildAreaTabs({
 }>) {
   const t = useTranslations("parentChild");
   const [activeArea, setActiveArea] = useState<ChildArea>("betreuung");
+  // Ein Reiter lädt seine Daten erst beim ersten Öffnen. Danach bleibt er
+  // gemountet und nur verborgen, damit Eingaben und geladene Listen beim
+  // Hin- und Herwechseln erhalten bleiben.
+  const [openedAreas, setOpenedAreas] = useState<ReadonlySet<ChildArea>>(
+    () => new Set(["betreuung"]),
+  );
   const masterData = useChildMasterData(child.student_id);
 
   return (
     <Tabs
       value={activeArea}
-      onValueChange={(value) => setActiveArea(value as ChildArea)}
+      onValueChange={(value) => {
+        const area = value as ChildArea;
+        setActiveArea(area);
+        setOpenedAreas((opened) =>
+          opened.has(area) ? opened : new Set(opened).add(area),
+        );
+      }}
       className="space-y-5"
     >
       <div className="pb-1">
@@ -540,13 +556,17 @@ function ChildAreaTabs({
         data-parent-tour="child-data"
         className="mt-0 space-y-5 data-[state=inactive]:hidden"
       >
-        <ChildMasterDataView
-          studentId={child.student_id}
-          childName={childName}
-          area="details"
-          masterData={masterData}
-        />
-        <ChildConsentsSection studentId={child.student_id} />
+        {openedAreas.has("angaben") && (
+          <>
+            <ChildMasterDataView
+              studentId={child.student_id}
+              childName={childName}
+              area="details"
+              masterData={masterData}
+            />
+            <ChildConsentsSection studentId={child.student_id} />
+          </>
+        )}
       </TabsContent>
 
       <TabsContent
@@ -555,13 +575,15 @@ function ChildAreaTabs({
         data-parent-tour="child-contacts"
         className="mt-0 data-[state=inactive]:hidden"
       >
-        <GuardiansPanel
-          studentId={child.student_id}
-          canInvite={canInvite}
-          canRemove={canRemove}
-          canAddContact={canAddContact}
-          canManagePickup={canManagePickup}
-        />
+        {openedAreas.has("kontakte") && (
+          <GuardiansPanel
+            studentId={child.student_id}
+            canInvite={canInvite}
+            canRemove={canRemove}
+            canAddContact={canAddContact}
+            canManagePickup={canManagePickup}
+          />
+        )}
       </TabsContent>
     </Tabs>
   );

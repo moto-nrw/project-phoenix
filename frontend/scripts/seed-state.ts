@@ -12,9 +12,14 @@ export interface SeedAccess {
 interface SeedProfile {
   school?: { tenant_slug?: string };
   credentials?: {
-    accounts?: { admin?: Array<{ email?: string; password?: string }> };
+    accounts?: Partial<
+      Record<SeedRole, Array<{ email?: string; password?: string }>>
+    >;
   };
 }
+
+/** Kontoart im Seed-Profil; ohne Angabe die Schul-Leitung (`admin`). */
+export type SeedRole = "admin" | "betreuer";
 
 interface SeedState {
   version?: string;
@@ -25,6 +30,7 @@ interface SeedState {
 interface LoadSeedAccessOptions {
   profile?: string;
   statePath?: string;
+  role?: SeedRole;
 }
 
 function defaultSeedStatePath(): string {
@@ -70,14 +76,15 @@ export function readSeedAccess(
       `Unknown demo school profile ${JSON.stringify(profileKey)}; available profiles: ${available}`,
     );
   }
-  const admin = profile.credentials?.accounts?.admin?.[0];
+  const role = options.role ?? "admin";
+  const account = profile.credentials?.accounts?.[role]?.[0];
   const slug = profile.school?.tenant_slug;
-  if (!slug || !admin?.email || !admin.password) {
+  if (!slug || !account?.email || !account.password) {
     throw new Error(
-      `Demo school profile ${JSON.stringify(profileKey)} has no complete school-admin access`,
+      `Demo school profile ${JSON.stringify(profileKey)} has no complete ${role === "admin" ? "school-admin" : role} access`,
     );
   }
-  return { slug, email: admin.email, password: admin.password };
+  return { slug, email: account.email, password: account.password };
 }
 
 export function loadSeedAccess(

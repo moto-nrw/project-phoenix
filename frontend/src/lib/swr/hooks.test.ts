@@ -601,6 +601,25 @@ describe("SWR Hooks", () => {
       expect(matcher("school-a:unrelated")).toBe(false);
     });
 
+    it("leaves the keys named in `except` out of the revalidation", () => {
+      // A decision revalidates every other filter and view variant of its
+      // list; the variant it was made in already shows its result (#4988).
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+      const { result } = renderHook(() =>
+        useTenantMutateMatching(["request-feed:7:"]),
+      );
+      void result.current({ except: ['request-feed:7:open:[""]'] });
+
+      const lastCall = mockSwrMutate.mock.calls.at(-1);
+      // A plain revalidation: no data, so no answer in flight is discarded.
+      expect(lastCall).toHaveLength(1);
+      const matcher = lastCall?.[0] as (key: unknown) => boolean;
+      expect(matcher('school-a:request-feed:7:open:["Mia"]')).toBe(true);
+      expect(matcher('school-a:request-feed:7:history:[""]')).toBe(true);
+      expect(matcher('school-a:request-feed:7:open:[""]')).toBe(false);
+      expect(matcher('school-b:request-feed:7:open:["Mia"]')).toBe(false);
+    });
+
     it("returns the same callback when called with a fresh array of identical contents", () => {
       // Stability guard: callers pass a literal array each render. Without
       // the joined-string dep, useCallback would re-create the function every
