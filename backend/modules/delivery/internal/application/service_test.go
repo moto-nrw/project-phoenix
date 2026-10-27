@@ -90,7 +90,7 @@ func TestEnqueueDeferredPushNamesExactlyOneScope(t *testing.T) {
 	assert.Equal(t, deliveryContract.TransportPush, queued.Transport)
 	require.Len(t, store.intents, 1)
 	stored := store.intents[0]
-	assert.Equal(t, int64(4), stored.OrganizationID)
+	assert.Equal(t, traeger.OrganizationID, stored.OrganizationID)
 	assert.Zero(t, stored.TenantID)
 	assert.Equal(t, domain.TransportPush, stored.Transport)
 	assert.JSONEq(t, `{"deferred":true}`, string(stored.Recipient))
