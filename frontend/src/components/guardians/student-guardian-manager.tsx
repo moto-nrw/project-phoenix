@@ -53,6 +53,7 @@ import {
 import { formErrorMessage } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { createLogger } from "~/lib/logger";
+import { displayEmail } from "~/lib/demo-build";
 import { useSession } from "next-auth/react";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { StudentPaymentCard } from "./student-payment-card";
@@ -427,10 +428,11 @@ export default function StudentGuardianManager({
     guardian: GuardianWithRelationship,
     confirmRoleUpgrade = false,
   ) => {
-    if (!guardian.email) return;
+    const email = displayEmail(guardian.email);
+    if (!email) return;
     setInvitingGuardianId(guardian.id);
     try {
-      const result = await inviteGuardianToStudent(studentId, guardian.email, {
+      const result = await inviteGuardianToStudent(studentId, email, {
         confirmRoleUpgrade,
       });
       if (result.outcome === "existing_contact_restricted") {
@@ -445,7 +447,7 @@ export default function StudentGuardianManager({
         inviteSuccessMessage(
           result.outcome,
           getGuardianFullName(guardian),
-          guardian.email ?? "",
+          email,
           confirmRoleUpgrade,
         ),
       );

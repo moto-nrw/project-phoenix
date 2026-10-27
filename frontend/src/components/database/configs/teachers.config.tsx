@@ -4,6 +4,7 @@ import { defineEntityConfig } from "@/lib/database/types";
 import type { Teacher, TeacherWithCredentials } from "@/lib/teacher-api";
 import { teacherService } from "@/lib/teacher-api";
 import { createLogger } from "~/lib/logger";
+import { displayEmail } from "~/lib/demo-build";
 import type { ExternalAccountStatus } from "~/lib/staff-api";
 import type { WireID } from "~/lib/wire-id";
 import { toOptionalIdString } from "~/lib/wire-id";
@@ -294,7 +295,10 @@ export const teachersConfig = defineEntityConfig<Teacher>({
           },
           {
             label: "E-Mail",
-            value: (teacher: Teacher) => teacher.email ?? "Nicht angegeben",
+            value: (teacher: Teacher) => {
+              const email = displayEmail(teacher.email);
+              return email || "–";
+            },
           },
           {
             label: "RFID-Karte",
@@ -336,6 +340,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
           {
             label: "Konto-Informationen",
             value: (teacher: Teacher) => {
+              const email = displayEmail(teacher.email);
               if (!teacher.account_id) {
                 return (
                   <div className="text-sm text-gray-500">
@@ -351,10 +356,10 @@ export const teachersConfig = defineEntityConfig<Teacher>({
                     <span className="font-medium">Konto-ID:</span>{" "}
                     {teacher.account_id}
                   </div>
-                  {teacher.email && (
+                  {email && (
                     <div className="text-sm">
                       <span className="font-medium">E-Mail:</span>{" "}
-                      {teacher.email}
+                      {email}
                     </div>
                   )}
                   <div className="mt-2 text-xs text-gray-500">
@@ -404,7 +409,8 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       description: (teacher: Teacher) => {
         const parts: string[] = [];
         if (teacher.role) parts.push(teacher.role);
-        if (teacher.email) parts.push(teacher.email);
+        const email = displayEmail(teacher.email);
+        if (email) parts.push(email);
         return parts.join(" • ");
       },
       avatar: {

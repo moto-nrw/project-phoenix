@@ -356,7 +356,7 @@ const seedTurnstileTestToken = "XXXX.DUMMY.TOKEN.XXXX"
 // either refusal the holiday step publishes the period without
 // registrations and skips what builds on them, the billing run and the
 // confirmation letters, instead of failing every demo school order.
-var seedHolidayRefusals = []string{"enrollment.captcha_failed", seedSubmissionRateLimited}
+var seedHolidayRefusals = []string{seedCaptchaFailed, seedSubmissionRateLimited}
 
 var errSeedHolidayRegistrationRefused = errors.New("the server refuses the seeded holiday registration")
 

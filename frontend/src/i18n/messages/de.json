@@ -68,6 +68,7 @@
     "role": "Eltern",
     "childProfile": "Kinderprofil",
     "loading": "Lädt...",
+    "sectionLoading": "Inhalt wird geladen",
     "feedback": "Feedback",
     "help": "Hilfe",
     "settings": "Einstellungen",
@@ -797,7 +798,8 @@
       "badges": {
         "primary": "Primär",
         "canPickup": "Darf abholen",
-        "emergency": "Notfallkontakt"
+        "emergency": "Notfallkontakt",
+        "self": "Das sind Sie"
       },
       "editContact": "Bearbeiten",
       "managePickup": "Abholrecht verwalten",

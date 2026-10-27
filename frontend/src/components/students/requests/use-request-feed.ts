@@ -10,6 +10,13 @@
  * alles Geladene heute dringend ist. Alles Weitere holt „Weitere Einträge
  * laden". Eine Schule mit hunderten offenen Anfragen hat sonst beim Öffnen
  * der Seite dutzende Abrufe ausgelöst.
+ *
+ * Seit #4988 liegen beide Listen im SWR-Cache, je Konto, Ansicht und Filter.
+ * Wer die Seite erneut öffnet oder zurückkommt, sieht sofort den letzten
+ * Stand; der Abgleich mit dem Server läuft im Hintergrund. Im Cache steht der
+ * ganze Listenzustand mit den Cursors der Quellen, damit „Weitere Einträge
+ * laden" auch nach dem Zurückkommen dort weitermacht, wo die Liste steht.
+ * Entscheidungen und nachgeladene Seiten schreiben in denselben Eintrag.
  */
 
 import {
@@ -20,6 +27,8 @@ import {
   useRef,
   useState,
 } from "react";
+
+import { useSession } from "next-auth/react";
 
 import { useApiLoadError } from "~/contexts/ToastContext";
 
@@ -35,14 +44,25 @@ import {
   type AggregatedRequestType,
   type RequestReviewAccess,
 } from "~/lib/change-request-list-api";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
+  cloneFeedState,
   createFeedState,
   takeMergedPage,
+  type FeedPage,
   type FeedSource,
   type FeedState,
 } from "~/lib/request-feed";
-import type { AnyItem } from "./case-model";
+import {
+  addListOverlay,
+  applyListOverlays,
+  startListFetch,
+  useListOverlays,
+} from "~/lib/list-overlays";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { itemKey, type AnyItem } from "./case-model";
 import type { AggregatedRequestFilters } from "./filters";
 
 const logger = createLogger({ component: "AggregatedRequestList" });
@@ -50,15 +70,6 @@ const logger = createLogger({ component: "AggregatedRequestList" });
 /** Objekt der Ladefehler im Katalogsatz (#2513). */
 const LIST_OBJECT = "die Liste der Anfragen";
 const WITHDRAWAL_OBJECT = "die Liste der Abmeldungen";
-
-/**
- * Meldet einen Ladefehler vor Ort, mit Wiederholen (#2513). `null` leert ihn.
- */
-export type ReportLoadError = (
-  error: unknown,
-  object: string,
-  retry: () => void,
-) => void;
 
 /** Wie viele Zeilen eine Seite zeigt. */
 const PAGE_SIZE = 25;
@@ -70,18 +81,57 @@ const WITHDRAWAL_PAGE_SIZE = 25;
  */
 const MAX_AUTO_PAGES = 2;
 
+/**
+ * Gemeinsame SWR-Optionen beider Listen. Die Liste zeigt beim Wechsel von
+ * Ansicht oder Filter ihr Skelett statt der Zeilen des alten Filters, und
+ * ein Fehlschlag wird nicht still wiederholt: der Fehler steht mit
+ * „Wiederholen“ vor Ort. Fokus und Sichtbarkeit gleichen die offene Liste ab.
+ */
+function feedSwrOptions(view: "open" | "history") {
+  return {
+    keepPreviousData: false,
+    shouldRetryOnError: false,
+    revalidateOnFocus: view === "open",
+    // Jedes erneute Öffnen gleicht ab, auch kurz nach dem letzten Abruf.
+    dedupingInterval: 0,
+  } as const;
+}
+
+/** Eine Seite einer Anfragequelle; der Aggregator meldet dazu die Freigabe. */
+type RequestFeedPage = FeedPage<AnyItem> & {
+  readonly review_access?: RequestReviewAccess;
+};
+
+interface RequestFeedSource extends FeedSource<AnyItem> {
+  readonly fetchPage: (cursor?: string) => Promise<RequestFeedPage>;
+}
+
+/**
+ * Der Listenzustand im Cache. `feed` hält die Cursors und Puffer der Quellen
+ * nach den geladenen Seiten; er wird nie verändert, nur ersetzt.
+ */
+interface RequestFeedSnapshot extends PagedSnapshot<AnyItem> {
+  readonly pages: number;
+  readonly feed: FeedState<AnyItem>;
+  readonly reviewAccess?: RequestReviewAccess;
+}
+
+/** Der Cache-Schlüssel: Konto, Ansicht und alles, was die Quellen abfragen. */
+function requestFeedKey(
+  name: string,
+  accountId: string | undefined,
+  view: "open" | "history",
+  parts: readonly unknown[],
+): string | null {
+  if (!accountId) return null;
+  return `${name}:${accountId}:${view}:${JSON.stringify(parts)}`;
+}
+
 export function useRequestSources(
   view: "open" | "history",
   filters: AggregatedRequestFilters,
-  onReviewAccess: (access: RequestReviewAccess) => void,
-) {
-  // Als Ref, damit ein neuer Callback die Quellen nicht neu erzeugt und damit
-  // die ganze Liste neu lädt.
-  const reportAccess = useRef(onReviewAccess);
-  useEffect(() => {
-    reportAccess.current = onReviewAccess;
-  }, [onReviewAccess]);
-  return useMemo<FeedSource<AnyItem>[]>(() => {
+): RequestFeedSource[] {
+  return useMemo<RequestFeedSource[]>(() => {
     const params: AggregatedRequestParams = {
       search: filters.search,
       studentId: filters.studentId,
@@ -94,7 +144,7 @@ export function useRequestSources(
     const aggregatedTypes = filters.types.filter(
       (type) => type !== "enrollment" && type !== "care_withdrawal",
     );
-    const sources: FeedSource<AnyItem>[] = [];
+    const sources: RequestFeedSource[] = [];
     if (
       filters.includeAggregated !== false &&
       (filters.types.length === 0 || aggregatedTypes.length > 0)
@@ -102,20 +152,10 @@ export function useRequestSources(
       const aggregatedParams = { ...params, types: aggregatedTypes };
       sources.push({
         key: "aggregated",
-        fetchPage: async (cursor) => {
-          if (view === "history") {
-            return listAggregatedRequestHistory({
-              ...aggregatedParams,
-              cursor,
-            });
-          }
-          const page = await listAggregatedOpenRequests({
-            ...aggregatedParams,
-            cursor,
-          });
-          if (page.review_access) reportAccess.current(page.review_access);
-          return page;
-        },
+        fetchPage: (cursor) =>
+          view === "history"
+            ? listAggregatedRequestHistory({ ...aggregatedParams, cursor })
+            : listAggregatedOpenRequests({ ...aggregatedParams, cursor }),
       });
     }
     if (filters.includeEnrollment && wantsType("enrollment")) {
@@ -129,64 +169,47 @@ export function useRequestSources(
   }, [filters, view]);
 }
 
-function useFeedLifecycle(sources: readonly FeedSource<AnyItem>[]) {
-  const feedRef = useRef(createFeedState<AnyItem>(sources));
-  const generationRef = useRef(0);
-  const loadingRef = useRef(false);
-  const loadMoreRef = useRef(false);
-  const pagesRef = useRef(0);
-  const start = useCallback(() => {
-    const feed: FeedState<AnyItem> = createFeedState<AnyItem>(sources);
-    const generation = ++generationRef.current;
-    feedRef.current = feed;
-    loadingRef.current = true;
-    loadMoreRef.current = false;
-    pagesRef.current = 1;
-    const page = takeMergedPage(sources, feed, PAGE_SIZE).finally(() => {
-      if (generation === generationRef.current) loadingRef.current = false;
-    });
-    return {
-      generation,
-      page,
-      isCurrent: () => generation === generationRef.current,
-    };
-  }, [sources]);
-  return { feedRef, generationRef, loadingRef, loadMoreRef, pagesRef, start };
+/** Was die Quellen abfragen; bestimmt den Cache-Schlüssel der Liste. */
+function requestFeedParts(
+  view: "open" | "history",
+  filters: AggregatedRequestFilters,
+): unknown[] {
+  return [
+    filters.search,
+    filters.studentId ?? null,
+    filters.includeAggregated !== false,
+    filters.includeEnrollment === true,
+    filters.types,
+    view === "history" ? filters.statuses : [],
+    view === "history" ? (filters.from ?? null) : null,
+    view === "history" ? (filters.to ?? null) : null,
+  ];
 }
 
-function useInitialFeed(
-  start: ReturnType<typeof useFeedLifecycle>["start"],
-  setItems: (items: AnyItem[]) => void,
-  setHasMore: (value: boolean) => void,
-  setLoading: (value: boolean) => void,
-  clearError: () => void,
-  reportError: ReportLoadError,
-  retry: () => void,
-) {
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    clearError();
-    const { page, isCurrent } = start();
-    void page
-      .then((result) => {
-        if (cancelled || !isCurrent()) return;
-        setItems(result.items);
-        setHasMore(result.hasMore);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled || !isCurrent()) return;
-        logger.warn("aggregated_request_list_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        reportError(err, LIST_OBJECT, retry);
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [clearError, reportError, retry, setHasMore, setItems, setLoading, start]);
+/** Erste Seite über alle Quellen; die Freigabe meldet der Aggregator mit. */
+async function loadFirstRequestPage(
+  sources: readonly RequestFeedSource[],
+): Promise<RequestFeedSnapshot> {
+  const fetchedAt = startListFetch();
+  let reviewAccess: RequestReviewAccess | undefined;
+  const reporting = sources.map((source) => ({
+    key: source.key,
+    fetchPage: async (cursor?: string) => {
+      const page = await source.fetchPage(cursor);
+      reviewAccess ??= page.review_access;
+      return page;
+    },
+  }));
+  const feed = createFeedState<AnyItem>(reporting);
+  const page = await takeMergedPage(reporting, feed, PAGE_SIZE);
+  return {
+    fetchedAt,
+    items: page.items,
+    hasMore: page.hasMore,
+    pages: 1,
+    feed,
+    reviewAccess,
+  };
 }
 
 /**
@@ -202,139 +225,290 @@ function shouldAutoLoad(pages: number, items: readonly AnyItem[]): boolean {
   );
 }
 
-export function useMergedRequestFeed(
-  sources: readonly FeedSource<AnyItem>[],
-  view: "open" | "history",
-) {
-  const [items, setItems] = useState<AnyItem[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [autoLoadFailed, setAutoLoadFailed] = useState(false);
-  const loadError = useApiLoadError();
-  const { error, clear: clearError } = loadError;
-  const showLoadError = loadError.show;
-  const reportError = useCallback<ReportLoadError>(
-    (err, object, retry) => void showLoadError(err, { object, retry }),
-    [showLoadError],
+/**
+ * Was eine Liste im Cache hält. `fetchedAt` ist die Nummer des Abrufs der
+ * ersten Seite (`startListFetch`): sie kennzeichnet den Stand und entscheidet,
+ * welche lokalen Änderungen für ihn noch gelten.
+ */
+interface PagedSnapshot<T> {
+  readonly fetchedAt: number;
+  readonly items: T[];
+  readonly hasMore: boolean;
+}
+
+/**
+ * Erste Seite, Nachladen und lokale Änderungen einer Liste.
+ *
+ * Der SWR-Cache hält je Ansicht und Filter nur die erste Seite, so wie der
+ * Server sie geliefert hat; diese Liste verändert ihn nie. Folgeseiten leben
+ * im Zustand dieser Instanz und gelten nur, solange die erste Seite, von der
+ * aus sie geholt wurden, noch angezeigt wird. Lokale Änderungen (Entscheiden
+ * usw.) gehen als Überlagerung an alle Ansichten und Filter der Liste für
+ * diese Schule und dieses Konto (`addListOverlay`) und gelten für jeden Stand,
+ * der vor ihnen abgerufen wurde.
+ *
+ * Weil nichts den Cache verändert, verwirft SWR keinen laufenden Abruf, und
+ * Nachladen, Abgleich und Entscheidungen brauchen keine Absprache und keine
+ * Sperre.
+ */
+function usePagedFeed<T, S extends PagedSnapshot<T>>({
+  key,
+  family,
+  view,
+  object,
+  logEvent,
+  loadFirst,
+  loadNext,
+  autoLoad,
+  applyUpdate,
+  itemId,
+}: {
+  key: string | null;
+  /** Gemeinsamer Teil aller Schlüssel dieser Liste für das Konto. */
+  family: string;
+  view: "open" | "history";
+  /** Objekt der Ladefehler im Katalogsatz. */
+  object: string;
+  logEvent: string;
+  loadFirst: () => Promise<S>;
+  /** Holt die nächste Seite zu `base` und liefert, wie sie angehängt wird. */
+  loadNext: (base: S) => Promise<(current: S) => S>;
+  /** Soll nach `snapshot` noch eine Seite ohne Zutun folgen? */
+  autoLoad: (snapshot: S) => boolean;
+  /** Setzt eine lokale Änderung der Zeilen in den Stand der Liste um. */
+  applyUpdate: (current: S, update: (items: T[]) => T[]) => S;
+  /** Die ID eines Eintrags; keine Liste zeigt dieselbe ID zweimal. */
+  itemId: (item: T) => string;
+}) {
+  // Nachladefehler gehören nur zu dieser Quelle, nicht zum anderen Feed.
+  const {
+    error: pageError,
+    show: showLoadError,
+    clear: clearError,
+  } = useApiLoadError();
+  const {
+    data,
+    error: swrError,
+    isValidating,
+    mutate,
+  } = useSWRAuth<S>(key, loadFirst, feedSwrOptions(view));
+  const slug = useTenantSlugSafe();
+  const list = `${slug ?? ""}|${family}`;
+  const overlays = useListOverlays<T>(list);
+  // Die nachgeladenen Seiten zur ersten Seite `fetchedAt`.
+  const [pages, setPages] = useState<{ fetchedAt: number; state: S } | null>(
+    null,
   );
-  const lifecycle = useFeedLifecycle(sources);
-  useEffect(() => setAutoLoadFailed(false), [sources, view]);
-  // Als Ref: „Wiederholen“ ruft immer den aktuellen Abruf auf.
-  const retryRef = useRef<() => void>(() => undefined);
-  const retry = useCallback(() => retryRef.current(), []);
-  useInitialFeed(
-    lifecycle.start,
-    setItems,
-    setHasMore,
-    setLoading,
-    clearError,
-    reportError,
-    retry,
+  const base = data && pages?.fetchedAt === data.fetchedAt ? pages.state : data;
+  const shown = useMemo(
+    () =>
+      base &&
+      uniqueItems(
+        applyListOverlays(base, base.fetchedAt, overlays, applyUpdate),
+        itemId,
+      ),
+    [applyUpdate, base, itemId, overlays],
   );
-  /**
-   * Lädt die Liste neu. Fokus, Sichtbarkeit und Ereignisse anderer Flächen
-   * rufen ohne `report` auf: scheitert so ein Hintergrundabruf, bleibt die
-   * geladene Liste bewusst stehen, ohne Meldung (kein Fehler ohne
-   * Nutzeraktion). „Wiederholen“ meldet dagegen jeden Fehlschlag.
-   */
-  const reload = useCallback(
-    async (options: { report?: boolean } = {}) => {
-      setAutoLoadFailed(false);
-      const { generation, page } = lifecycle.start();
-      try {
-        const result = await page;
-        if (generation !== lifecycle.generationRef.current) return;
-        setItems(result.items);
-        setHasMore(result.hasMore);
-        setLoading(false);
-        clearError();
-      } catch (err) {
-        if (generation !== lifecycle.generationRef.current) return;
-        logger.warn("aggregated_request_list_reload_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        if (options.report) reportError(err, LIST_OBJECT, retry);
-        setLoading(false);
-      }
-    },
-    [clearError, lifecycle, reportError, retry],
-  );
+  // Die angezeigte erste Seite, gelesen erst, wenn eine Folgeseite ankommt.
+  const dataRef = useRef(data);
   useLayoutEffect(() => {
-    retryRef.current = () => void reload({ report: true });
+    dataRef.current = data;
   });
+  // Laufende Folgeseiten je erster Seite: `fetchedAt` ist eindeutig je Abruf
+  // und Schlüssel. Wer zu einem Filter zurückkehrt, findet dessen laufenden
+  // Abruf wieder, statt dieselbe Seite ein zweites Mal zu holen; die Antwort
+  // gilt nur für die erste Seite, zu der sie gehört.
+  const inFlight = useRef(new Set<number>());
+  const [pending, setPending] = useState<ReadonlySet<number>>(() => new Set());
+  const loadingPage = data !== undefined && pending.has(data.fetchedAt);
+  const [autoLoadFailed, setAutoLoadFailed] = useState(false);
+  // Laden und Abgleich im Hintergrund melden ihren Fehler über denselben
+  // Fehlerpfad (#2513, #4988); die geladene Liste bleibt dabei stehen.
+  const reload = useCallback(async () => {
+    setAutoLoadFailed(false);
+    await mutate();
+    clearError();
+  }, [clearError, mutate]);
+  const error = useSwrLoadError(swrError, object, reload);
+  // Auch Fokus/Reconnect ersetzt die erste Seite: deren Nachladefehler gilt
+  // nicht für den neuen Stand. Eine bloß gestartete Revalidierung reicht nicht.
+  useEffect(() => {
+    setAutoLoadFailed(false);
+    clearError();
+  }, [clearError, key, data?.fetchedAt]);
+
+  const revalidateFamily = useTenantMutateMatching([family]);
+  /**
+   * Ändert die geladenen Zeilen, z. B. nach einer Entscheidung: als
+   * Überlagerung für alle Ansichten und Filter der Liste. Alle anderen gleichen
+   * danach ab, damit sie beim nächsten Öffnen frisch laden; die Liste, in der
+   * entschieden wurde, zeigt das Ergebnis schon.
+   */
+  const setItems = useCallback(
+    (update: (current: T[]) => T[]) => {
+      addListOverlay(list, update);
+      void revalidateFamily({ except: key ? [key] : [] });
+    },
+    [key, list, revalidateFamily],
+  );
+
+  const loadMoreRef = useRef<() => Promise<void>>(async () => undefined);
   const loadMore = useCallback(async () => {
-    if (
-      !hasMore ||
-      lifecycle.loadingRef.current ||
-      lifecycle.loadMoreRef.current
-    )
-      return;
-    const generation = lifecycle.generationRef.current;
-    lifecycle.loadMoreRef.current = true;
-    setLoadingMore(true);
+    if (!shown?.hasMore || inFlight.current.has(shown.fetchedAt)) return;
+    const { fetchedAt } = shown;
+    const isCurrent = () => dataRef.current?.fetchedAt === fetchedAt;
+    inFlight.current.add(fetchedAt);
+    setPending(new Set(inFlight.current));
     clearError();
     try {
-      const page = await takeMergedPage(
-        sources,
-        lifecycle.feedRef.current,
-        PAGE_SIZE,
-      );
-      if (generation !== lifecycle.generationRef.current) return;
-      lifecycle.pagesRef.current += 1;
-      setItems((current) => [...current, ...page.items]);
-      setHasMore(page.hasMore);
+      const append = await loadNext(shown);
+      if (!isCurrent()) return;
+      setPages((prev) => {
+        const current =
+          prev?.fetchedAt === fetchedAt ? prev.state : dataRef.current;
+        return current?.fetchedAt === fetchedAt
+          ? { fetchedAt, state: append(current) }
+          : prev;
+      });
       setAutoLoadFailed(false);
     } catch (err) {
-      if (generation === lifecycle.generationRef.current) {
-        logger.warn("aggregated_request_list_load_more_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        reportError(err, LIST_OBJECT, () => void loadMoreRef.current());
-        setAutoLoadFailed(true);
-      }
+      // Der Fehler eines ersetzten Stands betrifft die aktuelle Liste nicht.
+      if (!isCurrent()) return;
+      logger.warn(logEvent, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showLoadError(err, {
+        object,
+        retry: () => void loadMoreRef.current(),
+      });
+      setAutoLoadFailed(true);
     } finally {
-      if (generation === lifecycle.generationRef.current) {
-        lifecycle.loadMoreRef.current = false;
-        setLoadingMore(false);
-      }
+      inFlight.current.delete(fetchedAt);
+      setPending(new Set(inFlight.current));
     }
-  }, [clearError, hasMore, lifecycle, reportError, sources]);
-  const loadMoreRef = useRef(loadMore);
-  useLayoutEffect(() => {
+  }, [clearError, loadNext, logEvent, object, showLoadError, shown]);
+  useEffect(() => {
     loadMoreRef.current = loadMore;
   });
   useEffect(() => {
     if (
       view === "open" &&
-      hasMore &&
-      !loading &&
-      !loadingMore &&
+      shown?.hasMore &&
+      !loadingPage &&
       !autoLoadFailed &&
-      shouldAutoLoad(lifecycle.pagesRef.current, items)
+      autoLoad(shown)
     )
       void loadMore();
-  }, [
-    autoLoadFailed,
-    hasMore,
-    items,
-    lifecycle,
+  }, [autoLoad, autoLoadFailed, loadMore, loadingPage, shown, view]);
+
+  return {
+    data: shown,
+    items: shown?.items,
+    hasMore: shown?.hasMore ?? false,
+    loading: data === undefined && swrError === undefined,
+    // Während eines Abgleichs wartet „Weitere Einträge laden“ auf dessen
+    // Stand; das ist nur Anzeige, keine Sperre.
+    loadingMore: loadingPage || (isValidating && data !== undefined),
+    error: error ?? pageError,
+    reload,
+    setItems,
     loadMore,
-    loading,
-    loadingMore,
+  };
+}
+
+/**
+ * Jede ID höchstens einmal, der erste Eintrag gilt. Hält die Liste frei von
+ * Doppelten, egal auf welchem Weg eine Seite zweimal ankommt.
+ */
+function uniqueItems<T, S extends PagedSnapshot<T>>(
+  state: S,
+  itemId: (item: T) => string,
+): S {
+  const seen = new Set<string>();
+  const items = state.items.filter((item) => {
+    const id = itemId(item);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  return items.length === state.items.length ? state : { ...state, items };
+}
+
+/** Eine Änderung der Zeilen, auch in den noch nicht gezeigten Puffern. */
+function updateRequestFeed(
+  current: RequestFeedSnapshot,
+  update: (items: AnyItem[]) => AnyItem[],
+): RequestFeedSnapshot {
+  const feed = cloneFeedState(current.feed);
+  for (const source of Object.values(feed)) {
+    source.buffer = update(source.buffer);
+  }
+  return { ...current, items: update(current.items), feed };
+}
+
+/** Eine Änderung der Zeilen einer Liste ohne Puffer. */
+function updateItems<T, S extends PagedSnapshot<T>>(
+  current: S,
+  update: (items: T[]) => T[],
+): S {
+  return { ...current, items: update(current.items) };
+}
+
+export function useMergedRequestFeed(
+  sources: readonly RequestFeedSource[],
+  view: "open" | "history",
+  filters: AggregatedRequestFilters,
+) {
+  const { data: session } = useSession();
+  const accountId = session?.user.id;
+  const loadNext = useCallback(
+    async (base: RequestFeedSnapshot) => {
+      // Eine Kopie: der Cache-Eintrag bleibt, wie er war, bis die Seite da ist.
+      const feed = cloneFeedState(base.feed);
+      const page = await takeMergedPage(sources, feed, PAGE_SIZE);
+      return (current: RequestFeedSnapshot): RequestFeedSnapshot => ({
+        ...current,
+        items: [...current.items, ...page.items],
+        hasMore: page.hasMore,
+        pages: current.pages + 1,
+        feed,
+      });
+    },
+    [sources],
+  );
+  const autoLoad = useCallback(
+    (snapshot: RequestFeedSnapshot) =>
+      shouldAutoLoad(snapshot.pages, snapshot.items),
+    [],
+  );
+  const feed = usePagedFeed<AnyItem, RequestFeedSnapshot>({
+    key: requestFeedKey(
+      "request-feed",
+      accountId,
+      view,
+      requestFeedParts(view, filters),
+    ),
+    family: `request-feed:${accountId}:`,
     view,
-  ]);
+    object: LIST_OBJECT,
+    logEvent: "aggregated_request_list_load_more_failed",
+    applyUpdate: updateRequestFeed,
+    itemId: itemKey,
+    loadFirst: () => loadFirstRequestPage(sources),
+    loadNext,
+    autoLoad,
+  });
+  const items = useMemo(() => feed.items ?? [], [feed.items]);
   return {
     items,
-    setItems,
-    hasMore,
-    loading,
-    loadingMore,
-    error,
-    clearError,
-    reportError,
-    reload,
-    loadMore,
+    setItems: feed.setItems,
+    hasMore: feed.hasMore,
+    loading: feed.loading,
+    loadingMore: feed.loadingMore,
+    reviewAccess: feed.data?.reviewAccess,
+    error: feed.error,
+    reload: feed.reload,
+    loadMore: feed.loadMore,
   };
 }
 
@@ -357,87 +531,77 @@ async function fetchWithdrawalPage(
   });
 }
 
+/** Der Abmeldungen-Zustand im Cache; `nextPage` ist die nächste Seite. */
+interface WithdrawalFeedSnapshot extends PagedSnapshot<CareWithdrawalCompletion> {
+  readonly nextPage: number;
+}
+
+/** Die ID einer Abmeldung. */
+const withdrawalId = (row: CareWithdrawalCompletion) => row.id;
+
+/** Alle Seiten der Abmeldungen nachladen: ein Fall ist erst vollständig. */
+const ALWAYS = () => true;
+
 export function useWithdrawalFeed(
   view: "open" | "history",
   filters: AggregatedRequestFilters,
-  reportError: ReportLoadError,
-  clearError: () => void,
 ) {
-  const [items, setItems] = useState<CareWithdrawalCompletion[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [autoLoadFailed, setAutoLoadFailed] = useState(false);
-  const nextPageRef = useRef(2);
-  const generationRef = useRef(0);
-  const load = useCallback(async () => {
-    const generation = ++generationRef.current;
-    setAutoLoadFailed(false);
-    setLoadingMore(false);
-    try {
-      const page = await fetchWithdrawalPage(view, filters, 1);
-      if (generation !== generationRef.current) return;
-      setItems(page.items);
-      setHasMore(page.items.length < page.total);
-      nextPageRef.current = 2;
-    } catch (err) {
-      if (generation !== generationRef.current) return;
-      logger.warn("care_withdrawal_list_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      reportError(err, WITHDRAWAL_OBJECT, () => void loadRef.current());
-    }
-  }, [filters, reportError, view]);
-  const loadRef = useRef(load);
-  useLayoutEffect(() => {
-    loadRef.current = load;
-  });
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(filters.includeCareWithdrawals === true);
-    void load().finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
-  }, [filters.includeCareWithdrawals, load]);
-  const loadMore = useCallback(async () => {
-    if (!hasMore || loadingMore) return;
-    const generation = generationRef.current;
-    setLoadingMore(true);
-    clearError();
-    try {
-      const pageNumber = nextPageRef.current;
+  const { data: session } = useSession();
+  const accountId = session?.user.id;
+  const included =
+    filters.includeCareWithdrawals === true &&
+    (filters.types.length === 0 || filters.types.includes("care_withdrawal"));
+  const loadNext = useCallback(
+    async (base: WithdrawalFeedSnapshot) => {
+      const pageNumber = base.nextPage;
       const page = await fetchWithdrawalPage(view, filters, pageNumber);
-      if (generation !== generationRef.current) return;
-      setItems((current) => [...current, ...page.items]);
-      setHasMore(pageNumber * WITHDRAWAL_PAGE_SIZE < page.total);
-      nextPageRef.current = pageNumber + 1;
-      setAutoLoadFailed(false);
-    } catch (err) {
-      if (generation === generationRef.current) {
-        logger.warn("care_withdrawal_list_load_more_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        setAutoLoadFailed(true);
-        reportError(err, WITHDRAWAL_OBJECT, () => void loadMoreRef.current());
-      }
-    } finally {
-      if (generation === generationRef.current) setLoadingMore(false);
-    }
-  }, [clearError, filters, hasMore, loadingMore, reportError, view]);
-  const loadMoreRef = useRef(loadMore);
-  useLayoutEffect(() => {
-    loadMoreRef.current = loadMore;
+      return (current: WithdrawalFeedSnapshot): WithdrawalFeedSnapshot => ({
+        ...current,
+        items: [...current.items, ...page.items],
+        hasMore: pageNumber * WITHDRAWAL_PAGE_SIZE < page.total,
+        nextPage: pageNumber + 1,
+      });
+    },
+    [filters, view],
+  );
+  const feed = usePagedFeed<CareWithdrawalCompletion, WithdrawalFeedSnapshot>({
+    key: included
+      ? requestFeedKey("care-withdrawal-feed", accountId, view, [
+          filters.search,
+          filters.studentId ?? null,
+        ])
+      : null,
+    family: `care-withdrawal-feed:${accountId}:`,
+    view,
+    object: WITHDRAWAL_OBJECT,
+    logEvent: "care_withdrawal_list_load_more_failed",
+    applyUpdate: updateItems,
+    itemId: withdrawalId,
+    loadFirst: async () => {
+      const fetchedAt = startListFetch();
+      const page = await fetchWithdrawalPage(view, filters, 1);
+      return {
+        fetchedAt,
+        items: page.items,
+        hasMore: page.items.length < page.total,
+        nextPage: 2,
+      };
+    },
+    loadNext,
+    autoLoad: ALWAYS,
   });
-  useEffect(() => {
-    if (
-      view === "open" &&
-      hasMore &&
-      !loading &&
-      !loadingMore &&
-      !autoLoadFailed
-    )
-      void loadMore();
-  }, [autoLoadFailed, hasMore, loadMore, loading, loadingMore, view]);
-  return { items, setItems, loading, loadingMore, hasMore, load, loadMore };
+  const items = useMemo(
+    () => (included ? (feed.items ?? []) : []),
+    [feed.items, included],
+  );
+  return {
+    items,
+    setItems: feed.setItems,
+    loading: included && feed.loading,
+    loadingMore: feed.loadingMore,
+    hasMore: included && feed.hasMore,
+    error: feed.error,
+    load: feed.reload,
+    loadMore: feed.loadMore,
+  };
 }

@@ -223,6 +223,7 @@ function ActiveDemoBanner() {
             ...DEMO_ROLES.map((entry) => ({
               kind: "radio" as const,
               label: entry.label,
+              description: entry.description,
               checked: entry.role === visit?.role,
               onClick: () => void chooseRole(entry.role),
             })),

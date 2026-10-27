@@ -24,8 +24,20 @@ import {
   listEnrollmentChangeRequests,
 } from "~/lib/change-request-list-api";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { SWRConfig } from "~/lib/swr";
 
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
+
+// Die Liste hält ihre Seiten im SWR-Cache (#4988): echtes SWR, ein eigener
+// Cache je Render und eine angemeldete Sitzung für useSWRAuth.
+vi.unmock("swr");
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    status: "authenticated",
+    data: { user: { id: "1", token: "test-token" } },
+  }),
+}));
 
 vi.mock("~/lib/change-request-list-api", async () => {
   const actual = await vi.importActual<
@@ -60,8 +72,18 @@ vi.mock("~/components/students/excused-request-review-item", () => ({
   ),
 }));
 
+function Providers({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <ToastProvider>
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+        {children}
+      </SWRConfig>
+    </ToastProvider>
+  );
+}
+
 const render = (ui: React.ReactNode) =>
-  renderComponent(ui, { wrapper: ToastProvider });
+  renderComponent(ui, { wrapper: Providers });
 
 const mockListOpen = vi.mocked(listAggregatedOpenRequests);
 const mockListHistory = vi.mocked(listAggregatedRequestHistory);

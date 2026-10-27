@@ -36,6 +36,7 @@ import {
   updateGuardianRelationship,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import { displayEmail, isDemoBuild } from "~/lib/demo-build";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
@@ -667,9 +668,8 @@ function ConnectedAccountRow({
   onConfirmRemove: () => void;
 }>) {
   const t = useTranslations("parentChildDetail");
-  const name =
-    `${account.first_name} ${account.last_name}`.trim() ||
-    (account.email ?? "");
+  const email = displayEmail(account.email);
+  const name = `${account.first_name} ${account.last_name}`.trim() || email;
   const removable = canRemove && !account.is_primary && !account.is_self;
 
   return (
@@ -680,14 +680,15 @@ function ConnectedAccountRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-gray-900">{name}</p>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+          {account.is_self && isDemoBuild() ? (
+            <StatusBadge tone="blue" label={t("guardians.badges.self")} />
+          ) : null}
           <StatusBadge
             label={t(`guardians.access.status.${account.status}`)}
             tone={accessTone(account.status)}
           />
-          {account.email ? (
-            <span className="truncate text-xs text-gray-500">
-              {account.email}
-            </span>
+          {email ? (
+            <span className="truncate text-xs text-gray-500">{email}</span>
           ) : null}
         </div>
       </div>
@@ -759,11 +760,13 @@ function GuardianRow({
   const relationshipLabel = isRelationshipType(g.relationship_type)
     ? t(`guardians.relationships.${g.relationship_type}`)
     : t("guardians.relationships.contact");
+  const email = displayEmail(g.email);
   const hasContact =
     g.phones.length > 0 ||
-    Boolean(g.email) ||
+    Boolean(email) ||
     Boolean(g.address_street ?? g.address_city ?? g.address_postal_code);
   const hasDetails = hasContact || Boolean(g.pickup_notes);
+  const accessEmail = displayEmail(access?.email);
   // Von der Schule verwaltete Kontakte (social_worker) weist das Backend ab,
   // deshalb wird der Ausbau dort gar nicht angeboten (#2172).
   const grantable =
@@ -771,7 +774,7 @@ function GuardianRow({
     (access?.status === "active_no_access" ||
       access?.status === "no_account") &&
     access.guardian_role !== "social_worker" &&
-    Boolean(access.email);
+    Boolean(accessEmail);
   return (
     <div className="rounded-xl bg-gray-50 p-4">
       <div className="flex items-start gap-3">
@@ -786,6 +789,10 @@ function GuardianRow({
               <span className="rounded-full bg-white px-2.5 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
                 {t("guardians.badges.primary")}
               </span>
+            )}
+            {/* The demo visitor is this child's parent (#5033). */}
+            {g.is_self && isDemoBuild() && (
+              <StatusBadge tone="blue" label={t("guardians.badges.self")} />
             )}
           </div>
           {/* Neutral text chips, not colored dots: "darf abholen" and
@@ -848,7 +855,7 @@ function GuardianRow({
                         .join(" · ")}
                     />
                   ))}
-                  {g.email && (
+                  {email && (
                     <ContactLine
                       icon={
                         <MotoDuotoneIcon
@@ -857,7 +864,7 @@ function GuardianRow({
                           size={16}
                         />
                       }
-                      text={g.email}
+                      text={email}
                     />
                   )}
                   {(g.address_street ??
@@ -951,7 +958,7 @@ function GuardianRow({
             variant="surface"
             size="md"
             disabled={busy}
-            onClick={() => onGrantAccess(access?.email ?? "", name)}
+            onClick={() => onGrantAccess(accessEmail, name)}
           >
             {t("guardians.access.grant")}
           </Button>

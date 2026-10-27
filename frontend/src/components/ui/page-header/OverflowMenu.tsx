@@ -55,6 +55,8 @@ interface OverflowMenuHeader {
 interface OverflowMenuRadioItem {
   readonly kind: "radio";
   readonly label: string;
+  /** One short line under the label that says what the choice means. */
+  readonly description?: string;
   readonly checked: boolean;
   readonly onClick: () => void;
   readonly disabled?: boolean;
@@ -490,6 +492,12 @@ export function OverflowMenu({
                           : "menuitemcheckbox"
                       }
                       aria-checked={entry.checked}
+                      {...(entry.kind === "radio" && entry.description
+                        ? {
+                            "aria-labelledby": `${menuId}-${index}-label`,
+                            "aria-describedby": `${menuId}-${index}-description`,
+                          }
+                        : {})}
                       disabled={entry.disabled}
                       onClick={() => {
                         if (entry.disabled) return;
@@ -505,7 +513,21 @@ export function OverflowMenu({
                           : "hover:bg-gray-50 active:bg-gray-100"
                       } ${entry.checked ? "text-gray-900" : "text-gray-700"}`}
                     >
-                      <span>{entry.label}</span>
+                      {entry.kind === "radio" && entry.description ? (
+                        <span className="flex max-w-64 min-w-0 flex-col">
+                          <span id={`${menuId}-${index}-label`}>
+                            {entry.label}
+                          </span>
+                          <span
+                            id={`${menuId}-${index}-description`}
+                            className="text-xs font-normal text-gray-500"
+                          >
+                            {entry.description}
+                          </span>
+                        </span>
+                      ) : (
+                        <span>{entry.label}</span>
+                      )}
                       {entry.checked ? (
                         <Check className="size-4 text-gray-900" aria-hidden />
                       ) : null}

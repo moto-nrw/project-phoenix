@@ -55,6 +55,7 @@ import {
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
+import { displayEmail } from "~/lib/demo-build";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -774,9 +775,11 @@ function SupervisorItem({
             Gruppenleitung
           </span>
         </div>
-        {supervisor.email && (
+        {displayEmail(supervisor.email) && (
           <>
-            <p className="mt-1 text-sm text-gray-500">{supervisor.email}</p>
+            <p className="mt-1 text-sm text-gray-500">
+              {displayEmail(supervisor.email)}
+            </p>
             <Button
               type="button"
               variant="primary"
