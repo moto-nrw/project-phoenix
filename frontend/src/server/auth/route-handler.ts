@@ -3,6 +3,7 @@ import { cache } from "react";
 import * as Sentry from "@sentry/nextjs";
 import type { NextAuthRequest, NextAuthResult, Session } from "next-auth";
 import type { NextRequest } from "next/server";
+import { applyPrivateNoStore } from "~/lib/private-no-store";
 import { REQUEST_ID_HEADER } from "~/lib/request-id";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 import {
@@ -112,6 +113,8 @@ export function createResponseAwareAuth(
       for (const cookie of current.freshCookies) {
         response.headers.append("Set-Cookie", cookie);
       }
+      // Every authenticated BFF route of every portal leaves through here.
+      applyPrivateNoStore(response.headers);
       return response;
     };
 
