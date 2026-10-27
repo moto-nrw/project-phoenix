@@ -39,6 +39,23 @@ const (
 	profileGroupModeOpenCare            = "open_care"
 )
 
+// The payroll keys of the Abrechnung page (#5032), HTTP contract values like
+// the ones above.
+const (
+	profileSettingPayrollRegelarbeit        = "payroll.lohnart_regelarbeit"
+	profileSettingPayrollPlusStunden        = "payroll.lohnart_plus_stunden"
+	profileSettingPayrollAuszahlung         = "payroll.lohnart_auszahlung"
+	profileSettingPayrollFreizeitausgleich  = "payroll.lohnart_freizeitausgleich"
+	profileSettingPayrollKrank              = "payroll.lohnart_krank"
+	profileSettingPayrollUrlaub             = "payroll.lohnart_urlaub"
+	profileSettingPayrollFortbildung        = "payroll.lohnart_fortbildung"
+	profileSettingPayrollEinheitKrank       = "payroll.einheit_krank"
+	profileSettingPayrollEinheitUrlaub      = "payroll.einheit_urlaub"
+	profileSettingPayrollEinheitFortbildung = "payroll.einheit_fortbildung"
+	profileSettingPayrollBeraternummer      = "payroll.datev_beraternummer"
+	profileSettingPayrollMandantennummer    = "payroll.datev_mandantennummer"
+)
+
 type demoProfileDefinition struct {
 	Key                 string
 	OrganizationName    string
@@ -62,8 +79,44 @@ func fullOperationProfileDefinition() demoProfileDefinition {
 		// first person; the reserved TLD .example never receives mail.
 		SchoolAdminEmail:    "ines.lindner@ganztag-nord.example",
 		SchoolAdminPassword: "Vollbetrieb1234%",
-		Settings:            fullOperationSettings(),
+		Settings:            fullOperationProfileSettings(),
 		Expected:            fullOperationExpectedState(),
+	}
+}
+
+// fullOperationProfileSettings adds the payroll configuration to the
+// Vollbetrieb school only. The Anmeldung profiles reuse fullOperationSettings
+// but seed no Personalnummern, so a complete DATEV setup there would still
+// report every colleague as missing (#5032).
+func fullOperationProfileSettings() map[string]SeedSetting {
+	settings := fullOperationSettings()
+	for key, setting := range demoPayrollSettings() {
+		settings[key] = setting
+	}
+	return settings
+}
+
+// demoPayrollSettings completes the Abrechnung page with invented numbers
+// (#5032). The registry defaults stay empty, since real numbers belong to
+// each Träger's DATEV; every payroll key is admin-only, so the school writes
+// them.
+func demoPayrollSettings() map[string]SeedSetting {
+	text := func(value string) SeedSetting {
+		return SeedSetting{Value: json.RawMessage(`"` + value + `"`), ManagedBy: SettingManagedByTenant}
+	}
+	return map[string]SeedSetting{
+		profileSettingPayrollRegelarbeit:        text("9001"),
+		profileSettingPayrollPlusStunden:        text("9002"),
+		profileSettingPayrollAuszahlung:         text("9003"),
+		profileSettingPayrollFreizeitausgleich:  text("9004"),
+		profileSettingPayrollKrank:              text("9005"),
+		profileSettingPayrollUrlaub:             text("9006"),
+		profileSettingPayrollFortbildung:        text("9007"),
+		profileSettingPayrollEinheitKrank:       text("stunden"),
+		profileSettingPayrollEinheitUrlaub:      text("tage"),
+		profileSettingPayrollEinheitFortbildung: text("stunden"),
+		profileSettingPayrollBeraternummer:      text("9900001"),
+		profileSettingPayrollMandantennummer:    text("90001"),
 	}
 }
 

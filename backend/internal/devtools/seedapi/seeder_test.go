@@ -1107,7 +1107,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		authorization := r.Header.Get("Authorization")
 		manualAuth := authorization == "Bearer manual-admin-token"
 		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/" {
-			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{"id": "7001"}, {"id": "7002"}}})
+			return
+		}
+		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/settings/payroll-status" {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+				"lodas_header_complete": true, "configured_categories": 7, "total_categories": 7,
+				"staff_total": 2, "staff_without_personnel_number": 0,
+			}})
 			return
 		}
 		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {
