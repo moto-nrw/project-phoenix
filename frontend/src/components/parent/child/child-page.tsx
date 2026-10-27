@@ -47,6 +47,7 @@ import { parseISODate } from "~/lib/date-helpers";
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
 import { requiresGuardianReason } from "~/lib/parent-request-reason";
 import { SharingOptionsProvider } from "~/components/parent/sharing-options-context";
+import { ChildRequestsProvider } from "~/components/parent/child-requests-context";
 import {
   ParentPage,
   ParentPageHeader,
@@ -233,9 +234,12 @@ export function ChildPage({
       {/* key: ein Kindwechsel setzt alle Abschnitte zurueck, damit nie Daten
           des vorigen Kindes unter dem neuen Namen stehen. */}
       {/* Eine Freigabe-Liste pro Kind: alle Abschnitte teilen sich einen
-          einzigen Abruf der möglichen Empfänger. */}
+          einzigen Abruf der möglichen Empfänger. Ebenso teilen sie laufende
+          Abrufe der Schulschalter und des Wochenplans. */}
       <SharingOptionsProvider>
-        <ChildSections key={active.student_id} child={active} />
+        <ChildRequestsProvider>
+          <ChildSections key={active.student_id} child={active} />
+        </ChildRequestsProvider>
       </SharingOptionsProvider>
     </ParentPage>
   );
@@ -465,6 +469,12 @@ function ChildAreaTabs({
   const conferenceT = useTranslations("parentConference");
   const locale = useLocale();
   const [activeArea, setActiveArea] = useState<ChildArea>("betreuung");
+  // Ein Reiter lädt seine Daten erst beim ersten Öffnen. Danach bleibt er
+  // gemountet und nur verborgen, damit Eingaben und geladene Listen beim
+  // Hin- und Herwechseln erhalten bleiben.
+  const [openedAreas, setOpenedAreas] = useState<ReadonlySet<ChildArea>>(
+    () => new Set(["betreuung"]),
+  );
   const masterData = useChildMasterData(child.student_id);
   // Elternsprechtag (#4801): nur sichtbar, wenn die Klasse einen hat. Ein
   // Ladefehler bleibt still, denn der Eintrag ist nur ein Weg zur Seite des
@@ -525,7 +535,13 @@ function ChildAreaTabs({
       ) : null}
       <Tabs
         value={activeArea}
-        onValueChange={(value) => setActiveArea(value as ChildArea)}
+        onValueChange={(value) => {
+          const area = value as ChildArea;
+          setActiveArea(area);
+          setOpenedAreas((opened) =>
+            opened.has(area) ? opened : new Set(opened).add(area),
+          );
+        }}
         className="space-y-5"
       >
         <div className="pb-1">
@@ -584,8 +600,8 @@ function ChildAreaTabs({
             reasonRequired={reasonRequired}
           />
           {/* Kurse (#3075): eigener Abschnitt, damit eine Kursanfrage nicht
-            zwischen Mittagessen und Betreuungszeiten verschwindet. Schaltet
-            die Schule sie aus, rendert der Abschnitt nichts. */}
+              zwischen Mittagessen und Betreuungszeiten verschwindet. Schaltet
+              die Schule sie aus, rendert der Abschnitt nichts. */}
           <CoursesSection studentId={child.student_id} careEnded={careEnded} />
           <ChildMasterDataView
             studentId={child.student_id}
@@ -601,13 +617,17 @@ function ChildAreaTabs({
           data-parent-tour="child-data"
           className="mt-0 space-y-5 data-[state=inactive]:hidden"
         >
-          <ChildMasterDataView
-            studentId={child.student_id}
-            childName={childName}
-            area="details"
-            masterData={masterData}
-          />
-          <ChildConsentsSection studentId={child.student_id} />
+          {openedAreas.has("angaben") && (
+            <>
+              <ChildMasterDataView
+                studentId={child.student_id}
+                childName={childName}
+                area="details"
+                masterData={masterData}
+              />
+              <ChildConsentsSection studentId={child.student_id} />
+            </>
+          )}
         </TabsContent>
 
         <TabsContent
@@ -616,13 +636,15 @@ function ChildAreaTabs({
           data-parent-tour="child-contacts"
           className="mt-0 data-[state=inactive]:hidden"
         >
-          <GuardiansPanel
-            studentId={child.student_id}
-            canInvite={canInvite}
-            canRemove={canRemove}
-            canAddContact={canAddContact}
-            canManagePickup={canManagePickup}
-          />
+          {openedAreas.has("kontakte") && (
+            <GuardiansPanel
+              studentId={child.student_id}
+              canInvite={canInvite}
+              canRemove={canRemove}
+              canAddContact={canAddContact}
+              canManagePickup={canManagePickup}
+            />
+          )}
         </TabsContent>
       </Tabs>
     </>

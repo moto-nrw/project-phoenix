@@ -50,6 +50,23 @@ export function createFeedState<T>(
 }
 
 /**
+ * Eine unabhängige Kopie des Fortschritts. `takeMergedPage` schreibt in den
+ * Zustand, den es bekommt; ein Zustand im Cache (#4988) bleibt so unverändert,
+ * bis die nächste Seite vollständig da ist.
+ */
+export function cloneFeedState<T>(state: FeedState<T>): FeedState<T> {
+  const copy: FeedState<T> = {};
+  for (const [key, source] of Object.entries(state)) {
+    copy[key] = {
+      buffer: [...source.buffer],
+      cursor: source.cursor,
+      exhausted: source.exhausted,
+    };
+  }
+  return copy;
+}
+
+/**
  * Wie viele Folgeseiten je Quelle nachgezogen werden, solange eine Antwort
  * leer bleibt aber noch einen Cursor trägt. Das passiert beim Aggregator, wenn
  * enge Filter fast alles verwerfen; ohne diese Nachläufe müsste man blind auf

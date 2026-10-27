@@ -12,6 +12,8 @@ import { ChildPage } from "./child-page";
 let mockSearchParams = new URLSearchParams();
 const mockMasterDataMount = vi.fn();
 const mockMasterDataLoad = vi.fn();
+const mockConsentsMount = vi.fn();
+const mockGuardiansMount = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
@@ -68,12 +70,20 @@ vi.mock("~/components/parent/child-master-data", () => ({
   },
 }));
 vi.mock("~/components/parent/child/child-consents-section", () => ({
-  ChildConsentsSection: () => (
-    <div data-testid="section-consents">Einwilligungen</div>
-  ),
+  ChildConsentsSection: () => {
+    useEffect(() => {
+      mockConsentsMount();
+    }, []);
+    return <div data-testid="section-consents">Einwilligungen</div>;
+  },
 }));
 vi.mock("~/components/parent/guardians-panel", () => ({
-  default: () => <div data-testid="section-people">Eltern</div>,
+  default: () => {
+    useEffect(() => {
+      mockGuardiansMount();
+    }, []);
+    return <div data-testid="section-people">Eltern</div>;
+  },
 }));
 // Der Betreuungszustand ist pro Test austauschbar: die Erreichbarkeit des
 // Abhol-Dialogs haengt davon ab, was die Schule freigeschaltet hat und was an
@@ -296,12 +306,48 @@ describe("ChildPage", () => {
     expect(
       screen.getByTestId("section-departure").closest('[role="tabpanel"]'),
     ).toHaveAttribute("data-state", "active");
+    // Die anderen Reiter stehen bereit, laden aber erst beim ersten Öffnen
+    // (#4994).
     expect(
-      screen.getByTestId("section-details").closest('[role="tabpanel"]'),
+      document.querySelector('[data-parent-tour="child-data"]'),
     ).toHaveAttribute("data-state", "inactive");
     expect(
-      screen.getByTestId("section-people").closest('[role="tabpanel"]'),
+      document.querySelector('[data-parent-tour="child-contacts"]'),
     ).toHaveAttribute("data-state", "inactive");
+    expect(screen.queryByTestId("section-details")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("section-consents")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("section-people")).not.toBeInTheDocument();
+  });
+
+  it("laedt Angaben und Kontakte beim ersten Oeffnen und behaelt sie danach", async () => {
+    const user = userEvent.setup();
+    renderPage("42");
+    await screen.findByRole("heading", { level: 1, name: "Felix Schneider" });
+    expect(screen.getByTestId("section-departure")).toBeInTheDocument();
+    expect(mockConsentsMount).not.toHaveBeenCalled();
+    expect(mockGuardiansMount).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("tab", { name: "Angaben zum Kind" }));
+    expect(screen.getByTestId("section-consents")).toBeInTheDocument();
+    expect(mockConsentsMount).toHaveBeenCalledTimes(1);
+    expect(mockGuardiansMount).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("tab", { name: "Kontakte & Abholung" }));
+    expect(screen.getByTestId("section-people")).toBeInTheDocument();
+    expect(mockGuardiansMount).toHaveBeenCalledTimes(1);
+
+    await user.click(
+      screen.getByRole("tab", { name: "Betreuung & Wochenplan" }),
+    );
+    await user.click(screen.getByRole("tab", { name: "Angaben zum Kind" }));
+    await user.click(screen.getByRole("tab", { name: "Kontakte & Abholung" }));
+
+    // Verborgen, nicht abgebaut: kein neuer Abruf, Eingaben bleiben stehen.
+    expect(
+      screen.getByTestId("section-consents").closest('[role="tabpanel"]'),
+    ).toHaveAttribute("data-state", "inactive");
+    expect(mockConsentsMount).toHaveBeenCalledTimes(1);
+    expect(mockGuardiansMount).toHaveBeenCalledTimes(1);
   });
 
   it("wechselt Bereiche lokal und behaelt den Tagesstatus sichtbar", async () => {

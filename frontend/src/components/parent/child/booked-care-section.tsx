@@ -15,6 +15,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OfferingChangeRequestModal } from "~/components/parent/offering-change-request-modal";
 import { RequestSharingControl } from "~/components/parent/request-sharing-control";
 import { WeeklyScheduleSection } from "~/components/parent/child/weekly-schedule-section";
+import { useChildRequests } from "~/components/parent/child-requests-context";
 import {
   ParentSection,
   ParentSubsection,
@@ -27,7 +28,6 @@ import { createLogger } from "~/lib/logger";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import {
   getChildCareOfferings,
-  getChildCareSchedule,
   submitOfferingChangeRequest,
   type ChildCareOfferings,
   type ChildCareSchedule,
@@ -89,6 +89,7 @@ export function BookedCareSection({
     offeringsLoad;
   const { show: showScheduleError, clear: clearScheduleError } = scheduleLoad;
   const latestLoadRef = useRef<() => void>(() => undefined);
+  const childRequests = useChildRequests();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,7 +99,7 @@ export function BookedCareSection({
     clearScheduleError();
     const [offeringsResult, scheduleResult] = await Promise.allSettled([
       getChildCareOfferings(studentId),
-      getChildCareSchedule(studentId),
+      childRequests.careSchedule(studentId),
     ]);
     if (offeringsResult.status === "fulfilled") {
       setOfferings(offeringsResult.value);
@@ -132,6 +133,7 @@ export function BookedCareSection({
   }, [
     clearOfferingsError,
     clearScheduleError,
+    childRequests,
     showOfferingsError,
     showScheduleError,
     studentId,
