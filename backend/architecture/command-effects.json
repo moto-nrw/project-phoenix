@@ -45352,7 +45352,7 @@
       "effect": "durable",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (durable): parent-billing reaches modules/delivery/runtime.Capability.EnqueueDeferredPush (delivery-platform) through api.parentBillingLetterPost.EnqueueDocumentNotice. The push of a Träger that a sent confirmation letter is in the inbox of the parents portal is enqueued in the caller's Träger transaction with the record of the send, keyed by the letter so only its first send pushes; the worker resolves the parents and their devices when it sends (ADR 0126); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (durable): parent-billing reaches modules/delivery/runtime.Capability.EnqueueDeferredPush (delivery-platform) through api.parentBillingLetterPost.EnqueueDocumentNotice. The push of a Träger that a sent confirmation letter is in the inbox of the parents portal is enqueued in the caller's Träger transaction with the record of the send, keyed by the letter and sent with the first stored send only; the worker resolves the parents and their devices when it sends (ADR 0126); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "parent-billing",

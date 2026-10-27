@@ -260,7 +260,12 @@ func (m *BillingLetterMail) send(ctx context.Context, reviewer parentbilling.Hol
 		return parentbilling.BillingLetterSend{}, fmt.Errorf("parent billing: record letter mail: %w", err)
 	}
 	// The send also puts the letter in the inbox of the parents portal; the
-	// push that says so goes with the first send only (ADR 0126).
+	// push that says so goes with the first stored send only (ADR 0126). The
+	// stored sends decide, not the outbox key: Delivery forgets ended pushes
+	// after its retention period, the sends stay with the letter.
+	if len(current.mailings[document.ID]) > 0 {
+		return mailing, nil
+	}
 	if err := m.post.EnqueueDocumentNotice(ctx, parentbilling.BillingDocumentNotice{
 		OrganizationID: reviewer.OrganizationID, DocumentID: document.ID, RecipientEmail: recipient,
 	}); err != nil {

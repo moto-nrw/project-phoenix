@@ -74,4 +74,15 @@ func TestBillingLetterSendPushesTheInboxOncePerLetter(t *testing.T) {
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, letterMailPath(run.ID, first.DocumentID), nil)
 	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
 	assert.Len(t, notices(), 2, "only the first send of a letter pushes")
+
+	// After Delivery forgot the ended pushes, a send again is still no new
+	// document: the stored sends decide, not the outbox.
+	_, err = f.db.ExecContext(context.Background(), `DELETE FROM platform.push_outbox WHERE organization_id = ?`, f.office.organization)
+	require.NoError(t, err)
+	_, err = f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW()
+		WHERE organization_id = ? AND kind = 'parent_billing_letter'`, f.office.organization)
+	require.NoError(t, err)
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, letterMailPath(run.ID, first.DocumentID), nil)
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	assert.Empty(t, notices(), "a letter sent before pushes nothing after the outbox retention")
 }
