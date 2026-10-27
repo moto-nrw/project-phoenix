@@ -99,8 +99,12 @@ function stepWeekday(iso: string, dir: 1 | -1, weekendOpen: boolean): string {
  * `new Date()`, so the range sent to the DATE-based /week endpoint is correct
  * in any timezone. Sa/So follow `careWeekDayCount` (#5028).
  */
-function berlinWeekDays(weekOffset: number, weekendOpen: boolean): Date[] {
-  const anchor = parseISODate(berlinTodayISO());
+function berlinWeekDays(
+  weekOffset: number,
+  weekendOpen: boolean,
+  todayISO: string,
+): Date[] {
+  const anchor = parseISODate(todayISO);
   const dow = anchor.getDay();
   const daysToMonday = dow === 0 ? 6 : dow - 1;
   const monday = new Date(anchor);
@@ -170,10 +174,10 @@ export function CarePlanView({
 
   // The tenant arrives after the first render. On a weekend, the initial
   // closed-weekend state points at Monday; select today's newly available day
-  // once the school's Friday-plan setting is known.
+  // once the school's Friday-plan setting is known or Berlin reaches Saturday.
   useEffect(() => {
     setMobileDayIndex(mobileDayIndexForToday(weekendOpen));
-  }, [weekendOpen]);
+  }, [today, weekendOpen]);
 
   // --- Day mode fetch (only when the tab is active and in day mode) ---
   const dayKey =
@@ -191,8 +195,8 @@ export function CarePlanView({
 
   // --- Week mode fetch (only active in week mode) ---
   const weekDates = useMemo(
-    () => berlinWeekDays(weekOffset, weekendOpen),
-    [weekOffset, weekendOpen],
+    () => berlinWeekDays(weekOffset, weekendOpen, today),
+    [today, weekOffset, weekendOpen],
   );
   const weekFrom = toISODate(weekDates[0]!);
   const weekTo = toISODate(weekDates[weekDates.length - 1]!);
