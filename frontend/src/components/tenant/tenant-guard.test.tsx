@@ -235,6 +235,38 @@ describe("TenantGuard", () => {
     expect(mockUpdate).toHaveBeenCalled();
   });
 
+  // #5130: while the cookie held the other school, the BFF refused this
+  // tab's requests; after the switch back, mounted views load again.
+  it("revalidates the mounted views after the switch went through", async () => {
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    mockUseSession.mockReturnValue({
+      data: { user: { tenantId: 1, token: "access-token" } },
+      status: "authenticated",
+      update: mockUpdate,
+    });
+    mockUseTenant.mockReturnValue({
+      tenantSlug: "school-b",
+      tenant: tenantB,
+    });
+    mockPerformTenantSwitch.mockResolvedValue({
+      access_token: "new-access",
+      refresh_token: "new-refresh",
+    });
+
+    render(
+      <TenantGuard>
+        <div>Protected Content</div>
+      </TenantGuard>,
+    );
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockMutate).toHaveBeenCalledWith(expect.any(Function)),
+    );
+    const [matcher] = mockMutate.mock.calls.at(-1) ?? [];
+    expect((matcher as (key: unknown) => boolean)("any-key")).toBe(true);
+  });
+
   // Regression test for #1975: the auto-switch must send the subdomain,
   // not the slug column — the two can legitimately differ.
   it("auto-switches with the subdomain when slug differs (#1975)", async () => {
