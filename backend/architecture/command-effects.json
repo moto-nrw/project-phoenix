@@ -35990,6 +35990,102 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSecondFactor.ConfirmCatererMFA",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.ConfirmCatererMFA",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "93cad278f72d12ae7794ec6f2f1618ee",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.ConfirmCatererMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the caterer's second factor (sign-in, code, passkey sign-in, switching on, operator reset and its notice) runs in the module's administrative unit and the shared session mint; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSecondFactor.ConfirmCatererMFA",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.ConfirmCatererMFA",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "0426e5a20d507f987522c525ce14f7c7",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.ConfirmCatererMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the caterer's second factor (sign-in, code, passkey sign-in, switching on, operator reset and its notice) runs in the module's administrative unit and the shared session mint; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.FinishCatererPasskeyLogin",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.FinishCatererPasskeyLogin",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "93cad278f72d12ae7794ec6f2f1618ee",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.FinishCatererPasskeyLogin. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the caterer's second factor (sign-in, code, passkey sign-in, switching on, operator reset and its notice) runs in the module's administrative unit and the shared session mint; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.FinishCatererPasskeyLogin",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.FinishCatererPasskeyLogin",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "0426e5a20d507f987522c525ce14f7c7",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.FinishCatererPasskeyLogin. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the caterer's second factor (sign-in, code, passkey sign-in, switching on, operator reset and its notice) runs in the module's administrative unit and the shared session mint; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.LoginCaterer",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.LoginCaterer",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "8c6e7858ee9f7d5e487443dd4bdf5c5c",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.LoginCaterer. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the caterer's second factor (sign-in, code, passkey sign-in, switching on, operator reset and its notice) runs in the module's administrative unit and the shared session mint; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.LoginCaterer",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.LoginCaterer",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "63752d53d051a9be088be72d708a9bd1",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.LoginCaterer. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the caterer's second factor (sign-in, code, passkey sign-in, switching on, operator reset and its notice) runs in the module's administrative unit and the shared session mint; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.VerifyCatererMFA",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "93cad278f72d12ae7794ec6f2f1618ee",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the caterer's second factor (sign-in, code, passkey sign-in, switching on, operator reset and its notice) runs in the module's administrative unit and the shared session mint; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CatererSignIn.VerifyCatererMFA",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "0426e5a20d507f987522c525ce14f7c7",
+      "effect": "scope",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the caterer's second factor (sign-in, code, passkey sign-in, switching on, operator reset and its notice) runs in the module's administrative unit and the shared session mint; no new unit or scope switch."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.DemoAccessEngine.DemoAccessStatus",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.DemoAccessEngine.DemoAccessStatus",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
@@ -36286,11 +36382,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "2d1c08d900e38f3e72d9cbe6af08e254",
+      "binding_digest": "90ba51d48f9239a40d68425ae69e36dc",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the shared session mint it reaches now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the shared session mint it reaches now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36298,11 +36394,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "ecc9480638384b42530359d96486c090",
+      "binding_digest": "ff58ae2ce8812c8830cd3a7bb31f58d8",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36418,11 +36514,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
+      "binding_digest": "10b72e9110c6d54710c64a5a842622ef",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36430,11 +36526,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
+      "binding_digest": "31329aae3c10bc60dcd55673aae24020",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36562,11 +36658,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
+      "binding_digest": "3b4d7fb2bdc0ebc60114bed9826b28a3",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36574,11 +36670,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
+      "binding_digest": "2f6e14496cd29b780e62459467bbf544",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36586,11 +36682,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
+      "binding_digest": "3b4d7fb2bdc0ebc60114bed9826b28a3",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36598,11 +36694,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
+      "binding_digest": "2f6e14496cd29b780e62459467bbf544",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36610,11 +36706,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
+      "binding_digest": "10b72e9110c6d54710c64a5a842622ef",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36622,11 +36718,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
+      "binding_digest": "31329aae3c10bc60dcd55673aae24020",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36634,11 +36730,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "f57a02c89b6152faf6e0a9122497d69a",
+      "binding_digest": "6bac735983df5c0921223712adaf75b0",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36646,11 +36742,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "cff4d7549a9061b3055055d03bb48a0b",
+      "binding_digest": "52a18e11d08b33a725c2719ec94f513d",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36670,11 +36766,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "45dd66bc86344ef4be977751606bba11",
+      "binding_digest": "496d0559a918990df9aa284169c21fdb",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36682,11 +36778,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "eb4ce2064b73b766ecc46836d51e3ce8",
+      "binding_digest": "db74adebb0cd1fabe353d3b13701b31e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36742,11 +36838,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "105e448536f34a6c7211c8ca4b6ea004",
+      "binding_digest": "d791c503389fa201c0367c042e904680",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36754,11 +36850,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "b7a887b25d7ee65d0a68cb4c56f17cc9",
+      "binding_digest": "1754536d8e35ba42321be09417b907dd",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36766,11 +36862,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchTenant",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "c65d7789a3d0f4b73671ff270f2dccaa",
+      "binding_digest": "22886cca266a66a2d02f41e73bb78bca",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36778,11 +36874,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchTenant",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "00e1fa4acd33a914d890e47c05dc65eb",
+      "binding_digest": "00c144be806a2693fa71d9ac6d11182b",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36790,11 +36886,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
+      "binding_digest": "3b4d7fb2bdc0ebc60114bed9826b28a3",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36802,11 +36898,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
+      "binding_digest": "2f6e14496cd29b780e62459467bbf544",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36814,11 +36910,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
+      "binding_digest": "3b4d7fb2bdc0ebc60114bed9826b28a3",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36826,11 +36922,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
+      "binding_digest": "2f6e14496cd29b780e62459467bbf544",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36986,11 +37082,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
+      "binding_digest": "10b72e9110c6d54710c64a5a842622ef",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36998,11 +37094,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
+      "binding_digest": "31329aae3c10bc60dcd55673aae24020",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37010,11 +37106,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
+      "binding_digest": "10b72e9110c6d54710c64a5a842622ef",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37022,11 +37118,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
+      "binding_digest": "31329aae3c10bc60dcd55673aae24020",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37034,11 +37130,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.AcceptTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "2d1c08d900e38f3e72d9cbe6af08e254",
+      "binding_digest": "90ba51d48f9239a40d68425ae69e36dc",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the shared session mint it reaches now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the shared session mint it reaches now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37046,11 +37142,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.AcceptTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "ecc9480638384b42530359d96486c090",
+      "binding_digest": "ff58ae2ce8812c8830cd3a7bb31f58d8",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37130,11 +37226,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "105e448536f34a6c7211c8ca4b6ea004",
+      "binding_digest": "d791c503389fa201c0367c042e904680",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37142,11 +37238,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "b7a887b25d7ee65d0a68cb4c56f17cc9",
+      "binding_digest": "1754536d8e35ba42321be09417b907dd",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37482,11 +37578,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
+      "binding_digest": "10b72e9110c6d54710c64a5a842622ef",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37494,11 +37590,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
+      "binding_digest": "31329aae3c10bc60dcd55673aae24020",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37578,11 +37674,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
+      "binding_digest": "3b4d7fb2bdc0ebc60114bed9826b28a3",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37590,11 +37686,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
+      "binding_digest": "2f6e14496cd29b780e62459467bbf544",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37602,11 +37698,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
+      "binding_digest": "3b4d7fb2bdc0ebc60114bed9826b28a3",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37614,11 +37710,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
+      "binding_digest": "2f6e14496cd29b780e62459467bbf544",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37626,11 +37722,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
+      "binding_digest": "10b72e9110c6d54710c64a5a842622ef",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37638,11 +37734,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
+      "binding_digest": "31329aae3c10bc60dcd55673aae24020",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37650,11 +37746,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "f57a02c89b6152faf6e0a9122497d69a",
+      "binding_digest": "6bac735983df5c0921223712adaf75b0",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37662,11 +37758,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "cff4d7549a9061b3055055d03bb48a0b",
+      "binding_digest": "52a18e11d08b33a725c2719ec94f513d",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37674,11 +37770,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "45dd66bc86344ef4be977751606bba11",
+      "binding_digest": "496d0559a918990df9aa284169c21fdb",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37686,11 +37782,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "eb4ce2064b73b766ecc46836d51e3ce8",
+      "binding_digest": "db74adebb0cd1fabe353d3b13701b31e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37698,11 +37794,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "105e448536f34a6c7211c8ca4b6ea004",
+      "binding_digest": "d791c503389fa201c0367c042e904680",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37710,11 +37806,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "b7a887b25d7ee65d0a68cb4c56f17cc9",
+      "binding_digest": "1754536d8e35ba42321be09417b907dd",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37722,11 +37818,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "c65d7789a3d0f4b73671ff270f2dccaa",
+      "binding_digest": "22886cca266a66a2d02f41e73bb78bca",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37734,11 +37830,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "00e1fa4acd33a914d890e47c05dc65eb",
+      "binding_digest": "00c144be806a2693fa71d9ac6d11182b",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39128,10 +39224,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutDuration",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "c6b4328c5f69e98d2aadee29bb4bbf5c",
+      "binding_digest": "cec71d2bd02364665a69aff5a4fe86a4",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39139,10 +39235,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutDuration",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "b02bfa0aadff7e0f97db6169f5bef68d",
+      "binding_digest": "d2e9efa9cb7892b3bc08e1b00ae5fd43",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39150,10 +39246,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutDuration",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "06d5fa97018e67d48f5152a8723fc2f4",
+      "binding_digest": "e59ed7e635a2bf36b8095e793516136c",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39161,10 +39257,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutDuration",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "af2af1e40475ebbb4977bfd0849a7125",
+      "binding_digest": "f637083f75d10494e9ed37adef64656b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39172,10 +39268,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutThreshold",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "c2bc5b96f5db655f0b97055f5e06e371",
+      "binding_digest": "b1f36b6ec9df2315d13c3d653986a290",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39183,10 +39279,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutThreshold",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "42040631b68403164c4b9b1a2c0829d4",
+      "binding_digest": "a64413979bacb85ae1fff37daca02a55",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39194,10 +39290,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutThreshold",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "ebf2ce410c71063b2fed5b319abfad19",
+      "binding_digest": "f383b42cdfe84b59ad1f1dca4c405aa8",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39205,10 +39301,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutThreshold",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "5db571a6f37805d34c7d7bb4b4bfa89c",
+      "binding_digest": "e98d4b205b8cdb5ae4b8011ed9aab70d",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39304,10 +39400,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceDays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "cc2dc4fe77000d2bc094ec5f9495ba0b",
+      "binding_digest": "ba17593e67b9f6e7de1b63faccead528",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39315,10 +39411,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceDays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "53b1eac54c76e08757273520d9c551fc",
+      "binding_digest": "278599ec5b97b890276390804eab4097",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39326,10 +39422,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceDays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "9c0e90a6ca7057e657bb4b485f085f23",
+      "binding_digest": "5ed35058a14ac946f67028207675a010",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39337,10 +39433,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceDays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "54abc74a753f8257f29d6351a28b0734",
+      "binding_digest": "ddd86d0ef5dfb6b1b196e2f42945d59f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through modules/identityaccess/ports.MFASettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39348,10 +39444,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "b538142b4b62d200d8799da54fc7876f",
+      "binding_digest": "8cecb66c1f31166344ed01b742758e52",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx through modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098)."
+      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx through modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39359,10 +39455,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "885372f08f97b4de7394d524cdfa717e",
+      "binding_digest": "509d65e852d300e7389b564478183587",
       "effect": "query",
       "classification": "query",
-      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.BatchSettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.BatchSettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39370,10 +39466,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "7698ead0bd23f1417dbba942cf8d3de1",
+      "binding_digest": "0cf0f40f299d4afec60b014dad847398",
       "effect": "query",
       "classification": "query",
-      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.BatchSettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.BatchSettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39381,10 +39477,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "fbf1bd7d29446a186a869d64de9fa617",
+      "binding_digest": "9a15930e750dc7a08d4ae87cf24c8eba",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.SettingsService.ResolveBoolForTenantInTx through modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098)."
+      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.SettingsService.ResolveBoolForTenantInTx through modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39392,10 +39488,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBoolForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "f92e611cca2fca760d5ed92b43791c56",
+      "binding_digest": "e21c1457f8511112dccca6569d25589f",
       "effect": "query",
       "classification": "query",
-      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.SettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.SettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -39403,10 +39499,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "d6e1386d3b5ee6b8e2ec54fe0e9e64b9",
+      "binding_digest": "496fec619a5b9386091106abf4352370",
       "effect": "query",
       "classification": "query",
-      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.SettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.SettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -40354,6 +40450,30 @@
     },
     {
       "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.CatererMFAResetNotice.NotifyCatererMFAReset",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.NotifyCatererMFAReset",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform",
+      "binding_digest": "88069df35ca9ccbb6f5da87fbd9e812e",
+      "effect": "durable",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.MFAMailer.NotifyCatererMFAReset. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the operator's reset of a caterer's second factor enqueues its notice as a global identity mail in the reset's administrative transaction, with its operator audit."
+    },
+    {
+      "source_owner": "identity-access",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.CatererMFAResetNotice.NotifyCatererMFAReset",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.MFAMailer.NotifyCatererMFAReset",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
+      "target_owner": "delivery-platform",
+      "binding_digest": "7ab8c4535633add50a7851fc9980a3f3",
+      "effect": "durable",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/runtime.Capability.EnqueueSystemEmail (delivery-platform) through roots/owners.MFAMailer.NotifyCatererMFAReset. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the operator's reset of a caterer's second factor enqueues its notice as a global identity mail in the reset's administrative transaction, with its operator audit."
+    },
+    {
+      "source_owner": "identity-access",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.DemoSchools.DemoSchoolEntry",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.demoSchoolDirectory.DemoSchoolEntry",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.DemoSchoolAccess.DemoSchoolEntry",
@@ -41123,10 +41243,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.LockoutDuration",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "c6b4328c5f69e98d2aadee29bb4bbf5c",
+      "binding_digest": "cec71d2bd02364665a69aff5a4fe86a4",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41134,10 +41254,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.LockoutDuration",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "b02bfa0aadff7e0f97db6169f5bef68d",
+      "binding_digest": "d2e9efa9cb7892b3bc08e1b00ae5fd43",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41145,10 +41265,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.LockoutDuration",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "06d5fa97018e67d48f5152a8723fc2f4",
+      "binding_digest": "e59ed7e635a2bf36b8095e793516136c",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41156,10 +41276,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.LockoutDuration",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "af2af1e40475ebbb4977bfd0849a7125",
+      "binding_digest": "f637083f75d10494e9ed37adef64656b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.LockoutDuration. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41167,10 +41287,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.LockoutThreshold",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "c2bc5b96f5db655f0b97055f5e06e371",
+      "binding_digest": "b1f36b6ec9df2315d13c3d653986a290",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41178,10 +41298,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.LockoutThreshold",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "42040631b68403164c4b9b1a2c0829d4",
+      "binding_digest": "a64413979bacb85ae1fff37daca02a55",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41189,10 +41309,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.LockoutThreshold",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "ebf2ce410c71063b2fed5b319abfad19",
+      "binding_digest": "f383b42cdfe84b59ad1f1dca4c405aa8",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41200,10 +41320,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.LockoutThreshold",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "5db571a6f37805d34c7d7bb4b4bfa89c",
+      "binding_digest": "e98d4b205b8cdb5ae4b8011ed9aab70d",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.LockoutThreshold. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41299,10 +41419,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceDays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "cc2dc4fe77000d2bc094ec5f9495ba0b",
+      "binding_digest": "ba17593e67b9f6e7de1b63faccead528",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41310,10 +41430,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceDays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "53b1eac54c76e08757273520d9c551fc",
+      "binding_digest": "278599ec5b97b890276390804eab4097",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41321,10 +41441,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceDays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveIntForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "9c0e90a6ca7057e657bb4b485f085f23",
+      "binding_digest": "5ed35058a14ac946f67028207675a010",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveIntForTenant (settings-platform) through roots/owners.mfaSettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41332,10 +41452,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceDays",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
       "target_owner": "settings-platform",
-      "binding_digest": "54abc74a753f8257f29d6351a28b0734",
+      "binding_digest": "ddd86d0ef5dfb6b1b196e2f42945d59f",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through roots/owners.mfaSettings.TrustedDeviceDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41343,10 +41463,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "b538142b4b62d200d8799da54fc7876f",
+      "binding_digest": "8cecb66c1f31166344ed01b742758e52",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx through roots/owners.mfaSettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098)."
+      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx through roots/owners.mfaSettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41354,10 +41474,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "885372f08f97b4de7394d524cdfa717e",
+      "binding_digest": "509d65e852d300e7389b564478183587",
       "effect": "query",
       "classification": "query",
-      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.BatchSettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.BatchSettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41365,10 +41485,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "7698ead0bd23f1417dbba942cf8d3de1",
+      "binding_digest": "0cf0f40f299d4afec60b014dad847398",
       "effect": "query",
       "classification": "query",
-      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.BatchSettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.BatchSettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41376,10 +41496,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "fbf1bd7d29446a186a869d64de9fa617",
+      "binding_digest": "9a15930e750dc7a08d4ae87cf24c8eba",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.SettingsService.ResolveBoolForTenantInTx through roots/owners.mfaSettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098)."
+      "reason": "Reviewed trusted-device setting read: identity-access reaches modules/settings/records.SettingsService.ResolveBoolForTenantInTx through roots/owners.mfaSettings.TrustedDeviceEnabled. roots/owners.mfaSettings.TrustedDeviceEnabled uses this resolver when a transaction is already present; the resolver requires that ambient transaction and reads FindByTenantAndKeys plus a registry snapshot, without a write, lock or new scope (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41387,10 +41507,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBoolForTenant",
       "target_owner": "settings-platform",
-      "binding_digest": "f92e611cca2fca760d5ed92b43791c56",
+      "binding_digest": "e21c1457f8511112dccca6569d25589f",
       "effect": "query",
       "classification": "query",
-      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.SettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For positive tenant IDs without an ambient transaction, roots/owners.mfaSettings.TrustedDeviceEnabled retains its per-school effective-value read through modules/settings/records.SettingsService.ResolveBoolForTenant. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -41398,10 +41518,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.mfaSettings.TrustedDeviceEnabled",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "d6e1386d3b5ee6b8e2ec54fe0e9e64b9",
+      "binding_digest": "496fec619a5b9386091106abf4352370",
       "effect": "query",
       "classification": "query",
-      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.SettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098)."
+      "reason": "Re-reviewed binding after the transaction-aware MFA setting change: For non-positive explicit tenant IDs, roots/owners.mfaSettings.TrustedDeviceEnabled retains its context/default effective-value read through modules/settings/records.SettingsService.ResolveBool. The added positive-tenant in-transaction branch uses ResolveBoolForTenantInTx instead. This existing settings-platform target remains a value query; no lock/write approval is added (ADR 0098). Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged."
     },
     {
       "source_owner": "identity-access",

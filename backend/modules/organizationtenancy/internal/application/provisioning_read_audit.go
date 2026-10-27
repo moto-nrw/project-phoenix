@@ -32,7 +32,7 @@ func (p *Provisioning) RecordOperatorRead(ctx context.Context, access organizati
 	case organizationtenancy.ReadAllAccounts, organizationtenancy.ReadSchoolAccounts,
 		organizationtenancy.ReadOrganizationAccounts, organizationtenancy.ReadSchoolAccountCaregiver,
 		organizationtenancy.ReadSchoolAccountMFA, organizationtenancy.ReadAccountMFA, organizationtenancy.ReadAccountTenants,
-		organizationtenancy.ReadSchoolAccountCreation:
+		organizationtenancy.ReadSchoolAccountCreation, organizationtenancy.ReadCaterers:
 	default:
 		return invalidData("unknown operator read view")
 	}

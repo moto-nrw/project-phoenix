@@ -299,6 +299,8 @@ var queryBudgets = map[string]queryBudget{
 	// including one bulk school-directory read to exclude deleted schools.
 	"modules.identityaccess.caterer_invitations.reads": {max: 1, exact: true},
 	"modules.identityaccess.caterer_schools.reads":     {max: 3, exact: true},
+	// #4497: the operator's list of caterer accounts and their second factor.
+	"modules.identityaccess.caterers.operator_list": {max: 1, exact: true},
 	// ADR 0077: the caterer's delivery list of a week over three schools
 	// through the production router. Each school runs in its own
 	// transaction with the supply check and the order read of

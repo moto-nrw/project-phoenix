@@ -14,8 +14,13 @@
     </div>
 
     <p class="security-note"><strong>Waren Sie das nicht?</strong></p>
+    {{if .Caterer}}
+    <p>Wenn Sie dieses Gerät nicht erkennen, ändern Sie umgehend Ihr Passwort und entfernen Sie das Gerät anschließend im Caterer-Portal unter <em>„Konto → Gemerkte Geräte"</em>.</p>
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Sollten Sie keinen Zugriff mehr auf Ihr Konto haben, wenden Sie sich an das moto-Team — es kann Ihre Zwei-Faktor-Anmeldung zurücksetzen.</p>
+    {{else}}
     <p>Wenn Sie dieses Gerät nicht erkennen, ändern Sie umgehend Ihr Passwort und entfernen Sie das Gerät anschließend unter <em>„Mein Profil → Meine vertrauten Geräte"</em>.</p>
     <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Sollten Sie keinen Zugriff mehr auf Ihr Konto haben, wenden Sie sich an die Administration Ihrer Schule — diese kann das Gerät entfernen und Ihre Zwei-Faktor-Authentifizierung zurücksetzen.</p>
+    {{end}}
 </div>
 
 {{template "footer" .}}

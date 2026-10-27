@@ -41,6 +41,9 @@ type operatorIdentity struct {
 	// reuses it to read and write the MFA state of school staff accounts;
 	// mfa is the operator's own MFA service (operator login flow).
 	accountMFA identityOperatorAPI.AccountMFA
+	// caterers is the reset of a caterer's second factor (#4497). Without
+	// it the caterer routes are not mounted.
+	caterers identityOperatorAPI.CatererMFA
 }
 
 // operatorIdentityRoutes are the Identity & Access route resources the
@@ -53,10 +56,16 @@ type operatorIdentityRoutes struct {
 	mfaAdmin    *identityOperatorAPI.SchoolAccountMFAResource
 	profile     *identityOperatorAPI.ProfileResource
 	invitations *identityOperatorAPI.InvitationsResource
+	caterers    *identityOperatorAPI.CatererMFAResource
 }
 
 func (in operatorIdentity) routes() operatorIdentityRoutes {
+	var caterers *identityOperatorAPI.CatererMFAResource
+	if in.caterers != nil {
+		caterers = &identityOperatorAPI.CatererMFAResource{Caterers: in.caterers}
+	}
 	return operatorIdentityRoutes{
+		caterers:    caterers,
 		sessions:    in.sessions,
 		account:     in.account,
 		passkeys:    identityOperatorAPI.NewPasskeyResource(in.passkeys),
@@ -131,6 +140,7 @@ func operatorRouter(
 		r.Mount("/staff-person-merges", staffPersonMerge)
 		mountOperatorTagScanRoutes(r, unregisteredTagScans, provisioningRoutes)
 		identityRoutes.mountAccountMFARoutes(r, provisioningRoutes)
+		identityRoutes.mountCatererMFARoutes(r, provisioningRoutes)
 		identityRoutes.mountAccountTenantAccessRoutes(r, provisioningRoutes)
 		identityRoutes.mountProfileRoutes(r)
 		identityRoutes.mountTrustedDeviceRoutes(r)
@@ -374,6 +384,17 @@ func (rs operatorIdentityRoutes) mountAccountMFARoutes(r chi.Router, provisionin
 		r.Get("/global-override", provisioning.AuditReadAccess(organizationtenancy.ReadAccountMFA, rs.mfaAdmin.GetAccountMFAGlobalOverride))
 		r.Put("/global-override", rs.mfaAdmin.SetAccountMFAGlobalOverride)
 	})
+}
+
+// mountCatererMFARoutes registers the operator's reset of a caterer's
+// second factor (#4497). A caterer belongs to no school, so the routes are
+// keyed by the caterer.
+func (rs operatorIdentityRoutes) mountCatererMFARoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource) {
+	if rs.caterers == nil {
+		return
+	}
+	r.Get("/caterers", provisioning.AuditReadAccess(organizationtenancy.ReadCaterers, rs.caterers.ListCaterers))
+	r.Delete("/caterers/{id}/mfa", rs.caterers.ResetCatererMFA)
 }
 
 // mountAccountTenantAccessRoutes registers cross-school access management for a

@@ -32,6 +32,9 @@ const (
 	ReadSchoolSettingReveal          OperatorReadView = "school_setting_reveal"
 	ReadUnregisteredTagScans         OperatorReadView = "unregistered_tag_scans"
 	ReadTraegerMembers               OperatorReadView = "traeger_members"
+	// ReadCaterers is the operator's list of caterer accounts and their
+	// second factor (#4497).
+	ReadCaterers OperatorReadView = "caterers"
 )
 
 // OperatorReadAccess records an attempted disclosure, before reading its data.

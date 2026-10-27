@@ -27,11 +27,13 @@ type AccountMFAFlows struct {
 	codec    ports.MFAChallengeCodec
 	codes    ports.ShortCodeHasher
 	mail     ports.MFAMail
-	audit    ports.MFAAuditTrail
-	runtime  ports.Runtime
-	secret   []byte
-	logger   *slog.Logger
-	now      func() time.Time
+	// resetNotice mails the caterer the operator's reset (#4497).
+	resetNotice ports.CatererMFAResetNotice
+	audit       ports.MFAAuditTrail
+	runtime     ports.Runtime
+	secret      []byte
+	logger      *slog.Logger
+	now         func() time.Time
 }
 
 // AccountMFAFlowDependencies are the ports the account MFA flows consume.
@@ -41,8 +43,11 @@ type AccountMFAFlowDependencies struct {
 	Codec    ports.MFAChallengeCodec
 	Codes    ports.ShortCodeHasher
 	Mail     ports.MFAMail
-	Audit    ports.MFAAuditTrail
-	Runtime  ports.Runtime
+	// ResetNotice mails the caterer the operator's reset (#4497); nil
+	// leaves that reset unavailable.
+	ResetNotice ports.CatererMFAResetNotice
+	Audit       ports.MFAAuditTrail
+	Runtime     ports.Runtime
 	// Secret is the trusted-device HMAC key derived from the JWT secret.
 	Secret []byte
 	Logger *slog.Logger
@@ -61,7 +66,7 @@ func NewAccountMFAFlows(deps AccountMFAFlowDependencies) (*AccountMFAFlows, erro
 	}
 	return &AccountMFAFlows{
 		records: deps.Records, settings: deps.Settings, codec: deps.Codec, codes: deps.Codes,
-		mail: deps.Mail, audit: deps.Audit, runtime: deps.Runtime, secret: deps.Secret,
+		mail: deps.Mail, resetNotice: deps.ResetNotice, audit: deps.Audit, runtime: deps.Runtime, secret: deps.Secret,
 		logger: logger.With("component", "account-mfa"), now: time.Now,
 	}, nil
 }
@@ -192,7 +197,7 @@ func (f *AccountMFAFlows) HasEnrollment(ctx context.Context, accountID int64) (b
 // the transport accepted the message, so a failed send leaves no redeemable
 // code behind.
 func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
-	if scope != domain.MFAChallengeScopeTenant && scope != domain.MFAChallengeScopeSchool && scope != domain.MFAChallengeScopeOrg {
+	if !domain.AccountMFAChallengeScope(scope) {
 		return "", identityaccess.ErrMFAUnsupportedScope
 	}
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
@@ -475,7 +480,7 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 			AccountID: accountID, TenantID: tenantID, Type: domain.AuthEventMFATrustedDeviceAdded,
 			Success: true, IPAddress: domain.MFAAuditIP(ip), MFA: &domain.MFAEvidence{DeviceID: stored.ID},
 		})
-		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored.ID, userAgent, ip, days)
+		return f.notifyTrustedDeviceAdded(txCtx, accountID, stored.ID, userAgent, ip, days, tenantID == 0)
 	})
 	if err != nil {
 		return "", time.Time{}, err
@@ -536,7 +541,9 @@ func (f *AccountMFAFlows) trustedDeviceHint(ctx context.Context, tenantID int64)
 	return days > 0, days
 }
 
-func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID, deviceID int64, userAgent string, ip net.IP, days int) error {
+// notifyTrustedDeviceAdded mails the holder. A device without a school is
+// the caterer portal's (#4497), whose holder manages it in its account.
+func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountID, deviceID int64, userAgent string, ip net.IP, days int, caterer bool) error {
 	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
 	if err != nil || !found || account.Email == "" {
 		f.logger.Warn("could not load account for trusted-device-added mail",
@@ -547,7 +554,7 @@ func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountI
 	return f.mail.NotifyTrustedDeviceAdded(ctx, domain.TrustedDeviceMail{
 		Recipient: account.Email, ReferenceID: accountID,
 		DeviceLabel: domain.ShortenUserAgent(userAgent), RequestIP: domain.AuditIPString(ip),
-		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days,
+		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: days, Caterer: caterer,
 	}, deviceID)
 }
 
@@ -569,7 +576,7 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 		event.TenantID = f.runtime.TenantID(ctx)
 	}
 	if event.TenantID == 0 && withoutSchoolLedger(ctx) {
-		f.logger.Info("Träger mfa event without a school ledger",
+		f.logger.Info("mfa event without a school ledger",
 			slog.String("event_type", event.Type),
 			slog.Int64("account_id", event.AccountID))
 		return
@@ -602,15 +609,21 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 	}
 }
 
-// schoolLedgerKey marks a Träger-Portal challenge. The authentication ledger
-// is school-scoped and a Träger session names no school (ADR 0084), so its
+// schoolLedgerKey marks a challenge of a portal without a school. The
+// authentication ledger is school-scoped, and neither a Träger session (ADR
+// 0084) nor the caterer's second factor (#4497) names a school, so their
 // events are logged like the Träger sign-in itself.
 type schoolLedgerKey struct{}
 
 func traegerMFAContext(ctx context.Context, scope string) context.Context {
-	if scope != domain.MFAChallengeScopeOrg {
+	if scope != domain.MFAChallengeScopeOrg && scope != domain.MFAChallengeScopeCaterer {
 		return ctx
 	}
+	return withoutSchoolLedgerContext(ctx)
+}
+
+// withoutSchoolLedgerContext marks a flow of a portal without a school.
+func withoutSchoolLedgerContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, schoolLedgerKey{}, true)
 }
 
@@ -641,7 +654,9 @@ func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.Acc
 }
 
 func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challenge domain.AccountMFAChallenge) error {
-	return f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
+	// A challenge of a portal without a school logs its event without a
+	// school ledger.
+	return f.runtime.WithAdminTx(traegerMFAContext(f.runtime.Detach(ctx), challenge.Scope), func(txCtx context.Context) error {
 		if err := f.records.ActivateChallenge(txCtx, challenge.ID); err != nil {
 			return err
 		}

@@ -11,6 +11,10 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /traeger/invitations/{token}
 	POST /api/enrollment/{tenantSlug}/uploads
 	POST /caterer/auth/login
+	POST /caterer/auth/mfa/resend
+	POST /caterer/auth/mfa/verify
+	POST /caterer/auth/passkeys/login/options
+	POST /caterer/auth/passkeys/login/verify
 	POST /caterer/auth/password-reset
 	POST /caterer/auth/password-reset/confirm
 	POST /caterer/invitations/{schoolId}/{token}/accept
@@ -22,8 +26,10 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /traeger/invitations/{token}/accept
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/jwtauth/v5.Verify# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > modules/identityaccess/inbound/operator.RequiresOperatorScope > api.SecurityPrincipalMiddleware > modules/identityaccess/inbound/operator.RequiresActiveOperator#
+	DELETE /operator/caterers/{id}/mfa
 	DELETE /operator/organizations/{id}/erasure-order
 	DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa
+	GET /operator/caterers
 	GET /operator/organizations/{id}/erasure-order
 	GET /operator/organizations/{id}/traeger-members
 	POST /operator/organizations/test-traeger
@@ -197,10 +203,21 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	PUT /traeger/number-ranges/{service}
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > modules/identityaccess/sessiontoken.CatererMiddleware.# > api.SecurityPrincipalMiddleware
+	DELETE /caterer/auth/mfa/trusted-devices/{deviceId}
+	DELETE /caterer/auth/passkeys/{passkeyId}
+	GET /caterer/account/mfa
+	GET /caterer/auth/mfa/trusted-devices
+	GET /caterer/auth/passkeys
 	GET /caterer/orders/export
 	GET /caterer/schools
 	GET /caterer/schools/{schoolId}/orders
+	POST /caterer/account/mfa/confirm
+	POST /caterer/account/mfa/disable
+	POST /caterer/account/mfa/start
 	POST /caterer/account/password
+	POST /caterer/auth/passkeys/enrollment/challenge
+	POST /caterer/auth/passkeys/register/options
+	POST /caterer/auth/passkeys/register/verify
 	POST /caterer/schools/{schoolId}/orders/{orderId}/confirm
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.MFAEnrollmentAuthenticator

@@ -15,6 +15,7 @@ The project-specific security reference. The load-bearing rules live where they 
 |---|---|
 | Tenant isolation: RLS + `phoenix_tenant` role per request; a forgotten `WHERE tenant_id = ?` is a cross-tenant data leak — queries belong in repositories | `docs/agents/contracts.md` Tenant boundary + `.claude/rules/backend-conventions.md` Rule 11 (CI-ratcheted) |
 | Portal session isolation: per-portal cookies + JWT `scope` claim; middleware rejects out-of-scope tokens | `docs/agents/contracts.md` Portal session isolation |
+| Second factor per portal: a challenge carries its portal scope and is redeemable only there; the caterer's factor is voluntary, bound to its account and never to a school's `mfa_mode`, reset only by a moto operator | `docs/agents/contracts.md` Login, refresh, and MFA + ADR 0077 addendum (#4497) |
 | Device auth: API key + staff PIN; IoT error codes are a PyrePortal contract | `docs/agents/contracts.md` Ecosystem and IoT |
 | GDPR logging: no student names at Info level; retention via `gdpr.*` settings; deletions audited | `backend/CLAUDE.md` GDPR/Privacy Patterns |
 | Secrets: never in source; SOPS for deployed envs; gitleaks/lefthook/CI guards | `.claude/rules/security/hardcoded-credentials.md` + `docs/agents/operations.md` Environment Management (SOPS) |
