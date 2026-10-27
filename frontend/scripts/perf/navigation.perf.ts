@@ -658,27 +658,29 @@ test("measure revisit", async ({ browser }) => {
 
   // Je Rolle einmal anmelden; der Hinweis zu Benachrichtigungen legt sich
   // sonst über die Seitenleiste und merkt sich das Schließen im localStorage.
-  const states = new Map<PerfRole, string>();
+  const states = new Map<PerfRole, { storageState: string; baseUrl: string }>();
   for (const role of new Set(targets.map((target) => target.role))) {
     const roleAccess = loadRoleAccess(role);
+    const baseUrl = tenantBaseUrl(roleAccess);
     const state = join(OUT_DIR, `storage-state-revisit-${role}.json`);
     const setup = await browser.newContext();
     const setupPage = await setup.newPage();
     await login(setupPage, roleAccess);
-    await gotoTolerant(setupPage, `${base}/home`);
+    await gotoTolerant(setupPage, `${baseUrl}/home`);
     const dismiss = setupPage.getByRole("button", { name: "Verstanden" });
     await dismiss.waitFor({ timeout: 10_000 }).catch(() => undefined);
     if (await dismiss.isVisible()) await dismiss.click();
     await setup.storageState({ path: state });
     await setup.close();
-    states.set(role, state);
+    states.set(role, { storageState: state, baseUrl });
   }
 
   const results: RevisitResult[] = [];
   for (let repeat = 0; repeat < REPEATS; repeat += 1) {
     for (const target of targets) {
+      const roleState = states.get(target.role)!;
       const context = await browser.newContext({
-        storageState: states.get(target.role),
+        storageState: roleState.storageState,
         serviceWorkers: "block",
       });
       const page = await context.newPage();
@@ -690,7 +692,7 @@ test("measure revisit", async ({ browser }) => {
       });
       const recorder = new RequestRecorder(page);
       try {
-        await gotoTolerant(page, `${base}${target.via.path}`);
+        await gotoTolerant(page, `${roleState.baseUrl}${target.via.path}`);
         await expect(target.via.ready(page)).toBeVisible({ timeout: 30_000 });
         recorder.start();
         await recorder.waitForQuiet(INTENT_SETTLE);
