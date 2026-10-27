@@ -242,9 +242,10 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolsetup/compose":      56,
 	"modules/schoolstructure/compose":  593,
 	// Raised by ADR 0107: the Träger settings store, runtime and service.
-	"modules/settings/compose":                        322,
-	"modules/studentdirectoryview/compose":            9,
-	"modules/studentpresence/compose":                 250, // Raised by ADR 0125: the dev-tools presence history constructor (+7).
+	"modules/settings/compose":             322,
+	"modules/studentdirectoryview/compose": 9,
+	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
+	"modules/studentpresence/compose":                 250,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
 	"modules/timetable/compose":                       1142,

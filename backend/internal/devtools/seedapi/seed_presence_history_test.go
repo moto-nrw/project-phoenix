@@ -1,6 +1,9 @@
 package api
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -155,4 +158,79 @@ func TestPresenceHistoryPlanStopsAtTheEndOfCare(t *testing.T) {
 			assert.False(t, day.After(lastDay), day)
 		}
 	}
+}
+
+func TestPresenceHistoryStatusDaysRollBackWhenHistoryWriteFails(t *testing.T) {
+	t.Parallel()
+
+	var deleted []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case seedHTTPMethodPost + " /api/students/7/status-days":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":101,"date":"2026-10-01","status":"sick"},{"id":102,"date":"2026-10-02","status":"sick"}]}`)
+		case seedHTTPMethodPost + " /api/students/8/status-days":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":201,"date":"2026-10-03","status":"excused"}]}`)
+		case seedHTTPMethodDelete + " /api/students/7/status-days/101", seedHTTPMethodDelete + " /api/students/7/status-days/102", seedHTTPMethodDelete + " /api/students/8/status-days/201":
+			deleted = append(deleted, r.URL.Path)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"deleted":true}}`)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(seedHTTPStatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	rt := &Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Kind: AuthBearer, Token: "tenant"}}
+	statuses := []presenceHistoryStatus{
+		{studentID: 7, status: "sick", dates: []calendar.Date{calendar.NewDate(2026, time.October, 1), calendar.NewDate(2026, time.October, 2)}},
+		{studentID: 8, status: "excused", dates: []calendar.Date{calendar.NewDate(2026, time.October, 3)}},
+	}
+
+	historyErr := errors.New("presence writer unavailable")
+	err := seedPresenceHistoryPlan(context.Background(), rt, 1, func(context.Context, int64, []PastPresenceDay) (int, error) {
+		return 0, historyErr
+	}, presenceHistoryPlan{statuses: statuses})
+	require.ErrorIs(t, err, historyErr)
+	assert.Equal(t, []string{
+		"/api/students/7/status-days/101",
+		"/api/students/7/status-days/102",
+		"/api/students/8/status-days/201",
+	}, deleted)
+}
+
+func TestPresenceHistoryStatusDaysRollBackEarlierWritesWhenLaterReportFails(t *testing.T) {
+	t.Parallel()
+
+	var deleted []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case seedHTTPMethodPost + " /api/students/7/status-days":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":101,"date":"2026-10-01","status":"sick"}]}`)
+		case seedHTTPMethodPost + " /api/students/8/status-days":
+			w.WriteHeader(seedHTTPStatusInternalServerError)
+			_, _ = fmt.Fprint(w, `{"status":"error","message":"injected failure"}`)
+		case seedHTTPMethodDelete + " /api/students/7/status-days/101":
+			deleted = append(deleted, r.URL.Path)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"deleted":true}}`)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(seedHTTPStatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	rt := &Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Kind: AuthBearer, Token: "tenant"}}
+	writeCalled := false
+	err := seedPresenceHistoryPlan(context.Background(), rt, 1, func(context.Context, int64, []PastPresenceDay) (int, error) {
+		writeCalled = true
+		return 0, nil
+	}, presenceHistoryPlan{statuses: []presenceHistoryStatus{
+		{studentID: 7, status: "sick", dates: []calendar.Date{calendar.NewDate(2026, time.October, 1)}},
+		{studentID: 8, status: "excused", dates: []calendar.Date{calendar.NewDate(2026, time.October, 2)}},
+	}})
+	require.ErrorContains(t, err, "seed past excused days")
+	assert.False(t, writeCalled)
+	assert.Equal(t, []string{"/api/students/7/status-days/101"}, deleted)
 }

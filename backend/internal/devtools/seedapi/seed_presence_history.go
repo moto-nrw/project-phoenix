@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"sort"
@@ -45,6 +46,12 @@ type presenceHistoryStatus struct {
 	studentID int64
 	status    string
 	dates     []calendar.Date
+}
+
+// presenceHistoryStatusDay is a status day the history step created and may
+// therefore clear again when the remaining history cannot be recorded.
+type presenceHistoryStatusDay struct {
+	studentID, id int64
 }
 
 // presenceHistoryPlan is the deterministic past of the school: who came on
@@ -99,28 +106,101 @@ func (s seedPresenceHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 		return err
 	}
 	plan := planPresenceHistory(input)
-	// The absences first: a status day refuses nothing the attendance holds,
-	// but a failed report should not leave a past without its absences.
+	return seedPresenceHistoryPlan(ctx, rt, rt.Bootstrap.SchoolID, write, plan)
+}
+
+// seedPresenceHistoryPlan writes the two independently committed parts of a
+// history seed. Status days use the normal HTTP write path, while attendance
+// needs the dev-tools-only writer. Keep the IDs from the former so either a
+// failed report or a rejected attendance batch restores a clean retry.
+func seedPresenceHistoryPlan(ctx context.Context, rt *Runtime, schoolID int64, write PresenceHistoryWriter, plan presenceHistoryPlan) error {
+	statusDays, createdStatusDays, err := seedPresenceHistoryStatusDays(rt, plan.statuses)
+	if err != nil {
+		return rollbackPresenceHistoryStatusDays(rt, createdStatusDays, err)
+	}
+	written, err := write(ctx, schoolID, plan.days)
+	if err != nil {
+		return rollbackPresenceHistoryStatusDays(rt, createdStatusDays, fmt.Errorf("seed presence history: %w", err))
+	}
+	fmt.Printf("  %d past care days attended, %d sick or excused, %d unexplained\n", written, statusDays, plan.unexplained)
+	return nil
+}
+
+// seedPresenceHistoryStatusDays writes planned absences through the public
+// route and returns exactly the rows this step created. The route reports all
+// active rows in the requested range, so select only the requested status and
+// dates before using the IDs for compensation.
+func seedPresenceHistoryStatusDays(rt *Runtime, statuses []presenceHistoryStatus) (int, []presenceHistoryStatusDay, error) {
 	rt.Client.BindAuth(rt.TenantAuth)
 	statusDays := 0
-	for _, status := range plan.statuses {
+	created := make([]presenceHistoryStatusDay, 0)
+	for _, status := range statuses {
 		dates := make([]string, 0, len(status.dates))
 		for _, date := range status.dates {
 			dates = append(dates, date.String())
 		}
-		if _, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/status-days", status.studentID), map[string]any{
+		raw, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/status-days", status.studentID), map[string]any{
 			"status": status.status, "dates": dates, "reason": "Von den Eltern gemeldet",
-		}); err != nil {
-			return fmt.Errorf("seed past %s days: %w", status.status, err)
+		})
+		if err != nil {
+			return statusDays, created, fmt.Errorf("seed past %s days: %w", status.status, err)
 		}
+		rows, err := createdPresenceHistoryStatusDays(raw, status)
+		if err != nil {
+			return statusDays, created, err
+		}
+		created = append(created, rows...)
 		statusDays += len(dates)
 	}
-	written, err := write(ctx, rt.Bootstrap.SchoolID, plan.days)
-	if err != nil {
-		return fmt.Errorf("seed presence history: %w", err)
+	return statusDays, created, nil
+}
+
+// createdPresenceHistoryStatusDays extracts the status-day IDs that the
+// single-student endpoint just created. It deliberately rejects an incomplete
+// response rather than risking a later compensation of an unrelated row.
+func createdPresenceHistoryStatusDays(raw []byte, status presenceHistoryStatus) ([]presenceHistoryStatusDay, error) {
+	var response struct {
+		Data []struct {
+			ID     int64  `json:"id"`
+			Date   string `json:"date"`
+			Status string `json:"status"`
+		} `json:"data"`
 	}
-	fmt.Printf("  %d past care days attended, %d sick or excused, %d unexplained\n", written, statusDays, plan.unexplained)
-	return nil
+	if err := parseJSON(raw, &response); err != nil {
+		return nil, fmt.Errorf("read created past %s days: %w", status.status, err)
+	}
+	wanted := make(map[string]bool, len(status.dates))
+	for _, date := range status.dates {
+		wanted[date.String()] = true
+	}
+	created := make([]presenceHistoryStatusDay, 0, len(status.dates))
+	for _, row := range response.Data {
+		if row.ID == 0 || row.Status != status.status || !wanted[row.Date] {
+			continue
+		}
+		created = append(created, presenceHistoryStatusDay{studentID: status.studentID, id: row.ID})
+		delete(wanted, row.Date)
+	}
+	if len(wanted) != 0 {
+		return nil, fmt.Errorf("read created past %s days: response missed %d status days", status.status, len(wanted))
+	}
+	return created, nil
+}
+
+// rollbackPresenceHistoryStatusDays clears only the status rows the current
+// step created. The normal delete route retains the owner guards and makes a
+// failed seed safely repeatable without deleting pre-existing absences.
+func rollbackPresenceHistoryStatusDays(rt *Runtime, created []presenceHistoryStatusDay, seedErr error) error {
+	var rollbackErrs []error
+	for _, statusDay := range created {
+		if _, err := rt.Client.Delete(fmt.Sprintf("/api/students/%d/status-days/%d", statusDay.studentID, statusDay.id)); err != nil {
+			rollbackErrs = append(rollbackErrs, fmt.Errorf("clear seeded status day %d for student %d: %w", statusDay.id, statusDay.studentID, err))
+		}
+	}
+	if len(rollbackErrs) == 0 {
+		return seedErr
+	}
+	return errors.Join(append([]error{seedErr}, rollbackErrs...)...)
 }
 
 func presenceHistoryInputFor(rt *Runtime, definition demoProfileDefinition) (presenceHistoryInput, error) {
