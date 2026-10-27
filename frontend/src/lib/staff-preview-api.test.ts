@@ -211,6 +211,8 @@ describe("performEndStaffPreview", () => {
         "/api/auth/staff-preview/end",
         expect.objectContaining({
           body: JSON.stringify({ preview_token: "preview-token" }),
+          // Bounded: a stalled audit call cannot hold the restore forever.
+          signal: expect.any(AbortSignal) as AbortSignal,
         }),
       );
       expect(update).not.toHaveBeenCalled();

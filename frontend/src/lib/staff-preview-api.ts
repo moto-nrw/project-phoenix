@@ -153,6 +153,9 @@ async function postPreviewEnd(previewToken: string): Promise<void> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ preview_token: previewToken }),
+      // The end of the preview waits for this call; a stalled request must
+      // not keep the admin in the preview.
+      signal: AbortSignal.timeout(5000),
     });
   } catch {
     // Audit only — ending the preview must never fail on this call.
