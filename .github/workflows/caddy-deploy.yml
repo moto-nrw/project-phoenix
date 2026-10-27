@@ -1,0 +1,118 @@
+name: Deploy Caddyfile
+run-name: Deploy Caddyfile ${{ github.sha }}
+
+# Rolls deploy/caddy/Caddyfile out to /etc/caddy/Caddyfile (#5098). One host
+# Caddy serves production, staging, Grafana and PyrePortal, so this runs only
+# from main, like a production release. scripts/deploy-caddy-remote.sh refuses
+# a hand-edited live file, validates before installing and restores the backup
+# when the reload or the health check fails.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'deploy/caddy/**'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  deploy:
+    name: Deploy Caddyfile to the app server
+    # Shares the production release and rollback group: no Caddy reload runs
+    # while a production deploy or rollback works on the same server. GitHub
+    # keeps one pending run per group, so a third queued run cancels the
+    # waiting one; rerun this workflow from main if that happens.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      # Full history, blobs on demand: the remote script accepts every version
+      # main ever had as the live file.
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Guard production source
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref }}
+        run: |
+          if [[ "$REF_NAME" != "refs/heads/main" ]]; then
+            echo "The Caddyfile also serves production; deploy it from refs/heads/main, got $REF_NAME"
+            exit 1
+          fi
+          if [[ "$EVENT_NAME" != "push" && "$EVENT_NAME" != "workflow_dispatch" ]]; then
+            echo "Caddyfile deploys only allow push or workflow_dispatch, got $EVENT_NAME"
+            exit 1
+          fi
+
+      - name: Check Caddyfile
+        run: node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
+
+      - name: Collect repository versions
+        run: |
+          mkdir -p /tmp/caddy
+          cp deploy/caddy/Caddyfile /tmp/caddy/Caddyfile.new
+          git show HEAD^1:deploy/caddy/Caddyfile > /tmp/caddy/Caddyfile.previous 2>/dev/null || : > /tmp/caddy/Caddyfile.previous
+          git log --first-parent --format=%H HEAD -- deploy/caddy/Caddyfile | while read -r commit; do
+            git cat-file -e "$commit:deploy/caddy/Caddyfile" 2>/dev/null || continue
+            git show "$commit:deploy/caddy/Caddyfile" | sha256sum | cut -d' ' -f1
+          done | sort -u > /tmp/caddy/known.sha256
+          wc -l < /tmp/caddy/known.sha256
+
+      - name: Deploy Caddyfile
+        id: deploy
+        env:
+          SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+          SSH_HOST: ${{ secrets.PRODUCTION_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          remote_dir=$(ssh -i ~/.ssh/deploy_key "root@$SSH_HOST" 'mktemp -d /tmp/caddy-deploy.XXXXXX')
+          scp -i ~/.ssh/deploy_key scripts/deploy-caddy-remote.sh /tmp/caddy/Caddyfile.new /tmp/caddy/Caddyfile.previous /tmp/caddy/known.sha256 "root@$SSH_HOST:$remote_dir/"
+
+          set +e
+          ssh -i ~/.ssh/deploy_key "root@$SSH_HOST" \
+            "bash $remote_dir/deploy-caddy-remote.sh $remote_dir/Caddyfile.new $remote_dir/Caddyfile.previous $remote_dir/known.sha256; code=\$?; rm -rf $remote_dir; exit \$code"
+          DEPLOY_EXIT=$?
+          set -e
+
+          echo "deploy_exit=$DEPLOY_EXIT" >> "$GITHUB_OUTPUT"
+          if [ "$DEPLOY_EXIT" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
+
+      - name: Notify Slack
+        if: always()
+        uses: ./.github/actions/notify-deploy-slack
+        with:
+          webhook_url: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          job_status: ${{ job.status }}
+          environment: production
+          app_name: Caddy
+          exit_code: ${{ steps.deploy.outputs.deploy_exit }}
+          github_token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          sha: ${{ github.sha }}

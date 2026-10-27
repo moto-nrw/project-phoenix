@@ -227,9 +227,9 @@ For env changes, read `.claude/rules/env-docker-sync.md` before editing.
 ## Caddy reverse proxy
 
 `deploy/caddy/Caddyfile` is the source of truth for `/etc/caddy/Caddyfile` on
-the app server, which serves production and staging together. No deploy
-workflow copies it; a human rolls it out. The Cloudflare DNS token stays in
-`/etc/caddy/cloudflare.env` on the server and reaches the file only as
+the app server. That one Caddy serves production, staging, Grafana and
+PyrePortal, so every rollout touches production. The Cloudflare DNS token stays
+in `/etc/caddy/cloudflare.env` on the server and reaches the file only as
 `{env.CLOUDFLARE_API_TOKEN}`. Client-IP rules: [contracts](contracts.md#client-ip-and-rate-limits).
 
 Checks: `node scripts/check-caddyfile.mjs` (CI, on every change) verifies that
@@ -238,7 +238,24 @@ each `reverse_proxy` imports `client_ip_upstream`; `--cloudflare` also compares
 `caddy-cloudflare-ranges.yml` runs that comparison weekly and opens an issue
 with the diff and the corrected line.
 
-Rollout, after the change is merged:
+Automatic rollout: `caddy-deploy.yml` runs on a push to `main` that changes
+`deploy/caddy/**`, or by `workflow_dispatch` from `main`. It uses the
+`production` environment and its SSH secrets and shares the `deploy-production`
+concurrency group with production releases and rollbacks. After
+`check-caddyfile.mjs` it runs `scripts/deploy-caddy-remote.sh` on the server:
+
+| Exit | Meaning |
+|---|---|
+| 0 | Deployed, or the live file already matched |
+| 1 | Aborted before the live file changed: a live file matching no version `main` ever had (a hand edit, printed as a diff), or `caddy validate` rejected the file |
+| 10 | Reload or health check (`systemctl is-active`, admin API on `localhost:2019`) failed; the backup is live and reloaded |
+| 11 | Restoring the backup failed; Caddy needs a human now |
+
+Backups land next to the live file as `/etc/caddy/Caddyfile.bak-<UTC timestamp>`.
+Exit 1 for a hand edit: bring the edit into the repository, merge, and rerun
+the workflow from `main`. A run cancelled while waiting for the group: rerun it.
+
+Manual rollout, when the workflow cannot run (or for exit 11):
 
 1. Copy the merged file to the server as `/tmp/Caddyfile.new`, then compare
    `/etc/caddy/Caddyfile` with the previous repository version. A difference
@@ -246,15 +263,16 @@ Rollout, after the change is merged:
    repository first.
 2. Validate with the service environment, so the DNS module sees its token:
    `sudo sh -c 'set -a; . /etc/caddy/cloudflare.env; caddy validate --config /tmp/Caddyfile.new --adapter caddyfile'`.
-3. Back up: `sudo cp -p /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date +%Y%m%d%H%M)`.
+3. Back up: `sudo cp -p /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date -u +%Y%m%dT%H%M%SZ)`.
 4. Roll out: `sudo install -m 644 /tmp/Caddyfile.new /etc/caddy/Caddyfile`.
 5. Reload: `sudo systemctl reload caddy`. A rejected config fails the reload
    and Caddy keeps serving the old one; read `sudo journalctl -u caddy -n 50`.
 6. Verify: `systemctl status caddy` is active, and new `RATE_LIMIT_EXCEEDED`
    and security events log client IPs rather than Cloudflare ranges.
 
-Rollback: copy the newest `/etc/caddy/Caddyfile.bak-*` back to
-`/etc/caddy/Caddyfile`, reload again and revert the repository change.
+Rollback: revert the repository change on `main`; the workflow rolls the
+reverted file out. Without the workflow, copy the newest
+`/etc/caddy/Caddyfile.bak-*` back to `/etc/caddy/Caddyfile` and reload again.
 
 ## GitGuardian findings
 
