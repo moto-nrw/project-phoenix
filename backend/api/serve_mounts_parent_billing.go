@@ -95,6 +95,23 @@ func (p parentBillingLetterPost) EnqueueLetterMail(ctx context.Context, mail par
 	return enqueued.ID, nil
 }
 
+// EnqueueDocumentNotice puts the push of the Träger that a letter is in the
+// inbox of the parents portal on Delivery's outbox, in the caller's Träger
+// transaction (ADR 0126). Its audience is found when the worker sends it;
+// the key of the letter makes a later send a duplicate.
+func (p parentBillingLetterPost) EnqueueDocumentNotice(ctx context.Context, notice parentbilling.BillingDocumentNotice) error {
+	payload, err := json.Marshal(notice)
+	if err != nil {
+		return fmt.Errorf("document notice payload: %w", err)
+	}
+	_, err = p.delivery.EnqueueDeferredPush(ctx, deliveryContract.DeferredPushIntent{
+		OrganizationID: notice.OrganizationID, Template: parentbilling.PushKindBillingDocument,
+		IdempotencyKey: fmt.Sprintf("parent-billing-document:%d", notice.DocumentID), Payload: payload,
+		Related: deliveryContract.RelatedEntity{Type: parentbilling.PushRelatedBillingDocument, ID: notice.DocumentID},
+	})
+	return err
+}
+
 func (p parentBillingLetterPost) LetterMailStates(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingLetterMailState, error) {
 	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID,
 		deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedBillingRun, ID: runID})

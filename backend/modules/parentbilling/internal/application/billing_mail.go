@@ -259,6 +259,13 @@ func (m *BillingLetterMail) send(ctx context.Context, reviewer parentbilling.Hol
 	if err != nil {
 		return parentbilling.BillingLetterSend{}, fmt.Errorf("parent billing: record letter mail: %w", err)
 	}
+	// The send also puts the letter in the inbox of the parents portal; the
+	// push that says so goes with the first send only (ADR 0126).
+	if err := m.post.EnqueueDocumentNotice(ctx, parentbilling.BillingDocumentNotice{
+		OrganizationID: reviewer.OrganizationID, DocumentID: document.ID, RecipientEmail: recipient,
+	}); err != nil {
+		return parentbilling.BillingLetterSend{}, fmt.Errorf("parent billing: enqueue document notice: %w", err)
+	}
 	return mailing, nil
 }
 

@@ -72,6 +72,13 @@ type Dependencies struct {
 	StudentPhotos       care.StudentPhotoUnlinker
 	ChildDataAccess     care.ChildDataAccessLog
 	ParentRequestEvents messaging.RequestEvents
+
+	// Document inbox (#4671, ADR 0126).
+	BillingDocuments    care.BillingDocuments
+	TraegerRuntime      care.TraegerRuntime
+	SchoolTraeger       care.SchoolTraeger
+	ParentAccounts      care.ParentAccounts
+	DocumentNotifier    care.BillingDocumentNotifier
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
 
@@ -126,7 +133,9 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
 		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos, ChildDataAccess: deps.ChildDataAccess,
 		ParentRequestEvents: deps.ParentRequestEvents,
-		GuardianChanges:     newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
+		BillingDocuments:    deps.BillingDocuments, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
+		ParentAccounts: deps.ParentAccounts, DocumentNotifier: deps.DocumentNotifier,
+		GuardianChanges: newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
 		GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,
 		Locales: deps.Locales, StudentUpdates: deps.StudentUpdates, GuardianPolicy: deps.GuardianPolicy, DeparturePolicy: deps.DeparturePolicy,
 		AbsenceNotifier: deps.AbsenceNotifier, Emitter: deps.Emitter,
@@ -181,4 +190,35 @@ func bindOwners(deps Dependencies) owners {
 		bound.students = newStudentRecords(deps.CareProfiles, deps.People)
 	}
 	return bound
+}
+
+// DocumentNoticeDependencies are the collaborators of the push that a
+// document of a Träger is in the inbox (#4671, ADR 0126): the children of an
+// account with their relationships, the Träger of a school, the account of
+// an address, the guardian's portal language and the school's notification
+// router.
+type DocumentNoticeDependencies struct {
+	Runtime             care.Runtime
+	ChildRepo           care.ChildReads
+	SchoolTraeger       care.SchoolTraeger
+	ParentAccounts      care.ParentAccounts
+	GuardianProfileRepo care.GuardianProfileReads
+	DocumentNotifier    care.BillingDocumentNotifier
+	Logger              *slog.Logger
+}
+
+// NewDocumentNotices builds the push of a new document for the Delivery
+// worker, which sends the Träger's push without the rest of the portal.
+func NewDocumentNotices(deps DocumentNoticeDependencies) parentportal.DocumentNotices {
+	if deps.Runtime == nil || deps.ChildRepo == nil || deps.SchoolTraeger == nil || deps.ParentAccounts == nil || deps.DocumentNotifier == nil {
+		panic("parent portal: document notices need the runtime, the children, the Träger, the accounts and the notifier")
+	}
+	logger := deps.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &care.Service{Config: care.Config{
+		Runtime: deps.Runtime, ChildRepo: deps.ChildRepo, SchoolTraeger: deps.SchoolTraeger, ParentAccounts: deps.ParentAccounts,
+		GuardianProfileRepo: deps.GuardianProfileRepo, DocumentNotifier: deps.DocumentNotifier, Logger: logger,
+	}}
 }
