@@ -9,6 +9,7 @@ describe.concurrent("school-class/no-hand-built-label", () => {
   it.each([
     "export const a = (c: string) => `Klasse ${c}`;",
     "export const a = (c: string) => `für die Klasse ${c} entfernen`;",
+    "export const a = (c: string) => `Die Klasse „${c}“ passt nicht.`;",
     'export const a = (c: string[]) => `Klassen ${c.join(", ")}`;',
     'export const a = (c: string) => "Klasse " + c;',
     'export const a = (n: string, c: string) => n + ", Klasse " + c;',

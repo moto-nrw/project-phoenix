@@ -509,7 +509,7 @@ export function PhasesEditor() {
       });
       if (conflicting) {
         formErrors.invalid(
-          `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entfernen Sie die Klasse oder ergänzen Sie ihre Klassenstufe.`,
+          `Die ${schoolClassLabel(conflicting)} passt nicht zu den gewählten Klassenstufen. Entfernen Sie die Klasse oder ergänzen Sie ihre Klassenstufe.`,
         );
         return;
       }

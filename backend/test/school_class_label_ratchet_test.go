@@ -16,7 +16,7 @@ import (
 // ratchet has no allowlist: it rejects "Klasse " + x and "Klasse %s" in any
 // non-test Go file outside that helper. The demo seeder only parses the
 // prefix and stays outside the scan.
-var handBuiltSchoolClassLabel = regexp.MustCompile(`"[^"]*\bKlassen? "\s*\+|"[^"]*\bKlassen? %[sqv]`)
+var handBuiltSchoolClassLabel = regexp.MustCompile(`"[^"]*\bKlassen? „?"\s*\+|"[^"]*\bKlassen? „?%[sqv]`)
 
 var schoolClassLabelScanExempt = []string{
 	"sharedkernel/collation/",
@@ -45,6 +45,8 @@ func TestSchoolClassLabelScannerPattern(t *testing.T) {
 		`title := name + ", Klasse " + class`,
 		`fmt.Sprintf("Neue Krankmeldung in Klasse %s", class)`,
 		`fmt.Sprintf("Klassen %v", classes)`,
+		`fmt.Sprintf("Die Klasse „%s“ fehlt", class)`,
+		`return "Klasse „" + class + "“"`,
 	} {
 		if !handBuiltSchoolClassLabel.MatchString(line) {
 			t.Errorf("scanner misses %s", line)

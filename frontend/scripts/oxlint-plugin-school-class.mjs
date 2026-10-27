@@ -9,8 +9,9 @@
 
 const HELPER_FILE = "src/lib/school-class-label.ts";
 const EXEMPT_FILE = /\.(test|spec|stories)\.[cm]?[jt]sx?$/;
-// "Klasse " or "Klassen " at the end of a text, not "Unterklasse ".
-const ENDS_WITH_PREFIX = /(?:^|[^\p{L}])Klassen?\s+$/iu;
+// "Klasse " or "Klassen " at the end of a text, also with an opening
+// quote ("Klasse „"), not "Unterklasse ".
+const ENDS_WITH_PREFIX = /(?:^|[^\p{L}])Klassen?\s+[„"'‚»]?$/iu;
 const ENDS_WITH_WORD = /(?:^|[^\p{L}])Klassen?$/iu;
 const GRADE_VALUE = /grade|jahrgang|stufe/i;
 
