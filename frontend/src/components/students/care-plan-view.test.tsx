@@ -215,6 +215,7 @@ describe("CarePlanView", () => {
       "2026-09-07",
       "2026-09-11",
     );
+    // Anker: die Woche ist gerendert und endet am Freitag.
     expect(screen.getAllByText("Fr")).not.toHaveLength(0);
     expect(screen.queryByText("Sa")).not.toBeInTheDocument();
     expect(screen.queryByText("So")).not.toBeInTheDocument();

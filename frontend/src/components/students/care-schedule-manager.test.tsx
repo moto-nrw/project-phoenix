@@ -710,6 +710,7 @@ describe("CareScheduleManager", () => {
       "2026-05-25",
       "2026-05-29",
     );
+    // Anker: die Woche ist gerendert und endet am Freitag.
     expect(screen.getAllByText("Fr").length).toBeGreaterThan(0);
     expect(screen.queryByText("Sa")).not.toBeInTheDocument();
     expect(screen.queryByText("So")).not.toBeInTheDocument();

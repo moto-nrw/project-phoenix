@@ -1342,7 +1342,7 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       "Nur einen Raum sehen? Wählen Sie oben bei `Alle Räume` einen Raum.",
       "Die Adresse der Seite behält Ihre Auswahl. So können Sie den gefilterten Plan teilen.",
       // #5028: Sa/So nur in der Woche des heutigen Wochenendes.
-      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Samstag und Sonntag sehen Sie am Wochenende in der laufenden Woche.",
+      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],
     troubleshootingDetails: [
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
@@ -5670,7 +5670,7 @@ function leadCarePlanTopic(): HelpTopic {
       "Einen Raum für eine neue AG suchen? Wählen Sie oben bei `Alle Räume` den Raum. Dann sehen Sie, wann er belegt ist.",
       "Ist ein Filter gewählt, druckt `Drucken oder exportieren` nur die gefilterten Termine.",
       // #5028: Sa/So nur in der Woche des heutigen Wochenendes.
-      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Samstag und Sonntag sehen Sie am Wochenende in der laufenden Woche.",
+      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],
     differences: [
       "Steht oben `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",

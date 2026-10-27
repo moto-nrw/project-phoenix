@@ -134,15 +134,16 @@ export function formatWeekLabel(from: Date, to: Date): string {
  */
 export function careWeekDayCount(dayISO: string, weekendOpen: boolean): 5 | 7 {
   if (!weekendOpen) return 5;
-  const today = parseISODate(berlinTodayISO());
-  const todayWeekday = today.getDay(); // 0 = So, 6 = Sa
+  const todayISO = berlinTodayISO();
+  const todayWeekday = parseISODate(todayISO).getDay(); // 0 = So, 6 = Sa
   if (todayWeekday !== 0 && todayWeekday !== 6) return 5;
-  const day = parseISODate(dayISO);
-  const monday = new Date(day);
-  monday.setDate(day.getDate() - ((day.getDay() + 6) % 7));
-  const todayMonday = new Date(today);
-  todayMonday.setDate(today.getDate() - ((todayWeekday + 6) % 7));
-  return toISODate(monday) === toISODate(todayMonday) ? 7 : 5;
+  return mondayOfWeekISO(dayISO) === mondayOfWeekISO(todayISO) ? 7 : 5;
+}
+
+function mondayOfWeekISO(iso: string): string {
+  const day = parseISODate(iso);
+  day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+  return toISODate(day);
 }
 
 /**

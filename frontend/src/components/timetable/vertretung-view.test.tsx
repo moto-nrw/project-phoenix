@@ -410,6 +410,7 @@ describe("VertretungView", () => {
     expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
       "bg-gray-900",
     );
+    // Anker: die Wochenleiste ist gerendert und endet am Freitag.
     expect(
       screen.getByRole("button", { name: "Fr 24.07." }),
     ).toBeInTheDocument();
