@@ -32,6 +32,15 @@ let cachedTenantId: number | undefined;
 
 const TTL_MS = 10_000; // 10 second cache window
 
+/** Whether the session's own end (cookie lifetime) has passed. */
+function sessionEnded(
+  session: Awaited<ReturnType<typeof getSession>>,
+  now: number,
+): boolean {
+  const expires = session?.expires;
+  return typeof expires === "string" && Date.parse(expires) <= now;
+}
+
 async function transportFetch(
   url: string,
   init: RequestInit,
@@ -73,17 +82,29 @@ export function clearSessionCache() {
 }
 
 /**
- * Seed the cache with a session the SessionProvider already holds (server
- * session prop, poll refetch, update()). Every API client reads the token via
- * getCachedSession(); without the seed the first fetcher of a page load pays
- * its own /api/auth/session round trip although the provider was hydrated
- * with the same session moments earlier (#2973).
+ * Mirror of the tenant SessionProvider's answer (server session prop, poll,
+ * update(), another tab's sign-in or logout). Every API client reads the
+ * session via getCachedSession(); without the mirror the first fetcher of a
+ * page load paid its own /api/auth/session round trip although the provider
+ * was hydrated with the same session moments earlier (#2973).
+ *
+ * A session with access stays for the same 10 s window as a looked-up one:
+ * a school switch on another subdomain replaces the shared cookie without
+ * telling this tab's provider, so the cache must ask the route again soon
+ * (#5116 review). An answer without access (logout here or in another tab,
+ * a failed or revoked refresh) drops a signed-in entry and any lookup in
+ * flight: no later request passes as signed in. An answer without access
+ * that the cache already holds stays; dropping it would send every request
+ * to the session route again.
  */
 export function primeSessionCache(
   session: Awaited<ReturnType<typeof getSession>>,
 ) {
-  cachedTenantId = (session?.user as { tenantId?: number } | undefined)
-    ?.tenantId;
+  if (!hasSessionAccess(session)) {
+    if (hasSessionAccess(cached?.session) || inflight) clearSessionCache();
+    return;
+  }
+  cachedTenantId = (session.user as { tenantId?: number }).tenantId;
   cached = { session, expiry: Date.now() + TTL_MS };
   // A lookup still in flight predates this session; its result must not
   // overwrite the fresher seed (see the invariant in getCachedSession).
@@ -92,7 +113,7 @@ export function primeSessionCache(
 
 export async function getCachedSession() {
   const now = Date.now();
-  if (cached && now < cached.expiry) {
+  if (cached && now < cached.expiry && !sessionEnded(cached.session, now)) {
     // Verify the cached session still belongs to the same tenant.
     // After a tenant switch, the session's tenant_id changes, so a cache miss
     // forces a fresh getSession() with the updated JWT.

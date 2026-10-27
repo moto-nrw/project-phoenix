@@ -232,6 +232,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.parentSurveys]: "parent",
   [HELP_TOPICS.parentCalendar]: "parent",
   [HELP_TOPICS.parentMealPlan]: "parent",
+  [HELP_TOPICS.parentDocuments]: "parent",
   [HELP_TOPICS.parentEnroll]: "parent",
   [HELP_TOPICS.parentEnrollStatus]: "parent",
   [HELP_TOPICS.parentHolidayRegistration]: "parent",

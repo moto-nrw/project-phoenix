@@ -60,17 +60,33 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 	return impact, nil
 }
 
-// lostBookingWeekdays are the ISO weekdays an offering the child held before
-// no longer books after the change.
+// lostBookingWeekdays are the ISO weekdays on which the change drops more
+// offerings than it newly books. Timetable cannot tell which offering carries
+// a hand-maintained Regeltermin, so a switch (Ganztag "bis 14:30" to "bis 16
+// Uhr" on the same day) offsets the dropped offering and reports nothing,
+// while a Randstunde dropped beside a Ganztag that stays is still a loss.
 func lostBookingWeekdays(work *offeringAdjustmentWork) []int {
 	before := bookedWeekdaysByOffering(work.beforeLinks, work.offeringByID)
 	after := bookedWeekdaysByOffering(work.replacement, work.offeringByID)
-	lost := make(map[int]bool)
+	balance := make(map[int]int)
 	for offeringID, days := range before {
 		for weekday := range days {
 			if !after[offeringID][weekday] {
-				lost[weekday] = true
+				balance[weekday]++
 			}
+		}
+	}
+	for offeringID, days := range after {
+		for weekday := range days {
+			if !before[offeringID][weekday] {
+				balance[weekday]--
+			}
+		}
+	}
+	lost := make(map[int]bool)
+	for weekday, dropped := range balance {
+		if dropped > 0 {
+			lost[weekday] = true
 		}
 	}
 	return sortedISOWeekdays(lost)

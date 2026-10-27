@@ -108,8 +108,9 @@ func validateEmailScope(intent deliveryContract.EmailIntent, system bool) error 
 }
 
 func (s *Service) EnqueueDeferredPush(ctx context.Context, intent deliveryContract.DeferredPushIntent) (deliveryContract.Enqueued, error) {
-	if intent.TenantID <= 0 || strings.TrimSpace(intent.Template) == "" || strings.TrimSpace(intent.IdempotencyKey) == "" {
-		return deliveryContract.Enqueued{}, errors.New("delivery: deferred push requires tenant, template, and idempotency key")
+	if (intent.TenantID > 0) == (intent.OrganizationID > 0) || intent.TenantID < 0 || intent.OrganizationID < 0 ||
+		strings.TrimSpace(intent.Template) == "" || strings.TrimSpace(intent.IdempotencyKey) == "" {
+		return deliveryContract.Enqueued{}, errors.New("delivery: deferred push requires a tenant or a Träger, template, and idempotency key")
 	}
 	if len(intent.Payload) == 0 || !json.Valid(intent.Payload) {
 		return deliveryContract.Enqueued{}, errors.New("delivery: invalid deferred push payload")
@@ -118,7 +119,7 @@ func (s *Service) EnqueueDeferredPush(ctx context.Context, intent deliveryContra
 		return deliveryContract.Enqueued{}, err
 	}
 	return s.enqueue(ctx, enqueueInput{
-		TenantID: intent.TenantID, Transport: domain.TransportPush, Template: intent.Template,
+		TenantID: intent.TenantID, OrganizationID: intent.OrganizationID, Transport: domain.TransportPush, Template: intent.Template,
 		IdempotencyKey: intent.IdempotencyKey, Related: intent.Related,
 		Recipient: json.RawMessage(`{"deferred":true}`), Payload: intent.Payload,
 	}, deliveryContract.TransportPush)

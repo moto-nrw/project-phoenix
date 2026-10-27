@@ -93,15 +93,24 @@ func affected(operation string) func(sql.Result, error) (int, error) {
 }
 
 // DeleteExpiredSystemEmails applies the same retention window to global
-// identity mail, which cannot be visited by the tenant-scoped nightly sweep.
+// identity mail and to the mails and pushes of a Träger (ADR 0110, ADR
+// 0126), which cannot be visited by the tenant-scoped nightly sweep.
 func (s *Store) DeleteExpiredSystemEmails(ctx context.Context, before time.Time, limit int) (count int, err error) {
 	err = s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
-		var deleteErr error
-		count, deleteErr = affected("delete expired system email intents")(db.ExecContext(txCtx, `DELETE FROM platform.email_outbox
+		emails, deleteErr := affected("delete expired system email intents")(db.ExecContext(txCtx, `DELETE FROM platform.email_outbox
    WHERE id IN (SELECT id FROM platform.email_outbox
     WHERE tenant_id IS NULL AND status IN ('sent', 'dead_letter', 'cancelled')
     AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?
     ORDER BY id LIMIT ?)`, before, limit))
+		if deleteErr != nil {
+			return deleteErr
+		}
+		pushes, deleteErr := affected("delete expired Träger push intents")(db.ExecContext(txCtx, `DELETE FROM platform.push_outbox
+   WHERE id IN (SELECT id FROM platform.push_outbox
+    WHERE tenant_id IS NULL AND status IN ('sent', 'dead_letter', 'cancelled')
+    AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?
+    ORDER BY id LIMIT ?)`, before, limit))
+		count = emails + pushes
 		return deleteErr
 	})
 	return count, err

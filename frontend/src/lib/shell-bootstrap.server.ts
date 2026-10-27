@@ -20,6 +20,7 @@ import { mapProfileResponse, type BackendProfile } from "~/lib/profile-helpers";
 import type { UnreadAnnouncement } from "~/lib/hooks/use-announcements";
 import type { RemindersResult } from "~/lib/reminders-api";
 import type { ShellBootstrap, ShellCounts } from "~/lib/shell-seed";
+import type { StaffNotice } from "~/lib/staff-notices-api";
 import type {
   SupervisedGroupPayload,
   SupervisionSnapshot,
@@ -209,7 +210,6 @@ async function loadCounts(
     staffAbsencesPending,
     messagesUnread,
     teamChatUnread,
-    staffNoticesPending,
     changeRequestsPending,
     enrollmentRequestsPending,
     careWithdrawalsPending,
@@ -244,21 +244,6 @@ async function loadCounts(
           { signal },
         );
         return response.data?.unread_count ?? 0;
-      },
-    ),
-    loadCount(
-      "staffNoticesPending",
-      hasPermission(session, "users:read"),
-      async (signal) => {
-        const response = await apiGet<
-          Envelope<Array<{
-            requires_acknowledgement: boolean;
-            acknowledged_at?: string;
-          }> | null>
-        >("/api/staff-notices/today", token, { signal });
-        return (response.data ?? []).filter(
-          (n) => n.requires_acknowledgement && !n.acknowledged_at,
-        ).length;
       },
     ),
     loadCount(
@@ -303,7 +288,6 @@ async function loadCounts(
     staffAbsencesPending,
     messagesUnread,
     teamChatUnread,
-    staffNoticesPending,
     changeRequestsPending,
     enrollmentRequestsPending,
     careWithdrawalsPending,
@@ -313,8 +297,8 @@ async function loadCounts(
 /**
  * Loads, in parallel, everything the tenant app shell fetched one request at
  * a time after hydration (#2973): navigation context, profile, group and
- * supervision navigation, the account's tenants, and the sidebar badge
- * counts. The settings schema stays out (#4996): only the settings page loads
+ * supervision navigation, the account's tenants, today's staff notices, and
+ * the sidebar badge counts. The settings schema stays out (#4996): only the settings page loads
  * it. Runs once per full page load in the tenant layout; client-side
  * navigations reuse the hydrated caches. `token` is the session's access
  * token, which the browser's session never carries (#5005).
@@ -329,6 +313,7 @@ export async function loadShellBootstrap(
     profile,
     accountTenants,
     reminders,
+    staffNoticesToday,
     announcements,
     supervision,
     counts,
@@ -366,6 +351,19 @@ export async function loadShellBootstrap(
           return response.data;
         })
       : Promise.resolve(undefined),
+    // The list itself, not only its count: the sidebar badge, the home block
+    // and /tagesinformationen read it from one SWR entry (#4989). Same gate
+    // as useStaffNoticesPending: the route needs users:read.
+    hasPermission(session, "users:read")
+      ? optional("staffNoticesToday", async (signal) => {
+          const response = await apiGet<Envelope<StaffNotice[] | null>>(
+            "/api/staff-notices/today",
+            token,
+            { signal },
+          );
+          return response.data ?? [];
+        })
+      : Promise.resolve(undefined),
     optional("announcements", async (signal) => {
       const response = await apiGet<Envelope<UnreadAnnouncement[] | null>>(
         "/api/platform/announcements/unread",
@@ -384,6 +382,7 @@ export async function loadShellBootstrap(
     profile,
     accountTenants,
     reminders,
+    staffNoticesToday,
     announcements,
     supervision: supervision ?? undefined,
     counts,

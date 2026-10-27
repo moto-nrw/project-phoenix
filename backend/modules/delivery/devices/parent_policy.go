@@ -23,6 +23,9 @@ func (ParentDeliveryPolicy) ParentMessageCopy(locale string) (string, string) {
 func (ParentDeliveryPolicy) ParentAnnouncementCopy(locale, kind string) (string, string) {
 	return locales.ParentAnnouncementCopy(locale, kind)
 }
+func (ParentDeliveryPolicy) ParentBillingDocumentCopy(locale string) (string, string) {
+	return locales.ParentBillingDocumentCopy(locale)
+}
 func (ParentDeliveryPolicy) IsNotificationsDisabled(err error) bool {
 	return errors.Is(err, ErrNotificationsDisabled)
 }
