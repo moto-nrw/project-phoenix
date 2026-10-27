@@ -2777,4 +2777,65 @@ describe("AggregatedRequestList", () => {
       expect(new Set(ids).size).toBe(ids.length);
     },
   );
+  // Runde 5 (#4988): ein Fehler im Hintergrundabgleich nach einer
+  // Entscheidung ersetzt nie die übrigen geladenen Einträge.
+  it.each(["merged", "withdrawal"] as const)(
+    "lässt die übrigen Einträge stehen, wenn der Abgleich nach einer Entscheidung scheitert (%s)",
+    async (kind) => {
+      const decided = openItem("master_data", "decided");
+      const remaining = openItem("excused", "remaining");
+      const unavailable = new ApiError("unavailable", 503, {
+        code: "general.unavailable",
+      });
+      let failing = false;
+      mockListOpen.mockImplementation(async () => {
+        if (failing && kind === "merged") throw unavailable;
+        return { items: [decided, remaining] };
+      });
+      mockListWithdrawals.mockImplementation(async () => {
+        if (failing && kind === "withdrawal") throw unavailable;
+        return {
+          items: [withdrawalItem("decided"), withdrawalItem("remaining")],
+          total: 2,
+          page: 1,
+          pageSize: 25,
+        };
+      });
+      const { result } = renderHook(
+        () =>
+          useFeeds(
+            { ...NO_FILTERS, includeCareWithdrawals: kind === "withdrawal" },
+            "open",
+          ),
+        { wrapper: providersWith(new Map()) },
+      );
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      await waitFor(() => expect(current().items).toHaveLength(2));
+
+      act(() => {
+        if (kind === "merged") {
+          result.current.feed.setItems((items) =>
+            items.filter((item) => itemKey(item) !== itemKey(decided)),
+          );
+        } else {
+          result.current.withdrawals.setItems((items) =>
+            items.filter((item) => item.id !== "decided"),
+          );
+        }
+      });
+      failing = true;
+      await act(async () => {
+        await (kind === "merged"
+          ? result.current.feed.reload()
+          : result.current.withdrawals.load());
+      });
+
+      await waitFor(() => expect(current().error).toBeTruthy());
+      expect(current().loading).toBe(false);
+      expect(current().items).toEqual(
+        kind === "merged" ? [remaining] : [withdrawalItem("remaining")],
+      );
+    },
+  );
 });

@@ -504,6 +504,43 @@ describe("StaffAbsenceRequestList", () => {
     );
   });
 
+  // Runde 5 (#4988): ein Fehler im Hintergrundabgleich nach einer
+  // Entscheidung ersetzt nie die übrigen geladenen Anträge.
+  it("lässt die übrigen Anträge stehen, wenn der Abgleich nach einer Genehmigung scheitert", async () => {
+    await clearDefaultCache();
+    const other = { ...openRow(), id: "20", staff_name: "Tom Neu" };
+    listRequests.mockResolvedValueOnce([openRow(), other]);
+    renderComponent(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+      { wrapper: DefaultCache },
+    );
+    expect(await screen.findByText("Tom Neu")).toBeInTheDocument();
+
+    approve.mockResolvedValue(undefined);
+    listRequests.mockRejectedValue(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    await userEvent.click(
+      screen.getAllByRole("button", { name: "Genehmigen" })[0]!,
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Anträge"),
+      ),
+    ).toBeInTheDocument();
+    // Anker: der übrige Antrag steht weiter, mit seiner Aktion.
+    await waitFor(() =>
+      expect(screen.getByText("Tom Neu")).toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "Genehmigen" })).toBeVisible();
+    expect(screen.queryByText("Mira Muster")).not.toBeInTheDocument();
+    await clearDefaultCache();
+  });
+
   it("meldet eine abgelehnte Genehmigung über den gemeinsamen Fehlerweg", async () => {
     listRequests.mockResolvedValue([openRow()]);
     const refused = new ApiError("quota", 409, {

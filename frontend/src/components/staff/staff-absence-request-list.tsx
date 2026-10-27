@@ -151,14 +151,13 @@ export function StaffAbsenceRequestList({
   const loadError = useSwrLoadError(error, "die Liste der Anträge", () =>
     mutate(),
   );
-  // Der Stand, der beim letzten Entscheiden galt. Scheitert das Neuladen
-  // danach, wäre er falsch; dann steht der Fehler an seiner Stelle.
-  const [dataAtDecision, setDataAtDecision] = useState<typeof data>(undefined);
   const loading = data === undefined && error === undefined;
-  // Synchron aus dem SWR-Fehler: der Katalogtext lädt nach, bis dahin darf
-  // kein Leerzustand („Keine offenen Anträge“) aufblitzen.
-  const failed =
-    error !== undefined && (data === undefined || data === dataAtDecision);
+  // Nur ohne geladene Anträge ersetzt ein Fehler die Liste (#4988). Scheitert
+  // ein Abgleich im Hintergrund, auch nach einer Entscheidung, bleibt stehen,
+  // was da ist, samt Überlagerungen; der Fehler steht darüber. Synchron aus
+  // dem SWR-Fehler: der Katalogtext lädt nach, bis dahin darf kein
+  // Leerzustand („Keine offenen Anträge“) aufblitzen.
+  const failed = error !== undefined && data === undefined;
 
   useEffect(() => {
     if (error === undefined) return;
@@ -182,7 +181,6 @@ export function StaffAbsenceRequestList({
   // Mitarbeitenden-Detailseite hören auf diese Signale.
   const afterDecision = useCallback(
     (decidedId?: string) => {
-      setDataAtDecision(data);
       if (decidedId !== undefined) {
         addListOverlay<StaffAbsenceRequestRow>(list, (current) =>
           current.filter((row) => row.id !== decidedId),
@@ -195,7 +193,7 @@ export function StaffAbsenceRequestList({
       );
       dispatchAbsencesRefresh();
     },
-    [data, list, revalidateLists, swrMutate],
+    [list, revalidateLists, swrMutate],
   );
 
   const handleApprove = async (row: StaffAbsenceRequestRow) => {
