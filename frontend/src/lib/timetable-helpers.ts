@@ -1191,6 +1191,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
               template.roster_maintenance.care_offerings_disabled,
           }
         : undefined,
+      manualRosterConfirmed: template.manual_roster_confirmed,
     })),
   };
 }
@@ -1270,6 +1271,23 @@ export function resolveTemplateCalendarPeriodId(
   template: TimetableTemplate,
 ): string | undefined {
   return template.schedules[0]?.calendarPeriodId ?? template.calendarPeriodId;
+}
+
+/**
+ * The Regeltermin an occurrence belongs to, from the period's template list.
+ * A template pinned to a period answers only for that period's occurrences;
+ * a template without a pin (older and seeded series) serves every period.
+ */
+export function findOccurrenceSeriesTemplate(
+  templates: readonly TimetableTemplate[],
+  occurrence: { activityGroupId?: string; calendarPeriodId?: string },
+): TimetableTemplate | undefined {
+  if (!occurrence.activityGroupId) return undefined;
+  return templates.find((template) => {
+    if (template.id !== occurrence.activityGroupId) return false;
+    const periodId = resolveTemplateCalendarPeriodId(template);
+    return periodId === undefined || periodId === occurrence.calendarPeriodId;
+  });
 }
 
 /**

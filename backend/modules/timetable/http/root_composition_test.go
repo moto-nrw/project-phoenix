@@ -54,7 +54,7 @@ func init() {
 			return timetableAPI.TimetableHTTPModule{}, err
 		}
 		return timetableAPI.TimetableHTTPModule{
-			Templates: module.Templates, Data: module.Data, ConflictDetection: module.ConflictDetection,
+			Templates: module.Templates, RosterReview: module.RosterReview, Data: module.Data, ConflictDetection: module.ConflictDetection,
 			AttendanceCorrections: module.AttendanceCorrections, RecurrenceLock: module.RecurrenceLock,
 		}, nil
 	}

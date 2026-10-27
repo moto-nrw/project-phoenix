@@ -63,6 +63,17 @@ type ChangeRequestCase struct {
 	Children      []*RequestChild
 	Messages      []*ChangeRequestMessage
 	Phase         *Phase
+	// RosterImpacts are set by an approval that changed bookings of
+	// children with a student: the effect on their Regeltermine (#5102).
+	RosterImpacts []ChildRosterImpact
+}
+
+// ChildRosterImpact is the roster impact of one child's booking change.
+type ChildRosterImpact struct {
+	ChildID   int64
+	StudentID int64
+	FirstName string
+	Impact    RosterImpact
 }
 
 // ChangeRequestFilters narrow the admin list. Zero values are ignored.

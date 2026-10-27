@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -13,6 +14,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -95,6 +97,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	deps, err := owners.BookingMaterializationOwners(
 		reposTimetable.Timetable, reposTimetable.RosterMaintenance(slog.Default(), nil), people, reposCalendar.SchoolCalendar(), repos.Enrollment(),
 		approved, NewStudentAuditRows(db, auditCommand).EnrollmentOfferingAdjustment, repos.Person, accounts, pickup, students.CarePlan,
+		mustStudentTemplateDays(db, reposTimetable, options.Today),
 	)
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
@@ -227,4 +230,24 @@ func newBookingMaterialization(deps careplanCompose.BookingMaterializationDepend
 		deps.PickupStaff = owners.PickupScheduleBroadcaster{Broadcaster: broadcaster}
 	}
 	return careplanCompose.NewBookingMaterialization(deps)
+}
+
+// NewStudentTemplateDaysTestModule composes Timetable's student template days
+// (#5102) over the test database; today bounds the removal, nil is the real
+// calendar day.
+func NewStudentTemplateDaysTestModule(db transactionruntime.Database, today func() calendar.Date) timetable.StudentTemplateDays {
+	return mustStudentTemplateDays(db, NewEnrollmentTimetableRows(db), today)
+}
+
+// mustStudentTemplateDays binds the student template days over the test
+// rows; a nil today is the real calendar day.
+func mustStudentTemplateDays(db transactionruntime.Database, rows owners.TimetableTestRepositories, today func() calendar.Date) timetable.StudentTemplateDays {
+	if today == nil {
+		today = calendar.TodayDate
+	}
+	days, err := owners.NewTimetableStudentTemplateDays(rows.Repositories, owners.MustNewTimetableRecurrenceLock(db), today, slog.Default())
+	if err != nil {
+		panic(fmt.Sprintf("student template days test module: %v", err))
+	}
+	return days
 }

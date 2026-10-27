@@ -46,8 +46,8 @@ func (r enrollmentDecisionFixtureRoot) RestoreWithdrawn(ctx context.Context, req
 		return r.Decisions.RestoreWithdrawn(txCtx, requestID, restoredBy)
 	})
 }
-func (r enrollmentDecisionFixtureRoot) UpdateChildOfferings(ctx context.Context, input enrollment.UpdateChildOfferingsInput) (*enrollment.RequestChild, error) {
-	return decisionFixtureQuery(r.within, ctx, func(txCtx context.Context) (*enrollment.RequestChild, error) {
+func (r enrollmentDecisionFixtureRoot) UpdateChildOfferings(ctx context.Context, input enrollment.UpdateChildOfferingsInput) (*enrollment.ChildOfferingsUpdate, error) {
+	return decisionFixtureQuery(r.within, ctx, func(txCtx context.Context) (*enrollment.ChildOfferingsUpdate, error) {
 		return r.Decisions.UpdateChildOfferings(txCtx, input)
 	})
 }

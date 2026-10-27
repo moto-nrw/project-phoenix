@@ -37,6 +37,12 @@ const templateListSelect = `
 		g.list_kind,
 		g.notes,
 		g.include_closing_days,
+		COALESCE((
+			SELECT series_root.manual_roster_confirmed
+			FROM activities.groups AS series_root
+			WHERE series_root.id = COALESCE(g.series_root_id, g.id)
+				AND series_root.tenant_id = g.tenant_id
+		), FALSE) AS manual_roster_confirmed,
 		TO_CHAR(g.series_last_day, 'YYYY-MM-DD') AS series_last_day,
 		c.shift_type_id,
 		'' AS shift_type_name,
@@ -247,6 +253,7 @@ type templateListRow struct {
 	ListKind                  *string `bun:"list_kind"`
 	Notes                     *string `bun:"notes"`
 	IncludeClosingDays        bool    `bun:"include_closing_days"`
+	ManualRosterConfirmed     bool    `bun:"manual_roster_confirmed"`
 	SeriesLastDay             *string `bun:"series_last_day"`
 	ShiftTypeID               *int64  `bun:"shift_type_id"`
 	ShiftTypeName             string  `bun:"shift_type_name"`
