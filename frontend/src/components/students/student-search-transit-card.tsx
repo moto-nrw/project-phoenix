@@ -24,7 +24,10 @@ export function StudentSearchTransitCard({
   show,
   fromParam,
 }: {
-  /** Die sichtbaren Kinder der Liste; gezählt werden die unterwegs. */
+  /**
+   * Die geladenen Kinder (Gruppe, Klasse, Suche), vor dem Statusfilter;
+   * gezählt werden die ohne Raum, wie auf der Seite „Unterwegs“.
+   */
   readonly students: readonly Student[];
   /** Die Liste filtert oder gruppiert gerade nach Unterwegs (nur heute). */
   readonly show: boolean;

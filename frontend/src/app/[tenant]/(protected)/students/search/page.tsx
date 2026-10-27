@@ -3449,9 +3449,11 @@ function SearchPageContent() {
 
           {/* Unterwegs-Kinder einem Raum zuweisen (#5026): wie auf „Räume“
               führt die Karte zur Seite „Unterwegs“, der Rückweg zurück
-              hierher. */}
+              hierher. Gezählt wird vor dem Statusfilter: Ein krank
+              gemeldetes Kind ohne Raum steht in der Liste unter „Krank“,
+              auf der Seite „Unterwegs“ aber mit. */}
           <StudentSearchTransitCard
-            students={filteredStudents}
+            students={students}
             show={
               isToday &&
               (effectiveAttendanceFilter === "unterwegs" ||
