@@ -83,7 +83,10 @@ func listSeedStaffIDs(rt *Runtime) ([]int64, error) {
 	ids := make([]int64, 0, len(envelope.Data))
 	for _, staff := range envelope.Data {
 		id, err := parseSeedID(staff.ID)
-		if err != nil || id == 0 {
+		if err != nil {
+			return nil, fmt.Errorf("decode staff id for personnel numbers: %w", err)
+		}
+		if id == 0 {
 			return nil, fmt.Errorf("staff for personnel numbers has no id")
 		}
 		ids = append(ids, id)

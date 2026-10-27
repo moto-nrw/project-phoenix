@@ -54,6 +54,8 @@ const (
 	profileSettingPayrollEinheitFortbildung = "payroll.einheit_fortbildung"
 	profileSettingPayrollBeraternummer      = "payroll.datev_beraternummer"
 	profileSettingPayrollMandantennummer    = "payroll.datev_mandantennummer"
+	profilePayrollUnitHours                 = "stunden"
+	profilePayrollUnitDays                  = "tage"
 )
 
 type demoProfileDefinition struct {
@@ -112,9 +114,9 @@ func demoPayrollSettings() map[string]SeedSetting {
 		profileSettingPayrollKrank:              text("9005"),
 		profileSettingPayrollUrlaub:             text("9006"),
 		profileSettingPayrollFortbildung:        text("9007"),
-		profileSettingPayrollEinheitKrank:       text("stunden"),
-		profileSettingPayrollEinheitUrlaub:      text("tage"),
-		profileSettingPayrollEinheitFortbildung: text("stunden"),
+		profileSettingPayrollEinheitKrank:       text(profilePayrollUnitHours),
+		profileSettingPayrollEinheitUrlaub:      text(profilePayrollUnitDays),
+		profileSettingPayrollEinheitFortbildung: text(profilePayrollUnitHours),
 		profileSettingPayrollBeraternummer:      text("9900001"),
 		profileSettingPayrollMandantennummer:    text("90001"),
 	}
