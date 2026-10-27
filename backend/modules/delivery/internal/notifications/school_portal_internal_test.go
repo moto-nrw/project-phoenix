@@ -28,7 +28,7 @@ func TestSchoolPortalCatalogue(t *testing.T) {
 	for _, def := range TypesForPortal(PortalSchool) {
 		keys = append(keys, def.Key)
 	}
-	assert.Equal(t, []string{TypeSchoolClassAbsenceReported, TypeStaffMessage}, keys)
+	assert.Equal(t, []string{TypeSchoolClassAbsenceReported, TypeStaffMessage, TypeSchoolParentConferenceBooking}, keys)
 
 	staffMessage, _ := GetType(TypeStaffMessage)
 	pickup, _ := GetType(TypePickupUpcoming)
@@ -38,6 +38,9 @@ func TestSchoolPortalCatalogue(t *testing.T) {
 	assert.False(t, OfferedInPortal(pickup, PortalSchool), "supervision reminders never address a Lehrkraft")
 	assert.True(t, OfferedInPortal(classAbsence, PortalSchool))
 	assert.False(t, OfferedInPortal(classAbsence, PortalStaff), "the class notice exists only in moto schule (#4792)")
+	conferenceBooking, _ := GetType(TypeSchoolParentConferenceBooking)
+	assert.True(t, OfferedInPortal(conferenceBooking, PortalSchool))
+	assert.False(t, OfferedInPortal(conferenceBooking, PortalStaff), "the Elternsprechtag notice exists only in moto schule (#4801)")
 	assert.Equal(t, "Krankmeldungen meiner Klassen", classAbsence.Label)
 }
 

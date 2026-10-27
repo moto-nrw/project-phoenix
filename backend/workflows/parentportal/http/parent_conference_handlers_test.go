@@ -60,7 +60,7 @@ func (f *fakeConferences) CancelParentConferenceBooking(_ context.Context, child
 func conferenceRequest(t *testing.T, method, body string) *http.Request {
 	t.Helper()
 	req := parentRequestWithStudentID(method, "/me/children/42/parent-conferences/7/booking", body, "42")
-	chi.RouteContext(req.Context()).URLParams.Add("conferenceId", "7")
+	chi.RouteContext(req.Context()).URLParams.Add("conferenceId", "73")
 	return req.WithContext(tenant.WithUnitOfWork(req.Context(), testpkg.TenantRuntime(t, testpkg.SetupTestDB(t))))
 }
 
@@ -105,7 +105,7 @@ func TestParentConferenceBookingPassesTheResolvedChild(t *testing.T) {
 	rs.bookChildParentConference(w, conferenceRequest(t, http.MethodPut, `{"start_time":"14:00"}`))
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Equal(t, calendarService.ParentConferenceChild{TenantID: testpkg.Tenant(t), StudentID: 42, GuardianProfileID: 9}, conferences.gotChild)
-	assert.Equal(t, int64(7), conferences.gotID)
+	assert.Equal(t, int64(73), conferences.gotID)
 	assert.Equal(t, "14:00", conferences.gotStart)
 	assert.True(t, strings.Contains(w.Body.String(), `"start_time":"14:00"`))
 }

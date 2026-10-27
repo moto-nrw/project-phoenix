@@ -64,9 +64,9 @@ func TestSchoolParentConferenceRoutes(t *testing.T) {
 	assert.Equal(t, []calendarSvc.ParentConferenceWindow{{StartTime: "15:00", EndTime: "15:15"}}, service.school.gotConference.Breaks)
 
 	w = httptest.NewRecorder()
-	rs.deleteSchoolParentConference(w, conferenceIDRequest(http.MethodDelete, "5"))
+	rs.deleteSchoolParentConference(w, conferenceIDRequest(http.MethodDelete, "57"))
 	require.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, int64(5), service.school.gotConferenceID)
+	assert.Equal(t, int64(57), service.school.gotConferenceID)
 
 	service.school.writeErr = calendarSvc.ErrForbidden
 	w = httptest.NewRecorder()

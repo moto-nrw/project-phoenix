@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -16,13 +14,18 @@ import (
 
 type noticeRuntime struct{ ports.Runtime }
 
-func (noticeRuntime) TenantID(context.Context) int64 { return 5 }
+const noticeTenantID int64 = 5
 
-func noticeConference(accountID int64) *schoolcalendar.ParentConference {
-	return &schoolcalendar.ParentConference{ID: 3, ParentConferenceFields: schoolcalendar.ParentConferenceFields{
-		OrganizerStaffID: 1, OrganizerAccountID: accountID, SchoolClass: "2a",
-		Date: calendar.NewDate(2026, 11, 12), StartMinute: 14 * 60, EndMinute: 16 * 60, SlotMinutes: 15,
-	}}
+// parentConferenceBookingType is portal.NotificationTypeParentConferenceBooking,
+// the consent the Lehrkraft gives in moto schule.
+const parentConferenceBookingType = "school_parent_conference_booking"
+
+func (noticeRuntime) TenantID(context.Context) int64 { return noticeTenantID }
+
+func noticeConference(accountID int64) parentConferenceNotice {
+	return parentConferenceNotice{
+		ConferenceID: 3, OrganizerAccountID: accountID, SchoolClass: "2a", Date: calendar.NewDate(2026, 11, 12),
+	}
 }
 
 // The Lehrkraft hears about a booking in moto schule only with her consent,
@@ -37,7 +40,7 @@ func TestNotifyParentConferenceOrganizer(t *testing.T) {
 		preferences := &dispatchPreferences{optedIn: []int64{}}
 		s := &service{cfg: Config{Notifier: notifier, Preferences: preferences, Runtime: noticeRuntime{}, NoDelivery: noDelivery}}
 		require.NoError(t, s.notifyParentConferenceOrganizer(ctx, noticeConference(9), parentConferenceBooked, 14*60))
-		assert.Equal(t, portal.NotificationTypeParentConferenceBooking, preferences.askedFor)
+		assert.Equal(t, parentConferenceBookingType, preferences.askedFor)
 		assert.Empty(t, notifier.events)
 	})
 
@@ -50,7 +53,7 @@ func TestNotifyParentConferenceOrganizer(t *testing.T) {
 		event := notifier.events[0]
 		assert.Equal(t, "staff", event.Audience.Scope)
 		assert.Equal(t, []int64{9}, event.Audience.StaffAccountIDs)
-		assert.Equal(t, int64(5), event.Audience.TenantID)
+		assert.Equal(t, noticeTenantID, event.Audience.TenantID)
 		assert.Equal(t, "Elternsprechtag Klasse 2a", event.Title)
 		assert.Equal(t, "Eine Familie hat ihren Termin am 12.11. um 14:15 Uhr abgesagt.", event.Body)
 		assert.Equal(t, "/school/elternsprechtag?sprechtag=3", event.SchoolDeepLink)

@@ -106,7 +106,7 @@ func (s *service) CancelParentConferenceBooking(ctx context.Context, child Paren
 		if err := store.DeleteParentConferenceBookings(txCtx, []int64{booking.ID}); err != nil {
 			return err
 		}
-		return s.notifyParentConferenceOrganizer(txCtx, conference, parentConferenceCancelled, booking.SlotStartMinute)
+		return s.notifyParentConferenceOrganizer(txCtx, noticeFor(conference), parentConferenceCancelled, booking.SlotStartMinute)
 	})
 }
 
@@ -196,7 +196,7 @@ func (s *service) bookParentConferenceSlot(ctx context.Context, conference *scho
 	if err := s.cfg.ParentConferences.LinkParentConferenceBookingAppointment(ctx, booking.ID, appointmentID); err != nil {
 		return err
 	}
-	return s.notifyParentConferenceOrganizer(ctx, conference, parentConferenceBooked, minute)
+	return s.notifyParentConferenceOrganizer(ctx, noticeFor(conference), parentConferenceBooked, minute)
 }
 
 func (s *service) moveParentConferenceBooking(ctx context.Context, conference *schoolcalendar.ParentConference, booking *schoolcalendar.ParentConferenceBooking, minute int) error {
@@ -207,7 +207,7 @@ func (s *service) moveParentConferenceBooking(ctx context.Context, conference *s
 	if err := s.moveParentConferenceAppointment(ctx, conference, booking); err != nil {
 		return err
 	}
-	return s.notifyParentConferenceOrganizer(ctx, conference, parentConferenceMoved, minute)
+	return s.notifyParentConferenceOrganizer(ctx, noticeFor(conference), parentConferenceMoved, minute)
 }
 
 // createParentConferenceAppointment writes the appointment that shows the
@@ -419,11 +419,26 @@ func staffDisplayName(staff *ports.Staff) string {
 	return strings.TrimSpace(staff.Person.FirstName + " " + staff.Person.LastName)
 }
 
+// parentConferenceNotice is what the notice to the Lehrkraft needs of a day.
+type parentConferenceNotice struct {
+	ConferenceID       int64
+	OrganizerAccountID int64
+	SchoolClass        string
+	Date               calendar.Date
+}
+
+func noticeFor(conference *schoolcalendar.ParentConference) parentConferenceNotice {
+	return parentConferenceNotice{
+		ConferenceID: conference.ID, OrganizerAccountID: conference.OrganizerAccountID,
+		SchoolClass: conference.SchoolClass, Date: conference.Date,
+	}
+}
+
 // notifyParentConferenceOrganizer tells the Lehrkraft in moto schule that a
 // family booked, moved or cancelled a slot, when she agreed to it. The
 // notice names class, day and time, never the child: it lands on a lock
 // screen.
-func (s *service) notifyParentConferenceOrganizer(ctx context.Context, conference *schoolcalendar.ParentConference, kind string, minute int) error {
+func (s *service) notifyParentConferenceOrganizer(ctx context.Context, conference parentConferenceNotice, kind string, minute int) error {
 	if s.cfg.Notifier == nil || s.cfg.Preferences == nil || conference.OrganizerAccountID <= 0 {
 		return nil
 	}
@@ -436,11 +451,11 @@ func (s *service) notifyParentConferenceOrganizer(ctx context.Context, conferenc
 	}
 	err = s.cfg.Notifier.Notify(ctx, ports.Event{
 		Type:           portal.NotificationTypeParentConferenceBooking,
-		IdempotencyKey: fmt.Sprintf("parent-conference:%d:%s:%d:%d", conference.ID, kind, minute, s.now().UnixNano()),
-		RelatedType:    "parent_conference", RelatedID: conference.ID,
+		IdempotencyKey: fmt.Sprintf("parent-conference:%d:%s:%d:%d", conference.ConferenceID, kind, minute, s.now().UnixNano()),
+		RelatedType:    "parent_conference", RelatedID: conference.ConferenceID,
 		Title:          "Elternsprechtag " + parentConferenceClassLabel(conference.SchoolClass),
 		Body:           parentConferenceNoticeBody(conference, kind, minute),
-		SchoolDeepLink: fmt.Sprintf("/school/elternsprechtag?sprechtag=%d", conference.ID),
+		SchoolDeepLink: fmt.Sprintf("/school/elternsprechtag?sprechtag=%d", conference.ConferenceID),
 		Priority:       "normal",
 		Audience: ports.Audience{
 			TenantID: s.cfg.Runtime.TenantID(ctx), Scope: "staff", StaffAccountIDs: accountIDs,
@@ -448,7 +463,7 @@ func (s *service) notifyParentConferenceOrganizer(ctx context.Context, conferenc
 	})
 	if s.cfg.NoDelivery(err) {
 		s.logger().Info("calendar: parent conference notice not delivered",
-			slog.Int64("parent_conference_id", conference.ID),
+			slog.Int64("parent_conference_id", conference.ConferenceID),
 			slog.String("reason", err.Error()),
 		)
 		return nil
@@ -456,7 +471,7 @@ func (s *service) notifyParentConferenceOrganizer(ctx context.Context, conferenc
 	return err
 }
 
-func parentConferenceNoticeBody(conference *schoolcalendar.ParentConference, kind string, minute int) string {
+func parentConferenceNoticeBody(conference parentConferenceNotice, kind string, minute int) string {
 	when := fmt.Sprintf("%s um %s Uhr", conference.Date.Format("02.01."), formatClockMinute(minute))
 	switch kind {
 	case parentConferenceMoved:
