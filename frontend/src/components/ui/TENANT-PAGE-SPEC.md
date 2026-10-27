@@ -100,6 +100,17 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Zustand mit Symbol (ForbiddenPage, FeatureOffPage). Eine Bühne für einen
    Sachverhalt, an dem niemand etwas tun kann, ist eine Aufgabe, die keine
    ist.
+   **`empty.action` wiederholt keine Kopfaktion** (#5034). Die Anlegen-Aktion
+   steht im Kopf, an derselben Stelle wie bei gefüllter Liste; der
+   Leerzustand zeigt Titel und Beschreibung ohne zweiten Knopf und darf per
+   Text auf den Kopf verweisen („über „Neue Notiz“ oben"). Auf den
+   Datenbank-Seiten gilt das auch für den mobilen FAB. Eine
+   Leerzustand-Aktion gibt es nur für eine andere Handlung, etwa „Filter
+   zurücksetzen" bei aktiver Suche oder aktivem Filter. Dieselbe Regel gilt
+   für `SectionCard` `action` neben einem `EmptyState` in der Karte.
+   Außerhalb der Produktion meldet `TenantPage` einen Leerzustand-Knopf mit
+   demselben Namen wie ein Knopf im Kopf
+   (`tenant_page_empty_action_repeats_head_action`).
    **Der Rumpf füllt die Höhe.** Die Karte mit dem Leersatz, die Tabelle mit
    einem Eintrag und die Liste mit dreißig haben denselben Umriss: die
    letzte Fläche wächst bis zur Unterkante des Bildschirms

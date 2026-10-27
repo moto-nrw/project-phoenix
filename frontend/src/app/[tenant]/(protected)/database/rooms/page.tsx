@@ -291,15 +291,6 @@ function RoomsPageContent() {
                   size={48}
                 />
               ),
-              action:
-                searchTerm || categoryFilter !== "all" ? undefined : (
-                  <DatabaseCreateAction
-                    label="Raum"
-                    ariaLabel="Raum erstellen"
-                    showMobileFab={false}
-                    onClick={() => setShowCreateModal(true)}
-                  />
-                ),
             }
           : null
       }

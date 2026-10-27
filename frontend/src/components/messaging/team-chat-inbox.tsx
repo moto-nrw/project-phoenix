@@ -41,7 +41,6 @@ interface TeamChatEmptyState {
   readonly icon?: ReactNode;
   readonly title: string;
   readonly description?: string;
-  readonly action?: ReactNode;
 }
 
 /**
@@ -234,12 +233,19 @@ export function TeamChatInbox({
     // Wahrheit niemand nachsehen konnte.
     if (loadFailed && nothingToShow) return null;
     if (filteredThreads.length === 0 && !loadFailed) {
-      return {
-        icon: emptyIcon,
-        title: "Noch keine Nachrichten",
-        description: portal.emptyDescription,
-        action: composeButton,
-      };
+      // Kein eigener Knopf: „Neue Nachricht“ steht schon im Kopf (#5034).
+      // Bei Suche oder Filter ist die Liste nicht leer, sondern gefiltert.
+      return searchTerm || onlyUnread
+        ? {
+            icon: emptyIcon,
+            title: "Keine passenden Unterhaltungen",
+            description: "Ändern Sie die Suche oder den Filter.",
+          }
+        : {
+            icon: emptyIcon,
+            title: "Noch keine Nachrichten",
+            description: portal.emptyDescription,
+          };
     }
     return null;
   })();
@@ -390,7 +396,6 @@ function DefaultInboxFrame({ parts }: { readonly parts: TeamChatInboxParts }) {
           icon={empty.icon}
           title={empty.title}
           description={empty.description}
-          action={empty.action}
         />
       ) : (
         <>

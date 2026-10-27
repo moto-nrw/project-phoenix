@@ -50,6 +50,8 @@ What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second
 
 **One card per job, all from the kit.** A content surface in a tenant page is never a hand-written class chain: `SectionCard` (with `title`, or without it for the plain surface), `TileCard` for anything clickable (`containsControls` when the tile carries its own buttons), `StatCard` for every figure (it has `icon`, `href`, `loading`), `TenantPageHeaderSkeleton` for a loading head. `ui-kit/no-hand-rolled-page-card` fails a page that spells the surface out again.
 
+**One create button per surface, also when it is empty.** The create action stays in the head (`TenantPage` `actions`, `SectionCard` `action`), where it also sits when the list is filled. The empty state shows title and description without a second create button and may point to the head in text; on the database pages that includes the mobile FAB. `empty.action` / `EmptyState` `action` is only for a different step, such as „Filter zurücksetzen" while a search or filter is active (#5034). Outside production `TenantPage` logs `tenant_page_empty_action_repeats_head_action` when an empty-state control carries the name of a head control.
+
 **One empty-value glyph.** Where a table cell or a field has no value, it shows „–" (en dash). „—" was in use side by side with it, sometimes in the same table. Where there is room, say why the value is missing instead of printing a glyph.
 
 **Planning surfaces have no second head.** `PlanningContextBar` is the control band inside the head card (`searchSlot`), not a card of its own.

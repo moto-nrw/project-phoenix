@@ -1048,7 +1048,7 @@ export function CareOfferingsEditor({
           ) : null}
 
           {selectedPhaseId && offerings.length === 0 ? (
-            <EmptyCareOfferingState onCreate={beginCreate} />
+            <EmptyCareOfferingState />
           ) : offerings.length > 0 ? (
             <DataTable
               columns={columns}
@@ -1247,9 +1247,7 @@ function NoPhaseState() {
   );
 }
 
-function EmptyCareOfferingState({
-  onCreate,
-}: Readonly<{ onCreate: () => void }>) {
+function EmptyCareOfferingState() {
   return (
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
       <EmptyState
@@ -1260,18 +1258,6 @@ function EmptyCareOfferingState({
         }
         title="Noch kein Betreuungsangebot angelegt"
         description="Erstellen Sie das erste Angebot, das Eltern auswählen können. Typisch sind Regelbetreuung, Ferienbetreuung oder ein Angebot mit Mittagessen."
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={onCreate}
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Erstes Betreuungsangebot anlegen
-          </Button>
-        }
       />
     </section>
   );

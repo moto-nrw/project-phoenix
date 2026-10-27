@@ -586,4 +586,53 @@ describe("TenantPage mit nicht gebuchtem Modul", () => {
     expect(screen.queryByText("Inhalt")).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  // #5034: Der Leerzustand wiederholt keine Kopfaktion. Das Gerüst meldet
+  // eine Wiederholung außerhalb der Produktion.
+  describe("Leerzustand neben einer Kopfaktion", () => {
+    it("meldet einen Leerzustand-Knopf, der die Kopfaktion wiederholt", () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      render(
+        <TenantPage
+          title="Räume"
+          actions={<button type="button">+ Raum</button>}
+          empty={{
+            title: "Keine Räume vorhanden",
+            action: <button type="button">Raum</button>,
+          }}
+        />,
+      );
+      expect(consoleError).toHaveBeenCalledWith(
+        "tenant_page_empty_action_repeats_head_action",
+        expect.objectContaining({ page: "Räume", action: "raum" }),
+      );
+      consoleError.mockRestore();
+    });
+
+    it("lässt eine Leerzustand-Aktion für eine andere Handlung zu", () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      render(
+        <TenantPage
+          title="Räume"
+          actions={<button type="button">+ Raum</button>}
+          empty={{
+            title: "Keine passenden Räume",
+            action: <button type="button">Filter zurücksetzen</button>,
+          }}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Filter zurücksetzen" }),
+      ).toBeInTheDocument();
+      expect(consoleError).not.toHaveBeenCalledWith(
+        "tenant_page_empty_action_repeats_head_action",
+        expect.anything(),
+      );
+      consoleError.mockRestore();
+    });
+  });
 });
