@@ -75,6 +75,11 @@ func TestDemoPresenceHistoryWritesTheDaysInTheSchoolOfThePath(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.JSONEq(t, `{"written":1}`, string(mustData(t, rr)))
+	var response struct {
+		Message string `json:"message"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	assert.Equal(t, "Anwesenheitsverlauf gespeichert", response.Message)
 	assert.Equal(t, int64(42), history.tenantID)
 	require.Len(t, history.days, 1)
 	day := history.days[0]
@@ -103,11 +108,16 @@ func TestDemoPresenceHistoryRejectsInvalidInput(t *testing.T) {
 			reject: fmt.Errorf("%w: student 7 leaves before arriving", studentpresence.ErrPresenceHistoryInvalid)},
 		"invalid date":      {school: "42", body: demoPresenceHistoryBody(t, map[string]any{"student_id": 7, "date": "20.10.2026", "device_id": 3})},
 		"unknown field":     {school: "42", body: []byte(`{"days":[],"tenant_id":1}`)},
+		"top-level null":    {school: "42", body: []byte(`null`)},
 		"second JSON value": {school: "42", body: []byte(`{"days":[]}{"days":[]}`)},
 		"trailing bytes":    {school: "42", body: []byte(`{"days":[]}not-json`)},
-		"too many days":     {school: "42", body: demoPresenceHistoryBody(t, tooMany...)},
-		"body too large":    {school: "42", body: []byte(`{"days":[` + strings.Repeat(" ", 1<<20) + `]}`)},
-		"invalid school":    {school: "0", body: demoPresenceHistoryBody(t)},
+		"duplicate day": {school: "42", body: demoPresenceHistoryBody(t,
+			map[string]any{"student_id": 7, "date": "2026-10-20", "device_id": 3},
+			map[string]any{"student_id": 7, "date": "2026-10-20", "device_id": 3},
+		)},
+		"too many days":  {school: "42", body: demoPresenceHistoryBody(t, tooMany...)},
+		"body too large": {school: "42", body: []byte(`{"days":[` + strings.Repeat(" ", 1<<20) + `]}`)},
+		"invalid school": {school: "0", body: demoPresenceHistoryBody(t)},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

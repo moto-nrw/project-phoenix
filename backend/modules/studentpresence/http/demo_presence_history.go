@@ -27,6 +27,11 @@ type DemoPresenceHistoryRequest struct {
 	Days []DemoPresenceHistoryDay `json:"days"`
 }
 
+type demoPresenceHistoryDayKey struct {
+	studentID int64
+	date      calendar.Date
+}
+
 // DemoPresenceHistoryDay is one finished care day of one child.
 type DemoPresenceHistoryDay struct {
 	StudentID int64                     `json:"student_id"`
@@ -79,12 +84,12 @@ func DemoPresenceHistoryHandler(history studentpresence.PresenceHistory) http.Ha
 			renderError(w, r, common.ErrorInternalServerWrap("record presence history", err))
 			return
 		}
-		common.Respond(w, r, http.StatusOK, DemoPresenceHistoryResponse{Written: written}, "Presence history recorded")
+		common.Respond(w, r, http.StatusOK, DemoPresenceHistoryResponse{Written: written}, "Anwesenheitsverlauf gespeichert")
 	}
 }
 
 func decodeDemoPresenceHistory(w http.ResponseWriter, r *http.Request) ([]studentpresence.PastPresenceDay, error) {
-	var body DemoPresenceHistoryRequest
+	var body *DemoPresenceHistoryRequest
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxDemoPresenceHistoryBytes))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&body); err != nil {
@@ -93,11 +98,20 @@ func decodeDemoPresenceHistory(w http.ResponseWriter, r *http.Request) ([]studen
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("invalid presence history: unexpected trailing data: %w", err)
 	}
+	if body == nil {
+		return nil, errors.New("der Anwesenheitsverlauf muss ein Objekt enthalten")
+	}
 	if len(body.Days) > maxDemoPresenceHistoryDays {
 		return nil, fmt.Errorf("presence history holds %d days, at most %d per request", len(body.Days), maxDemoPresenceHistoryDays)
 	}
 	days := make([]studentpresence.PastPresenceDay, 0, len(body.Days))
+	seen := make(map[demoPresenceHistoryDayKey]struct{}, len(body.Days))
 	for _, day := range body.Days {
+		key := demoPresenceHistoryDayKey{studentID: day.StudentID, date: day.Date}
+		if _, duplicate := seen[key]; duplicate {
+			return nil, fmt.Errorf("der Anwesenheitsverlauf enthält den Tag %s für Kind %d mehrfach", day.Date, day.StudentID)
+		}
+		seen[key] = struct{}{}
 		past := studentpresence.PastPresenceDay{StudentID: day.StudentID, Date: day.Date, DeviceID: day.DeviceID, CheckIn: day.CheckIn, CheckOut: day.CheckOut}
 		if visit := day.Visit; visit != nil {
 			past.Visit = &studentpresence.PastVisit{
