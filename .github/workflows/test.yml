@@ -721,6 +721,12 @@ jobs:
           echo "demo schools not ready: ${not_ready}, staff named after the visitor: ${visitors}"
           test "${not_ready}" = 0
           test "${visitors}" = 3
+          # The always-failing Turnstile secret of this scenario must have
+          # refused the seeder's test token, as the demo server's key does.
+          # Without it this step no longer proves the demo order path.
+          refused=$(grep -c 'captcha verification failed' "${RUNNER_TEMP}/server.log" || true)
+          echo "captcha refusals like on the demo server: ${refused}"
+          test "${refused}" -gt 0
           # The demo role parent (#3468): each school names the visitor's
           # parent, a guardian of the visitor's name with full parent portal
           # rights for exactly one child and no other child.
