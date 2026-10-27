@@ -1508,6 +1508,94 @@ describe("StudentSearchPage — Unterwegs-Karte (#5026)", () => {
     );
   });
 
+  it("keeps a name search on the way to and from the assignment page", async () => {
+    currentSearch = new URLSearchParams({
+      search: "Mila",
+      view: "status",
+    });
+
+    render(<StudentSearchPage />);
+
+    await screen.findByTestId("student-card-7");
+    const card = screen.getByTestId("transit-card");
+    const referrer = new URL(
+      decodeURIComponent(card.getAttribute("data-from") ?? ""),
+      "https://example.test",
+    );
+    expect(referrer.pathname).toBe("/students/search");
+    expect(referrer.searchParams.get("search")).toBe("Mila");
+    expect(referrer.searchParams.get("view")).toBe("status");
+    expect(mockPageHeader).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        search: expect.objectContaining({ value: "Mila" }),
+      }),
+    );
+  });
+
+  it("counts only transit children that pass client-side filters", async () => {
+    currentSearch = new URLSearchParams({
+      view: "status",
+      pickup_time: "14:00",
+      arrival_time: "08:00",
+      tracking: "missing:0",
+    });
+    mockUseSWRAuth.mockImplementation((key: string | null) => {
+      if (key === "search-rooms-list") {
+        return { data: [], isLoading: false, error: null };
+      }
+      if (key?.startsWith("tracking-indicators-")) {
+        return {
+          data: {
+            labels: ["Mensa"],
+            results: {
+              "7": [false],
+              "8": [false],
+              "9": [false],
+              "10": [true],
+            },
+          },
+          isLoading: false,
+          error: null,
+        };
+      }
+      return {
+        data: {
+          students: [
+            { ...mockStudent, pickup_time: "14:00", arrival_time: "08:00" },
+            {
+              ...mockStudent,
+              id: "8",
+              pickup_time: "15:00",
+              arrival_time: "08:00",
+            },
+            {
+              ...mockStudent,
+              id: "9",
+              pickup_time: "14:00",
+              arrival_time: "09:00",
+            },
+            {
+              ...mockStudent,
+              id: "10",
+              pickup_time: "14:00",
+              arrival_time: "08:00",
+            },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      };
+    });
+
+    render(<StudentSearchPage />);
+
+    await screen.findByTestId("student-card-7");
+    expect(screen.getByTestId("transit-card")).toHaveAttribute(
+      "data-count",
+      "1",
+    );
+  });
+
   it("keeps the card closed while the list neither filters nor groups by Unterwegs", async () => {
     render(<StudentSearchPage />);
 
