@@ -2,7 +2,8 @@
  * Tests for Teachers Configuration
  * Tests teacher config structure and mapping functions
  */
-import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { teachersConfig } from "./teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 
@@ -15,6 +16,10 @@ vi.mock("@/lib/teacher-api", () => ({
 }));
 
 describe("teachersConfig", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("exports a valid entity config", () => {
     expect(teachersConfig).toBeDefined();
     expect(teachersConfig.name).toEqual({
@@ -92,6 +97,28 @@ describe("teachersConfig", () => {
     expect(teachersConfig.detail.header?.title(mockTeacher)).toBe(
       "Max Mustermann",
     );
+  });
+
+  it("hides demo seed addresses in detail and list renderers", () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
+    const demoTeacher: Teacher = {
+      id: "1",
+      name: "Julia Klein",
+      first_name: "Julia",
+      last_name: "Klein",
+      email: "julia.klein@demo-ogs-nord.moto-ogs.de",
+    };
+    const emailItem = teachersConfig.detail.sections[0]?.items.find(
+      (item) => item.label === "E-Mail",
+    );
+    const accountItem = teachersConfig.detail.sections[2]?.items.find(
+      (item) => item.label === "Konto-Informationen",
+    );
+
+    expect(emailItem?.value(demoTeacher)).toBe("–");
+    expect(teachersConfig.list.item.description?.(demoTeacher)).toBe("");
+    render(<>{accountItem?.value({ ...demoTeacher, account_id: "42" })}</>);
+    expect(screen.queryByText("E-Mail:")).not.toBeInTheDocument();
   });
 
   it("falls back to first_name and last_name", () => {

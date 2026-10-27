@@ -380,6 +380,29 @@ describe("GuardiansPanel", () => {
     expect(screen.getAllByText("Das sind Sie")).toHaveLength(2);
   });
 
+  it("does not offer access for a hidden demo seed address", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_ENV", "demo");
+    mocks.listRelatedAccounts.mockResolvedValue([
+      {
+        guardian_profile_id: "7",
+        first_name: "Helga",
+        last_name: "Schneider",
+        email: "sabine.schneider@demo-ogs-nord.moto-ogs.de",
+        relationship_type: "relative",
+        is_primary: false,
+        status: "no_account",
+        is_self: false,
+      },
+    ] satisfies RelatedAccount[]);
+
+    render(<GuardiansPanel studentId="42" canInvite canRemove={false} />);
+
+    expect(await screen.findByText("Helga Schneider")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zugang geben" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("separates contacts and accounts with the standard section spacing", async () => {
     mocks.listRelatedAccounts.mockResolvedValue([
       {

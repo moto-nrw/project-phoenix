@@ -130,7 +130,7 @@ describe("GuardianList", () => {
       lastName: "Wolf",
       email: "sabine.schneider@demo-ogs-nord.moto-ogs.de",
     };
-    render(<GuardianList guardians={[seeded]} />);
+    render(<GuardianList guardians={[seeded]} onInvite={vi.fn()} />);
 
     expect(screen.getAllByText("Christian Wolf").length).toBeGreaterThan(0);
     expect(screen.getByTestId("contact-email")).toBeEmptyDOMElement();
@@ -138,6 +138,12 @@ describe("GuardianList", () => {
       screen.queryByText("sabine.schneider@demo-ogs-nord.moto-ogs.de"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Nicht angegeben")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Für die Einladung fehlt die E-Mail-Adresse."),
+    ).not.toBeInTheDocument();
   });
 
   it("renders empty state when no guardians", () => {

@@ -97,7 +97,7 @@ function canInviteGuardian(
     guardian.accountStatus !== "active" &&
     guardian.guardianRole !== "social_worker" &&
     !(guardian.accountStatus === "pending" && guardian.hasAccount) &&
-    guardian.email,
+    displayEmail(guardian.email),
   );
 }
 

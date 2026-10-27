@@ -766,6 +766,7 @@ function GuardianRow({
     Boolean(email) ||
     Boolean(g.address_street ?? g.address_city ?? g.address_postal_code);
   const hasDetails = hasContact || Boolean(g.pickup_notes);
+  const accessEmail = displayEmail(access?.email);
   // Von der Schule verwaltete Kontakte (social_worker) weist das Backend ab,
   // deshalb wird der Ausbau dort gar nicht angeboten (#2172).
   const grantable =
@@ -773,7 +774,7 @@ function GuardianRow({
     (access?.status === "active_no_access" ||
       access?.status === "no_account") &&
     access.guardian_role !== "social_worker" &&
-    Boolean(access.email);
+    Boolean(accessEmail);
   return (
     <div className="rounded-xl bg-gray-50 p-4">
       <div className="flex items-start gap-3">
@@ -957,7 +958,7 @@ function GuardianRow({
             variant="surface"
             size="md"
             disabled={busy}
-            onClick={() => onGrantAccess(access?.email ?? "", name)}
+            onClick={() => onGrantAccess(accessEmail, name)}
           >
             {t("guardians.access.grant")}
           </Button>
