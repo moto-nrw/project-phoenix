@@ -305,9 +305,3 @@ func (c *CareOfferingCatalog) ValidateMaterializable(ctx context.Context, segmen
 	}
 	return c.validateCareOfferingMaterializability(ctx, segments, phase, days, careOfferingMaterializationChange{})
 }
-
-// ResolveTemplatePeriod resolves the one calendar period a template's
-// schedules share.
-func (c *CareOfferingCatalog) ResolveTemplatePeriod(ctx context.Context, group careplan.LinkedGroup) (careplan.LinkedPeriod, error) {
-	return c.resolveTemplatePeriodForGroup(ctx, group)
-}
