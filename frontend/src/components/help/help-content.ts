@@ -472,7 +472,7 @@ function studentSearchTopic(
     presenceMode === "binary"
       ? []
       : [
-          "Filtern Sie nach `Unterwegs`? Dann steht oben die Karte `Unterwegs`. Mit `Zuweisen` setzen Sie diese Kinder in einen Raum. Die Karte sehen Sie nur, wenn Sie Kinder einem Raum zuweisen dürfen.",
+          "Filtern Sie nach `Unterwegs`? Oder gruppieren Sie `Nach Status` oder `Nach Raum`? Dann steht oben die Karte `Unterwegs`. Mit `Zuweisen` setzen Sie diese Kinder in einen Raum. Die Karte sehen Sie nur, wenn Sie Kinder einem Raum zuweisen dürfen.",
         ];
 
   return {

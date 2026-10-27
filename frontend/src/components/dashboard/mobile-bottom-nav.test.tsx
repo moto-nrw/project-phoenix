@@ -612,7 +612,7 @@ describe("MobileBottomNav", () => {
 
       render(<MobileBottomNav />);
 
-      // Die Bezeichnung erscheint nur am aktiven Reiter.
+      // Anker: „Suchen“ ist aktiv, nur dort erscheint die Bezeichnung.
       expect(screen.getByText("Suchen")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Mehr" })).not.toHaveClass(
         "bg-gray-100",
