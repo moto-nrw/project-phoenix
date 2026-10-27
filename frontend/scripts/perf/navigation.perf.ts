@@ -201,22 +201,22 @@ function countByPath(records: readonly { path: string }[]): string[] {
 
 /** Der Seitenleisten-Link; liegt er in einer zugeklappten Gruppe, aufklappen. */
 async function sidebarLink(page: Page, hop: NavigationHop) {
+  if (hop.group) {
+    // Ein zugeklappter Bereich behält seine Links im DOM. Sie gelten als
+    // sichtbar, den Klick fängt aber der Bereichskopf ab.
+    const group = page
+      .getByRole("button", { name: hop.group, exact: true })
+      .first();
+    if ((await group.getAttribute("aria-expanded")) === "false") {
+      await group.click();
+    }
+  }
   const sidebar = page.locator("nav").filter({ has: page.getByRole("link") });
   const link = page
     .getByRole("link", { name: hop.linkName, exact: true })
     .filter({ visible: true })
     .first();
   if (await link.count()) return link;
-  if (hop.group) {
-    await page
-      .getByRole("button", { name: hop.group, exact: false })
-      .first()
-      .click();
-    return page
-      .getByRole("link", { name: hop.linkName, exact: true })
-      .filter({ visible: true })
-      .first();
-  }
   return sidebar.getByRole("link", { name: hop.linkName }).first();
 }
 
