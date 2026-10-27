@@ -179,6 +179,14 @@ func buildClassDayViews(
 	if err != nil {
 		return ClassDayViews{}, fmt.Errorf("compose class day timetable reads: %w", err)
 	}
+	morning := withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
+		presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
+			AbsenceNotifier: studentAbsenceNotifier{notifier: notifications.AbsenceNotifier},
+			Broadcaster:     hub, Logger: env.Logger.With("service", "class-day-absence-reports"), ParentEventEmitter: emitter,
+			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
+		}, presence.Presence), audit.Persistence.StudentFieldEdit, notifications.UnreportedAbsences)
+	// The absence list (#4793) counts the morning marks of a period.
+	morning = withClassDayAbsenceList(morning, presence.Presence, carePlanRows.StatusDays, schoolDays, audit.Persistence.DataAccessLog, renderer)
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: caller, PickupTimes: schedules.Pickups, ArrivalTimes: schedules.Arrivals, CareDays: schedules.CareDay,
 		Companions: owners.NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
@@ -186,20 +194,13 @@ func buildClassDayViews(
 			Broadcaster: hub, Logger: env.Logger.With("service", "class-day-class-trips"), ParentEventEmitter: emitter,
 			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
 		})),
-		BlockStarts:         operations,
-		DayHintDependencies: classdayCompose.DayHintDependencies{DayHints: persons, Today: calendar.CalendarDateClock(env.Now)},
-		MorningAttendanceDependencies: withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
-			presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
-				AbsenceNotifier: studentAbsenceNotifier{notifier: notifications.AbsenceNotifier},
-				Broadcaster:     hub, Logger: env.Logger.With("service", "class-day-absence-reports"), ParentEventEmitter: emitter,
-				PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
-			}, presence.Presence), audit.Persistence.StudentFieldEdit, notifications.UnreportedAbsences),
-		HomeworkDependencies: classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
+		BlockStarts:                   operations,
+		DayHintDependencies:           classdayCompose.DayHintDependencies{DayHints: persons, Today: calendar.CalendarDateClock(env.Now)},
+		MorningAttendanceDependencies: morning,
+		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence.Presence, HandoverStaffNames: classHandoverStaffNames(people.Staff),
 		},
-		AbsenceListDependencies: NewClassDayAbsenceList(presence.Presence, carePlanRows.StatusDays, schoolDays,
-			audit.Persistence.DataAccessLog, renderer),
 	}, reports, carePlanRows.StatusDays, people.Students, people.Persons, people.StudentGuardians,
 		audit.Persistence.DataAccessLog, settings, hub, env.Logger.With("service", "class-day-arrival-exceptions"))
 	slotLists := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{

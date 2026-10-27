@@ -29,11 +29,6 @@ type (
 	HomeworkEntry                 = application.HomeworkEntry
 	HomeworkFeedbackEntry         = application.HomeworkFeedbackEntry
 	ClassHandoverDependencies     = application.ClassHandoverDependencies
-	AbsenceListDependencies       = application.AbsenceListDependencies
-	MorningMark                   = application.MorningMark
-	DatedStatusDay                = application.DatedStatusDay
-	HalfYear                      = application.HalfYear
-	ListRenderer                  = application.ListRenderer
 )
 
 // ClassDayDependencies wire the school-portal reads and write seams; a nil seam is unconfigured.
@@ -57,7 +52,6 @@ type ClassDayDependencies struct {
 	DayHintDependencies
 	HomeworkDependencies
 	ClassHandoverDependencies
-	AbsenceListDependencies
 }
 
 // NewClassDay composes the school-portal capability.
@@ -69,7 +63,6 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		StudentArrivals: deps.ClassArrivalExceptions, TripStatusDays: deps.TripStatusDays, HomeworkDependencies: deps.HomeworkDependencies,
 		MorningAttendanceDependencies: deps.MorningAttendanceDependencies, ClassHandoverDependencies: deps.ClassHandoverDependencies,
 		DayHintDependencies: deps.DayHintDependencies, HintScope: deps.WriteScope,
-		AbsenceListDependencies: deps.AbsenceListDependencies,
 	}
 	if deps.PickupTimes != nil && deps.ArrivalTimes != nil {
 		app.Times = application.DayTimeBinding{ClassDayPickupReader: deps.PickupTimes, Pickups: deps.PickupTimes, Arrivals: deps.ArrivalTimes}

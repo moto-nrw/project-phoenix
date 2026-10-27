@@ -110,11 +110,13 @@ func newAbsenceListFixture(marks []MorningMark, statuses []DatedStatusDay, cal f
 		marks: &fakeAbsenceMarks{marks: marks}, log: &fakeAbsenceListLog{}, renderer: &fakeAbsenceRenderer{},
 	}
 	f.list = NewClassDay(ClassDayDependencies{
-		Caller:                        fakeClassDayCaller{classes: []string{"3a"}},
-		Rosters:                       fakeDayRosters{roster: absenceListRoster()},
-		MorningAttendanceDependencies: MorningAttendanceDependencies{Now: func() time.Time { return absenceListToday }},
-		AbsenceListDependencies: AbsenceListDependencies{
-			Marks: f.marks, StatusDays: fakeAbsenceStatusDays{days: statuses}, Calendar: cal, Log: f.log, Renderer: f.renderer,
+		Caller:  fakeClassDayCaller{classes: []string{"3a"}},
+		Rosters: fakeDayRosters{roster: absenceListRoster()},
+		MorningAttendanceDependencies: MorningAttendanceDependencies{
+			Now: func() time.Time { return absenceListToday },
+			AbsenceList: AbsenceListDependencies{
+				Marks: f.marks, StatusDays: fakeAbsenceStatusDays{days: statuses}, Calendar: cal, Log: f.log, Renderer: f.renderer,
+			},
 		},
 	}).(classday.AbsenceList)
 	return f

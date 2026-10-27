@@ -9,6 +9,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -34,34 +35,34 @@ type classDayMorningMarkReader interface {
 	MorningAttendanceBetween(ctx context.Context, from, to timezone.Date, children []studentpresence.MorningAttendanceChild) ([]studentpresence.MorningAttendanceEntry, error)
 }
 
-// NewClassDayAbsenceList binds the absence list's ports.
-func NewClassDayAbsenceList(
-	marks classDayMorningMarkReader, statusDays classDayAbsenceStatusDayReader, schoolDays schoolcalendar.Days,
-	accessLog owners.AccessLogLedger, renderer lists.Renderer,
-) classdayCompose.AbsenceListDependencies {
-	deps := classdayCompose.AbsenceListDependencies{}
+// withClassDayAbsenceList binds the absence list's ports into the morning
+// attendance seam, whose marks it counts.
+func withClassDayAbsenceList(
+	morning classdayCompose.MorningAttendanceDependencies, marks classDayMorningMarkReader, statusDays classDayAbsenceStatusDayReader,
+	schoolDays schoolcalendar.Days, accessLog owners.AccessLogLedger, renderer lists.Renderer,
+) classdayCompose.MorningAttendanceDependencies {
 	if marks != nil {
-		deps.Marks = classDayMorningMarks{marks: marks}
+		morning.AbsenceList.Marks = classDayMorningMarks{marks: marks}
 	}
 	if statusDays != nil {
-		deps.StatusDays = classDayAbsenceStatusDays{reader: statusDays}
+		morning.AbsenceList.StatusDays = classDayAbsenceStatusDays{reader: statusDays}
 	}
 	if schoolDays != nil {
-		deps.Calendar = classDayAbsenceCalendar{calendar: schoolDays}
+		morning.AbsenceList.Calendar = classDayAbsenceCalendar{calendar: schoolDays}
 	}
 	if accessLog != nil {
-		deps.Log = classDayAccessLog{repo: accessLog}
+		morning.AbsenceList.Log = classDayAccessLog{repo: accessLog}
 	}
 	if renderer != nil {
-		deps.Renderer = ClassDaySlotListRenderer{Renderer: renderer}
+		morning.AbsenceList.Renderer = ClassDaySlotListRenderer{Renderer: renderer}
 	}
-	return deps
+	return morning
 }
 
 // classDayMorningMarks reads Student Presence's morning marks of a period.
 type classDayMorningMarks struct{ marks classDayMorningMarkReader }
 
-func (b classDayMorningMarks) MorningMarksBetween(ctx context.Context, from, to timezone.Date, studentIDs, listEntryIDs []int64) ([]classdayCompose.MorningMark, error) {
+func (b classDayMorningMarks) MorningMarksBetween(ctx context.Context, from, to timezone.Date, studentIDs, listEntryIDs []int64) ([]classday.MorningMark, error) {
 	children := make([]studentpresence.MorningAttendanceChild, 0, len(studentIDs)+len(listEntryIDs))
 	for _, id := range studentIDs {
 		children = append(children, studentpresence.MorningAttendanceChild{StudentID: id})
@@ -73,9 +74,9 @@ func (b classDayMorningMarks) MorningMarksBetween(ctx context.Context, from, to 
 	if err != nil {
 		return nil, err
 	}
-	out := make([]classdayCompose.MorningMark, 0, len(entries))
+	out := make([]classday.MorningMark, 0, len(entries))
 	for _, entry := range entries {
-		out = append(out, classdayCompose.MorningMark{
+		out = append(out, classday.MorningMark{
 			StudentID: entry.Child.StudentID, ListEntryID: entry.Child.ClassListEntryID, Date: entry.Date, Status: entry.Status,
 		})
 	}
@@ -87,18 +88,18 @@ type classDayAbsenceStatusDays struct {
 	reader classDayAbsenceStatusDayReader
 }
 
-func (b classDayAbsenceStatusDays) StatusDaysBetween(ctx context.Context, studentIDs []int64, from, to timezone.Date) ([]classdayCompose.DatedStatusDay, error) {
+func (b classDayAbsenceStatusDays) StatusDaysBetween(ctx context.Context, studentIDs []int64, from, to timezone.Date) ([]classday.DatedStatusDay, error) {
 	if len(studentIDs) == 0 {
-		return []classdayCompose.DatedStatusDay{}, nil
+		return []classday.DatedStatusDay{}, nil
 	}
 	rows, err := b.reader.FindStandingByStudentIDsAndDateRange(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]classdayCompose.DatedStatusDay, 0, len(rows))
+	out := make([]classday.DatedStatusDay, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {
-			out = append(out, classdayCompose.DatedStatusDay{StudentID: row.StudentID, Date: row.Date, Status: row.Status})
+			out = append(out, classday.DatedStatusDay{StudentID: row.StudentID, Date: row.Date, Status: row.Status})
 		}
 	}
 	return out, nil
@@ -108,21 +109,21 @@ func (b classDayAbsenceStatusDays) StatusDaysBetween(ctx context.Context, studen
 // holidays and statutory holidays.
 type classDayAbsenceCalendar struct{ calendar schoolcalendar.Days }
 
-func (b classDayAbsenceCalendar) CurrentHalfYear(ctx context.Context, day timezone.Date) (classdayCompose.HalfYear, bool, error) {
+func (b classDayAbsenceCalendar) CurrentHalfYear(ctx context.Context, day timezone.Date) (classday.HalfYear, bool, error) {
 	periods, err := b.calendar.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{
 		PeriodType: schoolcalendar.PeriodTypeSemester, ActiveOnly: true, OverlappingFrom: day.String(), OverlappingTo: day.String(),
 	})
 	if err != nil {
-		return classdayCompose.HalfYear{}, false, err
+		return classday.HalfYear{}, false, err
 	}
 	for _, period := range periods {
 		from, fromErr := timezone.ParseDate(period.StartDate)
 		to, toErr := timezone.ParseDate(period.EndDate)
 		if fromErr == nil && toErr == nil {
-			return classdayCompose.HalfYear{Name: period.Name, From: from, To: to}, true, nil
+			return classday.HalfYear{Name: period.Name, From: from, To: to}, true, nil
 		}
 	}
-	return classdayCompose.HalfYear{}, false, nil
+	return classday.HalfYear{}, false, nil
 }
 
 // SchoolFreeDays joins the active holiday periods (Ferien) and the statutory
@@ -144,22 +145,28 @@ func (b classDayAbsenceCalendar) SchoolFreeDays(ctx context.Context, from, to ti
 		return nil, err
 	}
 	for _, period := range periods {
-		start, startErr := timezone.ParseDate(period.StartDate)
-		end, endErr := timezone.ParseDate(period.EndDate)
-		if startErr != nil || endErr != nil {
-			continue
-		}
-		if start.Before(from) {
-			start = from
-		}
-		if end.After(to) {
-			end = to
-		}
-		for day := start; !day.After(end); day = day.AddDays(1) {
-			free[day] = true
-		}
+		addHolidayPeriodDays(free, period, from, to)
 	}
 	return free, nil
+}
+
+// addHolidayPeriodDays marks the days of one holiday period inside the
+// window; a period with a broken date marks nothing.
+func addHolidayPeriodDays(free map[timezone.Date]bool, period schoolcalendar.CalendarPeriod, from, to timezone.Date) {
+	start, startErr := timezone.ParseDate(period.StartDate)
+	end, endErr := timezone.ParseDate(period.EndDate)
+	if startErr != nil || endErr != nil {
+		return
+	}
+	if start.Before(from) {
+		start = from
+	}
+	if end.After(to) {
+		end = to
+	}
+	for day := start; !day.After(end); day = day.AddDays(1) {
+		free[day] = true
+	}
 }
 
 func (l classDayAccessLog) AbsenceListSeenSince(ctx context.Context, actorAccountID int64, schoolClass, from, to string, since time.Time) (bool, error) {

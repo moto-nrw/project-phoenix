@@ -47,8 +47,6 @@ type ClassDayDependencies struct {
 	HomeworkDependencies
 	// ClassHandoverDependencies are the class handover seam (#4794).
 	ClassHandoverDependencies
-	// AbsenceListDependencies are the absence list (#4793).
-	AbsenceListDependencies
 }
 
 // classDayService is the capability: the caller's classes and staff row
@@ -100,7 +98,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		homework:          newHomework(deps),
 		classHandover:     newClassHandover(deps),
 		absenceReports:    absence,
-		absenceList:       absenceList{deps: deps.AbsenceListDependencies, rosters: deps.Rosters, today: morning.today},
+		absenceList:       absenceList{deps: deps.AbsenceList, rosters: deps.Rosters, today: morning.today},
 	}
 }
 

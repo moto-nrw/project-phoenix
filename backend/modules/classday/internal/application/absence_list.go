@@ -16,35 +16,19 @@ import (
 // marks, Care Plan the status days, the School Calendar the half-years and
 // the holidays; the root binds them.
 type (
-	// MorningMark is one stored morning mark of a child: a student
-	// (StudentID) or a class-list-only entry (ListEntryID).
-	MorningMark struct {
-		StudentID   int64
-		ListEntryID int64
-		Date        calendar.Date
-		Status      string
-	}
+	// MorningMark, DatedStatusDay and HalfYear are the port values of the
+	// public contract.
+	MorningMark    = classday.MorningMark
+	DatedStatusDay = classday.DatedStatusDay
+	HalfYear       = classday.HalfYear
 	// AbsenceListMarks reads the morning marks of many children in a period.
 	AbsenceListMarks interface {
 		MorningMarksBetween(ctx context.Context, from, to calendar.Date, studentIDs, listEntryIDs []int64) ([]MorningMark, error)
-	}
-	// DatedStatusDay is one sick, excused or class-trip day of a student
-	// that still stands: active, or archived at the end of its day.
-	DatedStatusDay struct {
-		StudentID int64
-		Date      calendar.Date
-		Status    string
 	}
 	// AbsenceListStatusDays reads the status days of many students in a
 	// period.
 	AbsenceListStatusDays interface {
 		StatusDaysBetween(ctx context.Context, studentIDs []int64, from, to calendar.Date) ([]DatedStatusDay, error)
-	}
-	// HalfYear is a school half-year of the school calendar.
-	HalfYear struct {
-		Name string
-		From calendar.Date
-		To   calendar.Date
 	}
 	// AbsenceListCalendar reads the School Calendar.
 	AbsenceListCalendar interface {

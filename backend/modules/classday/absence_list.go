@@ -3,6 +3,8 @@ package classday
 import (
 	"context"
 	"errors"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Absence list of a class for the Klassenbuch and the Zeugnis (#4793): per
@@ -101,3 +103,29 @@ type AbsenceListCounts struct {
 	// status day.
 	NotRecordedDays int `json:"not_recorded_days"`
 }
+
+// Values the absence list reads through its ports; the root fills them from
+// Student Presence, Care Plan and the School Calendar.
+type (
+	// MorningMark is one stored morning mark of a child: a student
+	// (StudentID) or a class-list-only entry (ListEntryID).
+	MorningMark struct {
+		StudentID   int64
+		ListEntryID int64
+		Date        calendar.Date
+		Status      string
+	}
+	// DatedStatusDay is one sick, excused or class-trip day of a student
+	// that still stands: active, or archived at the end of its day.
+	DatedStatusDay struct {
+		StudentID int64
+		Date      calendar.Date
+		Status    string
+	}
+	// HalfYear is a school half-year of the school calendar.
+	HalfYear struct {
+		Name string
+		From calendar.Date
+		To   calendar.Date
+	}
+)

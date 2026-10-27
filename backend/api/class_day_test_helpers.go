@@ -115,22 +115,17 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 		return ClassDayTestModule{}, err
 	}
 	unreported := &RecordingUnreportedNotifier{}
-	schoolDays, err := owners.BuildSchoolCalendarRecords(db, func(schoolCalendarCompose.Observation) {}, activeSettings.Settings)
-	if err != nil {
-		return ClassDayTestModule{}, err
-	}
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: activeCaller, PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
 		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
 		BlockStarts:                   activeTimetable.TimetableOperations,
-		MorningAttendanceDependencies: classDayTestMorning(db, hub, people, rCare, command, presence, unreported, clocks),
+		MorningAttendanceDependencies: classDayTestMorning(db, hub, people, rCare, command, presence, unreported, activeSettings, clocks),
 		TripStatusDays:                classDayTestTrips(db, hub, people, rCare, clocks),
 		DayHintDependencies:           classdayCompose.DayHintDependencies{DayHints: people, Today: calendar.CalendarDateClock(clocks...)},
 		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(owners.MustNewUnobservedTimetable(db))},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence, HandoverStaffNames: classHandoverStaffNames(members.Staff),
 		},
-		AbsenceListDependencies: NewClassDayAbsenceList(presence, rCare.StudentStatusDay, schoolDays, rAudit.DataAccessLog, lists.NewRenderer()),
 	}, reports, rCare.StudentStatusDay, r.Student, r.Person, r.StudentGuardian, rAudit.DataAccessLog, activeSettings.Settings,
 		hub, slog.Default())
 	return ClassDayTestModule{ClassDay: classDay, Unreported: unreported}, nil
@@ -139,12 +134,17 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 // classDayTestMorning is the morning attendance seam with the absence
 // reports (#4791) over the test graph, composed like buildClassDayViews.
 func classDayTestMorning(db transactionruntime.Database, hub *realtime.Hub, people *peopleCompose.Directory, rCare owners.TimetableCarePlanRows,
-	command *auditCompose.Command, presence studentpresence.Owner, unreported *RecordingUnreportedNotifier, clocks []func() time.Time,
+	command *auditCompose.Command, presence studentpresence.Owner, unreported *RecordingUnreportedNotifier, settings ActiveSettings, clocks []func() time.Time,
 ) classdayCompose.MorningAttendanceDependencies {
-	return withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
+	audits := owners.NewTestAuditPersistence(db, command)
+	morning := withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
 		presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
 			Broadcaster: hub, Logger: slog.Default(), PeopleDirectory: people, StudentStatusDayService: classDayTestStatusDays(db, rCare, clocks),
-		}, presence), owners.NewTestAuditPersistence(db, command).StudentFieldEdit, unreported)
+		}, presence), audits.StudentFieldEdit, unreported)
+	// The absence list (#4793), bound like buildClassDayViews binds it.
+	schoolDays, err := owners.BuildSchoolCalendarRecords(db, func(schoolCalendarCompose.Observation) {}, settings.Settings)
+	mustActiveTestModule(err)
+	return withClassDayAbsenceList(morning, presence, rCare.StudentStatusDay, schoolDays, audits.DataAccessLog, lists.NewRenderer())
 }
 
 // classDayTestTrips is the class-trip write seam (#4799) over the test graph,
