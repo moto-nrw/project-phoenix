@@ -11,7 +11,6 @@ import (
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -21,8 +20,8 @@ import (
 // schule (#4791) to Student Presence's status-day write, the child's change
 // history in the Audit Platform and Delivery's notice. The notice reaches the
 // Schulverwaltung's open moto schule tabs over the notification stream as
-// well, which wakes its list; a report or withdrawal wakes the class views
-// through the status-day write's student_updated (class_day_changed).
+// well. Independently, morning marks, reports and withdrawals invalidate the
+// school views through student_updated (class_day_changed) after commit.
 
 // classDayAbsenceReportRecorder is Student Presence's status-day write for a
 // report the Schulverwaltung enters.
@@ -76,9 +75,11 @@ func absenceReportError(err error) error {
 		return nil
 	case errors.As(err, &conflict), errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict):
 		return fmt.Errorf("%w: %w", classday.ErrAbsenceReportConflict, err)
+	case errors.Is(err, studentpresence.ErrMorningAttendanceNotAbsent):
+		return fmt.Errorf("%w: %w", classday.ErrAbsenceReportNotMissing, err)
 	case errors.Is(err, studentpresence.ErrStudentStatusDayReassigned):
 		return fmt.Errorf("%w: %w", classday.ErrAbsenceReportUnknownChild, err)
-	case errors.Is(err, presenceStudentsHTTP.ErrSchoolAbsenceReportNotFound):
+	case errors.Is(err, studentpresence.ErrSchoolAbsenceReportNotFound):
 		return fmt.Errorf("%w: %w", classday.ErrAbsenceReportNotFound, err)
 	}
 	return err

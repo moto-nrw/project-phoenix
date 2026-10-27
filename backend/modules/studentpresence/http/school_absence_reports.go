@@ -10,11 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// ErrSchoolAbsenceReportNotFound means the child has no active status day of
-// the school's source on the date: nothing the Schulverwaltung entered is
-// left to take back (#4791).
-var ErrSchoolAbsenceReportNotFound = errors.New("no school absence report to withdraw")
-
 // SchoolAbsenceReports records the report the Schulverwaltung enters in "moto
 // schule" afterwards for a child the Lehrkraft marked absent without one
 // (#4791), with the status-day write of the OGS: the same locks, the same
@@ -23,12 +18,15 @@ var ErrSchoolAbsenceReportNotFound = errors.New("no school absence report to wit
 // fan-out. The row carries the school source, so only the school takes it
 // back. The caller proved its class reach; the locked child must still be in
 // that class (inClass), else ErrStudentStatusDayReassigned.
-type SchoolAbsenceReports struct{ rs *Resource }
+type SchoolAbsenceReports struct {
+	rs      *Resource
+	morning studentpresence.MorningAbsenceGuard
+}
 
 // NewSchoolAbsenceReports builds the write over the collaborators the
 // student routes use.
-func NewSchoolAbsenceReports(cfg ResourceConfig) SchoolAbsenceReports {
-	return SchoolAbsenceReports{rs: NewResource(cfg)}
+func NewSchoolAbsenceReports(cfg ResourceConfig, morning studentpresence.MorningAbsenceGuard) SchoolAbsenceReports {
+	return SchoolAbsenceReports{rs: NewResource(cfg), morning: morning}
 }
 
 // RecordSchoolAbsenceReport writes the sick or excused day of one child on
@@ -43,6 +41,12 @@ func (t SchoolAbsenceReports) RecordSchoolAbsenceReport(ctx context.Context, stu
 	}
 	tenantID := tenant.FromContext(ctx)
 	wc := t.writeContext(tenantID, status, inClass)
+	if t.morning == nil {
+		return errors.New("school absence reports: morning absence guard not configured")
+	}
+	wc.ValidateLocked = func(ctx context.Context) error {
+		return t.morning.RequireAbsentMorningAttendance(ctx, studentID, date)
+	}
 	dates := []calendar.Date{date}
 	wc.AfterCreate = func(ctx context.Context, studentIDs []int64) error {
 		return t.rs.NotifyAbsenceReported(ctx, tenantID, studentIDs, status, dates, false, actorAccountID)
@@ -52,7 +56,7 @@ func (t SchoolAbsenceReports) RecordSchoolAbsenceReport(ctx context.Context, stu
 
 // WithdrawSchoolAbsenceReport clears the child's active status day of the
 // school's source on date and returns its status. A day the OGS or the
-// parents entered stays: ErrSchoolAbsenceReportNotFound.
+// parents entered stays: studentpresence.ErrSchoolAbsenceReportNotFound.
 func (t SchoolAbsenceReports) WithdrawSchoolAbsenceReport(ctx context.Context, studentID int64, date calendar.Date, inClass func(schoolClass string) bool) (string, error) {
 	if err := t.configured(inClass); err != nil {
 		return "", err
@@ -71,7 +75,7 @@ func (t SchoolAbsenceReports) WithdrawSchoolAbsenceReport(ctx context.Context, s
 		}
 		return row.Status, nil
 	}
-	return "", ErrSchoolAbsenceReportNotFound
+	return "", studentpresence.ErrSchoolAbsenceReportNotFound
 }
 
 func (t SchoolAbsenceReports) configured(inClass func(string) bool) error {

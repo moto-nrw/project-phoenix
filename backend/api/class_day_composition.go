@@ -19,6 +19,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -43,6 +44,13 @@ func NewClassDay(
 	accessLog owners.AccessLogLedger, settings classDayWriteScopeSettings, broadcaster realtime.Broadcaster, logger *slog.Logger,
 ) classday.ClassDay {
 	deps.WriteScope = newClassDayWriteScope(settings)
+	deps.MorningChanged = func(ctx context.Context) {
+		if broadcaster != nil {
+			deliveryCompose.QueueArrivalScheduleChanged(ctx, classDayMorningBroadcaster{
+				broadcaster: broadcaster, tenantID: tenant.FromContext(ctx),
+			}, logger)
+		}
+	}
 	if settings != nil {
 		// operations.school_portal_morning_attendance (#4790): on unless the
 		// school switched it off.
@@ -349,4 +357,17 @@ func classHandoverStaffNames(staff classHandoverStaffRows) func(context.Context,
 		}
 		return names, nil
 	}
+}
+
+// classDayMorningBroadcaster reuses Delivery's queued school invalidation,
+// routing the notice to this school's student-update channel. The hub derives
+// class_day_changed for school clients; no notification preferences or child
+// data participate. The existing queue owns the after-commit boundary.
+type classDayMorningBroadcaster struct {
+	broadcaster realtime.Broadcaster
+	tenantID    int64
+}
+
+func (b classDayMorningBroadcaster) BroadcastToAll(event realtime.Event) error {
+	return b.broadcaster.BroadcastToTenant(b.tenantID, realtime.NewEvent(realtime.EventStudentUpdated, "", event.Data))
 }

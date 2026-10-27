@@ -46,6 +46,12 @@ func (s *StudentStatusDayService) createForDatesLocked(ctx context.Context, wc S
 		return err
 	}
 
+	if wc.ValidateLocked != nil {
+		if err := wc.ValidateLocked(ctx); err != nil {
+			return err
+		}
+	}
+
 	conflicts, err := s.findRequestedActiveConflicts(ctx, studentID, dates)
 	if err != nil {
 		return err
@@ -272,15 +278,7 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 	now := s.now()
 	today := calendar.DateFromTime(now)
 	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ any) error {
-		row, err := s.repo.FindActiveByID(ctx, statusDayID)
-		if err != nil {
-			return err
-		}
-		if row.StudentID != studentID {
-			return ErrNotFound
-		}
-
-		fresh, err := wc.StudentService.LockForStatusWrite(ctx, studentID, row.Status)
+		row, fresh, err := s.lockStatusDayForDeletion(ctx, wc, statusDayID, studentID)
 		if err != nil {
 			return err
 		}
@@ -356,4 +354,49 @@ func (s *StudentStatusDayService) clearOtherStatusDaysForDates(ctx context.Conte
 		}
 	}
 	return nil
+}
+
+// School reports can only be withdrawn by the school command, whose caller
+// checks the dedicated permission and appends the audit entry in the same tx.
+func authorizeStatusDayDeletion(wc StatusDayWriteContext, row *absencerecords.StudentStatusDay) error {
+	if wc.Source == absencerecords.StudentStatusSourceSchool {
+		if row.Source != wc.Source {
+			return studentpresence.ErrSchoolAbsenceReportNotFound
+		}
+	} else if row.Source == absencerecords.StudentStatusSourceSchool {
+		return ErrStudentStatusDayReassigned
+	}
+	return nil
+}
+
+// lockStatusDayForDeletion repeats the source check under the locks shared
+// with parent reports and profile changes, which may upsert the same row ID.
+func (s *StudentStatusDayService) lockStatusDayForDeletion(ctx context.Context, wc StatusDayWriteContext, statusDayID, studentID int64) (*absencerecords.StudentStatusDay, *StudentRecord, error) {
+	row, err := s.repo.FindActiveByID(ctx, statusDayID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if row.StudentID != studentID {
+		return nil, nil, ErrNotFound
+	}
+
+	fresh, err := wc.StudentService.LockForStatusWrite(ctx, studentID, row.Status)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := s.lockStudentStatusDates(ctx, studentID, []calendar.Date{row.Date}); err != nil {
+		return nil, nil, err
+	}
+	// Same-status upserts preserve the ID. Re-read only after the shared
+	// student/day locks so a parent's replacement cannot be withdrawn.
+	row, err = s.repo.FindActiveByID(ctx, statusDayID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := authorizeStatusDayDeletion(wc, row); err != nil {
+		return nil, nil, err
+	}
+
+	return row, fresh, nil
 }

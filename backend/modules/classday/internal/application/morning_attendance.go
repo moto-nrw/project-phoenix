@@ -33,6 +33,8 @@ type MorningAttendanceDependencies struct {
 	Store MorningAttendance
 	Scope MorningAttendanceScope
 	Now   func() time.Time
+	// MorningChanged queues a school-scoped invalidation after commit.
+	MorningChanged func(context.Context)
 	// The reports the Schulverwaltung enters for a child the Lehrkraft
 	// marked absent without one (#4791), and the notice a morning mark
 	// sends: without ReportStatusDays or ReportLog the reports answer
@@ -53,6 +55,7 @@ type morningAttendance struct {
 	scope   MorningAttendanceScope
 	rosters DayRosters
 	today   func() calendar.Date
+	changed func(context.Context)
 	// after runs once the marks are stored with the children the write newly
 	// marked absent (#4791); nil runs nothing.
 	after func(ctx context.Context, in classday.MorningAttendanceWrite, date calendar.Date, newlyAbsent []int64) error
@@ -63,7 +66,7 @@ func newMorningAttendance(deps ClassDayDependencies) morningAttendance {
 	if now := deps.Now; now != nil {
 		today = func() calendar.Date { return calendar.DateFromTime(now()) }
 	}
-	return morningAttendance{store: deps.Store, scope: deps.Scope, rosters: deps.Rosters, today: today}
+	return morningAttendance{store: deps.Store, scope: deps.Scope, rosters: deps.Rosters, today: today, changed: deps.MorningChanged}
 }
 
 // mayRecord applies the setting. Without the store or the setting the
@@ -131,8 +134,14 @@ func (m morningAttendance) storeMarks(ctx context.Context, in classday.MorningAt
 	if errors.Is(err, studentpresence.ErrMorningAttendanceInvalid) {
 		return fmt.Errorf("%w: %w", classday.ErrMorningAttendanceInvalid, err)
 	}
-	if err != nil || m.after == nil {
+	if err != nil {
 		return err
+	}
+	if m.changed != nil {
+		m.changed(ctx)
+	}
+	if m.after == nil {
+		return nil
 	}
 	return m.after(ctx, in, date, newlyAbsent)
 }

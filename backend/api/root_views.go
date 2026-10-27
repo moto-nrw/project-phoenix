@@ -191,7 +191,7 @@ func buildClassDayViews(
 				AbsenceNotifier: studentAbsenceNotifier{notifier: notifications.AbsenceNotifier},
 				Broadcaster:     hub, Logger: env.Logger.With("service", "class-day-absence-reports"), ParentEventEmitter: emitter,
 				PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
-			}), audit.Persistence.StudentFieldEdit, notifications.UnreportedAbsences),
+			}, presence.Presence), audit.Persistence.StudentFieldEdit, notifications.UnreportedAbsences),
 		HomeworkDependencies: classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence.Presence, HandoverStaffNames: classHandoverStaffNames(people.Staff),

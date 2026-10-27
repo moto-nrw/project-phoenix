@@ -63,6 +63,12 @@ func (r *RecordingUnreportedNotifier) NotifyUnreportedAbsences(_ context.Context
 }
 
 func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (ClassDayTestModule, error) {
+	return NewClassDayTestModuleWithRealtime(db, unit, nil, clocks...)
+}
+
+// NewClassDayTestModuleWithRealtime lets integration tests observe the same
+// hub that production binds, without collecting another owner on the module.
+func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tenant.UnitOfWork, hub *realtime.Hub, clocks ...func() time.Time) (ClassDayTestModule, error) {
 	active, err := NewActiveTestModule(db, unit, clocks...)
 	if err != nil {
 		return ClassDayTestModule{}, err
@@ -99,7 +105,9 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
-	hub := deliveryCompose.NewRealtimeHub(slog.Default())
+	if hub == nil {
+		hub = deliveryCompose.NewRealtimeHub(slog.Default())
+	}
 	members, err := owners.NewMembershipTestRepositories(db)
 	if err != nil {
 		return ClassDayTestModule{}, err
@@ -129,7 +137,7 @@ func classDayTestMorning(db transactionruntime.Database, hub *realtime.Hub, peop
 	return withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
 		presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
 			Broadcaster: hub, Logger: slog.Default(), PeopleDirectory: people, StudentStatusDayService: classDayTestStatusDays(db, rCare, clocks),
-		}), owners.NewTestAuditPersistence(db, command).StudentFieldEdit, unreported)
+		}, presence), owners.NewTestAuditPersistence(db, command).StudentFieldEdit, unreported)
 }
 
 // classDayTestTrips is the class-trip write seam (#4799) over the test graph,

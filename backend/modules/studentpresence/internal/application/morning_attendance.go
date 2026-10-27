@@ -106,3 +106,19 @@ func validMorningAttendanceChild(child studentpresence.MorningAttendanceChild) b
 		return false
 	}
 }
+
+// RequireAbsentMorningAttendance checks the latest committed mark while
+// holding its row lock. The surrounding status-day transaction owns the lock.
+func (s *Service) RequireAbsentMorningAttendance(ctx context.Context, studentID int64, date calendar.Date) error {
+	if err := s.tx.Require(ctx); err != nil {
+		return err
+	}
+	status, _, err := s.store.LockMorningAttendance(ctx, studentID, date)
+	if err != nil {
+		return err
+	}
+	if status != studentpresence.MorningAttendanceAbsent {
+		return studentpresence.ErrMorningAttendanceNotAbsent
+	}
+	return nil
+}

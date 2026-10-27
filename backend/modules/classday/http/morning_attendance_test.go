@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -40,6 +41,7 @@ const (
 )
 
 type morningAttendanceFixture struct {
+	hub       *realtime.Hub
 	db        *testpkg.DB
 	module    rootAPI.ClassDayTestModule
 	router    chi.Router
@@ -60,7 +62,10 @@ func setupMorningAttendanceFixture(t *testing.T, today string) *morningAttendanc
 	date, err := calendar.ParseDate(today)
 	require.NoError(t, err)
 	now := date.BerlinMidnight().Add(9 * time.Hour)
-	db, module := setupClassDayModule(t, func() time.Time { return now })
+	db := testpkg.SetupTestDB(t)
+	hub := realtime.NewHub(nil)
+	module, err := rootAPI.NewClassDayTestModuleWithRealtime(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), hub, func() time.Time { return now })
+	require.NoError(t, err)
 	router := classdayhttp.NewResource(module.ClassDay, nil).SchoolRouter(rootAPI.ProtectedSchoolRoutes)
 	tenantID := testpkg.Tenant(t)
 
@@ -75,7 +80,7 @@ func setupMorningAttendanceFixture(t *testing.T, today string) *morningAttendanc
 	_ = testpkg.CreateTestStudentStatusDay(t, db, sick.ID, date, "sick")
 
 	return &morningAttendanceFixture{
-		db: db, module: module, router: router, tenantID: tenantID, class: className,
+		db: db, module: module, hub: hub, router: router, tenantID: tenantID, class: className,
 		sick: sick.ID, present: present.ID, listEntry: entry.ID, other: other.ID,
 		claims: sessiontoken.AppClaims{
 			ID: int(account.ID), Sub: account.Email,
