@@ -7,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 import { ApiError } from "~/lib/api-error";
 import {
@@ -399,8 +400,27 @@ describe("VertretungView", () => {
     expect(props.instances).toEqual([]);
   });
 
-  it("keeps weekend days and their substitutions when the weekend follows Friday", () => {
+  it("snaps a weekend day of another week to Monday on a weekday although the weekend follows Friday", () => {
     vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    mockSearch.value = "d=2026-07-18";
+    setupSWR();
+
+    render(<VertretungView />);
+
+    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
+      "bg-gray-900",
+    );
+    expect(
+      screen.getByRole("button", { name: "Fr 24.07." }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sa 25.07." }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps today's weekend days and their substitutions when the weekend follows Friday", () => {
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    setTestClock("2026-07-18T12:00:00+02:00"); // Samstag
     mockSearch.value = "d=2026-07-18";
     setupSWR({
       weekData: {

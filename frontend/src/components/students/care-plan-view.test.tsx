@@ -193,9 +193,36 @@ describe("CarePlanView", () => {
     expect(String(last?.[0]) < String(last?.[1])).toBe(true);
   });
 
-  it("includes Saturday and Sunday in the week view when the weekend follows Friday", () => {
+  it("keeps the week view Mo–Fr on a weekday although the weekend follows Friday", () => {
     vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
     setTestClock(new Date("2026-09-09T12:00:00+02:00"));
+    setSWR(
+      { data: mockDay, isLoading: false, error: null },
+      { data: mockWeek, isLoading: false, error: null },
+    );
+    const onVisibleDateRangeChange = vi.fn();
+    render(
+      <CarePlanView
+        studentId="1"
+        statusDays={[]}
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+
+    selectTab("Woche");
+
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-09-07",
+      "2026-09-11",
+    );
+    expect(screen.getAllByText("Fr")).not.toHaveLength(0);
+    expect(screen.queryByText("Sa")).not.toBeInTheDocument();
+    expect(screen.queryByText("So")).not.toBeInTheDocument();
+  });
+
+  it("includes Saturday and Sunday in the week view of today's weekend when the weekend follows Friday", () => {
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    setTestClock(new Date("2026-09-12T12:00:00+02:00"));
     setSWR(
       { data: mockDay, isLoading: false, error: null },
       { data: mockWeek, isLoading: false, error: null },
@@ -250,9 +277,9 @@ describe("CarePlanView", () => {
 
   it.each([
     [false, "2026-09-14"],
-    [true, "2026-09-12"],
+    [true, "2026-09-14"],
   ])(
-    "steps from Friday to the next care day (weekend follows Friday: %s, #3921)",
+    "steps from Friday on a weekday to Monday (weekend follows Friday: %s, #5028)",
     (weekendOpen, next) => {
       vi.mocked(useWeekendFollowsFriday).mockReturnValue(weekendOpen);
       setTestClock(new Date("2026-09-11T12:00:00+02:00"));
@@ -267,6 +294,32 @@ describe("CarePlanView", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Nächster Tag" }));
       expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(next, next);
+      vi.mocked(useWeekendFollowsFriday).mockReturnValue(false);
+    },
+  );
+
+  it.each([
+    [false, "2026-09-11"],
+    [true, "2026-09-12"],
+  ])(
+    "steps back from Sunday to the previous care day of today's weekend (weekend follows Friday: %s, #3921)",
+    (weekendOpen, previous) => {
+      vi.mocked(useWeekendFollowsFriday).mockReturnValue(weekendOpen);
+      setTestClock(new Date("2026-09-13T12:00:00+02:00"));
+      const onVisibleDateRangeChange = vi.fn();
+      render(
+        <CarePlanView
+          studentId="1"
+          statusDays={[]}
+          onVisibleDateRangeChange={onVisibleDateRangeChange}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Vorheriger Tag" }));
+      expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+        previous,
+        previous,
+      );
       vi.mocked(useWeekendFollowsFriday).mockReturnValue(false);
     },
   );

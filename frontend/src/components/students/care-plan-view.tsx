@@ -32,7 +32,9 @@ import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { resolveDayDeviation } from "~/lib/care-plan-helpers";
 import {
   berlinTodayISO,
+  careWeekDayCount,
   formatDate,
+  isCareWeekendDay,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
@@ -76,13 +78,17 @@ const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
 
 /**
  * Step one care day forward/back: skips Sa/So unless the school runs the
- * weekend on Friday's plan (operations.weekend_follows_friday, #3921).
+ * weekend on Friday's plan (operations.weekend_follows_friday, #3921) and it
+ * is today's weekend (#5028, `isCareWeekendDay`).
  */
 function stepWeekday(iso: string, dir: 1 | -1, weekendOpen: boolean): string {
   const d = parseISODate(iso);
   d.setDate(d.getDate() + dir);
-  if (!weekendOpen) {
-    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + dir);
+  while (
+    (d.getDay() === 0 || d.getDay() === 6) &&
+    !isCareWeekendDay(toISODate(d), weekendOpen)
+  ) {
+    d.setDate(d.getDate() + dir);
   }
   return toISODate(d);
 }
@@ -91,7 +97,7 @@ function stepWeekday(iso: string, dir: 1 | -1, weekendOpen: boolean): string {
  * The care days of the week `weekOffset` weeks from the current Berlin week.
  * Anchored on the school (Berlin) calendar day, not the browser's local
  * `new Date()`, so the range sent to the DATE-based /week endpoint is correct
- * in any timezone.
+ * in any timezone. Sa/So follow `careWeekDayCount` (#5028).
  */
 function berlinWeekDays(weekOffset: number, weekendOpen: boolean): Date[] {
   const anchor = parseISODate(berlinTodayISO());
@@ -100,7 +106,8 @@ function berlinWeekDays(weekOffset: number, weekendOpen: boolean): Date[] {
   const monday = new Date(anchor);
   monday.setDate(anchor.getDate() - daysToMonday + weekOffset * 7);
   const days: Date[] = [];
-  for (let i = 0; i < (weekendOpen ? 7 : 5); i++) {
+  const dayCount = careWeekDayCount(toISODate(monday), weekendOpen);
+  for (let i = 0; i < dayCount; i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     days.push(d);
@@ -399,7 +406,10 @@ function WeekBody({
   onSelectMobileDay,
   deviationFor,
 }: WeekBodyProps) {
-  const selectedDate = weekDates[mobileDayIndex] ?? weekDates[0]!;
+  // Today's Saturday or Sunday is selected on a weekend; a Mo–Fr week
+  // without it falls back to Monday (#5028).
+  const selectedIndex = mobileDayIndex < weekDates.length ? mobileDayIndex : 0;
+  const selectedDate = weekDates[selectedIndex]!;
   const selectedISO = toISODate(selectedDate);
   const selectedDay = daysByDate.get(selectedISO) ?? null;
 
@@ -441,7 +451,7 @@ function WeekBody({
       <div className="xl:hidden">
         <div className="mb-3 flex gap-2 overflow-x-auto">
           {weekDates.map((date, i) => {
-            const isSelected = i === mobileDayIndex;
+            const isSelected = i === selectedIndex;
             return (
               <button
                 key={toISODate(date)}

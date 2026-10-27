@@ -113,6 +113,7 @@ import { substitutionService } from "~/lib/substitution-api";
 import { listPhases } from "~/lib/enrollment-phase-api";
 import {
   berlinTodayISO,
+  careWeekDayCount,
   formatDate,
   isValidISODate,
   parseISODate,
@@ -506,11 +507,16 @@ function TimetablesContent() {
   const monthDays = useMemo(() => getMonthDays(visibleDate), [visibleDate]);
   // Der Betreuungsplan folgt derselben Betriebswoche wie Dienstplan und
   // Vertretung: geplant und angezeigt wird nur Mo–Fr, außer die Schule
-  // betreut das Wochenende nach dem Freitagsplan (#3921). Die Monatsansicht
+  // betreut das Wochenende nach dem Freitagsplan (#3921) und die Woche
+  // enthält den heutigen Samstag oder Sonntag (#5028). Die Monatsansicht
   // bleibt ein vollständiger Kalender, daher behält sie ihr eigenes Fenster.
   const weekDays = useMemo(
-    () => getWeekdays(weekRange.from).slice(0, weekendOpen ? 7 : 5),
-    [weekRange.from, weekendOpen],
+    () =>
+      getWeekdays(weekRange.from).slice(
+        0,
+        careWeekDayCount(fromISO, weekendOpen),
+      ),
+    [weekRange.from, fromISO, weekendOpen],
   );
   const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
   const workweekToISO = weekDayISOs[weekDayISOs.length - 1]!;

@@ -6,6 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 import { CareScheduleManager } from "./care-schedule-manager";
 import { ApiError } from "~/lib/api-error";
 import { toISODate } from "~/lib/date-helpers";
@@ -700,7 +701,22 @@ describe("CareScheduleManager", () => {
     );
   });
 
-  it("shows weekend days and opens their exceptions when the weekend follows Friday", async () => {
+  it("keeps the week Mo–Fr on a weekday although the weekend follows Friday", async () => {
+    render(<CareScheduleManager studentId="42" weekendFollowsFriday />);
+    await screen.findByText("Betreuungszeiten");
+
+    expect(mockFetchArrivalData).toHaveBeenCalledWith(
+      "42",
+      "2026-05-25",
+      "2026-05-29",
+    );
+    expect(screen.getAllByText("Fr").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Sa")).not.toBeInTheDocument();
+    expect(screen.queryByText("So")).not.toBeInTheDocument();
+  });
+
+  it("shows weekend days of today's weekend and opens their exceptions when the weekend follows Friday", async () => {
+    setTestClock("2026-05-30T12:00:00+02:00"); // Saturday
     const onVisibleDateRangeChange = vi.fn();
 
     render(

@@ -73,6 +73,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
   berlinTodayISO,
+  careWeekDayCount,
   isValidISODate,
   parseISODate,
   toISODate,
@@ -233,9 +234,11 @@ function VertretungContent() {
   const range = useMemo(() => getWeekRange(parseISODate(dayISO), 0), [dayISO]);
   const fromISO = toISODate(range.from);
   const toISO = toISODate(range.to);
+  // Sa/So nur in der Woche mit dem heutigen Wochenende (#5028).
   const weekDays = useMemo(
-    () => getWeekdays(range.from).slice(0, weekendOpen ? 7 : 5),
-    [range.from, weekendOpen],
+    () =>
+      getWeekdays(range.from).slice(0, careWeekDayCount(fromISO, weekendOpen)),
+    [range.from, fromISO, weekendOpen],
   );
   // Das Label endet am letzten sichtbaren Betreuungstag.
   const weekLabel = useMemo(

@@ -1,4 +1,4 @@
-import { toISODate as formatDateISO } from "./date-helpers";
+import { careWeekDayCount, toISODate as formatDateISO } from "./date-helpers";
 import type {
   ArrivalException,
   ArrivalNote,
@@ -56,7 +56,10 @@ export function getWeekDays(
 ): Date[] {
   const monday = getWeekStart(weekOffset);
   const days: Date[] = [];
-  const dayCount = weekendFollowsFriday ? 7 : 5;
+  const dayCount = careWeekDayCount(
+    formatDateISO(monday),
+    weekendFollowsFriday,
+  );
   for (let i = 0; i < dayCount; i++) {
     const day = new Date(monday);
     day.setDate(monday.getDate() + i);

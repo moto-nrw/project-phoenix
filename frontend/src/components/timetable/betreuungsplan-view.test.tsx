@@ -1419,7 +1419,29 @@ describe("BetreuungsplanView", () => {
       vi.mocked(useWeekendFollowsFriday).mockReturnValue(false);
     });
 
-    it("navigiert in der Tagesansicht auch über Samstag und Sonntag", () => {
+    it("navigiert an einem Werktag in der Tagesansicht über das Wochenende hinweg (#5028)", () => {
+      // Testuhr: Mittwoch 2026-09-09, also kein heutiges Wochenende.
+      setUrl("view=tag&d=2026-05-08");
+      const { unmount } = render(<BetreuungsplanView />);
+      fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+      expect(urlParams().get("d")).toBe("2026-05-11");
+      unmount();
+
+      setUrl("view=tag&d=2026-05-11");
+      render(<BetreuungsplanView />);
+      fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+      expect(urlParams().get("d")).toBe("2026-05-08");
+    });
+
+    it("zeigt an einem Werktag fünf Spalten (#5028)", () => {
+      setUrl("d=2026-09-09");
+      render(<BetreuungsplanView />);
+
+      expect(screen.getByTestId("grid-week-days")).toHaveTextContent("5");
+    });
+
+    it("navigiert am Wochenende in der Tagesansicht auch über Samstag und Sonntag", () => {
+      setTestClock(new Date("2026-05-09T12:00:00+02:00")); // Samstag
       setUrl("view=tag&d=2026-05-08");
       const { unmount } = render(<BetreuungsplanView />);
       fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
