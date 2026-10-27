@@ -78,7 +78,7 @@
     "unreadCount": "{count} të palexuara",
     "openCount": "{count} të hapura",
     "noticeCount": "{count} njoftime",
-    "documents": "Dokumente"
+    "documents": "Dokumentet"
   },
   "parentFirstSteps": {
     "title": "Hapat e parë",
@@ -274,7 +274,7 @@
     "participationSicknessLead": "Një njoftim i konfirmuar për sëmundje deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}} e anulon drekën. Pas kësaj, regjistrimi mbetet i pandryshuar."
   },
   "parentDocuments": {
-    "title": "Dokumente",
+    "title": "Dokumentet",
     "description": "Këtu gjeni letrat që ju ka dërguar ofruesi. Për shembull konfirmimin e kujdesit gjatë pushimeve.",
     "emptyTitle": "Ende nuk ka dokumente",
     "emptyDescription": "Kur ofruesi ju dërgon një letër, e gjeni këtu. E merrni edhe me email.",
