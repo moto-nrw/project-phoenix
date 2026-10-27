@@ -134,23 +134,40 @@ func readMealDay(rt *Runtime, day seedDate) (mealDay, error) {
 // registerMealChildren gives up to count children of other classes regular
 // lunch days from day on, one class after the other, and moves them onto
 // the day's list. It keeps enough others back for the late registrations.
+// It registers only children seedRegularBookingsStep can book lunch for, so
+// nobody eats without a booking (#5023); the late registrations stay the
+// documented exception.
 func registerMealChildren(rt *Runtime, day seedDate, list *mealDay, count int) (int, error) {
 	count = min(count, len(list.others)-mealOrderLateAdds)
 	if count <= 0 {
 		return 0, nil
 	}
-	picked := pickAcrossClasses(list.others, count)
+	picked := pickAcrossClasses(bookableMealChildren(rt, list.others), count)
 	for index, child := range picked {
+		weekdays := mealWeekdaysWith(index, day.Weekday())
 		if _, err := rt.Client.Put(fmt.Sprintf("/api/meal-plan/participation/%d/schedule", child.id), map[string]any{
-			"weekdays":       mealWeekdaysWith(index, day.Weekday()),
+			"weekdays":       weekdays,
 			"effective_from": day.String(),
 		}); err != nil {
 			return index, fmt.Errorf("register child %d for lunch: %w", child.id, err)
 		}
+		recordRegularLunchDays(rt, child.id, weekdays)
 	}
 	list.participants = append(list.participants, picked...)
 	list.others = slices.DeleteFunc(list.others, func(child mealChild) bool { return slices.Contains(picked, child) })
 	return len(picked), nil
+}
+
+// bookableMealChildren keeps the children of the master data whose care
+// does not end soon. Without the fixed seeder every child stays.
+func bookableMealChildren(rt *Runtime, children []mealChild) []mealChild {
+	if rt.FixedSeeder == nil {
+		return children
+	}
+	return slices.DeleteFunc(slices.Clone(children), func(child mealChild) bool {
+		_, bookable := bookableDemoStudentIndex(rt, child.id)
+		return !bookable
+	})
 }
 
 // mealWeekdaysWith is the index-th lunch pattern, or the whole week when

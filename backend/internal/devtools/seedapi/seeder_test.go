@@ -1008,6 +1008,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	// lastGuardianID is the parent-managed contact the pickup permission
 	// request of #4780 names.
 	var lastGuardianID int64
+	// The children of the master data by name, so a booking pinned to an
+	// existing child answers with that child (#5023).
+	studentIDsByName := make(map[string]int64)
 	var trace *fullSeedAPITrace
 	if len(traces) > 0 {
 		trace = traces[0]
@@ -1282,6 +1285,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": devices})
+			return
+		}
+		if serveRegularBookingSeedAPI(t, w, r, idCounter, studentIDsByName) {
 			return
 		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/students" {
@@ -1874,4 +1880,43 @@ func TestTruncateSeedSubdomain(t *testing.T) {
 	assert.Equal(t, "short", truncateSeedSubdomain("short"))
 	long := "this-is-a-very-long-subdomain-that-exceeds-the-sixty-three-character-limit-for-dns-labels"
 	assert.Len(t, truncateSeedSubdomain(long), 63)
+}
+
+// serveRegularBookingSeedAPI answers the routes seedRegularBookingsStep
+// drives (#5023): it remembers the children of the master data by name,
+// lists one primary guardian per child and pins a manual booking to the
+// child with the submitted name, like an existing_students phase.
+func serveRegularBookingSeedAPI(t *testing.T, w seedHTTPResponseWriter, r *seedHTTPRequest, idCounter int64, studentIDsByName map[string]int64) bool {
+	switch {
+	case r.Method == seedHTTPMethodPost && r.URL.Path == "/api/students" && r.Header.Get("Authorization") != "Bearer manual-admin-token":
+		var body struct {
+			FirstName string `json:"first_name"`
+			LastName  string `json:"last_name"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		studentIDsByName[body.FirstName+" "+body.LastName] = idCounter
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": idCounter}})
+	case r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/guardians/students/") && r.Header.Get("Authorization") != "Bearer manual-admin-token":
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{
+			"guardian":        map[string]any{"id": idCounter, "first_name": "Demo", "last_name": "Elternteil", "email": "demo.elternteil@example.test"},
+			"relationship_id": idCounter, "relationship_type": "parent", "is_primary": true,
+		}}})
+	case r.Method == seedHTTPMethodPost && strings.HasSuffix(r.URL.Path, "/manual-approved-enrollments"):
+		var body struct {
+			Children []struct {
+				FirstName string `json:"first_name"`
+				LastName  string `json:"last_name"`
+			} `json:"children"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.Len(t, body.Children, 1)
+		studentID := studentIDsByName[body.Children[0].FirstName+" "+body.Children[0].LastName]
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+			"request_id": fmt.Sprint(idCounter), "child_id": fmt.Sprint(idCounter),
+			"student_id": fmt.Sprint(studentID), "status": "approved",
+		}})
+	default:
+		return false
+	}
+	return true
 }
