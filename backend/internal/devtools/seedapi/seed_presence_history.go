@@ -349,6 +349,24 @@ func presenceHistoryInputFor(rt *Runtime, definition demoProfileDefinition) (pre
 	if rt.FixedSeeder == nil || rt.Bootstrap == nil {
 		return presenceHistoryInput{}, fmt.Errorf("presence history prerequisites not available")
 	}
+	input, err := pastCareInputFor(rt, definition)
+	if err != nil {
+		return presenceHistoryInput{}, err
+	}
+	if input.deviceID, err = seedTerminalID(rt, DemoDevices[0].DeviceID); err != nil {
+		return presenceHistoryInput{}, err
+	}
+	input.sessions = presenceHistorySessions(rt.FixedSeeder)
+	if input.deviceID == 0 || len(input.students) == 0 || len(input.sessions) == 0 {
+		return presenceHistoryInput{}, fmt.Errorf("presence history prerequisites not available")
+	}
+	return input, nil
+}
+
+// pastCareInputFor reads what decides who came on which past day: the care
+// days of the school and its children. The feedback history (#5029) needs
+// no more; the presence history adds the kiosk and the rooms.
+func pastCareInputFor(rt *Runtime, definition demoProfileDefinition) (presenceHistoryInput, error) {
 	today := calendar.TodayDate()
 	from := today.AddDays(-presenceHistoryDays)
 	closed, err := seedClosedDays(rt, from, today.AddDays(-1))
@@ -362,15 +380,8 @@ func presenceHistoryInputFor(rt *Runtime, definition demoProfileDefinition) (pre
 			return (weekendCare || !calendar.IsWeekend(day)) && !closed[day]
 		},
 	}
-	if input.deviceID, err = seedTerminalID(rt, DemoDevices[0].DeviceID); err != nil {
-		return presenceHistoryInput{}, err
-	}
 	if input.students, err = listPresenceHistoryStudents(rt); err != nil {
 		return presenceHistoryInput{}, err
-	}
-	input.sessions = presenceHistorySessions(rt.FixedSeeder)
-	if input.deviceID == 0 || len(input.students) == 0 || len(input.sessions) == 0 {
-		return presenceHistoryInput{}, fmt.Errorf("presence history prerequisites not available")
 	}
 	return input, nil
 }

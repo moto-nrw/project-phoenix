@@ -137,6 +137,11 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		return true
 	case path == "/traeger/schools/":
 		data = []map[string]any{{"id": 1}}
+	case r.Method == "GET" && (path == "/api/time-tracking/holidays" || path == "/api/timetable/closing-days/" ||
+		path == "/api/timetable/periods/" || path == "/api/feedback/date-range"):
+		// The feedback history (#5029) reads the closed days and its own
+		// past entries; the full demo school's children are not served here.
+		data = []any{}
 	case strings.HasPrefix(path, "/traeger/holiday-periods/") && strings.HasSuffix(path, "/publish"):
 		// The published period carries its public link and weeks for the
 		// holiday registration of the same step (#4661).

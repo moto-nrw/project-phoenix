@@ -33,6 +33,7 @@ const (
 	profileSettingWeekendFollowsFriday  = "operations.weekend_follows_friday"
 	profileSettingBirthdayIncludeStaff  = "operations.birthday_display_include_staff"
 	profileSettingAttendanceLog         = "gdpr.attendance_log_enabled"
+	profileSettingFeedbackEnabled       = "feedback.enabled"
 	profilePresenceDetailed             = "detailed"
 	profilePresenceBinary               = "binary"
 	profileGroupModeFixed               = "fixed_groups"
@@ -127,7 +128,23 @@ func fullOperationSettings() map[string]SeedSetting {
 	for key, setting := range notOfferedModuleSettings() {
 		settings[key] = setting
 	}
+	for key, setting := range demoHistorySettings() {
+		settings[key] = setting
+	}
 	return settings
+}
+
+// demoHistorySettings switch on the histories the seed fills. The registry
+// keeps both off for real schools.
+func demoHistorySettings() map[string]SeedSetting {
+	return map[string]SeedSetting{
+		// The Statistik's rooms and a child's room history show the seeded
+		// past (#5031); without the log the nightly cleanup deletes it.
+		profileSettingAttendanceLog: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
+		// The Feedbackhistorie of a child shows the seeded feedback (#5029);
+		// the feedback API refuses to store entries while it is off.
+		profileSettingFeedbackEnabled: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
+	}
 }
 
 // notOfferedModuleSettings cancels the modules moto does not offer yet, so
@@ -194,9 +211,6 @@ func fullOperationFeatureSettings() map[string]SeedSetting {
 		profileSettingWeekendFollowsFriday: {
 			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByOperator,
 		},
-		// The Statistik's rooms and a child's room history show the seeded
-		// past (#5031); without the log the nightly cleanup deletes it.
-		profileSettingAttendanceLog: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
 		// The birthday card shows a colleague next to the children (#3922);
 		// the seed gives one a birthday on the seed day.
 		profileSettingBirthdayIncludeStaff: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},

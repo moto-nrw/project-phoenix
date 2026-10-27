@@ -1124,6 +1124,21 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		if weeklyMock.serve(t, w, r) {
 			return
 		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/feedback/batch" {
+			// The feedback history (#5029) sends its entries in one batch.
+			var body struct {
+				Entries []feedbackHistoryEntry `json:"entries"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			w.WriteHeader(seedHTTPStatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"count": len(body.Entries)}})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/timetable/periods/" {
+			// The feedback history (#5029) reads the school's holiday periods.
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			return
+		}
 		idCounter++
 		w.Header().Set("Content-Type", "application/json")
 		authorization := r.Header.Get("Authorization")
@@ -1351,7 +1366,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/students" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"status": "success", "data": []map[string]any{{"id": "1"}},
+				"status": "success", "data": []map[string]any{{"id": 1}},
 				"pagination": map[string]any{"total_records": len(DemoStudents)},
 			})
 			return
@@ -1813,7 +1828,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"data":   []map[string]any{{"id": idCounter, "name": "Betreuung"}},
 			})
 
-		case "/api/active/visits", "/api/time-tracking/holidays":
+		case "/api/active/visits", "/api/time-tracking/holidays", "/api/timetable/closing-days/", "/api/feedback/date-range":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data":   []any{},
