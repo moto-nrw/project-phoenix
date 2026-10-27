@@ -216,9 +216,12 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
 
     render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
     await screen.findByText("Änderungsanfrage prüfen");
-    fireEvent.change(screen.getByLabelText("Begründung (freiwillig)"), {
-      target: { value: "Passt." },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Begründung (freiwillig, Pflicht bei Ablehnung)"),
+      {
+        target: { value: "Passt." },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await waitFor(() =>
@@ -262,9 +265,12 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
 
     render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
     await screen.findByText("Änderungsanfrage prüfen");
-    fireEvent.change(screen.getByLabelText("Begründung (freiwillig)"), {
-      target: { value: "Passt." },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Begründung (freiwillig, Pflicht bei Ablehnung)"),
+      {
+        target: { value: "Passt." },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     expect(
@@ -308,7 +314,9 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
     await screen.findByText("Änderungsanfrage prüfen");
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
-    const field = screen.getByLabelText("Begründung (freiwillig)");
+    const field = screen.getByLabelText(
+      "Begründung (freiwillig, Pflicht bei Ablehnung)",
+    );
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(
       screen.getByText("Bitte begründen Sie die Ablehnung."),
@@ -343,17 +351,20 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
 
     render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
     await screen.findByText("Änderungsanfrage prüfen");
-    fireEvent.change(screen.getByLabelText("Begründung (freiwillig)"), {
-      target: { value: "Nicht nachvollziehbar." },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Begründung (freiwillig, Pflicht bei Ablehnung)"),
+      {
+        target: { value: "Nicht nachvollziehbar." },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       catalogText("general.business_rejection", "die Entscheidung"),
     );
-    expect(screen.getByLabelText("Begründung (freiwillig)")).toHaveValue(
-      "Nicht nachvollziehbar.",
-    );
+    expect(
+      screen.getByLabelText("Begründung (freiwillig, Pflicht bei Ablehnung)"),
+    ).toHaveValue("Nicht nachvollziehbar.");
   });
 
   it("confirms a sent question", async () => {

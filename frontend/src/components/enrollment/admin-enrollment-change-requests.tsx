@@ -348,12 +348,12 @@ export function AdminEnrollmentChangeRequestDetail({
                       id="change-request-review-note"
                       name="note"
                       error={reviewErrors.fieldError("note")}
-                      label="Begründung (freiwillig)"
+                      label="Begründung (freiwillig, Pflicht bei Ablehnung)"
                       value={reviewNote}
                       onChange={(event) => setReviewNote(event.target.value)}
                       rows={4}
                       disabled={!canReview || busy !== null}
-                      placeholder="Beim Ablehnen schreiben Sie bitte kurz, warum. Die Familie sieht den Text."
+                      placeholder="Die Familie sieht den Text."
                     />
                   </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
