@@ -627,6 +627,23 @@ carries no other `tenant_id`; every list read and export writes an
 `audit.data_access_log` row (`holiday_participants`,
 `holiday_participants_export`) at the hosting school.
 
+Its holiday guests join daily care as a copy in that school (#4666,
+ADR 0120): `PUT /api/holiday-weeks/{weekId}/guest-group` (`users:create`)
+picks a group of the school and copies every confirmed guest of another
+school or without a school as a child of class `Feriengast` whose
+`enrolled_from`/`enrolled_until` is the week (pending and in no group before
+the week, active in the group from its first day), with a dated arrival and
+pickup exception (Care Plan) for each booked day; the hourly Worker job
+`holiday-guest-reconciliation` adds new confirmations and ends cancelled
+guests. Groups, check-in and the kiosk read the copy unchanged (no IoT
+contract change); from the day after the week the live rosters drop it.
+`GET /api/holiday-guests/{studentId}` (`users:read`) returns only care,
+emergency contacts (the registering parent first) and pickup persons,
+seven days read-only after the week, then 404
+`enrollment.holiday_guest_not_found`. Contacts leave the Träger only through
+`enrollment.holiday_host_guest_contacts`; every transfer and sheet read
+writes `holiday_guest_transfer` or `holiday_guest_sheet` at the hosting school.
+
 A form template with `core_requirements.signature` requires the parent's
 signature on every parent submission and form edit (#4786); the server refuses
 a missing one with `enrollment.signature_required`. The status token is the

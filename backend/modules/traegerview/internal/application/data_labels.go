@@ -29,6 +29,8 @@ var dataLabels = map[string]string{
 	"holiday_prefill":             "Angaben eines Kindes für die Ferienanmeldung",
 	"holiday_participants":        "Teilnehmerliste einer Ferienwoche",
 	"holiday_participants_export": "Teilnehmerliste einer Ferienwoche (Export)",
+	"holiday_guest_transfer":      "Feriengäste in die Feriengruppe übernommen",
+	"holiday_guest_sheet":         "Betreuung, Notfall und Abholung eines Feriengasts",
 	"student_record":              "Angaben zu einem Kind",
 	"guardian_record":             "Angaben zu Eltern",
 	"guardian_bank_details":       "Bankverbindung von Eltern",

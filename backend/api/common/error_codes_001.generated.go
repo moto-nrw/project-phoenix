@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeIdentityEmailChangeSameEmail                  = "identity.email_change_same_email"
+	CodeIdentityGuardianInvitationEmailNotQueued      = "identity.guardian_invitation_email_not_queued"
 	CodeIdentityInvalidCredentials                    = "identity.invalid_credentials"
 	CodeIdentityInvitationAccountLoginRequired        = "identity.invitation_account_login_required"
 	CodeIdentityInvitationAccountMismatch             = "identity.invitation_account_mismatch"
@@ -300,11 +302,11 @@ const (
 	CodeTimetableClosingDayEndBeforeStart             = "timetable.closing_day_end_before_start"
 	CodeTimetableClosingDayInvalid                    = "timetable.closing_day_invalid"
 	CodeTimetableClosingDayNotFound                   = "timetable.closing_day_not_found"
-	CodeTimetableCompleteTooEarly                     = "timetable.complete_too_early"
-	CodeTimetableCompletionConfirmationStale          = "timetable.completion_confirmation_stale"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.email_change_same_email":                    "input",
+	"identity.guardian_invitation_email_not_queued":       "unavailable",
 	"identity.invalid_credentials":                        "input",
 	"identity.invitation_account_login_required":          "permission",
 	"identity.invitation_account_mismatch":                "permission",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.closing_day_end_before_start":              "input",
 	"timetable.closing_day_invalid":                       "input",
 	"timetable.closing_day_not_found":                     "business_rejection",
-	"timetable.complete_too_early":                        "business_rejection",
-	"timetable.completion_confirmation_stale":             "business_rejection",
 }
 
 func init() {

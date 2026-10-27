@@ -178,6 +178,7 @@ basis
 	GET /api/guardians/{id}/payment
 	GET /api/guardians/{id}/phone-numbers/
 	GET /api/guardians/{id}/students
+	GET /api/holiday-guests/{studentId}
 	GET /api/holiday-weeks/
 	GET /api/holiday-weeks/{weekId}/participants
 	GET /api/holiday-weeks/{weekId}/participants/export
@@ -703,6 +704,7 @@ basis
 	PUT /api/guardians/{id}
 	PUT /api/guardians/{id}/payment
 	PUT /api/guardians/{id}/phone-numbers/{phoneId}
+	PUT /api/holiday-weeks/{weekId}/guest-group
 	PUT /api/me/profile
 	PUT /api/notifications/email-subscriptions/{type}
 	PUT /api/notifications/preferences/{type}

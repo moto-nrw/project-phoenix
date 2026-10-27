@@ -373,6 +373,10 @@ export const ERROR_CATALOG = {
         "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Liste neu.",
       "enrollment.hosted_holiday_week_not_found":
         "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
+      "enrollment.holiday_guest_not_found":
+        "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
+      "enrollment.holiday_guest_group_invalid":
+        "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
       "enrollment.holiday_registration_frozen":
         "Die Anmeldung ist eingefroren. Wählen Sie zuerst „Wieder öffnen“.",
       "enrollment.holiday_registration_invalid":
@@ -1666,6 +1670,10 @@ export const ERROR_CATALOG = {
         "This registration no longer exists. Please reload the list.",
       "enrollment.hosted_holiday_week_not_found":
         "There is no participant list for this week any more. It is only available until the last day of the week.",
+      "enrollment.holiday_guest_not_found":
+        "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",
+      "enrollment.holiday_guest_group_invalid":
+        "This group no longer exists. Please choose another group.",
       "enrollment.holiday_registration_frozen":
         "The registration is frozen. Choose “Reopen” first.",
       "enrollment.holiday_registration_invalid":

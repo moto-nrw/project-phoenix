@@ -2680,7 +2680,9 @@
         "holiday_registration_not_found": "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
         "holiday_registration_state_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "holiday_week_booked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "hosted_holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "hosted_holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "holiday_guest_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "holiday_guest_group_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані."
       },
       "files": {
         "announcement_published": "Не вдалося змінити: {object}. Перевірте поточний стан.",

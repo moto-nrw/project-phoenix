@@ -1251,6 +1251,18 @@
       "legacy": "enrollment.hosted_holiday_week_not_found"
     },
     {
+      "code": "enrollment.holiday_guest_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_guest_not_found"
+    },
+    {
+      "code": "enrollment.holiday_guest_group_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_guest_group_invalid"
+    },
+    {
       "code": "enrollment.holiday_registration_frozen",
       "class": "business_rejection",
       "parameters": [],

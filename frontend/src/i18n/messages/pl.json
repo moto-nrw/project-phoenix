@@ -2680,7 +2680,9 @@
         "holiday_registration_not_found": "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
         "holiday_registration_state_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_week_booked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-        "hosted_holiday_week_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+        "hosted_holiday_week_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "holiday_guest_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "holiday_guest_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
       },
       "files": {
         "announcement_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

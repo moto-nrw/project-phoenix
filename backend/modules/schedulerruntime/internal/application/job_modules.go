@@ -66,6 +66,9 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	// The outbox delivers what a producer already enqueued; a producer of a
 	// module that is not booked enqueues nothing.
 	"email-outbox": jobScopeBasis,
+	// The holiday guests of a hosted week belong to moto Basis like its
+	// participant list (ADR 0116, ADR 0120).
+	"holiday-guest-reconciliation": jobScopeBasis,
 
 	// Zeiterfassung: breaks and work sessions of the time clock.
 	"break-auto-end": {moduleSettingKey: settingModuleZeiterfassung},

@@ -65,6 +65,7 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"pwa-usage-cleanup",
 		"staff-message-cleanup",
 		"booking-consistency-audit",
+		"holiday-guest-reconciliation",
 		"meal-orders",
 		"session-end",
 		"token-cleanup",
@@ -104,6 +105,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.pwaUsageCleanup), "pwa-usage-cleanup", s.schedulePWAUsageCleanupTask)
 	add(!isNilDependency(s.staffMessageCleanup), "staff-message-cleanup", s.scheduleStaffMessageCleanupTask)
 	add(!isNilDependency(s.bookingConsistency), "booking-consistency-audit", s.scheduleBookingConsistencyAuditTask)
+	add(!isNilDependency(s.holidayGuests), "holiday-guest-reconciliation", s.scheduleHolidayGuestReconciliationTask)
 	add(!isNilDependency(s.mealOrders), "meal-orders", s.scheduleMealOrdersTask)
 	add(!isNilDependency(s.activeService), "session-end", s.scheduleSessionEndTask)
 	add(true, "token-cleanup", s.scheduleTokenCleanupTask)

@@ -100,6 +100,7 @@ import {
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
   GroupTransfer,
@@ -1218,6 +1219,11 @@ function OGSGroupPageContent() {
                   }
                   extraContent={
                     <>
+                      {student.school_class === HOLIDAY_GUEST_SCHOOL_CLASS && (
+                        <StudentInfoRow icon={<SchoolClassIcon />}>
+                          Feriengast
+                        </StudentInfoRow>
+                      )}
                       {student.pending_excused_note !== undefined && (
                         <StudentPendingExcusedRow
                           note={student.pending_excused_note}
