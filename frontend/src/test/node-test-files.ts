@@ -41,6 +41,7 @@ export const nodeLogicTestFiles = [
   "src/components/timetable/event-form/form-model.test.ts",
   "src/components/timetable/event-form/weekday-roster.test.ts",
   "src/components/timetable/planung-redirect.test.ts",
+  "src/components/timetable/tagesplan-groups.test.ts",
   "src/components/ui/calendar-panel-position.test.ts",
   "src/components/ui/collection-view-switch.test.ts",
   "src/components/ui/lazy-day-picker.test.ts",
