@@ -113,6 +113,17 @@ import {
   mapTemplates,
   mapWeeklyInstances,
 } from "./timetable-helpers";
+import {
+  connectionBody,
+  mapOfferingPreview,
+  mapRosterDeviations,
+  previewQuery,
+  type BackendOfferingPreview,
+  type BackendRosterDeviationsResponse,
+  type OfferingPreview,
+  type OfferingSelection,
+  type RosterDeviation,
+} from "./roster-deviation";
 
 const logger = createLogger({ component: "TimetableApiClient" });
 
@@ -349,6 +360,86 @@ class TimetableService {
     );
     const raw = await unwrap<BackendTimetableTemplate>(response);
     return mapTemplates({ templates: [raw] }).templates[0]!;
+  }
+
+  /**
+   * GET /api/timetable/templates/roster-deviations — Regeltermine whose
+   * children list differs from an offering's bookings (#5103).
+   */
+  async getRosterDeviations(periodId: string): Promise<RosterDeviation[]> {
+    const params = new URLSearchParams({ period_id: periodId });
+    const response = await transportFetch(
+      `/api/timetable/templates/roster-deviations?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapRosterDeviations(
+      await unwrap<BackendRosterDeviationsResponse>(response),
+    );
+  }
+
+  /** GET /api/timetable/templates/{id}/offering-preview (#5103). */
+  async getOfferingPreview(
+    templateId: string,
+    selection: OfferingSelection,
+    from?: string,
+  ): Promise<OfferingPreview> {
+    const response = await transportFetch(
+      `/api/timetable/templates/${templateId}/offering-preview?${previewQuery(selection, from)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapOfferingPreview(await unwrap<BackendOfferingPreview>(response));
+  }
+
+  /**
+   * POST /api/timetable/templates/{id}/offering-connection — „Mit Angebot
+   * verbinden“ (#5103) for every period of the series from effectiveDate on.
+   */
+  async connectTemplateToOffering(
+    templateId: string,
+    selection: OfferingSelection,
+    effectiveDate: string,
+  ): Promise<void> {
+    const response = await transportFetch(
+      `/api/timetable/templates/${templateId}/offering-connection`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(connectionBody(selection, effectiveDate)),
+      },
+    );
+    await unwrap<unknown>(response);
+  }
+
+  /** PUT /api/timetable/templates/{id}/manual-roster (#5103). */
+  async setManualRosterConfirmed(
+    templateId: string,
+    confirmed: boolean,
+  ): Promise<void> {
+    const response = await transportFetch(
+      `/api/timetable/templates/${templateId}/manual-roster`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ confirmed }),
+      },
+    );
+    await unwrap<unknown>(response);
   }
 
   /**

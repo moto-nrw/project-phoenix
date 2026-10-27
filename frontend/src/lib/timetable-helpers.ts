@@ -1191,6 +1191,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
               template.roster_maintenance.care_offerings_disabled,
           }
         : undefined,
+      manualRosterConfirmed: template.manual_roster_confirmed,
     })),
   };
 }
