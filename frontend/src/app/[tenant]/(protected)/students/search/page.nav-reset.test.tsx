@@ -296,6 +296,9 @@ describe("StudentSearchPage: click on the navigation entry of this page (#3374)"
     await waitFor(() => {
       expect(studentKeys.at(-1)).toContain("Mila");
     });
+    expect(new URLSearchParams(window.location.search).get("search")).toBe(
+      "Mila",
+    );
 
     fireEvent.click(navLink);
 
@@ -306,6 +309,7 @@ describe("StudentSearchPage: click on the navigation entry of this page (#3374)"
       (screen.getAllByPlaceholderText("Name suchen…")[0] as HTMLInputElement)
         .value,
     ).toBe("");
+    expect(window.location.search).toBe("");
   });
 
   it("removes a restored name search from the URL", async () => {

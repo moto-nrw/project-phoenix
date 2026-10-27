@@ -1210,6 +1210,14 @@ function SearchPageContent() {
     [storageKey, storageOwner],
   );
 
+  const updateSearchTerm = useCallback(
+    (value: string) => {
+      setSearchTerm(value);
+      updateUrlParams({ [SEARCH_QUERY_PARAM]: value });
+    },
+    [updateUrlParams],
+  );
+
   const applyPersistedFilters = useCallback(
     (filters: PersistedSearchFilters) => {
       const params = persistedFiltersToSearchParams(
@@ -2461,7 +2469,7 @@ function SearchPageContent() {
       filters.push({
         id: "search",
         label: `"${searchTerm}"`,
-        onRemove: () => setSearchTerm(""),
+        onRemove: () => updateSearchTerm(""),
       });
     }
 
@@ -2637,6 +2645,7 @@ function SearchPageContent() {
     return filters;
   }, [
     searchTerm,
+    updateSearchTerm,
     selectedYears,
     selectedSchoolClasses,
     selectedGroupIds,
@@ -3327,7 +3336,7 @@ function SearchPageContent() {
         desktopFiltersFrom="xl"
         search={{
           value: searchTerm,
-          onChange: setSearchTerm,
+          onChange: updateSearchTerm,
           placeholder: "Name suchen…",
           debounceMs: 300,
           resetKey: searchResetKey,
