@@ -7,6 +7,7 @@ import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
 import { parentAbsoluteUrl, parentPath } from "~/lib/parent-url";
 import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
 import { catererAbsoluteUrl, catererPath } from "~/lib/caterer-url";
+import { traegerPath } from "~/lib/traeger-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { clearPersonalStorage } from "~/lib/personal-storage";
 import { createLogger } from "~/lib/logger";
@@ -41,7 +42,8 @@ interface ShellProfile {
 
 type ShellStatus = "loading" | "authenticated" | "unauthenticated";
 
-type ShellMode = "teacher" | "operator" | "parent" | "school" | "caterer";
+type ShellMode =
+  "teacher" | "operator" | "parent" | "school" | "caterer" | "traeger";
 
 interface ShellAuthContextType {
   user: ShellUser | null;
@@ -52,6 +54,12 @@ interface ShellAuthContextType {
   mode: ShellMode;
   homeUrl: string;
   profileUrl: string | null;
+  /**
+   * Name neben dem Logo, wenn das Portal einen eigenen hat. Das
+   * Träger-Portal zeigt dort den Namen des Trägers (#5145); das
+   * Personal-Portal nimmt den Namen der Schule aus dem Tenant-Kontext.
+   */
+  brandLabel?: string;
   // Admin staff-view preview (#2893) — only the teacher shell fills these.
   // isPreview: this session currently renders the read-only view of another
   // staff member; canStartStaffPreview: the signed-in admin may open one.
@@ -403,6 +411,89 @@ export function CatererShellProvider({
       profileUrl: null,
     };
   }, [session, sessionStatus]);
+
+  return (
+    <ShellAuthContext.Provider value={value}>
+      {children}
+    </ShellAuthContext.Provider>
+  );
+}
+
+// TraegerShellProvider — the Träger portal ("moto träger", #4649) sibling of
+// CatererShellProvider (#5145). Feeds the shared header from the org-scope
+// NextAuth session (traeger.session-token cookie).
+export function TraegerShellProvider({
+  children,
+  organizationName,
+}: {
+  readonly children: React.ReactNode;
+  /**
+   * Der Name des Trägers neben dem Logo. Das Token trägt ihn nicht; der
+   * Guard lädt ihn einmal und reicht ihn herein. Solange er fehlt, steht
+   * dort nur das Logo.
+   */
+  readonly organizationName?: string;
+}) {
+  const { data: session, status: sessionStatus } = useSession();
+
+  const value = useMemo<ShellAuthContextType>(() => {
+    const user: ShellUser | null = session?.user
+      ? {
+          ...(session.user.id ? { id: session.user.id } : {}),
+          name: session.user.name?.trim() || "Träger-Büro",
+          email: session.user.email ?? "",
+          roles: session.user.roles ?? [],
+        }
+      : null;
+
+    const status: ShellStatus =
+      sessionStatus === "loading"
+        ? "loading"
+        : sessionStatus === "authenticated"
+          ? "authenticated"
+          : "unauthenticated";
+
+    return {
+      user,
+      profile: null,
+      status,
+      isSessionExpired: session?.error === "RefreshTokenExpired",
+      logout: async () => {
+        try {
+          sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
+        } catch {
+          // sessionStorage unavailable: the login page then shows its
+          // "session expired" note, which is harmless.
+        }
+        // Revoke the backend refresh session first. Best-effort: logout must
+        // never block on it, the local session ends either way.
+        try {
+          await fetch("/api/traeger/auth/logout", {
+            method: "POST",
+            signal: AbortSignal.timeout(5000),
+          });
+        } catch (err: unknown) {
+          logger.warn("traeger_backend_logout_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
+        clearSessionCache();
+        // NextAuth resolves a callbackUrl against NEXTAUTH_URL, the tenant
+        // origin, and would send the person to the school chooser there. End
+        // the session without its redirect and stay on the Träger host.
+        await signOut({ redirect: false });
+        window.location.assign(traegerPath("/traeger/login"));
+      },
+      mode: "traeger" as const,
+      homeUrl: traegerPath("/traeger"),
+      // Kein eigenes Profil: Passwort und Code gehören zum moto-Konto.
+      profileUrl: null,
+      ...(organizationName ? { brandLabel: organizationName } : {}),
+    };
+  }, [organizationName, session, sessionStatus]);
 
   return (
     <ShellAuthContext.Provider value={value}>

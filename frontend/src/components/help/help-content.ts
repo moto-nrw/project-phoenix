@@ -9141,6 +9141,7 @@ function traegerLoginTopic(): HelpTopic {
       "Sie nutzen dasselbe Konto wie in der OGS. Ein zweites Passwort brauchen Sie nicht.",
       "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein.",
       "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
+      "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
     ],
     troubleshootingDetails: [
       "Keine E-Mail mit Code? Schauen Sie im Spam-Ordner nach. Wählen Sie sonst `Neuen Code anfordern`.",
@@ -9157,7 +9158,7 @@ function traegerLoginTopic(): HelpTopic {
 
 /**
  * `/traeger/einstellungen` (#4652, ADR 0086): Träger-Werte zwischen Standard
- * und Schule. Bezeichnungen aus `settings-origin.ts` und `traeger-shell.tsx`.
+ * und Schule. Bezeichnungen aus `settings-origin.ts` und `traeger-nav-items.ts`.
  */
 function traegerSettingsTopic(): HelpTopic {
   return {
@@ -9170,7 +9171,7 @@ function traegerSettingsTopic(): HelpTopic {
     icon: "Settings",
     requirements: ["Sie dürfen im Träger-Büro Einstellungen ändern."],
     steps: [
-      "Wählen Sie oben `Einstellungen`.",
+      "Wählen Sie in der Navigation `Einstellungen`.",
       "Suchen Sie die Einstellung, zum Beispiel unter `Anmeldung` oder `Betrieb`.",
       "Ändern Sie den Wert. moto speichert die Änderung von selbst.",
     ],
@@ -9206,7 +9207,7 @@ function traegerBriefkopfTopic(): HelpTopic {
       {
         title: "Logo hochladen",
         steps: [
-          "Wählen Sie oben `Briefkopf`.",
+          "Wählen Sie in der Navigation `Briefkopf`.",
           "Wählen Sie bei `Logo` den Knopf `Logo hochladen`.",
           "Wählen Sie ein Bild im Format PNG oder JPG, bis 1 MB.",
         ],
@@ -9270,7 +9271,7 @@ function traegerSchoolSwitchTopic(): HelpTopic {
     icon: "ArrowsLeftRight",
     requirements: ["Sie haben die Rolle `Verwaltung`."],
     steps: [
-      "Wählen Sie oben `Schulen`.",
+      "Wählen Sie in der Navigation `Schulen`.",
       "Wählen Sie bei der Schule `Öffnen`.",
     ],
     result:
@@ -9343,7 +9344,7 @@ function traegerHolidayPeriodTopic(): HelpTopic {
       {
         title: "Ferienzeitraum anlegen",
         steps: [
-          "Wählen Sie oben `Ferien`.",
+          "Wählen Sie in der Navigation `Ferien`.",
           "Wählen Sie `Ferienzeitraum anlegen`.",
           "Tragen Sie den `Name des Ferienzeitraums` ein, zum Beispiel Osterferien 2027.",
           "Tragen Sie `Anmeldebeginn` und `Anmeldeschluss` ein.",
@@ -9378,7 +9379,7 @@ function traegerHolidayPeriodTopic(): HelpTopic {
       "Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Beiträge` fest.",
     ],
     differences: [
-      "Sie sehen oben kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
+      "Sie sehen in der Navigation kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
     ],
     troubleshootingDetails: [
       "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",
@@ -9407,7 +9408,7 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       {
         title: "Liste öffnen und filtern",
         steps: [
-          "Wählen Sie oben `Ferien`.",
+          "Wählen Sie in der Navigation `Ferien`.",
           "Öffnen Sie den Ferienzeitraum.",
           "Wählen Sie `Anmeldungen prüfen`.",
           "Filtern Sie nach Status, `Schule`, `Woche` oder `Zeitmodell`. Unter `Schule` finden Sie auch `Feriengäste`.",
@@ -9484,7 +9485,7 @@ function traegerHolidayContributionTopic(): HelpTopic {
     audience: "traeger",
     icon: "Landmark",
     requirements: [
-      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht oben `Beiträge`.",
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Beiträge`.",
     ],
     steps: [],
     instructionGroups: [
@@ -9497,7 +9498,7 @@ function traegerHolidayContributionTopic(): HelpTopic {
       {
         title: "Geschwisterregel anlegen",
         steps: [
-          "Wählen Sie oben `Beiträge`.",
+          "Wählen Sie in der Navigation `Beiträge`.",
           "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel hinzufügen`.",
           "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
           "Wählen Sie `ab dem 2. Kind` oder `ab dem 3. Kind`.",
@@ -9524,7 +9525,7 @@ function traegerHolidayContributionTopic(): HelpTopic {
       "Ob eine Familie befreit ist, entscheidet das Träger-Büro beim Bestätigen.",
     ],
     differences: [
-      "Sie sehen oben kein `Beiträge`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "Sie sehen in der Navigation kein `Beiträge`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
     ],
     troubleshootingDetails: [
       "Die Regel lässt sich nicht speichern, weil schon eine andere gilt? Von jeder Art gilt an einem Tag nur eine Regel. Setzen Sie bei der alten Regel `Gilt bis` auf den Tag davor.",
@@ -9548,7 +9549,7 @@ function traegerBillingRunTopic(): HelpTopic {
     audience: "traeger",
     icon: "FileText",
     requirements: [
-      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht oben `Abrechnung`.",
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Abrechnung`.",
       "Der Ferienzeitraum ist veröffentlicht, und die Anmeldungen sind bestätigt.",
     ],
     steps: [],
@@ -9557,7 +9558,7 @@ function traegerBillingRunTopic(): HelpTopic {
         title: "Rechnungsnummern festlegen",
         description: "Das machen Sie einmal vor der ersten Freigabe.",
         steps: [
-          "Wählen Sie oben `Abrechnung`.",
+          "Wählen Sie in der Navigation `Abrechnung`.",
           "Wählen Sie bei `Rechnungsnummern` den Knopf `Muster festlegen`.",
           "Tragen Sie das Muster ein, zum Beispiel FE-{JJJJ}-{NNNN}. {NNNN} ist die laufende Nummer, {JJJJ} das Jahr.",
           "Wählen Sie `Speichern`.",
@@ -9632,7 +9633,7 @@ function traegerBillingRunTopic(): HelpTopic {
       "Logo, Farbe, Absender, Fußzeile, Ansprechperson und Bankverbindung im Schreiben kommen aus dem `Briefkopf`. Als Verwendungszweck steht die Rechnungsnummer im Schreiben.",
     ],
     differences: [
-      "Sie sehen oben kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
       "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
       "Sie sehen keine `Übersicht für die Kämmerei`? Der Lauf ist noch nicht freigegeben.",
     ],
@@ -9665,7 +9666,7 @@ function traegerHolidayRegistrationTopic(): HelpTopic {
       "Der Ferienzeitraum ist veröffentlicht.",
     ],
     steps: [
-      "Wählen Sie oben `Ferien`.",
+      "Wählen Sie in der Navigation `Ferien`.",
       "Öffnen Sie den Ferienzeitraum.",
       "Unter `Link für Eltern` steht der Link. Wählen Sie daneben `Link kopieren`.",
       "Geben Sie den Link an die Eltern weiter, zum Beispiel in einem Elternbrief der Schulen.",
@@ -9739,7 +9740,7 @@ function traegerAccountsTopic(): HelpTopic {
       {
         title: "Person einladen",
         steps: [
-          "Wählen Sie oben `Personen`.",
+          "Wählen Sie in der Navigation `Personen`.",
           "Wählen Sie `Person einladen`.",
           "Tragen Sie die `E-Mail-Adresse` ein.",
           "Wählen Sie mindestens eine Rolle.",
@@ -9749,7 +9750,7 @@ function traegerAccountsTopic(): HelpTopic {
       {
         title: "Rollen ändern",
         steps: [
-          "Wählen Sie oben `Personen`.",
+          "Wählen Sie in der Navigation `Personen`.",
           "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
           "Wählen Sie `Rollen ändern`.",
           "Wählen Sie die Rollen und dann `Speichern`.",
@@ -9758,7 +9759,7 @@ function traegerAccountsTopic(): HelpTopic {
       {
         title: "Person entfernen",
         steps: [
-          "Wählen Sie oben `Personen`.",
+          "Wählen Sie in der Navigation `Personen`.",
           "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
           "Wählen Sie `Aus dem Träger-Büro entfernen`.",
           "Wählen Sie `Ja, entfernen` und dann `Entfernen`.",
@@ -9773,7 +9774,7 @@ function traegerAccountsTopic(): HelpTopic {
       "Eine Person kann mehrere Rollen haben.",
     ],
     differences: [
-      "Sie sehen oben kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
+      "Sie sehen in der Navigation kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
       "Geänderte Rollen gelten nach wenigen Minuten. Eine entfernte Person kann sich nicht mehr anmelden. Eine offene Sitzung endet nach wenigen Minuten.",
     ],
     troubleshootingDetails: [
@@ -9805,7 +9806,7 @@ function traegerAccessLogTopic(): HelpTopic {
         title: "Protokoll ansehen",
         steps: [
           "Melden Sie sich im Träger-Portal an.",
-          "Wählen Sie oben `Zugriffsprotokoll`.",
+          "Wählen Sie in der Navigation `Zugriffsprotokoll`.",
           "Wählen Sie den Zeitraum. Am Anfang sind es die letzten 30 Tage.",
           "Wählen Sie bei Bedarf eine Schule und eine Person.",
           "Wählen Sie `Gelesen` oder `Geändert`, wenn Sie nur eine Art sehen möchten.",
@@ -9828,7 +9829,7 @@ function traegerAccessLogTopic(): HelpTopic {
       "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
     ],
     differences: [
-      "Sie sehen oben kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
+      "Sie sehen in der Navigation kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
       "Steht bei Person `Unbekannte Person`? Zu diesem Konto kennt moto an der Schule keinen Namen, zum Beispiel bei Eltern.",
     ],
     troubleshootingDetails: [
