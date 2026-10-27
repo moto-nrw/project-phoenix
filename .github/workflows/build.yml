@@ -70,8 +70,11 @@ jobs:
             if [[ "${{ github.event.inputs.environment }}" == "staging" ]]; then
               echo "environment=staging" >> "$GITHUB_OUTPUT"
             else
-              if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
-                echo "❌ Production and demo manual deploys must run from main (current ref: ${{ github.ref }})"
+              # Production runs from main only. The demo also runs from
+              # development, so a demo fix ships without a production release.
+              if [[ "${{ github.ref }}" != "refs/heads/main" ]] && \
+                 [[ "${{ inputs.environment }}" != "demo" || "${{ github.ref }}" != "refs/heads/development" ]]; then
+                echo "❌ Production manual deploys must run from main, demo deploys from main or development (current ref: ${{ github.ref }})"
                 exit 1
               fi
               case "${{ inputs.environment }}" in
@@ -648,7 +651,7 @@ jobs:
   # Exit codes from deploy-remote.sh: 0=success, 1=pre-deploy abort, 10=rollback ok, 11=rollback failed
   deploy-demo:
     needs: [check-environment, build-backend, build-frontend]
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && needs.check-environment.outputs.environment == 'demo'
+    if: github.event_name == 'workflow_dispatch' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/development') && needs.check-environment.outputs.environment == 'demo'
     concurrency:
       group: deploy-demo
       cancel-in-progress: false
@@ -669,8 +672,8 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           REF_NAME: ${{ github.ref }}
         run: |
-          if [[ "$REF_NAME" != "refs/heads/main" ]]; then
-            echo "Demo deploys must run from refs/heads/main, got $REF_NAME"
+          if [[ "$REF_NAME" != "refs/heads/main" && "$REF_NAME" != "refs/heads/development" ]]; then
+            echo "Demo deploys must run from refs/heads/main or refs/heads/development, got $REF_NAME"
             exit 1
           fi
           if [[ "$EVENT_NAME" != "workflow_dispatch" ]]; then
