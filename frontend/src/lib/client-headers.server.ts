@@ -140,9 +140,7 @@ export function getClientForwardHeaders(
  * Passes the proxy's Vorgangskennung on to the backend, which keeps it, so
  * backend and BFF events of one request share the same `request_id`.
  */
-export function requestIdHeaders(
-  headers: HeaderReader,
-): Record<string, string> {
+function requestIdHeaders(headers: HeaderReader): Record<string, string> {
   const requestId = headers.get(REQUEST_ID_HEADER);
   return requestId ? { [REQUEST_ID_HEADER]: requestId } : {};
 }
