@@ -2504,6 +2504,12 @@
         "staff_managed_guardian_protected": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule."
       },
       "classday": {
+        "absence_report_conflict": "Für dieses Kind steht heute schon etwas, zum Beispiel eine frühere Abholung. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
+        "absence_report_no_school_day": "Heute ist kein Schultag. Eine Meldung lässt sich nur an Schultagen eintragen.",
+        "absence_report_not_found": "Diese Meldung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "absence_report_not_missing": "Für dieses Kind liegt schon eine Meldung vor, oder es ist nicht als fehlend eingetragen. Bitte laden Sie die Seite neu.",
+        "absence_report_not_today": "Eine Meldung lässt sich nur für heute eintragen. Bitte öffnen Sie den heutigen Tag.",
+        "absence_report_unknown_child": "Dieses Kind ist heute nicht in dieser Klasse. Bitte laden Sie die Seite neu.",
         "arrival_exception_class_not_found": "{object} wurde nicht gefunden. Bitte laden Sie die Seite neu.",
         "arrival_exception_editor_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
         "arrival_exception_past_date": "Das Datum für {object} liegt in der Vergangenheit. Bitte wählen Sie ein anderes Datum.",

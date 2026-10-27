@@ -206,12 +206,13 @@ func TestParseStudentListView(t *testing.T) {
 
 	for _, tc := range []struct {
 		value   string
-		want    bool
+		want    string
 		wantErr bool
 	}{
-		{value: "", want: false},
-		{value: StudentListViewFull, want: false},
-		{value: StudentListViewSlim, want: true},
+		{value: "", want: StudentListViewFull},
+		{value: StudentListViewFull, want: StudentListViewFull},
+		{value: StudentListViewSlim, want: StudentListViewSlim},
+		{value: StudentListViewNames, want: StudentListViewNames},
 		{value: "compact", wantErr: true},
 		{value: "SLIM", wantErr: true},
 	} {

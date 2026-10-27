@@ -84,7 +84,11 @@ func schulverwaltungRoleUp(ctx context.Context, db *bun.DB) error {
 				INNER JOIN auth.roles source ON source.id = rp.role_id
 				WHERE source.name = 'lehrkraft' AND source.tenant_id IS NULL
 				UNION
-				SELECT p.id FROM auth.permissions p WHERE p.name = 'class_day:all_classes'
+				-- The rights only the Schulverwaltung holds: its class reach and,
+				-- once 1.15.683 created it, the report for a child missing
+				-- without one (#4791). A rerun keeps them.
+				SELECT p.id FROM auth.permissions p
+				WHERE p.name IN ('class_day:all_classes', 'class_day:absence_report_write')
 			) granted
 			WHERE target.name = ? AND target.tenant_id IS NULL
 			ON CONFLICT (role_id, permission_id) DO NOTHING

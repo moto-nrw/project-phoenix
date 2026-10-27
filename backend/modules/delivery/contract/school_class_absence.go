@@ -26,6 +26,9 @@ type SchoolClassRecipients struct {
 	// person's decision.
 	Consent interface {
 		FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
+		// FilterNotOptedOut serves the default-on notice about children
+		// missing without a report (#4791).
+		FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 	}
 	// Subscribers lists the accounts that switched the type on. It is the
 	// cheap first question (nobody, no lookup at all) and the source of the
@@ -40,4 +43,7 @@ type SchoolClassRecipients struct {
 	// Permissions matches granted permission names under the Security
 	// Runtime's wildcard rules.
 	Permissions func(required string, granted []string) bool
+	// Office lists the Schulverwaltung for the notice about children
+	// missing without a report (#4791); nil sends none.
+	Office SchoolOffice
 }

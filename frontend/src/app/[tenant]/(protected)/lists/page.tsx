@@ -50,9 +50,8 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { getSettingValue } from "~/lib/settings-api";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTimetableEnabled } from "~/lib/tenant-context";
 import {
   berlinTodayISO,
   formatStatusDate,
@@ -739,17 +738,9 @@ export default function SlotListsPage() {
   const router = useTenantRouter();
   // Route guard: Tageslisten are part of the timetable feature, so an explicit
   // timetable.enabled=false hides the page just like the Betreuungsplan/Vertretung
-  // guards and the sidebar (#1565 review). getSettingValue returns undefined when
-  // the user cannot read settings, so the page renders normally by default.
-  const { data: settingsSchema } = useSettingsSchema(
-    authStatus === "authenticated",
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    },
-  );
-  const timetableDisabled =
-    getSettingValue(settingsSchema, "timetable.enabled") === false;
+  // guards and the sidebar (#1565 review). The flag comes from the tenant
+  // resolve (#4996).
+  const timetableDisabled = !useTimetableEnabled();
   const initialState = useMemo(
     () => parseInitialListState(searchParams),
     [searchParams],

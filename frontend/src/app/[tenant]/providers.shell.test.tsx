@@ -101,8 +101,8 @@ const shell: ShellBootstrap = {
     supervisedRoomNames: [],
     incomplete: false,
     unavailableSections: [],
+    schoolSwitches: null,
   },
-  settingsSchema: { tabs: [] },
   profile: {
     id: "1",
     firstName: "Ada",
@@ -198,7 +198,6 @@ describe("TenantProviders with a server snapshot", () => {
 
     const entries = {
       "school-a:user-context": shell.userContext,
-      "school-a:settings-schema": shell.settingsSchema,
       "school-a:reminders": shell.reminders,
       // Platform-scoped: no tenant prefix.
       "user-announcements-unread": shell.announcements,

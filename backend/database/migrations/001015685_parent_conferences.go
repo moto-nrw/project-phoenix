@@ -18,11 +18,11 @@ func init() {
 		Version:     parentConferencesVersion,
 		Description: parentConferencesDescription,
 		DependsOn: []string{
-			classParentLettersVersion,  // the last migration before this one
-			schoolCalendarVersion,      // school_event_type the booked appointment carries
-			parentDeclarationsVersion,  // auth.guardian_student_access as the permission store
-			surveysVersion,             // the deletion kinds this extends
-			holidayGuestErasureVersion, // the school erasure functions this extends
+			schoolAbsenceReportsVersion, // the last migration before this one
+			schoolCalendarVersion,       // school_event_type the booked appointment carries
+			parentDeclarationsVersion,   // auth.guardian_student_access as the permission store
+			surveysVersion,              // the deletion kinds this extends
+			holidayGuestErasureVersion,  // the school erasure functions this extends
 		},
 	})
 	Migrations.MustRegister(parentConferencesUp, parentConferencesDown)

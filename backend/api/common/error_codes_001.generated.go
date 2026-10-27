@@ -2,6 +2,12 @@
 package common
 
 const (
+	CodeIdentityDemoAccessRateLimited                 = "identity.demo_access_rate_limited"
+	CodeIdentityDemoAccessUnknown                     = "identity.demo_access_unknown"
+	CodeIdentityDemoCapacityReached                   = "identity.demo_capacity_reached"
+	CodeIdentityDemoSchoolPreparing                   = "identity.demo_school_preparing"
+	CodeIdentityDemoSession                           = "identity.demo_session"
+	CodeIdentityEmailAlreadyExists                    = "identity.email_already_exists"
 	CodeIdentityEmailChangeLinkInvalid                = "identity.email_change_link_invalid"
 	CodeIdentityEmailChangeRateLimited                = "identity.email_change_rate_limited"
 	CodeIdentityEmailChangeSameEmail                  = "identity.email_change_same_email"
@@ -296,15 +302,15 @@ const (
 	CodeTimetableAttendanceFrozen                     = "timetable.attendance_frozen"
 	CodeTimetableAttendanceInvalid                    = "timetable.attendance_invalid"
 	CodeTimetableCalendarPeriodCareOfferingConflict   = "timetable.calendar_period_care_offering_conflict"
-	CodeTimetableCalendarPeriodEndBeforeStart         = "timetable.calendar_period_end_before_start"
-	CodeTimetableCalendarPeriodInvalid                = "timetable.calendar_period_invalid"
-	CodeTimetableCalendarPeriodNameTaken              = "timetable.calendar_period_name_taken"
-	CodeTimetableCalendarPeriodNotFound               = "timetable.calendar_period_not_found"
-	CodeTimetableCalendarPeriodOverlapConflict        = "timetable.calendar_period_overlap_conflict"
-	CodeTimetableCalendarPeriodRosterConflict         = "timetable.calendar_period_roster_conflict"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.demo_access_rate_limited":                  "unavailable",
+	"identity.demo_access_unknown":                       "input",
+	"identity.demo_capacity_reached":                     "unavailable",
+	"identity.demo_school_preparing":                     "unavailable",
+	"identity.demo_session":                              "permission",
+	"identity.email_already_exists":                      "business_rejection",
 	"identity.email_change_link_invalid":                 "business_rejection",
 	"identity.email_change_rate_limited":                 "unavailable",
 	"identity.email_change_same_email":                   "input",
@@ -599,12 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.attendance_frozen":                        "business_rejection",
 	"timetable.attendance_invalid":                       "input",
 	"timetable.calendar_period_care_offering_conflict":   "business_rejection",
-	"timetable.calendar_period_end_before_start":         "input",
-	"timetable.calendar_period_invalid":                  "input",
-	"timetable.calendar_period_name_taken":               "business_rejection",
-	"timetable.calendar_period_not_found":                "business_rejection",
-	"timetable.calendar_period_overlap_conflict":         "business_rejection",
-	"timetable.calendar_period_roster_conflict":          "business_rejection",
 }
 
 func init() {

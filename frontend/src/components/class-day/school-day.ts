@@ -20,6 +20,7 @@ const SCHOOL_DAY_LIST_PARAM = "liste";
 export type SchoolDayListKey =
   | "kinder"
   | "fehlen"
+  | "ohne-meldung"
   | "krank"
   | "entschuldigt"
   | "klassenfahrt"
@@ -53,6 +54,14 @@ const SCHOOL_DAY_LISTS: readonly SchoolDayList[] = [
     label: "Fehlen",
     count: (totals) => totals.missing,
     matches: (child) => child.missing === true,
+  },
+  {
+    // Die Lehrkraft hat das Kind als fehlend eingetragen, und niemand hat
+    // es gemeldet (#4791). Hier trägt die Schulverwaltung die Meldung nach.
+    key: "ohne-meldung",
+    label: "Fehlen ohne Meldung",
+    count: (totals) => totals.unreported ?? 0,
+    matches: (child) => child.unreported === true,
   },
   {
     key: "krank",

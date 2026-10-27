@@ -151,11 +151,14 @@ class TimetableService {
    * Returns the materialized instances in the requested window plus
    * lightweight enrichment (room name, type, staff list, counts). The
    * optional filter narrows them to one OGS group and/or one person (#4766).
+   * `view: "slim"` drops the per-child attendance rows (#4996): every block
+   * then carries `students: []`, while counts and student IDs stay.
    */
   async getWeek(
     from: string,
     to: string,
     filter: PlanFilter = NO_PLAN_FILTER,
+    options: { view?: "slim" } = {},
   ): Promise<WeeklyInstancesResponse> {
     if (!hasSessionAccess(await getCachedSession())) {
       throw new ApiError("Nicht angemeldet", 401);
@@ -165,6 +168,7 @@ class TimetableService {
       from,
       to,
       ...planFilterQuery(filter),
+      ...(options.view ? { view: options.view } : {}),
     });
     const response = await transportFetch(
       `/api/timetable/instances?${params}`,

@@ -2504,6 +2504,12 @@
         "staff_managed_guardian_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       },
       "classday": {
+        "absence_report_conflict": "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
+        "absence_report_no_school_day": "Today is not a school day. A report can only be entered on school days.",
+        "absence_report_not_found": "This report no longer exists. Please reload the page.",
+        "absence_report_not_missing": "This child already has a report or is not marked as absent. Please reload the page.",
+        "absence_report_not_today": "A report can only be entered for today. Please open today.",
+        "absence_report_unknown_child": "This child is not in this class today. Please reload the page.",
         "arrival_exception_class_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "arrival_exception_editor_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
         "arrival_exception_past_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

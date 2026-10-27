@@ -540,6 +540,13 @@ export interface BackendStudent {
 
 export type StudentConsent = ConsentRecord;
 
+/** Backend wire shape for `GET /api/students?view=names` (#4996). */
+export interface BackendNameStudent {
+  id: number;
+  first_name: string;
+  last_name: string;
+}
+
 /** Backend wire shape for `GET /api/students?view=slim`. */
 export interface BackendSlimStudent {
   id: number;
@@ -910,6 +917,23 @@ export function mapStudentResponse(
  * fields. In particular, this must not synthesize empty weekday departure
  * maps because the route serializes the mapped value back to the browser.
  */
+/**
+ * Maps the names-only list row (#4996). The projection carries no class and no
+ * location, so both stay empty; callers of `view: "names"` read the name only.
+ */
+export function mapNameStudentResponse(
+  backendStudent: BackendNameStudent,
+): Student {
+  return {
+    id: String(backendStudent.id),
+    name: `${backendStudent.first_name} ${backendStudent.last_name}`.trim(),
+    first_name: backendStudent.first_name,
+    second_name: backendStudent.last_name,
+    school_class: "",
+    current_location: "",
+  };
+}
+
 export function mapSlimStudentResponse(
   backendStudent: BackendSlimStudent,
 ): Student {

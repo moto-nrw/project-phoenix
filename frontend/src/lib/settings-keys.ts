@@ -62,4 +62,10 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // saved setting cannot leave new forms enforcing the old cap for five
   // minutes.
   "enrollment.grade_level_max",
+  // The navigation and the planning pages read timetable.enabled from
+  // /auth/tenant/resolve since #4996 instead of the settings schema. Without
+  // revalidation a switch would reach reloads and new tabs only after the
+  // layout cache TTL (300s). The signed-in switches of #4996 ride on
+  // /api/me/navigation instead; useSettingsCacheBridge refreshes that.
+  "timetable.enabled",
 ]);

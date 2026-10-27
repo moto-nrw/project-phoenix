@@ -116,6 +116,7 @@ DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
 DELETE /school/calendar/appointments/{appointmentId}
 DELETE /school/calendar/parent-conferences/{conferenceId}
+DELETE /school/class-day/absence-reports/{schoolClass}/{date}/students/{studentId}
 DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
 DELETE /school/class-day/day-hints/{schoolClass}/{date}
 DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
@@ -1245,6 +1246,7 @@ PUT /parent/me/notification-preferences/{type}
 PUT /parent/me/profile
 PUT /school/calendar/appointments/{appointmentId}
 PUT /school/calendar/parent-conferences/{conferenceId}
+PUT /school/class-day/absence-reports/{schoolClass}/{date}/students/{studentId}
 PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
 PUT /school/class-day/day-hints/{schoolClass}/{date}
 PUT /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
