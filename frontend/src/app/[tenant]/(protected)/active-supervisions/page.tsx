@@ -97,6 +97,7 @@ import {
   HandOverSupervisionModal,
 } from "~/components/active-supervisions/hand-over-supervision-modal";
 import { OwnSupervisionView } from "~/components/active-supervisions/own-supervision-view";
+import { useSidebarMemory } from "~/lib/sidebar-memory";
 
 function hasSameGroupNames(
   previous: readonly string[] | undefined,
@@ -119,6 +120,7 @@ function MeinRaumPageContent() {
       router.push("/");
     },
   });
+  const memory = useSidebarMemory();
 
   // Pre-select the session from the URL. `?session=<activeGroupId>` is the
   // precise key (parallel sessions can share one room, #2265); the legacy
@@ -304,12 +306,12 @@ function MeinRaumPageContent() {
       dashboard.selectOpenRoom(roomId);
       router.push(`/active-supervisions?room=${roomId}`);
       if (room.isUserSupervising) {
-        localStorage.removeItem("supervision-last-session");
+        memory.remove("supervision-last-session");
       }
-      localStorage.setItem("sidebar-last-room", roomId);
-      localStorage.setItem("sidebar-last-room-name", room.name);
+      memory.write("sidebar-last-room", roomId);
+      memory.write("sidebar-last-room-name", room.name);
     },
-    [dashboard, openRooms, router],
+    [dashboard, memory, openRooms, router],
   );
 
   const handleTabChange = (tabValue: string) => {
@@ -325,12 +327,12 @@ function MeinRaumPageContent() {
     const room = allRooms.find((r) => r.id === sessionId);
     if (room) {
       router.push(`/active-supervisions?session=${sessionId}`);
-      localStorage.setItem("supervision-last-session", sessionId);
+      memory.write("supervision-last-session", sessionId);
       if (room.room_id) {
-        localStorage.setItem("sidebar-last-room", room.room_id);
+        memory.write("sidebar-last-room", room.room_id);
       }
       if (room.room_name) {
-        localStorage.setItem("sidebar-last-room-name", room.room_name);
+        memory.write("sidebar-last-room-name", room.room_name);
       }
       void dashboard.switchToRoom(sessionId);
     }

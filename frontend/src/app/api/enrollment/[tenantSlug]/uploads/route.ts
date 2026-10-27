@@ -17,10 +17,11 @@ import { MAX_UPLOAD_MB } from "~/lib/enrollment-uploads";
 import { createLogger } from "~/lib/logger";
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "EnrollmentUploadProxy" });
 
-export async function POST(
+async function POSTHandler(
   request: NextRequest,
   context: { params: Promise<{ tenantSlug?: string }> },
 ) {
@@ -75,3 +76,5 @@ export async function POST(
     return problemResponse(500, "Internal Server Error", request);
   }
 }
+
+export const POST = withPrivateNoStore(POSTHandler);

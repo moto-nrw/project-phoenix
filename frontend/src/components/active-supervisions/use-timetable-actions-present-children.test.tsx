@@ -6,6 +6,15 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// The sidebar memory and the offering choice belong to the signed-in account
+// (#5000), so the hooks read the session.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "7", tenantId: 1 } },
+    status: "authenticated",
+  }),
+}));
+
 const refreshSupervision = vi.hoisted(() => vi.fn());
 
 vi.mock("~/lib/supervision-context", () => ({

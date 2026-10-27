@@ -11,6 +11,7 @@ import {
   hostnameFromAuthority,
 } from "~/lib/client-headers.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "EnrollmentFormBootstrapRoute" });
 
@@ -130,7 +131,7 @@ const authenticatedTenantGET = withTenantAuth(GETHandler);
  * domain-scoped and may be sent to that host, but portal isolation forbids
  * reading or refreshing them there.
  */
-export function GET(request: NextRequest, context: RouteContext) {
+function GETRouteHandler(request: NextRequest, context: RouteContext) {
   const requestHostname = hostnameFromAuthority(
     getOriginalRequestHost(request),
   );
@@ -139,3 +140,5 @@ export function GET(request: NextRequest, context: RouteContext) {
   }
   return authenticatedTenantGET(request, context);
 }
+
+export const GET = withPrivateNoStore(GETRouteHandler);

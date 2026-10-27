@@ -2,7 +2,12 @@
 
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
+import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { operatorPath } from "~/lib/operator-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
+
+// Where a page lands that still showed another account (#5000).
+const operatorHome = () => operatorPath("/operator/organizations");
 
 /**
  * Operator-scoped providers.
@@ -28,6 +33,7 @@ export function OperatorProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <PersonalStorageGuard homeHref={operatorHome} />
       <SentrySessionContext portal="operator" />
       {children}
     </SessionProvider>

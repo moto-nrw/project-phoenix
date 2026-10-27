@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 import { forwardJsonPost } from "~/lib/auth-proxy.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
-export async function GET(
+async function GETHandler(
   request: NextRequest,
   context: { params: Promise<{ accountId: string }> },
 ) {
@@ -13,7 +14,7 @@ export async function GET(
   );
 }
 
-export async function DELETE(
+async function DELETEHandler(
   request: NextRequest,
   context: { params: Promise<{ accountId: string }> },
 ) {
@@ -24,3 +25,6 @@ export async function DELETE(
     { method: "DELETE", hasBody: true },
   );
 }
+
+export const GET = withPrivateNoStore(GETHandler);
+export const DELETE = withPrivateNoStore(DELETEHandler);

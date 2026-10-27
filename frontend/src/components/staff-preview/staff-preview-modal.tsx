@@ -19,6 +19,8 @@ import {
 } from "~/lib/staff-preview-api";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { leaveForAnotherAccount } from "~/lib/personal-storage";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "StaffPreviewModal" });
 
@@ -38,6 +40,7 @@ function candidateLabel(candidate: StaffPreviewCandidate): string {
  */
 export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
   const { update } = useSession();
+  const tenantPath = useTenantAwarePath();
   const [candidates, setCandidates] = useState<StaffPreviewCandidate[] | null>(
     null,
   );
@@ -91,9 +94,10 @@ export function StaffPreviewModal({ isOpen, onClose }: StaffPreviewModalProps) {
     startError.clear();
     try {
       await performStartStaffPreview(selectedId, update, mutate);
-      // Volle Neuladung auf der aktuellen Seite: ab jetzt rendert alles mit
-      // den Rechten der gewählten Person.
-      window.location.reload();
+      // Volle Neuladung auf der Startseite: ab jetzt rendert alles mit den
+      // Rechten der gewählten Person, und nichts aus der Seite davor (Filter
+      // in der Adresse, geladene Listen) gilt für sie (#5000).
+      leaveForAnotherAccount(tenantPath("/"));
     } catch (err) {
       logger.error("staff_preview_start_failed", {
         error: err instanceof Error ? err.message : String(err),

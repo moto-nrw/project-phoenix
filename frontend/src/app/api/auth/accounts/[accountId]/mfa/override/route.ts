@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 import { forwardJsonPost } from "~/lib/auth-proxy.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
-export async function PUT(
+async function PUTHandler(
   request: NextRequest,
   context: { params: Promise<{ accountId: string }> },
 ) {
@@ -12,3 +13,5 @@ export async function PUT(
     { method: "PUT", hasBody: true },
   );
 }
+
+export const PUT = withPrivateNoStore(PUTHandler);

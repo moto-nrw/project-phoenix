@@ -8,6 +8,7 @@ import { parentAbsoluteUrl, parentPath } from "~/lib/parent-url";
 import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
 import { catererAbsoluteUrl, catererPath } from "~/lib/caterer-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import { clearPersonalStorage } from "~/lib/personal-storage";
 import { createLogger } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
@@ -164,6 +165,9 @@ export function TeacherShellProvider({
             error: err instanceof Error ? err.message : String(err),
           });
         }
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
         clearSessionCache();
         await signOut({ redirect: false });
         window.location.href = "/";
@@ -232,6 +236,9 @@ export function OperatorShellProvider({
         // The tenant /api/auth/logout route uses tenant auth cookies and would
         // return 401 for operator sessions. Operator accounts don't do tenant
         // switching, so the stale-session issue from #1067 doesn't apply here.
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: operatorAbsoluteUrl("/operator/login") });
       },
@@ -314,6 +321,9 @@ export function SchoolShellProvider({
         // bliebe das Browser-Abo bestehen und der nächste Login auf diesem
         // Gerät fände ein Abo ohne Zuordnung vor.
         await unsubscribePushSilently("school");
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: schoolAbsoluteUrl("/school/login") });
       },
@@ -381,6 +391,9 @@ export function CatererShellProvider({
             error: err instanceof Error ? err.message : String(err),
           });
         }
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: catererAbsoluteUrl("/caterer/login") });
       },
@@ -474,6 +487,9 @@ export function ParentShellProvider({
         // cookie locally and redirects to the parents login page.
         // Best-effort: drop this device's Web Push registration first.
         await unsubscribePushSilently("parent");
+        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+        // Gerät (#5000).
+        clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: parentAbsoluteUrl("/parents/login") });
       },

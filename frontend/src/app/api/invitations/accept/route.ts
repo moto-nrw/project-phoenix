@@ -5,6 +5,7 @@ import { createLogger } from "~/lib/logger";
 import { withInvitationOwnerSession } from "~/lib/invitation-owner-session.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "InvitationAcceptRoute" });
 
@@ -17,7 +18,7 @@ interface AcceptInvitationBody {
   confirmPassword: string;
 }
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   try {
     // NextAuth reconstructs the original request when resolving the owner session.
     let body: AcceptInvitationBody;
@@ -64,3 +65,5 @@ export async function POST(request: NextRequest) {
     return problemResponse(500, "Internal Server Error", request);
   }
 }
+
+export const POST = withPrivateNoStore(POSTHandler);

@@ -1,8 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
+import { useMinuteClock } from "~/lib/pickup-helpers";
+import { setTestClock } from "~/test/clock";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
@@ -57,9 +65,9 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useBreadcrumb: () => ({ breadcrumb: {} }),
 }));
 
-// Feste Uhr: 10:00 Berliner Zeit, damit die "Jetzt"-Linie deterministisch ist.
+// Die Testuhr liefert den Zeitpunkt der gemeinsamen, eingefrorenen Uhr.
 vi.mock("~/lib/pickup-helpers", () => ({
-  useMinuteClock: vi.fn(() => new Date("2026-08-31T08:00:00Z")),
+  useMinuteClock: vi.fn(() => new Date()),
 }));
 
 vi.mock("~/lib/timetable-operations-api", async (importOriginal) => {
@@ -132,6 +140,8 @@ const replace = vi.fn();
 describe("TagesplanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setTestClock("2026-09-09T10:00:00+02:00");
+    vi.mocked(useMinuteClock).mockImplementation(() => new Date());
     searchParams.current = new URLSearchParams();
     vi.mocked(useTimetableEnabled).mockReturnValue(true);
     vi.mocked(useOperationalOverviewScope).mockReturnValue("all_staff");
@@ -641,5 +651,263 @@ describe("TagesplanView", () => {
     expect(
       screen.getByRole("heading", { name: /05\.01\.2026/ }),
     ).toBeInTheDocument();
+  });
+
+  // #5020: was gleichzeitig läuft, steht nebeneinander. Die Gruppe bleibt
+  // eine Liste in der Liste, damit Vorleseprogramme die Blöcke weiterhin
+  // der Reihe nach hören.
+  describe("parallel blocks (#5020)", () => {
+    it("does not mark a block ending at midnight as missed before midnight", () => {
+      setTestClock("2026-09-09T23:30:00+02:00");
+      setSWR({
+        data: [
+          makeInstance({
+            id: "midnight",
+            title: "Spätbetreuung",
+            startTime: "23:00",
+            endTime: "00:00",
+          }),
+        ],
+        isLoading: false,
+        error: null,
+      });
+
+      render(<TagesplanView />);
+
+      const row = screen.getByText("Spätbetreuung").closest("li");
+      expect(row).not.toHaveTextContent("Nicht gestartet");
+      expect(row?.style.opacity).toBe("");
+    });
+
+    it("groups overlapping blocks side by side and keeps the rest full width", () => {
+      setSWR({
+        data: [
+          makeInstance({
+            id: "3",
+            title: "Busaufsicht",
+            startTime: "16:00",
+            endTime: "16:30",
+          }),
+          makeInstance({
+            id: "1",
+            title: "Mittagessen",
+            startTime: "12:00",
+            endTime: "13:00",
+          }),
+          makeInstance({
+            id: "2",
+            title: "Freies Spiel",
+            startTime: "15:00",
+            endTime: "17:00",
+          }),
+          makeInstance({
+            id: "4",
+            title: "Teamsitzung",
+            startTime: "15:00",
+            endTime: "15:45",
+          }),
+        ],
+        isLoading: false,
+        error: null,
+      });
+
+      render(<TagesplanView />);
+
+      const group = screen.getByRole("list", {
+        name: "Gleichzeitig · 15:00–17:00 Uhr",
+      });
+      const cells = within(group).getAllByRole("listitem");
+      // Start, Ende, Titel: Teamsitzung endet vor Freies Spiel.
+      expect(cells.map((cell) => cell.textContent)).toEqual([
+        expect.stringContaining("Teamsitzung"),
+        expect.stringContaining("Freies Spiel"),
+        expect.stringContaining("Busaufsicht"),
+      ]);
+      // Zwei Spalten: Busaufsicht folgt der Teamsitzung in deren Spalte.
+      expect(group.style.gridTemplateColumns).toBe("repeat(2, minmax(0, 1fr))");
+      expect(cells[0]!.style.gridColumn).toBe("1 / span 1");
+      expect(cells[1]!.style.gridColumn).toBe("2 / span 1");
+      expect(cells[2]!.style.gridColumn).toBe("1 / span 1");
+      expect(cells[2]!.style.gridRow).toBe("2");
+
+      // Mittagessen überschneidet sich mit nichts: eine eigene Zeile in der
+      // äußeren Liste, außerhalb jeder Gruppe.
+      const lunch = screen
+        .getAllByRole("listitem")
+        .find((row) => row.textContent?.includes("Mittagessen"));
+      expect(lunch).toBeDefined();
+      expect(group).not.toContainElement(lunch!);
+      expect(lunch!.style.gridColumn).toBe("");
+    });
+
+    it("lets more than two parallel columns scroll sideways instead of squeezing them", () => {
+      setSWR({
+        data: ["A", "B", "C"].map((name, index) =>
+          makeInstance({
+            id: String(index + 1),
+            title: `Block ${name}`,
+            startTime: "14:00",
+            endTime: "15:00",
+          }),
+        ),
+        isLoading: false,
+        error: null,
+      });
+
+      render(<TagesplanView />);
+
+      const group = screen.getByRole("list", {
+        name: "Gleichzeitig · 14:00–15:00 Uhr",
+      });
+      expect(group.style.gridTemplateColumns).toBe(
+        "repeat(3, minmax(11rem, 1fr))",
+      );
+      expect(group.parentElement).toHaveClass("overflow-x-auto");
+    });
+
+    it("keeps start button, chevron, cancellation and own tint inside a group", () => {
+      setSWR({
+        data: [
+          makeInstance({
+            id: "1",
+            title: "Freispiel",
+            startTime: "09:00",
+            endTime: "11:00",
+            status: "active",
+            activeGroupId: "91",
+          }),
+          makeInstance({
+            id: "2",
+            title: "Lesezeit",
+            startTime: "09:30",
+            endTime: "11:00",
+            canStart: true,
+            startExpiresAt: "2099-01-01T00:00:00Z",
+            isAssigned: true,
+            planningTrackColor: "#5080D8",
+          }),
+          makeInstance({
+            id: "3",
+            title: "Schach-AG",
+            startTime: "09:30",
+            endTime: "10:30",
+            status: "cancelled",
+            cancelReason: "Leitung krank",
+          }),
+        ],
+        isLoading: false,
+        error: null,
+      });
+
+      render(<TagesplanView />);
+
+      const group = screen.getByRole("list", { name: /^Gleichzeitig/ });
+      // Laufender Block: ganze Zelle öffnet die Kinderliste, mit Chevron.
+      const running = within(group).getByRole("button", { name: /Freispiel/ });
+      expect(running.querySelector("svg.lucide-chevron-right")).not.toBeNull();
+      fireEvent.click(running);
+      expect(push).toHaveBeenCalledWith("/active-supervisions?session=91");
+
+      expect(
+        within(group).getByRole("button", { name: "Starten" }),
+      ).toBeInTheDocument();
+      expect(
+        within(group).getByText("Fällt aus · Leitung krank"),
+      ).toBeVisible();
+
+      const own = within(group)
+        .getAllByRole("listitem")
+        .find((cell) => cell.textContent?.includes("Lesezeit"));
+      expect(own).toHaveStyle({ backgroundColor: "#5080D81A" });
+      expect(own).toHaveTextContent("Mein Block");
+    });
+
+    it("puts the now line before the first group that is not over", () => {
+      setSWR({
+        data: [
+          makeInstance({
+            id: "1",
+            title: "Frühbetreuung",
+            startTime: "07:00",
+            endTime: "08:00",
+          }),
+          makeInstance({
+            id: "2",
+            title: "Lernzeit",
+            startTime: "09:00",
+            endTime: "09:45",
+          }),
+          makeInstance({
+            id: "3",
+            title: "Leseclub",
+            startTime: "09:30",
+            endTime: "10:30",
+          }),
+          makeInstance({
+            id: "4",
+            title: "Mittagessen",
+            startTime: "12:00",
+            endTime: "13:00",
+          }),
+        ],
+        isLoading: false,
+        error: null,
+      });
+
+      render(<TagesplanView />);
+
+      // Uhr steht auf 10:00: die Lernzeit ist vorbei, der Leseclub neben ihr
+      // läuft noch, also steht die Linie vor der ganzen Gruppe.
+      const nowLine = screen.getByText("Jetzt · 10:00 Uhr").closest("li");
+      const group = screen
+        .getByRole("list", { name: "Gleichzeitig · 09:00–10:30 Uhr" })
+        .closest("li");
+      expect(nowLine?.nextElementSibling).toBe(group);
+      expect(nowLine?.previousElementSibling).toHaveTextContent(
+        "Frühbetreuung",
+      );
+    });
+
+    it("counts a spontaneous open block as running until now", () => {
+      setSWR({
+        data: [
+          makeInstance({
+            id: "1",
+            title: "Spontanes Basteln",
+            startTime: "09:00",
+            // Platzhalter-Ende, schon vorbei; der Block läuft trotzdem.
+            endTime: "09:30",
+            status: "active",
+            activeGroupId: "92",
+            isSpontaneous: true,
+          }),
+          makeInstance({
+            id: "2",
+            title: "Hausaufgaben",
+            startTime: "09:45",
+            endTime: "10:45",
+          }),
+          makeInstance({
+            id: "3",
+            title: "Mittagessen",
+            startTime: "12:00",
+            endTime: "13:00",
+          }),
+        ],
+        isLoading: false,
+        error: null,
+      });
+
+      render(<TagesplanView />);
+
+      const group = screen.getByRole("list", {
+        name: "Gleichzeitig · ab 09:00 Uhr",
+      });
+      expect(within(group).getByText(/Spontanes Basteln/)).toBeInTheDocument();
+      expect(within(group).getByText(/Hausaufgaben/)).toBeInTheDocument();
+      expect(within(group).queryByText(/Mittagessen/)).not.toBeInTheDocument();
+      const nowLine = screen.getByText("Jetzt · 10:00 Uhr").closest("li");
+      expect(nowLine?.nextElementSibling).toBe(group.closest("li"));
+    });
   });
 });

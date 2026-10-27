@@ -14,6 +14,7 @@ import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
+import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
 import {
   useTenantRoutingModeSafe,
   useTenantSafe,
@@ -516,21 +517,24 @@ export function Header() {
 
 /**
  * Enrich a bare referrer URL (e.g. "/ogs-groups") with the last-selected
- * sub-item param from localStorage so the sidebar highlights the correct item
- * when navigating back via breadcrumb link.
+ * sub-item param from the sidebar memory so the sidebar highlights the correct
+ * item when navigating back via breadcrumb link.
  */
-function enrichReferrerWithParam(referrer: string): string {
+function enrichReferrerWithParam(
+  referrer: string,
+  memory: SidebarMemory,
+): string {
   if (globalThis.window === undefined) return referrer;
   if (referrer === "/ogs-groups") {
-    const groupId = localStorage.getItem("sidebar-last-group");
+    const groupId = memory.read("sidebar-last-group");
     if (groupId) return `/ogs-groups?group=${groupId}`;
   }
   if (referrer === "/active-supervisions") {
     // Prefer the precise session key (#2265); the room key is the legacy
     // fallback for state written before session tracking existed.
-    const sessionId = localStorage.getItem("supervision-last-session");
+    const sessionId = memory.read("supervision-last-session");
     if (sessionId) return `/active-supervisions?session=${sessionId}`;
-    const roomId = localStorage.getItem("sidebar-last-room");
+    const roomId = memory.read("sidebar-last-room");
     if (roomId) return `/active-supervisions?room=${roomId}`;
   }
   return referrer;
@@ -572,6 +576,7 @@ function HeaderBreadcrumb({
   activeSupervisionName,
   activeSupervisionIsSharedRoom,
 }: HeaderBreadcrumbProps) {
+  const memory = useSidebarMemory();
   // Gruppierte Navigationsbereiche: Datenverwaltung, Planung, Eltern
   if (sectionBreadcrumb) {
     return <SectionBreadcrumb {...sectionBreadcrumb} />;
@@ -600,7 +605,7 @@ function HeaderBreadcrumb({
     return <ParentChildBreadcrumb childName={pageTitle} />;
   }
 
-  // enrichReferrerWithParam liest localStorage; der Aufruf steht deshalb in
+  // enrichReferrerWithParam liest den Speicher; der Aufruf steht deshalb in
   // den beiden Zweigen, die das Ergebnis auch verwenden, statt auf jedem
   // Render-Pfad zu laufen.
 
@@ -609,7 +614,7 @@ function HeaderBreadcrumb({
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentHistoryBreadcrumb
-        referrer={enrichReferrerWithParam(referrer)}
+        referrer={enrichReferrerWithParam(referrer, memory)}
         breadcrumbLabel={breadcrumbLabel}
         pathname={pathname}
         studentName={studentName ?? "…"}
@@ -668,7 +673,7 @@ function HeaderBreadcrumb({
     const subSectionName = ogsGroupName ?? activeSupervisionName;
     return (
       <StudentDetailBreadcrumb
-        referrer={enrichReferrerWithParam(referrer)}
+        referrer={enrichReferrerWithParam(referrer, memory)}
         breadcrumbLabel={breadcrumbLabel}
         studentName={studentName ?? "…"}
         subSectionName={subSectionName}

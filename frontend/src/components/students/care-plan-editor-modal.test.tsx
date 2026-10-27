@@ -240,6 +240,14 @@ function save(): void {
   fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 }
 
+// The kit Input wraps its field in wrapper divs; the row that holds the field
+// and its buttons is the nearest ancestor that contains a button.
+function rowButton(field: HTMLElement): HTMLButtonElement {
+  let row = field.parentElement;
+  while (row && !row.querySelector("button")) row = row.parentElement;
+  return row!.querySelector("button")!;
+}
+
 describe("CarePlanEditorModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -542,7 +550,7 @@ describe("CarePlanEditorModal", () => {
 
     const draft = screen.getByLabelText("Ankunft Hinweis hinzufügen");
     fireEvent.change(draft, { target: { value: "Bitte klingeln" } });
-    fireEvent.click(draft.parentElement!.querySelector("button")!);
+    fireEvent.click(rowButton(draft));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Die Notiz konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
@@ -698,7 +706,7 @@ describe("CarePlanEditorModal", () => {
 
     const draft = screen.getByLabelText("Ankunft Hinweis hinzufügen");
     fireEvent.change(draft, { target: { value: "Bitte klingeln" } });
-    const addButton = draft.parentElement!.querySelector("button")!;
+    const addButton = rowButton(draft);
     fireEvent.click(addButton);
     fireEvent.click(addButton);
 
@@ -751,7 +759,7 @@ describe("CarePlanEditorModal", () => {
     expect(nextDraft).toHaveValue("");
 
     fireEvent.change(nextDraft, { target: { value: "Nur Dienstag" } });
-    fireEvent.click(nextDraft.parentElement!.querySelector("button")!);
+    fireEvent.click(rowButton(nextDraft));
 
     await waitFor(() => {
       expect(onCreateArrivalNote).toHaveBeenCalledWith(

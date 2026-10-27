@@ -47,6 +47,8 @@ import { useSidebarGroups } from "~/lib/hooks/use-sidebar-groups";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { useSidebarCollapseTransition } from "~/lib/hooks/use-sidebar-collapse-transition";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import { useSidebarMemory } from "~/lib/sidebar-memory";
+import { useArrivalOwner } from "~/lib/hooks/use-arrival-owner";
 import {
   isOwnGroup,
   OGS_GROUPS_LABEL,
@@ -1315,21 +1317,28 @@ function SidebarContent({
   const personalGroups = useMemo(() => groups.filter(isOwnGroup), [groups]);
 
   // On child pages (e.g. student detail with ?from=/ogs-groups), determine
-  // which sub-item should stay highlighted using the last selection from localStorage.
+  // which sub-item should stay highlighted using the last selection of this account.
   const isChildOfAccordion =
     pathname.startsWith("/students/") && pathname !== "/students/search";
   const childFromParam = isChildOfAccordion ? fromParam : null;
+  const memory = useSidebarMemory();
+  const childGroupKey = memory.key("sidebar-last-group");
+  const childRoomKey = memory.key("sidebar-last-room");
+  const childSessionKey = memory.key("supervision-last-session");
   const childGroupId = useLocalStorageValue(
-    "sidebar-last-group",
-    childFromParam?.startsWith("/ogs-groups") ?? false,
+    childGroupKey ?? "",
+    childGroupKey !== null &&
+      (childFromParam?.startsWith("/ogs-groups") ?? false),
   );
   const childRoomId = useLocalStorageValue(
-    "sidebar-last-room",
-    childFromParam?.startsWith("/active-supervisions") ?? false,
+    childRoomKey ?? "",
+    childRoomKey !== null &&
+      (childFromParam?.startsWith("/active-supervisions") ?? false),
   );
   const childSessionId = useLocalStorageValue(
-    "supervision-last-session",
-    childFromParam?.startsWith("/active-supervisions") ?? false,
+    childSessionKey ?? "",
+    childSessionKey !== null &&
+      (childFromParam?.startsWith("/active-supervisions") ?? false),
   );
   // „Aktuelle Aufsicht“ zeigt nur laufende Aufsichten: eigene, mit der
   // Schulübersicht auch fremde. Ein offener Raum (#3065) steht hier nur, wenn
@@ -1342,41 +1351,62 @@ function SidebarContent({
       ),
     [supervisedRooms],
   );
-  // Persist last selected sub-item per accordion section to localStorage.
+  // Who opened what the URL shows, and whose groups and rooms the sidebar
+  // holds (#5000). After a switch to another account the URL still shows what
+  // the previous person opened, and the lists stay until the new account's
+  // arrive. The sidebar remembers only what this account opened, and a name
+  // only from this account's list. Declared before the effects below, so the
+  // owners are current when those run.
+  const shownLocation = `${pathname}|${currentGroupParam ?? ""}|${currentRoomParam ?? ""}`;
+  const locationOwner = useArrivalOwner(shownLocation, memory.owner);
+  const groupsOwner = useArrivalOwner(groups, memory.owner);
+  const roomsOwner = useArrivalOwner(supervisedRooms, memory.owner);
+
+  // Persist last selected sub-item per accordion section (per school and account).
   // Pages read this on mount to restore the user's last selection.
   useEffect(() => {
+    if (locationOwner.current !== memory.owner) return;
     if (pathname.startsWith("/ogs-groups") && currentGroupParam) {
-      localStorage.setItem("sidebar-last-group", currentGroupParam);
+      memory.write("sidebar-last-group", currentGroupParam);
       const group = groups.find((g) => g.id.toString() === currentGroupParam);
-      if (group) {
-        localStorage.setItem("sidebar-last-group-name", group.name);
+      if (group && groupsOwner.current === memory.owner) {
+        memory.write("sidebar-last-group-name", group.name);
       }
     }
-  }, [pathname, currentGroupParam, groups]);
+  }, [memory, pathname, currentGroupParam, groups, locationOwner, groupsOwner]);
 
   useEffect(() => {
+    if (locationOwner.current !== memory.owner) return;
     if (pathname.startsWith("/active-supervisions") && currentRoomParam) {
-      localStorage.setItem("sidebar-last-room", currentRoomParam);
+      memory.write("sidebar-last-room", currentRoomParam);
       const roomName = supervisedRooms.find(
         (r) => r.id === currentRoomParam,
       )?.name;
-      if (roomName) {
-        localStorage.setItem("sidebar-last-room-name", roomName);
+      if (roomName && roomsOwner.current === memory.owner) {
+        memory.write("sidebar-last-room-name", roomName);
       }
     }
-  }, [pathname, currentRoomParam, supervisedRooms]);
+  }, [
+    memory,
+    pathname,
+    currentRoomParam,
+    supervisedRooms,
+    locationOwner,
+    roomsOwner,
+  ]);
 
   useEffect(() => {
+    if (locationOwner.current !== memory.owner) return;
     if (
       pathname.startsWith("/database/") &&
       databaseSubPages.some((p) => pathname === p.href)
     ) {
-      localStorage.setItem("sidebar-last-database", pathname);
+      memory.write("sidebar-last-database", pathname);
     }
-  }, [pathname, databaseSubPages]);
+  }, [memory, pathname, databaseSubPages, locationOwner]);
 
   // Toggle accordion AND navigate to the correct URL (with last-selected sub-item).
-  // Reads localStorage at click-time so the page loads with the right param immediately.
+  // Reads the memory at click-time so the page loads with the right param immediately.
   // „Gruppen“ führt auf die Auswahlseite (#4351), so wie die
   // Datenverwaltung auf ihren Hub. Auf der Auswahlseite selbst klappt der
   // Eintrag nur auf und zu; ebenso in der einzigen Gruppe, denn die
@@ -1408,8 +1438,8 @@ function SidebarContent({
       // belongs to a released room instead identifies that room's shared view.
       // Only entries listed under „Aktuelle Aufsicht“ qualify: a released room
       // without an own supervision lives under „Räume“ (#4372).
-      const savedSessionId = localStorage.getItem("supervision-last-session");
-      const savedRoomId = localStorage.getItem("sidebar-last-room");
+      const savedSessionId = memory.read("supervision-last-session");
+      const savedRoomId = memory.read("sidebar-last-room");
       const targetRoom =
         (savedSessionId
           ? (supervisionNavRooms.find(
@@ -1435,6 +1465,7 @@ function SidebarContent({
   }, [
     toggle,
     expanded,
+    memory,
     pathname,
     isViewingSharedOpenRoom,
     supervisionNavRooms,
