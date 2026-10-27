@@ -20,9 +20,11 @@ export interface SupervisedRoom {
    */
   isOpenRoom?: boolean;
   /**
-   * The caller supervises a session in this released room. Only then does the
-   * navigation list the room under „Aktuelle Aufsicht“ (#4349); every other
-   * released room is reached through „Räume“ (#4372).
+   * The caller supervises this session, or a session in this released room.
+   * Only then does the navigation list a released room under „Aktuelle
+   * Aufsicht“ (#4349); every other released room is reached through „Räume“
+   * (#4372). With the school-wide overview, session entries without the flag
+   * are foreign sessions; they stand after the own ones (#5035).
    */
   isOwnSupervision?: boolean;
   /** Active sessions in this released room, used to mark a `?session=` link. */
@@ -253,6 +255,9 @@ export function deriveSupervision(
   for (const g of eligible) {
     roomUseCount.set(g.room_id!, (roomUseCount.get(g.room_id!) ?? 0) + 1);
   }
+  const ownSessionIds = new Set(
+    (ownSessions ?? []).map((g) => g.id.toString()),
+  );
   const rooms: SupervisedRoom[] = eligible
     .map((g) => {
       const roomName = g.room?.name ?? `Room ${g.room_id}`;
@@ -265,19 +270,33 @@ export function deriveSupervision(
             : roomName,
         groupId: g.id.toString(),
         groupName: g.actual_group?.name,
+        ...(ownSessionIds.has(g.id.toString())
+          ? { isOwnSupervision: true }
+          : {}),
       };
     })
-    .sort((a, b) => a.name.localeCompare(b.name, "de"));
+    .sort(
+      (a, b) =>
+        Number(b.isOwnSupervision === true) -
+          Number(a.isOwnSupervision === true) ||
+        a.name.localeCompare(b.name, "de"),
+    );
+  // With the overview, `supervised` also lists foreign sessions in room
+  // order. The default room is the caller's own (#5035).
+  const primary =
+    supervised.find((g) => ownSessionIds.has(g.id.toString())) ?? first;
 
   return {
     isSupervising: true,
     ownSupervision,
-    supervisedRoomId: first.room_id?.toString(),
+    supervisedRoomId: primary.room_id?.toString(),
     supervisedRoomName:
-      first.room?.name ?? (first.room_id ? `Room ${first.room_id}` : undefined),
+      primary.room?.name ??
+      (primary.room_id ? `Room ${primary.room_id}` : undefined),
     // Own supervisions first, shared rooms after them: the order is the
     // separation the criterion asks for, and isOpenRoom carries it for any
-    // stronger treatment the UI wants.
+    // stronger treatment the UI wants. With the overview, foreign sessions
+    // follow the own ones (#5035).
     supervisedRooms: [...rooms, ...openEntries],
     ownSupervisedRooms,
     overviewEnabled: overviewOk,

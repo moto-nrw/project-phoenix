@@ -120,6 +120,25 @@ describe("deriveSupervision with released rooms", () => {
     expect(result.supervisedRooms[1]?.isOpenRoom).toBe(true);
   });
 
+  it("puts own sessions before foreign ones of the overview (#5035)", () => {
+    const result = deriveSupervision(
+      [supervision(1, 5, "Atelier"), supervision(2, 6, "Werkraum")],
+      [openRoom(7, "Turnhalle")],
+      true,
+      [supervision(2, 6, "Werkraum")],
+    );
+
+    expect(result.supervisedRooms.map((room) => room.name)).toEqual([
+      "Werkraum",
+      "Atelier",
+      "Turnhalle",
+    ]);
+    expect(result.supervisedRooms[0]?.isOwnSupervision).toBe(true);
+    expect(result.supervisedRooms[1]?.isOwnSupervision).toBeUndefined();
+    expect(result.supervisedRoomId).toBe("6");
+    expect(result.supervisedRoomName).toBe("Werkraum");
+  });
+
   it("lists a released room once even when the caller supervises there", () => {
     // Otherwise the same place appears twice: once as an own supervision and
     // once as a shared room.

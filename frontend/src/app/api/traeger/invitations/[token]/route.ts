@@ -1,10 +1,11 @@
 import type { NextRequest } from "next/server";
 import { forwardJsonPost } from "~/lib/auth-proxy.server";
 import { encodePathSegment } from "~/lib/route-wrapper-utils.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 // Einladung ins Träger-Büro prüfen (#4650). Öffentlich: Der Link aus der Mail
 // ist der Nachweis, eine Sitzung gibt es noch nicht.
-export async function GET(
+async function GETHandler(
   request: NextRequest,
   context: { params: Promise<{ token: string }> },
 ) {
@@ -15,3 +16,5 @@ export async function GET(
     { method: "GET" },
   );
 }
+
+export const GET = withPrivateNoStore(GETHandler);

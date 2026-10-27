@@ -43,7 +43,7 @@ vi.mock("~/lib/auth-utils", () => ({
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { token: "test-token", id: "7", tenantId: 1 } },
     status: "authenticated",
   })),
 }));
@@ -311,6 +311,14 @@ import MeinRaumPage from "./page";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import {
+  type SidebarMemoryEntry,
+  sidebarMemoryKey,
+} from "~/lib/sidebar-memory";
+
+// The sidebar memory is bound to the school and account of the session
+// (#5000); the mocked session signs in account "7" at school 1.
+const memoryKey = (entry: SidebarMemoryEntry) => sidebarMemoryKey(entry, "1:7");
 
 // Aktionen melden Fehler als Toast oder im Dialog (#2517); der Provider
 // zeigt den Toast echt an.
@@ -328,6 +336,8 @@ beforeEach(() => {
   authMockState.canReadSupervisionData = true;
   authMockState.isCaregiver = true;
   localStorage.clear();
+  // The sidebar memory belongs to the signed-in account (#5000).
+  localStorage.setItem("moto:personal-storage-owner", "1:7");
   vi.mocked(PageHeaderWithSearch)
     .mockReset()
     .mockImplementation(defaultPageHeader);
@@ -1846,7 +1856,7 @@ describe("EmptyRoomsView without children lists", () => {
     // Restore useSession to authenticated for these tests
     const { useSession } = await import("next-auth/react");
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { token: "test-token" } },
+      data: { user: { token: "test-token", id: "7", tenantId: 1 } },
       status: "authenticated",
     } as never);
 
@@ -1927,6 +1937,8 @@ describe("BFF dashboard data with students and Schulhof", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
   });
 
   afterEach(() => {
@@ -2213,6 +2225,8 @@ describe("matchesStudentFilters edge cases", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
 
     // Override PageHeaderWithSearch to expose search and filter
     const mod =
@@ -2486,6 +2500,8 @@ describe("Schulhof user supervising view", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
     navigationMockState.roomParam = null;
   });
 
@@ -2912,6 +2928,8 @@ describe("Year filter (Klassenstufe) on active supervisions", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
 
     // Override PageHeaderWithSearch to expose year filter
     const mod =
@@ -4262,9 +4280,9 @@ describe("ID-based selection coverage: first room visit enrichment", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.removeItem("sidebar-last-room");
-    localStorage.removeItem("supervision-last-session");
-    localStorage.removeItem("sidebar-last-room-name");
+    localStorage.removeItem(memoryKey("sidebar-last-room"));
+    localStorage.removeItem(memoryKey("supervision-last-session"));
+    localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
   });
 
@@ -4444,9 +4462,9 @@ describe("ID-based selection coverage: stale room reset", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.removeItem("sidebar-last-room");
-    localStorage.removeItem("supervision-last-session");
-    localStorage.removeItem("sidebar-last-room-name");
+    localStorage.removeItem(memoryKey("sidebar-last-room"));
+    localStorage.removeItem(memoryKey("supervision-last-session"));
+    localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
   });
 
@@ -4572,9 +4590,9 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     vi.clearAllMocks();
     navigationMockState.roomParam = null;
     navigationMockState.sessionParam = null;
-    localStorage.removeItem("sidebar-last-room");
-    localStorage.removeItem("supervision-last-session");
-    localStorage.removeItem("sidebar-last-room-name");
+    localStorage.removeItem(memoryKey("sidebar-last-room"));
+    localStorage.removeItem(memoryKey("supervision-last-session"));
+    localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
 
     // Set mobile viewport so tabs are rendered (isDesktop = false when < 1024)
@@ -5162,9 +5180,9 @@ describe("ID-based selection coverage: localStorage room restore", () => {
     vi.clearAllMocks();
     navigationMockState.roomParam = null;
     navigationMockState.sessionParam = null;
-    localStorage.removeItem("sidebar-last-room");
-    localStorage.removeItem("supervision-last-session");
-    localStorage.removeItem("sidebar-last-room-name");
+    localStorage.removeItem(memoryKey("sidebar-last-room"));
+    localStorage.removeItem(memoryKey("supervision-last-session"));
+    localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
 
     // Override PageHeaderWithSearch to render tabs
@@ -5192,7 +5210,7 @@ describe("ID-based selection coverage: localStorage room restore", () => {
 
   it("restores room from localStorage when no URL param is present", async () => {
     // Set localStorage to point to room r2 (the second room)
-    localStorage.setItem("sidebar-last-room", "r2");
+    localStorage.setItem(memoryKey("sidebar-last-room"), "r2");
 
     const dashboardData = {
       supervisedGroups: [
@@ -5322,13 +5340,13 @@ describe("ID-based selection coverage: localStorage room restore", () => {
 
     await waitFor(() => {
       // The URL sync effect should persist the first room
-      expect(localStorage.getItem("sidebar-last-room")).toBe("r1");
+      expect(localStorage.getItem(memoryKey("sidebar-last-room"))).toBe("r1");
     });
   });
 
   it("persists a session selected by the URL", async () => {
     navigationMockState.sessionParam = "room-2";
-    localStorage.setItem("supervision-last-session", "room-1");
+    localStorage.setItem(memoryKey("supervision-last-session"), "room-1");
 
     const dashboardData = {
       supervisedGroups: [
@@ -5373,7 +5391,9 @@ describe("ID-based selection coverage: localStorage room restore", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(localStorage.getItem("supervision-last-session")).toBe("room-2");
+      expect(localStorage.getItem(memoryKey("supervision-last-session"))).toBe(
+        "room-2",
+      );
     });
   });
 });
@@ -5383,9 +5403,9 @@ describe("ID-based selection coverage: released-room skip guard", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.removeItem("sidebar-last-room");
-    localStorage.removeItem("supervision-last-session");
-    localStorage.removeItem("sidebar-last-room-name");
+    localStorage.removeItem(memoryKey("sidebar-last-room"));
+    localStorage.removeItem(memoryKey("supervision-last-session"));
+    localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
   });
 
@@ -5544,9 +5564,9 @@ describe("ID-based selection coverage: currentRoom useMemo", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.removeItem("sidebar-last-room");
-    localStorage.removeItem("supervision-last-session");
-    localStorage.removeItem("sidebar-last-room-name");
+    localStorage.removeItem(memoryKey("sidebar-last-room"));
+    localStorage.removeItem(memoryKey("supervision-last-session"));
+    localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
   });
 
@@ -5694,9 +5714,9 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    localStorage.removeItem("sidebar-last-room");
-    localStorage.removeItem("supervision-last-session");
-    localStorage.removeItem("sidebar-last-room-name");
+    localStorage.removeItem(memoryKey("sidebar-last-room"));
+    localStorage.removeItem(memoryKey("supervision-last-session"));
+    localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
 
     // Set mobile viewport so tabs are rendered (isDesktop = false when < 1024)
@@ -5835,3 +5855,136 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
  * Tests for action button click handlers (lines 1305-1359, 1429)
  * These tests cover the actual click handlers on action buttons
  */
+
+// Mit dem Überblick über alle Aufsichten liefert das Dashboard auch fremde
+// Sitzungen, nach Raum sortiert. Ohne Auswahl öffnet die Seite die eigene
+// Sitzung; eine fremde ist als fremd erkennbar (#5035).
+describe("overview caller and foreign sessions (#5035)", () => {
+  const mockMutate = vi.fn();
+  const foreignSession = {
+    id: "foreign-1",
+    name: "Atelier",
+    room_id: "r1",
+    room: { id: "r1", name: "Atelier" },
+    isCurrentUserSupervising: false,
+    canAssign: false,
+    supervisorNames: ["Paul Weber"],
+  };
+  const ownSession = {
+    id: "own-1",
+    name: "Werkraum",
+    room_id: "r2",
+    room: { id: "r2", name: "Werkraum" },
+    isCurrentUserSupervising: true,
+    canAssign: true,
+    supervisorNames: ["Julia Klein"],
+  };
+
+  function mockDashboard(extra: Record<string, unknown> = {}) {
+    const dashboardData = {
+      supervisedGroups: [foreignSession, ownSession],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      schulhofStatus: null,
+      openRooms: [],
+      ...extra,
+    };
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? {
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          }
+        : {
+            data: null,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          }) as never);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("selects and saves the own session instead of the first foreign one", async () => {
+    // An aggregate without selectedGroupId keeps the frontend default.
+    mockDashboard();
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(localStorage.getItem(memoryKey("supervision-last-session"))).toBe(
+        "own-1",
+      );
+    });
+    expect(localStorage.getItem(memoryKey("sidebar-last-room"))).toBe("r2");
+    expect(screen.getByText("Julia Klein")).toBeInTheDocument();
+    expect(screen.queryByText("Nicht Ihre Aufsicht")).not.toBeInTheDocument();
+    expect(screen.getByTestId("transit-students-section")).toBeInTheDocument();
+  });
+
+  it("marks an explicitly opened foreign session and hides the room moves", async () => {
+    navigationMockState.sessionParam = "foreign-1";
+    mockDashboard({ selectedGroupId: "foreign-1" });
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Nicht Ihre Aufsicht")).toBeInTheDocument();
+    expect(screen.getByText("Paul Weber")).toBeInTheDocument();
+    expect(localStorage.getItem(memoryKey("supervision-last-session"))).toBe(
+      "foreign-1",
+    );
+    expect(
+      screen.queryByTestId("transit-students-section"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the children of a session that is not first in the list", async () => {
+    // The aggregate resolved the requested session; its visits belong under
+    // it even though another session stands first.
+    navigationMockState.sessionParam = "foreign-1";
+    mockDashboard({
+      selectedGroupId: "foreign-1",
+      firstRoomVisits: [
+        {
+          studentId: "s1",
+          studentName: "Lena Fremd",
+          schoolClass: "2a",
+          groupName: "G1",
+          activeGroupId: "foreign-1",
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Lena Fremd")).toBeInTheDocument();
+  });
+
+  it("keeps the room moves on a foreign session for callers who may assign", async () => {
+    navigationMockState.sessionParam = "foreign-1";
+    mockDashboard({
+      selectedGroupId: "foreign-1",
+      supervisedGroups: [{ ...foreignSession, canAssign: true }, ownSession],
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Nicht Ihre Aufsicht")).toBeInTheDocument();
+    expect(screen.getByTestId("transit-students-section")).toBeInTheDocument();
+  });
+});

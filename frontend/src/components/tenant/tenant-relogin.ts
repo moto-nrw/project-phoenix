@@ -1,6 +1,7 @@
 import { signOut } from "next-auth/react";
 import { apiErrorFromResponse } from "~/lib/api-error";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
+import { clearPersonalStorage } from "~/lib/personal-storage";
 import { mutate } from "~/lib/swr";
 import { clientEnv } from "~/env.client";
 import { unsubscribePushSilently } from "~/lib/push-api";
@@ -39,6 +40,8 @@ async function endSessionAndNavigate(subdomain: string): Promise<void> {
       error: error instanceof Error ? error.message : String(error),
     });
   }
+  // Nothing personal of the source school's account stays on the device (#5000).
+  clearPersonalStorage();
   clearSessionCache();
   try {
     sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");

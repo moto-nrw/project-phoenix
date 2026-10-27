@@ -9,6 +9,7 @@ import {
 } from "../forward";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "DemoSessionRoute" });
 
@@ -16,7 +17,7 @@ const logger = createLogger({ component: "DemoSessionRoute" });
 // the token from the link; the route keeps it in an httpOnly cookie, and a
 // later role switch from the banner sends only the role. The token is never
 // logged and never returned.
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   let body: { token?: unknown; role?: unknown } = {};
   try {
     body = (await request.json()) as typeof body;
@@ -57,3 +58,5 @@ export async function POST(request: NextRequest) {
     return problemResponse(500, "Internal Server Error", request);
   }
 }
+
+export const POST = withPrivateNoStore(POSTHandler);

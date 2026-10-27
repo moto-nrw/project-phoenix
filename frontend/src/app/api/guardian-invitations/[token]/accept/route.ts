@@ -5,6 +5,7 @@ import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "GuardianInvitationAcceptRoute" });
 
@@ -17,7 +18,7 @@ interface AcceptGuardianInvitationBody {
   confirmPassword: string;
 }
 
-export async function POST(request: NextRequest, context: RouteContext) {
+async function POSTHandler(request: NextRequest, context: RouteContext) {
   const { token } = await context.params;
   if (!token) {
     return problemResponse(400, "Missing invitation token", request);
@@ -56,3 +57,5 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return problemResponse(500, "Internal Server Error", request);
   }
 }
+
+export const POST = withPrivateNoStore(POSTHandler);

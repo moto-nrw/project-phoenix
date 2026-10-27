@@ -125,6 +125,10 @@ import {
   announcementPrefillPath,
   stashAnnouncementStudents,
 } from "~/lib/announcement-prefill";
+import {
+  mayWritePersonalStorage,
+  personalStorageOwner,
+} from "~/lib/personal-storage";
 import { KIND_PARAM } from "~/components/announcements/announcement-meta";
 import { SchoolCheckinSelectionBar } from "~/components/students/school-checkin-selection-bar";
 import type { SchoolCheckinAction } from "~/lib/student-api";
@@ -634,9 +638,13 @@ function readStoredFilters(storageKey: string | null) {
 
 function writeStoredFilters(
   storageKey: string | null,
+  owner: string | null,
   filters: PersistedSearchFilters,
 ) {
   if (!storageKey || typeof window === "undefined") return;
+  // The filters belong to this account. After a logout or an account switch,
+  // also in another tab, they must not come back (#5000).
+  if (!mayWritePersonalStorage(owner)) return;
 
   const compacted = compactStoredFilters(normalizeStoredFilters(filters));
   try {
@@ -1040,6 +1048,7 @@ function SearchPageContent() {
     () => buildSearchFilterStorageKey(session?.user),
     [session?.user],
   );
+  const storageOwner = personalStorageOwner(session?.user);
   const hasUrlFilterParams = searchParamsHavePersistedFilters(searchParams);
   // Initial state comes from the URL only. localStorage is unavailable on the
   // server, so reading it during render made the first client render differ
@@ -1184,9 +1193,13 @@ function SearchPageContent() {
         "",
         url.toString(),
       );
-      writeStoredFilters(storageKey, filtersFromSearchParams(url.searchParams));
+      writeStoredFilters(
+        storageKey,
+        storageOwner,
+        filtersFromSearchParams(url.searchParams),
+      );
     },
-    [storageKey],
+    [storageKey, storageOwner],
   );
 
   const applyPersistedFilters = useCallback(
@@ -1265,7 +1278,11 @@ function SearchPageContent() {
     if (!storageKey) return;
 
     if (hasUrlFilterParams) {
-      writeStoredFilters(storageKey, filtersFromSearchParams(searchParams));
+      writeStoredFilters(
+        storageKey,
+        storageOwner,
+        filtersFromSearchParams(searchParams),
+      );
       return;
     }
 
@@ -1279,6 +1296,7 @@ function SearchPageContent() {
     hasUrlFilterParams,
     searchParams,
     storageKey,
+    storageOwner,
     updateUrlParams,
   ]);
 
@@ -1290,11 +1308,15 @@ function SearchPageContent() {
       setPickupTimeFilter(
         parsePickupTimeParam(readFilterParam(params, "pickup_time")),
       );
-      writeStoredFilters(storageKey, filtersFromSearchParams(params));
+      writeStoredFilters(
+        storageKey,
+        storageOwner,
+        filtersFromSearchParams(params),
+      );
     };
     window.addEventListener("popstate", restorePickupTimes);
     return () => window.removeEventListener("popstate", restorePickupTimes);
-  }, [storageKey]);
+  }, [storageKey, storageOwner]);
 
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();

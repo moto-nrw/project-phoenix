@@ -428,9 +428,10 @@ func TestGuardianWelcomeRendersHelpAndParentInfo(t *testing.T) {
 	mailer := owners.NewGuardianInvitationMailer(owners.GuardianInvitationMailerConfig{
 		Outbox: outbox, FrontendURL: "https://eltern.example.test/",
 	})
-	precedingOutboxID, queued := mailer.EnqueueExistingAccount(context.Background(), owners.GuardianMailRecipient{
+	precedingOutboxID, queued, err := mailer.EnqueueExistingAccount(context.Background(), owners.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " olga@example.test ",
 	}, "OGS Musterschule")
+	require.NoError(t, err)
 	require.True(t, queued)
 	require.NoError(t, mailer.EnqueueWelcome(context.Background(), 42, owners.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " olga@example.test ",

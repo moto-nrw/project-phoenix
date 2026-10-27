@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { personalStorageOwner } from "~/lib/personal-storage";
 import { fetchPendingChangeRequestCount } from "~/lib/change-requests-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
@@ -47,6 +48,7 @@ export function useChangeRequestsPending() {
       canReviewParentRequests,
     fetcher: fetchPendingChangeRequestCount,
     cacheKey: `change_requests_pending_count:${tenantSlug ?? ""}:${accountId}`,
+    cacheOwner: personalStorageOwner(session?.user),
     eventNames: ["messages-unread-refresh", "change-requests-refresh"],
     eventDebounceMs: 500,
     refetchOnFocus: true,

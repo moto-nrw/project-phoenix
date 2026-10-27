@@ -2,12 +2,13 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 interface RouteContext {
   params: Promise<{ filename: string }>;
 }
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+async function GETHandler(_request: NextRequest, context: RouteContext) {
   const { filename } = await context.params;
   const backendUrl = `${getServerApiUrl()}/public/enrollment-form-legal-documents/${encodeURIComponent(filename)}`;
   const response = await fetch(backendUrl, { cache: "no-store" });
@@ -24,3 +25,5 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     },
   });
 }
+
+export const GET = withPrivateNoStore(GETHandler);

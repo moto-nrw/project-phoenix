@@ -125,6 +125,7 @@ var (
 	ErrInvalidStatus                    = care.ErrInvalidStatus
 	ErrInviteDisabled                   = care.ErrInviteDisabled
 	ErrInviteSocialWorkerManaged        = care.ErrInviteSocialWorkerManaged
+	ErrInviteMailNotQueued              = care.ErrInviteMailNotQueued
 	ErrMasterDataDuplicatePending       = care.ErrMasterDataDuplicatePending
 	ErrMasterDataEditDisabled           = care.ErrMasterDataEditDisabled
 	ErrMasterDataFieldNotEditable       = care.ErrMasterDataFieldNotEditable

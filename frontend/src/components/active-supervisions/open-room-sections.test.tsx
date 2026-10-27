@@ -12,6 +12,15 @@ import {
 } from "./open-room-sections";
 import { openRoomSections, type OpenRoomSessionView } from "./view-model";
 
+// The sidebar memory and the offering choice belong to the signed-in account
+// (#5000), so the hooks read the session.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "7", tenantId: 1 } },
+    status: "authenticated",
+  }),
+}));
+
 const rosters = vi.hoisted(() => new Map<string, unknown>());
 
 vi.mock("~/lib/swr", () => ({

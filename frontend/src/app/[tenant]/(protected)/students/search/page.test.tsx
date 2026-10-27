@@ -13,6 +13,8 @@ import { roomService } from "~/lib/api";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import { takeAnnouncementStudents } from "~/lib/announcement-prefill";
+import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { _resetPersonalStorageLeave } from "~/lib/personal-storage";
 import StudentSearchPage from "./page";
 
 const STUDENT_SEARCH_FILTER_STORAGE_KEY =
@@ -506,6 +508,8 @@ describe("StudentSearchPage", () => {
     mockSearchParams.delete("sort");
     mockSearchParams.delete("view");
     localStorage.clear();
+    // The stored filters belong to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "7:user-1");
     window.history.replaceState(null, "", "/students/search");
 
     // Reset useSession mock to authenticated state
@@ -1011,6 +1015,59 @@ describe("StudentSearchPage", () => {
         status: "anwesend",
         year: "1",
       });
+    });
+
+    // Account A filtered by a room; another tab then signs in as account B.
+    // This tab must not keep A's URL and store it as B's filters (#5000).
+    it("does not keep A's room filter for B after a switch in another tab", async () => {
+      const replace = vi
+        .spyOn(window.location, "replace")
+        .mockImplementation(() => undefined);
+      try {
+        mockSearchParams.set("room_id", "4");
+        mockSearchParams.set("room_name", "Raum Sonne");
+        const page = () => (
+          <>
+            <PersonalStorageGuard homeHref={() => "/"} />
+            <StudentSearchPage />
+          </>
+        );
+        const { rerender } = render(page());
+        // Anker: account A's own filters are stored for A.
+        await waitFor(() =>
+          expect(
+            localStorage.getItem(STUDENT_SEARCH_FILTER_STORAGE_KEY),
+          ).toContain("Raum Sonne"),
+        );
+
+        act(() => {
+          localStorage.setItem("moto:personal-storage-owner", "7:user-2");
+          window.dispatchEvent(
+            new StorageEvent("storage", {
+              key: "moto:personal-storage-owner",
+              oldValue: "7:user-1",
+              newValue: "7:user-2",
+              storageArea: localStorage,
+            }),
+          );
+        });
+        const sessionModule = await import("next-auth/react");
+        vi.mocked(sessionModule.useSession).mockReturnValue({
+          data: { user: { id: "user-2", tenantId: 7, token: "test-token" } },
+          status: "authenticated",
+        } as unknown as ReturnType<typeof sessionModule.useSession>);
+        await act(async () => {
+          rerender(page());
+        });
+
+        expect(
+          localStorage.getItem("student-search:last-filters:tenant-7:user-2"),
+        ).toBeNull();
+        expect(replace).toHaveBeenCalledWith("/");
+      } finally {
+        replace.mockRestore();
+        _resetPersonalStorageLeave();
+      }
     });
 
     it("ignores invalid localStorage filter data", async () => {

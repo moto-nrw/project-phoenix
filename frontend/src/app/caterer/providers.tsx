@@ -3,7 +3,12 @@
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-session";
+import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { catererPath } from "~/lib/caterer-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
+
+// Where a page lands that still showed another account (#5000).
+const catererHome = () => catererPath("/caterer");
 
 /**
  * Caterer-scoped providers (ADR 0077). SessionProvider reads the host-only
@@ -25,6 +30,7 @@ export function CatererProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <PersonalStorageGuard homeHref={catererHome} />
       <PortalAnalyticsSession surface="caterer" />
       <SentrySessionContext portal="caterer" />
       {children}

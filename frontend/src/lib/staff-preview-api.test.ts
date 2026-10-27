@@ -188,6 +188,42 @@ describe("performEndStaffPreview", () => {
     expect(swrMutate).toHaveBeenCalled();
   });
 
+  it.each(["success", "failure"] as const)(
+    "settles the audit call before restoring the session can navigate (%s)",
+    async (outcome) => {
+      let finishAudit!: () => void;
+      const audit = new Promise<Response>((resolve, reject) => {
+        finishAudit = () => {
+          if (outcome === "success")
+            resolve(new Response(null, { status: 204 }));
+          else reject(new Error("offline"));
+        };
+      });
+      vi.mocked(global.fetch).mockReturnValue(audit);
+      // Updating the session can immediately make PersonalStorageGuard leave
+      // the page. No audit request may still be pending at that point.
+      const update = vi.fn().mockResolvedValue(previewSession(null));
+
+      const ending = performEndStaffPreview("preview-token", update, swrMutate);
+      await Promise.resolve();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/staff-preview/end",
+        expect.objectContaining({
+          body: JSON.stringify({ preview_token: "preview-token" }),
+          // Bounded: a stalled audit call cannot hold the restore forever.
+          signal: expect.any(AbortSignal) as AbortSignal,
+        }),
+      );
+      expect(update).not.toHaveBeenCalled();
+      finishAudit();
+      await ending;
+
+      expect(update).toHaveBeenCalledWith({ previewEnd: true });
+      expect(swrMutate).toHaveBeenCalled();
+    },
+  );
+
   it("signs out when the session stayed in the preview", async () => {
     // Restore silently did nothing: the trail says ended, the cookie would
     // still render as the target — that state must not survive.

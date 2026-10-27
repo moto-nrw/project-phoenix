@@ -225,6 +225,12 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedParentEngagementStep{}, seedAnalyticsConsentStep{}, seedSchoolLifeStep{},
 		// After the parents: it orders lunch for the children they registered.
 		seedMealOrdersStep{seeder: seeder},
+	)
+	if !seeder.options.DeferHistory {
+		// After the meal orders: books care and lunch for the children who eat.
+		steps = append(steps, seedRegularBookingsStep{})
+	}
+	steps = append(steps,
 		seedGradeTransitionStep{},
 		seedParentLetterStep{},
 		seedParentPollStep{},
@@ -283,6 +289,8 @@ func deferredPastSteps() []Step {
 func deferredDemoSteps(seeder *Seeder) []Step {
 	return append(deferredPastSteps(),
 		parentRequestsSeedStep{seeder: seeder}, seedEnrollmentPlacementStep{}, seedEnrollmentIncomeProofStep{}, seedEnrollmentSignatureStep{}, seedOfferingRosterStep{seeder: seeder}, seedFamilyAppAccountsStep{seeder: seeder},
+		// The meal orders ran before the phase existed; the bookings follow it.
+		seedRegularBookingsStep{},
 		seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
 }
 

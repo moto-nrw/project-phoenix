@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { personalStorageOwner } from "~/lib/personal-storage";
 
 import { canReviewEnrollmentChangeRequests } from "~/lib/change-request-access";
 import { fetchPendingEnrollmentChangeRequestCount } from "~/lib/change-request-list-api";
@@ -34,6 +35,7 @@ export function useEnrollmentRequestsPending() {
       canReviewEnrollmentChangeRequests(session),
     fetcher: fetchPendingEnrollmentChangeRequestCount,
     cacheKey: `enrollment_requests_pending_count:${tenantSlug ?? ""}:${accountId}`,
+    cacheOwner: personalStorageOwner(session?.user),
     eventNames: ["change-requests-refresh"],
     eventDebounceMs: 500,
     refetchOnFocus: true,
