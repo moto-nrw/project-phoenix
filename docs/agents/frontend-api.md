@@ -62,7 +62,8 @@ proxy factories apply it; a route that builds its answer itself (login, MFA,
 passkeys, demo access, invitations, Auth.js endpoints) wraps its handler in
 `withPrivateNoStore`. `src/app/api/route-cache-policy.test.ts` fails for an
 exported handler that is neither built by a policy factory nor listed with a
-reason in its exception table. Files, images and event streams keep their own
+reason in its exception table, and for every re-export (`export * from`,
+`export { GET } from`) in a route file. Files, images and event streams keep their own
 headers.
 
 Sentry ownership follows the same boundary: forwarding a backend HTTP error,

@@ -168,11 +168,15 @@ function hasExportModifier(node: ts.Node): boolean {
   );
 }
 
-/** `METHOD` → covered? for every HTTP handler the route file exports. */
-function exportedHandlers(file: string): Map<string, boolean> {
+/**
+ * `METHOD` → covered? for every HTTP handler the route source exports. Star
+ * re-exports appear as `export * from "<module>"` and never count as covered:
+ * the check rejects what it cannot see instead of resolving other modules.
+ */
+function analyzeRouteSource(file: string, text: string): Map<string, boolean> {
   const source = ts.createSourceFile(
     file,
-    readFileSync(file, "utf8"),
+    text,
     ts.ScriptTarget.Latest,
     true,
     ts.ScriptKind.TS,
@@ -217,12 +221,19 @@ function exportedHandlers(file: string): Map<string, boolean> {
       HTTP_METHODS.has(statement.name.text)
     ) {
       handlers.set(statement.name.text, false);
-    } else if (
-      ts.isExportDeclaration(statement) &&
-      statement.exportClause &&
-      ts.isNamedExports(statement.exportClause)
-    ) {
-      for (const element of statement.exportClause.elements) {
+    } else if (ts.isExportDeclaration(statement)) {
+      const clause = statement.exportClause;
+      if (!clause || ts.isNamespaceExport(clause)) {
+        // `export * from` / `export * as x from` can carry any handler.
+        const specifier = statement.moduleSpecifier;
+        const target =
+          specifier && ts.isStringLiteral(specifier) ? specifier.text : "?";
+        handlers.set(`export * from "${target}"`, false);
+        continue;
+      }
+      // `export { GET }`, `export { handler as POST } from "…"`: the
+      // exported binding is not built here, so it cannot prove the policy.
+      for (const element of clause.elements) {
         if (HTTP_METHODS.has(element.name.text)) {
           handlers.set(element.name.text, false);
         }
@@ -230,6 +241,10 @@ function exportedHandlers(file: string): Map<string, boolean> {
     }
   }
   return handlers;
+}
+
+function exportedHandlers(file: string): Map<string, boolean> {
+  return analyzeRouteSource(file, readFileSync(file, "utf8"));
 }
 
 describe("BFF route cache policy (#4999)", () => {
@@ -267,5 +282,90 @@ describe("BFF route cache policy (#4999)", () => {
     });
 
     expect(stale).toEqual([]);
+  });
+});
+
+describe("route cache policy check rejects loopholes", () => {
+  const file = path.join(API_ROOT, "fixture/route.ts");
+  const uncovered = (text: string) =>
+    [...analyzeRouteSource(file, text)]
+      .filter(([, covered]) => !covered)
+      .map(([name]) => name);
+
+  it.each([
+    [
+      "a star re-export",
+      'export * from "./handlers";',
+      'export * from "./handlers"',
+    ],
+    [
+      "a namespace re-export",
+      'export * as handlers from "./handlers";',
+      'export * from "./handlers"',
+    ],
+    ["a named re-export", 'export { GET } from "./handlers";', "GET"],
+    [
+      "a renamed re-export",
+      'export { handler as POST } from "./handlers";',
+      "POST",
+    ],
+    [
+      "a local named export",
+      'import { withPrivateNoStore } from "~/lib/private-no-store";\nconst POST = withPrivateNoStore(async () => Response.json({}));\nexport { POST };',
+      "POST",
+    ],
+    [
+      "an imported handler",
+      'import { handler } from "./handlers";\nexport const POST = handler;',
+      "POST",
+    ],
+    [
+      "an imported handler behind a local alias",
+      'import { POST as imported } from "./handlers";\nconst local = imported;\nexport const POST = local;',
+      "POST",
+    ],
+    [
+      "a property of an imported module",
+      'import * as handlers from "./handlers";\nexport const POST = handlers.POST;',
+      "POST",
+    ],
+    [
+      "a call to an unknown factory",
+      'import { makeHandler } from "./handlers";\nexport const POST = makeHandler();',
+      "POST",
+    ],
+    [
+      "a known factory name from another module",
+      'import { withPrivateNoStore } from "./handlers";\nexport const POST = withPrivateNoStore(async () => Response.json({}));',
+      "POST",
+    ],
+    [
+      "an Auth.js destructuring export",
+      'import { handlers } from "~/server/auth";\nexport const { GET } = handlers;',
+      "GET",
+    ],
+    [
+      "a plain function export",
+      "export async function POST() {\n  return Response.json({ token: 'a' });\n}",
+      "POST",
+    ],
+  ])("rejects %s", (_label, text, expected) => {
+    expect(uncovered(text)).toEqual([expected]);
+  });
+
+  it("accepts a wrapped handler and an alias of it", () => {
+    const text = [
+      'import { withPrivateNoStore } from "~/lib/private-no-store";',
+      "const handler = withPrivateNoStore(async () => Response.json({}));",
+      "export const PUT = handler;",
+      "export const PATCH = PUT;",
+    ].join("\n");
+
+    const handlers = analyzeRouteSource(file, text);
+
+    expect([...handlers]).toEqual([
+      ["PUT", true],
+      ["PATCH", true],
+    ]);
   });
 });
