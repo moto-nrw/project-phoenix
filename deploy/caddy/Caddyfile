@@ -1,5 +1,5 @@
 {
-	email y.wenger@gmx.de
+	email y.wenger@moto-ogs.de
 
 	# Cloudflare proxies every public host. Trust only its ranges and take the
 	# client IP from CF-Connecting-IP; a forged header sent directly to the
