@@ -76,6 +76,7 @@ vi.mock("~/env", () => ({
 
 const { bareTenantHost, default: TenantLayout } = await import("./layout");
 const { setTestClock, TEST_CLOCK_INSTANT } = await import("~/test/clock");
+const navigation = await import("next/navigation");
 
 beforeEach(() => {
   authMock.mockClear();
@@ -155,6 +156,72 @@ describe("TenantLayout", () => {
 
     expect(notFoundMock).toHaveBeenCalledOnce();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  // #5130: path mode on the bare domain shares the session cookie with
+  // every school but names none in its host. The page moves to the
+  // school's subdomain with its path and query.
+  describe("path mode on the bare domain", () => {
+    const redirect = vi.mocked(navigation.redirect);
+
+    function requestTo(host: string, originalPath?: string) {
+      headersMock.mockImplementation(
+        async () =>
+          new Headers({
+            host: "frontend:3000",
+            "x-moto-original-host": host,
+            "x-moto-original-proto": "https",
+            ...(originalPath && { "x-moto-original-path": originalPath }),
+          }),
+      );
+      vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+        tenantResponse(),
+      );
+    }
+
+    beforeEach(() => redirect.mockClear());
+
+    it.each([
+      [
+        "an enrollment link",
+        "/school-a/anmeldung/phase-1?late_invite=x",
+        "/anmeldung/phase-1?late_invite=x",
+      ],
+      ["a display link", "/school-a/display", "/display"],
+      ["the start page with a query", "/school-a?from=letter", "/?from=letter"],
+      ["the start page", "/school-a", "/"],
+      ["a request without the proxy's path", undefined, "/"],
+    ])(
+      "sends %s to the school's subdomain",
+      async (_case, originalPath, target) => {
+        requestTo("localhost:3000", originalPath);
+
+        await TenantLayout({
+          children: null,
+          params: Promise.resolve({ tenant: "school-a" }),
+        });
+
+        expect(redirect).toHaveBeenCalledWith(
+          `https://school-a.localhost:3000${target}`,
+        );
+      },
+    );
+
+    it.each(["school-a.localhost:3000", "frontend-preview.example.org"])(
+      "keeps %s, which is no bare tenant domain",
+      async (host) => {
+        requestTo(host, "/students");
+
+        await expect(
+          TenantLayout({
+            children: null,
+            params: Promise.resolve({ tenant: "school-a" }),
+          }),
+        ).resolves.toBeTruthy();
+
+        expect(redirect).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it("still resolves a syntactically valid tenant path", async () => {

@@ -81,15 +81,43 @@ describe("sessionTenantMismatchResponse", () => {
     expect(mockResolve).not.toHaveBeenCalled();
   });
 
-  it("lets a host without a school subdomain pass", async () => {
+  it("lets a host of another portal pass", async () => {
     const result = await sessionTenantMismatchResponse(
-      request("localhost:3000"),
+      request("operator.localhost:3000"),
       session(2),
     );
 
     expect(result).toBeNull();
     expect(mockResolve).not.toHaveBeenCalled();
   });
+
+  // Path mode (<domain>/<school>/...) names no school in its host; the
+  // tenant layout sends it to the subdomain. A tab still on it cannot be
+  // bound to its school, so a school's session stops on the bare domain.
+  it("refuses a school's session on the bare domain", async () => {
+    const result = await sessionTenantMismatchResponse(
+      request("localhost:3000"),
+      session(2),
+    );
+
+    expect(result?.status).toBe(409);
+    expect(await result?.json()).toMatchObject({
+      code: "identity.session_tenant_mismatch",
+    });
+    expect(mockResolve).not.toHaveBeenCalled();
+  });
+
+  it.each(["/api/invitations/accept", "/api/logs"])(
+    "lets %s, which never acts for the session's school, through",
+    async (path) => {
+      const result = await sessionTenantMismatchResponse(
+        request("localhost:3000", path),
+        session(2),
+      );
+
+      expect(result).toBeNull();
+    },
+  );
 
   it("lets a request without a tenant session pass to the route", async () => {
     const result = await sessionTenantMismatchResponse(

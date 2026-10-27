@@ -280,11 +280,19 @@ with 409 `identity.session_tenant_mismatch` before the route runs
 comes from the cached `/auth/tenant/resolve` lookup of the tenant layout; a
 failed lookup refuses the request. Exempt are the routes that end the mismatch:
 `/api/auth/switch-tenant`, `/api/auth/token`, `/api/auth/logout`,
-`/api/auth/staff-preview/end`. In the browser the refusal drops the session
-cache and wakes the `SessionProvider`, and `TenantGuard` switches back. Only
-because of this check may the session cache keep the provider's session until
-its next poll. The bare domain and path mode carry no school subdomain and are
-not checked.
+`/api/auth/staff-preview/end`, plus the tab's `/api/logs` and
+`/api/invitations/accept`, which acts for the invitation's school. In the
+browser a fetch observer (`frontend/src/lib/session-tenant-mismatch-observer.ts`,
+installed by `TenantGuard`) and `apiErrorFromBody` report the refusal, also
+for clients that read only `response.ok`. The session cache drops its session
+and wakes the `SessionProvider`; `TenantGuard` hides the page at once and
+switches back once the provider answers. Only because of this check may the
+session cache keep the provider's session until its next poll. Path mode
+(`{TENANT_DOMAIN}/{school}/...`) names no school in its host: the tenant
+layout redirects it to the school's subdomain (path and query from the
+proxy's `X-Moto-Original-Path`; the browser keeps the fragment), the BFF
+refuses a school's session on the bare domain, and `TenantGuard` moves a tab
+still on path mode to the subdomain.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|

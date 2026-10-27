@@ -31,3 +31,18 @@ export function tenantSlugFromHost(host: string | null): string | null {
   if (RESERVED_SLUGS.has(slug)) return null;
   return slug;
 }
+
+/**
+ * Whether the host is the bare TENANT_DOMAIN itself. Path mode
+ * (<domain>/<school>/...) lives there; the tenant layout sends it to the
+ * school's subdomain (#5130).
+ */
+export function isBareTenantDomainHost(host: string | null): boolean {
+  const tenantDomain = process.env.TENANT_DOMAIN;
+  if (!tenantDomain) {
+    throw new Error(
+      "TENANT_DOMAIN is not set — refusing to classify the host without it",
+    );
+  }
+  return (host?.split(":")[0] ?? "") === tenantDomain;
+}

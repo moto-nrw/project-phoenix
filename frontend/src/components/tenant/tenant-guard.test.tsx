@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { ApiError } from "~/lib/api-error";
+import { ApiError, reportSessionTenantMismatch } from "~/lib/api-error";
+import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
 import { catalogText } from "~/test/error-catalog-text";
 
 // ============================================================================
@@ -892,6 +900,166 @@ describe("TenantGuard", () => {
       expect(
         screen.getAllByRole("button", { name: /Erneut versuchen|Wiederholen/ }),
       ).toHaveLength(1);
+    });
+  });
+  // Review of #5147: the page of the old school stayed on screen, with its
+  // buttons, until the provider answered; a tab on path mode was never
+  // bound to its school (#5130).
+  describe("when a tenant route refuses the session", () => {
+    const sessionOf = (tenantId: number) => ({
+      user: { tenantId, token: "access-token" },
+    });
+
+    /** Provider stand-in: `answer` delivers the cookie's session. */
+    let answer: (tenantId: number) => void = () => undefined;
+    function Tab() {
+      const [data, setData] = useState(sessionOf(1));
+      answer = (tenantId) => setData(sessionOf(tenantId));
+      mockUseSession.mockReturnValue({
+        data,
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      return (
+        <TenantGuard>
+          <div>Protected Content</div>
+        </TenantGuard>
+      );
+    }
+
+    beforeEach(() => {
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-a",
+        tenant: tenantA,
+        routingMode: "subdomain",
+      });
+      // Keep the switch back open so the switching state stays visible.
+      mockPerformTenantSwitch.mockReturnValue(new Promise(vi.fn()));
+    });
+
+    it("hides the page at once, before the provider answers", () => {
+      render(<Tab />);
+      // Anker: die Seite der eigenen Schule ist sichtbar.
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+
+      act(() => reportSessionTenantMismatch());
+
+      expect(
+        screen.getByText("Mandant wird gewechselt..."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    it("switches back once the provider reports the other school", async () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      act(() => answer(2));
+
+      await waitFor(() =>
+        expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+          "school-a",
+          mockSignIn,
+          mockMutate,
+        ),
+      );
+      expect(
+        screen.getByText("Mandant wird gewechselt..."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    it("shows the page again when the provider does not answer", () => {
+      vi.useFakeTimers();
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+      expect(
+        screen.getByText("Mandant wird gewechselt..."),
+      ).toBeInTheDocument();
+
+      act(() => vi.advanceTimersByTime(10_000));
+
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+    });
+
+    it("hides the page after a refused fetch of a client that never reads the body", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json(
+            { status: 409, code: "identity.session_tenant_mismatch" },
+            { status: 409 },
+          ),
+        ),
+      );
+      Object.defineProperty(window, "location", {
+        writable: true,
+        value: {
+          origin: "http://school-a.localhost:3000",
+          pathname: "/students",
+          assign: vi.fn(),
+        },
+      });
+      // The guard's module installed the observer on the real fetch; wrap
+      // this test's fetch instead.
+      installSessionTenantMismatchObserver()();
+      const restoreObserver = installSessionTenantMismatchObserver();
+      try {
+        render(<Tab />);
+        // Anker: die Seite der eigenen Schule ist sichtbar.
+        expect(screen.getByText("Protected Content")).toBeInTheDocument();
+
+        await act(async () => {
+          const response = await fetch("/api/students/school-classes");
+          expect(response.ok).toBe(false);
+        });
+
+        expect(
+          screen.getByText("Mandant wird gewechselt..."),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+      } finally {
+        restoreObserver();
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("sends a tab still on path mode to the school's subdomain", () => {
+      const redirect = vi.fn();
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-a",
+        tenant: tenantA,
+        routingMode: "path",
+      });
+      Object.defineProperty(window, "location", {
+        writable: true,
+        value: {
+          protocol: "https:",
+          port: "",
+          pathname: "/school-a/students",
+          search: "?q=1",
+          hash: "#top",
+          assign: vi.fn(),
+        },
+      });
+      mockUseSession.mockReturnValue({
+        data: sessionOf(1),
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      render(
+        <TenantGuard redirect={redirect}>
+          <div>Protected Content</div>
+        </TenantGuard>,
+      );
+      // Anker: die Seite der eigenen Schule ist sichtbar.
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+
+      act(() => reportSessionTenantMismatch());
+
+      expect(redirect).toHaveBeenCalledWith(
+        "https://school-a.localhost/students?q=1#top",
+      );
     });
   });
 });

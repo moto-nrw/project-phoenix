@@ -159,6 +159,43 @@ function isTenantSubdomainHost(currentHost: string | null, subdomain: string) {
   return hostname === `${subdomain}.${env.TENANT_DOMAIN}`;
 }
 
+function isBareTenantHost(currentHost: string | null): currentHost is string {
+  return (currentHost?.split(":")[0] ?? "") === env.TENANT_DOMAIN;
+}
+
+/**
+ * Path mode on the bare domain (<domain>/<school>/...) shares the session
+ * cookie with every school, but its host names no school, so the BFF cannot
+ * bind its requests to the tab's school (#5130). The same page lives on the
+ * school's subdomain; path, query and, in the browser, the fragment carry
+ * over, so printed enrollment and display links keep working.
+ */
+function redirectToTenantSubdomain(
+  requestHeaders: Headers,
+  currentHost: string,
+  pathSlug: string,
+  subdomain: string,
+): never {
+  const original = requestHeaders.get("x-moto-original-path") ?? "/";
+  const prefix = `/${pathSlug}`;
+  const rest = original.startsWith(prefix) ? original.slice(prefix.length) : "";
+  // Only "/..." and "?..." continue the school's path; anything else (a
+  // missing or foreign header) lands on the school's start page.
+  const path = rest.startsWith("/")
+    ? rest
+    : rest.startsWith("?")
+      ? `/${rest}`
+      : "/";
+  const port = currentHost.split(":")[1];
+  const protocol =
+    requestHeaders.get("x-moto-original-proto") ??
+    requestHeaders.get("x-forwarded-proto") ??
+    (env.NODE_ENV === "production" ? "https" : "http");
+  redirect(
+    `${protocol}://${subdomain}.${env.TENANT_DOMAIN}${port ? `:${port}` : ""}${path}`,
+  );
+}
+
 /**
  * Preload the app shell for a session that belongs to this tenant (#2973).
  * A mismatched tenant is TenantGuard's job (auto-switch), an errored session
@@ -241,6 +278,14 @@ export default async function TenantLayout({
   const routingMode = isTenantSubdomainHost(currentHost, tenant.subdomain)
     ? "subdomain"
     : "path";
+  if (routingMode === "path" && isBareTenantHost(currentHost)) {
+    redirectToTenantSubdomain(
+      requestHeaders,
+      currentHost,
+      tenantSlug,
+      tenant.subdomain,
+    );
+  }
 
   // Read-only JWT decode: auth() may rotate a refresh token, but a Server
   // Component cannot persist the replacement cookie (#1938). The snapshot

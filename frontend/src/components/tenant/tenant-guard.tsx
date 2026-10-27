@@ -7,7 +7,9 @@ import { mutate } from "~/lib/swr";
 import { hasSessionAccess } from "~/lib/session-access";
 import { clearSessionCache } from "~/lib/session-cache";
 import { performTenantSwitch } from "~/lib/tenant-api";
-import { ApiError } from "~/lib/api-error";
+import { ApiError, onSessionTenantMismatch } from "~/lib/api-error";
+import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
+import { clientEnv } from "~/env.client";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { useTenant } from "~/lib/tenant-context";
 import { isDemoEntryPath } from "~/lib/demo-access";
@@ -38,6 +40,24 @@ interface TenantGuardProps {
 function browserRedirect(url: string): void {
   window.location.assign(url);
 }
+
+/** This page on the school's subdomain, for a tab still on path mode. */
+function subdomainUrl(subdomain: string, pathSlug: string | null): string {
+  const { protocol, port, pathname, search, hash } = window.location;
+  const prefix = pathSlug ? `/${pathSlug}` : "";
+  const path =
+    prefix && (pathname === prefix || pathname.startsWith(`${prefix}/`))
+      ? pathname.slice(prefix.length) || "/"
+      : pathname;
+  return `${protocol}//${subdomain}.${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}${port ? `:${port}` : ""}${path}${search}${hash}`;
+}
+
+/** How long the page stays hidden when the provider does not answer. */
+const REFUSAL_HOLD_MS = 10_000;
+
+// Installed when the guard's module loads: its children fetch before any
+// effect of the guard runs (#5130).
+installSessionTenantMismatchObserver();
 
 /**
  * Client component that detects when the session's tenant differs from the
@@ -81,7 +101,7 @@ function GuardedTenant({
   redirect = browserRedirect,
 }: TenantGuardProps) {
   const { data: session, status, update } = useSession();
-  const { tenant } = useTenant();
+  const { tenant, tenantSlug, routingMode } = useTenant();
   const switchAttempts = useRef({
     targetTenantId: null as number | null,
     count: 0,
@@ -103,6 +123,45 @@ function GuardedTenant({
   const [signingOutOperator, setSigningOutOperator] = useState(false);
   const [signingOutExpiredSession, setSigningOutExpiredSession] =
     useState(false);
+
+  // The session the provider held when a tenant route refused a request
+  // (#5130); null while nothing was refused. The session cache wakes the
+  // provider; until it answers, nothing of this tab stays on screen.
+  const [refusedSession, setRefusedSession] = useState<{
+    session: typeof session;
+  } | null>(null);
+  const latest = useRef({ session, tenantSlug, routingMode, tenant });
+  useEffect(() => {
+    latest.current = { session, tenantSlug, routingMode, tenant };
+  });
+
+  useEffect(
+    () =>
+      onSessionTenantMismatch(() => {
+        const current = latest.current;
+        // A tab still on path mode (<domain>/<school>/...) has no school in
+        // its host; only the school's subdomain binds its requests.
+        if (current.routingMode === "path" && current.tenant) {
+          redirect(subdomainUrl(current.tenant.subdomain, current.tenantSlug));
+          return;
+        }
+        setRefusedSession({ session: current.session });
+      }),
+    [redirect],
+  );
+
+  useEffect(() => {
+    if (!refusedSession) return;
+    // The provider answered: the mismatch handling below takes over.
+    if (session !== refusedSession.session) {
+      setRefusedSession(null);
+      return;
+    }
+    // Without an answer the page comes back; its next refused request
+    // hides it again.
+    const timer = setTimeout(() => setRefusedSession(null), REFUSAL_HOLD_MS);
+    return () => clearTimeout(timer);
+  }, [session, refusedSession]);
 
   const sessionTenantId = session?.user?.tenantId;
   const sessionScope = session?.user?.scope;
@@ -340,6 +399,14 @@ function GuardedTenant({
     showSwitchError,
     clearSwitchError,
   ]);
+
+  if (refusedSession) {
+    return (
+      <div className="flex min-h-[200px] items-center justify-center">
+        <div className="text-sm text-gray-500">Mandant wird gewechselt...</div>
+      </div>
+    );
+  }
 
   // While session is loading, render children transparently.
   // Individual pages handle their own loading states (e.g. login form
