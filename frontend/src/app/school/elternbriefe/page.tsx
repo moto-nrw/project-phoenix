@@ -122,10 +122,17 @@ export default function SchoolParentLettersPage() {
     () => fetchAnnouncements(false, SCHOOL_PARENT_LETTERS_BASE),
   );
   const loadError = useSwrLoadError(error, "Ihre Elternbriefe", () => mutate());
-  const { data: classInfo } = useSWRAuth(
+  const {
+    data: classInfo,
+    error: classesError,
+    mutate: reloadClasses,
+  } = useSWRAuth(
     session ? "school-parent-letter-classes" : null,
     fetchClassDayClassesSchool,
     { revalidateOnFocus: false },
+  );
+  const classesLoadError = useSwrLoadError(classesError, "Ihre Klassen", () =>
+    reloadClasses(),
   );
   const classes = classInfo?.classes ?? [];
 
@@ -133,6 +140,8 @@ export default function SchoolParentLettersPage() {
   const [draft, setDraft] = useState<SchoolParentLetterDraft>(() =>
     emptySchoolParentLetterDraft([]),
   );
+  const [createdLetter, setCreatedLetter] = useState<Announcement | null>(null);
+  const submittingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const formErrors = useApiFormError(formRef);
@@ -143,6 +152,7 @@ export default function SchoolParentLettersPage() {
 
   const openCreate = () => {
     formErrors.clear();
+    setCreatedLetter(null);
     setDraft(emptySchoolParentLetterDraft(classes));
     setFormOpen(true);
   };
@@ -153,21 +163,25 @@ export default function SchoolParentLettersPage() {
   };
 
   // Anlegen und Senden in einem Schritt: die Lehrkraft schreibt einen Brief
-  // und schickt ihn ab. Scheitert nur das Senden, bleibt der Entwurf in der
-  // Liste und lässt sich dort senden.
+  // und schickt ihn ab. Weitere Versuche senden denselben gespeicherten Brief.
   const submit = async () => {
+    if (submittingRef.current) return;
     const fields = schoolParentLetterFieldErrors(draft);
     if (Object.keys(fields).length > 0) {
       formErrors.invalid("Bitte prüfen Sie die markierten Felder.", fields);
       return;
     }
     formErrors.clear();
+    submittingRef.current = true;
     setSubmitting(true);
     try {
-      const created = await createAnnouncement(
-        schoolParentLetterRequest(draft),
-        SCHOOL_PARENT_LETTERS_BASE,
-      );
+      const created =
+        createdLetter ??
+        (await createAnnouncement(
+          schoolParentLetterRequest(draft),
+          SCHOOL_PARENT_LETTERS_BASE,
+        ));
+      setCreatedLetter(created);
       try {
         await publishAnnouncement(created.id, SCHOOL_PARENT_LETTERS_BASE);
       } finally {
@@ -186,6 +200,7 @@ export default function SchoolParentLettersPage() {
         retry: () => latestSubmitRef.current(),
       });
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -198,7 +213,9 @@ export default function SchoolParentLettersPage() {
     void submit();
   };
 
-  const noClasses = classInfo !== undefined && classes.length === 0;
+  const noClasses =
+    !classesError && classInfo !== undefined && classes.length === 0;
+  const fieldsDisabled = submitting || createdLetter !== null;
   const rows = letters ?? [];
   const classError = formErrors.fieldError("school_class");
 
@@ -219,12 +236,16 @@ export default function SchoolParentLettersPage() {
           size="md"
           className="gap-1.5"
           onClick={openCreate}
-          disabled={noClasses}
+          disabled={!!classesError || classes.length === 0}
         >
           <Plus className="h-4 w-4" aria-hidden />
           Neuer Elternbrief
         </Button>
       </div>
+
+      {classesError && classesLoadError ? (
+        <LoadErrorAlert error={classesLoadError} />
+      ) : null}
 
       {noClasses ? (
         <p className="text-sm text-gray-600">
@@ -277,6 +298,12 @@ export default function SchoolParentLettersPage() {
           <SlideOverBody error={formErrors.error}>
             <div ref={formRef}>
               <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+                {createdLetter ? (
+                  <p className="text-sm text-gray-600">
+                    Der Brief ist gespeichert. Sie können das Senden erneut
+                    versuchen.
+                  </p>
+                ) : null}
                 <label htmlFor="parent-letter-class" className="block">
                   <span className="mb-2 block text-sm font-medium text-gray-700">
                     Klasse
@@ -288,7 +315,7 @@ export default function SchoolParentLettersPage() {
                     value={draft.schoolClass}
                     placeholder="Klasse wählen"
                     onChange={(next) => update({ schoolClass: next })}
-                    disabled={submitting}
+                    disabled={fieldsDisabled}
                     invalid={!!classError}
                     ariaDescribedBy={
                       classError ? "parent-letter-class-error" : undefined
@@ -310,7 +337,7 @@ export default function SchoolParentLettersPage() {
                   value={draft.title}
                   onChange={(event) => update({ title: event.target.value })}
                   error={formErrors.fieldError("title")}
-                  disabled={submitting}
+                  disabled={fieldsDisabled}
                   maxLength={200}
                   required
                 />
@@ -322,7 +349,7 @@ export default function SchoolParentLettersPage() {
                   value={draft.body}
                   onChange={(event) => update({ body: event.target.value })}
                   error={formErrors.fieldError("body")}
-                  disabled={submitting}
+                  disabled={fieldsDisabled}
                   maxLength={4000}
                   required
                 />
@@ -337,14 +364,14 @@ export default function SchoolParentLettersPage() {
                         key={option.value}
                         htmlFor={`parent-letter-kind-${option.value}`}
                         selected={draft.kind === option.value}
-                        disabled={submitting}
+                        disabled={fieldsDisabled}
                       >
                         <Radio
                           id={`parent-letter-kind-${option.value}`}
                           name="kind"
                           value={option.value}
                           checked={draft.kind === option.value}
-                          disabled={submitting}
+                          disabled={fieldsDisabled}
                           onChange={() => update({ kind: option.value })}
                         />
                         <span className="min-w-0 flex-1">

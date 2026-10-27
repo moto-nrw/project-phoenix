@@ -46,6 +46,7 @@ vi.mock("~/lib/parent-announcements-api", async (importOriginal) => ({
   publishAnnouncement: mockPublish,
 }));
 
+import { unavailableApiError } from "~/lib/api-error";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { Announcement } from "~/lib/parent-announcements-api";
 import SchoolParentLettersPage from "./page";
@@ -64,7 +65,12 @@ const sentLetter = {
 function mockData(classes: string[], letters: Announcement[]) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === "school-parent-letter-classes") {
-      return { data: { classes }, error: undefined, isLoading: false };
+      return {
+        data: { classes },
+        error: undefined,
+        isLoading: false,
+        mutate: mockMutate,
+      };
     }
     return {
       data: letters,
@@ -81,7 +87,7 @@ function renderPage() {
 
 describe("Elternbriefe in moto schule (#4800)", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockMutate.mockResolvedValue(undefined);
   });
 
@@ -129,6 +135,96 @@ describe("Elternbriefe in moto schule (#4800)", () => {
     expect(mockToastSuccess).toHaveBeenCalledWith(
       expect.stringContaining("Klasse 3b"),
     );
+  });
+
+  it.each(["Senden", "Wiederholen"])(
+    "retries the created letter via %s after a lost response",
+    async (action) => {
+      mockData(["3b"], []);
+      mockCreate.mockResolvedValue({
+        ...sentLetter,
+        id: "12",
+        status: "draft",
+      });
+      mockPublish
+        .mockRejectedValueOnce(
+          unavailableApiError(new TypeError("Failed to fetch")),
+        )
+        .mockResolvedValueOnce({ ...sentLetter, id: "12" });
+      renderPage();
+      fireEvent.click(
+        screen.getByRole("button", { name: /Neuer Elternbrief/ }),
+      );
+      fireEvent.change(screen.getByLabelText(/Betreff/), {
+        target: { value: "Zoobesuch" },
+      });
+      fireEvent.change(screen.getByLabelText(/^Text/), {
+        target: { value: "Wir fahren in den Zoo." },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+      const retry = await screen.findByRole("button", { name: /Wiederholen/ });
+      expect(screen.getByLabelText(/Betreff/)).toBeDisabled();
+      fireEvent.click(
+        action === "Wiederholen"
+          ? retry
+          : screen.getByRole("button", { name: "Senden" }),
+      );
+      await waitFor(() => expect(mockToastSuccess).toHaveBeenCalled());
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      expect(mockPublish).toHaveBeenCalledTimes(2);
+      expect(mockPublish.mock.calls.map((call) => call[0])).toEqual([
+        "12",
+        "12",
+      ]);
+    },
+  );
+
+  it("disables creation while classes are loading", () => {
+    mockUseSWRAuth.mockReturnValue({
+      data: undefined,
+      error: undefined,
+      isLoading: true,
+      mutate: mockMutate,
+    });
+    renderPage();
+    expect(
+      screen.getByRole("button", { name: /Neuer Elternbrief/ }),
+    ).toBeDisabled();
+  });
+
+  it("shows class loading errors and retries before enabling creation", async () => {
+    const failure = unavailableApiError(new TypeError("Failed to fetch"));
+    let loaded = false;
+    mockMutate.mockImplementation(() => {
+      loaded = true;
+    });
+    mockUseSWRAuth.mockImplementation((key: string | null) =>
+      key === "school-parent-letter-classes"
+        ? {
+            data: loaded ? { classes: ["3b"] } : undefined,
+            error: loaded ? undefined : failure,
+            isLoading: false,
+            mutate: mockMutate,
+          }
+        : {
+            data: [sentLetter],
+            error: undefined,
+            isLoading: false,
+            mutate: mockMutate,
+          },
+    );
+    const view = renderPage();
+    const retry = await screen.findByRole("button", { name: /Wiederholen/ });
+    expect(screen.getByRole("alert")).toHaveTextContent(/Klassen/);
+    expect(
+      screen.getByRole("button", { name: /Neuer Elternbrief/ }),
+    ).toBeDisabled();
+    fireEvent.click(retry);
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+    view.rerender(<SchoolParentLettersPage />);
+    expect(
+      screen.getByRole("button", { name: /Neuer Elternbrief/ }),
+    ).toBeEnabled();
   });
 
   it("names the missing class instead of sending", async () => {

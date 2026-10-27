@@ -308,6 +308,15 @@ func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
 		renderAnnouncementError(w, r, err)
 		return
 	}
+	// Draft class letters are private to their author in moto schule,
+	// including when that account also holds an OGS admin role.
+	if a.IsClassLetter() && a.PublishedAt == nil {
+		author, viaSchool := announcementService.ClassLetterAuthorFrom(r.Context())
+		if !viaSchool || author != a.CreatedBy {
+			renderAnnouncementError(w, r, announcementService.ErrParentAnnouncementNotFound)
+			return
+		}
+	}
 	common.Respond(w, r, http.StatusOK, toAnnouncementResponse(a), "Announcement retrieved")
 }
 

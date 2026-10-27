@@ -8787,9 +8787,11 @@ function teacherParentLettersTopic(): HelpTopic {
     ],
     differences: [
       "Sie sehen nur Ihre eigenen Briefe. Briefe anderer Lehrkräfte stehen nicht in Ihrer Liste.",
-      "`Neuer Elternbrief` ist grau? Dann ist Ihnen keine Klasse zugeordnet.",
+      "`Neuer Elternbrief` ist grau? Warten Sie, bis die Klassen geladen sind. Ohne zugeordnete Klasse können Sie keinen Brief schreiben.",
     ],
     troubleshootingDetails: [
+      "Die Klassen laden nicht? Wählen Sie `Wiederholen` bei der Fehlermeldung.",
+      "Das Senden ist fehlgeschlagen? Wählen Sie `Senden` oder `Wiederholen`. Dabei wird derselbe gespeicherte Brief verwendet.",
       "Der Brief geht nicht raus? Vielleicht hat die OGS Elternbriefe ausgeschaltet. Fragen Sie die OGS-Leitung.",
     ],
     related: [

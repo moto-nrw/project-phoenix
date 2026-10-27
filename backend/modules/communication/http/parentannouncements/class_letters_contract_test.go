@@ -213,3 +213,41 @@ func (s ogsListContract) ListParentAnnouncements(context.Context, bool) ([]commu
 	c := s.classLetterContract
 	return []communication.ParentAnnouncement{c.letters[11], c.letters[12], c.letters[13]}, nil
 }
+
+func (s ogsListContract) GetParentAnnouncement(_ context.Context, id int64) (*communication.ParentAnnouncement, error) {
+	letter, ok := s.letters[id]
+	if !ok {
+		return nil, communication.ErrParentAnnouncementNotFound
+	}
+	return &letter, nil
+}
+
+func TestOGSDirectReadHidesClassLetterDrafts(t *testing.T) {
+	t.Parallel()
+	route := newClassLetterRoute(t)
+	resource := announcement.NewResource(ogsListContract{route.contract}, nil)
+	router := resource.Router(rootAPI.ProtectedTenantRoutes)
+	claims := routetest.DefaultTestClaims()
+	claims.ID = route.claims.ID // Even the same account needs the school portal for drafts.
+	claims.Permissions = []string{permissions.AdminWildcard}
+	claims.IsAdmin = true
+	read := func(id string) *httptest.ResponseRecorder {
+		req := routetest.NewAuthenticatedRequest(t, "GET", "/"+id, nil, routetest.WithJWTBearer(routetest.MintTestJWT(t, claims)))
+		return routetest.ExecuteRequest(router, req)
+	}
+	out := read("11")
+	require.Equal(t, 404, out.Code, out.Body.String())
+	assert.NotContains(t, out.Body.String(), "Wandertag")
+	out = route.do(t, "GET", "/11", "", writePermission)
+	require.Equal(t, 200, out.Code, out.Body.String())
+	assert.Contains(t, out.Body.String(), "Wandertag")
+	require.Equal(t, 404, route.do(t, "GET", "/12", "", writePermission).Code)
+	sent := time.Date(2026, 10, 27, 8, 0, 0, 0, time.UTC)
+	letter := route.contract.letters[11]
+	letter.PublishedAt = &sent
+	route.contract.letters[11] = letter
+	out = read("11")
+	require.Equal(t, 200, out.Code, out.Body.String())
+	assert.Contains(t, out.Body.String(), "Wandertag")
+	require.Equal(t, 200, read("13").Code, "OGS drafts remain readable")
+}
