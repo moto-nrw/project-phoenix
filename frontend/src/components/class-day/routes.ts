@@ -11,7 +11,7 @@ import {
 } from "~/lib/date-helpers";
 
 /** Query-Parameter, unter dem der angezeigte Tag in der Adresse steht. */
-const CLASS_DAY_DATE_PARAM = "tag";
+export const CLASS_DAY_DATE_PARAM = "tag";
 
 /**
  * Query-Parameter, unter dem die angezeigte Klasse in der Adresse steht.

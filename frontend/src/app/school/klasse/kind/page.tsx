@@ -14,6 +14,7 @@ import { useSession } from "next-auth/react";
 import {
   CLASS_DAY_CHILD_PARAM,
   CLASS_DAY_CLASS_PARAM,
+  CLASS_DAY_DATE_PARAM,
   classDayClassParam,
   classDayDateParam,
   classDayPath,
@@ -49,7 +50,7 @@ function SharedNotesFromAddress() {
   const params = useSearchParams();
   const schoolClass = classDayClassParam(params.get(CLASS_DAY_CLASS_PARAM));
   const studentId = params.get(CLASS_DAY_CHILD_PARAM)?.trim() ?? "";
-  const dateISO = classDayDateParam(params.get("tag"));
+  const dateISO = classDayDateParam(params.get(CLASS_DAY_DATE_PARAM));
   const { data: session } = useSession();
 
   const { data, error, isLoading, mutate } = useSWRAuth<StudentSharedNotes>(

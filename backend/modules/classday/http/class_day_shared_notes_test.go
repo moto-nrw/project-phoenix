@@ -39,7 +39,7 @@ func setupSharedNotesFixture(t *testing.T) *sharedNotesFixture {
 	_, author := testpkg.CreateTestStaffWithAccount(t, base.db, "Olaf", fmt.Sprintf("OGS-%d", time.Now().UnixNano()))
 	return &sharedNotesFixture{
 		arrivalExceptionFixture: base,
-		tenantID:                int64(base.claims.TenantID),
+		tenantID:                testpkg.Tenant(t),
 		studentID:               ida.ID, otherID: other.ID, authorID: author.ID,
 	}
 }
