@@ -27,10 +27,8 @@ func (seedEnrollmentSignatureStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	auth := rt.TenantAuth
 	raw, err := rt.Client.PostWithAuth(auth, "/api/enrollment/schema/", map[string]any{
-		"name": "Ferienbetreuung mit Unterschrift",
-		"fields": []map[string]any{
-			{"key": "allergies", "label": "Allergien und Unverträglichkeiten", "type": "textarea", "sort_order": 10},
-		},
+		"name":              "Ferienbetreuung mit Unterschrift",
+		"fields":            seedSignedEnrollmentFormFields(),
 		"core_requirements": map[string]bool{"signature": true},
 	})
 	if err != nil {
@@ -48,7 +46,27 @@ func (seedEnrollmentSignatureStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	body := map[string]any{
+	body := seedSignedEnrollmentSubmission(phaseID, signature)
+	rt.Client.BindAuth(rt.TenantAuth)
+	if _, err := rt.Client.PostPublicWithHeaders("/api/enrollment/"+rt.Bootstrap.TenantSlug+"/submit", body, publicEnrollmentSeedHeaders(91)); err != nil {
+		return fmt.Errorf("submit signed enrollment: %w", err)
+	}
+	fmt.Println("Seeded 1 enrollment request with a signature")
+	return nil
+}
+
+// seedSignedEnrollmentFormFields asks for allergies per child (#5027): the
+// submission answers it for Ama, and an answer to a question asked once per
+// enrollment would be dropped on submit.
+func seedSignedEnrollmentFormFields() []map[string]any {
+	return []map[string]any{
+		{"key": "allergies", "label": "Allergien und Unverträglichkeiten", "type": "textarea", "sort_order": 10, "applies_to_child": true},
+	}
+}
+
+// seedSignedEnrollmentSubmission is the signed request of the Mensah family.
+func seedSignedEnrollmentSubmission(phaseID int64, signature string) map[string]any {
+	return map[string]any{
 		"phase_id":            phaseID,
 		"guardian_first_name": "Abena",
 		"guardian_last_name":  "Mensah",
@@ -61,12 +79,6 @@ func (seedEnrollmentSignatureStep) Run(_ context.Context, rt *Runtime) error {
 		}},
 		"signature": map[string]any{"method": "drawn", "image_png": signature},
 	}
-	rt.Client.BindAuth(rt.TenantAuth)
-	if _, err := rt.Client.PostPublicWithHeaders("/api/enrollment/"+rt.Bootstrap.TenantSlug+"/submit", body, publicEnrollmentSeedHeaders(91)); err != nil {
-		return fmt.Errorf("submit signed enrollment: %w", err)
-	}
-	fmt.Println("Seeded 1 enrollment request with a signature")
-	return nil
 }
 
 // createSignedEnrollmentPhase opens a holiday phase over the next summer
