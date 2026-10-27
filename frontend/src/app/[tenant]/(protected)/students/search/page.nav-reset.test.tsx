@@ -230,6 +230,8 @@ function renderOnSearchPage(search: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  // The stored filters belong to the signed-in account (#5000).
+  localStorage.setItem("moto:personal-storage-owner", "2:3");
   sessionState.token = "t";
   sessionState.status = "authenticated";
   studentKeys = [];

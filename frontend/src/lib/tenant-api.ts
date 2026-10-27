@@ -6,6 +6,7 @@
 
 import { apiErrorFromResponse } from "./api-error";
 import { clearSessionCache, sessionFetch } from "./session-cache";
+import { clearPersonalStorage } from "./personal-storage";
 import { mapAccountTenant, type AccountTenantBackend } from "./account-tenants";
 import { parseBookedModules, type ModuleKey } from "./modules";
 
@@ -521,6 +522,9 @@ export async function performTenantSwitch(
   await swrMutate(() => true, undefined, { revalidate: false });
 
   clearSessionCache();
+  // The switcher navigates to the target school right away; the entries of
+  // the source school must not wait for the next session check (#5000).
+  clearPersonalStorage();
 
   return tokens;
 }

@@ -12,6 +12,7 @@ import { PortalShell } from "~/components/ui/portal-shell";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { DELIBERATE_LOGOUT_KEY, clearSessionCache } from "~/lib/session-cache";
+import { clearPersonalStorage } from "~/lib/personal-storage";
 import { traegerPath } from "~/lib/traeger-url";
 import { traegerHelpHref } from "./traeger-help";
 import { TraegerTestSystemNotice } from "./traeger-test-system-notice";
@@ -152,6 +153,8 @@ export function TraegerShell({
         error: err instanceof Error ? err.message : String(err),
       });
     }
+    // Nothing personal of this account stays on the device (#5000).
+    clearPersonalStorage();
     clearSessionCache();
     // NextAuth resolves a callbackUrl against NEXTAUTH_URL, the tenant
     // origin, and would send the person to the school chooser there. End the

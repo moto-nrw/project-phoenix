@@ -3,24 +3,33 @@
 // Eine andere Seite (der Rücklauf einer Anmeldephase, #3379, oder die
 // Kindersuche, #4779) legt die Kinder ab und führt mit
 // `?neu=kinder&vorbelegung=<token>` zur Mitteilungsliste.
-// Der Token verweist nur im aktuellen Browser-Tab auf die Auswahl und bindet
-// sie an den Mandanten. Dort wird sie genau einmal gelesen und sofort gelöscht.
-// Namen gehören nicht in eine URL, und für achtzig Kinder wäre sie auch zu lang.
+// Der Token verweist auf die Auswahl und bindet sie an den Mandanten. Dort
+// wird sie genau einmal gelesen und sofort gelöscht. Namen gehören nicht in
+// eine URL, und für achtzig Kinder wäre sie auch zu lang.
 //
-// sessionStorage kann leer zurückkommen oder werfen (privates Fenster,
-// gesperrte Websitedaten). Dann öffnet sich der Verfasser ohne Vorbelegung;
-// nichts davon ist ein Fehler.
+// Die Auswahl liegt nur im Arbeitsspeicher dieses Tabs (#5000), nie im
+// Browser-Speicher: Namen von Kindern überleben so weder das Schließen des
+// Tabs noch einen Logout (clearPersonalStorage räumt sie mit ab). Die
+// Übergabe läuft über eine Navigation im selben Tab; nach dem Neuladen oder
+// in einem anderen Tab öffnet sich der Verfasser ohne Vorbelegung, und
+// nichts davon ist ein Fehler. Es liegt höchstens eine Auswahl bereit.
 
 export const ANNOUNCEMENT_PREFILL_PARAM = "neu";
 export const ANNOUNCEMENT_PREFILL_STUDENTS = "kinder";
 export const ANNOUNCEMENT_PREFILL_TOKEN_PARAM = "vorbelegung";
 
-const STORAGE_PREFIX = "moto:announcement-prefill:";
-
 export interface AnnouncementPrefillStudent {
   id: string;
   name: string;
 }
+
+interface PendingSelection {
+  readonly token: string;
+  readonly tenantSlug: string;
+  readonly students: readonly AnnouncementPrefillStudent[];
+}
+
+let pending: PendingSelection | null = null;
 
 export function stashAnnouncementStudents(
   tenantSlug: string,
@@ -28,15 +37,12 @@ export function stashAnnouncementStudents(
 ): string | null {
   const token = globalThis.crypto?.randomUUID?.();
   if (!token) return null;
-  try {
-    window.sessionStorage.setItem(
-      `${STORAGE_PREFIX}${token}`,
-      JSON.stringify({ tenantSlug, students }),
-    );
-    return token;
-  } catch {
-    return null;
-  }
+  pending = {
+    token,
+    tenantSlug,
+    students: students.map(({ id, name }) => ({ id, name })),
+  };
+  return token;
 }
 
 /**
@@ -60,33 +66,18 @@ export function announcementPrefillPath(
     : "/parent-announcements";
 }
 
-function isPrefillStudent(value: unknown): value is AnnouncementPrefillStudent {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.id === "string" &&
-    candidate.id !== "" &&
-    typeof candidate.name === "string"
-  );
-}
-
 export function takeAnnouncementStudents(
   tenantSlug: string,
   token: string,
 ): AnnouncementPrefillStudent[] {
-  try {
-    const key = `${STORAGE_PREFIX}${token}`;
-    const raw = window.sessionStorage.getItem(key);
-    window.sessionStorage.removeItem(key);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return [];
-    const payload = parsed as Record<string, unknown>;
-    if (payload.tenantSlug !== tenantSlug || !Array.isArray(payload.students)) {
-      return [];
-    }
-    return payload.students.filter(isPrefillStudent);
-  } catch {
-    return [];
-  }
+  const selection = pending;
+  if (selection?.token !== token) return [];
+  pending = null;
+  if (selection.tenantSlug !== tenantSlug) return [];
+  return selection.students.map(({ id, name }) => ({ id, name }));
+}
+
+/** Verwirft eine noch nicht abgeholte Auswahl (Logout, Kontowechsel). */
+export function clearAnnouncementStudents(): void {
+  pending = null;
 }

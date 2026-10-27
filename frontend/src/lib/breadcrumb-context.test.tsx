@@ -9,6 +9,14 @@ import {
   useStudentHistoryBreadcrumb,
 } from "./breadcrumb-context";
 
+// The remembered names belong to the signed-in school and account (#5000).
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "7", tenantId: 1 } },
+    status: "authenticated",
+  }),
+}));
+
 function wrapper({ children }: { children: ReactNode }) {
   return <BreadcrumbProvider>{children}</BreadcrumbProvider>;
 }
@@ -155,7 +163,7 @@ describe("useStudentHistoryBreadcrumb", () => {
   it("sets breadcrumb with OGS group name from localStorage when referrer is /ogs-groups", () => {
     (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
       (key: string) => {
-        if (key === "sidebar-last-group-name") return "Eulen";
+        if (key === "sidebar-last-group-name:1:7") return "Eulen";
         return null;
       },
     );
@@ -188,7 +196,7 @@ describe("useStudentHistoryBreadcrumb", () => {
   it("sets breadcrumb with room name from localStorage when referrer is /active-supervisions", () => {
     (localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation(
       (key: string) => {
-        if (key === "sidebar-last-room-name") return "Raum A";
+        if (key === "sidebar-last-room-name:1:7") return "Raum A";
         return null;
       },
     );
