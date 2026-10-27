@@ -253,9 +253,13 @@ export function useMergedRequestFeed(
   const reload = useCallback(async () => {
     setAutoLoadFailed(false);
     await mutate();
-  }, [mutate]);
+    clearError();
+  }, [clearError, mutate]);
   const listError = useSwrLoadError(swrError, LIST_OBJECT, reload);
-  useEffect(() => setAutoLoadFailed(false), [key]);
+  useEffect(() => {
+    setAutoLoadFailed(false);
+    clearError();
+  }, [clearError, key]);
 
   const items = useMemo(() => data?.items ?? [], [data]);
   const hasMore = data?.hasMore ?? false;
@@ -360,6 +364,8 @@ async function fetchWithdrawalPage(
  * der Filtersatz, zu dem die Zeilen gehören.
  */
 interface WithdrawalFeedSnapshot {
+  // Auch eine inhaltlich gleiche erste Seite beginnt einen neuen Stand.
+  readonly snapshot: symbol;
   readonly key: string;
   readonly items: CareWithdrawalCompletion[];
   readonly hasMore: boolean;
@@ -391,6 +397,7 @@ export function useWithdrawalFeed(
     async () => {
       const page = await fetchWithdrawalPage(view, filters, 1);
       return {
+        snapshot: Symbol(),
         key: key ?? "",
         items: page.items,
         hasMore: page.items.length < page.total,
@@ -404,9 +411,13 @@ export function useWithdrawalFeed(
   const load = useCallback(async () => {
     setAutoLoadFailed(false);
     await mutate();
-  }, [mutate]);
+    clearError();
+  }, [clearError, mutate]);
   const error = useSwrLoadError(swrError, WITHDRAWAL_OBJECT, load);
-  useEffect(() => setAutoLoadFailed(false), [key]);
+  useEffect(() => {
+    setAutoLoadFailed(false);
+    clearError();
+  }, [clearError, key]);
 
   const items = useMemo(
     () => (included ? (data?.items ?? []) : []),
@@ -442,7 +453,9 @@ export function useWithdrawalFeed(
         // Nur an den Stand anhängen, von dem aus nachgeladen wurde: nach einem
         // Filterwechsel oder Neuladen gehört die Seite zu keiner Liste mehr.
         (current) =>
-          current?.key === base.key && current.nextPage === pageNumber
+          current?.key === base.key &&
+          current.snapshot === base.snapshot &&
+          current.nextPage === pageNumber
             ? {
                 ...current,
                 items: [...current.items, ...page.items],

@@ -2,6 +2,7 @@ import {
   act,
   fireEvent,
   render as renderComponent,
+  renderHook,
   screen,
   waitFor,
   within,
@@ -23,6 +24,12 @@ import {
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { SWRConfig, type Cache } from "~/lib/swr";
+
+import {
+  useMergedRequestFeed,
+  useRequestSources,
+  useWithdrawalFeed,
+} from "./requests/use-request-feed";
 
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
 
@@ -1398,4 +1405,163 @@ describe("AggregatedRequestList", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("absence read required")).toBeNull();
   });
+
+  function useFeeds(filters: AggregatedRequestFilters) {
+    const sources = useRequestSources("history", filters);
+    const feed = useMergedRequestFeed(sources, "history", filters);
+    const withdrawals = useWithdrawalFeed(
+      "history",
+      filters,
+      feed.reportError,
+      feed.clearError,
+    );
+    return { feed, withdrawals };
+  }
+
+  it.each(["changed", "identical"] as const)(
+    "rejects a withdrawal page after a same-filter reload with %s contents",
+    async (contents) => {
+      const item = {
+        id: "first",
+        studentId: "10",
+        firstName: "Mia",
+        lastName: "Muster",
+        schoolClass: "2a",
+        firstBookinglessDay: "2026-09-01",
+        urgency: "planned" as const,
+        state: "pending" as const,
+      };
+      const first = { items: [item], total: 26, page: 1, pageSize: 25 };
+      let finishPage!: (page: typeof first) => void;
+      const pending = new Promise<typeof first>((resolve) => {
+        finishPage = resolve;
+      });
+      const replacement =
+        contents === "changed" ? { ...item, id: "replacement" } : item;
+      mockListWithdrawals
+        .mockResolvedValueOnce(first)
+        .mockReturnValueOnce(pending)
+        .mockResolvedValueOnce({ ...first, items: [replacement] });
+      const { result } = renderHook(
+        () => useFeeds({ ...NO_FILTERS, includeCareWithdrawals: true }),
+        {
+          wrapper: providersWith(new Map()),
+        },
+      );
+      await waitFor(() =>
+        expect(result.current.withdrawals.items).toEqual([item]),
+      );
+      let loading!: Promise<void>;
+      act(() => {
+        loading = result.current.withdrawals.loadMore();
+      });
+      await act(async () => {
+        await result.current.withdrawals.load();
+      });
+      expect(result.current.withdrawals.items).toEqual([replacement]);
+      await act(async () => {
+        finishPage({ ...first, items: [{ ...item, id: "obsolete" }], page: 2 });
+        await loading;
+      });
+      expect(result.current.withdrawals.items).toEqual([replacement]);
+    },
+  );
+
+  it.each(["reload", "filter"] as const)(
+    "clears a pagination error after %s replaces the request feed",
+    async (replacement) => {
+      mockListHistory
+        .mockResolvedValueOnce({
+          items: Array.from({ length: 25 }, (_, i) =>
+            openItem("excused", String(i)),
+          ),
+          next_cursor: "next",
+        })
+        .mockRejectedValueOnce(
+          new ApiError("page unavailable", 503, {
+            code: "general.unavailable",
+          }),
+        )
+        .mockResolvedValueOnce({ items: [openItem("excused", "replacement")] });
+      const { result, rerender } = renderHook(useFeeds, {
+        initialProps: NO_FILTERS,
+        wrapper: providersWith(new Map()),
+      });
+      await waitFor(() => expect(result.current.feed.items).toHaveLength(25));
+      await act(async () => {
+        await result.current.feed.loadMore();
+      });
+      await waitFor(() => expect(result.current.feed.error).toBeTruthy());
+      if (replacement === "reload") {
+        await act(async () => {
+          await result.current.feed.reload();
+        });
+      } else {
+        rerender({ ...NO_FILTERS, search: "Mia" });
+      }
+      await waitFor(() =>
+        expect(result.current.feed.items).toEqual([
+          openItem("excused", "replacement"),
+        ]),
+      );
+      expect(result.current.feed.error).toBeNull();
+    },
+  );
+
+  it.each(["reload", "filter"] as const)(
+    "clears a withdrawal pagination error after %s",
+    async (replacement) => {
+      const item = {
+        id: "first",
+        studentId: "10",
+        firstName: "Mia",
+        lastName: "Muster",
+        schoolClass: "2a",
+        firstBookinglessDay: "2026-09-01",
+        urgency: "planned" as const,
+        state: "pending" as const,
+      };
+      mockListWithdrawals
+        .mockResolvedValueOnce({
+          items: [item],
+          total: 26,
+          page: 1,
+          pageSize: 25,
+        })
+        .mockRejectedValueOnce(
+          new ApiError("page unavailable", 503, {
+            code: "general.unavailable",
+          }),
+        )
+        .mockResolvedValueOnce({
+          items: [{ ...item, id: "replacement" }],
+          total: 1,
+          page: 1,
+          pageSize: 25,
+        });
+      const filters = { ...NO_FILTERS, includeCareWithdrawals: true };
+      const { result, rerender } = renderHook(useFeeds, {
+        initialProps: filters,
+        wrapper: providersWith(new Map()),
+      });
+      await waitFor(() =>
+        expect(result.current.withdrawals.items).toEqual([item]),
+      );
+      await act(async () => {
+        await result.current.withdrawals.loadMore();
+      });
+      await waitFor(() => expect(result.current.feed.error).toBeTruthy());
+      if (replacement === "reload") {
+        await act(async () => {
+          await result.current.withdrawals.load();
+        });
+      } else {
+        rerender({ ...filters, search: "Mia" });
+      }
+      await waitFor(() =>
+        expect(result.current.withdrawals.items[0]?.id).toBe("replacement"),
+      );
+      expect(result.current.feed.error).toBeNull();
+    },
+  );
 });
