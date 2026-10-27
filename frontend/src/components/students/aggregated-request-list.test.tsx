@@ -31,7 +31,10 @@ import {
   useWithdrawalFeed,
 } from "./requests/use-request-feed";
 
-import { fetchCareWithdrawals } from "~/lib/care-exit-api";
+import {
+  fetchCareWithdrawals,
+  fetchStudentCareWithdrawalHistory,
+} from "~/lib/care-exit-api";
 import { itemKey } from "./requests/case-model";
 
 // Die Liste hält ihre Seiten im SWR-Cache (#4988): echtes SWR, ein eigener
@@ -65,6 +68,7 @@ vi.mock("~/lib/change-request-list-api", async () => {
 
 vi.mock("~/lib/care-exit-api", () => ({
   fetchCareWithdrawals: vi.fn(),
+  fetchStudentCareWithdrawalHistory: vi.fn(),
 }));
 
 vi.mock("~/components/students/care-exit-modal", () => ({
@@ -191,6 +195,7 @@ const mockGetFamilyProtection = vi.mocked(getFamilyProtection);
 const mockListHistory = vi.mocked(listAggregatedRequestHistory);
 const mockListEnrollment = vi.mocked(listEnrollmentChangeRequests);
 const mockListWithdrawals = vi.mocked(fetchCareWithdrawals);
+const mockListStudentWithdrawals = vi.mocked(fetchStudentCareWithdrawalHistory);
 const mockSetFamilyProtection = vi.mocked(setFamilyProtection);
 
 const NO_FILTERS: AggregatedRequestFilters = {
@@ -827,6 +832,45 @@ describe("AggregatedRequestList", () => {
     expect(await screen.findByText("Gelöschtes Kind")).toBeVisible();
     expect(screen.getByText("Betreuung beendet")).toBeVisible();
     expect(screen.queryByText("Kind sofort gelöscht")).not.toBeInTheDocument();
+  });
+
+  // Im Verlauf steht eine abgeschlossene Abmeldung im Raster der übrigen
+  // Einträge: Datum in der Spalte „Entschieden“, nicht der Name des Kindes.
+  it("puts a completed withdrawal into the history columns", async () => {
+    mockListWithdrawals.mockResolvedValue({
+      items: [
+        {
+          id: "withdrawal-dated",
+          studentId: "10",
+          firstName: "Mia",
+          lastName: "Muster",
+          schoolClass: "2a",
+          firstBookinglessDay: "2026-09-01",
+          urgency: "overdue",
+          state: "resolved",
+          outcome: "care_ended",
+          resolvedAt: "2026-09-02T09:00:00Z",
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    });
+
+    render(
+      <AggregatedRequestList
+        view="history"
+        filters={{ ...NO_FILTERS, includeCareWithdrawals: true }}
+      />,
+    );
+
+    const row = (await screen.findByText("Betreuung beendet")).closest(
+      "[data-request-row]",
+    );
+    expect(row).not.toBeNull();
+    const cells = within(row as HTMLElement);
+    expect(cells.getByText("02.09.2026")).toBeInTheDocument();
+    expect(cells.getByText("Mia Muster")).toBeVisible();
   });
 
   it("does not show withdrawals when another request type is selected", async () => {
@@ -1762,6 +1806,69 @@ describe("AggregatedRequestList", () => {
       state: "pending" as const,
     };
   }
+
+  // #5025: das Änderungsprotokoll eines Kindes liest die abgeschlossenen
+  // Abmeldungen über die Kind-Route; die Liste der Schule verlangt
+  // users:delete und bleibt unberührt.
+  it("reads a child's completed withdrawals from the child route", async () => {
+    const resolved = {
+      ...withdrawalItem("done"),
+      state: "resolved" as const,
+      outcome: "care_ended" as const,
+      resolvedAt: "2026-09-02T10:00:00+02:00",
+    };
+    mockListStudentWithdrawals.mockResolvedValue({
+      items: [resolved],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    });
+    const { result } = renderHook(
+      () =>
+        useWithdrawalFeed("history", {
+          ...NO_FILTERS,
+          studentId: "10",
+          includeCareWithdrawals: true,
+        }),
+      { wrapper: providersWith(new Map()) },
+    );
+
+    await waitFor(() => expect(result.current.items).toEqual([resolved]));
+    expect(mockListStudentWithdrawals).toHaveBeenCalledWith("10", {
+      page: 1,
+      pageSize: 25,
+    });
+    expect(mockListWithdrawals).not.toHaveBeenCalled();
+  });
+
+  it("keeps the school's withdrawal list for the open view of a child", async () => {
+    mockListWithdrawals.mockResolvedValue({
+      items: [withdrawalItem("open")],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    });
+    const { result } = renderHook(
+      () =>
+        useWithdrawalFeed("open", {
+          ...NO_FILTERS,
+          studentId: "10",
+          includeCareWithdrawals: true,
+        }),
+      { wrapper: providersWith(new Map()) },
+    );
+
+    await waitFor(() =>
+      expect(result.current.items).toEqual([withdrawalItem("open")]),
+    );
+    expect(mockListWithdrawals).toHaveBeenCalledWith({
+      search: "",
+      studentId: "10",
+      page: 1,
+      pageSize: 25,
+    });
+    expect(mockListStudentWithdrawals).not.toHaveBeenCalled();
+  });
 
   it.each([
     ["merged", true],

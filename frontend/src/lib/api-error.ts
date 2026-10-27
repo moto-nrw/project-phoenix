@@ -162,6 +162,19 @@ export function problemDetail(body: unknown): string | undefined {
   return typeof detail === "string" && detail.trim() ? detail : undefined;
 }
 
+let sessionTenantMismatchListener: (() => void) | undefined;
+
+/**
+ * Who learns that the BFF refused a request because the session belongs to
+ * another school than this subdomain (#5130). The session cache registers
+ * itself: it drops its session and wakes the SessionProvider, so TenantGuard
+ * switches back. Every client that reads an error answer passes through
+ * apiErrorFromBody, whichever transport it used.
+ */
+export function onSessionTenantMismatch(listener: () => void): void {
+  sessionTenantMismatchListener = listener;
+}
+
 /**
  * Turns an error body into an ApiError. The caller supplies the user-safe
  * message; the envelope's diagnostic `detail` remains separate for logs.
@@ -188,13 +201,17 @@ export function apiErrorFromBody(
           typeof entry.reason === "string",
       )
     : undefined;
-  return new ApiError(message, status, {
+  const error = new ApiError(message, status, {
     code: typeof data.code === "string" && data.code ? data.code : undefined,
     detail: problemDetail(data),
     details,
     errors,
     instance: typeof data.instance === "string" ? data.instance : undefined,
   });
+  if (error.code === "identity.session_tenant_mismatch") {
+    sessionTenantMismatchListener?.();
+  }
+  return error;
 }
 
 /**

@@ -41,6 +41,7 @@ const (
 	CodeIdentityRoleNameTaken                         = "identity.role_name_taken"
 	CodeIdentityRolePlatformPermission                = "identity.role_platform_permission"
 	CodeIdentitySessionAccountInactive                = "identity.session_account_inactive"
+	CodeIdentitySessionTenantMismatch                 = "identity.session_tenant_mismatch"
 	CodeIdentityTenantAccessDenied                    = "identity.tenant_access_denied"
 	CodeIdentityTenantAccessNotFound                  = "identity.tenant_access_not_found"
 	CodeIdentityUseParentPortal                       = "identity.use_parent_portal"
@@ -344,6 +345,7 @@ var errorCodeClasses1 = map[string]string{
 	"identity.role_name_taken":                           "business_rejection",
 	"identity.role_platform_permission":                  "input",
 	"identity.session_account_inactive":                  "permission",
+	"identity.session_tenant_mismatch":                   "permission",
 	"identity.tenant_access_denied":                      "permission",
 	"identity.tenant_access_not_found":                   "business_rejection",
 	"identity.use_parent_portal":                         "permission",

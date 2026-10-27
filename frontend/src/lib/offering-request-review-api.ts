@@ -7,6 +7,7 @@ import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
  */
 
 import { createLogger } from "~/lib/logger";
+import type { RosterImpactWire } from "~/lib/roster-impact";
 
 const logger = createLogger({ component: "OfferingRequestReviewAPI" });
 
@@ -138,7 +139,7 @@ export async function decideOfferingChangeRequest(
   effectiveFrom?: string,
   completeWithdrawalConfirmed?: boolean,
   expectedVersion?: string,
-): Promise<void> {
+): Promise<RosterImpactWire | undefined> {
   const response = await transportFetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
     {
@@ -162,6 +163,10 @@ export async function decideOfferingChangeRequest(
       "Entscheidung konnte nicht gespeichert werden",
     );
   }
+  // Eine Freigabe meldet, was sie im Betreuungsplan bewirkt hat (#5102).
+  const body = (await response.json().catch(() => undefined)) as
+    Envelope<{ roster_impact?: RosterImpactWire }> | undefined;
+  return body ? unwrap(body)?.roster_impact : undefined;
 }
 
 /** Materializes the review card with its current co-booking overrides. */

@@ -83,6 +83,11 @@ vi.mock("~/components/enrollment/phase-expiry-warnings", () => ({
 }));
 
 // Bausteine mit eigener Quelle laden für sich und haben eigene Tests.
+// Eigene Tests in roster-deviation-todos.test.tsx; hier stünde sonst jede
+// SWR-Abfrage der Seite unter derselben Attrappe.
+vi.mock("~/components/home/roster-deviation-todos", () => ({
+  RosterDeviationTodos: () => null,
+}));
 vi.mock("~/components/home/staff-notices-block", () => ({
   StaffNoticesBlock: () => <div data-testid="staff-notices-block" />,
 }));

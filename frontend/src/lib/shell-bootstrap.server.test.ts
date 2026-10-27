@@ -154,11 +154,17 @@ describe("loadShellBootstrap", () => {
       openRooms: [{ id: 8, name: "Kreativraum" }],
       overviewOk: true,
     });
+    // The list itself, not only its count (#4989): badge, home block and
+    // /tagesinformationen read it from one SWR entry.
+    expect(shell.staffNoticesToday).toEqual([
+      { requires_acknowledgement: true },
+      { requires_acknowledgement: true, acknowledged_at: "2026-09-01" },
+      { requires_acknowledgement: false },
+    ]);
     expect(shell.counts).toEqual({
       staffAbsencesPending: 2,
       messagesUnread: 4,
       teamChatUnread: undefined,
-      staffNoticesPending: 1,
       changeRequestsPending: 3,
       enrollmentRequestsPending: 1,
       careWithdrawalsPending: 5,
@@ -192,13 +198,14 @@ describe("loadShellBootstrap", () => {
     );
 
     expect(shell.supervision?.overviewOk).toBe(false);
+    // A caregiver holds users:read, so today's notices are loaded.
+    expect(shell.staffNoticesToday).toEqual([]);
     expect(shell.counts).toEqual({
       staffAbsencesPending: undefined,
       // The messages badge needs the tenant flag and users:read (the inbox
       // route's permission); a caregiver holds it, so the count is loaded.
       messagesUnread: 2,
       teamChatUnread: undefined,
-      staffNoticesPending: 0,
       changeRequestsPending: undefined,
       enrollmentRequestsPending: undefined,
       careWithdrawalsPending: undefined,
@@ -230,9 +237,12 @@ describe("loadShellBootstrap", () => {
     );
 
     expect(shell.counts?.messagesUnread).toBeUndefined();
+    // Today's notices need users:read as well; the browser asks no one.
+    expect(shell.staffNoticesToday).toBeUndefined();
     const endpoints = calledEndpoints();
     expect(endpoints).toContain("/api/me/groups/supervised");
     expect(endpoints).not.toContain("/api/messages/unread-count");
+    expect(endpoints).not.toContain("/api/staff-notices/today");
   });
 
   it("falls back to the own-supervision endpoint when the overview is refused", async () => {
@@ -262,6 +272,7 @@ describe("loadShellBootstrap", () => {
     expect(shell.profile).toBeUndefined();
     expect(shell.accountTenants).toBeUndefined();
     expect(shell.reminders).toBeUndefined();
+    expect(shell.staffNoticesToday).toBeUndefined();
     expect(shell.announcements).toBeUndefined();
     expect(shell.supervision).toBeUndefined();
     expect(Object.values(shell.counts).every((v) => v === undefined)).toBe(

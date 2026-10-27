@@ -6,8 +6,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// The enrollment profiles demonstrate enrollment only. They do not seed the
+// two histories of the Vollbetrieb profile, so the settings must stay at the
+// registry defaults instead of opening empty history views.
+func TestEnrollmentProfilesLeaveHistoriesDisabled(t *testing.T) {
+	t.Parallel()
+	for _, definition := range []demoProfileDefinition{enrollmentWeeklyProfileDefinition(), enrollmentBookingsProfileDefinition()} {
+		t.Run(definition.Key, func(t *testing.T) {
+			for _, key := range []string{profileSettingAttendanceLog, profileSettingFeedbackEnabled} {
+				_, enabled := definition.Settings[key]
+				assert.False(t, enabled, key)
+			}
+		})
+	}
+}
 
 func TestWeeklyProfileRejectsBookingDrivenCareDays(t *testing.T) {
 	t.Parallel()
@@ -137,6 +153,11 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		return true
 	case path == "/traeger/schools/":
 		data = []map[string]any{{"id": 1}}
+	case r.Method == "GET" && (path == "/api/time-tracking/holidays" || path == "/api/timetable/closing-days/" ||
+		path == "/api/timetable/periods/" || path == "/api/feedback/date-range"):
+		// The feedback history (#5029) reads the closed days and its own
+		// past entries; the full demo school's children are not served here.
+		data = []any{}
 	case strings.HasPrefix(path, "/traeger/holiday-periods/") && strings.HasSuffix(path, "/publish"):
 		// The published period carries its public link and weeks for the
 		// holiday registration of the same step (#4661).

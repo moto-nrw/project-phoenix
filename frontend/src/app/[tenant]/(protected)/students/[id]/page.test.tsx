@@ -2450,6 +2450,193 @@ describe("StudentDetailPage", () => {
       expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
     });
 
+    // #5025: eine Betreuungskraft hat users:absence, aber kein users:delete.
+    // Die Liste aller Abmeldungen der Schule verlangt users:delete und
+    // antwortet ihr mit 403; das Änderungsprotokoll liest deshalb nur die
+    // abgeschlossenen Abmeldungen dieses Kindes über die Kind-Route.
+    describe("Änderungsprotokoll ohne users:delete (#5025)", () => {
+      const json = (status: number, body: unknown) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { "Content-Type": "application/json" },
+        });
+      const requestedPaths = () =>
+        vi
+          .mocked(globalThis.fetch)
+          .mock.calls.map(([input]) =>
+            new URL(String(input), "http://localhost").pathname.toString(),
+          );
+
+      beforeEach(() => {
+        const original = globalThis.fetch;
+        vi.spyOn(globalThis, "fetch").mockImplementation(
+          async (input, init) => {
+            const path = new URL(String(input), "http://localhost").pathname;
+            if (path === "/api/students/change-requests") {
+              return json(200, { data: { items: [] } });
+            }
+            if (path === "/api/students/1/care-withdrawals") {
+              return json(200, {
+                data: {
+                  items: [
+                    {
+                      id: "withdrawal-done",
+                      student_id: "1",
+                      first_name: "Max",
+                      last_name: "Mustermann",
+                      school_class: "3a",
+                      first_bookingless_day: "2026-09-01",
+                      urgency: "overdue",
+                      state: "resolved",
+                      outcome: "care_ended",
+                      resolved_at: "2026-09-02T10:00:00+02:00",
+                    },
+                  ],
+                  total: 1,
+                  page: 1,
+                  page_size: 25,
+                },
+              });
+            }
+            if (path.startsWith("/api/students/care-withdrawals")) {
+              return json(403, {
+                status: 403,
+                code: "general.permission",
+                detail: "forbidden",
+              });
+            }
+            return original(input, init);
+          },
+        );
+        vi.mocked(useSession).mockReturnValue({
+          data: {
+            user: { id: "7", permissions: ["users:read", "users:absence"] },
+          },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        mockSearchParams.set("tab", "aenderungsprotokoll");
+      });
+
+      afterEach(() => {
+        vi.mocked(globalThis.fetch).mockRestore();
+      });
+
+      it("loads the child's completed withdrawals in the full view", async () => {
+        render(<StudentDetailPage />);
+
+        // Anker: die abgeschlossene Abmeldung aus der Kind-Route steht im
+        // Protokoll; ein 403 der Schul-Liste hätte stattdessen den Ladefehler
+        // „die Liste der Abmeldungen“ gezeigt (siehe Test darunter).
+        expect(await screen.findByText("Betreuung beendet")).toBeVisible();
+        expect(requestedPaths()).toContain("/api/students/1/care-withdrawals");
+        expect(
+          requestedPaths().some((path) =>
+            path.startsWith("/api/students/care-withdrawals"),
+          ),
+        ).toBe(false);
+        expect(
+          screen.queryByText(/Liste der Abmeldungen/),
+        ).not.toBeInTheDocument();
+      });
+
+      // Mit users:delete oder als Admin bleibt es beim Protokoll mit den
+      // Abmeldungen des Kindes (#5030); auch hier fragt die Kindakte nur die
+      // Kind-Route.
+      it.each([
+        ["users:delete", ["users:read", "users:update", "users:delete"]],
+        ["admin", ["admin:*"]],
+      ])(
+        "keeps the child's withdrawals with %s",
+        async (account, permissions) => {
+          vi.mocked(useSession).mockReturnValue({
+            data: { user: { id: `delete-${account}`, permissions } },
+            status: "authenticated",
+          } as ReturnType<typeof useSession>);
+
+          render(<StudentDetailPage />);
+
+          // Anker: die abgeschlossene Abmeldung steht im Protokoll.
+          expect(await screen.findByText("Betreuung beendet")).toBeVisible();
+          expect(requestedPaths()).toContain(
+            "/api/students/1/care-withdrawals",
+          );
+          // Die Kopfkarte fragt mit users:delete die offene Abmeldung über
+          // die Schul-Liste ab; der Verlauf des Protokolls nicht mehr.
+          const resolvedFromSchoolList = vi
+            .mocked(globalThis.fetch)
+            .mock.calls.map(
+              ([input]) => new URL(String(input), "http://localhost"),
+            )
+            .filter(
+              (url) =>
+                url.pathname === "/api/students/care-withdrawals" &&
+                url.searchParams.get("state") === "resolved",
+            );
+          expect(resolvedFromSchoolList).toEqual([]);
+        },
+      );
+
+      // users:absence ist ein Schreibrecht und darf ohne users:read weder das
+      // Änderungsprotokoll noch dessen Datenquellen öffnen.
+      it("hides the request log for absence-only staff", async () => {
+        vi.mocked(useSession).mockReturnValue({
+          data: { user: { id: "7", permissions: ["users:absence"] } },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        mockUseStudentData.mockReturnValue({
+          ...limitedAccess,
+          hasFullAccess: true,
+        });
+
+        render(<StudentDetailPage />);
+
+        // Anker: die eingeschränkte Ansicht hat keine Betreuungszeiten.
+        expect(await screen.findByTestId("readonly-name")).toHaveTextContent(
+          "Max Mustermann",
+        );
+        expect(
+          screen.queryByTestId("care-schedule-manager"),
+        ).not.toBeInTheDocument();
+        expect(queryTab("Änderungsprotokoll")).not.toBeInTheDocument();
+        expect(
+          requestedPaths().some((path) =>
+            path.startsWith("/api/students/care-withdrawals"),
+          ),
+        ).toBe(false);
+        expect(requestedPaths()).not.toContain(
+          "/api/students/1/care-withdrawals",
+        );
+      });
+
+      it("loads the request log without withdrawals in the limited view", async () => {
+        // Ein eigenes Konto: der SWR-Cache der Liste gilt je Konto, sonst
+        // käme die Seite aus dem Cache des vorigen Tests ohne Abruf.
+        vi.mocked(useSession).mockReturnValue({
+          data: {
+            user: { id: "8", permissions: ["users:read", "users:absence"] },
+          },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        mockUseStudentData.mockReturnValue(limitedAccess);
+
+        render(<StudentDetailPage />);
+
+        await waitFor(() =>
+          expect(requestedPaths()).toContain("/api/students/change-requests"),
+        );
+        // Anker: das Protokoll ist geladen und zeigt seinen Leerzustand.
+        expect(
+          await screen.findByText("Noch keine entschiedenen Anfragen."),
+        ).toBeInTheDocument();
+        expect(
+          requestedPaths().some((path) => path.includes("care-withdrawals")),
+        ).toBe(false);
+        expect(
+          screen.queryByText(/Liste der Abmeldungen/),
+        ).not.toBeInTheDocument();
+      });
+    });
+
     it("hides the enrollment tab without config:manage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {

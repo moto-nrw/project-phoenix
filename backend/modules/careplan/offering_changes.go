@@ -239,8 +239,10 @@ type OfferingChangeRequests interface {
 	EarliestEffectiveFrom(ctx context.Context) (calendar.Date, error)
 	// PreviewDecision materializes a pending approval without writing it.
 	PreviewDecision(ctx context.Context, requestID int64, excludedIDs []int64, effectiveFrom *calendar.Date) (*OfferingChangePreview, error)
-	// Decide approves (and applies) or rejects a pending request.
-	Decide(ctx context.Context, input OfferingChangeDecisionInput) error
+	// Decide approves (and applies) or rejects a pending request. An approval
+	// reports its effect on the child's Regeltermine (#5102); a rejection
+	// returns the zero impact.
+	Decide(ctx context.Context, input OfferingChangeDecisionInput) (RosterImpact, error)
 	// MarkDone closes a request whose effective date has passed without
 	// applying it.
 	MarkDone(ctx context.Context, requestID int64, expectedVersion, reason string, reviewedBy int64) error
@@ -311,7 +313,9 @@ type DirectOfferingAdjustmentPreview struct {
 type DirectOfferingAdjustments interface {
 	PrepareDirectOfferingAdjustment(ctx context.Context, input DirectOfferingAdjustmentInput) error
 	PreviewDirectOfferingAdjustment(ctx context.Context, input DirectOfferingAdjustmentInput) (*DirectOfferingAdjustmentPreview, error)
-	ApplyDirectOfferingAdjustment(ctx context.Context, input DirectOfferingAdjustmentInput) error
+	// ApplyDirectOfferingAdjustment books the replacement and reports its
+	// effect on the child's Regeltermine (#5102).
+	ApplyDirectOfferingAdjustment(ctx context.Context, input DirectOfferingAdjustmentInput) (RosterImpact, error)
 }
 
 // OfferingChangeCapability is the whole offering-change review: requests,

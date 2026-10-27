@@ -34,6 +34,7 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 
 import {
   fetchCareWithdrawals,
+  fetchStudentCareWithdrawalHistory,
   type CareWithdrawalCompletion,
 } from "~/lib/care-exit-api";
 import {
@@ -522,6 +523,14 @@ async function fetchWithdrawalPage(
     (filters.types.length > 0 && !filters.types.includes("care_withdrawal"))
   )
     return { items: [], total: 0, page, pageSize: WITHDRAWAL_PAGE_SIZE };
+  // Das Änderungsprotokoll eines Kindes liest dessen abgeschlossene
+  // Abmeldungen über die Kind-Route (#5025). Die Liste der Schule verlangt
+  // users:delete und antwortete Betreuungskräften mit 403.
+  if (view === "history" && filters.studentId)
+    return fetchStudentCareWithdrawalHistory(filters.studentId, {
+      page,
+      pageSize: WITHDRAWAL_PAGE_SIZE,
+    });
   return fetchCareWithdrawals({
     search: filters.search,
     studentId: filters.studentId,

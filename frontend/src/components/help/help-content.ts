@@ -2002,6 +2002,8 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
       "Haben die Eltern unterschrieben, öffnen Sie mit `Nachweis (PDF)` die Erklärung und die Unterschrift.",
       // #3946: freigegebene Tagesänderung markiert die Kinderkarte.
       "Ist der Tag heute, zeigt die Kinderkarte nach dem Freigeben unten einen orangen Hinweis.",
+      // #5102: von Hand gepflegte Regeltermine nach einer Angebotsanfrage.
+      "Planen von Hand gepflegte Regeltermine das Kind nach einer Angebotsanfrage weiter ein? Dann bleibt die Anfrage nach dem Freigeben offen stehen. Sie zeigt `Nicht angepasst, weil von Hand gepflegt`. Wählen Sie `Dort auch entfernen` oder `Fertig`.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
       // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
       // Freigabe haengen koennte.
@@ -3532,6 +3534,8 @@ function careTimesTopic(): HelpTopic {
       "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
       "Die üblichen Zeiten stehen unter `Einstellungen` bei `Betreuungszeiten`. Jede Schule pflegt ihre eigenen Zeiten.",
       "Betreut Ihre OGS am Wochenende? Dann gelten Samstag und Sonntag nach dem Freitagsplan.",
+      // #5102: Angebotswechsel aus dem Wochenplan.
+      "Wechselt das Kind mit dem Wochenplan das Angebot, zeigt moto danach `Auswirkung auf den Betreuungsplan`. Dort sehen Sie, welche Regeltermine angepasst sind und wo das Kind weiter eingeplant ist.",
     ],
     differences: [
       // Einstellung `enrollment.bookings_authoritative`, Vorgabe aus. Der
@@ -4962,6 +4966,10 @@ function enrollmentReviewTopic(): HelpTopic {
       "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
       "Hat die Vorlage `Unterschrift erforderlich`, steht die Unterschrift der Eltern im Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie den Anmeldenachweis mit der Unterschrift herunter.",
       "Mit `Statusseite öffnen` sehen Sie, was die Eltern sehen.",
+      // #5102: Auswirkung nach einer Korrektur unter `Nachbearbeitung`.
+      "Angebote eines bestätigten Kindes ändern Sie unter `Nachbearbeitung` mit `Bearbeiten`. Danach steht dort `Auswirkung auf den Betreuungsplan`.",
+      "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
+      "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
       "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
       "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",
@@ -5657,10 +5665,15 @@ function leadCarePlanTopic(): HelpTopic {
     result: "Ihr Team sieht den Plan unter `Heute` und unter `Mein Kalender`.",
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
+      // #5102: Hand-Kinderlisten folgen keiner Abmeldung.
+      "Wählen Sie die Kinder eines Regeltermins von Hand oder über Klasse, Jahrgang oder Gruppe aus, folgt er keiner Abmeldung. Nach einer Abmeldung nennt moto diese Regeltermine. Dort wählen Sie `Dort auch entfernen`.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
       // #4573, ADR 0091: Externe in Regelterminen, auch allein und zuständig.
       "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen, auch mit `Kein Zugang`. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",
       "Hat die externe Person `Kein Zugang`, startet eine OGS-Kraft den Termin. Mit `Eigene Termine betreuen` startet sie ihn selbst.",
+      // #5104: was die Zielgruppe wirklich bedeutet.
+      "Die `Zielgruppe` `Klasse`, `Jahrgang` oder `Gruppe` bringt alle Kinder dieser Klasse, Jahrgangsstufe oder Gruppe. Ob sie angemeldet sind, spielt keine Rolle. Spätere An- und Abmeldungen kommen dort nicht an.",
+      "Sollen nur angemeldete Kinder kommen? Passt Ihre Auswahl zu einem Angebot, schlägt moto es im Schritt `Personal und Kinder` vor. Wählen Sie `Angebot übernehmen`. Die Vorschau zeigt pro Wochentag, wer dazukommt und wer wegfällt.",
       "Eine externe Person kann einen Termin allein betreuen. Sie kann auch die `Zuständige Person` sein.",
       "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       // #4766: Filter Gruppe und Person in Tag, Woche und Monat.
@@ -5680,9 +5693,57 @@ function leadCarePlanTopic(): HelpTopic {
     ],
     related: [
       HELP_TOPICS.leadCalendarPeriods,
+      HELP_TOPICS.leadRosterDeviation,
       HELP_TOPICS.leadSubstitutionPlan,
       HELP_TOPICS.leadDayLists,
     ],
+  };
+}
+
+/**
+ * Regeltermine, deren Kinderliste von den Anmeldungen abweicht (#5103):
+ * Hinweis an der Karte, „Zu prüfen“, „Mit Angebot verbinden“ mit Vorschau
+ * und „Bleibt von Hand gepflegt“. Beschriftungen aus
+ * roster-deviation-hint.tsx, template-list.tsx, connect-offering-modal.tsx.
+ */
+function leadRosterDeviationTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadRosterDeviation,
+    title: "Regeltermin mit einem Angebot verbinden",
+    question:
+      "Warum passt die Kinderliste eines Regeltermins nicht zu den Anmeldungen?",
+    summary:
+      "moto zeigt, wenn ein Regeltermin Kinder ohne Buchung hat. Mit einem Angebot verbunden, folgt die Kinderliste den Anmeldungen.",
+    group: "planung",
+    audience: "lead",
+    icon: "ListChecks",
+    requirements: [
+      "Sie dürfen den Betreuungsplan bearbeiten.",
+      "Ihre Schule nutzt Betreuungsangebote mit Anmeldungen.",
+    ],
+    steps: [
+      "Öffnen Sie `Betreuungsplan` und wählen Sie oben `Serien`.",
+      "Wählen Sie `Zu prüfen`. Dann sehen Sie nur Regeltermine mit dem Hinweis `Weicht von Anmeldungen ab`.",
+      "Lesen Sie den Hinweis. Er nennt die Kinder ohne Buchung und das passende Angebot.",
+      "Wählen Sie `Mit Angebot verbinden`.",
+      "Prüfen Sie Angebot und Kinder. Die Vorschau zeigt für jeden Wochentag, wer dazukommt und wer wegfällt.",
+      "Wählen Sie `Verbinden`.",
+    ],
+    result:
+      "Der Regeltermin zeigt `Automatisch`. An- und Abmeldungen im Angebot kommen ab dem nächsten Termin von selbst in die Kinderliste.",
+    notes: [
+      "Pflegen Sie die Kinder bewusst selbst? Wählen Sie `Bleibt von Hand gepflegt`. Dann verschwindet der Hinweis für diesen Regeltermin.",
+      "Den Hinweis holen Sie zurück: Öffnen Sie einen Termin des Regeltermins und wählen Sie `Hinweis wieder zeigen`.",
+      "`Manuell` heißt: An- und Abmeldungen werden nicht übernommen. Die Kinder pflegen Sie selbst.",
+      "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
+      "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
+      "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot.",
+    ],
+    differences: [
+      "Hat der Regeltermin mehrere Abschnitte, etwa nach einer Änderung `Ab jetzt dauerhaft`? `Mit Angebot verbinden` stellt alle Termine ab dem nächsten Termin um. Das Bearbeiten ändert nur einen Abschnitt; die Vorschau nennt dann die Tage, die gleich bleiben.",
+      "Sie sehen keine Knöpfe am Hinweis? Dann dürfen Sie den Plan nur ansehen.",
+    ],
+    related: [HELP_TOPICS.leadCarePlan, HELP_TOPICS.leadEnrollmentSetup],
   };
 }
 
@@ -6847,6 +6908,7 @@ function leadTopics(
     // --- Betreuung und Team planen ---
     calendarPeriodsTopic(),
     leadCarePlanTopic(),
+    leadRosterDeviationTopic(),
     leadCancelBlockTopic(),
     dutyRosterTopic(),
     substitutionPlanTopic(),

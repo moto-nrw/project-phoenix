@@ -2045,6 +2045,12 @@
       "legacy": "account_inactive"
     },
     {
+      "code": "identity.session_tenant_mismatch",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.session_tenant_mismatch"
+    },
+    {
       "code": "identity.tenant_access_denied",
       "class": "permission",
       "parameters": [],

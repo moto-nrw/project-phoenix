@@ -412,3 +412,199 @@ describe("sessionFetch", () => {
     });
   });
 });
+
+// #4989: the tenant SessionProvider re-primes the cache with each answer.
+// Losing the sign-in must never leave a signed-in session behind, and a
+// primed session keeps the cache's 10 s window.
+describe("primeSessionCache when the sign-in ends or changes", () => {
+  let originalFetch: typeof fetch;
+  const mockFetch = vi.fn();
+  let now: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    mockGetSession.mockReset();
+    mockHandleAuthFailure.mockReset();
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = mockFetch as typeof fetch;
+    mockFetch.mockReset();
+    now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    now.mockRestore();
+  });
+
+  // #5130: the BFF refuses a session of another school than the request's
+  // subdomain, so a primed session may stay until shortly after the
+  // provider's next poll (4 min) instead of the 10 s window of #5116.
+  it("keeps a primed session until shortly after the provider's next poll", async () => {
+    const { getCachedSession, primeSessionCache } = await freshModule();
+    primeSessionCache(session("primed", 1));
+    mockGetSession.mockResolvedValueOnce(session("primed", 2));
+
+    now.mockReturnValue(1_000_000 + 10_001);
+    expect((await getCachedSession())?.user?.tenantId).toBe(1);
+    expect(mockGetSession).not.toHaveBeenCalled();
+
+    now.mockReturnValue(1_000_000 + 270_001);
+    expect((await getCachedSession())?.user?.tenantId).toBe(2);
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+
+  // #5130, replaces the 10 s window of #5116: a school switch on another
+  // subdomain drops this tab's session with the first refused request.
+  it("drops a primed session once the BFF refuses another school's session", async () => {
+    const { getCachedSession, primeSessionCache } = await freshModule();
+    const { apiErrorFromBody } = await import("./api-error");
+    primeSessionCache(session("primed", 1));
+    mockGetSession.mockResolvedValueOnce(session("primed", 2));
+
+    // Anker: the primed session serves without a lookup until the refusal.
+    expect((await getCachedSession())?.user?.tenantId).toBe(1);
+    expect(mockGetSession).not.toHaveBeenCalled();
+
+    apiErrorFromBody("Request refused", 409, {
+      code: "identity.session_tenant_mismatch",
+    });
+
+    expect((await getCachedSession())?.user?.tenantId).toBe(2);
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("never serves a session whose own end has passed", async () => {
+    const { getCachedSession, primeSessionCache } = await freshModule();
+    primeSessionCache(
+      mockSessionData({
+        user: { id: "ending" },
+        expires: new Date(1_000_000 + 5_000).toISOString(),
+      }),
+    );
+    mockGetSession.mockResolvedValueOnce(null);
+
+    now.mockReturnValue(1_000_000 + 5_000);
+    const result = await getCachedSession();
+
+    expect(result).toBeNull();
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+
+  // Abmelden: the provider answers without a session.
+  it("drops the signed-in session when the provider loses the sign-in", async () => {
+    const { getCachedSession, primeSessionCache, sessionFetch } =
+      await freshModule();
+    primeSessionCache(session("signed-in"));
+
+    primeSessionCache(null);
+    mockGetSession.mockResolvedValue(null);
+
+    expect(await getCachedSession()).toBeNull();
+    await expect(sessionFetch("/api/test")).rejects.toMatchObject({
+      status: 401,
+      code: "general.permission",
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("does not let a lookup from before the logout bring the session back", async () => {
+    const { getCachedSession, primeSessionCache } = await freshModule();
+    let resolveStale!: (value: unknown) => void;
+    mockGetSession.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveStale = resolve;
+      }),
+    );
+    const stale = getCachedSession();
+
+    primeSessionCache(null);
+    resolveStale(session("before-logout"));
+    await stale;
+    mockGetSession.mockResolvedValueOnce(null);
+
+    expect(await getCachedSession()).toBeNull();
+    expect(mockGetSession).toHaveBeenCalledTimes(2);
+  });
+
+  // Kontowechsel und Schulwechsel.
+  it("replaces the previous account's session with the provider's next answer", async () => {
+    const { getCachedSession, primeSessionCache } = await freshModule();
+    primeSessionCache(session("account-a", 1));
+
+    primeSessionCache(session("account-b", 1));
+    expect((await getCachedSession())?.user?.id).toBe("account-b");
+
+    primeSessionCache(session("account-b", 2));
+    const result = await getCachedSession();
+    expect(result?.user?.id).toBe("account-b");
+    expect(result?.user?.tenantId).toBe(2);
+    expect(mockGetSession).not.toHaveBeenCalled();
+  });
+
+  it("asks the session route after a switch flow cleared the cache", async () => {
+    const { clearSessionCache, getCachedSession, primeSessionCache } =
+      await freshModule();
+    primeSessionCache(session("account-a", 1));
+    mockGetSession.mockResolvedValueOnce(session("account-a", 2));
+
+    clearSessionCache();
+    const result = await getCachedSession();
+
+    expect(result?.user?.tenantId).toBe(2);
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+
+  // Token-Erneuerung: a 401 renews the session; the renewed one stays.
+  it("keeps the renewed session after a 401 and retries once", async () => {
+    const { getCachedSession, primeSessionCache, sessionFetch } =
+      await freshModule();
+    primeSessionCache(session("before-refresh"));
+    mockHandleAuthFailure.mockResolvedValueOnce(true);
+    mockGetSession.mockResolvedValueOnce(session("renewed"));
+    mockFetch
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+    const response = await sessionFetch("/api/test");
+
+    expect(response.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect((await getCachedSession())?.user?.id).toBe("renewed");
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+
+  // Abgelaufene oder widerrufene Session: one failed refresh, no loop.
+  it("asks again after a revoked session and stops there", async () => {
+    const { getCachedSession, primeSessionCache, sessionFetch } =
+      await freshModule();
+    primeSessionCache(session("revoked"));
+    mockHandleAuthFailure.mockResolvedValueOnce(false);
+    mockFetch.mockResolvedValue(new Response(null, { status: 401 }));
+    const ended = mockSessionData({ user: { id: "revoked" } });
+    Object.assign(ended, { error: "RefreshTokenError" });
+    mockGetSession.mockResolvedValue(ended);
+
+    await expect(sessionFetch("/api/test")).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockHandleAuthFailure).toHaveBeenCalledTimes(1);
+
+    // The next request asks the session route, learns the session is gone
+    // and does not send anything.
+    await expect(sessionFetch("/api/test")).rejects.toMatchObject({
+      status: 401,
+      code: "general.permission",
+    });
+    // The provider hears the same answer (next-auth's echo of getSession);
+    // the cache keeps it instead of asking again for every request.
+    primeSessionCache(ended);
+    await getCachedSession();
+    await expect(sessionFetch("/api/test")).rejects.toMatchObject({
+      status: 401,
+    });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockHandleAuthFailure).toHaveBeenCalledTimes(1);
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+});

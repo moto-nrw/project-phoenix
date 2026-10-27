@@ -27,21 +27,40 @@ func BookingMaterializationOwners(
 	timetables bookingTimetableOwner, rosters bookingRosterMaintenance, students bookingStudentOwner,
 	periods bookingPeriodReads, enrollment bookingEnrollmentReads, approved bookingApprovedChildren,
 	adjustments bookingAdjustmentTrail, persons bookingActorPersons, accounts bookingActorAccounts,
-	pickup bookingPickupReads, pickupRows bookingPickupRecords,
+	pickup bookingPickupReads, pickupRows bookingPickupRecords, studentDays timetable.StudentTemplateDays,
 ) (careplanCompose.BookingMaterializationDependencies, error) {
 	if timetables == nil || rosters == nil || students == nil || enrollment == nil ||
-		approved == nil || adjustments == nil || pickup == nil || pickupRows == nil {
-		return careplanCompose.BookingMaterializationDependencies{}, errors.New("booking materialization: timetable, rosters, students, enrollment, approved bookings, adjustment audit and pickup are required")
+		approved == nil || adjustments == nil || pickup == nil || pickupRows == nil || studentDays == nil {
+		return careplanCompose.BookingMaterializationDependencies{}, errors.New("booking materialization: timetable, rosters, students, enrollment, approved bookings, adjustment audit, pickup and student template days are required")
 	}
 	return careplanCompose.BookingMaterializationDependencies{
-		Rosters:    bookingRosters{timetable: timetables, students: students, rosters: rosters},
-		Templates:  bookingTemplates{timetable: timetables},
-		Periods:    bookingPeriods{calendar: periods},
-		Enrollment: bookingEnrollment{owner: enrollment, approved: approved},
-		Students:   bookingStudents{people: students},
-		Audit:      bookingAdjustmentAudit{repo: adjustments, persons: persons, accounts: accounts},
-		Pickup:     bookingPickup{baselines: pickup, rows: pickupRows},
+		Rosters:     bookingRosters{timetable: timetables, students: students, rosters: rosters},
+		Templates:   bookingTemplates{timetable: timetables},
+		Periods:     bookingPeriods{calendar: periods},
+		Enrollment:  bookingEnrollment{owner: enrollment, approved: approved},
+		Students:    bookingStudents{people: students},
+		Audit:       bookingAdjustmentAudit{repo: adjustments, persons: persons, accounts: accounts},
+		Pickup:      bookingPickup{baselines: pickup, rows: pickupRows},
+		ManualPlans: bookingManualPlans{days: studentDays},
 	}, nil
+}
+
+// bookingManualPlans asks the Timetable owner where a student stays planned
+// by hand after a booking change (#5102).
+type bookingManualPlans struct{ days timetable.StudentTemplateDays }
+
+func (p bookingManualPlans) ManualStudentPlan(ctx context.Context, studentID int64, from calendar.Date, weekdays []int) ([]careplan.ManualRosterTemplate, error) {
+	plans, err := p.days.ManualStudentPlan(ctx, timetable.ManualStudentPlanQuery{StudentID: studentID, From: from, Weekdays: weekdays})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]careplan.ManualRosterTemplate, 0, len(plans))
+	for _, plan := range plans {
+		result = append(result, careplan.ManualRosterTemplate{
+			TemplateID: plan.TemplateID, Name: plan.Name, Weekdays: plan.Weekdays, ViaTarget: plan.ViaTarget,
+		})
+	}
+	return result, nil
 }
 
 type bookingTimetableOwner interface {

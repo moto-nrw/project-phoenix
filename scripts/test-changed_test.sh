@@ -28,7 +28,23 @@ EOF
 cat >"$fixture/scripts/backend-affected-packages.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-echo './probe'
+if [ "${PHX_FIXTURE_NO_BACKEND:-0}" -eq 0 ]; then echo './probe'; fi
+EOF
+cat >"$fixture/fake-bin/pnpm" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'pnpm:%s\n' "$*" >>"$TEST_CHANGED_CALL_LOG"
+case "$1" in
+  install)
+    [ "$CI" = true ]
+    exit "${PHX_FIXTURE_INSTALL_STATUS:-0}"
+    ;;
+  vitest)
+    echo 'expected error log from a behavior test' >&2
+    exit "${PHX_FIXTURE_VITEST_STATUS:-0}"
+    ;;
+  *) exit 99 ;;
+esac
 EOF
 cat >"$fixture/fake-bin/go" <<'EOF'
 #!/usr/bin/env bash
@@ -105,6 +121,7 @@ chmod +x \
   "$fixture/scripts/backend-affected-packages.sh" \
   "$fixture/fake-bin/getconf" \
   "$fixture/fake-bin/uname" \
+  "$fixture/fake-bin/pnpm" \
   "$fixture/fake-bin/go"
 
 printf 'package probe\n' >"$fixture/backend/probe/probe.go"
@@ -243,5 +260,50 @@ export PHX_FIXTURE_TMPDIR="$fixture/custom-go-tmp"
 run_wrapper test-changed.sh 0 origin/development
 run_wrapper test-backend.sh 0 ./probe
 unset PHX_FIXTURE_TMPDIR
+
+# Frontend failures must survive both the frontend-only path (no EXIT trap)
+# and the mixed-stack path, whose backend cleanup runs after Vitest.
+mkdir -p "$fixture/frontend/src"
+for no_backend in 0 1; do
+  export PHX_FIXTURE_NO_BACKEND=$no_backend
+  for selection in changed full; do
+    rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/probe.ts"
+    if [ "$selection" = full ]; then
+      printf '{}\n' >"$fixture/frontend/package.json"
+      vitest_call='pnpm:vitest run'
+    else
+      printf 'export {};\n' >"$fixture/frontend/src/probe.ts"
+      vitest_call='pnpm:vitest run --changed origin/development'
+    fi
+    for failure in success install vitest; do
+      export PHX_FIXTURE_INSTALL_STATUS=0 PHX_FIXTURE_VITEST_STATUS=0
+      expected_status=0
+      case "$failure" in
+        install) export PHX_FIXTURE_INSTALL_STATUS=6; expected_status=6 ;;
+        vitest) export PHX_FIXTURE_VITEST_STATUS=8; expected_status=8 ;;
+      esac
+      : >"$call_log"
+      status=0
+      (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" \
+        TEST_CHANGED_CALL_LOG="$call_log" TEST_CHANGED_WORKSPACE_LOG="$workspace_log" \
+        PHX_FIXTURE_GO_CACHE="$fixture/go-cache" \
+        scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1 || status=$?
+      if [ "$status" -ne "$expected_status" ]; then
+        cat "$output_log" >&2
+        echo "frontend $selection/$failure (no_backend=$no_backend): expected $expected_status, got $status" >&2
+        exit 1
+      fi
+      expected_calls=
+      if [ "$no_backend" -eq 0 ]; then
+        expected_calls=$'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks ./probe\n'
+      fi
+      expected_calls+='pnpm:install --frozen-lockfile'
+      if [ "$failure" != install ]; then expected_calls+=$'\n'"$vitest_call"; fi
+      if [ "$no_backend" -eq 0 ]; then expected_calls+=$'\nsweep'; fi
+      assert_calls "$expected_calls"
+      [ ! -e "$fixture/.git/phx-test-run.lock" ]
+    done
+  done
+done
 
 echo 'full/changed-test resource budget, build workspace and lifecycle tests passed'

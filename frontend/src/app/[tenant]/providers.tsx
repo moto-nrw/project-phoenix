@@ -15,9 +15,11 @@ import { PushSubscriptionSync } from "~/components/notifications/service-worker-
 import { ANNOUNCEMENTS_UNREAD_SWR_KEY } from "~/lib/hooks/use-announcements";
 import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
-import { hasSessionAccess } from "~/lib/session-access";
 import { primeSessionCache } from "~/lib/session-cache";
+import { SESSION_PROVIDER_POLL_SECONDS } from "~/lib/session-provider-poll";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
+import { mutate } from "~/lib/swr";
+import { staffNoticesTodayKey } from "~/lib/staff-notices-api";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
 import { tenantAwarePath } from "~/lib/tenant-path";
 import type { TenantInfo } from "~/lib/tenant-api";
@@ -28,13 +30,17 @@ import { seesLockedModules } from "~/lib/module-register";
  * every API client reads (#2973). A layout effect in a leaf rendered BEFORE
  * the provider tree commits before any SWR hook further down starts its mount
  * revalidation; the hydrated session is therefore reused instead of fetched.
- * Later session changes (poll, update()) go through the cache's own TTL and
- * the explicit clearSessionCache() calls of the flows that rotate tokens.
+ * Later session changes (poll, update()) prime it again; between them the
+ * entry holds, except where a flow that rotates tokens calls
+ * clearSessionCache() or the BFF refuses another school's session (#5130).
+ * An answer without access (logout here or in another tab) drops the entry.
  */
-function SessionCachePrimer() {
+export function SessionCachePrimer() {
   const { data: session } = useSession();
   useLayoutEffect(() => {
-    if (hasSessionAccess(session)) primeSessionCache(session);
+    // undefined: the provider has no answer yet. null or an answer without
+    // access: the sign-in is gone, and primeSessionCache drops the entry.
+    if (session !== undefined) primeSessionCache(session);
   }, [session]);
   return null;
 }
@@ -53,12 +59,13 @@ function ModuleBookingAudienceBridge({
 }
 
 /**
- * SWR entries the server preloaded, under the tenant-scoped keys useSWRAuth
- * produces. `fallback` lets the first (server and hydration) render show the
- * data; `cacheData` makes SWR consume it as the mount revalidation instead of
- * fetching, after which it is an ordinary cache entry.
+ * Shell entries whose readers never revalidate on mount (#4989): the header
+ * bell polls the reminders, the sidebar badge reloads today's staff notices
+ * on focus and after an acknowledgement, and the home block only shows them.
+ * The user context is immutable SWR; settings changes, SSE events and the
+ * guardian-approval retry invalidate it.
  */
-function shellSwrConfig(shell: ShellBootstrap, tenantSlug: string) {
+export function shellOwnedEntries(shell: ShellBootstrap, tenantSlug: string) {
   const entries: Record<string, unknown> = {};
   if (shell.userContext) {
     entries[`${tenantSlug}:${USER_CONTEXT_SWR_KEY}`] = shell.userContext;
@@ -66,11 +73,51 @@ function shellSwrConfig(shell: ShellBootstrap, tenantSlug: string) {
   if (shell.reminders) {
     entries[`${tenantSlug}:${REMINDERS_SWR_KEY}`] = shell.reminders;
   }
+  // Keyed by the account the snapshot was built for, like every reader.
+  if (shell.staffNoticesToday) {
+    entries[`${tenantSlug}:${staffNoticesTodayKey(shell.accountId)}`] =
+      shell.staffNoticesToday;
+  }
+  return entries;
+}
+
+/**
+ * SWR entries the server preloaded, under the tenant-scoped keys useSWRAuth
+ * produces. `fallback` lets the first (server and hydration) render show the
+ * data; `cacheData` makes SWR consume it as the mount revalidation instead of
+ * fetching, after which it is an ordinary cache entry.
+ */
+export function shellSwrConfig(shell: ShellBootstrap, tenantSlug: string) {
+  const entries: Record<string, unknown> = {
+    ...shellOwnedEntries(shell, tenantSlug),
+  };
   // Platform-scoped, so its key carries no tenant prefix.
   if (shell.announcements) {
     entries[ANNOUNCEMENTS_UNREAD_SWR_KEY] = shell.announcements;
   }
   return { fallback: entries, cacheData: entries };
+}
+
+/**
+ * Writes the shell-owned entries into the SWR cache. A reader with
+ * `revalidateIfStale: false` shows `fallback` and skips the mount
+ * revalidation, so SWR never turns `cacheData` into a cache entry, and the
+ * first later revalidation (poll, mutate, focus) answered with the seed
+ * instead of asking the server (#4989). Like SessionCachePrimer, a leaf
+ * rendered before the provider tree: its layout effect runs before any
+ * reader mounts. An entry a reader already holds stays.
+ */
+export function ShellCacheSeeder({
+  entries,
+}: Readonly<{ entries: Record<string, unknown> }>) {
+  useLayoutEffect(() => {
+    for (const [key, data] of Object.entries(entries)) {
+      void mutate(key, (current: unknown) => current ?? data, {
+        revalidate: false,
+      });
+    }
+  }, [entries]);
+  return null;
 }
 
 /**
@@ -101,8 +148,14 @@ export function TenantProviders({
   session?: Session | null;
   shell?: ShellBootstrap | null;
 }>) {
-  const swrConfig = useMemo(
-    () => (shell ? shellSwrConfig(shell, tenantSlug) : null),
+  const swrSeed = useMemo(
+    () =>
+      shell
+        ? {
+            config: shellSwrConfig(shell, tenantSlug),
+            owned: shellOwnedEntries(shell, tenantSlug),
+          }
+        : null,
     [shell, tenantSlug],
   );
 
@@ -127,7 +180,7 @@ export function TenantProviders({
   return (
     <SessionProvider
       session={session ?? undefined}
-      refetchInterval={4 * 60}
+      refetchInterval={SESSION_PROVIDER_POLL_SECONDS}
       refetchOnWindowFocus={false}
     >
       <PersonalStorageGuard
@@ -137,8 +190,11 @@ export function TenantProviders({
       <ModuleBookingAudienceBridge>
         <PushSubscriptionSync portal="tenant" />
         <SentrySessionContext portal="tenant" />
-        {swrConfig ? (
-          <SWRConfig value={swrConfig}>{providers}</SWRConfig>
+        {swrSeed ? (
+          <SWRConfig value={swrSeed.config}>
+            <ShellCacheSeeder entries={swrSeed.owned} />
+            {providers}
+          </SWRConfig>
         ) : (
           providers
         )}

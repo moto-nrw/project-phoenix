@@ -16,9 +16,3 @@ func seedSchoolDayAfter(today seedDate, n int) seedDate {
 	}
 	return day
 }
-
-// seedWalkingHomeAloneDate keeps the signed way-home request separate from
-// the open pickup change on the third school day and the screenshot dates.
-func seedWalkingHomeAloneDate(today seedDate) seedDate {
-	return seedSchoolDayAfter(today, 4)
-}
