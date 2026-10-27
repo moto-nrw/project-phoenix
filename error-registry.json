@@ -733,6 +733,18 @@
       "legacy": "communication.staff_notice_outdated"
     },
     {
+      "code": "communication.class_letter_class_not_reachable",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "communication.class_letter_class_not_reachable"
+    },
+    {
+      "code": "communication.class_letter_read_only",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.class_letter_read_only"
+    },
+    {
       "code": "communication.system_announcement_immutable",
       "class": "business_rejection",
       "parameters": [],
@@ -1249,6 +1261,18 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.hosted_holiday_week_not_found"
+    },
+    {
+      "code": "enrollment.holiday_guest_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_guest_not_found"
+    },
+    {
+      "code": "enrollment.holiday_guest_group_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_guest_group_invalid"
     },
     {
       "code": "enrollment.holiday_registration_frozen",
@@ -4940,6 +4964,24 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.letterhead_too_long"
+    },
+    {
+      "code": "parent_billing.billing_letters_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_letters_missing"
+    },
+    {
+      "code": "parent_billing.letter_mail_pending",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.letter_mail_pending"
+    },
+    {
+      "code": "parent_billing.recipient_email_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.recipient_email_missing"
     }
   ]
 }

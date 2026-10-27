@@ -14,6 +14,9 @@ func TestRetireDirectPermissionsMigrationRoundTrip(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := t.Context()
+	// Roll back the holiday guests first (#4666): their tables and foreign
+	// keys extend the erasure functions the older migrations restore.
+	rollBackHolidayGuests(t, db)
 	require.NoError(t, retireDirectPermissionsDown(ctx, db))
 	account := testpkg.CreateTestAccount(t, db, "retire-direct")
 	permission := testpkg.CreateTestPermission(t, db, "retire-direct", "retire-direct", "read")

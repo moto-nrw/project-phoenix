@@ -403,6 +403,9 @@ func (s *service) RemindOutstanding(ctx context.Context, id int64) (int, error) 
 	if a == nil {
 		return 0, ErrNotFound
 	}
+	if err := guardClassLetterWrite(ctx, a); err != nil {
+		return 0, err
+	}
 	if a.IsPoll() {
 		return s.RemindUnanswered(ctx, id)
 	}
@@ -472,7 +475,7 @@ func (s *service) letterMailLayout(ctx context.Context, a *StaffParentAnnounceme
 	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	portalURL := s.letterPortalURL(a.ID)
 	kicker := spec.kicker
-	intro := spec.intro(schoolName)
+	intro := classLetterMailIntro(a, schoolName, spec.intro(schoolName))
 	body := spec.body
 
 	return letterMailLayout{schoolName: schoolName, logoURL: logoURL, motoLogoURL: motoLogoURL, portalURL: portalURL, kicker: kicker, intro: intro, body: body}, nil

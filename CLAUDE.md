@@ -59,7 +59,7 @@ path-scoped rules automatically.
 |---|---|
 | Any backend change | [backend/CLAUDE.md](backend/CLAUDE.md), including its target architecture; inspect affected policy entries before choosing a boundary |
 | Any frontend change | [frontend/AGENTS.md](frontend/AGENTS.md) and [frontend/CLAUDE.md](frontend/CLAUDE.md) |
-| Login, MFA, refresh, sessions, routing, tenant scoping, enrollment, IoT | [docs/agents/contracts.md](docs/agents/contracts.md); check affected session mint/renew paths and wrong-portal rejection |
+| Login, MFA, refresh, sessions, routing, tenant scoping, enrollment, IoT, client IP / rate limits | [docs/agents/contracts.md](docs/agents/contracts.md); check affected session mint/renew paths and wrong-portal rejection |
 | Auth, permissions, crypto, certificates, uploads, sensitive data | [.claude/rules/security/project-security.md](.claude/rules/security/project-security.md); parent-child access also requires [.claude/rules/guardian-parent-permissions.md](.claude/rules/guardian-parent-permissions.md) |
 | Dates, attendance days, recurrence, clock times | [.claude/rules/calendar-dates.md](.claude/rules/calendar-dates.md); shifts/timetables also require backend Domain Knowledge |
 | Error responses, error codes, error display | [.claude/rules/error-path.md](.claude/rules/error-path.md) |

@@ -344,6 +344,10 @@ var queryBudgets = map[string]queryBudget{
 	// Every read is a bulk load by ID set; the count must not move with the
 	// roster.
 	"modules.classday.slot_list.build": {max: 16},
+	// modules/classday — GET /school/class-day/school-day (#4802): one
+	// school-wide roster and one read of each day fact for every class, 2 and
+	// then 4 classes. The count must not move with the classes.
+	"modules.classday.school_day": {max: 34},
 	// modules/mealplan — a week of orders reads each weekday in bulk (#3873),
 	// without a lock or a write; a due order not stored yet shares its day's
 	// reads with the current registration (ADR 0077).
@@ -386,6 +390,10 @@ var queryBudgets = map[string]queryBudget{
 	"modules.communication.surveys.list":      {max: 1, exact: true},
 	"modules.communication.surveys.to_answer": {max: 1, exact: true},
 	"modules.communication.surveys.results":   {max: 6},
+	// GET /school/parent-letters (#4800): the Lehrkraft's class letters are
+	// the school's list narrowed in the handler: the rows and their targets
+	// in one batch each, for any number.
+	"modules.communication.school_parent_letters.list": {max: 2, exact: true},
 	// database/repositories/users — due announcement reminders read their rows
 	// and targets in two batches, regardless of the number due in one tick.
 	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},

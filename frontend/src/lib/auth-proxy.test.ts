@@ -113,6 +113,49 @@ describe("forwardJsonPost", () => {
     expect((init as RequestInit).body).toBe(JSON.stringify({ email: "a@b" }));
   });
 
+  // Routes acting for a signed-in account pass their portal session's token;
+  // the browser holds none (#5005), so a caller's header never counts there.
+  it("sends the session token instead of the caller's Authorization header", async () => {
+    const fetchMock = mockFetchResponse({ status: 200, body: [] });
+    globalThis.fetch = fetchMock;
+
+    const req = makeRequest({
+      body: {},
+      headers: { authorization: "Bearer caller-supplied" },
+    });
+    await forwardJsonPost(req, "/auth/passkeys/", {
+      method: "GET",
+      hasBody: false,
+      sessionToken: "session-access",
+    });
+
+    const [, init] = (fetchMock as unknown as { mock: { calls: unknown[][] } })
+      .mock.calls[0]!;
+    const headers = (init as RequestInit).headers as Record<string, string>;
+    expect(headers["Authorization"]).toBe("Bearer session-access");
+  });
+
+  it("sends no Authorization header when the session holds no token", async () => {
+    const fetchMock = mockFetchResponse({ status: 401, body: {} });
+    globalThis.fetch = fetchMock;
+
+    const req = makeRequest({
+      body: {},
+      headers: { authorization: "Bearer caller-supplied" },
+    });
+    await forwardJsonPost(req, "/auth/passkeys/", {
+      method: "GET",
+      hasBody: false,
+      sessionToken: null,
+    });
+
+    const [, init] = (fetchMock as unknown as { mock: { calls: unknown[][] } })
+      .mock.calls[0]!;
+    const headers = (init as RequestInit).headers as Record<string, string>;
+    expect(headers["Content-Type"]).toBe("application/json");
+    expect(headers).not.toHaveProperty("Authorization");
+  });
+
   it("returns 204 with no JSON body when the backend returns 204", async () => {
     // The Headers polyfill in vitest/undici doesn't reliably surface
     // multi-value Set-Cookie via getSetCookie(); the mirror loop still

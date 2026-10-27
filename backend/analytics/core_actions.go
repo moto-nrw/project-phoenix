@@ -204,6 +204,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/api/guardians/{id}/phone-numbers/{phoneId}"}:                                     notCaptured,
 	{http.MethodPut, "/api/guardians/{id}/phone-numbers/{phoneId}"}:                                        notCaptured,
 	{http.MethodPost, "/api/guardians/{id}/phone-numbers/{phoneId}/set-primary"}:                           notCaptured,
+	{http.MethodPut, "/api/holiday-weeks/{weekId}/guest-group"}:                                            event("holiday_guests_taken_over"),
 	{http.MethodPost, "/api/import/class-list-entries/import"}:                                             notCaptured,
 	{http.MethodPost, "/api/import/class-list-entries/preview"}:                                            notCaptured,
 	{http.MethodPost, "/api/import/opening-balances/import"}:                                               notCaptured,
@@ -620,6 +621,9 @@ var coreActions = map[RouteKey]CoreAction{
 	// to the Träger as well.
 	{http.MethodPost, "/traeger/billing-runs/{id}/letters"}:         notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/letters/preview"}: notCaptured,
+	// The mail of the letters (#4670, ADR 0123) belongs to the Träger too.
+	{http.MethodPost, "/traeger/billing-runs/{id}/mailings"}:                        notCaptured,
+	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/mailings"}: notCaptured,
 
 	// School portal (Lehrkräfte).
 	{http.MethodPost, "/school/auth/login"}:                                                      session("login_success"),
@@ -648,6 +652,12 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/school/class-day/homework/{schoolClass}/{homeworkId}"}:                    event("homework_changed"),
 	{http.MethodDelete, "/school/class-day/homework/{schoolClass}/{homeworkId}"}:                 event("homework_deleted"),
 	{http.MethodPut, "/school/class-day/morning-attendance/{schoolClass}/{date}"}:                event("morning_attendance_recorded"),
+	{http.MethodPost, "/school/parent-letters/"}:                                                 notCaptured,
+	{http.MethodDelete, "/school/parent-letters/{announcementId}"}:                               notCaptured,
+	{http.MethodPost, "/school/parent-letters/{announcementId}/publish"}:                         event("class_parent_letter_sent"),
+	{http.MethodPost, "/school/parent-letters/{announcementId}/remind"}:                          notCaptured,
+	{http.MethodPost, "/school/parent-letters/{announcementId}/resend-failed"}:                   notCaptured,
+	{http.MethodPost, "/school/parent-letters/{announcementId}/unpublish"}:                       notCaptured,
 	{http.MethodDelete, "/school/notifications/preferences/"}:                                    notCaptured,
 	{http.MethodPut, "/school/notifications/preferences/{type}"}:                                 notCaptured,
 	{http.MethodDelete, "/school/notifications/push/subscriptions"}:                              notCaptured,

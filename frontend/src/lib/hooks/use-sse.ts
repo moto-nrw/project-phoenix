@@ -217,6 +217,10 @@ export function useSSE(
           // useGlobalSSE never runs and a group handed to this user stays
           // invisible until a reload.
           "group_access_changed",
+          // moto schule only (#4792): wakes an open class view after a new
+          // sick note. Named like the others, so it must be registered here
+          // or SchoolRealtimeBridge never sees it.
+          "class_day_changed",
           // Notification abstraction (#1624): rendered directly as a toast by
           // NotificationBridge via useGlobalSSE — not a cache trigger.
           "notification",

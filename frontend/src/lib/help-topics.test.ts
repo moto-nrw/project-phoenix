@@ -336,7 +336,8 @@ describe("getParentHelpTopicForPath", () => {
     // („Nutzungsanalyse erlauben oder ablehnen“, alle Rollen).
     // 46 seit #4781 („An einer Umfrage im Team teilnehmen“).
     // 47 seit #4804 („Hinweise zu Pausen und Höchstarbeitszeit“).
-    expect(caregiverTopics).toHaveLength(47);
+    // 48 seit #4666 („Feriengäste betreuen“, Betreuung und Leitung).
+    expect(caregiverTopics).toHaveLength(48);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -515,7 +516,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            47 -
+            48 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -562,7 +563,9 @@ describe("getParentHelpTopicForPath", () => {
     // 92 seit #4781: Umfrage mit Fragebogen und das geteilte Teilnehmen.
     // 93 seit #4804 („Hinweise zu Pausen und Höchstarbeitszeit“).
     // 94 seit #4665: Die Kinder einer Ferienwoche ansehen.
-    expect(leadTopics).toHaveLength(94);
+    // 96 seit #4666: Die Feriengruppe wählen und das geteilte Feriengäste
+    // betreuen.
+    expect(leadTopics).toHaveLength(96);
     expect(
       leadTopics.every(
         (topic) =>
@@ -624,8 +627,9 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    // 23 seit #4795: der Hinweis für heute an die OGS (22 seit #4901).
-    expect(teacherTopics).toHaveLength(23);
+    // 24 seit #4800: der Elternbrief an die eigene Klasse (23 seit #4795,
+    // 22 seit #4901).
+    expect(teacherTopics).toHaveLength(24);
     expect([...visible]).toEqual(
       expect.arrayContaining([
         HELP_TOPICS.teacherHomework,
@@ -634,6 +638,7 @@ describe("getParentHelpTopicForPath", () => {
       ]),
     );
     expect(visible.has(HELP_TOPICS.teacherCalendar)).toBe(true);
+    expect(visible.has(HELP_TOPICS.teacherParentLetters)).toBe(true);
     expect(
       teacherTopics.every(
         (topic) =>
@@ -874,6 +879,8 @@ describe("getSchoolHelpTopicForPath", () => {
     ["/school/tagesinformationen", HELP_TOPICS.teacherNotices],
     ["/kalender", HELP_TOPICS.teacherCalendar],
     ["/school/kalender", HELP_TOPICS.teacherCalendar],
+    ["/elternbriefe", HELP_TOPICS.teacherParentLetters],
+    ["/school/elternbriefe/7", HELP_TOPICS.teacherParentLetters],
     ["/einstellungen", HELP_TOPICS.teacherSettings],
     ["/school/einstellungen", HELP_TOPICS.teacherSettings],
   ])("maps %s to %s", (pathname, expectedTopic) => {

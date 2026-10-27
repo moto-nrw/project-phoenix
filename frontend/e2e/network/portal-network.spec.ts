@@ -344,8 +344,13 @@ for (const analytics of [false, true]) {
                 signal: AbortSignal.timeout(5000),
               })
             ).json();
+            // The browser session carries no token (#5005): a live session
+            // has an account and no error, and no token field at all.
             return (
-              Boolean(session.user?.id && session.user?.token) &&
+              Boolean(session.user?.id) &&
+              session.error === undefined &&
+              !("token" in session.user) &&
+              !("refreshToken" in session.user) &&
               (session.user.scope ?? "") ===
                 (portal === "ogs"
                   ? ""

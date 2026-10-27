@@ -8,6 +8,7 @@ import React, {
   type ReactNode,
 } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { usePathname } from "next/navigation";
 import { createLogger } from "~/lib/logger";
 
@@ -49,7 +50,7 @@ export function UserContextProvider({ children }: UserContextProviderProps) {
   }, [pathname]);
 
   const shouldProvideData =
-    status === "authenticated" && !!session?.user?.token && !isAuthPage;
+    status === "authenticated" && hasSessionAccess(session) && !isAuthPage;
 
   const mappedGroups = useMemo<EducationalGroup[]>(() => {
     if (!shouldProvideData) {

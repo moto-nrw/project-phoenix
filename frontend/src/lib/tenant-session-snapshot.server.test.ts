@@ -45,10 +45,11 @@ beforeEach(() => {
 });
 
 describe("readTenantSessionSnapshot", () => {
-  it("decodes the configured cookie without exposing its refresh token", async () => {
+  it("decodes the configured cookie and keeps both tokens out of the session", async () => {
     mockGetToken.mockResolvedValue(validToken());
 
-    const session = await readTenantSessionSnapshot();
+    const snapshot = await readTenantSessionSnapshot();
+    const session = snapshot?.session;
 
     expect(mockGetToken).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -63,11 +64,15 @@ describe("readTenantSessionSnapshot", () => {
     expect(requestHeaders.get("cookie")).toContain("encrypted");
     expect(session?.user).toMatchObject({
       id: "7",
-      token: "backend-access",
       tenantId: 3,
       roles: ["admin"],
     });
-    expect(session?.user.refreshToken).toBeUndefined();
+    // The session is serialized into the HTML and RSC payload (#5005); only
+    // the server-side shell preload receives the access token.
+    const serialized = JSON.stringify(session);
+    expect(serialized).not.toContain("backend-access");
+    expect(serialized).not.toContain("must-not-leave-server-cookie");
+    expect(snapshot?.accessToken).toBe("backend-access");
   });
 
   it("defers to the response-aware route inside the proactive refresh window", async () => {

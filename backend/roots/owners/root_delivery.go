@@ -19,7 +19,10 @@ import (
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -46,7 +49,7 @@ func BuildDeliveryNotifications(
 	db transactionruntime.Database, unit rootUnitOfWork, env RootEnvironment, pushVAPID deliveryCompose.VAPIDConfig, hub *realtime.Hub, module deliveryModule.Capability,
 	settings settingsCompose.BatchSettingsService, consent communication.NotificationConsentCapability,
 	identity identityaccess.Owner, people PeopleRows, structure StructureRows, workTime workforce.Capability,
-	messaging parentStore.MessagingRepositories,
+	messaging parentStore.MessagingRepositories, assignments schoolmembership.TeachingAssignmentQuery,
 ) (DeliveryNotifications, error) {
 	logger := env.Logger
 	if !pushVAPID.Configured() {
@@ -69,7 +72,11 @@ func BuildDeliveryNotifications(
 	recipients := deliveryCompose.NewStaffRecipientResolver(preferences, deliveryStudentGroups{students: people.Students},
 		structure.Groups, people.Staff, identity, settings,
 		deliveryOnDutyStaff{presence: workTime})
-	absences, err := deliveryCompose.NewTenantAbsenceNotifier(unit, notifier, recipients, db.Pool(), logger.With("producer", "absence_notifications"))
+	schoolClasses := deliveryContract.SchoolClassRecipients{
+		Reach:   deliverySchoolClassReach{students: people.Students, assignments: assignments, staff: people.Staff},
+		Consent: preferences, Subscribers: consent, Accounts: identity, Permissions: securityruntime.HasPermission,
+	}
+	absences, err := deliveryCompose.NewTenantAbsenceNotifier(unit, notifier, recipients, db.Pool(), logger.With("producer", "absence_notifications"), schoolClasses)
 	if err != nil {
 		return DeliveryNotifications{}, err
 	}
@@ -102,6 +109,8 @@ func BuildDeliveryWorker(
 		calendarService.EmailKindAppointmentUpdated:   appointments,
 		calendarService.EmailKindAppointmentCancelled: appointments,
 		calendarService.EmailKindAppointmentReminder:  appointments,
+		// The confirmation letter of a Träger, mailed with its PDF (#4670).
+		parentbilling.MailKindBillingLetter: parentBillingLetterMailRenderer(parentBillingCompose.NewLetterMailRenderer(), defaultFrom),
 	}
 	enrollmentKinds := []string{}
 	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom) {
@@ -113,7 +122,7 @@ func BuildDeliveryWorker(
 		calendarService.EmailKindAppointmentPublished, calendarService.EmailKindAppointmentUpdated,
 		calendarService.EmailKindAppointmentCancelled, calendarService.EmailKindAppointmentReminder,
 		identityaccess.MailKindGuardianInvitation, identityaccess.MailKindGuardianWelcome,
-	}, enrollmentKinds, []string{TransactionalMailKind, identityaccess.MailKindStaffWelcome})
+	}, enrollmentKinds, []string{TransactionalMailKind, identityaccess.MailKindStaffWelcome, parentbilling.MailKindBillingLetter})
 	if err != nil {
 		return nil, err
 	}

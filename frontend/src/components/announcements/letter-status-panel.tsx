@@ -29,6 +29,7 @@ import {
   fetchLetterStatus,
   remindUnanswered,
   resendFailedEmails,
+  withApiBase,
 } from "~/lib/parent-announcements-api";
 import type {
   AnnouncementEmailAudience,
@@ -99,8 +100,11 @@ export function LetterStatusPanel({
   announcementId,
   canAct,
   emailAudience,
+  apiBase,
 }: {
   readonly announcementId: string;
+  /** The routes of the portal that shows the letter; default the OGS's. */
+  readonly apiBase?: string;
   /** Reminders and resends are only offered while the letter is live. */
   readonly canAct: boolean;
   readonly emailAudience: AnnouncementEmailAudience;
@@ -122,7 +126,7 @@ export function LetterStatusPanel({
 
   const load = useCallback(async () => {
     try {
-      setStatus(await fetchLetterStatus(announcementId));
+      setStatus(await withApiBase(fetchLetterStatus, announcementId, apiBase));
       setLoadFailed(false);
       clearLoadError();
     } catch (error) {
@@ -135,7 +139,7 @@ export function LetterStatusPanel({
         retry: () => latestLoadRef.current(),
       });
     }
-  }, [announcementId, showLoadError, clearLoadError]);
+  }, [announcementId, apiBase, showLoadError, clearLoadError]);
   useLayoutEffect(() => {
     latestLoadRef.current = () => void load();
   });
@@ -158,8 +162,8 @@ export function LetterStatusPanel({
     try {
       const count =
         action === "remind"
-          ? await remindUnanswered(announcementId)
-          : await resendFailedEmails(announcementId);
+          ? await withApiBase(remindUnanswered, announcementId, apiBase)
+          : await withApiBase(resendFailedEmails, announcementId, apiBase);
       toastSuccess(
         action === "remind"
           ? count === 0

@@ -72,14 +72,15 @@ describe("student-companion-api", () => {
   });
 
   describe("auth headers", () => {
-    it("sends a bearer token when the session has one", async () => {
+    // The route reads the session cookie; the browser holds no token (#5005).
+    it("sends no bearer token for a signed-in session", async () => {
       fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: [] }));
 
       await fetchStudentCompanions("42");
 
       const headers = (fetchSpy.mock.calls[0]![1] as RequestInit)
         .headers as Record<string, string>;
-      expect(headers.Authorization).toBe("Bearer test-token");
+      expect(headers.Authorization).toBeUndefined();
       expect(headers["Content-Type"]).toBe("application/json");
     });
 

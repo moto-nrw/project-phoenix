@@ -6,13 +6,16 @@
  * callbacks, and NextAuth module augmentation.
  */
 
+import "server-only";
 import { validateSessionToken } from "./token-validation";
 import type { JwtPayload } from "./jwt-payload";
-import type { DefaultSession, NextAuthConfig, User } from "next-auth";
+import type { DefaultSession, NextAuthConfig, Session, User } from "next-auth";
 import { createHmac, randomBytes } from "node:crypto";
 import { env } from "~/env";
-import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
-import { canonicalForwardedFor } from "~/lib/client-headers.server";
+import {
+  canonicalForwardedFor,
+  incomingClientForwardHeaders,
+} from "~/lib/client-headers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -33,11 +36,16 @@ export type { JwtPayload } from "./jwt-payload";
 // ---------------------------------------------------------------------------
 
 declare module "next-auth" {
+  // The browser's view of a session (#5005): useSession(), getSession(),
+  // the session routes and the layout snapshots. It carries no access or
+  // refresh token; server code reads them through ServerSession. The user
+  // lists DefaultSession's fields itself, so no User field reaches it.
   interface Session extends DefaultSession {
     user: {
       id: string;
-      token?: string;
-      refreshToken?: string;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
       roles?: string[];
       roleIsSystem?: boolean[];
       permissions?: string[];
@@ -53,13 +61,13 @@ declare module "next-auth" {
       isPreview?: boolean;
       previewTargetName?: string;
       previewTargetAccountId?: string;
-    } & DefaultSession["user"];
+    };
     error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
 
+  // Importable from client code too, so it carries no token (#5005); the
+  // credentials providers return AuthUser.
   interface User {
-    token?: string;
-    refreshToken?: string;
     roles?: string[];
     roleIsSystem?: boolean[];
     permissions?: string[];
@@ -69,7 +77,11 @@ declare module "next-auth" {
     orgId?: number;
     scope?: string;
   }
+}
 
+// The encrypted session cookie's content. next-auth/jwt is server-only; the
+// browser token ratchet refuses its import outside server code (#5005).
+declare module "next-auth/jwt" {
   interface JWT {
     id?: string;
     token?: string;
@@ -99,6 +111,19 @@ declare module "next-auth" {
     previewAdminEmail?: string;
   }
 }
+
+/**
+ * The session as server code sees it: what the session callback returns,
+ * including the access and refresh token. Only a portal's auth() and its
+ * route wrappers hand it out; the session routes strip it to Session before
+ * it reaches the browser (browser-session.ts, #5005).
+ */
+export type ServerSession = Session & {
+  user: Session["user"] & { token?: string; refreshToken?: string };
+};
+
+/** What the credentials providers return: the user with its token pair. */
+export type AuthUser = User & { token?: string; refreshToken?: string };
 
 // ---------------------------------------------------------------------------
 // Utility functions
@@ -196,7 +221,7 @@ export function buildAuthUser(
   refreshToken: string,
   email: string,
   scope?: string,
-): User {
+): AuthUser {
   const roles =
     payload.roles && Array.isArray(payload.roles) ? payload.roles : [];
   const permissions =
@@ -558,7 +583,7 @@ export async function performLogin(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(await incomingAnalyticsSessionHeaders()),
+        ...(await incomingClientForwardHeaders()),
       },
       body: JSON.stringify(body),
     });
@@ -1276,13 +1301,14 @@ export const sharedJwtCallback: NonNullable<
     });
   }
 
-  // Initial sign in
+  // Initial sign in. The credentials providers return AuthUser.
   if (user) {
+    const authUser: AuthUser = user;
     token.id = user.id;
     token.name = user.name;
     token.email = user.email;
-    token.token = user.token ?? "";
-    token.refreshToken = user.refreshToken ?? "";
+    token.token = authUser.token ?? "";
+    token.refreshToken = authUser.refreshToken ?? "";
     token.roles = user.roles;
     token.roleIsSystem = user.roleIsSystem;
     token.permissions = user.permissions;
@@ -1291,7 +1317,9 @@ export const sharedJwtCallback: NonNullable<
     token.tenantId = user.tenantId;
     token.orgId = user.orgId;
     token.scope = user.scope;
-    const accessClaims = user.token ? parseJwtPayload(user.token) : null;
+    const accessClaims = authUser.token
+      ? parseJwtPayload(authUser.token)
+      : null;
     token.tokenExpiry =
       typeof accessClaims?.exp === "number"
         ? accessClaims.exp * 1000
@@ -1568,9 +1596,15 @@ export const sharedJwtCallback: NonNullable<
   return token;
 };
 
+/**
+ * Builds the ServerSession. The browser never receives this object as is:
+ * the session routes and layout snapshots map it to Session, which carries
+ * no token (#5005). A session without an access token always carries an
+ * error, so the browser can tell a dead session apart without the token.
+ */
 export const sharedSessionCallback: NonNullable<
   NonNullable<NextAuthConfig["callbacks"]>["session"]
-> = ({ session, token }) => {
+> = ({ session, token }): ServerSession => {
   if (
     token.error === "RefreshTokenExpired" ||
     token.error === "RefreshTokenError" ||
@@ -1591,7 +1625,7 @@ export const sharedSessionCallback: NonNullable<
         isAdmin: false,
         scope: token.scope as string | undefined,
       },
-      error: token.error,
+      error: (token.error as Session["error"]) ?? "RefreshTokenError",
     };
   }
 

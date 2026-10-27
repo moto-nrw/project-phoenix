@@ -1,0 +1,22 @@
+{{define "billing-letter.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>Ihr Bestätigungsschreiben</h1>
+
+    <p>Guten Tag{{if .GuardianName}} {{.GuardianName}}{{end}},</p>
+
+    <p>im Anhang finden Sie das Schreiben zu Ihrer Anmeldung{{if .PeriodName}} für <strong>{{.PeriodName}}</strong>{{end}}.</p>
+
+    <p>Das Schreiben bestätigt die Anmeldung. Es ist auch Ihre Rechnung{{if .Number}} mit der Nummer <strong>{{.Number}}</strong>{{end}}.</p>
+
+    <div class="highlight-box">
+        <p style="margin: 0; font-size: 14px;"><strong>Was müssen Sie tun?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Öffnen Sie das Schreiben im Anhang. Dort steht, ob und bis wann Sie etwas bezahlen müssen. Bitte geben Sie bei der Überweisung die Rechnungsnummer an.</p>
+    </div>
+
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}. Die Kontaktdaten stehen im Schreiben.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

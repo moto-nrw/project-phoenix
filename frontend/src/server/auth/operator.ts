@@ -7,6 +7,7 @@
  * Import from "~/server/auth/operator" in operator-specific code.
  */
 
+import "server-only";
 import NextAuth from "next-auth";
 
 import { operatorAuthConfig } from "./operator-config";

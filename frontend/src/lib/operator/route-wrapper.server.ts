@@ -8,6 +8,7 @@ import {
   isApiResponseError,
 } from "../api-response-error.server";
 import { forwardBackendResponse } from "../backend-proxy-response.server";
+import { incomingClientForwardHeaders } from "../client-headers.server";
 import { withPrivateNoStore } from "../private-no-store";
 import { recordBackendProxyMetric } from "../backend-proxy-metrics";
 import { sanitizeEndpoint } from "../log-sanitize";
@@ -78,6 +79,7 @@ async function operatorServerFetch<T>(
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(await incomingClientForwardHeaders()),
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
     });

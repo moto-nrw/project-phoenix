@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { CollectionGrid } from "~/components/ui/collection-grid";
 import { Button } from "~/components/ui/button";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -89,13 +90,9 @@ function ActivitiesPageContent() {
 
   // The session callback can keep status "authenticated" while clearing the
   // token and setting session.error (expired refresh token). useSWRAuth never
-  // starts without a token, so redirect instead of showing the skeleton
+  // starts for such a session, so redirect instead of showing the skeleton
   // forever — same pattern as the dashboard.
-  if (
-    status === "authenticated" &&
-    session &&
-    (session.error === "RefreshTokenExpired" || !session.user?.token)
-  ) {
+  if (status === "authenticated" && session && !hasSessionAccess(session)) {
     logger.info("invalid session, redirecting to login");
     redirect(tenantPath("/"));
   }

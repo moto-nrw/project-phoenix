@@ -67,6 +67,7 @@ export const HELP_TOPICS = {
   studentSearch: "kindersuche",
   editStudent: "kind-angaben-aendern",
   webAttendance: "kind-an-und-abmelden",
+  holidayGuests: "feriengaeste-betreuen",
   changeLocation: "aufenthaltsort-aendern",
   dayLog: "betreuungstag-pruefen",
   ownGroups: "meine-gruppen",
@@ -158,6 +159,7 @@ export const HELP_TOPICS = {
   leadAbsenceReport: "abwesenheiten-auswerten",
   leadStatistics: "statistik-oeffnen",
   leadHolidayWeeks: "ferienwochen-teilnehmer-ansehen",
+  leadHolidayGuestGroup: "feriengruppe-waehlen",
   leadExports: "liste-exportieren",
   leadPayroll: "abrechnung-vorbereiten",
   leadParentVisibility: "festlegen-was-eltern-sehen",
@@ -236,6 +238,7 @@ export const HELP_TOPICS = {
   teacherMessages: "als-lehrkraft-nachrichten-lesen",
   teacherNotices: "als-lehrkraft-tagesinformationen-lesen",
   teacherCalendar: "als-lehrkraft-den-kalender-nutzen",
+  teacherParentLetters: "einen-elternbrief-an-meine-klasse-schreiben",
   teacherLoginProblem: "anmeldung-bei-moto-schule-klappt-nicht",
   teacherNoClasses: "mir-wird-keine-klasse-angezeigt",
   teacherFeatureMissing: "als-lehrkraft-fehlt-mir-ein-bereich",
@@ -377,7 +380,10 @@ const SCHOOL_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
 
 const SCHOOL_PREFIX_HELP_TOPICS: ReadonlyArray<
   readonly [prefix: string, topic: HelpTopicId]
-> = [["/nachrichten", HELP_TOPICS.teacherMessages]];
+> = [
+  ["/nachrichten", HELP_TOPICS.teacherMessages],
+  ["/elternbriefe", HELP_TOPICS.teacherParentLetters],
+];
 
 /** Finds the help article for a page of the parents portal. */
 export function getParentHelpTopicForPath(

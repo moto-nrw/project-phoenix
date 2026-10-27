@@ -240,6 +240,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		// Einrichtungs-Assistent als erledigt erkennt (#2832).
 		seedSchoolSetupStep{},
 		seedStaffOnboardingStep{},
+		// Nach dem letzten Schritt, der Beschäftigte anlegt: Die Abrechnung
+		// zählt alle, auch Besuch, Admin und Externe (#5032).
+		seedPayrollNumbersStep{},
 		verifyProfileStep{definition: seeder.definition},
 	)
 	if seeder.options.OnlyProfile == "" {

@@ -187,17 +187,16 @@ export function mapOgsGroupLiveResponse(
  * the returned groupId.
  */
 export async function fetchOgsGroupLive(
-  token: string | undefined,
   groupId: string | null,
 ): Promise<OgsLiveViewData> {
   const load = async (withGroupId: string | null) => {
     const query = withGroupId
       ? `?group_id=${encodeURIComponent(withGroupId)}`
       : "";
+    // The route reads the session cookie; the browser holds no token (#5005).
     return transportFetch(`/api/ogs-group-live${query}`, {
       credentials: "include",
       headers: {
-        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
     });

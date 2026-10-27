@@ -20,6 +20,7 @@ import {
   describeReminder,
   kindOf,
   KIND_PARAM,
+  classLetterReadOnlyNote,
 } from "~/components/announcements/announcement-meta";
 import type { AnnouncementKind } from "~/components/announcements/announcement-meta";
 import { useToast } from "~/contexts/ToastContext";
@@ -187,6 +188,7 @@ function AnnouncementDetailPageContent() {
   });
 
   const statusLine = [
+    classLetterReadOnlyNote(announcement) ?? null,
     announcement.published_at
       ? `Veröffentlicht ${formatDate(announcement.published_at)}`
       : "Noch nicht veröffentlicht",

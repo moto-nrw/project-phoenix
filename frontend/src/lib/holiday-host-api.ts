@@ -16,6 +16,10 @@ export interface HostedHolidayWeek {
   readonly startsOn: string;
   readonly endsOn: string;
   readonly participants: number;
+  /** Gruppe der Feriengäste dieser Woche (#4666), `null` vor der Wahl. */
+  readonly guestGroupId: string | null;
+  /** Feriengäste in dieser Gruppe, deren Zugriff nicht vorzeitig endete. */
+  readonly guests: number;
 }
 
 export interface HolidayTimeModelCount {
@@ -57,6 +61,8 @@ interface BackendWeek {
   starts_on: string;
   ends_on: string;
   participants: number;
+  guest_group_id?: number | string | null;
+  guests?: number;
 }
 
 interface BackendParticipantList {
@@ -97,6 +103,8 @@ function mapWeek(week: BackendWeek): HostedHolidayWeek {
     startsOn: week.starts_on,
     endsOn: week.ends_on,
     participants: week.participants,
+    guestGroupId: optionalId(week.guest_group_id ?? null),
+    guests: week.guests ?? 0,
   };
 }
 
@@ -186,4 +194,100 @@ export async function downloadHolidayParticipants(
     blob,
     filenameFromDisposition(response) ?? `teilnehmerliste.${format}`,
   );
+}
+
+// ─── Feriengäste (#4666) ────────────────────────────────────────────────────
+
+export interface HolidayGuestContact {
+  readonly name: string;
+  readonly phone: string;
+  readonly relationship: string;
+}
+
+/**
+ * Was die ausrichtende OGS von einem Feriengast über den Namen hinaus sieht:
+ * Betreuung, Notfall und Abholung.
+ */
+export interface HolidayGuestSheet {
+  readonly studentId: string;
+  /** Kalendertage der Ferienwoche als „YYYY-MM-DD“. */
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly timeModelName: string;
+  readonly timeModelStartsAt: string;
+  readonly timeModelEndsAt: string;
+  /** `null` bei einem Kind ohne Schule des Trägers. */
+  readonly homeSchoolId: string | null;
+  readonly guestSchoolName: string;
+  readonly emergencyContacts: HolidayGuestContact[];
+  readonly pickupContacts: HolidayGuestContact[];
+  /** Nach dem letzten Tag der Woche: nur noch sieben Tage zum Nachlesen. */
+  readonly readOnly: boolean;
+}
+
+interface BackendGuestSheet {
+  student_id: number | string;
+  starts_on: string;
+  ends_on: string;
+  time_model_name: string;
+  time_model_starts_at: string;
+  time_model_ends_at: string;
+  home_school_id: number | string | null;
+  guest_school_name: string;
+  emergency_contacts: HolidayGuestContact[] | null;
+  pickup_contacts: HolidayGuestContact[] | null;
+  read_only: boolean;
+}
+
+/** Die Klasse, unter der ein Feriengast in der ausrichtenden OGS steht. */
+export const HOLIDAY_GUEST_SCHOOL_CLASS = "Feriengast";
+
+/**
+ * Wählt die Gruppe für die Feriengäste einer Woche. Das Backend übernimmt
+ * die bestätigten Gäste sofort und gibt ihre Zahl zurück.
+ */
+export async function assignHolidayGuestGroup(
+  weekId: string,
+  groupId: string,
+): Promise<number> {
+  const response = await transportFetch(
+    `${BASE}/${encodeURIComponent(weekId)}/guest-group`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ group_id: groupId }),
+    },
+  );
+  if (!response.ok) {
+    throw apiErrorFromText(
+      "Die Feriengäste konnten nicht übernommen werden",
+      response.status,
+      await response.text(),
+    );
+  }
+  const body = (await response.json()) as { data?: { guests?: number } };
+  return body.data?.guests ?? 0;
+}
+
+/** Betreuung, Notfall und Abholung eines Feriengasts. Jeder Abruf steht im Zugriffsprotokoll. */
+export async function fetchHolidayGuestSheet(
+  studentId: string,
+): Promise<HolidayGuestSheet> {
+  const sheet = await readData<BackendGuestSheet>(
+    `/api/holiday-guests/${encodeURIComponent(studentId)}`,
+    "Die Angaben zum Feriengast konnten nicht geladen werden",
+  );
+  return {
+    studentId: String(sheet.student_id),
+    startsOn: sheet.starts_on,
+    endsOn: sheet.ends_on,
+    timeModelName: sheet.time_model_name,
+    timeModelStartsAt: sheet.time_model_starts_at,
+    timeModelEndsAt: sheet.time_model_ends_at,
+    homeSchoolId: optionalId(sheet.home_school_id),
+    guestSchoolName: sheet.guest_school_name,
+    emergencyContacts: sheet.emergency_contacts ?? [],
+    pickupContacts: sheet.pickup_contacts ?? [],
+    readOnly: sheet.read_only,
+  };
 }

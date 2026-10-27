@@ -6,7 +6,7 @@ import {
   createPutHandler,
   createDeleteHandler,
 } from "./route-wrapper.server";
-import { mockSessionData } from "~/test/mocks/next-auth";
+import { mockServerSessionData } from "~/test/mocks/next-auth";
 import { ApiResponseError } from "./api-response-error.server";
 import {
   type ExtendedSession,
@@ -107,7 +107,7 @@ interface ApiErrorResponse {
 /**
  * Default authenticated session mock
  */
-const defaultSession = mockSessionData() as ExtendedSession;
+const defaultSession = mockServerSessionData() as ExtendedSession;
 
 // ============================================================================
 // Tests: createGetHandler

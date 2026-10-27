@@ -1,11 +1,15 @@
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import { loadShellBootstrap } from "~/lib/shell-bootstrap.server";
 import type { ShellBootstrap } from "~/lib/shell-seed";
-import { readTenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server";
+import {
+  readTenantSessionSnapshot,
+  type TenantSessionSnapshot,
+} from "~/lib/tenant-session-snapshot.server";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import {
   bookedModuleFields,
@@ -20,6 +24,7 @@ import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { isValidTenantSlug } from "~/lib/tenant-slug";
 import { env } from "~/env";
 import { tenantResolutionRateLimitedError } from "~/sentry.shared";
+import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
 
 interface TenantResolveResponse {
   tenant_id: number;
@@ -65,10 +70,10 @@ interface TenantResolveResponse {
 
 // Next's data cache keeps only 200 responses, so a 404 for an unknown slug
 // was never cached: every scanner request for a made-up subdomain reached the
-// backend. Its anonymous rate limit counts all of them under this server's IP,
-// so a scan burst answered real tenant lookups with 429 (FRONTEND-1B). Unknown
-// slugs are remembered briefly; a school created meanwhile resolves after at
-// most this TTL.
+// backend. Its anonymous rate limit counted all of them under this server's
+// IP, so a scan burst answered real tenant lookups with 429 (FRONTEND-1B); the
+// lookup now forwards the visitor's IP as well. Unknown slugs are remembered
+// briefly; a school created meanwhile resolves after at most this TTL.
 const UNKNOWN_TENANT_TTL_MS = 60_000;
 const UNKNOWN_TENANT_LIMIT = 1_000;
 const unknownTenantUntil = new Map<string, number>();
@@ -89,6 +94,42 @@ function rememberUnknownTenant(slug: string): void {
   unknownTenantUntil.set(slug, Date.now() + UNKNOWN_TENANT_TTL_MS);
 }
 
+/** A non-200 answer of the tenant lookup; never cached. */
+class TenantResolveStatusError extends Error {
+  constructor(readonly status: number) {
+    super(`Tenant resolution failed with HTTP ${status}`);
+  }
+}
+
+/**
+ * The lookup is cached per slug for all visitors and invalidated by
+ * revalidateTag(`tenant-${slug}`). Its key holds the slug only, so the
+ * client headers travel in the closure, not in the key: a miss asks the
+ * backend under the IP of the visitor who caused it, a hit asks nobody.
+ * fetch() itself cannot do this, because Next keys its data cache by the
+ * request headers, which would split the cache per client IP. Only a 200 is
+ * stored; any other status throws and stays uncached.
+ */
+function resolveTenantCached(
+  slug: string,
+  forwardHeaders: Record<string, string>,
+): Promise<TenantResolveResponse> {
+  return unstable_cache(
+    async () => {
+      const { getServerApiUrl } = await import("~/lib/server-api-url");
+      const res = await fetch(
+        `${getServerApiUrl()}/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`,
+        { headers: forwardHeaders, cache: "no-store" },
+      );
+      if (!res.ok) throw new TenantResolveStatusError(res.status);
+      const json = (await res.json()) as { data: TenantResolveResponse };
+      return json.data;
+    },
+    ["tenant-resolve", slug],
+    { revalidate: 300, tags: [`tenant-${slug}`] },
+  )();
+}
+
 /**
  * Resolve tenant metadata on the server side.
  * Uses the backend API to validate the tenant slug.
@@ -96,30 +137,28 @@ function rememberUnknownTenant(slug: string): void {
 async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
   if (isRememberedUnknownTenant(slug)) return null;
 
-  const { getServerApiUrl } = await import("~/lib/server-api-url");
-  const res = await fetch(
-    `${getServerApiUrl()}/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`,
-    { next: { revalidate: 300, tags: [`tenant-${slug}`] } },
-  );
-
-  if (res.status === 404) {
-    rememberUnknownTenant(slug);
-    return null;
-  }
-  if (res.status === 429) {
-    const error = new Error("Tenant resolution was rate limited (HTTP 429)");
-    error.name = tenantResolutionRateLimitedError;
+  let data: TenantResolveResponse;
+  try {
+    data = await resolveTenantCached(
+      slug,
+      await incomingClientForwardHeaders(),
+    );
+  } catch (error) {
+    if (!(error instanceof TenantResolveStatusError)) throw error;
+    if (error.status === 404) {
+      rememberUnknownTenant(slug);
+      return null;
+    }
+    if (error.status === 429) {
+      const rateLimited = new Error(
+        "Tenant resolution was rate limited (HTTP 429)",
+      );
+      rateLimited.name = tenantResolutionRateLimitedError;
+      throw rateLimited;
+    }
     throw error;
   }
-  if (!res.ok) {
-    throw new Error(`Tenant resolution failed with HTTP ${res.status}`);
-  }
 
-  const json = (await res.json()) as {
-    status: string;
-    data: TenantResolveResponse;
-  };
-  const data = json.data;
   return {
     tenantId: data.tenant_id,
     slug: data.slug,
@@ -200,22 +239,24 @@ function isTenantSubdomainHost(currentHost: string | null, subdomain: string) {
  * ends in a sign-out; both fetch nothing here and keep the client path.
  */
 async function loadShell(
-  session: Session | null,
+  snapshot: TenantSessionSnapshot | null,
   tenant: TenantInfo,
 ): Promise<ShellBootstrap | null> {
   // Only a tenant-staff scope ("" or "org") may read these endpoints; every
   // other scope is rejected by TenantMiddleware, so asking would produce a
   // burst of guaranteed 401s.
+  const session: Session | undefined = snapshot?.session;
   const scope = session?.user?.scope ?? "";
   if (
-    !session?.user?.token ||
+    !snapshot?.accessToken ||
+    !session ||
     session.error ||
     (scope !== "" && scope !== "org") ||
     session.user.tenantId !== tenant.tenantId
   ) {
     return null;
   }
-  return loadShellBootstrap(session, tenant);
+  return loadShellBootstrap(session, tenant, snapshot.accessToken);
 }
 
 async function redirectToTenantSelection(): Promise<never> {
@@ -274,10 +315,11 @@ export default async function TenantLayout({
 
   // Read-only JWT decode: auth() may rotate a refresh token, but a Server
   // Component cannot persist the replacement cookie (#1938). The snapshot
-  // safely hydrates SessionProvider; later polls and refreshes use its
-  // response-aware route handler.
-  const session = await readTenantSessionSnapshot();
-  const shell = await loadShell(session, tenant);
+  // safely hydrates SessionProvider without any token (#5005); later polls
+  // and refreshes use its response-aware route handler.
+  const snapshot = await readTenantSessionSnapshot();
+  const session = snapshot?.session ?? null;
+  const shell = await loadShell(snapshot, tenant);
 
   return (
     <TenantProviders

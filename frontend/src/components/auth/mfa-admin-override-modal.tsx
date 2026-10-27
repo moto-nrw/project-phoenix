@@ -49,7 +49,6 @@ type View = { kind: "form" } | { kind: "reset-done" };
 interface Props {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  readonly bearerToken: string;
   readonly accountId: string;
   readonly accountLabel: string;
   /**
@@ -83,7 +82,6 @@ function overrideLabel(override: MFAAdminOverride): string {
 export function MFAAdminOverrideModal({
   isOpen,
   onClose,
-  bearerToken,
   accountId,
   accountLabel,
   scope = "tenant",
@@ -176,7 +174,7 @@ export function MFAAdminOverrideModal({
     if (scope !== "tenant") return;
     clearStateError();
     try {
-      const state = await adminGetMFAState(bearerToken, accountId);
+      const state = await adminGetMFAState(accountId);
       setOverride(state.override);
       setSelectedOverride(state.override);
       setEnrolled(state.enrolled);
@@ -194,7 +192,7 @@ export function MFAAdminOverrideModal({
         retry: () => latestLoadRef.current(),
       });
     }
-  }, [bearerToken, accountId, scope, clearStateError, showStateError]);
+  }, [accountId, scope, clearStateError, showStateError]);
 
   // Operator-only: the account-wide override row + enrollment flag.
   // This is the operator modal's single source of state (it renders no
@@ -204,10 +202,7 @@ export function MFAAdminOverrideModal({
     if (scope !== "operator") return;
     clearStateError();
     try {
-      const state = await operatorAdminGetGlobalMFAOverride(
-        bearerToken,
-        accountId,
-      );
+      const state = await operatorAdminGetGlobalMFAOverride(accountId);
       setGlobalOverride(state.override);
       setSelectedGlobalOverride(state.override);
       setEnrolled(state.enrolled);
@@ -223,7 +218,7 @@ export function MFAAdminOverrideModal({
         retry: () => latestLoadRef.current(),
       });
     }
-  }, [bearerToken, accountId, scope, clearStateError, showStateError]);
+  }, [accountId, scope, clearStateError, showStateError]);
 
   useEffect(() => {
     if (isOpen) {
@@ -261,19 +256,14 @@ export function MFAAdminOverrideModal({
         if (!organizationId) {
           throw new Error("organizationId is required for traeger scope");
         }
-        await operatorAdminResetTraegerMFA(
-          bearerToken,
-          organizationId,
-          accountId,
-          trimmed,
-        );
+        await operatorAdminResetTraegerMFA(organizationId, accountId, trimmed);
       } else if (scope === "operator") {
         if (!schoolId) {
           throw new Error("schoolId is required for operator scope");
         }
-        await operatorAdminResetMFA(bearerToken, schoolId, accountId, trimmed);
+        await operatorAdminResetMFA(schoolId, accountId, trimmed);
       } else {
-        await adminResetMFA(bearerToken, accountId, trimmed);
+        await adminResetMFA(accountId, trimmed);
       }
       toast.success(`Die 2FA für ${accountLabel} ist zurückgesetzt.`);
       setView({ kind: "reset-done" });
@@ -303,7 +293,6 @@ export function MFAAdminOverrideModal({
     globalErrors.clear();
     try {
       await operatorAdminSetGlobalMFAOverride(
-        bearerToken,
         accountId,
         selectedGlobalOverride,
         trimmed,
@@ -353,19 +342,13 @@ export function MFAAdminOverrideModal({
           throw new Error("schoolId is required for operator scope");
         }
         await operatorAdminSetMFAOverride(
-          bearerToken,
           schoolId,
           accountId,
           selectedOverride,
           trimmed,
         );
       } else {
-        await adminSetMFAOverride(
-          bearerToken,
-          accountId,
-          selectedOverride,
-          trimmed,
-        );
+        await adminSetMFAOverride(accountId, selectedOverride, trimmed);
       }
       setOverride(selectedOverride);
       let msg: string;

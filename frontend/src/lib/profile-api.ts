@@ -1,4 +1,5 @@
 import { ApiError, apiErrorFromResponse, transportFetch } from "./api-error";
+import { hasSessionAccess } from "./session-access";
 import {
   sessionFetch,
   getCachedSession,
@@ -95,10 +96,7 @@ export async function updateProfile(
  * Note: Uses raw fetch because FormData requires browser-set Content-Type
  */
 export async function uploadAvatar(file: File): Promise<Profile> {
-  const session = await getCachedSession();
-  const token = session?.user?.token;
-
-  if (!token) {
+  if (!hasSessionAccess(await getCachedSession())) {
     throw new ApiError("No authentication token available", 401, {
       code: "general.permission",
     });
@@ -106,29 +104,26 @@ export async function uploadAvatar(file: File): Promise<Profile> {
 
   const url = `/api/me/profile/avatar`;
 
-  const doUpload = async (authToken: string) => {
+  // The route reads the session cookie; the browser holds no token (#5005).
+  const doUpload = async () => {
     const formData = new FormData();
     formData.append("avatar", file);
     return transportFetch(url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${authToken}` },
       body: formData,
     });
   };
 
   try {
-    let response = await doUpload(token);
+    let response = await doUpload();
 
     if (response.status === 401) {
       clearSessionCache();
       const { handleAuthFailure } = await import("./auth-api");
       const refreshed = await handleAuthFailure();
-      if (refreshed) {
-        const freshSession = await getCachedSession();
-        const freshToken = freshSession?.user?.token;
-        if (freshToken) {
-          response = await doUpload(freshToken);
-        }
+      // The session lookup persists the rotated cookie before the retry.
+      if (refreshed && hasSessionAccess(await getCachedSession())) {
+        response = await doUpload();
       }
     }
 

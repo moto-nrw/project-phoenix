@@ -177,10 +177,14 @@ var moduleLegacyFileBudgets = map[string]int{
 // exactly 7 LOC.
 // ADR 0121: the confirmation letter constructor of
 // modules/parentbilling/compose adds exactly 8 LOC.
+// ADR 0120: the holiday guest constructor of modules/enrollment/compose adds
+// exactly 6 LOC.
 // ADR 0124: the scan heartbeat savepoint binding adds exactly 9 LOC.
 // ADR 0125: the dev-tools presence history constructor of
 // modules/studentpresence/compose adds exactly 7 LOC.
-const moduleComposeBudgetTotal = 12670
+// ADR 0123: the mail constructor and the mail renderer of
+// modules/parentbilling/compose add exactly 9 LOC.
+const moduleComposeBudgetTotal = 12685
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -210,8 +214,9 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0105: the holiday period constructor (+13); by ADR 0110:
 	// the public holiday registration constructors (+18); by ADR 0114: the
 	// holiday registration review constructor (+7); by ADR 0116: the
-	// participant list constructor (+7).
-	"modules/enrollment/compose":                   585,
+	// participant list constructor (+7); by ADR 0120: the holiday guest
+	// constructor (+6).
+	"modules/enrollment/compose":                   591,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -228,7 +233,8 @@ var moduleComposeBudgets = map[string]int{
 	// Added by ADR 0115: the Elternabrechnung's construction only.
 	// Raised by ADR 0119: the billing run constructor (+7).
 	// Raised by ADR 0121: the confirmation letter constructor (+8).
-	"modules/parentbilling/compose":               35,
+	// Raised by ADR 0123: the mail constructor and the mail renderer (+9).
+	"modules/parentbilling/compose":               44,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":       973,

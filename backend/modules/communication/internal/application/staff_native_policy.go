@@ -31,6 +31,10 @@ func (a *StaffParentAnnouncement) ReminderBody() string {
 func (a *StaffParentAnnouncement) AcceptsResponsesAt(t time.Time) bool {
 	return AnnouncementAcceptsResponsesAt(StaffAnnouncementParentAnnouncementToValue(a), t)
 }
+
+// IsClassLetter reports whether a Lehrkraft wrote the announcement in moto
+// schule (#4800); the migration sets sender name and class together.
+func (a *StaffParentAnnouncement) IsClassLetter() bool { return a.SenderSchoolClass != nil }
 func (a *StaffParentAnnouncement) IsDeclaration() bool {
 	return AnnouncementIsDeclaration(StaffAnnouncementParentAnnouncementToValue(a))
 }

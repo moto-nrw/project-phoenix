@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -1999,7 +2000,7 @@ function SearchPageContent() {
   const hasLoadError = studentsError !== undefined && studentsError !== null;
 
   // Fix P1: Detect when auth prevents fetching (user can't fetch but no error from SWR)
-  const canFetch = status === "authenticated" && !!session?.user?.token;
+  const canFetch = status === "authenticated" && hasSessionAccess(session);
   const isAuthError = !canFetch && !studentsError && status !== "loading";
 
   // Fix P2: Track initialization state to prevent empty state flash

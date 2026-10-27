@@ -17,6 +17,7 @@ import {
   unavailableApiError,
 } from "./api-error";
 import { clearRateLimitBackoff } from "./rate-limit-backoff";
+import { hasSessionAccess } from "./session-access";
 
 let cached: {
   session: Awaited<ReturnType<typeof getSession>>;
@@ -137,8 +138,9 @@ export async function getCachedSession() {
  *
  * The access token travels only in the session cookie: the BFF routes read it
  * server-side via auth(). A Bearer header on top sent the same token twice and
- * pushed large sessions past Node's header limit (HTTP 431, #3918). The
- * session lookup stays as the signed-in gate before any request goes out.
+ * pushed large sessions past Node's header limit (HTTP 431, #3918), and the
+ * browser session carries no token at all (#5005). The session lookup stays
+ * as the signed-in gate before any request goes out.
  */
 export async function sessionFetch(
   url: string,
@@ -146,7 +148,7 @@ export async function sessionFetch(
   options: { authRefusals?: readonly ErrorCode[] } = {},
 ): Promise<Response> {
   const session = await getSessionOrUnavailable();
-  if (!session?.user?.token) {
+  if (!hasSessionAccess(session)) {
     throw authenticationRequiredError();
   }
 
@@ -183,7 +185,7 @@ export async function sessionFetch(
       // session lookup persists the refreshed tokens via Set-Cookie, so the
       // retry below goes out with the fresh cookie.
       const freshSession = await getSessionOrUnavailable();
-      if (!freshSession?.user?.token) throw authenticationRequiredError();
+      if (!hasSessionAccess(freshSession)) throw authenticationRequiredError();
       return transportFetch(url, mergedInit);
     }
     // handleAuthFailure already signed out

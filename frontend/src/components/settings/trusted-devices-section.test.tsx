@@ -25,8 +25,9 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 
 const { providerSession, mockGetSession } = vi.hoisted(() => ({
   providerSession: {
-    current: { user: { token: "test-token" }, expires: "2099-01-01" } as {
-      user: { token?: string };
+    current: { user: {}, expires: "2099-01-01" } as {
+      user: Record<string, unknown>;
+      error?: string;
       expires: string;
     },
   },
@@ -71,7 +72,7 @@ describe("TrustedDevicesSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     providerSession.current = {
-      user: { token: "test-token" },
+      user: {},
       expires: "2099-01-01",
     };
     clearSessionCache();
@@ -126,14 +127,9 @@ describe("TrustedDevicesSection", () => {
     });
   });
 
-  // The operator layout hydrates SessionProvider from a snapshot without the
-  // access token (#4991); the routes still need it as a bearer.
-  it("reads the bearer from the session route for a token-free snapshot", async () => {
-    providerSession.current = { user: {}, expires: "2099-01-01" };
-    mockGetSession.mockResolvedValue({
-      user: { token: "route-token" },
-      expires: "2099-01-01",
-    });
+  // No browser session carries a token (#4991, #5005): the routes read the
+  // session cookie, so the list loads without asking the session route.
+  it("loads without a bearer token or a session lookup", async () => {
     global.fetch = jsonResponse({ status: "success", data: [] });
     render(<TrustedDevicesSection scope="operator" />);
 
@@ -142,20 +138,22 @@ describe("TrustedDevicesSection", () => {
         "/api/operator/auth/mfa/trusted-devices",
         expect.objectContaining({
           method: "GET",
-          headers: expect.objectContaining({
-            Authorization: "Bearer route-token",
-          }),
+          headers: { "Content-Type": "application/json" },
         }),
       );
     });
-    expect(mockGetSession).toHaveBeenCalledTimes(1);
+    expect(mockGetSession).not.toHaveBeenCalled();
     expect(
       await screen.findByText(/Sie haben aktuell keine vertrauten Geräte/),
     ).toBeInTheDocument();
   });
 
   it("sends no request for a session whose token was stripped", async () => {
-    providerSession.current = { user: { token: "" }, expires: "2099-01-01" };
+    providerSession.current = {
+      user: {},
+      error: "RefreshTokenError",
+      expires: "2099-01-01",
+    };
     global.fetch = jsonResponse([]);
     render(<TrustedDevicesSection />);
 

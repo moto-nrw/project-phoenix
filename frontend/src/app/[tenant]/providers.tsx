@@ -15,6 +15,7 @@ import { PushSubscriptionSync } from "~/components/notifications/service-worker-
 import { ANNOUNCEMENTS_UNREAD_SWR_KEY } from "~/lib/hooks/use-announcements";
 import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
+import { hasSessionAccess } from "~/lib/session-access";
 import { primeSessionCache } from "~/lib/session-cache";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
@@ -33,7 +34,7 @@ import { seesLockedModules } from "~/lib/module-register";
 function SessionCachePrimer() {
   const { data: session } = useSession();
   useLayoutEffect(() => {
-    if (session?.user?.token) primeSessionCache(session);
+    if (hasSessionAccess(session)) primeSessionCache(session);
   }, [session]);
   return null;
 }

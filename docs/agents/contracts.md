@@ -235,6 +235,34 @@ Keep behavioral cross-school tests alongside policies. The code/test evidence
 does not prove the deployed catalog; human verification is described in
 [RLS coverage verification](../operations/rls-coverage-3842.md).
 
+## Client IP and rate limits
+
+The backend rate limiter keys a request with a valid Bearer JWT by account
+and every other request by client IP; security events and audit rows log
+that IP. The IP crosses four hops:
+
+1. Cloudflare sets `CF-Connecting-IP`.
+2. Caddy trusts only the Cloudflare ranges (`trusted_proxies`) and sends
+   exactly one `X-Forwarded-For {client_ip}` to frontend and backend.
+3. Every server-side backend call of the frontend forwards
+   `canonicalForwardedFor` (rightmost valid `X-Forwarded-For`, `X-Real-IP`
+   fallback) through `frontend/src/lib/client-headers.server.ts`:
+   `clientIdentityHeaders(request.headers)` with a request at hand,
+   `incomingClientForwardHeaders()` without one. The shared proxy factories
+   and portal wrappers already do this.
+4. The backend takes the rightmost entry
+   (`ClientIPFromXFFTrustedProxies(1)` and `syncClientIPToRemoteAddr` in
+   `backend/api/serve_middleware.go`). Trusting one hop is safe only while
+   backend ports are reachable from loopback and the Docker network alone.
+
+A server-side call without the header reaches the backend as the frontend
+container, so all visitors share one bucket: scanner bursts on
+`/auth/tenant/resolve` then refused real tenant lookups with 429. A new
+server-side backend call forwards the client IP; a cached fetch keeps the IP
+out of its cache key (`resolveTenantCached` in
+`frontend/src/app/[tenant]/layout.tsx`). Each limiter rejection writes one
+`RATE_LIMIT_EXCEEDED` event; a 429 a handler writes itself writes none.
+
 ## Portal session isolation
 
 Each portal has its own NextAuth instance, cookie, and base path.
@@ -250,6 +278,26 @@ host-only). The proxy redirects cross-host paths to their canonical subdomain.
 | School (moto schule) | `{NEXT_PUBLIC_SCHOOL_HOSTNAME}` | `school.session-token`, SameSite=Strict | `/api/school/auth` | `school` | `POST /school/auth/login` |
 | Caterer | `{NEXT_PUBLIC_CATERER_HOSTNAME}` | `caterer.session-token` | `/api/caterer/auth` | `caterer` | `POST /caterer/auth/login` |
 | Träger | `{NEXT_PUBLIC_TRAEGER_HOSTNAME}` | `traeger.session-token` | `/api/traeger/auth` | `org` | `POST /traeger/auth/login` |
+
+The browser never receives a session's access token, refresh token or
+recovery proof (#5005). The client-importable `next-auth` types `Session` and
+`User` carry none; server code reads them through `ServerSession`, `AuthUser`
+and the `next-auth/jwt` `JWT` fields in `frontend/src/server/auth/shared.ts`.
+Each portal's `{basePath}/session` answer (GET and the `update()` POST)
+passes through the allowlist in `frontend/src/server/auth/browser-session.ts`,
+and the layout snapshots map the cookie without them. BFF routes authenticate
+through the session cookie, not a browser `Authorization` header. A session
+whose access token is gone always carries `error`, which `hasSessionAccess`
+checks. Three guards hold this: `src/app/api/auth/session-tokens.test.ts`
+checks every session route at runtime; the dependency-cruiser rule
+`browser-not-to-server-auth` forbids every import from `src/server/**`,
+type imports included, outside `server/`, `app/api/` and `*.server.ts`, and
+the auth modules carry `import "server-only"`; `src/lib/browser-token-ratchet.test.ts`
+pins the types and walks the syntax tree of those browser modules for
+credential reads on session values (casts, renames, type aliases,
+intermediate variables included). Open: login, MFA, passkey login, tenant switch, Träger Absprung
+and staff-preview start still hand freshly minted tokens through browser
+JavaScript into Auth.js (`signIn`/`update`).
 
 ### Login, refresh, and MFA
 
@@ -606,6 +654,23 @@ and time model, never as rows with health columns. The token
 carries no other `tenant_id`; every list read and export writes an
 `audit.data_access_log` row (`holiday_participants`,
 `holiday_participants_export`) at the hosting school.
+
+Its holiday guests join daily care as a copy in that school (#4666,
+ADR 0120): `PUT /api/holiday-weeks/{weekId}/guest-group` (`users:create`)
+picks a group of the school and copies every confirmed guest of another
+school or without a school as a child of class `Feriengast` whose
+`enrolled_from`/`enrolled_until` is the week (pending and in no group before
+the week, active in the group from its first day), with a dated arrival and
+pickup exception (Care Plan) for each booked day; the hourly Worker job
+`holiday-guest-reconciliation` adds new confirmations and ends cancelled
+guests. Groups, check-in and the kiosk read the copy unchanged (no IoT
+contract change); from the day after the week the live rosters drop it.
+`GET /api/holiday-guests/{studentId}` (`users:read`) returns only care,
+emergency contacts (the registering parent first) and pickup persons,
+seven days read-only after the week, then 404
+`enrollment.holiday_guest_not_found`. Contacts leave the Träger only through
+`enrollment.holiday_host_guest_contacts`; every transfer and sheet read
+writes `holiday_guest_transfer` or `holiday_guest_sheet` at the hosting school.
 
 A form template with `core_requirements.signature` requires the parent's
 signature on every parent submission and form edit (#4786); the server refuses

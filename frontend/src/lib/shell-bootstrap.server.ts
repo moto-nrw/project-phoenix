@@ -314,16 +314,16 @@ async function loadCounts(
  * Loads, in parallel, everything the tenant app shell fetched one request at
  * a time after hydration (#2973): navigation context, profile, group and
  * supervision navigation, the account's tenants, and the sidebar badge
- * counts. The settings schema stays out (#4996): the shell reads its flags
- * from the tenant resolve, and only the settings page loads the schema. Runs once per full page load in the tenant layout;
- * client-side navigations reuse the hydrated caches.
+ * counts. The settings schema stays out (#4996): only the settings page loads
+ * it. Runs once per full page load in the tenant layout; client-side
+ * navigations reuse the hydrated caches. `token` is the session's access
+ * token, which the browser's session never carries (#5005).
  */
 export async function loadShellBootstrap(
   session: Session,
   tenant: TenantInfo,
+  token: string,
 ): Promise<ShellBootstrap> {
-  const token = session.user.token ?? "";
-
   const [
     userContext,
     profile,

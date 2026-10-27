@@ -118,7 +118,7 @@ const pushDeadLetterExpiredDispatchSQL = `UPDATE platform.push_outbox
 
 // dispatchOutcomeUnknown explains a dead letter whose worker stopped between
 // the dispatch fence and finalization.
-const dispatchOutcomeUnknown = "delivery outcome unknown: worker stopped during provider call"
+const dispatchOutcomeUnknown = deliveryContract.DispatchOutcomeUnknown
 
 const emailStartDeliverySQL = `UPDATE platform.email_outbox
 	SET lease_token = CONCAT('dispatch:', lease_token), lease_expires_at = ?, updated_at = ?

@@ -50,6 +50,8 @@ type hostedWeekRow struct {
 	StartsOn       calendar.Date `bun:"starts_on"`
 	EndsOn         calendar.Date `bun:"ends_on"`
 	Participants   int           `bun:"participants"`
+	GuestGroupID   *int64        `bun:"guest_group_id"`
+	Guests         int           `bun:"guests"`
 }
 
 type hostedTimeModelRow struct {
@@ -74,10 +76,16 @@ const (
 			(SELECT COUNT(*) FROM enrollment.holiday_registration_bookings AS booking
 				WHERE booking.organization_id = week.organization_id AND booking.holiday_period_week_id = week.id
 					AND enrollment.holiday_host_booking(booking.organization_id, booking.holiday_period_week_id,
-						booking.holiday_registration_child_id)) AS participants
+						booking.holiday_registration_child_id)) AS participants,
+			host_group.group_id AS guest_group_id,
+			(SELECT COUNT(*) FROM enrollment.holiday_guests AS guest
+				WHERE guest.tenant_id = week.host_school_id AND guest.holiday_period_week_id = week.id
+					AND guest.ended_on IS NULL) AS guests
 		FROM enrollment.holiday_period_weeks AS week
 		JOIN enrollment.holiday_periods AS period
 			ON period.organization_id = week.organization_id AND period.id = week.holiday_period_id
+		LEFT JOIN enrollment.holiday_host_groups AS host_group
+			ON host_group.tenant_id = week.host_school_id AND host_group.holiday_period_week_id = week.id
 		WHERE week.host_school_id = ? AND week.ends_on >= ? AND period.status = 'published'`
 	listHostedWeeksQuery  = hostedWeekColumns + ` ORDER BY week.starts_on, week.id`
 	findHostedWeekQuery   = hostedWeekColumns + ` AND week.id = ?`
@@ -148,5 +156,6 @@ func (s *HolidayHostStore) ReadHostedHolidayWeek(ctx context.Context, schoolID, 
 func hostedWeek(row hostedWeekRow) enrollment.HostedHolidayWeek {
 	return enrollment.HostedHolidayWeek{
 		ID: row.ID, PeriodName: row.PeriodName, StartsOn: row.StartsOn, EndsOn: row.EndsOn, Participants: row.Participants,
+		GuestGroupID: row.GuestGroupID, Guests: row.Guests,
 	}
 }

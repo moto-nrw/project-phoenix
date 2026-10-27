@@ -2,6 +2,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import type { Group } from "~/lib/api";
 import type { Activity } from "~/lib/activity-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import {
   isDeclaration,
   isLetter,
@@ -186,6 +187,27 @@ const TARGET_TYPE_PLURAL: Record<AnnouncementTargetType, string> = {
   student: "Kinder",
 };
 
+/**
+ * Who wrote a class letter in moto schule (#4800): the Lehrkraft and her
+ * class. Undefined for an announcement of the OGS.
+ */
+export function classLetterSenderLine(
+  announcement: Pick<Announcement, "sender_name" | "sender_school_class">,
+): string | undefined {
+  if (!announcement.sender_name || !announcement.sender_school_class) {
+    return undefined;
+  }
+  return `${announcement.sender_name}, Lehrkraft der ${schoolClassLabel(announcement.sender_school_class)}`;
+}
+
+/** Die Zeile, mit der die OGS einen Klassenbrief als nur lesbar erkennt. */
+export function classLetterReadOnlyNote(
+  announcement: Pick<Announcement, "sender_name" | "sender_school_class">,
+): string | undefined {
+  const sender = classLetterSenderLine(announcement);
+  return sender ? `Von ${sender} · nur zum Lesen` : undefined;
+}
+
 /** Kurze, namenlose Zusammenfassung für die Liste (z. B. „2 Gruppen, 1 Klasse"). */
 export function summarizeTargets(targets: AnnouncementTarget[]): string {
   if (targets.length === 0) return "–";
@@ -236,7 +258,7 @@ export function targetChips(
         chips.push("Offene Anmeldungen");
         break;
       case "class":
-        chips.push(`Klasse ${t.ref_text ?? "?"}`);
+        chips.push(t.ref_text ? schoolClassLabel(t.ref_text) : "Klasse ?");
         break;
       case "group":
         chips.push(groupNames.get(t.ref_id ?? "") ?? "Gruppe");

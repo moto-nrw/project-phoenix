@@ -142,7 +142,7 @@ export function TeacherShellProvider({
         // Admin-Familie wie gewohnt.
         if (session?.user?.isPreview) {
           try {
-            await performEndStaffPreview(session.user.token, update, mutate);
+            await performEndStaffPreview(update, mutate);
           } catch (err: unknown) {
             logger.warn("staff_preview_end_before_logout_failed", {
               error: err instanceof Error ? err.message : String(err),

@@ -1359,6 +1359,43 @@ describe("authConfig", () => {
       expect(result).toBeNull();
     });
 
+    it("forwards the browser's client IP and User-Agent to the backend login", async () => {
+      // The backend rate-limits logins per client IP; without the header it
+      // sees the frontend container and all staff share one bucket.
+      mockRequestHeaders.mockResolvedValue(
+        new Headers({
+          "user-agent": "Mozilla/5.0 Tablet",
+          "x-forwarded-for": "203.0.113.7",
+        }),
+      );
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: "teacher-access",
+          refresh_token: "teacher-refresh",
+        }),
+      });
+
+      await _testHelpers.performLogin(
+        "teacher@test.com",
+        "pass",
+        "schule-a",
+        false,
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/auth/login"),
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 Tablet",
+            "X-Forwarded-For": "203.0.113.7",
+          }) as Record<string, string>,
+        }),
+      );
+    });
+
     it("should return null on network error", async () => {
       mockFetch.mockRejectedValueOnce(new Error("Connection refused"));
 
