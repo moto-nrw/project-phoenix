@@ -211,6 +211,10 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
         "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "communication.class_letter_class_not_reachable":
+        "Diese Klasse ist Ihnen nicht zugeordnet. Bitte wählen Sie eine eigene Klasse.",
+      "communication.class_letter_read_only":
+        "Diesen Elternbrief hat eine Lehrkraft geschrieben. Nur sie kann ihn ändern, senden oder löschen.",
       "devices.tag_scan_already_resolved":
         "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu.",
       "devices.tag_scan_not_found":
@@ -1582,6 +1586,10 @@ export const ERROR_CATALOG = {
       "communication.survey_already_answered":
         "You have already taken part in this survey. Your answer cannot be changed.",
       "communication.survey_not_open": "This survey no longer accepts answers.",
+      "communication.class_letter_class_not_reachable":
+        "This class is not assigned to you. Please choose one of your own classes.",
+      "communication.class_letter_read_only":
+        "A teacher wrote this parent letter. Only that teacher can change, send or delete it.",
       "enrollment.captcha_failed":
         "The security check did not work. Please try again.",
       "enrollment.captcha_required": "Please complete the security check.",

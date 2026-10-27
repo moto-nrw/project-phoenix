@@ -16,7 +16,7 @@ vi.mock("~/lib/school-url", () => ({
 }));
 
 describe("SchoolSidebar", () => {
-  it("führt genau die fünf erreichbaren Ziele", () => {
+  it("führt genau die sechs erreichbaren Ziele", () => {
     render(<SchoolSidebar teamChat={teamChat} />);
 
     expect(screen.getByText("Klassenansicht")).toBeInTheDocument();
@@ -26,8 +26,10 @@ describe("SchoolSidebar", () => {
     expect(screen.getByText("Tagesinformationen")).toBeInTheDocument();
     // Seit #4798 führt sie ihren Kalender mit den Schulterminen.
     expect(screen.getByText("Kalender")).toBeInTheDocument();
+    // Seit #4800 schreibt sie Elternbriefe an ihre Klasse.
+    expect(screen.getByText("Elternbriefe")).toBeInTheDocument();
     expect(screen.getByText("Hilfe")).toBeInTheDocument();
-    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(5);
+    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(6);
   });
 
   it("zählt offene Tagesinformationen am Eintrag (#2208)", () => {

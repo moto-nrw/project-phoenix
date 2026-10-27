@@ -25,6 +25,9 @@ type Resource struct {
 	Service announcementService.ParentAnnouncementCapability
 	// Reports renders the Erklärung proof report (#3430).
 	Reports ReportRenderer
+	// Classes answers the class reach and sender name of the class-letter
+	// routes in moto schule (#4800); without it they refuse to write.
+	Classes ClassLetterCaller
 }
 
 // NewResource wires the staff announcement resource.
@@ -49,6 +52,7 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		// a group lead limited to their own group) is deliberately deferred.
 		// The parent-news feature flag is still re-checked in the service.
 		announce := common.RequiresPermission(permissions.AdminWildcard)
+		read := r.With(announce, withTx, rs.requireReadableAnnouncement)
 		r.With(announce, withTx).Get("/", rs.list)
 		r.With(announce, withTx).Post("/", rs.create)
 		r.With(announce, withTx).Get("/{announcementId}", rs.get)
@@ -56,24 +60,24 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		r.With(announce, withTx).Delete("/{announcementId}", rs.delete)
 		r.With(announce, withTx).Post("/{announcementId}/publish", rs.publish)
 		r.With(announce, withTx).Post("/{announcementId}/unpublish", rs.unpublish)
-		r.With(announce, withTx).Get("/{announcementId}/stats", rs.stats)
-		r.With(announce, withTx).Get("/{announcementId}/recipients", rs.recipients)
+		read.Get("/{announcementId}/stats", rs.stats)
+		read.Get("/{announcementId}/recipients", rs.recipients)
 		// Poll (Umfrage, #1371): evaluation and the manual reminder to the
 		// guardians of children that have not answered.
-		r.With(announce, withTx).Get("/{announcementId}/poll-results", rs.pollResults)
-		r.With(announce, withTx).Get("/{announcementId}/poll-children", rs.pollChildren)
+		read.Get("/{announcementId}/poll-results", rs.pollResults)
+		read.Get("/{announcementId}/poll-children", rs.pollChildren)
 		r.With(announce, withTx).Post("/{announcementId}/remind", rs.remindUnanswered)
 		// Elternbrief (#2384): the recipient matrix — e-mail and moto status per
 		// person, plus which children the letter is already fulfilled for.
-		r.With(announce, withTx).Get("/{announcementId}/letter-status", rs.letterStatus)
+		read.Get("/{announcementId}/letter-status", rs.letterStatus)
 		r.With(announce, withTx).Post("/{announcementId}/resend-failed", rs.resendFailed)
 		// Scheduled reminder (#3162): the one post-publish edit. Distinct from
 		// POST /remind above, which is the manual nudge to whoever still owes
 		// an answer.
 		r.With(announce, withTx).Put("/{announcementId}/reminder", rs.updateReminder)
 		// Erklärung (#3430): state per child, full history, proof export.
-		r.With(announce, withTx).Get("/{announcementId}/declaration-status", rs.declarationStatus)
-		r.With(announce, withTx).Get("/{announcementId}/declaration-export", rs.declarationExport)
+		read.Get("/{announcementId}/declaration-status", rs.declarationStatus)
+		read.Get("/{announcementId}/declaration-export", rs.declarationExport)
 	})
 
 	return r
@@ -156,6 +160,10 @@ type announcementResponse struct {
 	EmailAudience           string           `json:"email_audience"`
 	// SystemKind marks rows the system wrote (cancellation notice, #2601).
 	SystemKind *string `json:"system_kind,omitempty"`
+	// SenderName and SenderSchoolClass name the Lehrkraft of a class letter
+	// (#4800); the OGS reads such a letter but does not change it.
+	SenderName        *string `json:"sender_name,omitempty"`
+	SenderSchoolClass *string `json:"sender_school_class,omitempty"`
 	// Scheduled reminder (#3162): when it is due, its wording, and when it
 	// actually went out.
 	ReminderAt     *time.Time `json:"reminder_at,omitempty"`
@@ -205,7 +213,7 @@ func toOptionResponses(options []announcementService.ParentAnnouncementOption) [
 }
 
 func toAnnouncementResponse(a *announcementService.ParentAnnouncement) announcementResponse {
-	return announcementResponse{
+	resp := announcementResponse{
 		ID:                          strconv.FormatInt(a.ID, 10),
 		Title:                       a.Title,
 		Body:                        a.Body,
@@ -231,6 +239,11 @@ func toAnnouncementResponse(a *announcementService.ParentAnnouncement) announcem
 		SystemKind:                  a.SystemKind,
 		declarationSettingsResponse: toDeclarationSettingsResponse(a),
 	}
+	if a.Sender != nil {
+		resp.SenderName = &a.Sender.Name
+		resp.SenderSchoolClass = &a.Sender.SchoolClass
+	}
+	return resp
 }
 
 // toInput maps the wire request to the service input, parsing stringified
@@ -277,19 +290,50 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]announcementResponse, 0, len(rows))
 	for _, a := range rows {
+		// A Lehrkraft's draft (#4800) is hers until she sends it.
+		if a.IsClassLetter() && a.PublishedAt == nil {
+			continue
+		}
 		out = append(out, toAnnouncementResponse(&a))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Announcements retrieved")
 }
 
-func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
+func (rs *Resource) readableAnnouncement(w http.ResponseWriter, r *http.Request) (*announcementService.ParentAnnouncement, bool) {
 	id, ok := parseAnnouncementID(w, r)
 	if !ok {
-		return
+		return nil, false
 	}
 	a, err := rs.Service.GetParentAnnouncement(r.Context(), id)
 	if err != nil {
 		renderAnnouncementError(w, r, err)
+		return nil, false
+	}
+	// Draft class letters are private to their author in moto schule,
+	// including when that account also holds an OGS admin role.
+	if a.IsClassLetter() && a.PublishedAt == nil {
+		author, viaSchool := announcementService.ClassLetterAuthorFrom(r.Context())
+		if !viaSchool || author != a.CreatedBy {
+			renderAnnouncementError(w, r, announcementService.ErrParentAnnouncementNotFound)
+			return nil, false
+		}
+	}
+	return a, true
+}
+
+// requireReadableAnnouncement keeps every related read and export behind the
+// same draft visibility rule as the announcement itself, inside the tenant transaction.
+func (rs *Resource) requireReadableAnnouncement(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := rs.readableAnnouncement(w, r); ok {
+			next.ServeHTTP(w, r)
+		}
+	})
+}
+
+func (rs *Resource) get(w http.ResponseWriter, r *http.Request) {
+	a, ok := rs.readableAnnouncement(w, r)
+	if !ok {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toAnnouncementResponse(a), "Announcement retrieved")
@@ -691,6 +735,8 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrDeclarationHasSubmissions):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationDeclarationHasSubmissions))
+	case errors.Is(err, announcementService.ErrClassLetterReadOnly):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationClassLetterReadOnly))
 	case errors.Is(err, announcementService.ErrNotDeclaration):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	default:

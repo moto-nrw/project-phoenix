@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeIdentityEmailChangeLinkInvalid                = "identity.email_change_link_invalid"
+	CodeIdentityEmailChangeRateLimited                = "identity.email_change_rate_limited"
 	CodeIdentityEmailChangeSameEmail                  = "identity.email_change_same_email"
 	CodeIdentityGuardianInvitationEmailNotQueued      = "identity.guardian_invitation_email_not_queued"
 	CodeIdentityInvalidCredentials                    = "identity.invalid_credentials"
@@ -300,11 +302,11 @@ const (
 	CodeTimetableCalendarPeriodRosterConflict         = "timetable.calendar_period_roster_conflict"
 	CodeTimetableCalendarPeriodWeekCycleAnchorMissing = "timetable.calendar_period_week_cycle_anchor_missing"
 	CodeTimetableClosingDayEndBeforeStart             = "timetable.closing_day_end_before_start"
-	CodeTimetableClosingDayInvalid                    = "timetable.closing_day_invalid"
-	CodeTimetableClosingDayNotFound                   = "timetable.closing_day_not_found"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.email_change_link_invalid":                  "business_rejection",
+	"identity.email_change_rate_limited":                  "unavailable",
 	"identity.email_change_same_email":                    "input",
 	"identity.guardian_invitation_email_not_queued":       "unavailable",
 	"identity.invalid_credentials":                        "input",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.calendar_period_roster_conflict":           "business_rejection",
 	"timetable.calendar_period_week_cycle_anchor_missing": "input",
 	"timetable.closing_day_end_before_start":              "input",
-	"timetable.closing_day_invalid":                       "input",
-	"timetable.closing_day_not_found":                     "business_rejection",
 }
 
 func init() {

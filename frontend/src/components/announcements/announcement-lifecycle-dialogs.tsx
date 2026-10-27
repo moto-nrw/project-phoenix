@@ -15,6 +15,7 @@ import {
   unpublishAnnouncement,
 } from "~/lib/parent-announcements-api";
 import type { Announcement } from "~/lib/parent-announcements-api";
+import { isClassLetter, withApiBase } from "~/lib/parent-announcements-api";
 import { summarizeTargets } from "./announcement-meta";
 
 const logger = createLogger({ component: "AnnouncementLifecycle" });
@@ -29,6 +30,8 @@ interface LifecycleDialogProps {
   readonly onClose: () => void;
   /** Läuft nach dem erfolgreichen Aufruf, vor dem Schließen (Listen neu laden). */
   readonly onDone: () => Promise<void> | void;
+  /** Die Routen des Portals, das die Mitteilung zeigt; sonst die der OGS. */
+  readonly apiBase?: string;
 }
 
 /**
@@ -89,9 +92,10 @@ export function PublishAnnouncementDialog({
   announcement,
   onClose,
   onDone,
+  apiBase,
 }: LifecycleDialogProps) {
   const { pending, error, confirm } = useLifecycleAction(
-    () => publishAnnouncement(announcement.id),
+    () => withApiBase(publishAnnouncement, announcement.id, apiBase),
     {
       onDone,
       onClose,
@@ -137,9 +141,10 @@ export function UnpublishAnnouncementDialog({
   announcement,
   onClose,
   onDone,
+  apiBase,
 }: LifecycleDialogProps) {
   const { pending, error, confirm } = useLifecycleAction(
-    () => unpublishAnnouncement(announcement.id),
+    () => withApiBase(unpublishAnnouncement, announcement.id, apiBase),
     {
       onDone,
       onClose,
@@ -182,12 +187,13 @@ export function DeleteAnnouncementDialog({
   announcement,
   onClose,
   onDone,
+  apiBase,
 }: LifecycleDialogProps) {
   // Ein Einverständnis mit Antworten (#3430) bleibt als Nachweis stehen:
   // communication.declaration_has_submissions bringt dafür einen eigenen
   // Katalogtext mit.
   const { pending, error, confirm } = useLifecycleAction(
-    () => deleteAnnouncement(announcement.id),
+    () => withApiBase(deleteAnnouncement, announcement.id, apiBase),
     {
       onDone,
       onClose,
@@ -223,7 +229,8 @@ interface MenuHandlers {
   readonly onPublish: () => void;
   /** Nur in der Liste: die Objektseite ist die Ansicht selbst. */
   readonly onView?: () => void;
-  readonly onEdit: () => void;
+  /** Ohne Bearbeiten-Ziel (moto schule) fehlt der Eintrag. */
+  readonly onEdit?: () => void;
   readonly onUnpublish: () => void;
   readonly onDelete: () => void;
   /**
@@ -232,6 +239,11 @@ interface MenuHandlers {
    * haben nur ihre manuelle Erinnerung an offene Antworten.
    */
   readonly onReminder?: () => void;
+  /**
+   * Die Lehrkraft, die den Klassenbrief geschrieben hat (#4800). Ohne sie
+   * bleibt ein Klassenbrief nur zum Ansehen: die OGS ändert ihn nicht.
+   */
+  readonly classLetterAuthor?: boolean;
 }
 
 /**
@@ -247,21 +259,26 @@ export function buildAnnouncementMenuItems(
   handlers: MenuHandlers,
 ): OverflowMenuItem[] {
   const items: OverflowMenuItem[] = [];
+  const readOnly = isClassLetter(announcement) && !handlers.classLetterAuthor;
+  if (readOnly) {
+    return handlers.onView ? [viewItem(handlers.onView)] : [];
+  }
   if (announcement.status === "draft") {
     items.push({
-      label: "Veröffentlichen",
+      // moto schule sagt Senden: die Lehrkraft schickt einen Brief ab.
+      label: handlers.classLetterAuthor ? "Senden" : "Veröffentlichen",
       icon: <Send className="size-4" aria-hidden />,
       onClick: handlers.onPublish,
     });
   }
   if (handlers.onView) {
-    items.push({
-      label: "Anzeigen",
-      icon: <MotoConceptIcon concept="reports" size={16} />,
-      onClick: handlers.onView,
-    });
+    items.push(viewItem(handlers.onView));
   }
-  if (!announcement.system_kind && announcement.status === "draft") {
+  if (
+    handlers.onEdit &&
+    !announcement.system_kind &&
+    announcement.status === "draft"
+  ) {
     items.push({
       label: "Bearbeiten",
       icon: <Pencil className="size-4" aria-hidden />,
@@ -299,4 +316,12 @@ export function buildAnnouncementMenuItems(
     });
   }
   return items;
+}
+
+function viewItem(onView: () => void): OverflowMenuItem {
+  return {
+    label: "Anzeigen",
+    icon: <MotoConceptIcon concept="reports" size={16} />,
+    onClick: onView,
+  };
 }

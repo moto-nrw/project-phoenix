@@ -43,6 +43,7 @@ import {
   isLetter,
   isPoll,
   remindUnanswered,
+  withApiBase,
 } from "~/lib/parent-announcements-api";
 import type {
   Announcement,
@@ -52,6 +53,7 @@ import type {
   PollResults,
 } from "~/lib/parent-announcements-api";
 import {
+  classLetterSenderLine,
   describeReminder,
   reminderStateOf,
   RESPONSE_TYPE_LABEL,
@@ -414,6 +416,8 @@ interface AnnouncementDetailProps {
   readonly activities: Activity[];
   /** Called with the number of guardians reached by a poll reminder. */
   readonly onReminded: (count: number) => void;
+  /** The routes of the portal that shows the announcement; default the OGS's. */
+  readonly apiBase?: string;
 }
 
 /**
@@ -427,6 +431,7 @@ export function AnnouncementDetail({
   groups,
   activities,
   onReminded,
+  apiBase,
 }: AnnouncementDetailProps) {
   const [stats, setStats] = useState<AnnouncementStats | null>(null);
   const [recipients, setRecipients] = useState<AnnouncementRecipient[] | null>(
@@ -456,8 +461,8 @@ export function AnnouncementDetail({
     if (!showReadStats) return;
     let cancelled = false;
     Promise.all([
-      fetchAnnouncementStats(announcement.id),
-      fetchAnnouncementRecipients(announcement.id),
+      withApiBase(fetchAnnouncementStats, announcement.id, apiBase),
+      withApiBase(fetchAnnouncementRecipients, announcement.id, apiBase),
     ])
       .then(([statsResult, recipientsResult]) => {
         if (cancelled) return;
@@ -489,6 +494,7 @@ export function AnnouncementDetail({
     };
   }, [
     announcement.id,
+    apiBase,
     showReadStats,
     reloadKey,
     showLoadError,
@@ -500,6 +506,11 @@ export function AnnouncementDetail({
   const letter = isLetter(announcement);
   const declaration = isDeclaration(announcement);
   const chips = targetChips(announcement.targets, groups, activities);
+  const sender = classLetterSenderLine(announcement);
+  // A class letter of a Lehrkraft (#4800) is read-only in the OGS portal:
+  // only its author, on the routes of moto schule, reminds or resends.
+  const canAct =
+    announcement.status === "published" && (!sender || apiBase !== undefined);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -534,6 +545,11 @@ export function AnnouncementDetail({
 
       <SectionCard title="Zielgruppen und Zustellung" icon={Send}>
         <DataGrid>
+          {sender && (
+            <DataField label="Absender" fullWidth>
+              {sender}
+            </DataField>
+          )}
           <DataField label="Zielgruppen" fullWidth>
             <span className="flex flex-wrap gap-1.5">
               {chips.map((chip) => (
@@ -616,8 +632,9 @@ export function AnnouncementDetail({
         <SectionCard title="Status">
           <LetterStatusPanel
             announcementId={announcement.id}
-            canAct={announcement.status === "published"}
+            canAct={canAct}
             emailAudience={announcement.email_audience}
+            apiBase={apiBase}
           />
         </SectionCard>
       )}
@@ -629,7 +646,8 @@ export function AnnouncementDetail({
           <SectionCard title="Stand der Antworten">
             <DeclarationStatusPanel
               announcementId={announcement.id}
-              canAct={announcement.status === "published"}
+              canAct={canAct}
+              apiBase={apiBase}
             />
           </SectionCard>
         )}

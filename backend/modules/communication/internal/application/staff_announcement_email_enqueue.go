@@ -84,7 +84,7 @@ func (s *service) enqueueAnnouncementEmailBatch(ctx context.Context, a *StaffPar
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
 	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	kicker := spec.kicker
-	intro := spec.intro(schoolName)
+	intro := classLetterMailIntro(a, schoolName, spec.intro(schoolName))
 	// Every recipient of this path has portal access by construction
 	// (ResolveAudienceEmails is portal-audience only), so the attachment hint
 	// always points somewhere the reader can go.

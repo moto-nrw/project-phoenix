@@ -109,15 +109,8 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*Staff
 	if !enabled {
 		return nil, ErrNewsDisabled
 	}
-	targets, err := normalizeInput(&in)
+	targets, options, err := prepareCreate(ctx, &in)
 	if err != nil {
-		return nil, err
-	}
-	options, err := normalizePollOptions(&in)
-	if err != nil {
-		return nil, err
-	}
-	if err := normalizeReminder(&in); err != nil {
 		return nil, err
 	}
 
@@ -139,6 +132,7 @@ func (s *service) Create(ctx context.Context, createdBy int64, in Input) (*Staff
 		Active:                  true,
 		CreatedBy:               createdBy,
 	}
+	stampClassLetterSender(a, in.Sender)
 	if err := s.repo.Create(ctx, a); err != nil {
 		return nil, fmt.Errorf("announcement: create: %w", err)
 	}
@@ -169,6 +163,9 @@ func (s *service) Update(ctx context.Context, id int64, in Input) (*StaffParentA
 	}
 	if a == nil {
 		return nil, ErrNotFound
+	}
+	if err := guardClassLetterWrite(ctx, a); err != nil {
+		return nil, err
 	}
 	// Published announcements are immutable (user decision, #1669): parents may
 	// already have read or been e-mailed this exact wording. The correction
@@ -226,6 +223,9 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	if a == nil {
 		return ErrNotFound
 	}
+	if err := guardClassLetterWrite(ctx, a); err != nil {
+		return err
+	}
 	if a.IsSystem() {
 		return ErrSystemAnnouncementImmutable
 	}
@@ -275,6 +275,9 @@ func (s *service) Publish(ctx context.Context, id int64) (*StaffParentAnnounceme
 	}
 	if a == nil {
 		return nil, ErrNotFound
+	}
+	if err := guardClassLetterWrite(ctx, a); err != nil {
+		return nil, err
 	}
 	// Re-check the flag at publish time: a draft authored while the feature was
 	// on must not go live after a school turned it off.
@@ -599,6 +602,9 @@ func (s *service) Unpublish(ctx context.Context, id int64) (*StaffParentAnnounce
 	if a == nil {
 		return nil, ErrNotFound
 	}
+	if err := guardClassLetterWrite(ctx, a); err != nil {
+		return nil, err
+	}
 	if a.IsSystem() {
 		return nil, ErrSystemAnnouncementImmutable
 	}
@@ -756,17 +762,6 @@ func normalizeLinkURL(raw *string) (*string, error) {
 		return nil, fmt.Errorf("%w: link_url must be an absolute http(s) URL", ErrValidation)
 	}
 	return &trimmed, nil
-}
-
-func dedupeKey(t *StaffParentAnnouncementTarget) string {
-	switch {
-	case t.TargetRefID != nil:
-		return fmt.Sprintf("%s:id:%d", t.TargetType, *t.TargetRefID)
-	case t.TargetRefText != nil:
-		return fmt.Sprintf("%s:txt:%s", t.TargetType, *t.TargetRefText)
-	default:
-		return t.TargetType
-	}
 }
 
 func normalizeLetterDelivery(in *Input) error {

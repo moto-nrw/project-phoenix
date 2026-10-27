@@ -111,6 +111,8 @@ const (
 	CodeCommunicationAnnouncementNotPublished            = "communication.announcement_not_published"
 	CodeCommunicationAnnouncementPublishedImmutable      = "communication.announcement_published_immutable"
 	CodeCommunicationAnnouncementReminderSent            = "communication.announcement_reminder_sent"
+	CodeCommunicationClassLetterClassNotReachable        = "communication.class_letter_class_not_reachable"
+	CodeCommunicationClassLetterReadOnly                 = "communication.class_letter_read_only"
 	CodeCommunicationDeclarationHasSubmissions           = "communication.declaration_has_submissions"
 	CodeCommunicationGroupThreadClosed                   = "communication.group_thread_closed"
 	CodeCommunicationGroupThreadNoRecipients             = "communication.group_thread_no_recipients"
@@ -300,8 +302,6 @@ const (
 	CodeIdentityDemoSchoolPreparing                      = "identity.demo_school_preparing"
 	CodeIdentityDemoSession                              = "identity.demo_session"
 	CodeIdentityEmailAlreadyExists                       = "identity.email_already_exists"
-	CodeIdentityEmailChangeLinkInvalid                   = "identity.email_change_link_invalid"
-	CodeIdentityEmailChangeRateLimited                   = "identity.email_change_rate_limited"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -414,6 +414,8 @@ var errorCodeClasses0 = map[string]string{
 	"communication.announcement_not_published":             "business_rejection",
 	"communication.announcement_published_immutable":       "business_rejection",
 	"communication.announcement_reminder_sent":             "business_rejection",
+	"communication.class_letter_class_not_reachable":       "permission",
+	"communication.class_letter_read_only":                 "business_rejection",
 	"communication.declaration_has_submissions":            "business_rejection",
 	"communication.group_thread_closed":                    "business_rejection",
 	"communication.group_thread_no_recipients":             "business_rejection",
@@ -603,8 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.demo_school_preparing":                       "unavailable",
 	"identity.demo_session":                                "permission",
 	"identity.email_already_exists":                        "business_rejection",
-	"identity.email_change_link_invalid":                   "business_rejection",
-	"identity.email_change_rate_limited":                   "unavailable",
 }
 
 func init() {

@@ -147,7 +147,11 @@ func TestAnnouncementRoutesPreserveAuthoringAndResponseContracts(t *testing.T) {
 			status, body := announcementRequest(t, r, token, tc.method, tc.path, tc.body)
 			require.Equal(t, tc.status, status, body)
 			require.Contains(t, body, tc.fragment)
-			require.Equal(t, []string{tc.call}, s.calls[before:])
+			expected := []string{tc.call}
+			if tc.method == "GET" && tc.call != "get" && tc.call != "list" {
+				expected = append([]string{"get"}, expected...)
+			}
+			require.Equal(t, expected, s.calls[before:])
 		})
 	}
 	require.Equal(t, s.id, *s.input.Targets[0].RefID)

@@ -423,6 +423,7 @@
     "newsAcknowledgementHint": "Так вы подтверждаете только то, что прочитали объявление.",
     "newsMessageFrom": "Сообщение от {school}",
     "newsDeclarationFrom": "Согласие · {school}",
+    "newsSender": "{name}, класс {schoolClass}, {school}",
     "newsRead": "Прочитано",
     "newsStaleError": "Это объявление больше не актуально. Пожалуйста, обновите страницу.",
     "newsPoll": "Опрос",
@@ -2545,7 +2546,9 @@
         "survey_not_open": "Этот опрос больше не принимает ответы.",
         "survey_already_answered": "Вы уже участвовали в этом опросе. Ответ изменить нельзя.",
         "survey_not_draft": "Не удалось изменить: {object}. Проверьте текущее состояние.",
-        "survey_anonymous": "Не удалось изменить: {object}. Проверьте текущее состояние."
+        "survey_anonymous": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "class_letter_class_not_reachable": "У вас нет доступа к: {object}. Обратитесь в школу.",
+        "class_letter_read_only": "Не удалось изменить: {object}. Проверьте текущее состояние."
       },
       "enrollment": {
         "form_attachment_invalid": "Проверьте название и PDF-файл.",
