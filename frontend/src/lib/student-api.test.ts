@@ -108,9 +108,7 @@ describe("student-api", () => {
 
         const result = await fetchStudents();
 
-        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students", {
-          token: "test-token",
-        });
+        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students");
         expect(result.students).toEqual([sampleStudent]);
         expect(result.pagination).toEqual(paginatedResponse.pagination);
       });
@@ -162,7 +160,6 @@ describe("student-api", () => {
 
         expect(mockedAuthFetch).toHaveBeenCalledWith(
           expect.stringContaining("/api/students?"),
-          expect.anything(),
         );
         const calledUrl = mockedAuthFetch.mock.calls[0]![0];
         expect(calledUrl).toContain("search=Max");
@@ -223,9 +220,7 @@ describe("student-api", () => {
 
         const result = await fetchStudent("123");
 
-        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students/123", {
-          token: "test-token",
-        });
+        expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students/123");
         expect(result).toEqual(sampleStudent);
       });
 
@@ -526,7 +521,6 @@ describe("student-api", () => {
 
       expect(mockedAuthFetch).toHaveBeenCalledWith(
         "/api/students/123/enrollment-extra-fields",
-        { token: "test-token" },
       );
       expect(result).toEqual(enrollmentExtraGroups);
     });
@@ -637,8 +631,8 @@ describe("student-api", () => {
 
   // ─── uploadStudentPhoto ────────────────────────────────────────────────
   // Uses raw fetch (multipart/form-data) rather than authFetch which only
-  // speaks JSON. Mock global.fetch and ensure the bearer token + form
-  // fields end up shaped correctly.
+  // speaks JSON. Mock global.fetch and ensure the form fields end up shaped
+  // correctly; the route reads the session cookie (#5005).
   describe("uploadStudentPhoto", () => {
     const originalFetch = global.fetch;
     const fetchMock = vi.fn();
@@ -652,7 +646,7 @@ describe("student-api", () => {
       global.fetch = originalFetch;
     });
 
-    it("posts multipart form data with bearer token and returns photoUrl", async () => {
+    it("posts multipart form data without a bearer token and returns photoUrl", async () => {
       fetchMock.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -675,9 +669,7 @@ describe("student-api", () => {
       ];
       expect(calledUrl).toBe("/api/students/42/photo");
       expect(calledOptions.method).toBe("POST");
-      const headers = calledOptions.headers as Record<string, string>;
-      // Default mockSessionData() returns user.token = "test-token".
-      expect(headers.Authorization).toMatch(/^Bearer /);
+      expect(calledOptions.headers).toBeUndefined();
       // Body must be FormData with the "photo" field set.
       const body = calledOptions.body as FormData;
       expect(body).toBeInstanceOf(FormData);
@@ -812,18 +804,14 @@ describe("student-api", () => {
 
   // ─── deleteStudentPhoto ────────────────────────────────────────────────
   describe("deleteStudentPhoto", () => {
-    it("calls authFetch with DELETE method and bearer token", async () => {
+    it("calls authFetch with DELETE method and no token", async () => {
       mockedAuthFetch.mockResolvedValueOnce(undefined);
 
       await deleteStudentPhoto("42");
 
-      expect(mockedAuthFetch).toHaveBeenCalledWith(
-        "/api/students/42/photo",
-        expect.objectContaining({
-          method: "DELETE",
-          token: expect.any(String),
-        }),
-      );
+      expect(mockedAuthFetch).toHaveBeenCalledWith("/api/students/42/photo", {
+        method: "DELETE",
+      });
     });
 
     it("propagates authFetch errors so the caller can render them", async () => {

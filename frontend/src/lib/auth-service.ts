@@ -1,5 +1,4 @@
 // lib/auth-service.ts
-import { getCachedSession } from "./session-cache";
 import { isAxiosError } from "axios";
 import api from "./api-transport";
 import { resolveApiUrl } from "./api-url";
@@ -156,26 +155,12 @@ interface AuthFetchOptions<TBackend, TFrontend> {
 }
 
 /**
- * Build auth headers for browser-side fetch requests.
+ * Headers for browser-side fetch requests. The BFF routes authenticate
+ * through the session cookie; the browser holds no token (#5005).
  */
-async function buildAuthHeaders(
-  requiresAuth: boolean,
-): Promise<Record<string, string>> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-
-  if (!requiresAuth) {
-    return headers;
-  }
-
-  const session = await getCachedSession();
-  if (session?.user?.token) {
-    headers.Authorization = `Bearer ${session.user.token}`;
-  }
-
-  return headers;
-}
+const BROWSER_HEADERS: Record<string, string> = {
+  "Content-Type": "application/json",
+};
 
 /**
  * Execute fetch request in browser context.
@@ -264,11 +249,10 @@ async function authFetch<TBackend, TFrontend = void>(
     let backendData: TBackend;
 
     if (useProxyApi) {
-      const headers = await buildAuthHeaders(requiresAuth);
       const responseData = await executeBrowserFetch<unknown>(
         url,
         method,
-        headers,
+        BROWSER_HEADERS,
         body,
         errorPrefix,
       );

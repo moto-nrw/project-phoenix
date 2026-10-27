@@ -562,7 +562,7 @@ describe("CareOfferingsEditor", () => {
     render(<CareOfferingsEditor />);
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Erstes Betreuungsangebot anlegen",
+        name: "Neues Betreuungsangebot",
       }),
     );
 
@@ -1412,7 +1412,7 @@ describe("CareOfferingsEditor", () => {
     render(<CareOfferingsEditor />);
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Erstes Betreuungsangebot anlegen",
+        name: "Neues Betreuungsangebot",
       }),
     );
     fireEvent.click(screen.getByLabelText("Regeltermin"));
@@ -2337,7 +2337,7 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
     );
     fireEvent.change(inputByName("name"), {
       target: { value: "Falsches Fenster" },
@@ -2363,7 +2363,7 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
     );
     fireEvent.change(inputByName("name"), {
       target: { value: "Unvollständiger Zeitraum" },
@@ -2392,7 +2392,7 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
     );
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "   " },
@@ -2447,7 +2447,7 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
     );
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Schuljahr 2026/27" },
@@ -2660,7 +2660,7 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Erste Anmeldephase anlegen" }),
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
     );
     fireEvent.change(inputByName("name"), { target: { value: "Nur Konto" } });
 

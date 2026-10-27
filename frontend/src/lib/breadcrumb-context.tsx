@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
+import { useSidebarMemory } from "~/lib/sidebar-memory";
 import type { HelpTopicId } from "~/lib/help-topics";
 
 interface BreadcrumbData {
@@ -60,25 +61,24 @@ export function useBreadcrumb(): BreadcrumbContextValue {
 }
 
 /**
- * Sets breadcrumb data on mount and clears it on unmount.
- * Pages call this to communicate breadcrumb info to the persistent Header.
- */
-/**
  * Convenience hook for student history pages.
- * Reads the group/room name from localStorage based on the referrer
+ * Reads the remembered group/room name based on the referrer
  * and sets the breadcrumb accordingly.
  */
 export function useStudentHistoryBreadcrumb(opts: {
   studentName?: string;
   referrer: string;
 }): void {
+  const memory = useSidebarMemory();
+  const groupNameKey = memory.key("sidebar-last-group-name");
+  const roomNameKey = memory.key("sidebar-last-room-name");
   const breadcrumbGroupName = useLocalStorageValue(
-    "sidebar-last-group-name",
-    opts.referrer.startsWith("/ogs-groups"),
+    groupNameKey ?? "",
+    groupNameKey !== null && opts.referrer.startsWith("/ogs-groups"),
   );
   const breadcrumbRoomName = useLocalStorageValue(
-    "sidebar-last-room-name",
-    opts.referrer.startsWith("/active-supervisions"),
+    roomNameKey ?? "",
+    roomNameKey !== null && opts.referrer.startsWith("/active-supervisions"),
   );
 
   useSetBreadcrumb({
@@ -89,6 +89,10 @@ export function useStudentHistoryBreadcrumb(opts: {
   });
 }
 
+/**
+ * Sets breadcrumb data on mount and clears it on unmount.
+ * Pages call this to communicate breadcrumb info to the persistent Header.
+ */
 export function useSetBreadcrumb(data: BreadcrumbData): void {
   const { setBreadcrumb } = useBreadcrumb();
 

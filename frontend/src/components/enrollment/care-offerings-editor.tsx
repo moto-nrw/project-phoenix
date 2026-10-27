@@ -85,6 +85,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -1047,7 +1048,7 @@ export function CareOfferingsEditor({
           ) : null}
 
           {selectedPhaseId && offerings.length === 0 ? (
-            <EmptyCareOfferingState onCreate={beginCreate} />
+            <EmptyCareOfferingState />
           ) : offerings.length > 0 ? (
             <DataTable
               columns={columns}
@@ -1121,28 +1122,29 @@ function CareOfferingToolbar({
 }>) {
   return (
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-      {/* Kennzahlen, Phasenauswahl und Anlegen teilen sich auf dem Desktop
-          EINE Zeile; ohne Umbruch, damit darunter keine zweite, fast leere
-          Zeile entsteht. */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="grid gap-2 sm:grid-cols-4">
-          <CareOfferingMetric
-            icon={<MotoConceptIcon concept="carePlan" size={16} />}
+      {/* Kennzahlen, Phasenauswahl und Anlegen stehen in einer Zeile, solange
+          alles hineinpasst; sonst rutschen Auswahl und Knopf in eine eigene
+          Zeile. Ein langer Phasenname wird im Auswahlfeld gekürzt und
+          verdrängt die Kacheln nie (#5022). */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="grid min-w-0 flex-[999_1_40rem] gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="carePlan" size={16} />}
             label="Angebote"
             value={offeringCount}
           />
-          <CareOfferingMetric
-            icon={<Check className="h-4 w-4" />}
+          <EnrollmentStatTile
+            icon={Check}
             label="Aktiv"
             value={activeOfferingCount}
           />
-          <CareOfferingMetric
-            icon={<MotoConceptIcon concept="calendar" size={18} />}
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="calendar" size={18} />}
             label="Tage"
             value={selectableDaysCount}
           />
-          <CareOfferingMetric
-            icon={<MotoConceptIcon concept="children" size={18} />}
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="children" size={18} />}
             label="Kapazität"
             value={hasCapacityLimit ? totalCapacity : "frei"}
             detail={
@@ -1153,13 +1155,13 @@ function CareOfferingToolbar({
           />
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <div className="flex min-w-0 flex-auto flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
           <CustomSelect
             id="care-offerings-phase"
             ariaLabel="Anmeldephase"
             value={selectedPhaseId}
             onChange={onPhaseChange}
-            className="h-9 min-w-56"
+            className="h-9 min-w-0 sm:w-auto sm:max-w-md"
             options={phases.map((phase) => ({
               value: phase.id,
               label: `${phase.name} (${KIND_LABELS[phase.kind]})${
@@ -1183,36 +1185,6 @@ function CareOfferingToolbar({
         </div>
       </div>
     </section>
-  );
-}
-
-function CareOfferingMetric({
-  icon,
-  label,
-  value,
-  detail,
-}: Readonly<{
-  icon: React.ReactNode;
-  label: string;
-  value: number | string;
-  /** Second figure next to the value, e.g. the free places. */
-  detail?: string;
-}>) {
-  return (
-    <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-gray-500 shadow-sm">
-        {icon}
-      </span>
-      <span>
-        <span className="block text-sm font-semibold whitespace-nowrap text-gray-900">
-          {value}
-          {detail ? (
-            <span className="font-normal text-gray-500"> · {detail}</span>
-          ) : null}
-        </span>
-        <span className="block text-xs text-gray-500">{label}</span>
-      </span>
-    </div>
   );
 }
 
@@ -1275,9 +1247,7 @@ function NoPhaseState() {
   );
 }
 
-function EmptyCareOfferingState({
-  onCreate,
-}: Readonly<{ onCreate: () => void }>) {
+function EmptyCareOfferingState() {
   return (
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
       <EmptyState
@@ -1288,18 +1258,6 @@ function EmptyCareOfferingState({
         }
         title="Noch kein Betreuungsangebot angelegt"
         description="Erstellen Sie das erste Angebot, das Eltern auswählen können. Typisch sind Regelbetreuung, Ferienbetreuung oder ein Angebot mit Mittagessen."
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={onCreate}
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Erstes Betreuungsangebot anlegen
-          </Button>
-        }
       />
     </section>
   );

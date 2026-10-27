@@ -94,4 +94,41 @@ describe("forwardBackendResponse", () => {
     expect(response.status).toBe(204);
     expect(await response.text()).toBe("");
   });
+
+  describe("cache policy (#4999)", () => {
+    it.each([
+      [200, '{"data":{"id":1}}', "application/json"],
+      [404, '{"status":404}', "application/problem+json"],
+      [502, "upstream diagnostics", "text/html"],
+    ])(
+      "marks a forwarded %i JSON answer private, no-store",
+      (status, body, type) => {
+        const response = forwardBackendResponse(
+          new Response(body, { status, headers: { "Content-Type": type } }),
+        );
+
+        expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+      },
+    );
+
+    it("does not take over a backend cache header", () => {
+      const response = forwardBackendResponse(
+        Response.json(
+          { data: [] },
+          { headers: { "Cache-Control": "public, max-age=3600" } },
+        ),
+      );
+
+      expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    });
+
+    it("leaves a forwarded file without a cache header", () => {
+      const response = forwardBackendResponse(
+        new Response("a;b", { headers: { "Content-Type": "text/csv" } }),
+      );
+
+      expect(response.headers.get("Content-Type")).toBe("text/csv");
+      expect(response.headers.has("Cache-Control")).toBe(false);
+    });
+  });
 });

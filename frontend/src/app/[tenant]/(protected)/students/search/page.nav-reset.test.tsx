@@ -32,8 +32,10 @@ const {
   mockPush: vi.fn(),
   mockMutateStudents: vi.fn(),
   mockUpdateSession: vi.fn(),
+  // The browser session carries no token (#5005); a session without one
+  // carries an error.
   sessionState: {
-    token: "t" as string | undefined,
+    error: undefined as "RefreshTokenError" | undefined,
     status: "authenticated" as "authenticated" | "loading",
   },
 }));
@@ -42,7 +44,7 @@ let currentSearch = new URLSearchParams();
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { id: "3", tenantId: 2, token: sessionState.token } },
+    data: { user: { id: "3", tenantId: 2 }, error: sessionState.error },
     status: sessionState.status,
     update: mockUpdateSession,
   })),
@@ -230,7 +232,9 @@ function renderOnSearchPage(search: string) {
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
-  sessionState.token = "t";
+  // The stored filters belong to the signed-in account (#5000).
+  localStorage.setItem("moto:personal-storage-owner", "2:3");
+  sessionState.error = undefined;
   sessionState.status = "authenticated";
   studentKeys = [];
   studentsResponse = {
@@ -366,7 +370,7 @@ describe("StudentSearchPage: student list that does not finish loading (#3374)",
   });
 
   it("asks for the session again when the token is missing", () => {
-    sessionState.token = undefined;
+    sessionState.error = "RefreshTokenError";
     studentsResponse = { data: undefined, isLoading: false, error: undefined };
     renderOnSearchPage("");
 

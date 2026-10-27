@@ -6,6 +6,15 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// The sidebar memory and the offering choice belong to the signed-in account
+// (#5000), so the hooks read the session.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "7", tenantId: 1 } },
+    status: "authenticated",
+  }),
+}));
+
 const refreshSupervision = vi.hoisted(() => vi.fn());
 
 vi.mock("~/lib/supervision-context", () => ({
@@ -25,6 +34,11 @@ vi.mock("~/lib/timetable-operations-api", () => ({
 import { ToastProvider } from "~/contexts/ToastContext";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { TimetableRoster } from "~/lib/timetable-operations-types";
+import {
+  bindPersonalStorage,
+  clearPersonalStorage,
+} from "~/lib/personal-storage";
+import { sidebarMemoryKey } from "~/lib/sidebar-memory";
 import { useTimetableActions } from "./use-timetable-actions";
 
 function deferred() {
@@ -82,6 +96,8 @@ function setup(overrides: { mutateDashboard?: () => Promise<unknown> } = {}) {
 describe("useTimetableActions lifecycle reload (#3888)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The undo belongs to the signed-in account (#5000).
+    bindPersonalStorage("1:7");
     refreshSupervision.mockResolvedValue(undefined);
     vi.mocked(timetableOperationsApi.complete).mockResolvedValue({
       reopenUntil: "2026-09-09T12:05:00+02:00",
@@ -198,4 +214,115 @@ describe("useTimetableActions lifecycle reload (#3888)", () => {
       staff_ids: ["1", "9007199254740993"],
     });
   });
+});
+
+// The request starts for account 7 at school 1, the tab then switches to
+// another account or logs out, and only then the answer arrives (#5000). The
+// sidebar memory and the undo banner must not bring back what the switch
+// cleared: the next person would see the previous person's room and activity.
+describe("useTimetableActions after a logout or account switch (#5000)", () => {
+  const LAST_ROOM = sidebarMemoryKey("sidebar-last-room", "1:7");
+  const LAST_SESSION = sidebarMemoryKey("supervision-last-session", "1:7");
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    refreshSupervision.mockResolvedValue(undefined);
+    localStorage.clear();
+    bindPersonalStorage("1:7");
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+  });
+
+  const changes = [
+    ["an account switch", () => bindPersonalStorage("1:8")],
+    ["a logout", () => clearPersonalStorage()],
+  ] as const;
+
+  it("remembers the started block while the account stays", async () => {
+    vi.mocked(timetableOperationsApi.start).mockResolvedValue({
+      instanceId: "88",
+      activeGroupId: "5",
+      status: "active",
+    });
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.handleStartPlannedInstance({
+        id: "88",
+        roomId: "20",
+      } as Parameters<typeof result.current.handleStartPlannedInstance>[0]);
+    });
+
+    expect(localStorage.getItem(LAST_ROOM)).toBe("20");
+    expect(localStorage.getItem(LAST_SESSION)).toBe("5");
+  });
+
+  it.each(changes)(
+    "does not remember a block whose start answers after %s",
+    async (_change, change) => {
+      let answer!: (value: {
+        instanceId: string;
+        activeGroupId: string;
+        status: string;
+      }) => void;
+      vi.mocked(timetableOperationsApi.start).mockReturnValue(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+      const { result, options } = setup();
+
+      let started!: Promise<void>;
+      act(() => {
+        started = result.current.handleStartPlannedInstance({
+          id: "88",
+          roomId: "20",
+        } as Parameters<typeof result.current.handleStartPlannedInstance>[0]);
+      });
+      change();
+      await act(async () => {
+        answer({ instanceId: "88", activeGroupId: "5", status: "active" });
+        await started;
+      });
+
+      // Anker: the start went through.
+      expect(options.router.push).toHaveBeenCalledWith(
+        "/active-supervisions?session=5",
+      );
+      expect(localStorage.getItem(LAST_ROOM)).toBeNull();
+      expect(localStorage.getItem(LAST_SESSION)).toBeNull();
+    },
+  );
+
+  it.each(changes)(
+    "offers no undo for an end that answers after %s",
+    async (_change, change) => {
+      let answer!: (value: { reopenUntil: string }) => void;
+      vi.mocked(timetableOperationsApi.complete).mockReturnValue(
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      );
+      const { result, options } = setup();
+
+      let completed!: Promise<void>;
+      act(() => {
+        completed = result.current.confirmCompleteTimetableInstance();
+      });
+      change();
+      await act(async () => {
+        answer({ reopenUntil: "2026-09-09T12:05:00+02:00" });
+        await completed;
+      });
+
+      // Anker: the end went through and the page reloaded.
+      expect(refreshSupervision).toHaveBeenCalledWith({
+        silent: true,
+        force: true,
+      });
+      expect(options.rememberReopenable).not.toHaveBeenCalled();
+    },
+  );
 });

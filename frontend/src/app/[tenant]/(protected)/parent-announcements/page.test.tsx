@@ -157,6 +157,44 @@ describe("ParentAnnouncementsPage (#3115)", () => {
     expect(pushMock).toHaveBeenCalledTimes(2);
   });
 
+  // #5034: Anlegen steht nur im Kopf. Eine gefilterte leere Liste bietet
+  // das Zurücksetzen an, nicht ein zweites Anlegen.
+  it("offers Filter zurücksetzen instead of a second create button when the search finds nothing", async () => {
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.change(screen.getAllByPlaceholderText("Titel suchen…")[0]!, {
+      target: { value: "Gibt es nicht" },
+    });
+
+    expect(
+      await screen.findByText("Keine passenden Einträge"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", {
+        name: "Neue Elternmitteilung erstellen",
+      }),
+    ).toHaveLength(1);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filter zurücksetzen" }),
+    );
+    expect((await screen.findAllByText("Sommerfest")).length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it("shows the empty state without a second create button", async () => {
+    listState.data = [];
+    render(<ParentAnnouncementsPage />);
+
+    expect(await screen.findByText("Keine Mitteilungen")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", {
+        name: "Neue Elternmitteilung erstellen",
+      }),
+    ).toHaveLength(1);
+  });
+
   it("reads the tab from the address and writes it back on change", async () => {
     searchParams.set("art", "umfragen");
     render(<ParentAnnouncementsPage />);
@@ -330,11 +368,9 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
     render(<ParentAnnouncementsPage />);
 
     fireEvent.click(
-      (
-        await screen.findAllByRole("button", {
-          name: "Neue Umfrage erstellen",
-        })
-      )[0]!,
+      await screen.findByRole("button", {
+        name: "Neue Umfrage erstellen",
+      }),
     );
 
     const lines = Array.from({ length: 60 }, (_, i) => `Termin ${i + 1}`);
@@ -609,9 +645,8 @@ describe("ParentAnnouncementsPage: Einverständnisse (#3430)", () => {
       screen.getByRole("tab", { name: /Einverständnisse/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getAllByRole("button", { name: "Neues Einverständnis erstellen" })
-        .length,
-    ).toBeGreaterThan(0);
+      screen.getAllByRole("button", { name: "Neues Einverständnis erstellen" }),
+    ).toHaveLength(1);
   });
 
   it("sends the Einverständnis settings and offers no Kenntnisnahme, poll or read confirmation", async () => {

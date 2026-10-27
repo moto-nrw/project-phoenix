@@ -219,9 +219,11 @@ describe.concurrent("bauart/no-autosave", () => {
   });
 
   it("exempts the named baseline entries", async () => {
+    // Not payroll/page.tsx: the SWR ratchet baseline also names it and fails
+    // a probe there that has no direct SWR import.
     const { status, output } = await lintSource(
       BLUR_SAVE,
-      "src/app/[tenant]/(protected)/payroll/page.tsx",
+      "src/components/parent/child-master-data.tsx",
     );
 
     expect(output).not.toContain("bauart(no-autosave)");

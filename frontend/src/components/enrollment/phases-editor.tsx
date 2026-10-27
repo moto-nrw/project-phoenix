@@ -908,22 +908,6 @@ export function PhasesEditor() {
                   <MotoConceptIcon concept="calendarPeriods" size={24} />
                 </span>
               ),
-              action: (
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={startCreate}
-                  className="inline-flex items-center justify-center gap-2"
-                >
-                  <MotoConceptIcon
-                    concept="calendarPeriods"
-                    colorMode="inherit"
-                    size={16}
-                  />
-                  Erste Anmeldephase anlegen
-                </Button>
-              ),
             }
           : null
       }

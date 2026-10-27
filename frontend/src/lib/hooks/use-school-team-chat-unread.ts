@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import { personalStorageOwner } from "~/lib/personal-storage";
 import { schoolStaffMessagesApi } from "~/lib/school-staff-messages-api";
 import { isStaffMessagingDisabled } from "~/lib/staff-messages-api";
 import { useUnreadCount } from "./use-unread-count";
@@ -112,6 +113,7 @@ export function useSchoolTeamChatUnread(): SchoolTeamChatUnread {
     enabled: status === "authenticated",
     fetcher,
     cacheKey: `school_team_chat_unread:${scope}`,
+    cacheOwner: personalStorageOwner(session?.user),
     eventNames: ["team-messages-unread-refresh"],
     eventDebounceMs: 500,
     refetchOnFocus: true,

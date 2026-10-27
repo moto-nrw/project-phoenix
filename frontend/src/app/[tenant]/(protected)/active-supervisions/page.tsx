@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { sessionIdentityKey } from "~/lib/session-access";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -97,6 +98,7 @@ import {
   HandOverSupervisionModal,
 } from "~/components/active-supervisions/hand-over-supervision-modal";
 import { OwnSupervisionView } from "~/components/active-supervisions/own-supervision-view";
+import { useSidebarMemory } from "~/lib/sidebar-memory";
 
 function hasSameGroupNames(
   previous: readonly string[] | undefined,
@@ -119,6 +121,7 @@ function MeinRaumPageContent() {
       router.push("/");
     },
   });
+  const memory = useSidebarMemory();
 
   // Pre-select the session from the URL. `?session=<activeGroupId>` is the
   // precise key (parallel sessions can share one room, #2265); the legacy
@@ -137,7 +140,7 @@ function MeinRaumPageContent() {
   // SWR refetch inside useSupervisionDashboard. Do NOT call useGlobalSSE()
   // here - it's already called in TenantAuthWrapper.
   const dashboard = useSupervisionDashboard({
-    sessionToken: session?.user?.token,
+    sessionKey: sessionIdentityKey(session),
     sessionParam,
     roomParam,
   });
@@ -304,12 +307,12 @@ function MeinRaumPageContent() {
       dashboard.selectOpenRoom(roomId);
       router.push(`/active-supervisions?room=${roomId}`);
       if (room.isUserSupervising) {
-        localStorage.removeItem("supervision-last-session");
+        memory.remove("supervision-last-session");
       }
-      localStorage.setItem("sidebar-last-room", roomId);
-      localStorage.setItem("sidebar-last-room-name", room.name);
+      memory.write("sidebar-last-room", roomId);
+      memory.write("sidebar-last-room-name", room.name);
     },
-    [dashboard, openRooms, router],
+    [dashboard, memory, openRooms, router],
   );
 
   const handleTabChange = (tabValue: string) => {
@@ -325,12 +328,12 @@ function MeinRaumPageContent() {
     const room = allRooms.find((r) => r.id === sessionId);
     if (room) {
       router.push(`/active-supervisions?session=${sessionId}`);
-      localStorage.setItem("supervision-last-session", sessionId);
+      memory.write("supervision-last-session", sessionId);
       if (room.room_id) {
-        localStorage.setItem("sidebar-last-room", room.room_id);
+        memory.write("sidebar-last-room", room.room_id);
       }
       if (room.room_name) {
-        localStorage.setItem("sidebar-last-room-name", room.room_name);
+        memory.write("sidebar-last-room-name", room.room_name);
       }
       void dashboard.switchToRoom(sessionId);
     }
@@ -550,6 +553,13 @@ function MeinRaumPageContent() {
     (currentOpenRoom !== null || additionalSupervisionActiveGroupId) ? (
       <StatusBadge label="Eigene Aufsicht" tone="green" />
     ) : null;
+  // Mit dem Überblick über alle Aufsichten öffnet die Seite auch fremde
+  // Sitzungen. Wer dort nicht Betreuer ist, sieht das am Abzeichen; die
+  // Betreuer stehen in der Zeile darunter (#5035).
+  const foreignSupervisionBadge =
+    currentRoom && !currentOpenRoom && !currentRoom.isCurrentUserSupervising ? (
+      <StatusBadge label="Nicht Ihre Aufsicht" tone="gray" />
+    ) : null;
 
   // „Beaufsichtigen" steht als Kopf-Aktion dort, wo sonst „Aufsicht abgeben"
   // steht (#2161).
@@ -576,6 +586,7 @@ function MeinRaumPageContent() {
     runStateBadge ??
     openRoomBadge ??
     ownSupervisionBadge ??
+    foreignSupervisionBadge ??
     addSupervisorButton ??
     handOverButton ??
     superviseAction ??
@@ -815,11 +826,15 @@ function MeinRaumPageContent() {
             {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
                 Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen
                 untereinander läsen sich wie zwei Knöpfe. */}
-            {runStateBadge || openRoomBadge || ownSupervisionBadge ? (
+            {runStateBadge ||
+            openRoomBadge ||
+            ownSupervisionBadge ||
+            foreignSupervisionBadge ? (
               <span className="flex items-center gap-2">
                 {runStateBadge}
                 {openRoomBadge}
                 {ownSupervisionBadge}
+                {foreignSupervisionBadge}
               </span>
             ) : null}
             {addSupervisorButton}
@@ -963,9 +978,14 @@ function MeinRaumPageContent() {
           ) : null}
 
           {/* Kinder in einen Raum setzen ist eine Verwaltungsaktion. Einen
-              offenen Raum zu sehen verleiht sie nicht (#3065); wer dort die
-              Aufsicht hat, behält sie. */}
-          {(currentRoom ?? currentOpenRoom?.isUserSupervising) ? (
+              offenen Raum oder eine fremde Sitzung zu sehen verleiht sie
+              nicht (#3065, #5035); wer dort die Aufsicht hat, behält sie,
+              die Verwaltung auch auf fremden Sitzungen (canAssign). */}
+          {(
+            currentOpenRoom
+              ? currentOpenRoom.isUserSupervising
+              : currentRoom?.canAssign
+          ) ? (
             <Suspense fallback={null}>
               <TransitStudentsSection
                 fromReferrer="/active-supervisions"

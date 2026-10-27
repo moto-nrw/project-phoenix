@@ -1,3 +1,4 @@
+import "server-only";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import type { JwtPayload } from "./jwt-payload";
 

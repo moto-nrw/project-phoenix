@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { personalStorageOwner } from "~/lib/personal-storage";
 import { fetchStaffUnreadCount } from "~/lib/staff-messages-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSafe, useTenantSlugSafe } from "~/lib/tenant-context";
@@ -31,6 +32,7 @@ export function useStaffMessagesUnread() {
     enabled: status === "authenticated" && mode === "teacher" && chatEnabled,
     fetcher: fetchStaffUnreadCount,
     cacheKey: `team_chat_unread_count:${tenantSlug ?? ""}:${accountId}`,
+    cacheOwner: personalStorageOwner(session?.user),
     eventNames: ["team-messages-unread-refresh"],
     // Collapse a burst of messages into one count refetch.
     eventDebounceMs: 500,

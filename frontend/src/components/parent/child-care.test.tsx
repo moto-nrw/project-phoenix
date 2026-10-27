@@ -1,5 +1,6 @@
 import {
   act,
+  cleanup,
   fireEvent,
   render,
   renderHook,
@@ -41,6 +42,31 @@ vi.mock("~/lib/parent-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/parent-api")>()),
   getPickupSignatureStatement: vi.fn(),
 }));
+
+beforeEach(() => {
+  // These reads also run in nested controls. Keep them local unless a test
+  // supplies its own recipients, contacts or request history.
+  vi.spyOn(parentApi, "listChildGuardians").mockResolvedValue([]);
+  vi.spyOn(parentApi, "getRequestSharingOptions").mockResolvedValue({
+    family_protected: false,
+    recipients: [],
+  });
+  vi.spyOn(parentApi, "getRequestSharing").mockResolvedValue({
+    family_protected: false,
+    recipients: [],
+  });
+  vi.spyOn(parentApi, "listParentRequestEvents").mockResolvedValue([]);
+  vi.spyOn(globalThis, "fetch");
+});
+
+afterEach(() => {
+  cleanup();
+  try {
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  } finally {
+    vi.restoreAllMocks();
+  }
+});
 
 // de-locale (the test locale) renders YYYY-MM-DD as DD.MM.YYYY.
 function de(iso: string): string {
@@ -1174,10 +1200,6 @@ describe("SickStatusSummary — edit action", () => {
     );
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("offers editing an own pending request when the guardian may report absences", () => {
     render(
       <SickStatusSummary
@@ -1473,10 +1495,6 @@ describe("resolveTodayPickup", () => {
 });
 
 describe("useChildCare reportSick", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   // A direct sick/excused report that includes today makes the child absent NOW.
   // todayPickup reads todayAbsent exclusively, so the hook must flip it on the
   // optimistic merge path — otherwise the "Heute → Abholung" tile keeps showing
@@ -1548,10 +1566,6 @@ describe("useChildCare reportSick", () => {
 });
 
 describe("useChildCare studentId switch", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   // Navigating from child A to child B reuses the hook instance (only the prop
   // changes). The loadSeqRef guard stops a late load(A) from overwriting B, but
   // it does nothing about the window before B's fetch lands — so A's resolved
@@ -1788,10 +1802,6 @@ describe("Dialoge in Elternsprache", () => {
 // #2518: jeder Fehler läuft über den gemeinsamen Fehlerweg. Ein Satz des
 // Servers erscheint nie, Wiederholen sendet die aktuellen Angaben.
 describe("Fehlerweg der Dialoge (#2518)", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it("zeigt einen Ausfall beim Ändern der Abholzeit im Dialog und wiederholt", async () => {
     const onSubmit = vi
       .fn()

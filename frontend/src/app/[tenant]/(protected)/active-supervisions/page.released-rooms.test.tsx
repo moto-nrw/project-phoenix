@@ -50,7 +50,7 @@ vi.mock("~/lib/auth-utils", () => ({
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { token: "test-token", id: "7", tenantId: 1 } },
     status: "authenticated",
   })),
 }));
@@ -341,6 +341,14 @@ import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import MeinRaumPage from "./page";
 
 import { ToastProvider } from "~/contexts/ToastContext";
+import {
+  type SidebarMemoryEntry,
+  sidebarMemoryKey,
+} from "~/lib/sidebar-memory";
+
+// The sidebar memory is bound to the school and account of the session
+// (#5000); the mocked session signs in account "7" at school 1.
+const memoryKey = (entry: SidebarMemoryEntry) => sidebarMemoryKey(entry, "1:7");
 
 // Aktionen melden Fehler als Toast oder im Dialog (#2517); der Provider
 // zeigt den Toast echt an.
@@ -455,7 +463,7 @@ beforeEach(() => {
   vi.mocked(useSession)
     .mockReset()
     .mockReturnValue({
-      data: { user: { token: "test-token" } },
+      data: { user: { token: "test-token", id: "7", tenantId: 1 } },
       status: "authenticated",
     } as never);
   vi.mocked(useOptionalSupervision)
@@ -939,7 +947,7 @@ describe("open-room tab onTabChange callback", () => {
           } as never)) as never);
 
     navigationMockState.roomParam = "schulhof-r1";
-    localStorage.setItem("supervision-last-session", "room-1");
+    localStorage.setItem(memoryKey("supervision-last-session"), "room-1");
     const removeItem = vi.spyOn(localStorage, "removeItem");
 
     render(<MeinRaumPage />);
@@ -959,8 +967,12 @@ describe("open-room tab onTabChange callback", () => {
         "/test-tenant/active-supervisions?room=schulhof-r1",
       );
     });
-    expect(removeItem).not.toHaveBeenCalledWith("supervision-last-session");
-    expect(localStorage.getItem("supervision-last-session")).toBe("room-1");
+    expect(removeItem).not.toHaveBeenCalledWith(
+      memoryKey("supervision-last-session"),
+    );
+    expect(localStorage.getItem(memoryKey("supervision-last-session"))).toBe(
+      "room-1",
+    );
 
     // The room's occupancy already arrived with the dashboard, so opening it
     // starts no visits request of its own.
@@ -1133,7 +1145,9 @@ describe("open-room tab onTabChange callback", () => {
       );
     });
     expect(screen.getByTestId("timetable-roster")).toBeInTheDocument();
-    expect(removeItem).toHaveBeenCalledWith("supervision-last-session");
+    expect(removeItem).toHaveBeenCalledWith(
+      memoryKey("supervision-last-session"),
+    );
   });
 
   it("shows every child in a released room whose sessions the caller does not supervise", async () => {
@@ -1423,7 +1437,9 @@ describe("open-room tab onTabChange callback", () => {
     expect(
       screen.getByRole("link", { name: /Zurück zum Raum/ }),
     ).toHaveAttribute("href", expect.stringContaining("/rooms/schulhof-r1"));
-    expect(removeItem).not.toHaveBeenCalledWith("supervision-last-session");
+    expect(removeItem).not.toHaveBeenCalledWith(
+      memoryKey("supervision-last-session"),
+    );
 
     // The head card names the room an open room and carries no "Eigene
     // Aufsicht" — and the room stays open anyway. Hiding it from everyone but

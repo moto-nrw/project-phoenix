@@ -301,7 +301,7 @@ const (
 	CodeIdentityEmailChangeLinkInvalid                   = "identity.email_change_link_invalid"
 	CodeIdentityEmailChangeRateLimited                   = "identity.email_change_rate_limited"
 	CodeIdentityEmailChangeSameEmail                     = "identity.email_change_same_email"
-	CodeIdentityInvalidCredentials                       = "identity.invalid_credentials"
+	CodeIdentityGuardianInvitationEmailNotQueued         = "identity.guardian_invitation_email_not_queued"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -604,7 +604,7 @@ var errorCodeClasses0 = map[string]string{
 	"identity.email_change_link_invalid":                   "business_rejection",
 	"identity.email_change_rate_limited":                   "unavailable",
 	"identity.email_change_same_email":                     "input",
-	"identity.invalid_credentials":                         "input",
+	"identity.guardian_invitation_email_not_queued":        "unavailable",
 }
 
 func init() {

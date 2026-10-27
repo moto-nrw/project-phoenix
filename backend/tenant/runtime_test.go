@@ -62,6 +62,52 @@ func TestUnitOfWorkRetriesOnlyOutermostRetrySafeCommand(t *testing.T) {
 	assert.Equal(t, 2, attempts, "one outer and one joined nested call run; the nested call never replays")
 }
 
+// A caller that masks only the ambient transaction starts an independently
+// committed one (#4605). The inherited after-commit hooks must not make it
+// pose as a joined nested call: it owns its retry, and its hooks fire on its
+// own commit, not on the caller's later commit or rollback.
+func TestUnitOfWorkOwnsRetryAndHooksWhenOnlyTheTransactionIsMasked(t *testing.T) {
+	t.Parallel()
+	retryErr := errors.New("deadlock")
+	attempts := 0
+	uow, err := tenant.NewUnitOfWork(
+		func(ctx context.Context, _ int64, fn func(context.Context, any) error) error {
+			attempts++
+			return fn(ctx, struct{}{})
+		},
+		func(ctx context.Context, fn func(context.Context, any) error) error { return fn(ctx, struct{}{}) },
+		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(err error) bool { return errors.Is(err, retryErr) },
+	)
+	require.NoError(t, err)
+	id, err := tenant.NewTenantID(42)
+	require.NoError(t, err)
+	ctx := tenant.WithUnitOfWork(context.Background(), uow)
+	outerErr := errors.New("outer rolls back")
+	var calls []string
+
+	err = tenant.WithinTenant(ctx, id, func(outerCtx context.Context) error {
+		tenant.RegisterAfterCommit(outerCtx, func() { calls = append(calls, "outer") })
+		innerAttempts := 0
+		innerErr := tenant.WithinTenantRetry(tenant.ContextWithoutTransaction(outerCtx), id, func(innerCtx context.Context) error {
+			innerAttempts++
+			tenant.RegisterAfterCommit(innerCtx, func() { calls = append(calls, "inner") })
+			if innerAttempts == 1 {
+				return retryErr
+			}
+			return nil
+		})
+		require.NoError(t, innerErr, "the independent transaction replays its deadlock")
+		assert.Equal(t, 2, innerAttempts)
+		assert.Equal(t, []string{"inner"}, calls, "the independent commit drains its own hooks once")
+		return outerErr
+	})
+
+	require.ErrorIs(t, err, outerErr)
+	assert.Equal(t, 3, attempts, "one outer and two independent attempts")
+	assert.Equal(t, []string{"inner"}, calls, "the caller's rollback drops only its own hooks")
+}
+
 func TestUnitOfWorkDropsFailedAttemptHooksBeforeRetry(t *testing.T) {
 	t.Parallel()
 	retryErr := errors.New("deadlock")

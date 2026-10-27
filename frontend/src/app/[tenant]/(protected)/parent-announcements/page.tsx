@@ -690,21 +690,27 @@ function ParentAnnouncementsContent() {
                 ) : (
                   <Megaphone className="h-12 w-12" aria-hidden />
                 ),
-              title: copy.emptyTitle,
-              description: copy.emptyBody,
-              action: (
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={openCreate}
-                  aria-label={copy.ariaLabel}
-                  className="gap-1.5"
-                >
-                  <Plus className="h-4 w-4" aria-hidden />
-                  {copy.action}
-                </Button>
-              ),
+              // Anlegen steht schon im Kopf (#5034). Bei Suche oder Filter
+              // ist die Liste nur gefiltert: dann führt Zurücksetzen weiter.
+              ...(searchTerm || statusFilter !== "all"
+                ? {
+                    title: "Keine passenden Einträge",
+                    description: "Zu Suche und Filter passt kein Eintrag.",
+                    action: (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="md"
+                        onClick={() => {
+                          setSearchTerm("");
+                          setStatusFilter("all");
+                        }}
+                      >
+                        Filter zurücksetzen
+                      </Button>
+                    ),
+                  }
+                : { title: copy.emptyTitle, description: copy.emptyBody }),
             }
           : null
       }

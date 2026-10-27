@@ -1,6 +1,11 @@
-import type { NextRequest } from "next/server";
 import { forwardJsonPost } from "~/lib/auth-proxy.server";
+import { withOperatorAuth } from "~/server/auth/operator-route";
+import type { ServerAuthRequest } from "~/server/auth/route-handler";
 
-export async function POST(request: NextRequest) {
-  return forwardJsonPost(request, "/operator/auth/passkeys/register/verify");
+async function POSTHandler(request: ServerAuthRequest) {
+  return forwardJsonPost(request, "/operator/auth/passkeys/register/verify", {
+    sessionToken: request.auth?.user?.token ?? null,
+  });
 }
+
+export const POST = withOperatorAuth(POSTHandler);

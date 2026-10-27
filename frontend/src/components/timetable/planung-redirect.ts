@@ -1,26 +1,17 @@
-"use client";
-
 /**
- * PlanungRedirect — Client-Redirect der alten Planungs-Routen.
+ * Übersetzung der alten Planungs-Routen.
  *
  * Die frühere Tab-Seite /planung (#1886) und die Alt-Stubs /timetables,
  * /vertretungsplan und /staff/dienstplan leiten auf die drei eigenständigen
  * Bereiche /betreuungsplan, /dienstplan und /vertretung weiter. Alt-Params
  * werden in das neue Drei-Parameter-Schema (d, view, block/verlauf)
- * übersetzt; der History-Eintrag wird ersetzt, damit "Zurück" nicht in einer
- * Redirect-Schleife endet.
+ * übersetzt. Der Proxy (`src/proxy.ts`) leitet weiter (#5001): der Browser
+ * bekommt einen 307, bevor eine Seite rendert, und "Zurück" landet nie auf
+ * der Alt-Adresse.
  */
 
-import { redirect, useSearchParams } from "next/navigation";
-
-import {
-  berlinTodayISO,
-  isValidISODate,
-  parseISODate,
-  toISODate,
-} from "~/lib/date-helpers";
+import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { getWeekRange } from "~/lib/timetable-helpers";
-import { useTenantAwarePath } from "~/lib/tenant-path";
 
 export type PlanungRedirectTarget =
   "betreuungsplan" | "dienstplan" | "vertretung";
@@ -130,20 +121,4 @@ export function resolvePlanungRedirect(
 
   const query = next.toString();
   return query ? `/${resolvedTarget}?${query}` : `/${resolvedTarget}`;
-}
-
-export function PlanungRedirect({
-  target,
-}: {
-  /** Fixed target for the old stubs; omitted on /planung (derived from ?tab=). */
-  target?: PlanungRedirectTarget;
-}) {
-  const searchParams = useSearchParams();
-  const tenantPath = useTenantAwarePath();
-  const params = new URLSearchParams(searchParams.toString());
-  // Berlin-Kalendertag (docs/07 §1), damit der `d`-Anker mit dem
-  // serverseitigen timezone.TodayDate() übereinstimmt.
-  return redirect(
-    tenantPath(resolvePlanungRedirect(params, berlinTodayISO(), target)),
-  );
 }

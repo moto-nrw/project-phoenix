@@ -69,22 +69,18 @@ describe("auth-api", () => {
   });
 
   describe("refreshToken", () => {
-    it("returns tokens on successful refresh in browser", async () => {
+    it("reports a renewed session without reading tokens (#5005)", async () => {
       const restore = setupBrowserEnv();
       try {
-        const mockTokens = {
-          access_token: "new-access-token",
-          refresh_token: "new-refresh-token",
-        };
-
-        global.fetch = vi.fn().mockResolvedValue({
-          ok: true,
-          json: () => Promise.resolve(mockTokens),
-        });
+        const json = vi.fn();
+        global.fetch = vi
+          .fn()
+          .mockResolvedValue({ ok: true, status: 204, json });
 
         const result = await refreshToken();
 
-        expect(result).toEqual(mockTokens);
+        expect(result).toBe(true);
+        expect(json).not.toHaveBeenCalled();
         expect(global.fetch).toHaveBeenCalledWith("/api/auth/token", {
           method: "POST",
           headers: {
@@ -97,7 +93,7 @@ describe("auth-api", () => {
       }
     });
 
-    it("returns null when refresh fails with non-ok response", async () => {
+    it("returns false when refresh fails with non-ok response", async () => {
       const restore = setupBrowserEnv();
       try {
         global.fetch = vi.fn().mockResolvedValue({
@@ -110,7 +106,7 @@ describe("auth-api", () => {
           .mockImplementation(/* noop */ () => undefined);
         const result = await refreshToken();
 
-        expect(result).toBeNull();
+        expect(result).toBe(false);
         expect(consoleSpy).toHaveBeenCalledWith("token refresh failed", {
           status: 401,
         });
@@ -119,7 +115,7 @@ describe("auth-api", () => {
       }
     });
 
-    it("returns null when fetch throws error", async () => {
+    it("returns false when fetch throws error", async () => {
       const restore = setupBrowserEnv();
       try {
         const networkError = new Error("Network error");
@@ -130,7 +126,7 @@ describe("auth-api", () => {
           .mockImplementation(/* noop */ () => undefined);
         const result = await refreshToken();
 
-        expect(result).toBeNull();
+        expect(result).toBe(false);
         expect(consoleSpy).toHaveBeenCalledWith("error refreshing token", {
           error: "Error: Network error",
         });
@@ -139,7 +135,7 @@ describe("auth-api", () => {
       }
     });
 
-    it("returns null when called from server context", async () => {
+    it("returns false when called from server context", async () => {
       const restore = setupServerEnv();
       try {
         const consoleSpy = vi
@@ -147,7 +143,7 @@ describe("auth-api", () => {
           .mockImplementation(/* noop */ () => undefined);
         const result = await refreshToken();
 
-        expect(result).toBeNull();
+        expect(result).toBe(false);
         expect(consoleSpy).toHaveBeenCalledWith(
           "token refresh attempted from server context",
           undefined,
@@ -160,11 +156,6 @@ describe("auth-api", () => {
     it("deduplicates concurrent refresh requests", async () => {
       const restore = setupBrowserEnv();
       try {
-        const mockTokens = {
-          access_token: "new-access-token",
-          refresh_token: "new-refresh-token",
-        };
-
         // Use a delayed response to ensure both calls happen while first is pending
         let resolvePromise: (value: unknown) => void;
         const fetchPromise = new Promise((resolve) => {
@@ -178,16 +169,13 @@ describe("auth-api", () => {
         const promise2 = refreshToken();
 
         // Now resolve the fetch
-        resolvePromise!({
-          ok: true,
-          json: () => Promise.resolve(mockTokens),
-        });
+        resolvePromise!({ ok: true, status: 204 });
 
         const [result1, result2] = await Promise.all([promise1, promise2]);
 
         // Both should get the same result
-        expect(result1).toEqual(mockTokens);
-        expect(result2).toEqual(mockTokens);
+        expect(result1).toBe(true);
+        expect(result2).toBe(true);
 
         // But fetch should only be called once
         expect(global.fetch).toHaveBeenCalledTimes(1);

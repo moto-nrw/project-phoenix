@@ -67,6 +67,34 @@ describe("TraegerShell", () => {
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
   });
 
+  it("leaves no personal entries of the account on the device (#5000)", async () => {
+    localStorage.setItem("moto:personal-storage-owner", "3:9");
+    sessionStorage.setItem("timetable-reopenable-instance", '{"title":"AG"}');
+    localStorage.setItem("sidebar-collapsed", "true");
+    let leftAtSignOut: (string | null)[] = [];
+    mockSignOut.mockImplementation(() => {
+      leftAtSignOut = [
+        localStorage.getItem("moto:personal-storage-owner"),
+        sessionStorage.getItem("timetable-reopenable-instance"),
+      ];
+      return Promise.resolve(undefined);
+    });
+    render(
+      <TraegerShell>
+        <p>Inhalt</p>
+      </TraegerShell>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+
+    await waitFor(() =>
+      expect(window.location.assign).toHaveBeenCalledWith("/login"),
+    );
+    expect(leftAtSignOut).toEqual([null, null]);
+    expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
+    localStorage.clear();
+  });
+
   it("offers the holiday periods only to a role that manages enrollment", () => {
     sessionUser.permissions = ["traeger_overview:read"];
     const { unmount } = render(

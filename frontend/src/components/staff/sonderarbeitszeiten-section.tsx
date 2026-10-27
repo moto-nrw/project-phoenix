@@ -391,7 +391,6 @@ export function SonderarbeitszeitenSection({
               variant="compact"
               title="Keine Sonderarbeitszeiten eingetragen."
               description="Es gilt das Arbeitszeitmodell."
-              action={createButton}
             />
           }
         />

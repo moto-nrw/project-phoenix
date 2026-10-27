@@ -137,9 +137,13 @@ describe("StudentNotizenTab", () => {
     ).toBeInTheDocument();
   });
 
-  it("offers a first note on an empty card", () => {
+  it("offers a first note once, in the card head, on an empty card", () => {
     renderTab([]);
     expect(screen.getByText("Noch keine Notizen")).toBeInTheDocument();
+    // #5034: der Leerzustand wiederholt den Knopf aus dem Kartenkopf nicht.
+    expect(screen.getAllByRole("button", { name: "Neue Notiz" })).toHaveLength(
+      1,
+    );
   });
 
   it("renders the entry with its author and day", () => {
@@ -278,7 +282,7 @@ describe("StudentNotizenTab", () => {
   it("writes a new entry with the values from the form", async () => {
     createMock.mockResolvedValue(undefined);
     renderTab([]);
-    fireEvent.click(screen.getAllByRole("button", { name: "Neue Notiz" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
 
     fireEvent.change(screen.getByLabelText("Notiz"), {
       target: { value: "  Kurzes Gespräch geführt.  " },
@@ -300,14 +304,14 @@ describe("StudentNotizenTab", () => {
 
   it("keeps Speichern out of reach while the note is empty", () => {
     renderTab([]);
-    fireEvent.click(screen.getAllByRole("button", { name: "Neue Notiz" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
 
   it("revalidates the Stammdaten hints after creating a permanent note", async () => {
     createMock.mockResolvedValue(undefined);
     renderTab([]);
-    fireEvent.click(screen.getAllByRole("button", { name: "Neue Notiz" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Dauerhafter Hinweis" }),
     );
@@ -327,7 +331,7 @@ describe("StudentNotizenTab", () => {
   // pick one — offering it would produce a note nobody but its author reads.
   it("does not offer the leadership audience on a note without a group", () => {
     renderTab([]);
-    fireEvent.click(screen.getAllByRole("button", { name: "Neue Notiz" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
     expect(screen.queryByText("Gruppenleitung")).not.toBeInTheDocument();
   });
 
@@ -361,7 +365,7 @@ describe("StudentNotizenTab", () => {
       }),
     );
     renderTab([]);
-    fireEvent.click(screen.getAllByRole("button", { name: "Neue Notiz" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
     fireEvent.change(screen.getByLabelText("Notiz"), {
       target: { value: "Kurz." },
     });
@@ -419,9 +423,7 @@ describe("StudentNotizenTab", () => {
     it("offers the child alone, its OGS group and its activities", () => {
       activityState.data = activities;
       renderTab([], { educationGroupId: "4", educationGroupName: "Bären" });
-      fireEvent.click(
-        screen.getAllByRole("button", { name: "Neue Notiz" })[0]!,
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
       fireEvent.click(screen.getByLabelText("Bezug"));
 
       expect(
@@ -438,9 +440,7 @@ describe("StudentNotizenTab", () => {
       activityState.data = activities;
       createMock.mockResolvedValue(undefined);
       renderTab([], { educationGroupId: "4", educationGroupName: "Bären" });
-      fireEvent.click(
-        screen.getAllByRole("button", { name: "Neue Notiz" })[0]!,
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
 
       // Without a reference there is no leadership to choose.
       fireEvent.click(screen.getByLabelText("Wer sieht die Notiz?"));
@@ -472,9 +472,7 @@ describe("StudentNotizenTab", () => {
     it("names the OGS group's leadership for a note about the group", async () => {
       createMock.mockResolvedValue(undefined);
       renderTab([], { educationGroupId: "4", educationGroupName: "Bären" });
-      fireEvent.click(
-        screen.getAllByRole("button", { name: "Neue Notiz" })[0]!,
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
       chooseOption("Bezug", "OGS-Gruppe Bären");
       chooseOption("Wer sieht die Notiz?", "Gruppenleitung");
       fireEvent.change(screen.getByLabelText("Notiz"), {
@@ -499,9 +497,7 @@ describe("StudentNotizenTab", () => {
       activityState.data = activities;
       createMock.mockResolvedValue(undefined);
       renderTab([]);
-      fireEvent.click(
-        screen.getAllByRole("button", { name: "Neue Notiz" })[0]!,
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
       chooseOption("Bezug", "Angebot Schach");
       chooseOption("Wer sieht die Notiz?", "Angebotsleitung");
       chooseOption("Bezug", "Nur das Kind");
@@ -549,9 +545,7 @@ describe("StudentNotizenTab", () => {
     it("lets the note be written without activities when they fail to load", () => {
       activityState.error = new Error("boom");
       renderTab([]);
-      fireEvent.click(
-        screen.getAllByRole("button", { name: "Neue Notiz" })[0]!,
-      );
+      fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
       expect(
         screen.getByText(
           "Die Angebote konnten nicht geladen werden. Sie können die Notiz trotzdem ohne Angebot speichern.",

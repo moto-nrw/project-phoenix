@@ -31,9 +31,7 @@ import { mapNavigationEducationalGroupResponse } from "./usercontext-helpers";
 
 describe("UserContextProvider", () => {
   const mockSession: Session = mockSessionData({
-    user: {
-      token: "mock-token",
-    },
+    user: {},
     expires: new Date(Date.now() + 1000 * 60 * 60).toISOString(),
   });
 
@@ -165,11 +163,14 @@ describe("UserContextProvider", () => {
       expect(result.current.isLoading).toBe(false);
     });
 
-    it("should return empty groups when no token is present", () => {
+    // The browser session carries no token (#5005); a stripped session
+    // carries an error instead.
+    it("should return empty groups when the session was stripped", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           ...mockSession,
-          user: { ...mockSession.user, token: undefined },
+          user: { ...mockSession.user },
+          error: "RefreshTokenError",
         },
         status: "authenticated",
         update: vi.fn(),

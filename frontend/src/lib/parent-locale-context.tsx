@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import useSWR from "swr";
@@ -167,6 +168,7 @@ export function ParentLocaleProvider({
     fetchParentProfile,
   );
   const { show: showError } = useApiErrorDisplay();
+  const router = useRouter();
   const t = useTranslations("language");
   // Server-resolved locale: the cookie if present, else Accept-Language. This
   // is also what the tree was already server-rendered in.
@@ -230,7 +232,7 @@ export function ParentLocaleProvider({
           setLocaleState(effectiveLocalChoice);
           writeLocaleCookie(effectiveLocalChoice);
           if (effectiveLocalChoice !== intlLocale) {
-            reloadForLocaleChange();
+            router.refresh();
           }
           return;
         }
@@ -264,9 +266,11 @@ export function ParentLocaleProvider({
       writeLocaleCookie(stored);
       // The page was server-rendered with intlLocale. When the stored
       // preference differs, refresh the server tree so the whole portal
-      // re-renders in it after the locale cookie changes.
+      // re-renders in it after the locale cookie changes. A soft refresh
+      // keeps the loaded document and client state; the new server tree
+      // brings the locale back through useLocale, which ends this branch.
       if (stored !== intlLocale) {
-        reloadForLocaleChange();
+        router.refresh();
       }
     }
     void syncFromProfile();
@@ -279,6 +283,7 @@ export function ParentLocaleProvider({
     persistParentLocale,
     profile,
     profileError,
+    router,
     unsyncedLocaleStorageKey,
   ]);
 

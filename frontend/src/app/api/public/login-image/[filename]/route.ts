@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 // Public endpoint — no authentication required.
 // Serves tenant login images stored on the backend.
-export async function GET(
+async function GETHandler(
   _request: NextRequest,
   context: { params: Promise<{ filename: string }> },
 ) {
@@ -47,3 +48,5 @@ export async function GET(
     },
   });
 }
+
+export const GET = withPrivateNoStore(GETHandler);

@@ -626,14 +626,16 @@ describe("TenantGuard", () => {
     expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
   });
 
+  // The browser session carries no token (#5005); the session callback
+  // marks a session without one with an error.
   it("signs out invalid authenticated session with no token", async () => {
     mockUseSession.mockReturnValue({
       data: {
         user: {
           tenantId: 1,
-          token: "",
           roles: [],
         },
+        error: "RefreshTokenError",
       },
       status: "authenticated",
       update: vi.fn(),

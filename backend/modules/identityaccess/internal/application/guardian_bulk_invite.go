@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/mail"
@@ -126,10 +127,34 @@ func (l *AccountLifecycle) processBulkInviteCandidates(ctx context.Context, run 
 		if !ok {
 			continue
 		}
-		if err := l.bulkInviteOne(ctx, run, candidate, profile, open[profile.ID]); err != nil {
+		if err := l.bulkInviteGuardian(ctx, run, candidate, profile, open[profile.ID]); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+// bulkInviteGuardian runs one guardian's writes in a savepoint of the run. A
+// mail the outbox does not take rolls back that guardian alone, who is then
+// listed with the reason; the others are invited as usual (#4602). Every
+// other failure still fails the whole run. A preview writes nothing and
+// needs no savepoint.
+func (l *AccountLifecycle) bulkInviteGuardian(ctx context.Context, run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, open []domain.GuardianInvitation) error {
+	if run.req.DryRun {
+		return l.bulkInviteOne(ctx, run, candidate, profile, open)
+	}
+	err := runInSavepoint(ctx, func(savepointCtx context.Context) error {
+		return l.bulkInviteOne(savepointCtx, run, candidate, profile, open)
+	})
+	mailNotQueued := errors.Is(err, domain.ErrGuardianAccessMailNotQueued) && !errors.Is(err, domain.ErrTransactionUnusable)
+	if !mailNotQueued {
+		return err
+	}
+	l.logger.Error("guardian bulk invitation: mail not queued, guardian rolled back",
+		slog.Int64("guardian_profile_id", profile.ID),
+		slog.String("error", err.Error()),
+	)
+	run.problem(candidate, profile, domain.BulkInviteProblemEmailNotQueued)
 	return nil
 }
 
@@ -388,7 +413,9 @@ func (l *AccountLifecycle) resendOpenInvitation(ctx context.Context, dryRun bool
 		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation); err != nil {
 			return false, failed(opGuardianBulkInvite, err)
 		}
-		l.delivery.EnqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
+		if _, err := l.enqueueInvitationEmail(ctx, invitation, profile, l.delivery.SchoolName(ctx, invitation.TenantID)); err != nil {
+			return false, failed(opGuardianBulkInvite, err)
+		}
 		return true, nil
 	}
 	return false, nil
@@ -404,7 +431,9 @@ func (l *AccountLifecycle) bulkInviteFresh(ctx context.Context, run *bulkInviteR
 		if err != nil {
 			return err
 		}
-		l.mailNewInvitation(ctx, invitation, profile)
+		if err := l.mailNewInvitation(ctx, invitation, profile); err != nil {
+			return failed(opGuardianBulkInvite, err)
+		}
 		run.result.Invited++
 		return nil
 	}

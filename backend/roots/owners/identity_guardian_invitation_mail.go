@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -22,7 +23,7 @@ type GuardianMailRecipient struct {
 
 // GuardianInvitationMailerConfig is what the mail needs beyond the
 // invitation: the outbox to queue in and the portal origin the links point
-// at. A nil outbox skips the send with a warning.
+// at. The outbox is required; the composition refuses to start without it.
 type GuardianInvitationMailerConfig struct {
 	Outbox      MailResultOutbox
 	FrontendURL string
@@ -44,12 +45,16 @@ func NewGuardianInvitationMailer(cfg GuardianInvitationMailerConfig) GuardianInv
 	}
 }
 
-// EnqueueInvitation queues the mail carrying the accept link.
-func (m GuardianInvitationMailer) EnqueueInvitation(ctx context.Context, invitationID int64, token string, expiresAt time.Time, recipient GuardianMailRecipient, schoolName string) (int64, bool) {
+// errGuardianMailOutboxMissing reports a mailer composed without the outbox.
+// The composition refuses to start without one, so only a bare value reaches
+// it; the mail is never skipped silently.
+var errGuardianMailOutboxMissing = errors.New("guardian mail: outbox enqueuer not configured")
+
+// EnqueueInvitation queues the mail carrying the accept link. A failure is
+// returned so the invitation rolls back with it (#4602).
+func (m GuardianInvitationMailer) EnqueueInvitation(ctx context.Context, invitationID int64, token string, expiresAt time.Time, recipient GuardianMailRecipient, schoolName string) (int64, error) {
 	if m.outbox == nil {
-		m.logger.Warn("guardian invitation: outbox enqueuer not configured, email skipped",
-			slog.Int64("invitation_id", invitationID))
-		return 0, false
+		return 0, errGuardianMailOutboxMissing
 	}
 	stored, err := m.outbox.EnqueueOutboxWithResult(ctx, deliveryCompose.MailEnqueueRequest{
 		Kind:              identityaccess.MailKindGuardianInvitation,
@@ -58,35 +63,30 @@ func (m GuardianInvitationMailer) EnqueueInvitation(ctx context.Context, invitat
 		RelatedEntityID:   invitationID,
 	})
 	if err != nil {
-		m.logger.Error("guardian invitation: outbox enqueue failed",
-			slog.Int64("invitation_id", invitationID),
-			slog.String("error", err.Error()))
-		return 0, false
+		return 0, fmt.Errorf("guardian invitation %d: outbox enqueue: %w", invitationID, err)
 	}
-	return stored.ID, true
+	return stored.ID, nil
 }
 
 // EnqueueExistingAccount queues the variant for an address that already owns
-// an account (#3320).
-func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, recipient GuardianMailRecipient, schoolName string) (int64, bool) {
+// an account (#3320). queued is false only when the recipient has no
+// address; an enqueue failure is returned so the access rolls back (#4602).
+func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, recipient GuardianMailRecipient, schoolName string) (outboxID int64, queued bool, err error) {
 	mail, addressed := identityaccess.GuardianExistingAccountMailOf(identityaccess.GuardianMailRecipient(recipient), m.frontendURL, schoolName)
 	if !addressed {
-		return 0, false
+		return 0, false, nil
 	}
 	if m.outbox == nil {
-		m.logger.Warn("guardian portal access email: outbox enqueuer not configured, email skipped")
-		return 0, false
+		return 0, false, errGuardianMailOutboxMissing
 	}
 	stored, err := m.outbox.EnqueueOutboxWithResult(ctx, deliveryCompose.MailEnqueueRequest{
 		Kind:    identityaccess.MailKindGuardianInvitation,
 		Payload: guardianExistingAccountPayload(mail),
 	})
 	if err != nil {
-		m.logger.Error("guardian portal access email: outbox enqueue failed",
-			slog.String("error", err.Error()))
-		return 0, false
+		return 0, false, fmt.Errorf("guardian portal access email: outbox enqueue: %w", err)
 	}
-	return stored.ID, true
+	return stored.ID, true, nil
 }
 
 // EnqueueWelcome queues the welcome that follows a new access (#3534) once
@@ -101,9 +101,7 @@ func (m GuardianInvitationMailer) EnqueueWelcome(ctx context.Context, guardianPr
 		return err
 	}
 	if m.outbox == nil {
-		m.logger.Warn("guardian welcome email: outbox enqueuer not configured, email skipped",
-			slog.Int64("guardian_profile_id", guardianProfileID))
-		return nil
+		return errGuardianMailOutboxMissing
 	}
 	err = m.outbox.EnqueueOutbox(ctx, deliveryCompose.MailEnqueueRequest{
 		Kind:              identityaccess.MailKindGuardianWelcome,

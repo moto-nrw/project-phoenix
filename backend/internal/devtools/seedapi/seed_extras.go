@@ -246,8 +246,8 @@ func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 		Reason       string
 		Note         string
 	}{
-		{len(DemoStudents) - 1, today, "moved_away", ""},
-		{len(DemoStudents) - 2, today.AddDays(7), "other", "Wechsel in die Nachmittagsbetreuung des Vereins"},
+		{careExitDemoStudentIndexes()[0], today, "moved_away", ""},
+		{careExitDemoStudentIndexes()[1], today.AddDays(7), "other", "Wechsel in die Nachmittagsbetreuung des Vereins"},
 	}
 
 	created := 0

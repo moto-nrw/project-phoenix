@@ -105,7 +105,7 @@ describe("TimeTrackingService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSession.mockResolvedValue({
-      user: { token: "test-jwt-token" },
+      user: { id: "1" },
       expires: "2025-12-31",
     } as never);
   });
@@ -128,7 +128,6 @@ describe("TimeTrackingService", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer test-jwt-token",
         },
         body: JSON.stringify({ status: "present" }),
       });
@@ -487,7 +486,6 @@ describe("TimeTrackingService", () => {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "Bearer test-jwt-token",
         },
         body: JSON.stringify(updates),
       });

@@ -38,7 +38,7 @@ vi.mock("~/lib/auth-utils", () => ({
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { token: "test-token", id: "7", tenantId: 1 } },
     status: "authenticated",
   })),
 }));
@@ -336,6 +336,15 @@ import MeinRaumPage from "./page";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { ERROR_CATALOG } from "~/lib/error-catalog.generated";
+import {
+  type SidebarMemoryEntry,
+  sidebarMemoryKey,
+} from "~/lib/sidebar-memory";
+
+// The sidebar memory is bound to the school and account of the session
+// (#5000); the mocked session signs in account "7" at school 1.
+const memoryKey = (entry: SidebarMemoryEntry) => sidebarMemoryKey(entry, "1:7");
 
 // Aktionen melden Fehler als Toast oder im Dialog (#2517); der Provider
 // zeigt den Toast echt an.
@@ -407,6 +416,8 @@ describe("MeinRaumPage roster actions", () => {
     navigationMockState.permissions = [];
     window.innerWidth = 800;
     localStorage.clear();
+    // The sidebar memory belongs to the signed-in account (#5000).
+    localStorage.setItem("moto:personal-storage-owner", "1:7");
     primaryRosterRows = [expectedRow];
     global.fetch = vi.fn();
     vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
@@ -554,7 +565,9 @@ describe("MeinRaumPage roster actions", () => {
       { status: "expected", substatus: null, note: null },
     ],
   ] as const)(
-    "reloads after a successful %s when the local roster update fails",
+    // #5001: the action is saved, only the local list update failed. The
+    // page stays loaded and offers to load the list again.
+    "offers to reload the list after a successful %s when the local roster update fails",
     async (_action, buttonName, row, apiMethod, expectedPayload) => {
       primaryRosterRows = [row];
       const updatedRoster = {
@@ -603,9 +616,29 @@ describe("MeinRaumPage roster actions", () => {
             expectedPayload,
           );
         }
-        expect(reload).toHaveBeenCalledOnce();
       });
-      expect(screen.queryByTestId("alert-error")).not.toBeInTheDocument();
+
+      // A crashed local update has no code: the error path shows its crash
+      // text, followed by the note that the action itself is saved.
+      const crash = ERROR_CATALOG.de.actions.crash.replace(
+        "{object}",
+        "die Anwesenheitsliste",
+      );
+      expect(
+        await screen.findByText(
+          `${crash.charAt(0).toUpperCase()}${crash.slice(1)} Ihre Änderung ist gespeichert.`,
+        ),
+      ).toBeInTheDocument();
+      expect(reload).not.toHaveBeenCalled();
+
+      const rosterLoadsBefore = mockRosterMutate.mock.calls.length;
+      fireEvent.click(screen.getByRole("button", { name: "Liste neu laden" }));
+      await waitFor(() => {
+        expect(mockRosterMutate.mock.calls.length).toBe(rosterLoadsBefore + 1);
+      });
+      // Loading the list again does not repeat the saved action.
+      expect(mockRosterMutate.mock.calls.at(-1)).toEqual([]);
+      expect(reload).not.toHaveBeenCalled();
     },
   );
 
@@ -764,7 +797,9 @@ describe("MeinRaumPage roster actions", () => {
           screen.queryByRole("button", { name: "Rückgängig" }),
         ).not.toBeInTheDocument(),
       );
-      expect(localStorage.getItem("supervision-last-session")).toBe("2");
+      expect(localStorage.getItem(memoryKey("supervision-last-session"))).toBe(
+        "2",
+      );
     } finally {
       globalThis.sessionStorage.removeItem("timetable-reopenable-instance");
     }

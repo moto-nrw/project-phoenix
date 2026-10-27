@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeTimetableCorrectionCancelled                   = "timetable.correction_cancelled"
 	CodeTimetableCorrectionNotCompleted                = "timetable.correction_not_completed"
 	CodeTimetableCorrectionReasonMissing               = "timetable.correction_reason_missing"
 	CodeTimetableCorrectionReasonTooLong               = "timetable.correction_reason_too_long"
@@ -201,6 +202,7 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.correction_cancelled":                       "business_rejection",
 	"timetable.correction_not_completed":                   "business_rejection",
 	"timetable.correction_reason_missing":                  "input",
 	"timetable.correction_reason_too_long":                 "input",

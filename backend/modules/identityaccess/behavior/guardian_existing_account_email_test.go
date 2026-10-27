@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -27,10 +28,11 @@ func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 		FrontendURL: "https://eltern.example.test/",
 	})
 
-	_, queued := mailer.EnqueueExistingAccount(context.Background(), owners.GuardianMailRecipient{
+	_, queued, err := mailer.EnqueueExistingAccount(context.Background(), owners.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " admin@example.test ",
 	}, "OGS Musterschule")
 
+	require.NoError(t, err)
 	assert.True(t, queued)
 	require.Len(t, outbox.Requests(), 1)
 	req := outbox.Requests()[0]
@@ -59,7 +61,8 @@ func TestEnqueueExistingAccountEmail_SkipsWithoutAddress(t *testing.T) {
 	outbox := api.NewCapturingOutbox()
 	mailer := owners.NewGuardianInvitationMailer(owners.GuardianInvitationMailerConfig{Outbox: outbox})
 
-	_, queued := mailer.EnqueueExistingAccount(context.Background(), owners.GuardianMailRecipient{Email: "  "}, "")
+	_, queued, err := mailer.EnqueueExistingAccount(context.Background(), owners.GuardianMailRecipient{Email: "  "}, "")
+	require.NoError(t, err, "a contact without an address is skipped, not failed")
 	assert.False(t, queued)
 	assert.Empty(t, outbox.Requests())
 }
@@ -71,9 +74,25 @@ func TestEnqueueExistingAccountEmail_ReportsEnqueueFailure(t *testing.T) {
 	})
 	mailer := owners.NewGuardianInvitationMailer(owners.GuardianInvitationMailerConfig{Outbox: outbox})
 
-	_, queued := mailer.EnqueueExistingAccount(context.Background(), owners.GuardianMailRecipient{Email: "parent@example.test"}, "")
+	_, queued, err := mailer.EnqueueExistingAccount(context.Background(), owners.GuardianMailRecipient{Email: "parent@example.test"}, "")
+	require.Error(t, err, "the enqueue failure is returned, not swallowed (#4602)")
 	assert.False(t, queued)
 	assert.Empty(t, outbox.Requests())
+}
+
+// A mailer without an outbox reports every mail as failed instead of
+// skipping it with a warning (#4602).
+func TestGuardianInvitationMailer_WithoutOutboxFails(t *testing.T) {
+	t.Parallel()
+	mailer := owners.NewGuardianInvitationMailer(owners.GuardianInvitationMailerConfig{})
+	recipient := owners.GuardianMailRecipient{Email: "parent@example.test"}
+
+	_, err := mailer.EnqueueInvitation(context.Background(), 1, "token", time.Now().Add(time.Hour), recipient, "")
+	require.Error(t, err)
+	_, queued, err := mailer.EnqueueExistingAccount(context.Background(), recipient, "")
+	require.Error(t, err)
+	assert.False(t, queued)
+	require.Error(t, mailer.EnqueueWelcome(context.Background(), 1, recipient, "", "", 0))
 }
 
 // The token invitation keeps its registration wording.

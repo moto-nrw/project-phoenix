@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { mayWritePersonalStorage } from "~/lib/personal-storage";
 
 /**
  * Shared unread-badge hook: a single localStorage-cache + concurrent-fetch +
@@ -57,8 +58,11 @@ function readCache(key: string): number | null {
   }
 }
 
-function writeCache(key: string, count: number): void {
+function writeCache(key: string, count: number, owner: string | null): void {
   if (typeof window === "undefined") return;
+  // The count belongs to one account. After a logout or an account switch,
+  // also in another tab, it must not come back (#5000).
+  if (!mayWritePersonalStorage(owner)) return;
   try {
     const data: CachedData = { count, timestamp: Date.now() };
     localStorage.setItem(key, JSON.stringify(data));
@@ -72,8 +76,18 @@ export interface UseUnreadCountOptions {
   enabled: boolean;
   /** Returns the current unread count. May be a fresh closure each render. */
   fetcher: () => Promise<number>;
-  /** localStorage cache key; omit to skip the 1-minute cache layer entirely. */
+  /**
+   * localStorage cache key; omit to skip the 1-minute cache layer entirely.
+   * Its prefix belongs in PERSONAL_STORAGE_PREFIXES (personal-storage.ts) so
+   * logout and account switch remove the count (#5000).
+   */
   cacheKey?: string;
+  /**
+   * School and account the cached count belongs to (personalStorageOwner of
+   * the session). The count is cached only while the browser's entries are
+   * bound to exactly this owner.
+   */
+  cacheOwner?: string | null;
   /** Custom window events that trigger a cache-busting refetch. */
   eventNames?: readonly string[];
   /**
@@ -106,6 +120,7 @@ export function useUnreadCount({
   enabled,
   fetcher,
   cacheKey,
+  cacheOwner,
   eventNames,
   refetchOnFocus = false,
   eventDebounceMs,
@@ -131,6 +146,7 @@ export function useUnreadCount({
   const onErrorRef = useCommittedLatest(onError);
   const enabledRef = useCommittedLatest(enabled);
   const cacheKeyRef = useCommittedLatest(cacheKey);
+  const cacheOwnerRef = useCommittedLatest(cacheOwner);
   // Tracks the cacheKey whose count is currently shown in React state. Unlike
   // the refs above it is NOT overwritten every render — it advances only when we
   // actually set a count, so refresh() can detect a tenant switch (cacheKey
@@ -201,6 +217,8 @@ export function useUnreadCount({
           // changes cacheKeyRef; the resolved count then belongs to the previous
           // tenant and must not be shown or cached under the new key.
           fetchKey = cacheKeyRef.current;
+          // The account this count is loaded for (#5000).
+          const fetchOwner = cacheOwnerRef.current ?? null;
           const count = await fetcherRef.current();
           // The gate may have flipped off while this fetch was in flight; the
           // layout effect already reset the count to 0, so a stale non-zero count
@@ -216,7 +234,7 @@ export function useUnreadCount({
           }
           setUnreadCount(count);
           displayedKeyRef.current = fetchKey;
-          if (fetchKey) writeCache(fetchKey, count);
+          if (fetchKey) writeCache(fetchKey, count, fetchOwner);
         } while (pendingForceRef.current);
       } catch (error) {
         // Do not report an error from a request that no longer belongs to the
@@ -245,7 +263,15 @@ export function useUnreadCount({
         }
       }
     },
-    [cacheKey, cacheKeyRef, enabled, enabledRef, fetcherRef, onErrorRef],
+    [
+      cacheKey,
+      cacheKeyRef,
+      cacheOwnerRef,
+      enabled,
+      enabledRef,
+      fetcherRef,
+      onErrorRef,
+    ],
   );
   useCommitEffect(() => {
     refreshRef.current = refresh;
@@ -257,7 +283,8 @@ export function useUnreadCount({
     if (seededRef.current) {
       seededRef.current = false;
       if (enabled) {
-        if (cacheKey) writeCache(cacheKey, initialCount ?? 0);
+        if (cacheKey)
+          writeCache(cacheKey, initialCount ?? 0, cacheOwner ?? null);
         displayedKeyRef.current = cacheKey;
         return;
       }

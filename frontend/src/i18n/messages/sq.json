@@ -2746,6 +2746,7 @@
         "operator_invitation_invalid": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "operator_self_deactivation": "Nuk mund ta çaktivizoni llogarinë tuaj. Kërkojini një personi tjetër nga ekipi ta bëjë këtë.",
         "invitation_rate_limited": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
+        "guardian_invitation_email_not_queued": "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
         "email_change_rate_limited": "{object} nuk është i disponueshëm tani. Provoni përsëri.",
         "email_change_same_email": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "email_change_link_invalid": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

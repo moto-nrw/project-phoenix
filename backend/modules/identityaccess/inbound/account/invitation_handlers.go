@@ -622,6 +622,12 @@ func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bo
 			return false
 		}
 		return true
+	case errors.Is(err, identityaccess.ErrGuardianAccessMailNotQueued):
+		// The resend rolled back; the previous link still works (#4602).
+		if render.Render(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityGuardianInvitationEmailNotQueued)) != nil {
+			return false
+		}
+		return true
 	default:
 		return false
 	}

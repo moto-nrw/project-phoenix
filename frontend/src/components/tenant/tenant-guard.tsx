@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
+import { hasSessionAccess } from "~/lib/session-access";
 import { clearSessionCache } from "~/lib/session-cache";
 import { performTenantSwitch } from "~/lib/tenant-api";
 import { ApiError } from "~/lib/api-error";
@@ -105,7 +106,9 @@ function GuardedTenant({
 
   const sessionTenantId = session?.user?.tenantId;
   const sessionScope = session?.user?.scope;
-  const sessionToken = session?.user?.token;
+  // The browser session carries no token (#5005); a stripped session always
+  // carries an error.
+  const sessionHasAccess = hasSessionAccess(session);
   const sessionError = session?.error;
   const urlTenantId = tenant?.tenantId ?? null;
   const urlSlug = tenant?.slug;
@@ -119,10 +122,9 @@ function GuardedTenant({
   // confusing forbidden screens.
   useEffect(() => {
     if (status !== "authenticated") return;
-    if (sessionToken && !sessionError) return;
+    if (sessionHasAccess) return;
 
     logger.warn("tenant_session_invalid", {
-      token_present: !!sessionToken,
       error: sessionError,
     });
 
@@ -148,12 +150,12 @@ function GuardedTenant({
         redirect("/?error=SessionExpired");
       }
     })();
-  }, [status, sessionToken, sessionError, redirect]);
+  }, [status, sessionHasAccess, sessionError, redirect]);
 
   // Operator session on tenant subdomain — sign out immediately
   useEffect(() => {
     if (status !== "authenticated" || !tenant) return;
-    if (!sessionToken || sessionError) return;
+    if (!sessionHasAccess) return;
     if (sessionScope !== "platform") return;
 
     logger.warn("operator_session_on_tenant", {
@@ -188,7 +190,7 @@ function GuardedTenant({
     tenant,
     sessionScope,
     urlSlug,
-    sessionToken,
+    sessionHasAccess,
     sessionError,
     redirect,
   ]);
@@ -196,7 +198,7 @@ function GuardedTenant({
   useEffect(() => {
     // Only check when authenticated and tenant context is resolved
     if (status !== "authenticated" || !tenant) return;
-    if (!sessionToken || sessionError) return;
+    if (!sessionHasAccess) return;
 
     // Operator sessions are handled by the effect above
     if (sessionScope === "platform") return;
@@ -252,7 +254,7 @@ function GuardedTenant({
         // die Admin-Sitzung wiederherstellen, dann mit deren Token wechseln
         // — das Vorschau-Token selbst darf den Wechsel nicht ausführen.
         if (session?.user?.isPreview) {
-          await performEndStaffPreview(session.user.token, update, mutate);
+          await performEndStaffPreview(update, mutate);
         }
         await performTenantSwitch(urlSubdomain!, signIn, mutate);
 
@@ -330,7 +332,7 @@ function GuardedTenant({
     urlSlug,
     urlSubdomain,
     update,
-    sessionToken,
+    sessionHasAccess,
     sessionError,
     showSwitchError,
     clearSwitchError,
@@ -354,7 +356,7 @@ function GuardedTenant({
 
   if (
     signingOutExpiredSession ||
-    (status === "authenticated" && (!sessionToken || sessionError))
+    (status === "authenticated" && !sessionHasAccess)
   ) {
     return (
       <div className="flex min-h-[200px] items-center justify-center">

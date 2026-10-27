@@ -100,11 +100,13 @@ func seedFamilyMealParticipation(ctx context.Context, rt *Runtime) (int, error) 
 		if err != nil {
 			return registered, fmt.Errorf("login parent %s: %w", parent.Email, err)
 		}
+		weekdays := seedFamilyMealWeekdays[registered%len(seedFamilyMealWeekdays)]
 		if _, err := rt.Client.PutWithAuth(auth, fmt.Sprintf("/parent/me/children/%d/meal-participation", parent.StudentIDs[0]), map[string]any{
-			"weekdays": seedFamilyMealWeekdays[registered%len(seedFamilyMealWeekdays)],
+			"weekdays": weekdays,
 		}); err != nil {
 			return registered, fmt.Errorf("seed family meal participation: %w", err)
 		}
+		recordRegularLunchDays(rt, parent.StudentIDs[0], weekdays)
 		registered++
 	}
 	return registered, nil
