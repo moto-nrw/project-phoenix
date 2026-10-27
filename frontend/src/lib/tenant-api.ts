@@ -144,30 +144,11 @@ export interface TenantInfo {
    * reads as enabled — the registry default.
    */
   timetableEnabled?: boolean;
-  /**
-   * The Betreuungsplan's day as "HH:MM" (timetable.day_start_time /
-   * day_end_time, #4996), so the planner draws it without the settings
-   * schema. Missing metadata keeps the planner's defaults.
-   */
-  timetableDayStartTime?: string;
-  timetableDayEndTime?: string;
   // The meal switches reach staff without config:read (#3873): a kitchen
   // role holds meals:* only.
   mealPlanEnabled?: boolean;
   mealRegistrationEnabled?: boolean;
   waitlistEnabled?: boolean;
-  /**
-   * Whether the school writes parent announcements
-   * (operations.parent_news_enabled, #4996). The navigation reads it here
-   * instead of loading the settings schema. Missing metadata is off.
-   */
-  parentNewsEnabled?: boolean;
-  /**
-   * guardians.parent_invite_mode (#4996): whether parents may invite further
-   * guardians, and whether staff approve it first. The Elternzugänge page
-   * explains its empty queue by it. Unknown values stay undefined.
-   */
-  parentInviteMode?: ParentInviteMode;
   /** Highest grade offered by this tenant (enrollment.grade_level_max). */
   gradeLevelMax: number;
   /**
@@ -239,13 +220,9 @@ interface TenantResolveResponse {
   parent_request_reason_policy?: string;
   show_timetable_counts?: boolean;
   timetable_enabled?: boolean;
-  timetable_day_start_time?: string;
-  timetable_day_end_time?: string;
   meal_plan_enabled?: boolean;
   meal_registration_enabled?: boolean;
   waitlist_enabled?: boolean;
-  parent_news_enabled?: boolean;
-  parent_invite_mode?: string;
   grade_level_max: number;
   analytics_enabled?: boolean;
   analytics_freigabe?: boolean;
@@ -337,22 +314,6 @@ export function staffReasonRequired(
   return normalized === "staff" || normalized === "both";
 }
 
-/** Values of guardians.parent_invite_mode. */
-export type ParentInviteMode = "disabled" | "direct" | "staff_approval";
-
-/**
- * Keep only the invite modes the client knows. Anything else stays undefined,
- * so a page that depends on the mode shows its error state instead of
- * guessing.
- */
-export function normalizeParentInviteMode(
-  raw: unknown,
-): ParentInviteMode | undefined {
-  return raw === "disabled" || raw === "direct" || raw === "staff_approval"
-    ? raw
-    : undefined;
-}
-
 /**
  * Normalize the backend's presence_mode string into our union type.
  * Anything other than "binary" collapses to "detailed" — the safe default
@@ -413,13 +374,9 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       ),
       showTimetableCounts: data.show_timetable_counts !== false,
       timetableEnabled: data.timetable_enabled !== false,
-      timetableDayStartTime: data.timetable_day_start_time,
-      timetableDayEndTime: data.timetable_day_end_time,
       mealPlanEnabled: data.meal_plan_enabled === true,
       mealRegistrationEnabled: data.meal_registration_enabled === true,
       waitlistEnabled: data.waitlist_enabled !== false,
-      parentNewsEnabled: data.parent_news_enabled === true,
-      parentInviteMode: normalizeParentInviteMode(data.parent_invite_mode),
       gradeLevelMax: data.grade_level_max,
       analyticsEnabled: data.analytics_enabled === true,
       analyticsFreigabe:

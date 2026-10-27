@@ -50,10 +50,11 @@ export interface StudentFilters {
    */
   care_offering_id?: string;
   /**
-   * Wire projection (#2097). "slim" drops address, health, guardian and
-   * schedule fields for callers that only show who a child is.
+   * Wire projection. "slim" (#2097) drops address, health, guardian and
+   * schedule fields; "names" (#4996) keeps only ID and name, for callers that
+   * only show who a child is.
    */
-  view?: "slim";
+  view?: "slim" | "names";
 }
 
 /** An active care offering that counts as care, as a selection lists it. */

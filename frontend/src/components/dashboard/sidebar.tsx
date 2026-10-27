@@ -16,7 +16,6 @@ import {
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
   useMealPlanEnabled,
-  useTenantParentNewsEnabled,
   useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { useSession } from "next-auth/react";
@@ -64,6 +63,7 @@ import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pendin
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
+import { useSchoolParentNewsEnabled } from "~/lib/hooks/use-school-switches";
 import type { ModuleVisibility } from "~/lib/module-register";
 import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 import { useHelpHref } from "~/lib/hooks/use-help-href";
@@ -727,9 +727,9 @@ function SidebarContent({
   const staffMessagingEnabled = useStaffMessagingEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
-  // Vom Tenant-Resolve (#4996): die Navigation lädt für ihre Schulschalter
+  // Aus dem Navigationskontext (#4996): die Navigation lädt für ihre Schulschalter
   // nicht das ganze Settings-Schema.
-  const parentNewsEnabled = useTenantParentNewsEnabled();
+  const parentNewsEnabled = useSchoolParentNewsEnabled();
 
   // Vom Tenant-Resolve (#3873): eine Küchenrolle hält meals:*, aber kein
   // config:read und liest das Settings-Schema nicht.

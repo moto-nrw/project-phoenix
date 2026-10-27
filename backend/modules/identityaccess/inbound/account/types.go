@@ -116,13 +116,6 @@ type TenantResolveResponse struct {
 	// schools that actually use the Betreuungsplan (#2383). Defaults to true,
 	// the registry default.
 	TimetableEnabled bool `json:"timetable_enabled"`
-	// TimetableDayStartTime and TimetableDayEndTime are the school's
-	// timetable.day_start_time / day_end_time ("HH:MM", #4996). Shell
-	// metadata: the Betreuungsplan, the room plan and the Kindersuche draw
-	// their day from them without loading the whole settings schema. A lookup
-	// error fails the shell request.
-	TimetableDayStartTime string `json:"timetable_day_start_time"`
-	TimetableDayEndTime   string `json:"timetable_day_end_time"`
 	// MealPlanEnabled is the school's resolved operations.meal_plan_enabled
 	// setting (#3873). Shell metadata: a kitchen role holds meals:* but no
 	// config:read, so it cannot read the settings schema the navigation used
@@ -132,16 +125,6 @@ type TenantResolveResponse struct {
 	// the same reason: the meal pages show the lists and orders only with it.
 	MealRegistrationEnabled bool `json:"meal_registration_enabled"`
 	WaitlistEnabled         bool `json:"waitlist_enabled"`
-	// ParentNewsEnabled is operations.parent_news_enabled (#4996). Shell
-	// metadata so the navigation shows the Elterninfo entry without loading
-	// the whole settings schema. A lookup error fails the shell request.
-	ParentNewsEnabled bool `json:"parent_news_enabled"`
-	// ParentInviteMode is guardians.parent_invite_mode (#4996): the
-	// Elternzugänge page explains an empty queue by the active mode without
-	// loading the whole settings schema. Unknown values become "disabled",
-	// the registry default. A hint, never the gate; a lookup error fails the
-	// shell request.
-	ParentInviteMode string `json:"parent_invite_mode"`
 	// AnalyticsFreigabe is the school's resolved analytics.freigabe setting
 	// (#3603): the OGS portal records masked sessions and sends pseudonymous
 	// user IDs only while it is true, and shows staff a notice. Shell metadata
@@ -182,8 +165,6 @@ type TenantResolveResponse struct {
 type tenantShellSettings struct {
 	presenceMode              string
 	timetableEnabled          bool
-	timetableDayStartTime     string
-	timetableDayEndTime       string
 	mealPlanEnabled           bool
 	mealRegistrationEnabled   bool
 	studentPhotosEnabled      bool
@@ -201,8 +182,6 @@ type tenantShellSettings struct {
 	reasonPolicy              string
 	showTimetableCounts       bool
 	waitlistEnabled           bool
-	parentNewsEnabled         bool
-	parentInviteMode          string
 	analyticsEnabled          bool
 	analyticsFreigabe         bool
 	analyticsSamplePercent    int

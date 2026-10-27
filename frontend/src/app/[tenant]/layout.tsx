@@ -16,7 +16,6 @@ import {
   normalizeAttendanceEditScope,
   normalizeEarlyCheckoutTolerance,
   normalizeOverviewScope,
-  normalizeParentInviteMode,
   normalizePresenceMode,
   normalizeRecordingSamplePercent,
 } from "~/lib/tenant-api";
@@ -50,14 +49,10 @@ interface TenantResolveResponse {
   operational_overview_scope?: string;
   attendance_edit_scope?: string;
   timetable_enabled?: boolean;
-  timetable_day_start_time?: string;
-  timetable_day_end_time?: string;
   show_timetable_counts?: boolean;
   meal_plan_enabled?: boolean;
   meal_registration_enabled?: boolean;
   waitlist_enabled?: boolean;
-  parent_news_enabled?: boolean;
-  parent_invite_mode?: string;
   grade_level_max: number;
   analytics_enabled?: boolean;
   analytics_freigabe?: boolean;
@@ -187,16 +182,12 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       data.attendance_edit_scope,
     ),
     timetableEnabled: data.timetable_enabled !== false,
-    timetableDayStartTime: data.timetable_day_start_time,
-    timetableDayEndTime: data.timetable_day_end_time,
     showTimetableCounts: data.show_timetable_counts !== false,
     // The meal plan pages read both from the tenant context on the first
     // render; the client resolve only refreshes them later (#3873).
     mealPlanEnabled: data.meal_plan_enabled === true,
     mealRegistrationEnabled: data.meal_registration_enabled === true,
     waitlistEnabled: data.waitlist_enabled !== false,
-    parentNewsEnabled: data.parent_news_enabled === true,
-    parentInviteMode: normalizeParentInviteMode(data.parent_invite_mode),
     gradeLevelMax: data.grade_level_max,
     analyticsEnabled: data.analytics_enabled === true,
     analyticsFreigabe: data.analytics_freigabe === true,

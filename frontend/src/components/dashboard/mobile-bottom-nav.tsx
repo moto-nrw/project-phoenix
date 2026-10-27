@@ -51,10 +51,10 @@ import {
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
   useMealPlanEnabled,
-  useTenantParentNewsEnabled,
   useTimetableEnabled,
 } from "~/lib/tenant-context";
 import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
+import { useSchoolParentNewsEnabled } from "~/lib/hooks/use-school-switches";
 import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 import {
   getPlanningMobileActivePaths,
@@ -857,10 +857,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const tagesplanEnabled = useTimetableEnabled();
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
-  // Schulschalter vom Tenant-Resolve wie in der Desktop-Sidebar (#4996): die
+  // Schulschalter wie in der Desktop-Sidebar (#4996): timetable.enabled vom
+  // Tenant-Resolve, die Elternmitteilungen aus dem Navigationskontext. Die
   // Navigation lädt dafür nicht das ganze Settings-Schema.
   const timetableEnabled = tagesplanEnabled;
-  const parentNewsEnabled = useTenantParentNewsEnabled();
+  const parentNewsEnabled = useSchoolParentNewsEnabled(mode === "teacher");
   // Vom Tenant-Resolve (#3873): eine Küchenrolle hält meals:*, aber kein
   // config:read und liest das Settings-Schema nicht.
   const mealPlanEnabled = useMealPlanEnabled();

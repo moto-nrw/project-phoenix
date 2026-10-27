@@ -305,6 +305,7 @@ describe("loadShellBootstrap", () => {
       supervisedRoomNames: [],
       incomplete: true,
       unavailableSections: ["supervised_groups"],
+      schoolSwitches: null,
     });
 
     const shell = await loadShellBootstrap(session(), tenant, ACCESS_TOKEN);

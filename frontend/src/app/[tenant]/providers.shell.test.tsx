@@ -101,6 +101,7 @@ const shell: ShellBootstrap = {
     supervisedRoomNames: [],
     incomplete: false,
     unavailableSections: [],
+    schoolSwitches: null,
   },
   profile: {
     id: "1",

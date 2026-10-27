@@ -1,6 +1,6 @@
 "use client";
 
-import { useTimetableDayTimes } from "~/lib/tenant-context";
+import { useSchoolDayTimes } from "~/lib/hooks/use-school-switches";
 
 const DEFAULT_END_HOUR = 17;
 const DEFAULT_START_TIME = "09:00";
@@ -33,9 +33,9 @@ export function useTimetableDayHours(): {
   dayStartTime: string;
   dayEndTime: string;
 } {
-  // timetable.day_start_time / day_end_time from the tenant resolve (#4996),
+  // timetable.day_start_time / day_end_time from the navigation context (#4996),
   // so the planner does not load the whole settings schema.
-  const { start, end } = useTimetableDayTimes();
+  const { start, end } = useSchoolDayTimes();
 
   const dayStartTimeRaw = parseTime(start, DEFAULT_START_TIME);
   const dayEndTimeRaw = parseTime(end, DEFAULT_END_TIME);

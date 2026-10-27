@@ -468,8 +468,9 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     fetchParticipantNames,
     seriesPeriodId,
     seriesRosterMaintenance,
+    studentsPending,
   }: {
-    instance: { id: string } | null;
+    instance: { id: string; students?: unknown[] } | null;
     onClose: () => void;
     onLifecycleAction: (
       action: "start" | "complete" | "cancel" | "reopen",
@@ -492,9 +493,13 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     fetchParticipantNames?: boolean;
     seriesPeriodId?: string;
     seriesRosterMaintenance?: unknown;
+    studentsPending?: boolean;
   }) =>
     instance ? (
       <div>
+        <span data-testid="detail-students">
+          {studentsPending ? "pending" : String(instance.students?.length ?? 0)}
+        </span>
         <span data-testid="detail-can-manage-pool">
           {String(canManageStaffPool)}
         </span>
@@ -1108,9 +1113,9 @@ describe("BetreuungsplanView", () => {
     expect(mockBootstrap).not.toHaveBeenCalled();
   });
 
-  // Raster und Detailpanel brauchen nur Namen: die schlanke Projektion
-  // statt der vollen Kinderliste (#4996), und kein Settings-Schema.
-  it("loads the student roster in the slim projection", async () => {
+  // Raster und Detailpanel brauchen nur Namen: die Namens-Projektion statt
+  // der vollen Kinderliste (#4996), und kein Settings-Schema.
+  it("loads the student roster as names only", async () => {
     setupSWR();
     render(<BetreuungsplanView />);
 
@@ -1121,7 +1126,7 @@ describe("BetreuungsplanView", () => {
     await (call![1] as () => Promise<unknown>)();
     expect(fetchStudents).toHaveBeenCalledWith({
       page_size: 500,
-      view: "slim",
+      view: "names",
     });
     expect(mockUseSWRAuth).not.toHaveBeenCalledWith(
       "settings-schema",
@@ -1529,6 +1534,85 @@ describe("BetreuungsplanView", () => {
       expect(screen.queryByText("detail-close")).not.toBeInTheDocument(),
     );
     expect(urlParams().has("block")).toBe(false);
+  });
+
+  // Die Woche kommt ohne Kinderzeilen (#4996): das Detailpanel bekommt sie aus
+  // dem vollständig nachgeladenen Tag des Termins.
+  it("loads the children of the open block with its whole day", async () => {
+    const { timetableService } = await import("~/lib/timetable-api");
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    mockUseSWRAuth.mockImplementation((key: string | null) =>
+      key?.includes("-detail-")
+        ? {
+            data: {
+              from: instance.date,
+              to: instance.date,
+              instances: [
+                {
+                  ...instance,
+                  students: [
+                    {
+                      studentId: "21",
+                      status: "present",
+                      careDayStatus: "scheduled",
+                    },
+                  ],
+                },
+              ],
+            },
+          }
+        : base(key),
+    );
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("detail-students")).toHaveTextContent("1");
+    const detail = mockUseSWRAuth.mock.calls.find(
+      ([key]) => typeof key === "string" && key.includes("-detail-"),
+    ) as [string, () => Promise<unknown>] | undefined;
+    expect(detail?.[0]).toMatch(
+      new RegExp(`^timetable-week-.+-detail-${instance.date}$`),
+    );
+    void detail![1]();
+    expect(timetableService.getWeek).toHaveBeenLastCalledWith(
+      instance.date,
+      instance.date,
+      { groupId: null, staffId: null, roomId: null },
+    );
+  });
+
+  it("shows the children as loading until the block's day arrives", () => {
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    mockUseSWRAuth.mockImplementation((key: string | null) =>
+      key?.includes("-detail-") ? { isLoading: true } : base(key),
+    );
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByTestId("detail-students")).toHaveTextContent("pending");
+  });
+
+  // Regeltermine braucht nur die Serienansicht und das Detailpanel (#4996).
+  it("loads the Regeltermine only for the series view or an open block", () => {
+    setUrl("view=woche");
+    const { unmount } = render(<BetreuungsplanView />);
+    const templateKeys = () =>
+      mockUseSWRAuth.mock.calls
+        .map(([key]) => key)
+        .filter(
+          (key): key is string =>
+            typeof key === "string" && key.startsWith("timetable-templates-"),
+        );
+    expect(mockUseSWRAuth).toHaveBeenCalledWith(
+      expect.stringMatching(/^timetable-week-/),
+      expect.any(Function),
+    );
+    expect(templateKeys()).toEqual([]);
+    unmount();
+
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+    expect(templateKeys().length).toBeGreaterThan(0);
   });
 
   // #2957: Ohne einen weiteren Plan-Parameter wäre `block` beim Schließen der
@@ -2483,12 +2567,13 @@ describe("BetreuungsplanView", () => {
 
     /** SWR-Schlüssel und Fetcher des Instanz-Abrufs der Ansicht. */
     function instanceFetch(view: string) {
-      const call = [...mockUseSWRAuth.mock.calls]
-        .reverse()
-        .find(
-          ([key]) =>
-            typeof key === "string" && key.startsWith(`timetable-${view}-`),
-        ) as [string, () => Promise<unknown>] | undefined;
+      const call = [...mockUseSWRAuth.mock.calls].reverse().find(
+        ([key]) =>
+          typeof key === "string" &&
+          key.startsWith(`timetable-${view}-`) &&
+          // Der nachgeladene Tag eines offenen Blocks teilt das Präfix.
+          !key.includes("-detail-"),
+      ) as [string, () => Promise<unknown>] | undefined;
       expect(call).toBeDefined();
       return { key: call![0], fetcher: call![1] };
     }
@@ -2511,6 +2596,7 @@ describe("BetreuungsplanView", () => {
           expect.any(String),
           expect.any(String),
           { groupId: "5", staffId: "11", roomId: null },
+          { view: "slim" },
         );
         unmount();
       }
@@ -2528,6 +2614,7 @@ describe("BetreuungsplanView", () => {
         "2026-05-04",
         "2026-05-08",
         { groupId: null, staffId: null, roomId: null },
+        { view: "slim" },
       );
     });
 
@@ -2658,6 +2745,7 @@ describe("BetreuungsplanView", () => {
         expect.any(String),
         expect.any(String),
         { groupId: null, staffId: null, roomId: "3" },
+        { view: "slim" },
       );
       expect(
         screen.getByRole("combobox", { name: "Nach Raum filtern" }),

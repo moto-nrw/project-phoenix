@@ -220,6 +220,7 @@ describe("useUserContext", () => {
         supervisedRoomNames: [],
         incomplete: true,
         unavailableSections: ["supervised_groups"],
+        schoolSwitches: null,
       };
       vi.mocked(useImmutableSWR).mockReturnValue({
         data: undefined,

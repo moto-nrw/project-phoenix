@@ -60,9 +60,9 @@ interface UseUserContextReturn {
  */
 export const USER_CONTEXT_SWR_KEY = "user-context";
 
-export function useUserContext(): UseUserContextReturn {
+export function useUserContext(enabled = true): UseUserContextReturn {
   const { data, isLoading, error } = useImmutableSWR<UserContextResponse>(
-    USER_CONTEXT_SWR_KEY,
+    enabled ? USER_CONTEXT_SWR_KEY : null,
     async () => {
       const response = await fetch("/api/user-context", {
         credentials: "include",

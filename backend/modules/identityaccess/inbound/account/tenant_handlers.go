@@ -123,13 +123,9 @@ func newTenantResolveResponse(school *TenantSchool, resolved tenantShellSettings
 		ParentRequestReasonPolicy: resolved.reasonPolicy,
 		ShowTimetableCounts:       resolved.showTimetableCounts,
 		TimetableEnabled:          resolved.timetableEnabled,
-		TimetableDayStartTime:     resolved.timetableDayStartTime,
-		TimetableDayEndTime:       resolved.timetableDayEndTime,
 		MealPlanEnabled:           resolved.mealPlanEnabled,
 		MealRegistrationEnabled:   resolved.mealRegistrationEnabled,
 		WaitlistEnabled:           resolved.waitlistEnabled,
-		ParentNewsEnabled:         resolved.parentNewsEnabled,
-		ParentInviteMode:          resolved.parentInviteMode,
 		AnalyticsEnabled:          resolved.analyticsEnabled,
 		AnalyticsFreigabe:         resolved.analyticsEnabled && resolved.analyticsFreigabe,
 		// Without the Freigabe the sample has no effect; the client never sees
@@ -162,8 +158,6 @@ func tenantShellSettingKeys() []string {
 		settings.KeyAttendanceLogEnabled,
 		settings.KeyTimetableShowExpectedChildrenCount,
 		settings.KeyTimetableEnabled,
-		settings.KeyTimetableDayStartTime,
-		settings.KeyTimetableDayEndTime,
 		settings.KeyMealPlanEnabled,
 		settings.KeyMealRegistrationEnabled,
 		settings.KeyEnrollmentWaitlistEnabled,
@@ -172,8 +166,6 @@ func tenantShellSettingKeys() []string {
 		settings.KeyAttendanceEditScope,
 		settings.KeyParentRequestReasonPolicy,
 		settings.KeyParentNotesEnabled,
-		settings.KeyParentNewsEnabled,
-		settings.KeyGuardianParentInviteMode,
 		settings.KeyStaffMessagingEnabled,
 		settings.KeyAnalyticsEnabled,
 		settings.KeyAnalyticsFreigabe,
@@ -225,9 +217,6 @@ func resolveTenantShellValues(readBool func(string) (bool, error), readString fu
 		{settings.KeyOperationalOverviewScope, &resolved.overviewScope},
 		{settings.KeyAttendanceEditScope, &resolved.attendanceEditScope},
 		{settings.KeyParentRequestReasonPolicy, &resolved.reasonPolicy},
-		{settings.KeyGuardianParentInviteMode, &resolved.parentInviteMode},
-		{settings.KeyTimetableDayStartTime, &resolved.timetableDayStartTime},
-		{settings.KeyTimetableDayEndTime, &resolved.timetableDayEndTime},
 	}
 	for _, field := range stringFields {
 		value, err := readString(field.key)
@@ -239,7 +228,6 @@ func resolveTenantShellValues(readBool func(string) (bool, error), readString fu
 	resolved.overviewScope = normalizeOverviewScope(resolved.overviewScope)
 	resolved.attendanceEditScope = normalizeAttendanceEditScope(resolved.attendanceEditScope)
 	resolved.reasonPolicy = normalizeReasonPolicy(resolved.reasonPolicy)
-	resolved.parentInviteMode = normalizeParentInviteMode(resolved.parentInviteMode)
 	if resolved.groupMode != settings.GroupModeOpenCare {
 		resolved.groupMode = settings.GroupModeFixedGroups
 	}
@@ -283,7 +271,6 @@ func (resolved *tenantShellSettings) resolveFeatureFlags(readBool func(string) (
 		{settings.KeyWeekendFollowsFriday, &resolved.weekendFollowsFriday},
 		{settings.KeyChildSearchOnlyNavigation, &resolved.childSearchOnlyNavigation},
 		{settings.KeyParentNotesEnabled, &resolved.parentMessagingEnabled},
-		{settings.KeyParentNewsEnabled, &resolved.parentNewsEnabled},
 		{settings.KeyStaffMessagingEnabled, &resolved.staffMessagingEnabled},
 		{settings.KeyAnalyticsEnabled, &resolved.analyticsEnabled},
 		{settings.KeyAnalyticsFreigabe, &resolved.analyticsFreigabe},
@@ -324,17 +311,6 @@ func normalizeReasonPolicy(value string) string {
 		return value
 	default:
 		return settings.ReasonPolicyBoth
-	}
-}
-
-// normalizeParentInviteMode keeps an unknown wire value from opening the
-// client: anything unrecognised is "disabled", the registry default.
-func normalizeParentInviteMode(value string) string {
-	switch value {
-	case settings.ParentInviteModeDirect, settings.ParentInviteModeStaffApproval:
-		return value
-	default:
-		return settings.ParentInviteModeDisabled
 	}
 }
 

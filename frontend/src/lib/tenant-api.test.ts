@@ -173,9 +173,6 @@ describe("tenant-api", () => {
         mealPlanEnabled: false,
         mealRegistrationEnabled: false,
         waitlistEnabled: true,
-        // Missing parent news reads as off (#4996): an older backend must not
-        // offer announcement entry points the school may not use.
-        parentNewsEnabled: false,
         gradeLevelMax: 13,
         // Older backends omit the Analyse-Freigabe (#3603): off, and nothing
         // is recorded.
@@ -214,10 +211,6 @@ describe("tenant-api", () => {
                 attendance_edit_scope: "all_staff",
                 show_timetable_counts: true,
                 waitlist_enabled: true,
-                parent_news_enabled: true,
-                parent_invite_mode: "staff_approval",
-                timetable_day_start_time: "07:30",
-                timetable_day_end_time: "16:15",
               },
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
@@ -236,8 +229,6 @@ describe("tenant-api", () => {
                 attendance_edit_scope: "admins",
                 show_timetable_counts: false,
                 waitlist_enabled: false,
-                parent_news_enabled: false,
-                parent_invite_mode: "nonsense_from_a_newer_backend",
               },
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
@@ -252,10 +243,6 @@ describe("tenant-api", () => {
         attendanceEditScope: "all_staff",
         showTimetableCounts: true,
         waitlistEnabled: true,
-        parentNewsEnabled: true,
-        parentInviteMode: "staff_approval",
-        timetableDayStartTime: "07:30",
-        timetableDayEndTime: "16:15",
       });
       await expect(resolveTenant("settings-school")).resolves.toMatchObject({
         careOfferingsEnabled: false,
@@ -267,10 +254,6 @@ describe("tenant-api", () => {
         attendanceEditScope: "own",
         showTimetableCounts: false,
         waitlistEnabled: false,
-        parentNewsEnabled: false,
-        // An unknown invite mode stays undefined, so the Elternzugänge page
-        // shows its error state instead of guessing (#4996).
-        parentInviteMode: undefined,
       });
     });
 

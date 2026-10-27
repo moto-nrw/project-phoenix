@@ -575,9 +575,14 @@ function TimetablesContent() {
   const shouldLoadGaps =
     canManageSchedules && view === "week" && fetchToISO >= todayTargetISO;
   const gapsSWRKey = `timetable-gaps-${gapsFromISO}-${fetchToISO}`;
+  // Schlank (#4996): das Raster zeigt Zahlen, keine Kinderzeilen. Die
+  // Kinderzeilen des geöffneten Termins lädt das Detailpanel nach.
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
-    () => timetableService.getWeek(fetchFromISO, fetchToISO, planFilter),
+    () =>
+      timetableService.getWeek(fetchFromISO, fetchToISO, planFilter, {
+        view: "slim",
+      }),
   );
   const { data: gapsData, error: gapsError } = useSWRAuth(
     status === "authenticated" && shouldLoadGaps ? gapsSWRKey : null,
@@ -602,8 +607,8 @@ function TimetablesContent() {
     status === "authenticated" && canReadTenantRosters
       ? "timetable-student-list"
       : null,
-    // Nur Name und ID werden gebraucht: die schlanke Projektion (#4996).
-    () => fetchStudents({ page_size: 500, view: "slim" }),
+    // Nur Name und ID werden gebraucht: die Namens-Projektion (#4996).
+    () => fetchStudents({ page_size: 500, view: "names" }),
   );
   // Auswahl des Gruppenfilters (#4766). Die Serienansicht filtert nicht.
   const { data: filterGroups } = useSWRAuth(
@@ -910,7 +915,11 @@ function TimetablesContent() {
     error: templatesError,
     isLoading: templatesLoading,
   } = useSWRAuth(
-    status === "authenticated" && templatePeriodID
+    // Regeltermine braucht nur die Serienansicht und das Detailpanel eines
+    // Termins (#4996); Woche, Tag und Monat laden sie nicht beim Öffnen.
+    status === "authenticated" &&
+      templatePeriodID &&
+      (view === "series" || selectedInstanceId)
       ? `timetable-templates-${templatePeriodID}`
       : null,
     () => timetableService.getTemplates(templatePeriodID),
@@ -1132,6 +1141,45 @@ function TimetablesContent() {
       visibleInstances.find((inst) => inst.id === selectedInstanceId) ?? null,
     [visibleInstances, selectedInstanceId],
   );
+  // Die Woche kommt ohne Kinderzeilen (#4996). Für den geöffneten Termin lädt
+  // die Ansicht seinen Tag vollständig nach; der Schlüssel beginnt wie der der
+  // Woche, damit Echtzeit-Aktualisierungen ihn mitnehmen.
+  const detailDateISO = selectedInstance?.date ?? null;
+  const detailSWRKey = detailDateISO
+    ? `${swrKey}-detail-${detailDateISO}`
+    : null;
+  const { data: detailData, error: detailError } = useSWRAuth(
+    status === "authenticated" && detailSWRKey ? detailSWRKey : null,
+    () =>
+      timetableService.getWeek(
+        detailDateISO ?? "",
+        detailDateISO ?? "",
+        planFilter,
+      ),
+  );
+  // Jede Aktualisierung der Woche (Anwesenheit, Lebenszyklus, Echtzeit) holt
+  // auch die Kinderzeilen des offenen Termins neu.
+  useEffect(() => {
+    if (detailSWRKey) void tenantMutate(detailSWRKey);
+  }, [data, detailSWRKey, tenantMutate]);
+  const detailStudentsLoadError = useSwrLoadError(
+    detailError,
+    "die Kinder des Termins",
+    () => (detailSWRKey ? tenantMutate(detailSWRKey) : undefined),
+  );
+  const detailInstance = useMemo(() => {
+    if (!selectedInstance) return null;
+    const full = detailData?.instances.find(
+      (inst) => inst.id === selectedInstance.id,
+    );
+    return full
+      ? { ...selectedInstance, students: full.students }
+      : selectedInstance;
+  }, [detailData, selectedInstance]);
+  const detailStudentsPending =
+    selectedInstance !== null &&
+    detailData === undefined &&
+    detailStudentsLoadError === null;
   const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
   const weekEmptyState = useMemo(() => {
     if (instances.length > 0 || error) return undefined;
@@ -1802,7 +1850,9 @@ function TimetablesContent() {
   const overlays = (
     <>
       <InstanceDetailModal
-        instance={selectedInstance}
+        instance={detailInstance}
+        studentsPending={detailStudentsPending}
+        studentsLoadError={detailStudentsLoadError}
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
         canManage={canManageSchedules}

@@ -2,22 +2,22 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  refresh: vi.fn(),
+  mutate: vi.fn(),
   useRequirePermission: vi.fn(),
-  useParentInviteMode: vi.fn(),
+  useSchoolParentInviteMode: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-require-permission", () => ({
   useRequirePermission: () => mocks.useRequirePermission(),
 }));
 
-// The invite mode rides on the tenant resolve since #4996.
-vi.mock("~/lib/tenant-context", () => ({
-  useParentInviteMode: () => mocks.useParentInviteMode(),
+// The invite mode rides on the signed-in navigation context since #4996.
+vi.mock("~/lib/hooks/use-school-switches", () => ({
+  useSchoolParentInviteMode: () => mocks.useSchoolParentInviteMode(),
 }));
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: mocks.refresh }),
+vi.mock("~/lib/swr", () => ({
+  useTenantMutate: () => mocks.mutate,
 }));
 
 vi.mock("~/components/admin/guardian-approval-queue", () => ({
@@ -43,17 +43,37 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 import GuardianApprovalsPage from "./page";
 
+function setInviteMode({
+  mode,
+  error,
+  isLoading = false,
+}: {
+  mode?: string;
+  error?: Error;
+  isLoading?: boolean;
+}) {
+  mocks.useSchoolParentInviteMode.mockReturnValue({ mode, error, isLoading });
+}
+
 describe("GuardianApprovalsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.useRequirePermission.mockReturnValue({ isReady: true });
-    mocks.useParentInviteMode.mockReturnValue("staff_approval");
+    setInviteMode({ mode: "staff_approval" });
+  });
+
+  it("mounts the queue while the invite mode is loading", () => {
+    setInviteMode({ isLoading: true });
+
+    render(<GuardianApprovalsPage />);
+
+    expect(screen.getByTestId("approval-queue")).toHaveTextContent("loading:");
   });
 
   it.each(["disabled", "direct", "staff_approval"])(
     "passes the invite mode %s to the queue",
     (mode) => {
-      mocks.useParentInviteMode.mockReturnValue(mode);
+      setInviteMode({ mode });
 
       render(<GuardianApprovalsPage />);
 
@@ -63,8 +83,8 @@ describe("GuardianApprovalsPage", () => {
     },
   );
 
-  it("shows an error with a reload when the school sent no known mode", () => {
-    mocks.useParentInviteMode.mockReturnValue(undefined);
+  it("shows an error with a reload when the request fails", () => {
+    setInviteMode({ error: new Error("request failed") });
 
     render(<GuardianApprovalsPage />);
 
@@ -72,6 +92,14 @@ describe("GuardianApprovalsPage", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Einstellungen erneut laden" }),
     );
-    expect(mocks.refresh).toHaveBeenCalledOnce();
+    expect(mocks.mutate).toHaveBeenCalledWith("user-context");
+  });
+
+  it("shows an error when the school sent no known mode", () => {
+    setInviteMode({ mode: undefined });
+
+    render(<GuardianApprovalsPage />);
+
+    expect(screen.getByTestId("approval-queue")).toHaveTextContent("error:");
   });
 });

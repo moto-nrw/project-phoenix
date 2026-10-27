@@ -5,13 +5,13 @@ const { mockUseTimetableDayTimes } = vi.hoisted(() => ({
   mockUseTimetableDayTimes: vi.fn(),
 }));
 
-vi.mock("~/lib/tenant-context", () => ({
-  useTimetableDayTimes: mockUseTimetableDayTimes,
+vi.mock("~/lib/hooks/use-school-switches", () => ({
+  useSchoolDayTimes: mockUseTimetableDayTimes,
 }));
 
 import { useTimetableDayHours } from "./use-timetable-day-hours";
 
-// The day comes from the tenant resolve since #4996.
+// The day comes from the signed-in navigation context since #4996.
 function dayTimes(start: string | undefined, end: string | undefined) {
   return { start, end };
 }

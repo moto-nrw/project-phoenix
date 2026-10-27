@@ -34,7 +34,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import type { ParentInviteMode } from "~/lib/tenant-api";
+import type { ParentInviteMode } from "~/lib/user-context-types";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "GuardianApprovalQueue" });

@@ -79,7 +79,6 @@ vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({
 vi.mock("~/lib/tenant-context", () => ({
   useWeekendFollowsFriday: vi.fn(() => false),
   useTimetableEnabled: vi.fn(() => true),
-  useTimetableDayTimes: vi.fn(() => ({ start: undefined, end: undefined })),
 }));
 
 vi.mock("~/lib/timetable-api", () => ({

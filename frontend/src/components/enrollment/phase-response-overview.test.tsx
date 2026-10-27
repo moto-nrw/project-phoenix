@@ -28,7 +28,10 @@ vi.mock("~/lib/tenant-path", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "testschule",
-  useTenantParentNewsEnabled: () => mocks.parentNewsEnabled === true,
+}));
+
+vi.mock("~/lib/hooks/use-school-switches", () => ({
+  useSchoolParentNewsEnabled: () => mocks.parentNewsEnabled === true,
 }));
 
 import { PhaseResponseOverview } from "./phase-response-overview";
