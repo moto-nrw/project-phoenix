@@ -37,6 +37,12 @@ export interface ClassDayClasses {
    * Tag wie jeder andere und wird geladen.
    */
   weekend_follows_friday?: boolean;
+  /**
+   * Die Schulverwaltung (class_day:all_classes, #4802) lädt die Startseite
+   * über die Tagesübersicht der ganzen Schule: ein Abruf statt einer
+   * Klassenansicht je Klasse.
+   */
+  can_view_school_day?: boolean;
 }
 
 export async function fetchClassDayClassesSchool(): Promise<ClassDayClasses> {
@@ -49,7 +55,64 @@ export async function fetchClassDayClassesSchool(): Promise<ClassDayClasses> {
       response.data.can_write_arrival_exception === true,
     can_report_class_trip: response.data.can_report_class_trip === true,
     weekend_follows_friday: response.data.weekend_follows_friday === true,
+    can_view_school_day: response.data.can_view_school_day === true,
   };
+}
+
+/** Zahlen der Tagesübersicht, für die ganze Schule oder eine Klasse. */
+export interface SchoolDayTotals {
+  students: number;
+  /** Am Vormittag als fehlend markiert oder krank, entschuldigt, Klassenfahrt. */
+  missing: number;
+  /** Kinder mit Tagesstatus, „Heute abgemeldet“ eingeschlossen. */
+  absent: number;
+  sick: number;
+  excused: number;
+  class_trip: number;
+  staying: number;
+  leaving: number;
+  list_entries: number;
+  /** Kinder, deren Tag anders ist als sonst (#2294). */
+  changes: number;
+}
+
+/** Ein Kind der Tagesübersicht, nur mit dem, was die Zahlen zählen. */
+export interface SchoolDayChild {
+  student_id?: string;
+  list_entry?: boolean;
+  list_entry_id?: string;
+  first_name: string;
+  last_name: string;
+  status?: string;
+  missing?: boolean;
+  after_school?: "stays" | "goes_home";
+  changed?: boolean;
+}
+
+interface SchoolDayClass {
+  school_class: string;
+  totals: SchoolDayTotals;
+  children: SchoolDayChild[];
+}
+
+/** Antwort von GET /school/class-day/school-day (#4802). */
+export interface SchoolDayReport {
+  date: string;
+  weekday: string;
+  school_day: boolean;
+  enrollment_known: boolean;
+  totals: SchoolDayTotals;
+  classes: SchoolDayClass[];
+}
+
+export async function fetchSchoolDaySchool(
+  date: string,
+): Promise<SchoolDayReport> {
+  const params = new URLSearchParams({ date });
+  const response = await authFetch<ProxyResponse<SchoolDayReport>>(
+    `/api/school/class-day/school-day?${params.toString()}`,
+  );
+  return response.data;
 }
 
 export async function fetchClassDaySchool(

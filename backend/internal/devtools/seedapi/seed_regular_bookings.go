@@ -264,7 +264,6 @@ func (s seedRegularBookingsStep) book(rt *Runtime, auth AuthRef, studentID int64
 		// Only the consent the school confirms; an absent key leaves the
 		// child's photo consent as it is.
 		"consent_flags": map[string]any{"data_processing": true},
-		"custom_data":   map[string]any{"seed_source": "regular-booking"},
 		"children": []map[string]any{{
 			"first_name":         child.FirstName,
 			"last_name":          child.LastName,

@@ -4819,6 +4819,7 @@ function enrollmentFormTopic(): HelpTopic {
           "Soll die Antwort später beim Kind stehen? Nehmen Sie einen `Stammdaten-Vorschlag` und wählen Sie `Hinzufügen`.",
           "Zur Auswahl stehen unter anderem `Abholzeiten`, `Ankunftszeiten`, `Erlaubte Heimwege` und `Gesundheitsinformationen`.",
           "Geht es nur um diese eine Anmeldung? Wählen Sie `+ Freie Zusatzfrage`.",
+          "Fragen Sie etwas zum Kind, zum Beispiel zu Allergien oder zum Schwimmen? Schalten Sie bei der Frage `Pro Kind abfragen` ein. Dann beantworten Eltern sie für jedes Kind.",
           "Wollen Sie nur etwas erklären, ohne zu fragen? Wählen Sie `Infotext`.",
         ],
       },
@@ -8244,7 +8245,10 @@ function teacherClassDayTopic(): HelpTopic {
       "Mit den Pfeilen sehen Sie den vorherigen oder nächsten Tag.",
       "Betreut Ihre OGS am Wochenende? Dann sehen Sie auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
     ],
-    differences: ["An einem Wochenende ohne Betreuung steht `Kein Schultag`."],
+    differences: [
+      "An einem Wochenende ohne Betreuung steht `Kein Schultag`.",
+      "Sie haben die Rolle `Schulverwaltung`? Dann steht oben `Ganze Schule` mit den Zahlen aller Klassen. Wählen Sie eine Zahl. Darunter stehen dann die Kinder, nach Klassen sortiert. `Liste schließen` blendet sie wieder aus.",
+    ],
     troubleshootingDetails: [
       "Es steht `Keine Klassen zugewiesen`? Dann hat die OGS Ihnen noch keine Klasse zugeordnet.",
     ],
