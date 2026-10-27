@@ -40,7 +40,7 @@ func conferenceDay(class string) calendarSvc.ParentConferenceRequest {
 	room := "Raum 12"
 	return calendarSvc.ParentConferenceRequest{
 		SchoolClass: class,
-		Date:        portalDate(2026, 3, 4),
+		Date:        calendar.NewDate(2026, 3, 4),
 		StartTime:   "14:00",
 		EndTime:     "15:00",
 		SlotMinutes: 15,
@@ -96,7 +96,7 @@ func TestParentConferenceIntegration_LehrkraftOffersADayForOwnClassesOnly(t *tes
 	require.ErrorIs(t, err, calendarSvc.ErrForbidden, "a class the Lehrkraft does not teach")
 
 	past := conferenceDay("1a")
-	past.Date = portalDate(2025, 12, 1)
+	past.Date = calendar.NewDate(2025, 12, 1)
 	_, err = testpkg.TenantQuery1(t, calendarContext(t, account.ID), db, service.CreateSchoolParentConference, past)
 	require.ErrorIs(t, err, calendarSvc.ErrInvalidRequest, "a day in the past")
 

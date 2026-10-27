@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Lehrkraft's side of the Elternsprechtag in moto schule (#4801). A
@@ -208,7 +207,7 @@ func (s *service) loadOwnParentConference(ctx context.Context, id int64, lock bo
 // moved on. A day cannot lie in the past.
 func (s *service) parentConferenceFields(ctx context.Context, req ParentConferenceRequest, keptClass string) (schoolcalendar.ParentConferenceFields, error) {
 	fields := schoolcalendar.ParentConferenceFields{
-		SchoolClass: strings.TrimSpace(req.SchoolClass), Date: calendar.Date(req.Date.String()),
+		SchoolClass: strings.TrimSpace(req.SchoolClass), Date: req.Date,
 		SlotMinutes: req.SlotMinutes, Location: req.Location,
 	}
 	if fields.Date.IsZero() || fields.Date.Before(s.conferenceToday()) {
@@ -310,7 +309,7 @@ func buildParentConferenceView(conference *schoolcalendar.ParentConference, book
 		booked[booking.SlotStartMinute] = booking
 	}
 	view := ParentConferenceView{
-		ID: formatID(conference.ID), SchoolClass: conference.SchoolClass, Date: conference.Date.String(),
+		ID: formatID(conference.ID), SchoolClass: conference.SchoolClass, Date: conference.Date,
 		StartTime: formatClockMinute(conference.StartMinute), EndTime: formatClockMinute(conference.EndMinute),
 		SlotMinutes: conference.SlotMinutes, Breaks: parentConferenceBreakWindows(conference.Breaks),
 		Location: conference.Location, BookedCount: len(bookings), Slots: []portal.ParentConferenceSlot{},

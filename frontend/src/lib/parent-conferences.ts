@@ -5,7 +5,6 @@
 // des Formulars. Die Aufrufe der Eltern-App liegen in `parent-api.ts`.
 
 import { authFetch } from "~/lib/api-helpers";
-import { schoolClassLabel } from "~/lib/school-class-label";
 
 interface ProxyResponse<T> {
   readonly data: T;
@@ -211,11 +210,4 @@ export function parentConferenceWindowLabel(
   window: ParentConferenceWindow,
 ): string {
   return `${window.start_time}–${window.end_time} Uhr`;
-}
-
-/** „Klasse 2a“ */
-export function parentConferenceClassLabel(conference: {
-  school_class: string;
-}): string {
-  return schoolClassLabel(conference.school_class);
 }

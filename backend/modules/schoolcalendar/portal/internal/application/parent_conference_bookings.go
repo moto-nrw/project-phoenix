@@ -391,7 +391,7 @@ func (s *service) parentConferenceOffers(ctx context.Context, conferences []*sch
 func (s *service) buildParentConferenceOffer(conference *schoolcalendar.ParentConference, taken map[int]*schoolcalendar.ParentConferenceBooking, teacher *ports.Staff, studentID int64) ParentConferenceOffer {
 	offer := ParentConferenceOffer{
 		ID: formatID(conference.ID), SchoolClass: conference.SchoolClass, TeacherName: staffDisplayName(teacher),
-		Date: conference.Date.String(), Location: conference.Location, FreeSlots: []portal.ParentConferenceWindow{},
+		Date: conference.Date, Location: conference.Location, FreeSlots: []portal.ParentConferenceWindow{},
 	}
 	for _, start := range schoolcalendar.ParentConferenceSlots(conference.ParentConferenceFields) {
 		window := portal.ParentConferenceWindow{

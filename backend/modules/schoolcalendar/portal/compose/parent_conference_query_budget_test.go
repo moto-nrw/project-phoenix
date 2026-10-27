@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -27,7 +28,7 @@ func TestParentConferenceListsQueryBudget(t *testing.T) {
 	addDays := func(n int) {
 		for range n {
 			req := conferenceDay("1a")
-			req.Date = portalDate(2026, 3, 4).AddDays(days)
+			req.Date = calendar.NewDate(2026, 3, 4).AddDays(days)
 			view := createConference(t, db, service, account.ID, req)
 			other := testpkg.CreateTestParentGuardianChain(t, db)
 			_, err := testpkg.TenantQuery3(t, testpkg.Ctx(t), db, service.BookParentConference, conferenceChild(other), conferenceID(t, view), "14:00")

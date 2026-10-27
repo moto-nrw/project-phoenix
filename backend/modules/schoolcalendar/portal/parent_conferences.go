@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Elternsprechtag (#4801). A Lehrkraft offers a day for one of the classes
@@ -62,7 +64,7 @@ type ParentConferenceChild struct {
 // "HH:MM" in the school's wall clock.
 type ParentConferenceRequest struct {
 	SchoolClass string                   `json:"school_class"`
-	Date        Date                     `json:"date"`
+	Date        calendar.Date            `json:"date"`
 	StartTime   string                   `json:"start_time"`
 	EndTime     string                   `json:"end_time"`
 	SlotMinutes int                      `json:"slot_minutes"`
@@ -88,7 +90,7 @@ type SchoolParentConferenceList struct {
 type ParentConferenceView struct {
 	ID          string                   `json:"id"`
 	SchoolClass string                   `json:"school_class"`
-	Date        string                   `json:"date"`
+	Date        calendar.Date            `json:"date"`
 	StartTime   string                   `json:"start_time"`
 	EndTime     string                   `json:"end_time"`
 	SlotMinutes int                      `json:"slot_minutes"`
@@ -114,7 +116,7 @@ type ParentConferenceOffer struct {
 	ID          string                   `json:"id"`
 	SchoolClass string                   `json:"school_class"`
 	TeacherName string                   `json:"teacher_name"`
-	Date        string                   `json:"date"`
+	Date        calendar.Date            `json:"date"`
 	Location    *string                  `json:"location,omitempty"`
 	FreeSlots   []ParentConferenceWindow `json:"free_slots"`
 	Booking     *ParentConferenceWindow  `json:"booking,omitempty"`

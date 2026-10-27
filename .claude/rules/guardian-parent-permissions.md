@@ -78,6 +78,7 @@ Use action-specific permissions:
 - enrollment submit when tied to an existing child: `parent_portal.enrollment.submit`
 - meal participation changes: `parent_portal.meal_participation.manage`
 - inviting or removing connected accounts: `parent_portal.related_accounts.manage`
+- booking a parent-teacher conference slot (Elternsprechtag): `parent_portal.conference.book`
 
 Editing an open request needs the permission that submitting it needs.
 

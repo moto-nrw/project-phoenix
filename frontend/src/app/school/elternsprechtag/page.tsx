@@ -45,7 +45,6 @@ import {
   emptyParentConferenceDraft,
   fetchSchoolParentConferences,
   PARENT_CONFERENCE_SLOT_OPTIONS,
-  parentConferenceClassLabel,
   parentConferenceDraftOf,
   parentConferenceFieldErrors,
   parentConferenceRequest,
@@ -86,7 +85,7 @@ const conferenceColumns: DataTableColumn<ParentConference>[] = [
     header: "Klasse",
     render: (row) => (
       <span className="text-sm text-gray-700">
-        {parentConferenceClassLabel(row)}
+        {schoolClassLabel(row.school_class)}
       </span>
     ),
   },
@@ -304,7 +303,7 @@ function SchoolParentConferences() {
 
       {selected ? (
         <SectionCard
-          title={`Elternsprechtag ${parentConferenceClassLabel(selected)} am ${formatDate(selected.date)}`}
+          title={`Elternsprechtag ${schoolClassLabel(selected.school_class)} am ${formatDate(selected.date)}`}
           description={`${selected.start_time}–${selected.end_time} Uhr${selected.location ? ` · ${selected.location}` : ""} · ${selected.booked_count} von ${selected.slots.length} Zeitfenstern gebucht`}
           action={
             <div className="flex flex-wrap gap-2 print:hidden">
