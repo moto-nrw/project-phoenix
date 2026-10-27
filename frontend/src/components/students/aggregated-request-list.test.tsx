@@ -2,6 +2,7 @@ import {
   act,
   fireEvent,
   render as renderComponent,
+  renderHook,
   screen,
   waitFor,
   within,
@@ -22,8 +23,27 @@ import {
 } from "~/lib/change-request-list-api";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { mutate, SWRConfig, type Cache } from "~/lib/swr";
+
+import {
+  useMergedRequestFeed,
+  useRequestSources,
+  useWithdrawalFeed,
+} from "./requests/use-request-feed";
 
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
+import { itemKey } from "./requests/case-model";
+
+// Die Liste hält ihre Seiten im SWR-Cache (#4988): echtes SWR, ein eigener
+// Cache je Render und eine angemeldete Sitzung für useSWRAuth.
+vi.unmock("swr");
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    status: "authenticated",
+    data: { user: { id: "1", token: "test-token" } },
+  }),
+}));
 
 // Nur die Netzaufrufe ersetzen, den Rest des Moduls stehen lassen: die Liste
 // braucht von dort auch Fehlerklassen und reine Hilfsfunktionen, und ein
@@ -128,8 +148,42 @@ vi.mock("~/components/students/request-history-item", () => ({
   ),
 }));
 
+function providersWith(cache: Cache) {
+  return function Providers({
+    children,
+  }: Readonly<{ children: React.ReactNode }>) {
+    return (
+      <ToastProvider>
+        <SWRConfig value={{ provider: () => cache, dedupingInterval: 0 }}>
+          {children}
+        </SWRConfig>
+      </ToastProvider>
+    );
+  };
+}
+
 const render = (ui: React.ReactNode) =>
-  renderComponent(ui, { wrapper: ToastProvider });
+  renderComponent(ui, { wrapper: providersWith(new Map()) });
+
+/** Der Standard-Cache von SWR, wie ihn die App nutzt. */
+function DefaultCacheProviders({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <ToastProvider>
+      <SWRConfig value={{ dedupingInterval: 0 }}>{children}</SWRConfig>
+    </ToastProvider>
+  );
+}
+
+const clearDefaultCache = () =>
+  act(async () => {
+    await mutate(() => true, undefined, { revalidate: false });
+  });
+
+/** Rendert mit einem Cache, den ein späterer Render wiederfindet. */
+const renderWithCache = (ui: React.ReactNode, cache: Cache) =>
+  renderComponent(ui, { wrapper: providersWith(cache) });
 
 const mockListOpen = vi.mocked(listAggregatedOpenRequests);
 const mockBulkApprove = vi.mocked(bulkApproveParentRequests);
@@ -163,14 +217,19 @@ function openItem(type: string, id: string) {
 }
 
 /** Wie openItem, aber mit dem Zeitpunkt, nach dem Quellen verschränkt werden. */
-function stampedItem(type: string, id: string, occurredAt: string) {
+function stampedItem(
+  type: string,
+  id: string,
+  occurredAt: string,
+  urgentToday = false,
+) {
   return {
     request_type: type,
     occurred_at: occurredAt,
     student_id: "10",
     student_name: "Mia Muster",
     expected_version: `v${id}`,
-    urgent_today: false,
+    urgent_today: urgentToday,
     bulk_eligible: true,
     data: { id },
   } as never;
@@ -1284,6 +1343,162 @@ describe("AggregatedRequestList", () => {
     expect(screen.queryByText(/konnte nicht bearbeitet werden/)).toBeNull();
   });
 
+  it("zeigt beim erneuten Öffnen sofort die geladene Liste und gleicht sie ohne Skelett ab", async () => {
+    const cache: Cache = new Map();
+    mockListOpen.mockResolvedValue({ items: [openItem("excused", "4")] });
+    const first = renderWithCache(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      cache,
+    );
+    await screen.findByText("excused-item-4");
+    first.unmount();
+
+    // Der Abgleich bringt eine geänderte Antwort.
+    let resolveRevalidation!: (value: { items: never[] }) => void;
+    mockListOpen.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRevalidation = resolve;
+      }) as never,
+    );
+    renderWithCache(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      cache,
+    );
+
+    // Anker: die Liste steht im selben Render, ohne auf den Abruf zu warten.
+    expect(screen.getByText("excused-item-4")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Anfragen werden geladen" }),
+    ).not.toBeInTheDocument();
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      resolveRevalidation({
+        items: [openItem("excused", "4"), openItem("master_data", "5")],
+      });
+    });
+
+    expect(await screen.findByText("master-item-5")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Anfragen werden geladen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("meldet einen gescheiterten Abgleich vor Ort und lässt die Liste stehen", async () => {
+    const cache: Cache = new Map();
+    mockListOpen.mockResolvedValue({ items: [openItem("excused", "4")] });
+    const first = renderWithCache(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      cache,
+    );
+    await screen.findByText("excused-item-4");
+    first.unmount();
+
+    mockListOpen.mockRejectedValueOnce(
+      new ApiError("page unavailable", 503, { code: "general.unavailable" }),
+    );
+    renderWithCache(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      cache,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Liste der Anfragen ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("excused-item-4")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Wiederholen" })).toBeVisible();
+  });
+
+  it("zeigt eine entschiedene Anfrage nach dem Filterwechsel nicht wieder", async () => {
+    // Ungefiltert laden, nach „Mia“ filtern, dort entscheiden, Filter wieder
+    // löschen: die ungefilterte Liste im Cache darf die Anfrage nicht mehr
+    // zeigen, auch nicht für den Moment bis zum Abgleich (#4988).
+    // Wie in der App: der Standard-Cache von SWR, kein eigener Provider.
+    await clearDefaultCache();
+    mockListOpen.mockResolvedValue({
+      items: [openItem("master_data", "1"), openItem("excused", "4")],
+    });
+    const { rerender } = renderComponent(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      { wrapper: DefaultCacheProviders },
+    );
+    await screen.findByText("excused-item-4");
+
+    mockListOpen.mockResolvedValue({ items: [openItem("master_data", "1")] });
+    const filtered = { ...NO_FILTERS, search: "Mia" };
+    rerender(<AggregatedRequestList view="open" filters={filtered} />);
+    await waitFor(() =>
+      expect(screen.queryByText("excused-item-4")).not.toBeInTheDocument(),
+    );
+
+    // Der Server kennt die Anfrage danach nicht mehr als offen.
+    mockListOpen.mockResolvedValue({ items: [openItem("excused", "4")] });
+    fireEvent.click(screen.getByText("master-item-1"));
+
+    rerender(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    expect(screen.queryByText("master-item-1")).not.toBeInTheDocument();
+    expect(await screen.findByText("excused-item-4")).toBeInTheDocument();
+    expect(screen.queryByText("master-item-1")).not.toBeInTheDocument();
+    await clearDefaultCache();
+  });
+
+  it("verwirft beim Zurückkehren keinen laufenden Abgleich durch Nachladen", async () => {
+    // Liste mit weiterer Seite laden, Abgleich starten, Seite verlassen und
+    // während des Abgleichs zurückkehren und nachladen wollen: die frische
+    // Antwort des Abgleichs muss stehen bleiben (#4988).
+    const firstPage = Array.from({ length: 25 }, (_, index) =>
+      stampedItem(
+        "excused",
+        `alt-${index + 1}`,
+        `2026-08-29T09:${String(index).padStart(2, "0")}:00Z`,
+      ),
+    );
+    mockListOpen.mockResolvedValueOnce({
+      items: firstPage,
+      next_cursor: "cursor-1",
+    });
+    const { rerender } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+    await screen.findByText("excused-item-alt-1");
+
+    let resolveRefresh!: (value: { items: never[] }) => void;
+    mockListOpen.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRefresh = resolve;
+      }) as never,
+    );
+    mockListOpen.mockResolvedValue({
+      items: [
+        stampedItem("excused", "alt-26", "2026-08-28T09:00:00Z"),
+      ] as never[],
+    });
+    act(() => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(2));
+    // Seite verlassen und zurückkehren; der Cache bleibt wie in der App.
+    rerender(<div />);
+    rerender(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    // Anker: die Liste steht aus dem Cache.
+    expect(screen.getByText("excused-item-alt-1")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^(Weitere Einträge laden|Wird geladen…)$/,
+      }),
+    );
+    await act(async () => {});
+
+    await act(async () => {
+      resolveRefresh({ items: [openItem("excused", "frisch")] });
+    });
+
+    expect(await screen.findByText("excused-item-frisch")).toBeInTheDocument();
+    expect(screen.queryByText("excused-item-alt-1")).not.toBeInTheDocument();
+  });
+
   it("meldet das fehlende Recht über den Code, nicht über den Backend-Satz", async () => {
     mockListOpen.mockRejectedValue(
       new ApiError("absence read required", 403, {
@@ -1300,4 +1515,1327 @@ describe("AggregatedRequestList", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("absence read required")).toBeNull();
   });
+
+  function useFeeds(
+    filters: AggregatedRequestFilters,
+    view: "open" | "history" = "history",
+  ) {
+    const sources = useRequestSources(view, filters);
+    const feed = useMergedRequestFeed(sources, view, filters);
+    const withdrawals = useWithdrawalFeed(view, filters);
+    return { feed, withdrawals };
+  }
+
+  it.each(["merged", "withdrawal"] as const)(
+    "retains the %s pagination error and retry when the other feed reloads",
+    async (kind) => {
+      const unavailable = new ApiError("page unavailable", 503, {
+        code: "general.unavailable",
+      });
+      const requestPage = {
+        items: Array.from({ length: 25 }, (_, i) =>
+          openItem("excused", String(i)),
+        ),
+        next_cursor: "next",
+      };
+      mockListHistory.mockResolvedValue(requestPage);
+      mockListWithdrawals.mockResolvedValue({
+        items: [withdrawalItem("first")],
+        total: 26,
+        page: 1,
+        pageSize: 25,
+      });
+      const { result } = renderHook(
+        () => useFeeds({ ...NO_FILTERS, includeCareWithdrawals: true }),
+        { wrapper: providersWith(new Map()) },
+      );
+      await waitFor(() => {
+        expect(result.current.feed.items).toHaveLength(25);
+        expect(result.current.withdrawals.items).toEqual([
+          withdrawalItem("first"),
+        ]);
+      });
+      if (kind === "merged") mockListHistory.mockRejectedValueOnce(unavailable);
+      else mockListWithdrawals.mockRejectedValueOnce(unavailable);
+      const failedFeed = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      const displayedError = () =>
+        result.current.feed.error ?? result.current.withdrawals.error;
+      await act(async () => {
+        await failedFeed().loadMore();
+      });
+      await waitFor(() => expect(displayedError()?.retry).toBeTruthy());
+      const error = displayedError();
+      await act(async () => {
+        if (kind === "merged") await result.current.withdrawals.load();
+        else await result.current.feed.reload();
+      });
+      expect(displayedError()).toBe(error);
+      if (kind === "merged") {
+        mockListHistory.mockResolvedValueOnce({
+          items: [openItem("excused", "next")],
+        });
+      } else {
+        mockListWithdrawals.mockResolvedValueOnce({
+          items: [withdrawalItem("next")],
+          total: 26,
+          page: 2,
+          pageSize: 25,
+        });
+      }
+      act(() => error?.retry?.onClick());
+      await waitFor(() => {
+        expect(failedFeed().items).toHaveLength(kind === "merged" ? 26 : 2);
+      });
+      expect(displayedError()).toBeNull();
+    },
+  );
+
+  it.each(["changed", "identical"] as const)(
+    "rejects a withdrawal page after a same-filter reload with %s contents",
+    async (contents) => {
+      const item = {
+        id: "first",
+        studentId: "10",
+        firstName: "Mia",
+        lastName: "Muster",
+        schoolClass: "2a",
+        firstBookinglessDay: "2026-09-01",
+        urgency: "planned" as const,
+        state: "pending" as const,
+      };
+      const first = { items: [item], total: 26, page: 1, pageSize: 25 };
+      let finishPage!: (page: typeof first) => void;
+      const pending = new Promise<typeof first>((resolve) => {
+        finishPage = resolve;
+      });
+      const replacement =
+        contents === "changed" ? { ...item, id: "replacement" } : item;
+      mockListWithdrawals
+        .mockResolvedValueOnce(first)
+        .mockReturnValueOnce(pending)
+        .mockResolvedValueOnce({ ...first, items: [replacement] });
+      const { result } = renderHook(
+        () => useFeeds({ ...NO_FILTERS, includeCareWithdrawals: true }),
+        {
+          wrapper: providersWith(new Map()),
+        },
+      );
+      await waitFor(() =>
+        expect(result.current.withdrawals.items).toEqual([item]),
+      );
+      let loading!: Promise<void>;
+      act(() => {
+        loading = result.current.withdrawals.loadMore();
+      });
+      await act(async () => {
+        await result.current.withdrawals.load();
+      });
+      expect(result.current.withdrawals.items).toEqual([replacement]);
+      await act(async () => {
+        finishPage({ ...first, items: [{ ...item, id: "obsolete" }], page: 2 });
+        await loading;
+      });
+      expect(result.current.withdrawals.items).toEqual([replacement]);
+    },
+  );
+
+  it.each(["reload", "filter"] as const)(
+    "clears a pagination error after %s replaces the request feed",
+    async (replacement) => {
+      mockListHistory
+        .mockResolvedValueOnce({
+          items: Array.from({ length: 25 }, (_, i) =>
+            openItem("excused", String(i)),
+          ),
+          next_cursor: "next",
+        })
+        .mockRejectedValueOnce(
+          new ApiError("page unavailable", 503, {
+            code: "general.unavailable",
+          }),
+        )
+        .mockResolvedValueOnce({ items: [openItem("excused", "replacement")] });
+      const { result, rerender } = renderHook(useFeeds, {
+        initialProps: NO_FILTERS,
+        wrapper: providersWith(new Map()),
+      });
+      await waitFor(() => expect(result.current.feed.items).toHaveLength(25));
+      await act(async () => {
+        await result.current.feed.loadMore();
+      });
+      await waitFor(() => expect(result.current.feed.error).toBeTruthy());
+      if (replacement === "reload") {
+        await act(async () => {
+          await result.current.feed.reload();
+        });
+      } else {
+        rerender({ ...NO_FILTERS, search: "Mia" });
+      }
+      await waitFor(() =>
+        expect(result.current.feed.items).toEqual([
+          openItem("excused", "replacement"),
+        ]),
+      );
+      expect(result.current.feed.error).toBeNull();
+    },
+  );
+
+  it.each(["reload", "filter"] as const)(
+    "clears a withdrawal pagination error after %s",
+    async (replacement) => {
+      const item = {
+        id: "first",
+        studentId: "10",
+        firstName: "Mia",
+        lastName: "Muster",
+        schoolClass: "2a",
+        firstBookinglessDay: "2026-09-01",
+        urgency: "planned" as const,
+        state: "pending" as const,
+      };
+      mockListWithdrawals
+        .mockResolvedValueOnce({
+          items: [item],
+          total: 26,
+          page: 1,
+          pageSize: 25,
+        })
+        .mockRejectedValueOnce(
+          new ApiError("page unavailable", 503, {
+            code: "general.unavailable",
+          }),
+        )
+        .mockResolvedValueOnce({
+          items: [{ ...item, id: "replacement" }],
+          total: 1,
+          page: 1,
+          pageSize: 25,
+        });
+      const filters = { ...NO_FILTERS, includeCareWithdrawals: true };
+      const { result, rerender } = renderHook(useFeeds, {
+        initialProps: filters,
+        wrapper: providersWith(new Map()),
+      });
+      await waitFor(() =>
+        expect(result.current.withdrawals.items).toEqual([item]),
+      );
+      await act(async () => {
+        await result.current.withdrawals.loadMore();
+      });
+      await waitFor(() =>
+        expect(result.current.withdrawals.error).toBeTruthy(),
+      );
+      if (replacement === "reload") {
+        await act(async () => {
+          await result.current.withdrawals.load();
+        });
+      } else {
+        rerender({ ...filters, search: "Mia" });
+      }
+      await waitFor(() =>
+        expect(result.current.withdrawals.items[0]?.id).toBe("replacement"),
+      );
+      expect(result.current.withdrawals.error).toBeNull();
+    },
+  );
+
+  function deferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((onResolve, onReject) => {
+      resolve = onResolve;
+      reject = onReject;
+    });
+    return { promise, resolve, reject };
+  }
+
+  function withdrawalItem(id: string) {
+    return {
+      id,
+      studentId: "10",
+      firstName: "Mia",
+      lastName: "Muster",
+      schoolClass: "2a",
+      firstBookinglessDay: "2026-09-01",
+      urgency: "planned" as const,
+      state: "pending" as const,
+    };
+  }
+
+  it.each([
+    ["merged", true],
+    ["merged", false],
+    ["withdrawal", true],
+    ["withdrawal", false],
+  ] as const)(
+    "recovers %s automatic pagination after a background refresh (more pages: %s)",
+    async (kind, hasMore) => {
+      await clearDefaultCache();
+      mockListOpen.mockReset().mockResolvedValue({ items: [] });
+      mockListWithdrawals.mockReset().mockResolvedValue({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 25,
+      });
+      const urgentItems = Array.from({ length: 25 }, (_, i) =>
+        stampedItem("excused", String(i), "2026-09-01T12:00:00Z", true),
+      );
+      const pageError = new ApiError("page unavailable", 503, {
+        code: "general.unavailable",
+      });
+      if (kind === "merged") {
+        mockListOpen
+          .mockResolvedValueOnce({ items: urgentItems, next_cursor: "next" })
+          .mockRejectedValueOnce(pageError)
+          .mockResolvedValueOnce({
+            items: urgentItems,
+            ...(hasMore ? { next_cursor: "next" } : {}),
+          })
+          .mockResolvedValue({ items: [openItem("excused", "new-page")] });
+      } else {
+        mockListWithdrawals
+          .mockResolvedValueOnce({
+            items: [withdrawalItem("first")],
+            total: 26,
+            page: 1,
+            pageSize: 25,
+          })
+          .mockRejectedValueOnce(pageError)
+          .mockResolvedValueOnce({
+            items: [withdrawalItem("first")],
+            total: hasMore ? 26 : 1,
+            page: 1,
+            pageSize: 25,
+          })
+          .mockResolvedValue({
+            items: [withdrawalItem("new-page")],
+            total: 26,
+            page: 2,
+            pageSize: 25,
+          });
+      }
+      const { result } = renderHook(
+        () => ({
+          ...useFeeds(
+            { ...NO_FILTERS, includeCareWithdrawals: kind === "withdrawal" },
+            "open",
+          ),
+        }),
+        { wrapper: DefaultCacheProviders },
+      );
+      await waitFor(() =>
+        expect(
+          (kind === "merged" ? result.current.feed : result.current.withdrawals)
+            .error,
+        ).toBeTruthy(),
+      );
+      const fetchPage = kind === "merged" ? mockListOpen : mockListWithdrawals;
+      expect(fetchPage).toHaveBeenCalledTimes(2);
+
+      // Derselbe SWR-Abgleich wie bei Fokus/Reconnect, ohne explizites reload.
+      await act(async () => {
+        await mutate(
+          (key) =>
+            typeof key === "string" &&
+            key.includes(
+              kind === "merged" ? "request-feed:" : "care-withdrawal-feed:",
+            ),
+        );
+      });
+
+      await waitFor(() => {
+        const items =
+          kind === "merged"
+            ? result.current.feed.items
+            : result.current.withdrawals.items;
+        expect(items).toEqual(
+          kind === "merged"
+            ? [
+                ...urgentItems,
+                ...(hasMore ? [openItem("excused", "new-page")] : []),
+              ]
+            : [
+                withdrawalItem("first"),
+                ...(hasMore ? [withdrawalItem("new-page")] : []),
+              ],
+        );
+        expect(
+          (kind === "merged" ? result.current.feed : result.current.withdrawals)
+            .error,
+        ).toBeNull();
+      });
+      expect(fetchPage).toHaveBeenCalledTimes(hasMore ? 4 : 3);
+    },
+  );
+
+  it.each(["merged", "withdrawal"] as const)(
+    "loads a new filter while old %s pagination is pending and keeps the new request busy",
+    async (kind) => {
+      const oldPage = deferred<void>();
+      const newPage = deferred<void>();
+      mockListHistory.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          await (params.search === "Mia" ? newPage : oldPage).promise;
+          return { items: [openItem("excused", "next")] };
+        }
+        return {
+          items: Array.from({ length: 25 }, (_, i) =>
+            openItem("excused", `${params?.search ?? "all"}-${i}`),
+          ),
+          next_cursor: "next",
+        };
+      });
+      mockListWithdrawals.mockImplementation(async (params) => {
+        if (params?.page === 2) {
+          await (params.search === "Mia" ? newPage : oldPage).promise;
+        }
+        return {
+          items: [withdrawalItem(`${params?.search ?? "all"}-${params?.page}`)],
+          total: 26,
+          page: params?.page ?? 1,
+          pageSize: 25,
+        };
+      });
+      const filters = { ...NO_FILTERS, includeCareWithdrawals: true };
+      const { result, rerender } = renderHook(useFeeds, {
+        initialProps: filters,
+        wrapper: providersWith(new Map()),
+      });
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      await waitFor(() => {
+        expect(current().hasMore).toBe(true);
+        expect(current().loadingMore).toBe(false);
+      });
+      let oldLoading!: Promise<void>;
+      act(() => {
+        oldLoading = current().loadMore();
+      });
+      expect(current().loadingMore).toBe(true);
+      rerender({ ...filters, search: "Mia" });
+      await waitFor(() => {
+        expect(current().hasMore).toBe(true);
+        expect(current().loadingMore).toBe(false);
+      });
+      let newLoading!: Promise<void>;
+      act(() => {
+        newLoading = current().loadMore();
+      });
+      expect(current().loadingMore).toBe(true);
+      await act(async () => {
+        oldPage.resolve();
+        await oldLoading;
+      });
+      expect(current().loadingMore).toBe(true);
+      await act(async () => {
+        newPage.resolve();
+        await newLoading;
+      });
+      expect(current().loadingMore).toBe(false);
+      expect(current().items).toHaveLength(kind === "merged" ? 26 : 2);
+    },
+  );
+
+  it.each(["merged", "withdrawal"] as const)(
+    "preserves the remounted refresh when unmounted %s pagination completes",
+    async (kind) => {
+      const oldPage = deferred<void>();
+      const refresh = deferred<void>();
+      let refreshing = false;
+      mockListHistory.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          await oldPage.promise;
+          return { items: [openItem("excused", "obsolete")] };
+        }
+        if (refreshing) {
+          await refresh.promise;
+          return { items: [openItem("excused", "replacement")] };
+        }
+        return {
+          items: Array.from({ length: 25 }, (_, i) =>
+            openItem("excused", String(i)),
+          ),
+          next_cursor: "next",
+        };
+      });
+      mockListWithdrawals.mockImplementation(async (params) => {
+        if (params?.page === 2) {
+          await oldPage.promise;
+          return {
+            items: [withdrawalItem("obsolete")],
+            total: 26,
+            page: 2,
+            pageSize: 25,
+          };
+        }
+        if (refreshing) await refresh.promise;
+        return {
+          items: [withdrawalItem(refreshing ? "replacement" : "first")],
+          total: refreshing ? 1 : 26,
+          page: 1,
+          pageSize: 25,
+        };
+      });
+      const wrapper = providersWith(new Map());
+      const hook = () =>
+        useFeeds({ ...NO_FILTERS, includeCareWithdrawals: true });
+      const first = renderHook(hook, { wrapper });
+      const current = () =>
+        kind === "merged"
+          ? first.result.current.feed
+          : first.result.current.withdrawals;
+      await waitFor(() => expect(current().hasMore).toBe(true));
+      let loading!: Promise<void>;
+      act(() => {
+        loading = current().loadMore();
+      });
+      first.unmount();
+      refreshing = true;
+      const second = renderHook(hook, { wrapper });
+      await waitFor(() =>
+        expect(
+          kind === "merged" ? mockListHistory : mockListWithdrawals,
+        ).toHaveBeenCalledTimes(3),
+      );
+      await act(async () => {
+        oldPage.resolve();
+        await loading;
+      });
+      await act(async () => {
+        refresh.resolve();
+      });
+      await waitFor(() =>
+        expect(
+          kind === "merged"
+            ? second.result.current.feed.items
+            : second.result.current.withdrawals.items,
+        ).toEqual(
+          kind === "merged"
+            ? [openItem("excused", "replacement")]
+            : [withdrawalItem("replacement")],
+        ),
+      );
+    },
+  );
+
+  it("removes decided requests from another filter's cached source buffers", async () => {
+    await clearDefaultCache();
+    const decided = stampedItem(
+      "master_data",
+      "decided",
+      "2026-08-28T09:00:00Z",
+    );
+    const remaining = stampedItem(
+      "excused",
+      "remaining",
+      "2026-08-28T08:00:00Z",
+    );
+    const firstItems = Array.from({ length: 25 }, (_, i) =>
+      stampedItem("enrollment", String(i), "2026-08-29T09:00:00Z"),
+    );
+    mockListOpen.mockResolvedValue({ items: [decided, remaining] });
+    mockListEnrollment.mockResolvedValue({ items: firstItems });
+    const filters = { ...NO_FILTERS, includeEnrollment: true };
+    const { result, rerender } = renderHook(
+      (filters) => useFeeds(filters, "open"),
+      {
+        initialProps: filters,
+        wrapper: DefaultCacheProviders,
+      },
+    );
+    await waitFor(() => expect(result.current.feed.items).toEqual(firstItems));
+    mockListEnrollment.mockResolvedValue({ items: [] });
+    mockListOpen.mockResolvedValue({ items: [decided] });
+    rerender({ ...filters, search: "Mia" });
+    await waitFor(() => expect(result.current.feed.items).toEqual([decided]));
+    await act(async () => {
+      result.current.feed.setItems((items) =>
+        items.filter((item) => itemKey(item) !== itemKey(decided)),
+      );
+    });
+    mockListOpen.mockRejectedValue(new Error("refresh failed"));
+    rerender(filters);
+    await waitFor(() => expect(result.current.feed.error).toBeTruthy());
+    await act(async () => {
+      await result.current.feed.loadMore();
+    });
+    expect(result.current.feed.items).toEqual([...firstItems, remaining]);
+    await clearDefaultCache();
+  });
+
+  it("rejects pending pages after a local decision changes the snapshot", async () => {
+    const oldPage = deferred<void>();
+    const decided = openItem("master_data", "decided");
+    const firstItems = [
+      decided,
+      ...Array.from({ length: 24 }, (_, i) => openItem("excused", String(i))),
+    ];
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.cursor) {
+        await oldPage.promise;
+        return { items: [decided] };
+      }
+      return { items: firstItems, next_cursor: "next" };
+    });
+    const { result } = renderHook(() => useFeeds(NO_FILTERS, "open"), {
+      wrapper: providersWith(new Map()),
+    });
+    await waitFor(() => expect(result.current.feed.items).toEqual(firstItems));
+    let loading!: Promise<void>;
+    act(() => {
+      loading = result.current.feed.loadMore();
+    });
+    await act(async () => {
+      result.current.feed.setItems((items) =>
+        items.filter((item) => itemKey(item) !== itemKey(decided)),
+      );
+    });
+    await act(async () => {
+      oldPage.resolve();
+      await loading;
+    });
+    expect(result.current.feed.items).toEqual(firstItems.slice(1));
+  });
+
+  it.each(["merged", "withdrawal"] as const)(
+    "does not discard an uncached filter's initial response when old %s pagination completes",
+    async (kind) => {
+      const oldPage = deferred<void>();
+      const newFirstPage = deferred<void>();
+      mockListHistory.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          await oldPage.promise;
+          return { items: [openItem("excused", "obsolete")] };
+        }
+        if (params?.search === "Mia") {
+          await newFirstPage.promise;
+          return { items: [openItem("excused", "replacement")] };
+        }
+        return {
+          items: Array.from({ length: 25 }, (_, i) =>
+            openItem("excused", String(i)),
+          ),
+          next_cursor: "next",
+        };
+      });
+      mockListWithdrawals.mockImplementation(async (params) => {
+        if (params?.page === 2) {
+          await oldPage.promise;
+          return {
+            items: [withdrawalItem("obsolete")],
+            total: 26,
+            page: 2,
+            pageSize: 25,
+          };
+        }
+        if (params?.search === "Mia") await newFirstPage.promise;
+        return {
+          items: [
+            withdrawalItem(params?.search === "Mia" ? "replacement" : "first"),
+          ],
+          total: params?.search === "Mia" ? 1 : 26,
+          page: 1,
+          pageSize: 25,
+        };
+      });
+      const filters = { ...NO_FILTERS, includeCareWithdrawals: true };
+      const { result, rerender } = renderHook(useFeeds, {
+        initialProps: filters,
+        wrapper: providersWith(new Map()),
+      });
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      await waitFor(() => expect(current().hasMore).toBe(true));
+      let loading!: Promise<void>;
+      act(() => {
+        loading = current().loadMore();
+      });
+      rerender({ ...filters, search: "Mia" });
+      expect(current().loading).toBe(true);
+      await act(async () => {
+        oldPage.resolve();
+        await loading;
+      });
+      await act(async () => {
+        newFirstPage.resolve();
+      });
+      await waitFor(() => expect(current().loading).toBe(false));
+      expect(current().items).toEqual(
+        kind === "merged"
+          ? [openItem("excused", "replacement")]
+          : [withdrawalItem("replacement")],
+      );
+    },
+  );
+
+  it.each([
+    ["merged", false],
+    ["merged", true],
+    ["withdrawal", false],
+    ["withdrawal", true],
+  ] as const)(
+    "preserves an in-flight refresh against %s pagination (refresh first: %s)",
+    async (kind, refreshFirst) => {
+      const oldPage = deferred<void>();
+      const refresh = deferred<void>();
+      const firstItems = Array.from({ length: 25 }, (_, i) =>
+        openItem("excused", String(i)),
+      );
+      let refreshing = false;
+      mockListHistory.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          await oldPage.promise;
+          return { items: [openItem("excused", "obsolete")] };
+        }
+        if (refreshing) {
+          await refresh.promise;
+          return { items: [openItem("excused", "replacement")] };
+        }
+        return { items: firstItems, next_cursor: "next" };
+      });
+      mockListWithdrawals.mockImplementation(async (params) => {
+        if (params?.page === 2) {
+          await oldPage.promise;
+          return {
+            items: [withdrawalItem("obsolete")],
+            total: 26,
+            page: 2,
+            pageSize: 25,
+          };
+        }
+        if (refreshing) await refresh.promise;
+        return {
+          items: [withdrawalItem(refreshing ? "replacement" : "first")],
+          total: refreshing ? 1 : 26,
+          page: 1,
+          pageSize: 25,
+        };
+      });
+      const { result } = renderHook(
+        () => useFeeds({ ...NO_FILTERS, includeCareWithdrawals: true }),
+        { wrapper: providersWith(new Map()) },
+      );
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      await waitFor(() => expect(current().hasMore).toBe(true));
+      let loading!: Promise<void>;
+      if (!refreshFirst) {
+        act(() => {
+          loading = current().loadMore();
+        });
+      }
+      refreshing = true;
+      let reloading!: Promise<void>;
+      act(() => {
+        reloading =
+          kind === "merged"
+            ? result.current.feed.reload()
+            : result.current.withdrawals.load();
+      });
+      await waitFor(() =>
+        expect(
+          kind === "merged" ? mockListHistory : mockListWithdrawals,
+        ).toHaveBeenCalledTimes(refreshFirst ? 2 : 3),
+      );
+      if (refreshFirst) {
+        act(() => {
+          loading = current().loadMore();
+        });
+      }
+      await act(async () => {
+        oldPage.resolve();
+        await loading;
+      });
+      // Bis die Antwort des Abgleichs da ist, gilt der bisherige Stand samt
+      // Folgeseite; die Seite berührt den Cache nicht (#4988).
+      expect(current().items).toEqual(
+        kind === "merged"
+          ? [...firstItems, openItem("excused", "obsolete")]
+          : [withdrawalItem("first"), withdrawalItem("obsolete")],
+      );
+      await act(async () => {
+        refresh.resolve();
+        await reloading;
+      });
+      await waitFor(() =>
+        expect(current().items).toEqual(
+          kind === "merged"
+            ? [openItem("excused", "replacement")]
+            : [withdrawalItem("replacement")],
+        ),
+      );
+    },
+  );
+
+  it("rejects a merged page after an identical first-page reload", async () => {
+    const first = {
+      items: Array.from({ length: 25 }, (_, i) =>
+        openItem("excused", String(i)),
+      ),
+      next_cursor: "next",
+    };
+    const oldPage = deferred<typeof first>();
+    mockListHistory
+      .mockResolvedValue(first)
+      .mockResolvedValueOnce(first)
+      .mockReturnValueOnce(oldPage.promise);
+    const { result } = renderHook(() => useFeeds(NO_FILTERS), {
+      wrapper: providersWith(new Map()),
+    });
+    await waitFor(() => expect(result.current.feed.items).toHaveLength(25));
+    let loading!: Promise<void>;
+    act(() => {
+      loading = result.current.feed.loadMore();
+    });
+    await act(async () => {
+      await result.current.feed.reload();
+    });
+    await act(async () => {
+      oldPage.resolve({
+        items: [openItem("excused", "obsolete")],
+        next_cursor: "last",
+      });
+      await loading;
+    });
+    expect(result.current.feed.items).toEqual(first.items);
+  });
+
+  it.each(["reload", "filter"] as const)(
+    "ignores superseded pagination failures after %s and still loads new pages automatically",
+    async (replacement) => {
+      const oldPage = deferred<void>();
+      const newPage = deferred<void>();
+      let replaced = false;
+      const urgentItems = Array.from({ length: 25 }, (_, i) =>
+        stampedItem("excused", String(i), "2026-09-01T12:00:00Z", true),
+      );
+      mockListOpen.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          await (replaced ? newPage : oldPage).promise;
+          return { items: [openItem("excused", "new-page")] };
+        }
+        return { items: urgentItems, next_cursor: "next" };
+      });
+      mockListWithdrawals.mockImplementation(async (params) => {
+        if (params?.page === 2) await (replaced ? newPage : oldPage).promise;
+        return {
+          items: [withdrawalItem(params?.page === 2 ? "new-page" : "first")],
+          total: params?.page === 2 ? 2 : 26,
+          page: params?.page ?? 1,
+          pageSize: 25,
+        };
+      });
+      const filters = { ...NO_FILTERS, includeCareWithdrawals: true };
+      const { result, rerender } = renderHook(
+        (props) => useFeeds(props, "open"),
+        {
+          initialProps: filters,
+          wrapper: providersWith(new Map()),
+        },
+      );
+      await waitFor(() => {
+        expect(result.current.feed.loadingMore).toBe(true);
+        expect(result.current.withdrawals.loadingMore).toBe(true);
+      });
+      replaced = true;
+      if (replacement === "reload") {
+        await act(async () => {
+          await Promise.all([
+            result.current.feed.reload(),
+            result.current.withdrawals.load(),
+          ]);
+        });
+      } else {
+        rerender({ ...filters, search: "Mia" });
+      }
+      await waitFor(() => {
+        expect(result.current.feed.items).toEqual(urgentItems);
+        expect(result.current.withdrawals.items).toEqual([
+          withdrawalItem("first"),
+        ]);
+      });
+      await act(async () => {
+        oldPage.reject(
+          new ApiError("old page unavailable", 503, {
+            code: "general.unavailable",
+          }),
+        );
+      });
+      await act(async () => {
+        newPage.resolve();
+      });
+      await waitFor(() => {
+        expect(result.current.feed.items).toHaveLength(26);
+        expect(result.current.withdrawals.items).toEqual([
+          withdrawalItem("first"),
+          withdrawalItem("new-page"),
+        ]);
+      });
+      expect(result.current.feed.error).toBeNull();
+      expect(result.current.withdrawals.error).toBeNull();
+    },
+  );
+  // Eine Entscheidung in Filter B, während die erste Antwort von Filter A
+  // noch aussteht: A darf danach nicht im Ladeskelett hängen bleiben (#4988).
+  it("beendet die erste Ladung eines Filters nach einer Entscheidung in einem anderen", async () => {
+    await clearDefaultCache();
+    const pending = deferred<void>();
+    const decided = openItem("master_data", "decided");
+    const remaining = openItem("excused", "remaining");
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.search === "Mia") return { items: [decided] };
+      await pending.promise;
+      return { items: [remaining] };
+    });
+    const { result, rerender } = renderHook(
+      (filters) => useFeeds(filters, "open"),
+      { initialProps: NO_FILTERS, wrapper: DefaultCacheProviders },
+    );
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(1));
+    expect(result.current.feed.loading).toBe(true);
+    rerender({ ...NO_FILTERS, search: "Mia" });
+    await waitFor(() => expect(result.current.feed.items).toEqual([decided]));
+
+    await act(async () => {
+      result.current.feed.setItems((items) =>
+        items.filter((item) => itemKey(item) !== itemKey(decided)),
+      );
+    });
+    rerender(NO_FILTERS);
+    await act(async () => {
+      pending.resolve();
+    });
+
+    await waitFor(() => expect(result.current.feed.loading).toBe(false));
+    expect(result.current.feed.items).toEqual([remaining]);
+    await clearDefaultCache();
+  });
+
+  it("beendet die erste Ladung eines Filters ohne Entscheidung (Gegenprobe)", async () => {
+    await clearDefaultCache();
+    const pending = deferred<void>();
+    const decided = openItem("master_data", "decided");
+    const remaining = openItem("excused", "remaining");
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.search === "Mia") return { items: [decided] };
+      await pending.promise;
+      return { items: [remaining] };
+    });
+    const { result, rerender } = renderHook(
+      (filters) => useFeeds(filters, "open"),
+      { initialProps: NO_FILTERS, wrapper: DefaultCacheProviders },
+    );
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(1));
+    expect(result.current.feed.loading).toBe(true);
+    rerender({ ...NO_FILTERS, search: "Mia" });
+    await waitFor(() => expect(result.current.feed.items).toEqual([decided]));
+
+    rerender(NO_FILTERS);
+    await act(async () => {
+      pending.resolve();
+    });
+
+    await waitFor(() => expect(result.current.feed.loading).toBe(false));
+    expect(result.current.feed.items).toEqual([remaining]);
+    await clearDefaultCache();
+  });
+
+  it("zeigt den ersten Filter nach einer Entscheidung im zweiten fertig an", async () => {
+    await clearDefaultCache();
+    const pending = deferred<void>();
+    const decided = openItem("master_data", "decided");
+    const remaining = openItem("excused", "remaining");
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.search === "Mia") {
+        await pending.promise;
+        return { items: [remaining] };
+      }
+      return { items: [decided, remaining] };
+    });
+    const firstFilter = { ...NO_FILTERS, search: "Mia" };
+    const { rerender } = renderComponent(
+      <AggregatedRequestList view="open" filters={firstFilter} />,
+      { wrapper: DefaultCacheProviders },
+    );
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalledTimes(1));
+    rerender(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    fireEvent.click(await screen.findByText("master-item-decided"));
+
+    rerender(<AggregatedRequestList view="open" filters={firstFilter} />);
+    await act(async () => {
+      pending.resolve();
+    });
+
+    expect(
+      await screen.findByText("excused-item-remaining"),
+    ).toBeInTheDocument();
+    await clearDefaultCache();
+  });
+
+  // Filter A hat schon Daten, und sein Abgleich läuft, während in Filter B
+  // entschieden wird: zurück in A bleibt die Anfrage weg, und der frische
+  // Stand erscheint statt der alten Antwort des Abgleichs (#4988).
+  it("zeigt nach der Rückkehr den frischen Stand, wenn der Abgleich während der Entscheidung lief", async () => {
+    await clearDefaultCache();
+    const staleRefresh = deferred<void>();
+    const decided = openItem("master_data", "decided");
+    const remaining = openItem("excused", "remaining");
+    const fresh = openItem("excused", "fresh");
+    let unfilteredCalls = 0;
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.search === "Mia") return { items: [decided] };
+      unfilteredCalls += 1;
+      if (unfilteredCalls === 1) return { items: [decided, remaining] };
+      if (unfilteredCalls === 2) {
+        // Der Abgleich, der vor der Entscheidung begann.
+        await staleRefresh.promise;
+        return { items: [decided, remaining] };
+      }
+      return { items: [remaining, fresh] };
+    });
+    const { rerender } = renderComponent(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+      { wrapper: DefaultCacheProviders },
+    );
+    await screen.findByText("excused-item-remaining");
+    act(() => {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    });
+    await waitFor(() => expect(unfilteredCalls).toBe(2));
+
+    const filtered = { ...NO_FILTERS, search: "Mia" };
+    rerender(<AggregatedRequestList view="open" filters={filtered} />);
+    await waitFor(() =>
+      expect(
+        screen.queryByText("excused-item-remaining"),
+      ).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByText("master-item-decided"));
+
+    rerender(<AggregatedRequestList view="open" filters={NO_FILTERS} />);
+    // Anker: A steht sofort aus dem Cache, ohne die entschiedene Anfrage.
+    expect(screen.getByText("excused-item-remaining")).toBeInTheDocument();
+    expect(screen.queryByText("master-item-decided")).not.toBeInTheDocument();
+
+    await act(async () => {
+      staleRefresh.resolve();
+    });
+    expect(await screen.findByText("excused-item-fresh")).toBeInTheDocument();
+    expect(screen.queryByText("master-item-decided")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("status", { name: "Anfragen werden geladen" }),
+    ).not.toBeInTheDocument();
+    await clearDefaultCache();
+  });
+  // Runde 3 (#4988): die Entscheidung in Filter A wird erst fertig, nachdem
+  // schon zu Filter B gewechselt wurde. Zurück in A darf die Anfrage nicht
+  // wieder erscheinen, auch ohne neuen Abgleich.
+  it("entfernt eine Anfrage, deren Entscheidung erst nach einem Filterwechsel fertig wird", async () => {
+    const decided = openItem("master_data", "decided");
+    const remaining = openItem("excused", "remaining");
+    mockListOpen.mockImplementation(async (params) => ({
+      items: params?.search ? [remaining] : [decided, remaining],
+    }));
+    const { result, rerender } = renderHook(
+      (filters) => useFeeds(filters, "open"),
+      { initialProps: NO_FILTERS, wrapper: providersWith(new Map()) },
+    );
+    await waitFor(() =>
+      expect(result.current.feed.items).toEqual([decided, remaining]),
+    );
+    // Die Entscheidung behält die Funktion aus dem Render, in dem sie begann.
+    const finishDecision = result.current.feed.setItems;
+    rerender({ ...NO_FILTERS, search: "other" });
+    await waitFor(() => expect(result.current.feed.items).toEqual([remaining]));
+
+    await act(async () => {
+      finishDecision((items) =>
+        items.filter((item) => itemKey(item) !== itemKey(decided)),
+      );
+    });
+    mockListOpen.mockImplementation(() => new Promise(() => undefined));
+    rerender(NO_FILTERS);
+
+    expect(result.current.feed.items.map(itemKey)).toEqual([
+      itemKey(remaining),
+    ]);
+  });
+
+  // Runde 3 (#4988): ein Abgleich läuft, ein zweiter ersetzt ihn, der erste
+  // scheitert danach mit 503, und es wird nachgeladen. Die Antwort des
+  // zweiten Abgleichs muss stehen bleiben.
+  it.each([false, true])(
+    "behält die Antwort des neueren Abgleichs nach einem späten 503 (Nachladen: %s)",
+    async (paginate) => {
+      const stale = deferred<void>();
+      const fresh = deferred<void>();
+      const decided = openItem("master_data", "decided");
+      const first = Array.from({ length: 24 }, (_, i) =>
+        openItem("excused", String(i)),
+      );
+      let firstPageCalls = 0;
+      mockListOpen.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          return { items: [openItem("excused", "page-two")] };
+        }
+        firstPageCalls += 1;
+        if (firstPageCalls === 2) await stale.promise;
+        if (firstPageCalls >= 3) {
+          await fresh.promise;
+          return { items: [openItem("excused", "fresh")] };
+        }
+        return { items: [decided, ...first], next_cursor: "next" };
+      });
+      const { result } = renderHook(() => useFeeds(NO_FILTERS, "open"), {
+        wrapper: providersWith(new Map()),
+      });
+      await waitFor(() => expect(result.current.feed.items).toHaveLength(25));
+      let staleReload!: Promise<void>;
+      act(() => {
+        staleReload = result.current.feed.reload();
+      });
+      await waitFor(() => expect(firstPageCalls).toBe(2));
+      await act(async () => {
+        result.current.feed.setItems((items) =>
+          items.filter((item) => itemKey(item) !== itemKey(decided)),
+        );
+      });
+      // Ein neuerer Abgleich, etwa durch ein Ereignis einer anderen Fläche.
+      act(() => {
+        void result.current.feed.reload();
+      });
+      await waitFor(() => expect(firstPageCalls).toBeGreaterThanOrEqual(3));
+      await act(async () => {
+        stale.reject(
+          new ApiError("old request failed", 503, {
+            code: "general.unavailable",
+          }),
+        );
+        await staleReload;
+      });
+      if (paginate) {
+        await act(async () => {
+          await result.current.feed.loadMore();
+        });
+      }
+      await act(async () => {
+        fresh.resolve();
+      });
+
+      await waitFor(() =>
+        expect(result.current.feed.items.map(itemKey)).toEqual([
+          itemKey(openItem("excused", "fresh")),
+        ]),
+      );
+    },
+  );
+  // Runde 4 (#4988): A lädt automatisch eine Folgeseite, B ebenso, zurück in
+  // A läuft ein Abgleich. A darf dieselbe Seite nicht ein zweites Mal holen
+  // und nicht zweimal anhängen, auch nicht, wenn der Abgleich danach mit 503
+  // scheitert.
+  it.each(["merged", "withdrawal"] as const)(
+    "holt und hängt die Folgeseite nach A, B, A nur einmal an (%s)",
+    async (kind) => {
+      await clearDefaultCache();
+      const pageA = deferred<void>();
+      const pageB = deferred<void>();
+      const refreshA = deferred<void>();
+      let firstA = 0;
+      let nextA = 0;
+      let nextB = 0;
+      const firstItems = Array.from({ length: 25 }, (_, i) =>
+        stampedItem("excused", String(i), "2026-09-09T12:00:00Z", true),
+      );
+      const withdrawalItems = Array.from({ length: 25 }, (_, i) =>
+        withdrawalItem(String(i)),
+      );
+      if (kind === "merged") {
+        mockListOpen.mockImplementation(async (params) => {
+          if (params?.cursor) {
+            if (params.search) {
+              nextB += 1;
+              await pageB.promise;
+            } else {
+              nextA += 1;
+              await pageA.promise;
+            }
+            return { items: [openItem("excused", "page-two")] };
+          }
+          if (!params?.search && ++firstA > 1) await refreshA.promise;
+          return { items: firstItems, next_cursor: "next" };
+        });
+      } else {
+        mockListWithdrawals.mockImplementation(async (params) => {
+          if (params?.page === 2) {
+            if (params.search) {
+              nextB += 1;
+              await pageB.promise;
+            } else {
+              nextA += 1;
+              await pageA.promise;
+            }
+            return {
+              items: [withdrawalItem("page-two")],
+              total: 26,
+              page: 2,
+              pageSize: 25,
+            };
+          }
+          if (!params?.search && ++firstA > 1) await refreshA.promise;
+          return { items: withdrawalItems, total: 26, page: 1, pageSize: 25 };
+        });
+      }
+      const filters = {
+        ...NO_FILTERS,
+        includeCareWithdrawals: kind === "withdrawal",
+      };
+      const { result, rerender } = renderHook(
+        (props) => useFeeds(props, "open"),
+        { initialProps: filters, wrapper: DefaultCacheProviders },
+      );
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      const expected =
+        kind === "merged"
+          ? [...firstItems, openItem("excused", "page-two")]
+          : [...withdrawalItems, withdrawalItem("page-two")];
+      await waitFor(() => expect(nextA).toBe(1));
+      rerender({ ...filters, search: "Mia" });
+      await waitFor(() => expect(nextB).toBe(1));
+      rerender(filters);
+      await waitFor(() => expect(firstA).toBe(2));
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        pageA.resolve();
+      });
+      await waitFor(() => expect(current().items.length).toBeGreaterThan(25));
+      expect(current().items).toEqual(expected);
+      expect(nextA).toBe(1);
+
+      await act(async () => {
+        refreshA.reject(
+          new ApiError("refresh unavailable", 503, {
+            code: "general.unavailable",
+          }),
+        );
+      });
+      await waitFor(() => expect(current().error).toBeTruthy());
+      expect(current().items).toEqual(expected);
+      expect(nextA).toBe(1);
+      await clearDefaultCache();
+    },
+  );
+
+  // Die ID-Invariante (#4988): überschneiden sich zwei Seiten, steht jeder
+  // Eintrag trotzdem nur einmal in der Liste.
+  it.each(["merged", "withdrawal"] as const)(
+    "zeigt jede ID nur einmal, auch wenn sich Seiten überschneiden (%s)",
+    async (kind) => {
+      const firstItems = Array.from({ length: 25 }, (_, i) =>
+        stampedItem("excused", String(i), "2026-09-09T12:00:00Z", true),
+      );
+      const withdrawalItems = Array.from({ length: 25 }, (_, i) =>
+        withdrawalItem(String(i)),
+      );
+      mockListOpen.mockImplementation(async (params) =>
+        params?.cursor
+          ? { items: [firstItems[24], openItem("excused", "new")] as never[] }
+          : { items: firstItems, next_cursor: "next" },
+      );
+      mockListWithdrawals.mockImplementation(async (params) =>
+        params?.page === 2
+          ? {
+              items: [withdrawalItems[24]!, withdrawalItem("new")],
+              total: 27,
+              page: 2,
+              pageSize: 25,
+            }
+          : { items: withdrawalItems, total: 27, page: 1, pageSize: 25 },
+      );
+      const { result } = renderHook(
+        () =>
+          useFeeds(
+            { ...NO_FILTERS, includeCareWithdrawals: kind === "withdrawal" },
+            "open",
+          ),
+        { wrapper: providersWith(new Map()) },
+      );
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+
+      await waitFor(() => expect(current().items).toHaveLength(26));
+      const ids = current().items.map((item) =>
+        kind === "merged"
+          ? itemKey(item as never)
+          : (item as { id: string }).id,
+      );
+      expect(new Set(ids).size).toBe(ids.length);
+    },
+  );
+  // Runde 5 (#4988): ein Fehler im Hintergrundabgleich nach einer
+  // Entscheidung ersetzt nie die übrigen geladenen Einträge.
+  it.each(["merged", "withdrawal"] as const)(
+    "lässt die übrigen Einträge stehen, wenn der Abgleich nach einer Entscheidung scheitert (%s)",
+    async (kind) => {
+      const decided = openItem("master_data", "decided");
+      const remaining = openItem("excused", "remaining");
+      const unavailable = new ApiError("unavailable", 503, {
+        code: "general.unavailable",
+      });
+      let failing = false;
+      mockListOpen.mockImplementation(async () => {
+        if (failing && kind === "merged") throw unavailable;
+        return { items: [decided, remaining] };
+      });
+      mockListWithdrawals.mockImplementation(async () => {
+        if (failing && kind === "withdrawal") throw unavailable;
+        return {
+          items: [withdrawalItem("decided"), withdrawalItem("remaining")],
+          total: 2,
+          page: 1,
+          pageSize: 25,
+        };
+      });
+      const { result } = renderHook(
+        () =>
+          useFeeds(
+            { ...NO_FILTERS, includeCareWithdrawals: kind === "withdrawal" },
+            "open",
+          ),
+        { wrapper: providersWith(new Map()) },
+      );
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      await waitFor(() => expect(current().items).toHaveLength(2));
+
+      act(() => {
+        if (kind === "merged") {
+          result.current.feed.setItems((items) =>
+            items.filter((item) => itemKey(item) !== itemKey(decided)),
+          );
+        } else {
+          result.current.withdrawals.setItems((items) =>
+            items.filter((item) => item.id !== "decided"),
+          );
+        }
+      });
+      failing = true;
+      await act(async () => {
+        await (kind === "merged"
+          ? result.current.feed.reload()
+          : result.current.withdrawals.load());
+      });
+
+      await waitFor(() => expect(current().error).toBeTruthy());
+      expect(current().loading).toBe(false);
+      expect(current().items).toEqual(
+        kind === "merged" ? [remaining] : [withdrawalItem("remaining")],
+      );
+    },
+  );
 });

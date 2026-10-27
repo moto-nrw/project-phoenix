@@ -5988,3 +5988,107 @@ describe("overview caller and foreign sessions (#5035)", () => {
     expect(screen.getByTestId("transit-students-section")).toBeInTheDocument();
   });
 });
+
+// Rückweg und erneuter Besuch (#4988): das Dashboard liegt schon im Cache und
+// gehört zur Sitzung, die die Adresse nennt. Die Seite zeigt sie sofort und
+// lädt sie nicht hinter dem Ladezustand neu; der Abgleich läuft über SWR.
+describe("remount with a cached aggregate (#4988)", () => {
+  const mockMutate = vi.fn();
+  const firstSession = {
+    id: "session-1",
+    name: "Atelier",
+    room_id: "r1",
+    room: { id: "r1", name: "Atelier" },
+    isCurrentUserSupervising: true,
+    canAssign: true,
+    supervisorNames: ["Paul Weber"],
+  };
+  const secondSession = {
+    id: "session-2",
+    name: "Werkraum",
+    room_id: "r2",
+    room: { id: "r2", name: "Werkraum" },
+    isCurrentUserSupervising: true,
+    canAssign: true,
+    supervisorNames: ["Julia Klein"],
+  };
+
+  function mockCachedDashboard(selectedGroupId: string) {
+    const dashboardData = {
+      supervisedGroups: [firstSession, secondSession],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [
+        {
+          studentId: "s1",
+          studentName: "Lena Werk",
+          schoolClass: "2a",
+          groupName: "G1",
+          activeGroupId: selectedGroupId,
+          checkInTime: new Date().toISOString(),
+          isActive: true,
+        },
+      ],
+      schulhofStatus: null,
+      openRooms: [],
+      selectedGroupId,
+    };
+    vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
+      typeof key === "string" && key.startsWith("active-supervision-dashboard")
+        ? {
+            data: dashboardData,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          }
+        : {
+            data: null,
+            isLoading: false,
+            error: null,
+            mutate: mockMutate,
+            isValidating: false,
+          }) as never);
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn();
+    // Ein Neuabruf käme nie an: wartete die Seite darauf, bliebe sie im
+    // Ladezustand.
+    mockMutate.mockReturnValue(new Promise(() => undefined));
+  });
+
+  afterEach(() => {
+    cleanup();
+    navigationMockState.sessionParam = null;
+  });
+
+  it("shows the cached session at once and requests nothing new", async () => {
+    navigationMockState.sessionParam = "session-2";
+    mockCachedDashboard("session-2");
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Lena Werk")).toBeInTheDocument();
+    expect(localStorage.getItem(memoryKey("supervision-last-session"))).toBe(
+      "session-2",
+    );
+    expect(mockMutate).not.toHaveBeenCalled();
+  });
+
+  it("still loads a session the cached aggregate does not hold", async () => {
+    navigationMockState.sessionParam = "session-1";
+    mockCachedDashboard("session-2");
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => expect(mockMutate).toHaveBeenCalled());
+    // Anker: die Seite wartet sichtbar auf die genannte Sitzung.
+    expect(
+      screen.getByLabelText("Aktuelle Aufsicht wird geladen…"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Lena Werk")).not.toBeInTheDocument();
+  });
+});
