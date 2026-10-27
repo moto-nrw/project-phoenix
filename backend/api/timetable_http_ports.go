@@ -324,6 +324,34 @@ func (s timetableOfferingSources) TemplateRosterMaintenance(ctx context.Context,
 	return result, nil
 }
 
+// OfferingWeekdayBookings translates Care Plan's approved bookings with their
+// weekdays into the Timetable vocabulary (#5103).
+func (s timetableOfferingSources) OfferingWeekdayBookings(ctx context.Context, calendarPeriodID *int64, from calendar.Date) ([]timetable.OfferingWeekdayBooking, error) {
+	bookings, err := s.lister.OfferingWeekdayBookings(ctx, calendarPeriodID, from)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]timetable.OfferingWeekdayBooking, 0, len(bookings))
+	for _, booking := range bookings {
+		var grade *int
+		if booking.GradeLevel != nil {
+			value := int(*booking.GradeLevel)
+			grade = &value
+		}
+		result = append(result, timetable.OfferingWeekdayBooking{
+			OfferingID:    booking.OfferingID,
+			OfferingName:  booking.OfferingName,
+			StudentID:     booking.StudentID,
+			SchoolClass:   booking.SchoolClass,
+			GradeLevel:    grade,
+			Weekdays:      booking.Weekdays,
+			CountsAsCare:  booking.CountsAsCare,
+			IncludesLunch: booking.IncludesLunch,
+		})
+	}
+	return result, nil
+}
+
 func timetableOfferingRefs(offerings []careplan.RosterMaintenanceOffering) []timetable.OfferingRef {
 	result := make([]timetable.OfferingRef, 0, len(offerings))
 	for _, offering := range offerings {

@@ -86,7 +86,7 @@ func (d *Decisions) syncOfferingPickupAfterApproval(ctx context.Context, child *
 }
 
 // UpdateChildOfferings corrects a child's bookings through Care Plan.
-func (d *Decisions) UpdateChildOfferings(ctx context.Context, input enrollment.UpdateChildOfferingsInput) (publicResult *enrollment.RequestChild, publicErr error) {
+func (d *Decisions) UpdateChildOfferings(ctx context.Context, input enrollment.UpdateChildOfferingsInput) (publicResult *enrollment.ChildOfferingsUpdate, publicErr error) {
 	defer func() { publicErr = PublicError(publicErr) }()
 	return d.adjustChildOfferings(ctx, input, careplan.OfferingAdjustmentSourceDirect)
 }
@@ -96,13 +96,13 @@ func (d *Decisions) UpdateChildOfferings(ctx context.Context, input enrollment.U
 // offering-change request flow separately enforces the live care-offerings
 // setting before using this shared path; generic form corrections
 // intentionally preserve their frozen offering snapshot.
-func (d *Decisions) ApplyChangeRequestOfferings(ctx context.Context, input enrollment.UpdateChildOfferingsInput) (*enrollment.RequestChild, error) {
+func (d *Decisions) ApplyChangeRequestOfferings(ctx context.Context, input enrollment.UpdateChildOfferingsInput) (*enrollment.ChildOfferingsUpdate, error) {
 	return d.adjustChildOfferings(ctx, input, careplan.OfferingAdjustmentSourceRequest)
 }
 
 // adjustChildOfferings runs the booking switch in Care Plan and reads the
-// adjusted child back.
-func (d *Decisions) adjustChildOfferings(ctx context.Context, input enrollment.UpdateChildOfferingsInput, source string) (*enrollment.RequestChild, error) {
+// adjusted child back with the roster impact.
+func (d *Decisions) adjustChildOfferings(ctx context.Context, input enrollment.UpdateChildOfferingsInput, source string) (*enrollment.ChildOfferingsUpdate, error) {
 	if d.deps.Bookings == nil || d.deps.Children == nil {
 		return nil, errors.New("decision: offering adjustment dependencies are not configured")
 	}
@@ -122,7 +122,23 @@ func (d *Decisions) adjustChildOfferings(ctx context.Context, input enrollment.U
 	if _, err := childValue(child); err != nil {
 		return nil, err
 	}
-	return child, nil
+	return &enrollment.ChildOfferingsUpdate{Child: child, RosterImpact: rosterImpactOf(result.RosterImpact)}, nil
+}
+
+// rosterImpactOf hands Care Plan's roster impact to the enrollment contract.
+func rosterImpactOf(impact careplan.RosterImpact) enrollment.RosterImpact {
+	result := enrollment.RosterImpact{
+		EffectiveFrom: impact.EffectiveFrom,
+		Adjusted:      make([]enrollment.AdjustedRosterTemplate, 0, len(impact.Adjusted)),
+		NotAdjusted:   make([]enrollment.ManualRosterTemplate, 0, len(impact.NotAdjusted)),
+	}
+	for _, template := range impact.Adjusted {
+		result.Adjusted = append(result.Adjusted, enrollment.AdjustedRosterTemplate(template))
+	}
+	for _, template := range impact.NotAdjusted {
+		result.NotAdjusted = append(result.NotAdjusted, enrollment.ManualRosterTemplate(template))
+	}
+	return result
 }
 
 // offeringPhaseOf hands an enrollment phase's service window to Care Plan.

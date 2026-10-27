@@ -26,11 +26,11 @@ type failAfterOfferingWriteCoordinator struct {
 func (c failAfterOfferingWriteCoordinator) ApplyDirectOfferingAdjustment(
 	ctx context.Context,
 	input careplan.DirectOfferingAdjustmentInput,
-) error {
-	if err := c.DirectOfferingAdjustments.ApplyDirectOfferingAdjustment(ctx, input); err != nil {
-		return err
+) (careplan.RosterImpact, error) {
+	if _, err := c.DirectOfferingAdjustments.ApplyDirectOfferingAdjustment(ctx, input); err != nil {
+		return careplan.RosterImpact{}, err
 	}
-	return careplan.ErrPickupAdjustmentInvalid
+	return careplan.RosterImpact{}, careplan.ErrPickupAdjustmentInvalid
 }
 
 func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(t *testing.T) {

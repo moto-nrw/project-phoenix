@@ -3706,6 +3706,13 @@ export function useEventForm({
     students,
   ]);
 
+  // #5103: an existing series previews per weekday who joins and who leaves
+  // when it switches to an offering source; „Ab jetzt dauerhaft“ from the
+  // occurrence date, every other edit from the next occurrence.
+  const sourcePreviewTemplateId = effectiveSeries?.id;
+  const sourcePreviewFrom =
+    selectedInstanceScope === "following" ? initialInstance?.date : undefined;
+
   // OGS am Berg: series start before the phase service window leaves the first
   // occurrences empty of offering-fed children (enrollments clamp to phase start).
   const sourcePhaseKidsFromWarning = useMemo(() => {
@@ -4071,6 +4078,8 @@ export function useEventForm({
     sourceCountsFailed: combinedSourceCountsFailed,
     sourceCountsError: combinedSourceCountsLoad.error,
     sourceRosterDiff,
+    sourcePreviewTemplateId,
+    sourcePreviewFrom,
     sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,
     changeSourceOfferings,

@@ -159,6 +159,7 @@ type changeRequestCase struct {
 	Children      []*RequestChild
 	Messages      []*enrollmentNative.ChangeRequestMessage
 	Phase         *enrollmentNative.Phase
+	RosterImpacts []enrollmentNative.ChildRosterImpact
 }
 
 // Propose files a family's change request against its request.
@@ -408,7 +409,7 @@ type reviewOutcome struct {
 	noteRequiredMsg string
 	status          string
 	emailKind       string
-	apply           func(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput) error
+	apply           func(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput) ([]enrollmentNative.ChildRosterImpact, error)
 }
 
 func (s *ChangeRequests) review(ctx context.Context, changeRequestID int64, input enrollmentNative.ReviewChangeRequestInput, outcome reviewOutcome) (*changeRequestCase, error) {
@@ -417,6 +418,7 @@ func (s *ChangeRequests) review(ctx context.Context, changeRequestID int64, inpu
 		return nil, enrollmentNative.InvalidInput(enrollmentNative.CodeChangeRequestNoteRequired, "note", fmt.Errorf("%w: %s", enrollmentNative.ErrChangeRequestInvalidData, outcome.noteRequiredMsg))
 	}
 	var req *Request
+	var impacts []enrollmentNative.ChildRosterImpact
 	if err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *ChangeRequest) error {
 		if row.Status != enrollmentNative.ChangeRequestStatusPendingReview {
 			return enrollmentNative.ErrChangeRequestInvalidStatus
@@ -427,9 +429,11 @@ func (s *ChangeRequests) review(ctx context.Context, changeRequestID int64, inpu
 		}
 		req = loadedReq
 		if outcome.apply != nil {
-			if err := outcome.apply(txCtx, row, input); err != nil {
+			applied, err := outcome.apply(txCtx, row, input)
+			if err != nil {
 				return err
 			}
+			impacts = applied
 		}
 		if err := s.deps.Requests.MarkChangeRequestReviewed(txCtx, row.ID, outcome.status, &note, input.ActorAccountID, time.Now()); err != nil {
 			return err
@@ -444,7 +448,11 @@ func (s *ChangeRequests) review(ctx context.Context, changeRequestID int64, inpu
 	if req != nil {
 		s.enqueueParentNotification(ctx, req.TenantID, req, changeRequestID, outcome.emailKind)
 	}
-	return s.loadAggregate(ctx, changeRequestID, true)
+	aggregate, err := s.loadAggregate(ctx, changeRequestID, true)
+	if aggregate != nil {
+		aggregate.RosterImpacts = impacts
+	}
+	return aggregate, err
 }
 
 // requestByID reads a request; a missing one is ErrRequestNotFound.

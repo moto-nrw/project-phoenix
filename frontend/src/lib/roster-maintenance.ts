@@ -84,7 +84,9 @@ export function describeRosterMaintenance(
     if (state.dynamicTargets) sentences.push(TARGETS_SENTENCE);
     sentences.push("Weitere Kinder müssen Sie selbst ergänzen.");
   } else {
-    sentences.push("Neue Kinder müssen Sie selbst ergänzen.");
+    sentences.push(
+      "An- und Abmeldungen werden hier nicht übernommen. Kinder pflegen Sie selbst.",
+    );
     if (state.careOfferingsDisabled) {
       sentences.push("Betreuungsangebote sind an Ihrer Schule ausgeschaltet.");
     } else {

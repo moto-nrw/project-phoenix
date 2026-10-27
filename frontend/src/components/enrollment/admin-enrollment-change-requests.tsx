@@ -19,6 +19,8 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
+import { mapRosterImpact } from "~/lib/roster-impact";
+import { CarePlanImpact } from "~/components/students/care-plan-impact";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
@@ -238,6 +240,17 @@ export function AdminEnrollmentChangeRequestDetail({
             </p>
 
             <ChangeSummary request={data} />
+            {(data.roster_impacts ?? []).map((entry) => {
+              const impact = mapRosterImpact(entry.roster_impact);
+              return impact ? (
+                <CarePlanImpact
+                  key={entry.child_id}
+                  impact={impact}
+                  studentId={entry.student_id}
+                  childName={entry.first_name}
+                />
+              ) : null;
+            })}
             {data.origin === "parent" ? <MessageThread request={data} /> : null}
           </div>
 

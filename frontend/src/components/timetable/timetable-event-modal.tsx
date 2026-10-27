@@ -280,6 +280,8 @@ export function TimetableEventModal({
     sourceCountsFailed,
     sourceCountsError,
     sourceRosterDiff,
+    sourcePreviewTemplateId,
+    sourcePreviewFrom,
     sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,
     changeSourceOfferings,
@@ -736,6 +738,8 @@ export function TimetableEventModal({
                 sourceCountsFailed={sourceCountsFailed}
                 sourceCountsError={sourceCountsError}
                 sourceRosterDiff={sourceRosterDiff}
+                sourcePreviewTemplateId={sourcePreviewTemplateId}
+                sourcePreviewFrom={sourcePreviewFrom}
                 sourcePhaseKidsFromWarning={sourcePhaseKidsFromWarning}
                 sourceOverlapWarnings={sourceOverlapWarnings}
                 changeSourceOfferings={changeSourceOfferings}
