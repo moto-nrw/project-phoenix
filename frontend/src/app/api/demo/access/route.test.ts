@@ -78,6 +78,8 @@ describe("demo access routes", () => {
       maxAge: 14 * 24 * 60 * 60,
     });
     expect(await response.json()).not.toHaveProperty("token");
+    // Tokens and access IDs must not stay in a shared device's cache (#4999).
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
   it("switches the role with the token from the cookie", async () => {
@@ -94,6 +96,7 @@ describe("demo access routes", () => {
     expect(init.body).toBe(
       JSON.stringify({ token: "secret-token", role: "caregiver" }),
     );
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
   });
 
   it("sets no cookie when the backend refuses the token", async () => {

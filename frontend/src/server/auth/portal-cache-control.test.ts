@@ -107,6 +107,21 @@ const routes: Array<[string, () => Promise<Route>]> = [
     async () =>
       (await import("~/lib/traeger/route-wrapper.server")).proxyGet("/api/x"),
   ],
+  [
+    "public pass-through (token routes)",
+    async () =>
+      (await import("~/lib/backend-proxy-route.server")).createPublicJsonProxy({
+        method: "GET",
+        path: "/api/x",
+      }),
+  ],
+  [
+    "operator public login step",
+    async () =>
+      (
+        await import("~/lib/operator/route-wrapper.server")
+      ).createOperatorPublicProxyPostHandler("/api/x") as Route,
+  ],
 ];
 
 beforeEach(() => {
