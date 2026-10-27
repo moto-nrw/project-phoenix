@@ -2772,6 +2772,7 @@
         "role_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "role_platform_permission": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "session_account_inactive": "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
+        "session_tenant_mismatch": "Szkoła została zmieniona w innym oknie. moto zaraz przełączy tę stronę z powrotem. Spróbuj ponownie za chwilę.",
         "tenant_access_denied": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "use_parent_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
         "use_school_portal": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
