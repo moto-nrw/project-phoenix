@@ -583,6 +583,18 @@ function TimetablesContent() {
       timetableService.getWeek(fetchFromISO, fetchToISO, planFilter, {
         view: "slim",
       }),
+    {
+      // Auch eine unveränderte schlanke Antwort kann neue Kinder-Notizen oder
+      // Fehlgründe haben. Nicht von einer neuen data-Referenz abhängig machen.
+      onSuccess: (week) => {
+        const selected = week.instances.find(
+          (inst) => inst.id === selectedInstanceId,
+        );
+        if (selected) {
+          void tenantMutate(`${swrKey}-detail-${selected.date}`);
+        }
+      },
+    },
   );
   const { data: gapsData, error: gapsError } = useSWRAuth(
     status === "authenticated" && shouldLoadGaps ? gapsSWRKey : null,
@@ -1158,11 +1170,6 @@ function TimetablesContent() {
       ),
     { keepPreviousData: false },
   );
-  // Jede Aktualisierung der Woche (Anwesenheit, Lebenszyklus, Echtzeit) holt
-  // auch die Kinderzeilen des offenen Termins neu.
-  useEffect(() => {
-    if (detailSWRKey) void tenantMutate(detailSWRKey);
-  }, [data, detailSWRKey, tenantMutate]);
   const detailStudentsLoadError = useSwrLoadError(
     detailError,
     "die Liste der Kinder",

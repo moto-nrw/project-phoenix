@@ -474,7 +474,7 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
     studentsPending,
     studentsLoadError,
   }: {
-    instance: { id: string; students?: unknown[] } | null;
+    instance: { id: string; students?: Array<{ note?: string }> } | null;
     onClose: () => void;
     onLifecycleAction: (
       action: "start" | "complete" | "cancel" | "reopen",
@@ -509,6 +509,9 @@ vi.mock("~/components/timetable/instance-detail-modal", () => ({
         </span>
         <span data-testid="detail-students">
           {studentsPending ? "pending" : String(instance.students?.length ?? 0)}
+        </span>
+        <span data-testid="detail-student-note">
+          {instance.students?.[0]?.note ?? ""}
         </span>
         <span data-testid="detail-can-manage-pool">
           {String(canManageStaffPool)}
@@ -1591,6 +1594,73 @@ describe("BetreuungsplanView", () => {
     );
   });
 
+  it("refreshes the open block's notes even when the slim week is unchanged", async () => {
+    const { useSWRAuth: useRealSWRAuth, SWRConfig } =
+      await vi.importActual<typeof import("~/lib/swr")>("~/lib/swr");
+    const { timetableService } = await import("~/lib/timetable-api");
+    const base = mockUseSWRAuth.getMockImplementation()!;
+    const revalidators = new Map<string, () => Promise<unknown>>();
+    const week = {
+      from: instance.date,
+      to: instance.date,
+      instances: [instance],
+    };
+    let note = "Alte Notiz";
+    vi.mocked(timetableService.getWeek).mockImplementation(
+      async (_from, _to, _filter, options) =>
+        options?.view === "slim"
+          ? week
+          : {
+              ...week,
+              instances: [
+                {
+                  ...instance,
+                  students: [{ studentId: "21", status: "absent", note }],
+                },
+              ],
+            },
+    );
+    mockUseSWRAuth.mockImplementation(
+      function usePlanSWR(key, fetcher, options) {
+        const isPlan = key?.startsWith("timetable-week-");
+        const response = useRealSWRAuth(isPlan ? key : null, fetcher, options);
+        if (isPlan) revalidators.set(key, () => response.mutate());
+        return isPlan ? response : base(key);
+      },
+    );
+    await mockTenantMutate.withImplementation(
+      (key: string) => revalidators.get(key)?.(),
+      async () => {
+        setUrl("view=woche&block=42");
+        render(
+          <SWRConfig value={{ provider: () => new Map() }}>
+            <BetreuungsplanView />
+          </SWRConfig>,
+        );
+        await waitFor(() =>
+          expect(screen.getByTestId("detail-student-note")).toHaveTextContent(
+            "Alte Notiz",
+          ),
+        );
+
+        // Nur die Notiz ändert sich. Die schlanke Wochenantwort behält exakt
+        // dieselbe Referenz, und es gibt keine zusätzliche SSE-Benachrichtigung.
+        note = "Neue Notiz";
+        fireEvent.click(screen.getByText("detail-attendance"));
+        await waitFor(() =>
+          expect(mockPatchAttendance).toHaveBeenCalledWith("42", "21", {
+            status: "present",
+          }),
+        );
+        await waitFor(() =>
+          expect(screen.getByTestId("detail-student-note")).toHaveTextContent(
+            "Neue Notiz",
+          ),
+        );
+      },
+    );
+  });
+
   it("shows the children as loading until the block's day arrives", () => {
     const base = mockUseSWRAuth.getMockImplementation()!;
     mockUseSWRAuth.mockImplementation((key: string | null) =>
@@ -1702,6 +1772,7 @@ describe("BetreuungsplanView", () => {
     expect(mockUseSWRAuth).toHaveBeenCalledWith(
       expect.stringMatching(/^timetable-week-/),
       expect.any(Function),
+      { onSuccess: expect.any(Function) },
     );
     expect(templateKeys()).toEqual([]);
     unmount();
