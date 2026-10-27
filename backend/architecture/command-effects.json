@@ -99837,8 +99837,8 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0126",
-      "reason": "Cross-owner mutation, same coordination finding as the template update: timetable-activities reaches modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster (care-plan) through modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. Command participation in the route's tenant transaction under the recurrence gate; approved by ADR 0126, protocol review stays follow-up work (ADR 0098)."
+      "approval_adr": "0129",
+      "reason": "Cross-owner mutation, same coordination finding as the template update: timetable-activities reaches modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster (care-plan) through modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. Command participation in the route's tenant transaction under the recurrence gate; approved by ADR 0129, protocol review stays follow-up work (ADR 0098)."
     },
     {
       "source_owner": "timetable-activities",
@@ -99916,8 +99916,8 @@
       "effect": "mutation",
       "classification": "debt",
       "adr": "0083",
-      "approval_adr": "0126",
-      "reason": "Cross-owner mutation, same coordination finding as the template update: timetable-activities reaches modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster (care-plan) through modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. Command participation in the route's tenant transaction under the recurrence gate; approved by ADR 0126, protocol review stays follow-up work (ADR 0098)."
+      "approval_adr": "0129",
+      "reason": "Cross-owner mutation, same coordination finding as the template update: timetable-activities reaches modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster (care-plan) through modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. Command participation in the route's tenant transaction under the recurrence gate; approved by ADR 0129, protocol review stays follow-up work (ADR 0098)."
     },
     {
       "source_owner": "timetable-activities",
@@ -100006,8 +100006,8 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0126",
-      "reason": "Unresolved binding-flow boundary, the same one the template update has: unresolved:function:modules/timetable/internal/application.TemplateServiceDependencies.ResyncOfferingRoster reached through modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. Approved by ADR 0126; a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0129",
+      "reason": "Unresolved binding-flow boundary, the same one the template update has: unresolved:function:modules/timetable/internal/application.TemplateServiceDependencies.ResyncOfferingRoster reached through modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. Approved by ADR 0129; a changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "timetable-activities",
@@ -100019,8 +100019,8 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0126",
-      "reason": "Unresolved binding-flow boundary, the same one the template update has: unresolved:function:modules/timetable/ports.CareOfferingChecks.ValidateOfferingSource reached through modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. Approved by ADR 0126; a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0129",
+      "reason": "Unresolved binding-flow boundary, the same one the template update has: unresolved:function:modules/timetable/ports.CareOfferingChecks.ValidateOfferingSource reached through modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. Approved by ADR 0129; a changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "timetable-activities",
@@ -100032,8 +100032,8 @@
       "effect": "unresolved",
       "classification": "unresolved",
       "adr": "0083",
-      "approval_adr": "0126",
-      "reason": "Unresolved binding-flow boundary, the same one the template update has: unresolved:function:modules/timetable/ports.CareOfferingChecks.ValidateSeries reached through modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. Approved by ADR 0126; a changed value or closure needs a fresh approval ADR."
+      "approval_adr": "0129",
+      "reason": "Unresolved binding-flow boundary, the same one the template update has: unresolved:function:modules/timetable/ports.CareOfferingChecks.ValidateSeries reached through modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource. Approved by ADR 0129; a changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "timetable-activities",
