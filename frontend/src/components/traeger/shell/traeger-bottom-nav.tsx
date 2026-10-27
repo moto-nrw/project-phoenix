@@ -11,6 +11,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "~/components/ui/drawer";
+import { Button } from "~/components/ui/button";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavLink } from "~/components/ui/nav-link";
 import { traegerPath } from "~/lib/traeger-url";
@@ -116,8 +117,10 @@ export function TraegerBottomNav() {
               })}
               {crowded ? (
                 <li>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="compact"
                     onClick={() => setMoreOpen(true)}
                     data-traeger-nav-item="more"
                     data-active={moreActive ? "true" : "false"}
@@ -132,7 +135,7 @@ export function TraegerBottomNav() {
                       className="h-5 w-5 shrink-0"
                     />
                     {moreActive ? <span className={LABEL}>Mehr</span> : null}
-                  </button>
+                  </Button>
                 </li>
               ) : null}
             </ul>
@@ -148,7 +151,10 @@ export function TraegerBottomNav() {
               <DrawerTitle>Mehr</DrawerTitle>
               <DrawerDescription>Weitere Bereiche</DrawerDescription>
             </DrawerHeader>
-            <ul className="space-y-2 px-4 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+            {/* Auf einem quer gehaltenen Telefon ist die Schublade niedriger
+                als die Liste: die Liste scrollt in ihr, sonst lägen die
+                unteren Ziele außer Reichweite. */}
+            <ul className="min-h-0 space-y-2 overflow-y-auto px-4 pt-6 pb-[calc(2rem+env(safe-area-inset-bottom))]">
               {moreItems.map((item) => {
                 const active = isActive(item);
                 return (

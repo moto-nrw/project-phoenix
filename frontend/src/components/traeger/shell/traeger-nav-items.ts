@@ -35,7 +35,7 @@ export interface TraegerNavItem {
   readonly right: string | null;
 }
 
-export const TRAEGER_PRIMARY_NAV: readonly TraegerNavItem[] = [
+const TRAEGER_PRIMARY_NAV: readonly TraegerNavItem[] = [
   {
     key: "schulen",
     href: "/traeger",
