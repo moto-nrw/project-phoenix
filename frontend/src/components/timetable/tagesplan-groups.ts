@@ -7,7 +7,7 @@ import { hasOpenEnd } from "~/lib/block-children";
 import { assignBlockLanes, parseTimeToMinutes } from "~/lib/timetable-helpers";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
 
-export interface TagesplanCell {
+interface TagesplanCell {
   instance: PlannedTimetableInstance;
   /** Erste Spalte, 0-basiert. */
   lane: number;
