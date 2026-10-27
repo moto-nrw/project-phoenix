@@ -224,6 +224,38 @@ Rollbacks restore matching images, configuration, roles, database and uploads;
 an old image alone is not compatible with every newer schema.
 For env changes, read `.claude/rules/env-docker-sync.md` before editing.
 
+## Caddy reverse proxy
+
+`deploy/caddy/Caddyfile` is the source of truth for `/etc/caddy/Caddyfile` on
+the app server, which serves production and staging together. No deploy
+workflow copies it; a human rolls it out. The Cloudflare DNS token stays in
+`/etc/caddy/cloudflare.env` on the server and reaches the file only as
+`{env.CLOUDFLARE_API_TOKEN}`. Client-IP rules: [contracts](contracts.md#client-ip-and-rate-limits).
+
+Checks: `node scripts/check-caddyfile.mjs` (CI, on every change) verifies that
+each `reverse_proxy` imports `client_ip_upstream`; `--cloudflare` also compares
+`trusted_proxies` with https://www.cloudflare.com/ips-v4 and `ips-v6`.
+`caddy-cloudflare-ranges.yml` runs that comparison weekly and opens an issue
+with the diff and the corrected line.
+
+Rollout, after the change is merged:
+
+1. Copy the merged file to the server as `/tmp/Caddyfile.new`, then compare
+   `/etc/caddy/Caddyfile` with the previous repository version. A difference
+   means someone edited the server by hand; bring that edit into the
+   repository first.
+2. Validate with the service environment, so the DNS module sees its token:
+   `sudo sh -c 'set -a; . /etc/caddy/cloudflare.env; caddy validate --config /tmp/Caddyfile.new --adapter caddyfile'`.
+3. Back up: `sudo cp -p /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date +%Y%m%d%H%M)`.
+4. Roll out: `sudo install -m 644 /tmp/Caddyfile.new /etc/caddy/Caddyfile`.
+5. Reload: `sudo systemctl reload caddy`. A rejected config fails the reload
+   and Caddy keeps serving the old one; read `sudo journalctl -u caddy -n 50`.
+6. Verify: `systemctl status caddy` is active, and new `RATE_LIMIT_EXCEEDED`
+   and security events log client IPs rather than Cloudflare ranges.
+
+Rollback: copy the newest `/etc/caddy/Caddyfile.bak-*` back to
+`/etc/caddy/Caddyfile`, reload again and revert the repository change.
+
 ## GitGuardian findings
 
 The hosted **GitGuardian Security Checks** GitHub App scans every commit in a
