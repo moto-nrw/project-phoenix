@@ -48,9 +48,9 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 	if impact.Adjusted, err = m.adjustedRosterTemplates(ctx, before, after, from); err != nil {
 		return impact, err
 	}
-	lost, err := lostBookingWeekdays(work)
-	if err != nil || len(lost) == 0 || m.deps.ManualPlans == nil {
-		return impact, err
+	lost := lostBookingWeekdays(work)
+	if len(lost) == 0 || m.deps.ManualPlans == nil {
+		return impact, nil
 	}
 	manual, err := m.deps.ManualPlans.ManualStudentPlan(ctx, *work.child.CreatedStudentID, from, lost)
 	if err != nil {
@@ -62,15 +62,9 @@ func (m *BookingMaterialization) offeringAdjustmentImpact(
 
 // lostBookingWeekdays are the ISO weekdays an offering the child held before
 // no longer books after the change.
-func lostBookingWeekdays(work *offeringAdjustmentWork) ([]int, error) {
-	before, err := bookedWeekdaysByOffering(work.beforeLinks, work.offeringByID)
-	if err != nil {
-		return nil, err
-	}
-	after, err := bookedWeekdaysByOffering(work.replacement, work.offeringByID)
-	if err != nil {
-		return nil, err
-	}
+func lostBookingWeekdays(work *offeringAdjustmentWork) []int {
+	before := bookedWeekdaysByOffering(work.beforeLinks, work.offeringByID)
+	after := bookedWeekdaysByOffering(work.replacement, work.offeringByID)
 	lost := make(map[int]bool)
 	for offeringID, days := range before {
 		for weekday := range days {
@@ -79,10 +73,13 @@ func lostBookingWeekdays(work *offeringAdjustmentWork) ([]int, error) {
 			}
 		}
 	}
-	return sortedISOWeekdays(lost), nil
+	return sortedISOWeekdays(lost)
 }
 
-func bookedWeekdaysByOffering(links []*careplan.BookedOffering, offerings map[int64]*careplan.CareOffering) (map[int64]map[int]bool, error) {
+// bookedWeekdaysByOffering resolves each link's booked weekdays. The impact is
+// a report: a link whose days cannot be resolved (a legacy parent-choice row
+// without days) names no weekday instead of failing the booking change.
+func bookedWeekdaysByOffering(links []*careplan.BookedOffering, offerings map[int64]*careplan.CareOffering) map[int64]map[int]bool {
 	result := make(map[int64]map[int]bool, len(links))
 	for _, link := range links {
 		offering := offerings[link.CareOfferingID]
@@ -91,7 +88,7 @@ func bookedWeekdaysByOffering(links []*careplan.BookedOffering, offerings map[in
 		}
 		days, err := effectiveOfferingDaysForEnrollment(offering, link)
 		if err != nil {
-			return nil, fmt.Errorf("decision: resolve booked days of offering %d: %w", link.CareOfferingID, err)
+			continue
 		}
 		if result[link.CareOfferingID] == nil {
 			result[link.CareOfferingID] = make(map[int]bool)
@@ -102,7 +99,7 @@ func bookedWeekdaysByOffering(links []*careplan.BookedOffering, offerings map[in
 			}
 		}
 	}
-	return result, nil
+	return result
 }
 
 // adjustedRosterTemplates names the series whose booking-created weekdays
