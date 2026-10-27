@@ -59,10 +59,17 @@ function effectiveEnd(
   nowHHMM: string | null,
 ): Pick<Window, "endTime" | "endMinute"> {
   const end =
+    // The API formats a block ending at the following midnight as "00:00".
+    // Within one day, that is the 24:00 boundary rather than a zero-duration
+    // block at the start time.
+    (instance.endTime === "00:00" && instance.startTime > instance.endTime) ||
     instance.endTime > instance.startTime
       ? instance.endTime
       : instance.startTime;
-  const endMinute = endTimeToMinutes(end);
+  const endMinute =
+    end === "00:00" && instance.startTime > end
+      ? MINUTES_PER_DAY
+      : endTimeToMinutes(end);
   if (nowHHMM == null || !hasOpenEnd(instance)) {
     return { endTime: end, endMinute };
   }

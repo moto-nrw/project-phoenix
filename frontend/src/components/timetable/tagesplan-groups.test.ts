@@ -31,6 +31,31 @@ function makeInstance(
 }
 
 describe("groupParallelBlocks", () => {
+  it("groups a block ending at the API's midnight value with later blocks", () => {
+    const groups = groupParallelBlocks(
+      [
+        makeInstance({
+          id: "until-midnight",
+          startTime: "23:00",
+          endTime: "00:00",
+        }),
+        makeInstance({
+          id: "late-block",
+          startTime: "23:30",
+          endTime: "23:45",
+        }),
+      ],
+      null,
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ laneCount: 2, endTime: "24:00" });
+    expect(groups[0]?.cells.map((cell) => cell.instance.id)).toEqual([
+      "until-midnight",
+      "late-block",
+    ]);
+  });
+
   it("keeps a regular block ending at midnight in its last group", () => {
     const groups = groupParallelBlocks(
       [
