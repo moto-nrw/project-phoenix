@@ -10,7 +10,7 @@ import { catererAbsoluteUrl, catererPath } from "~/lib/caterer-url";
 import { traegerPath } from "~/lib/traeger-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { clearPersonalStorage } from "~/lib/personal-storage";
-import { createLogger } from "~/lib/logger";
+import { createLogger, settleClientLogShipping } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { getSmartRedirectPath } from "~/lib/redirect-utils";
@@ -177,7 +177,14 @@ export function TeacherShellProvider({
         // Gerät (#5000).
         clearPersonalStorage();
         clearSessionCache();
-        await signOut({ redirect: false });
+        // A log shipment answered after signOut would set the cookie again.
+        const releaseLogShipping = await settleClientLogShipping();
+        try {
+          await signOut({ redirect: false });
+        } catch (err: unknown) {
+          releaseLogShipping();
+          throw err;
+        }
         window.location.href = "/";
       },
       mode: "teacher" as const,

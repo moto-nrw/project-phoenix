@@ -86,6 +86,7 @@ import {
   useShellAuth,
 } from "./shell-auth-context";
 import { sidebarMemoryKey } from "./sidebar-memory";
+import { settleClientLogShipping } from "~/lib/logger";
 
 describe("TeacherShellProvider", () => {
   beforeEach(() => {
@@ -467,6 +468,32 @@ describe("TeacherShellProvider", () => {
     expect(mockSignOut).not.toHaveBeenCalled();
 
     finishBackendLogout?.(new Response(null));
+    await logout;
+
+    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    vi.unstubAllGlobals();
+  });
+
+  it("clears the Auth.js cookie only after open log shipments are answered (#5126)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null)));
+    let settled: (() => void) | undefined;
+    vi.mocked(settleClientLogShipping).mockReturnValueOnce(
+      new Promise((resolve) => {
+        settled = () => resolve(() => undefined);
+      }),
+    );
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+    const logout = result.current.logout();
+
+    await vi.waitFor(() => expect(settleClientLogShipping).toHaveBeenCalled());
+    expect(mockSignOut).not.toHaveBeenCalled();
+
+    settled?.();
     await logout;
 
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });

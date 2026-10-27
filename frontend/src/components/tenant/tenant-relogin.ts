@@ -5,7 +5,7 @@ import { clearPersonalStorage } from "~/lib/personal-storage";
 import { mutate } from "~/lib/swr";
 import { clientEnv } from "~/env.client";
 import { unsubscribePushSilently } from "~/lib/push-api";
-import { createLogger } from "~/lib/logger";
+import { createLogger, settleClientLogShipping } from "~/lib/logger";
 
 const logger = createLogger({ component: "TenantRelogin" });
 let pendingRelogin: Promise<void> | null = null;
@@ -50,8 +50,16 @@ async function endSessionAndNavigate(subdomain: string): Promise<void> {
   }
   const port = window.location.port ? `:${window.location.port}` : "";
   const callbackUrl = `${window.location.protocol}//${subdomain}.${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}${port}/`;
+  // A log shipment answered after the deletion would set the cookie again,
+  // and the target school would see the source session instead of its login.
+  const releaseLogShipping = await settleClientLogShipping();
   // Auth.js clears the domain cookie and navigates BEFORE refetching local
   // session consumers. A manual redirect after signOut({redirect:false}) can
   // lose to a protected page's source-school login redirect.
-  await signOut({ callbackUrl });
+  try {
+    await signOut({ callbackUrl });
+  } catch (error) {
+    releaseLogShipping();
+    throw error;
+  }
 }

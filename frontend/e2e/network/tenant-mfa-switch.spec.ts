@@ -90,6 +90,56 @@ test("failed family revocation keeps the shared session and shows a recoverable 
   await expect(page.locator('input[type="email"]')).toBeVisible();
 });
 
+// #5126: the failed attempt logs an error, and its batched shipment to the
+// authenticated log route can still be open when "Wiederholen" deletes the
+// cookie. Its answer carries the source session cookie again.
+test("a log shipment answered late cannot restore the source session after explicit recovery", async ({
+  page,
+  context,
+}) => {
+  await login(page, context);
+  await page.route("**/api/auth/logout", (route) =>
+    route.fulfill({
+      status: 503,
+      json: { status: 503, code: "general.unavailable" },
+    }),
+  );
+  let signedOut!: () => void;
+  const signout = new Promise<void>((resolve) => (signedOut = resolve));
+  page.on("response", (response) => {
+    if (new URL(response.url()).pathname === "/api/auth/signout") signedOut();
+  });
+  let shipped!: () => void;
+  const shipment = new Promise<void>((resolve) => (shipped = resolve));
+  // Answer the shipment only after the cookie deletion, unless the product
+  // waits for it first; then answer it after two seconds.
+  await context.route("**/api/logs", async (route) => {
+    shipped();
+    const response = await route.fetch();
+    await Promise.race([
+      signout,
+      new Promise((resolve) => setTimeout(resolve, 2_000)),
+    ]);
+    await route.fulfill({ response });
+  });
+  await page.getByRole("button", { name: "Einrichtung wechseln" }).click();
+  await page.getByText("School B", { exact: true }).click();
+  await page.getByRole("button", { name: "Zur Schulanmeldung" }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "die Abmeldung" }),
+  ).toBeVisible();
+  await shipment;
+  await page.unroute("**/api/auth/logout");
+  await page.getByRole("button", { name: "Wiederholen" }).click();
+  await page.waitForURL(`${target}/`);
+  await expect(page.locator('input[type="email"]')).toBeVisible();
+  expect(
+    (await context.cookies(target)).filter(
+      (cookie) => cookie.name === "mfa-localhost.session-token",
+    ),
+  ).toHaveLength(0);
+});
+
 test("a failed Auth.js cookie deletion stops at the target guard and permits explicit recovery", async ({
   page,
   context,

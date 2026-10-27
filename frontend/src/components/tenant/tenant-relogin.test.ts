@@ -18,6 +18,7 @@ vi.mock("~/env.client", () => ({
   clientEnv: { NEXT_PUBLIC_TENANT_DOMAIN: "mfa.localhost" },
 }));
 
+import { settleClientLogShipping } from "~/lib/logger";
 import { reloginAtTenant } from "./tenant-relogin";
 
 describe("target-school reauthentication", () => {
@@ -152,6 +153,38 @@ describe("target-school reauthentication", () => {
     expect(leftAtSignOut).toEqual([null, null]);
     expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
     localStorage.clear();
+  });
+
+  it("deletes the cookie only after open log shipments are answered (#5126)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
+    let settled!: () => void;
+    const release = vi.fn();
+    vi.mocked(settleClientLogShipping).mockReturnValueOnce(
+      new Promise((resolve) => {
+        settled = () => resolve(release);
+      }),
+    );
+    const relogin = reloginAtTenant("school-b");
+    await vi.waitFor(() => expect(settleClientLogShipping).toHaveBeenCalled());
+    expect(signOut).not.toHaveBeenCalled();
+    settled();
+    await relogin;
+    expect(signOut).toHaveBeenCalledWith({
+      callbackUrl: "http://school-b.mfa.localhost:13845/",
+    });
+    // The page leaves; held logs would only reach the route without a session.
+    expect(release).not.toHaveBeenCalled();
+  });
+
+  it("resumes log shipping when the cookie deletion fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
+    const release = vi.fn();
+    vi.mocked(settleClientLogShipping).mockResolvedValueOnce(release);
+    signOut.mockRejectedValueOnce(new Error("cookie deletion failed"));
+    await expect(reloginAtTenant("school-b")).rejects.toThrow(
+      "cookie deletion failed",
+    );
+    expect(release).toHaveBeenCalledOnce();
   });
 
   it("still deletes a revoked cookie when SWR cleanup fails", async () => {

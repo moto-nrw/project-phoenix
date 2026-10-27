@@ -53,6 +53,7 @@ vi.mock("~/lib/logger", () => {
   });
   return {
     createLogger: vi.fn(() => createMockLogger()),
+    settleClientLogShipping: vi.fn(() => Promise.resolve(() => undefined)),
   };
 });
 

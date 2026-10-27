@@ -256,6 +256,42 @@ function clientLogEndpoint(): string {
   return "/api/logs";
 }
 
+// Every browser logger and every shipment still open, so the end of a session
+// can settle all of them before the session cookie is deleted.
+const clientLoggers = new Set<ClientLogger>();
+const shipmentsInFlight = new Set<Promise<void>>();
+let shippingHeld = false;
+const SETTLE_TIMEOUT_MS = 5000;
+
+/**
+ * Ships every pending client log, waits for the shipments in flight and holds
+ * new ones until the returned release is called.
+ *
+ * The log route is an authenticated BFF route: its answer carries the session
+ * cookie again. A shipment that left with the cookie and is answered after a
+ * logout deleted it re-creates the ended session, and the next page sees the
+ * old account (#5126). Call this right before deleting the cookie. The wait
+ * ends after the timeout so a hanging log route cannot block a logout.
+ * Aborting would not help: Chromium still applies the answer to a keepalive
+ * request. A shipment open that long may still restore the cookie; the next
+ * page then sees the old session, as it did before this wait existed.
+ */
+export async function settleClientLogShipping(): Promise<() => void> {
+  shippingHeld = true;
+  for (const logger of clientLoggers) void logger.shipPending();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    Promise.allSettled(shipmentsInFlight),
+    new Promise((resolve) => {
+      timer = setTimeout(resolve, SETTLE_TIMEOUT_MS);
+    }),
+  ]);
+  clearTimeout(timer);
+  return () => {
+    shippingHeld = false;
+  };
+}
+
 /**
  * Client-side logger: batches logs and ships to API
  */
@@ -271,6 +307,7 @@ class ClientLogger implements Logger {
   constructor(config: Required<LoggerConfig>) {
     this.config = config;
     this.startBatchTimer();
+    clientLoggers.add(this);
   }
 
   debug(msg: string, context?: Record<string, unknown>): void {
@@ -363,9 +400,23 @@ class ClientLogger implements Logger {
   /**
    * Flush batch to API endpoint
    */
-  async flush(): Promise<void> {
-    if (this.batch.length === 0) return;
+  flush(): Promise<void> {
+    // While a session ends, the batch waits; see settleClientLogShipping.
+    if (shippingHeld) return Promise.resolve();
+    return this.shipPending();
+  }
 
+  /** Ship the batch, also while shipping is held. */
+  shipPending(): Promise<void> {
+    if (this.batch.length === 0) return Promise.resolve();
+    const shipment: Promise<void> = this.ship().finally(() =>
+      shipmentsInFlight.delete(shipment),
+    );
+    shipmentsInFlight.add(shipment);
+    return shipment;
+  }
+
+  private async ship(): Promise<void> {
     const payload: LogBatch = {
       entries: this.batch,
       timestamp: new Date().toISOString(),
@@ -431,6 +482,7 @@ class ClientLogger implements Logger {
    * Cleanup on unmount (for React components)
    */
   destroy(): void {
+    clientLoggers.delete(this);
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
