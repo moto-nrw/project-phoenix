@@ -157,6 +157,8 @@
     "/school": 828984,
     "/school/aufsichten": 825937,
     "/school/einstellungen": 797732,
+    "/school/elternbriefe": 824895,
+    "/school/elternbriefe/[id]": 851544,
     "/school/invite": 792724,
     "/school/kalender": 875564,
     "/school/klasse": 864063,

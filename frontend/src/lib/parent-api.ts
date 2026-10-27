@@ -1047,6 +1047,12 @@ export interface ParentAnnouncement {
    */
   readonly delivery_mode?: "standard" | "letter" | "declaration";
   readonly school_name: string;
+  /**
+   * A class letter of a Lehrkraft (#4800): her name and the class. Absent on
+   * letters of the OGS, which the school name alone signs.
+   */
+  readonly sender_name?: string;
+  readonly sender_school_class?: string;
   readonly published_at?: string; // ISO timestamp
   readonly expires_at?: string; // ISO timestamp
   readonly read: boolean;

@@ -56,6 +56,8 @@ type StaffParentAnnouncement struct {
 	DeliveryMode            string
 	EmailAudience           string
 	SystemKind              *string
+	SenderName              *string
+	SenderSchoolClass       *string
 	ReminderAt              *time.Time
 	ReminderText            *string
 	ReminderSentAt          *time.Time

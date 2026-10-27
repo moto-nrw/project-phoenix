@@ -121,6 +121,7 @@ DELETE /school/class-day/handover/{schoolClass}/{date}
 DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 DELETE /school/notifications/preferences/
 DELETE /school/notifications/push/subscriptions
+DELETE /school/parent-letters/{announcementId}
 DELETE /traeger/accounts/invitations/{invitationId}
 DELETE /traeger/accounts/{accountId}
 DELETE /traeger/contribution-rules/{id}
@@ -636,6 +637,13 @@ GET /school/class-day/classes
 GET /school/class-day/school-day
 GET /school/notifications/preferences/
 GET /school/notifications/push/public-key
+GET /school/parent-letters/
+GET /school/parent-letters/{announcementId}
+GET /school/parent-letters/{announcementId}/declaration-export
+GET /school/parent-letters/{announcementId}/declaration-status
+GET /school/parent-letters/{announcementId}/letter-status
+GET /school/parent-letters/{announcementId}/recipients
+GET /school/parent-letters/{announcementId}/stats
 GET /school/staff-messages/
 GET /school/staff-messages/recipients
 GET /school/staff-messages/threads/{threadID}
@@ -1066,6 +1074,11 @@ POST /school/class-day/class-trips/{schoolClass}
 POST /school/class-day/homework/{schoolClass}
 POST /school/notifications/push/subscriptions
 POST /school/notifications/test
+POST /school/parent-letters/
+POST /school/parent-letters/{announcementId}/publish
+POST /school/parent-letters/{announcementId}/remind
+POST /school/parent-letters/{announcementId}/resend-failed
+POST /school/parent-letters/{announcementId}/unpublish
 POST /school/staff-messages/threads/open
 POST /school/staff-messages/threads/{threadID}
 POST /school/staff-notices/{noticeId}/acknowledge

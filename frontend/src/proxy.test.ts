@@ -959,6 +959,18 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites the parent letters to /school/elternbriefe (#4800)", () => {
+      for (const path of ["/elternbriefe", "/elternbriefe/14"]) {
+        const res = proxy(
+          makeRequest(`http://${SCHOOL_HOSTNAME}${path}`, SCHOOL_HOSTNAME),
+        );
+
+        expect(res.headers.get("x-middleware-rewrite")).toContain(
+          `/school${path}`,
+        );
+      }
+    });
+
     it("rewrites /kalender to /school/kalender (#4798)", () => {
       const res = proxy(
         makeRequest(`http://${SCHOOL_HOSTNAME}/kalender`, SCHOOL_HOSTNAME),

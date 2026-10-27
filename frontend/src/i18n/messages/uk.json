@@ -440,6 +440,7 @@
     "newsAcknowledgementHint": "Так ви лише підтверджуєте, що прочитали лист батькам.",
     "newsMessageFrom": "Лист батькам від {school}",
     "newsDeclarationFrom": "Згода · {school}",
+    "newsSender": "{name}, клас {schoolClass}, {school}",
     "newsRead": "Прочитано",
     "newsStaleError": "Цей лист батькам уже не актуальний. Оновіть сторінку.",
     "newsPoll": "Опитування",
@@ -2566,7 +2567,9 @@
         "survey_not_open": "Це опитування більше не приймає відповіді.",
         "survey_already_answered": "Ви вже брали участь у цьому опитуванні. Відповідь змінити не можна.",
         "survey_not_draft": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "survey_anonymous": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "survey_anonymous": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "class_letter_class_not_reachable": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "class_letter_read_only": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "enrollment": {
         "form_attachment_invalid": "Перевірте назву та PDF-файл.",

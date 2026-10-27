@@ -440,6 +440,7 @@
     "newsAcknowledgementHint": "Kjo konfirmon vetëm që e keni lexuar njoftimin.",
     "newsMessageFrom": "Mesazh nga {school}",
     "newsDeclarationFrom": "Pëlqim · {school}",
+    "newsSender": "{name}, klasa {schoolClass}, {school}",
     "newsRead": "Lexuar",
     "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen.",
     "newsPoll": "Sondazh",
@@ -2566,7 +2567,9 @@
         "survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
         "survey_already_answered": "Ju keni marrë pjesë tashmë në këtë sondazh. Përgjigjja nuk mund të ndryshohet.",
         "survey_not_draft": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-        "survey_anonymous": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "survey_anonymous": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "class_letter_class_not_reachable": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "class_letter_read_only": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "enrollment": {
         "form_attachment_invalid": "Ju lutemi kontrolloni emrin dhe skedarin PDF.",

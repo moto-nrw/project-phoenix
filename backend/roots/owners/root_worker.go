@@ -393,7 +393,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() (err error) {
 			notifications, err = BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, DeliveryModuleOf(delivery), settings.Service,
-				consent, identity, people, structure, workTime, messaging)
+				consent, identity, people, structure, workTime, messaging, membership)
 			return
 		},
 		func() (err error) {

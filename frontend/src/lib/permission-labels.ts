@@ -74,6 +74,7 @@ export const actionLabels: Record<string, string> = {
   morning_attendance_write: "Anwesenheit am Vormittag eintragen",
   homework_write: "Hausaufgaben eintragen",
   handover_write: "Klasse an die OGS übergeben",
+  parent_letter_write: "Elternbriefe an die Klasse",
   "*": "Alle",
 };
 
@@ -267,6 +268,8 @@ const permissionDescriptions: Record<string, string> = {
     "Für eine eigene Klasse heute eintragen, wer am Vormittag da ist",
   "class_day:handover_write":
     "Eine eigene Klasse nach dem Unterricht an die OGS übergeben",
+  "class_day:parent_letter_write":
+    "Elternbriefe an eine eigene Klasse schreiben und sehen, wer sie gelesen hat",
   "staff_notices:read": "Tagesinformationen der Leitung lesen und bestätigen",
 
   // Umfragen (#4781). Beantworten braucht kein Recht; dieses Recht legt an,

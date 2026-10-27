@@ -48,6 +48,8 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 		body = a.Body
 	}
 
+	intro = classLetterMailIntro(a, schoolName, intro)
+
 	resent := 0
 	layout := letterMailLayout{schoolName: schoolName, logoURL: logoURL, motoLogoURL: motoLogoURL, portalURL: portalURL, kicker: kicker, intro: intro, body: body}
 
@@ -189,6 +191,9 @@ func (s *service) resendableAnnouncement(ctx context.Context, id int64) (*StaffP
 	}
 	if a == nil {
 		return nil, ErrNotFound
+	}
+	if err := guardClassLetterWrite(ctx, a); err != nil {
+		return nil, err
 	}
 	if !a.IsPublished() || !a.Active {
 		return nil, ErrNotPublished

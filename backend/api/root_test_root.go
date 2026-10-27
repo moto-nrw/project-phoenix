@@ -239,7 +239,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		},
 		func() (err error) {
 			notifications, err = owners.BuildDeliveryNotifications(db, unit, env, pushVAPID, hub, owners.DeliveryModuleOf(delivery), settings.Service,
-				consent, identity, people, structure, workTime, messaging)
+				consent, identity, people, structure, workTime, messaging, membership)
 			return
 		},
 		func() (err error) {

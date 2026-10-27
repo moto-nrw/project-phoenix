@@ -440,6 +440,7 @@
     "newsAcknowledgementHint": "This only confirms that you have read the announcement.",
     "newsMessageFrom": "Message from {school}",
     "newsDeclarationFrom": "Consent · {school}",
+    "newsSender": "{name}, class {schoolClass}, {school}",
     "newsRead": "Read",
     "newsStaleError": "This announcement is no longer current. Please reload the page.",
     "newsPoll": "Survey",
@@ -2566,7 +2567,9 @@
         "survey_not_open": "This survey no longer accepts answers.",
         "survey_already_answered": "You have already taken part in this survey. Your answer cannot be changed.",
         "survey_not_draft": "{object} could not be changed. Please check its current status.",
-        "survey_anonymous": "{object} could not be changed. Please check its current status."
+        "survey_anonymous": "{object} could not be changed. Please check its current status.",
+        "class_letter_class_not_reachable": "This class is not assigned to you. Please choose one of your own classes.",
+        "class_letter_read_only": "A teacher wrote this parent letter. Only that teacher can change, send or delete it."
       },
       "enrollment": {
         "form_attachment_invalid": "Please check the label and the PDF file.",

@@ -56,6 +56,16 @@ describe("useSSE — named event registration", () => {
     expect(es!.registered).toContain("student_updated");
   });
 
+  it("subscribes to class_day_changed for the open class view of moto schule (#4792)", () => {
+    renderHook(() =>
+      useSSE("/api/school/sse/events", { onMessage: () => undefined }),
+    );
+
+    const es = MockEventSource.instances.at(-1);
+    expect(es).toBeDefined();
+    expect(es!.registered).toContain("class_day_changed");
+  });
+
   it("registers every event type useGlobalSSE handles, so no branch is dead", async () => {
     // The registration list and the handler switch drifted apart twice already
     // (staffing_deviation_changed and student_companions_changed both shipped

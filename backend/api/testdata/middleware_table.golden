@@ -112,6 +112,23 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /parent/me/news/{announcementId}/survey
 	PUT /parent/me/children/{studentId}/meal-participation/weeks/{date}
 
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.SchoolScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > modules/communication/http/parentannouncements.classLetterAuthor > api/common.requirePermissions# > api/common.TenantTxMiddleware
+	GET /school/parent-letters/
+	POST /school/parent-letters/
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.SchoolScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > modules/communication/http/parentannouncements.classLetterAuthor > api/common.requirePermissions# > api/common.TenantTxMiddleware > modules/communication/http/parentannouncements.(*Resource).ownClassLetter#
+	DELETE /school/parent-letters/{announcementId}
+	GET /school/parent-letters/{announcementId}
+	GET /school/parent-letters/{announcementId}/declaration-export
+	GET /school/parent-letters/{announcementId}/declaration-status
+	GET /school/parent-letters/{announcementId}/letter-status
+	GET /school/parent-letters/{announcementId}/recipients
+	GET /school/parent-letters/{announcementId}/stats
+	POST /school/parent-letters/{announcementId}/publish
+	POST /school/parent-letters/{announcementId}/remind
+	POST /school/parent-letters/{announcementId}/resend-failed
+	POST /school/parent-letters/{announcementId}/unpublish
+
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions# > api/common.TenantTxMiddleware
 	GET /api/time-tracking/absence-allowances
 
@@ -1347,13 +1364,6 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /api/messages/unread-count
 	GET /api/parent-announcements/
 	GET /api/parent-announcements/{announcementId}
-	GET /api/parent-announcements/{announcementId}/declaration-export
-	GET /api/parent-announcements/{announcementId}/declaration-status
-	GET /api/parent-announcements/{announcementId}/letter-status
-	GET /api/parent-announcements/{announcementId}/poll-children
-	GET /api/parent-announcements/{announcementId}/poll-results
-	GET /api/parent-announcements/{announcementId}/recipients
-	GET /api/parent-announcements/{announcementId}/stats
 	POST /api/files/folders
 	POST /api/messages/mark-all-read
 	POST /api/messages/threads
@@ -1369,6 +1379,15 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	PUT /api/messages/count-scope
 	PUT /api/parent-announcements/{announcementId}
 	PUT /api/parent-announcements/{announcementId}/reminder
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions# > api/common.TenantTxMiddleware > modules/communication/http/parentannouncements.(*Resource).requireReadableAnnouncement-fm
+	GET /api/parent-announcements/{announcementId}/declaration-export
+	GET /api/parent-announcements/{announcementId}/declaration-status
+	GET /api/parent-announcements/{announcementId}/letter-status
+	GET /api/parent-announcements/{announcementId}/poll-children
+	GET /api/parent-announcements/{announcementId}/poll-results
+	GET /api/parent-announcements/{announcementId}/recipients
+	GET /api/parent-announcements/{announcementId}/stats
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.# > api/common.TenantTxMiddleware
 	GET /api/statistics/export

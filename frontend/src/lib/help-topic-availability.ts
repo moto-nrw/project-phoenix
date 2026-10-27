@@ -269,6 +269,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.teacherMessages]: "teacher",
   [HELP_TOPICS.teacherNotices]: "teacher",
   [HELP_TOPICS.teacherCalendar]: "teacher",
+  [HELP_TOPICS.teacherParentLetters]: "teacher",
   [HELP_TOPICS.teacherLoginProblem]: "teacher",
   [HELP_TOPICS.teacherNoClasses]: "teacher",
   [HELP_TOPICS.teacherFeatureMissing]: "teacher",

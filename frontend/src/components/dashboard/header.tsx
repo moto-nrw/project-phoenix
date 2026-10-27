@@ -111,6 +111,16 @@ function schoolTitleForPath(pathname: string): string | null {
   if (pathname === "/kalender" || pathname === "/school/kalender") {
     return "Kalender";
   }
+  // Elternbriefe in moto schule (#4800); ein einzelner Brief bleibt im
+  // Bereich, seinen Betreff trägt die Seite selbst.
+  if (
+    pathname === "/elternbriefe" ||
+    pathname === "/school/elternbriefe" ||
+    pathname.startsWith("/elternbriefe/") ||
+    pathname.startsWith("/school/elternbriefe/")
+  ) {
+    return "Elternbriefe";
+  }
   return null;
 }
 

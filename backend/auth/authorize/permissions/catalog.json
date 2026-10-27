@@ -89,6 +89,10 @@
   },
   {
     "resource": "class_day",
+    "action": "parent_letter_write"
+  },
+  {
+    "resource": "class_day",
     "action": "read"
   },
   {

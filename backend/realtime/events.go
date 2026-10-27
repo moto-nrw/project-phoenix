@@ -226,6 +226,15 @@ const (
 	// the affected child's view refetches while others skip. Trigger only.
 	EventParentChildUpdated EventType = "parent_child_updated"
 
+	// EventClassDayChanged is the one tenant-wide refresh moto schule receives
+	// (#4792). The hub derives it from every student_updated at the school, so
+	// an open class view refetches after a sick note or another status change
+	// without a reload, whichever path wrote it. It carries only the source of
+	// the update, never a child: it reaches every school-portal client of the
+	// school, also teachers of other classes, and the class view loads what
+	// its caller may see.
+	EventClassDayChanged EventType = "class_day_changed"
+
 	// EventNotification carries a user-facing notification from the
 	// notification abstraction (services/notifications, #1624) over the SSE
 	// channel. Unlike every other event type it is NOT a cache-invalidation

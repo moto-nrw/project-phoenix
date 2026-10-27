@@ -440,6 +440,7 @@
     "newsAcknowledgementHint": "Bununla yalnızca veli mektubunu okuduğunuzu onaylarsınız.",
     "newsMessageFrom": "Veli mektubu: {school}",
     "newsDeclarationFrom": "İzin · {school}",
+    "newsSender": "{name}, {schoolClass} sınıfı, {school}",
     "newsRead": "Okundu",
     "newsStaleError": "Bu veli mektubu artık güncel değil. Lütfen sayfayı yenileyin.",
     "newsPoll": "Anket",
@@ -2566,7 +2567,9 @@
         "survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
         "survey_already_answered": "Bu ankete zaten katıldınız. Yanıtınız değiştirilemez.",
         "survey_not_draft": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-        "survey_anonymous": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "survey_anonymous": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "class_letter_class_not_reachable": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+        "class_letter_read_only": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "enrollment": {
         "form_attachment_invalid": "Lütfen adı ve PDF dosyasını kontrol edin.",

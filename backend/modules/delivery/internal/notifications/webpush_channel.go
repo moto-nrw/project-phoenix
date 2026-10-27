@@ -399,8 +399,9 @@ func newerRegistration(candidate, incumbent *deliveryModels.PushSubscription) bo
 
 // deliversToStaffPortal and deliversToSchoolPortal decide which of the two
 // staff-side portals an event reaches. For a catalogue type the catalogue
-// decides: every staff type reaches the OGS portal, and the school portal is
-// added for the types it offers.
+// decides: every staff type reaches the OGS portal, the school portal is
+// added for the types it offers, and a school-only type (#4792) reaches the
+// school portal alone.
 //
 // TypeTest is the exception. It carries no catalogue entry and exists to prove
 // one thing: that the portal the person is looking at receives notifications.
@@ -413,7 +414,8 @@ func deliversToStaffPortal(event Event) bool {
 	if event.Type == TypeTest {
 		return event.Portal != PortalSchool
 	}
-	return true
+	def, ok := GetType(event.Type)
+	return !ok || def.Portal != PortalSchool
 }
 
 func deliversToSchoolPortal(event Event) bool {

@@ -558,6 +558,38 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school/class-day/school-day": [
     "GET school /school/class-day/school-day",
   ],
+  "api/school/parent-letters": [
+    "GET school /school/parent-letters/",
+    "POST school /school/parent-letters/",
+  ],
+  "api/school/parent-letters/[announcementId]": [
+    "DELETE school /school/parent-letters/announcementId%2F1",
+    "GET school /school/parent-letters/announcementId%2F1",
+  ],
+  "api/school/parent-letters/[announcementId]/declaration-status": [
+    "GET school /school/parent-letters/announcementId%2F1/declaration-status",
+  ],
+  "api/school/parent-letters/[announcementId]/letter-status": [
+    "GET school /school/parent-letters/announcementId%2F1/letter-status",
+  ],
+  "api/school/parent-letters/[announcementId]/publish": [
+    "POST school /school/parent-letters/announcementId%2F1/publish",
+  ],
+  "api/school/parent-letters/[announcementId]/recipients": [
+    "GET school /school/parent-letters/announcementId%2F1/recipients",
+  ],
+  "api/school/parent-letters/[announcementId]/remind": [
+    "POST school /school/parent-letters/announcementId%2F1/remind",
+  ],
+  "api/school/parent-letters/[announcementId]/resend-failed": [
+    "POST school /school/parent-letters/announcementId%2F1/resend-failed",
+  ],
+  "api/school/parent-letters/[announcementId]/stats": [
+    "GET school /school/parent-letters/announcementId%2F1/stats",
+  ],
+  "api/school/parent-letters/[announcementId]/unpublish": [
+    "POST school /school/parent-letters/announcementId%2F1/unpublish",
+  ],
   "api/school/notifications/preferences": [
     "DELETE school /school/notifications/preferences/",
     "GET school /school/notifications/preferences/",

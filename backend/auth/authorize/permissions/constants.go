@@ -396,6 +396,12 @@ const (
 	// is unlocked, and the education.class_teachers assignment decides for
 	// which class.
 	ClassDayHandoverWrite = ResourceClassDay + ":handover_write"
+	// ClassDayParentLetterWrite lets a Lehrkraft write parent letters to the
+	// classes she reaches and read the state of her own letters (#4800). The
+	// caller's class reach (MySchoolClasses: education.class_teachers, or
+	// every class with class_day:all_classes) decides for which class; the
+	// school's parent-news switch decides whether letters go out at all.
+	ClassDayParentLetterWrite = ResourceClassDay + ":parent_letter_write"
 )
 
 // Supervision permission for the school portal (#2527). supervision:own gates

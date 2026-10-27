@@ -592,7 +592,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"observability/prometheus.go:init": 143,
 	// ADR 0087.
-	"realtime/hub.go:(*Hub).Unregister": 67,
+	"realtime/hub.go:(*Hub).Unregister": 61,
 	"roots/owners/parent_messaging_announcement_access_port.go:BindParentAnnouncementAccess": 125,
 	"roots/owners/root_identity.go:BuildIdentityAccess":                                      106,
 	// ADR 0078: the worker composes the Meal Plan whose orders it settles.

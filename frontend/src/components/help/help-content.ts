@@ -4235,6 +4235,7 @@ function parentAnnouncementTopic(): HelpTopic {
     ],
     differences: [
       "Eine Mitteilung trägt `Entwurf`, `Veröffentlicht` oder `Abgelaufen`.",
+      "Unter einer Mitteilung steht `Von …, Lehrkraft der Klasse … · nur zum Lesen`? Die hat eine Lehrkraft in moto schule geschrieben. Sie können sie lesen, ändern kann sie nur die Lehrkraft.",
       "Unter `Priorität` stehen `Info` und `Wichtig` zur Wahl.",
       "Mit `Ablaufdatum (optional)` blenden Sie die Mitteilung später wieder aus.",
     ],
@@ -8239,7 +8240,10 @@ function teacherSettingsTopic(): HelpTopic {
     ],
     result: "moto meldet sich, sobald etwas Neues für Sie ansteht.",
     notes: [
-      "Die Hinweise kommen aus dem Team-Chat der OGS.",
+      "`Krankmeldungen meiner Klassen`: moto meldet sich, wenn ein Kind aus Ihren Klassen für heute krank oder entschuldigt ist. Name und Grund stehen nicht im Hinweis.",
+      "Tippen Sie auf den Hinweis. Dann öffnet sich die Liste der Klasse.",
+      "Die Schulverwaltung bekommt diesen Hinweis für alle Klassen der Schule.",
+      "`Nachrichten von Kolleginnen und Kollegen`: neue Nachrichten im Team-Chat der OGS.",
       "Benachrichtigungen kommen erst an, wenn moto schule auf dem Startbildschirm liegt.",
     ],
     differences: [
@@ -8343,6 +8347,7 @@ function teacherClassListTopic(): HelpTopic {
     notes: [
       "Bei einer anderen Abholzeit steht darunter die übliche Zeit mit `sonst`.",
       "Kam die Meldung heute herein, steht die Uhrzeit dabei.",
+      "Eine neue Krankmeldung erscheint von selbst. Sie müssen die Seite nicht neu laden.",
     ],
     differences: [
       "Abschnitte und Kennzeichen ändert das OGS-Team, nicht moto schule.",
@@ -8883,6 +8888,51 @@ function teacherCalendarTopic(): HelpTopic {
       HELP_TOPICS.teacherNotices,
       HELP_TOPICS.teacherMessages,
       HELP_TOPICS.teacherFeatureMissing,
+    ],
+  };
+}
+
+function teacherParentLettersTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherParentLetters,
+    title: "Einen Elternbrief schreiben",
+    question: "Wie schreibe ich den Eltern meiner Klasse einen Brief?",
+    summary:
+      "Sie schreiben den Eltern Ihrer Klasse. Die Eltern lesen den Brief in moto und bekommen eine E-Mail.",
+    group: "nachrichten",
+    audience: "teacher",
+    icon: "EnvelopeOpen",
+    requirements: [
+      "Ihnen ist eine Klasse zugeordnet. Sekretariat und Schulleitung schreiben an jede Klasse.",
+    ],
+    steps: [
+      "Öffnen Sie `Elternbriefe`.",
+      "Wählen Sie `Neuer Elternbrief`.",
+      "Wählen Sie die Klasse.",
+      "Geben Sie `Betreff` und `Text` ein.",
+      "Wählen Sie unter `Was sollen die Eltern tun?`: `Nur zur Information`, `Mit Lesebestätigung` oder `Einverständnis mit Unterschrift`.",
+      "Wählen Sie `Senden`.",
+    ],
+    result:
+      "Die Eltern der Klasse sehen den Brief sofort. Als Absender sehen sie Ihren Namen, die Klasse und die Schule.",
+    notes: [
+      "Wählen Sie den Brief in der Liste. Dort sehen Sie, wer gelesen, bestätigt oder zugestimmt hat.",
+      "Ein gesendeter Brief lässt sich nicht mehr ändern. Sie können ihn über `Zurückziehen` zurücknehmen.",
+      "Die OGS sieht Ihre Briefe in ihrer Übersicht. Ändern kann sie nur Sie.",
+    ],
+    differences: [
+      "Sie sehen nur Ihre eigenen Briefe. Briefe anderer Lehrkräfte stehen nicht in Ihrer Liste.",
+      "`Neuer Elternbrief` ist grau? Warten Sie, bis die Klassen geladen sind. Ohne zugeordnete Klasse können Sie keinen Brief schreiben.",
+    ],
+    troubleshootingDetails: [
+      "Die Klassen laden nicht? Wählen Sie `Wiederholen` bei der Fehlermeldung.",
+      "Das Senden ist fehlgeschlagen? Wählen Sie `Senden` oder `Wiederholen`. Dabei wird derselbe gespeicherte Brief verwendet.",
+      "Der Brief geht nicht raus? Vielleicht hat die OGS Elternbriefe ausgeschaltet. Fragen Sie die OGS-Leitung.",
+    ],
+    related: [
+      HELP_TOPICS.teacherMessages,
+      HELP_TOPICS.teacherCalendar,
+      HELP_TOPICS.teacherNoClasses,
     ],
   };
 }
@@ -9782,6 +9832,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   // --- Nachrichten und Infos ---
   teacherMessagesTopic(),
   teacherNoticesTopic(),
+  teacherParentLettersTopic(),
   teacherCalendarTopic(),
 
   // --- Wenn etwas nicht klappt ---

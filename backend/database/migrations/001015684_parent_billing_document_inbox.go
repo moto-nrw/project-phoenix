@@ -15,7 +15,7 @@ func init() {
 		Description: "Dokumentenpostfach in der Eltern-App: Push des Trägers bei neuem Dokument (#4671)",
 		DependsOn: []string{
 			parentBillingLetterMailingsVersion, // the sends that put a letter in the inbox
-			holidayGuestErasureVersion,         // the last migration before this one (#4666)
+			classParentLettersVersion,          // the last migration before this one (#4800)
 		},
 	})
 	Migrations.MustRegister(parentBillingDocumentInboxUp, parentBillingDocumentInboxDown)

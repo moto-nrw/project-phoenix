@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
 
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -51,7 +52,7 @@ func TestTenantConstructorsBindTheRuntimeAtConstruction(t *testing.T) {
 	assert.NotNil(t, push.(*webPushChannel).tenantRuntime)
 	assert.NotNil(t, push.(*webPushChannel).outbox)
 
-	absence, err := NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, db, nil)
+	absence, err := NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, db, nil, contract.SchoolClassRecipients{})
 	require.NoError(t, err)
 	assert.NotNil(t, absence.(*absenceNotifier).tenantRuntime)
 
@@ -79,7 +80,7 @@ func TestTenantConstructorsRejectAMissingDependency(t *testing.T) {
 			return err
 		},
 		"absence": func(runtime tenant.UnitOfWork) error {
-			_, err := NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, db, nil)
+			_, err := NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, db, nil, contract.SchoolClassRecipients{})
 			return err
 		},
 		"preferences": func(runtime tenant.UnitOfWork) error {
@@ -102,9 +103,9 @@ func TestTenantConstructorsRejectAMissingDependency(t *testing.T) {
 	_, missing["web push database"] = NewTenantDurableWebPushChannel(runtime, nil, stubPushSubscriptions{}, VAPIDConfig{}, stubPushOutbox{}, nil)
 	_, missing["web push repository"] = NewTenantDurableWebPushChannel(runtime, db, nil, VAPIDConfig{}, stubPushOutbox{}, nil)
 	_, missing["web push outbox"] = NewTenantDurableWebPushChannel(runtime, db, stubPushSubscriptions{}, VAPIDConfig{}, nil, nil)
-	_, missing["absence notifier"] = NewTenantAbsenceNotifier(runtime, nil, stubRecipients{}, db, nil)
-	_, missing["absence recipients"] = NewTenantAbsenceNotifier(runtime, stubService{}, nil, db, nil)
-	_, missing["absence database"] = NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, nil, nil)
+	_, missing["absence notifier"] = NewTenantAbsenceNotifier(runtime, nil, stubRecipients{}, db, nil, contract.SchoolClassRecipients{})
+	_, missing["absence recipients"] = NewTenantAbsenceNotifier(runtime, stubService{}, nil, db, nil, contract.SchoolClassRecipients{})
+	_, missing["absence database"] = NewTenantAbsenceNotifier(runtime, stubService{}, stubRecipients{}, nil, nil, contract.SchoolClassRecipients{})
 	_, missing["preferences consent"] = NewTenantPreferenceService(runtime, nil, stubPrefSettings{}, db, stubGuardianSchool{}, permits)
 	_, missing["preferences settings"] = NewTenantPreferenceService(runtime, stubConsent{}, nil, db, stubGuardianSchool{}, permits)
 	_, missing["preferences database"] = NewTenantPreferenceService(runtime, stubConsent{}, stubPrefSettings{}, nil, stubGuardianSchool{}, permits)

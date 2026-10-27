@@ -12,7 +12,7 @@ import { schoolNavBadge } from "./school-nav-badge";
 import { SCHOOL_PRIMARY_NAV, SCHOOL_SECONDARY_NAV } from "./school-nav-items";
 
 const ITEM =
-  "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-4 py-2.5 transition-colors duration-200";
+  "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full py-2.5 transition-colors duration-200";
 const ITEM_ACTIVE = "bg-gray-100 text-gray-900";
 const ITEM_IDLE = "text-gray-500 hover:text-gray-700";
 
@@ -56,8 +56,18 @@ export function SchoolBottomNav({
   // Pille. Schmalere Geräte bekommen die Icon-Zeile, statt dass ein Ziel aus
   // der Leiste geschoben wird. Seit den Tagesinformationen (#2208) sind es
   // immer mindestens vier Ziele, die Beschriftung ist also stets so geregelt.
-  const labelClass =
-    "hidden text-sm font-semibold whitespace-nowrap min-[420px]:inline";
+  //
+  // Mit den Elternbriefen (#4800) sind es sechs, mit Team-Chat sieben Ziele. Dann
+  // rücken die Icons enger zusammen, damit die Zeile auf 360 px passt, und
+  // die Beschriftung des aktiven Ziels kommt erst ab 480 px dazu.
+  // Gemessen auf 360 px: sieben Icons à 40 px ohne Lücke passen in die
+  // 294 px der Pille, mit px-3 und gap-1 wären es 332 px.
+  const crowded = items.length >= 6;
+  const itemPadding = crowded ? "px-2.5" : "px-4";
+  const listGap = crowded ? "gap-0" : "gap-1";
+  const labelClass = crowded
+    ? "hidden text-sm font-semibold whitespace-nowrap min-[480px]:inline"
+    : "hidden text-sm font-semibold whitespace-nowrap min-[420px]:inline";
 
   return (
     <nav
@@ -75,7 +85,7 @@ export function SchoolBottomNav({
       />
       <div className="relative px-4 pb-4">
         <div className="rounded-full border border-gray-200/50 bg-white/95 px-3 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
-          <ul className="flex items-center justify-around gap-1">
+          <ul className={`flex items-center justify-around ${listGap}`}>
             {items.map((item) => {
               const active = isSchoolNavActive(item.href, pathname);
               const badge = schoolNavBadge(item, { teamChat, notices });
@@ -90,7 +100,7 @@ export function SchoolBottomNav({
                       ? { target: "_blank", rel: "noopener noreferrer" }
                       : {})}
                     aria-label={item.label}
-                    className={`${ITEM} ${active ? ITEM_ACTIVE : ITEM_IDLE}`}
+                    className={`${ITEM} ${itemPadding} ${active ? ITEM_ACTIVE : ITEM_IDLE}`}
                   >
                     <span className="relative inline-flex">
                       <MotoNavIcon
