@@ -203,6 +203,8 @@ services:
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD:?OPERATOR_PASSWORD is required}
       # Seed value of security.ogs_device_pin only; never a serving fallback.
       OGS_DEVICE_PIN: ${OGS_DEVICE_PIN:?OGS_DEVICE_PIN is required}
+      # An order that fails for good reports to Sentry under APP_ENV.
+      SENTRY_DSN: ${SENTRY_DSN?SENTRY_DSN is required}
     logging:
       driver: journald
       options:
