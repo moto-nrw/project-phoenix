@@ -121,7 +121,7 @@ func TestDefaultOnTypeIsOfferedToTheOfficeOnly(t *testing.T) {
 	ctx := tenant.WithTenantID(context.Background(), unreportedTenant)
 	repo := &fakePreferenceRepo{}
 	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, fakeAccountPermissions{
-		unreportedOffice:  {permissions.ClassDayRead, permissions.ClassDayAllClasses},
+		unreportedOffice:  {permissions.ClassDayRead, permissions.ClassDayAllClasses, permissions.ClassDayAbsenceReportWrite},
 		unreportedTeacher: {permissions.ClassDayRead},
 	}, securityruntime.HasPermission)
 
@@ -155,4 +155,27 @@ func TestDefaultOnTypeIsOfferedToTheOfficeOnly(t *testing.T) {
 	require.Len(t, repo.upserted, 1, "switching everything off stores an explicit off for the default-on type")
 	assert.Equal(t, notifications.TypeSchoolUnreportedAbsence, repo.upserted[0].NotificationType)
 	assert.False(t, repo.upserted[0].Enabled)
+}
+
+// The notice goes to whoever may enter the missing report (#4791): offered
+// and default-on for holders of class_day:absence_report_write, not for every
+// role that sees all classes.
+func TestUnreportedAbsenceNoticeFollowsTheRight(t *testing.T) {
+	t.Parallel()
+	def, ok := notifications.GetType(notifications.TypeSchoolUnreportedAbsence)
+	require.True(t, ok)
+	assert.Equal(t, permissions.ClassDayAbsenceReportWrite, def.Permission)
+	assert.True(t, def.DefaultOn)
+
+	ctx := tenant.WithTenantID(context.Background(), unreportedTenant)
+	svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, fakeAccountPermissions{
+		unreportedOffice2: {permissions.ClassDayRead, permissions.ClassDayAllClasses},
+	}, securityruntime.HasPermission)
+	overview, err := svc.GetForAccount(ctx, unreportedOffice2, notifications.PortalSchool)
+	require.NoError(t, err)
+	require.NotEmpty(t, overview.Types)
+	for _, state := range overview.Types {
+		assert.NotEqual(t, notifications.TypeSchoolUnreportedAbsence, state.Key,
+			"seeing all classes alone does not make the notice someone's task")
+	}
 }

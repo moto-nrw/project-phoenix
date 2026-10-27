@@ -452,15 +452,15 @@ func registerSchoolTypes() {
 	})
 
 	// The Schulverwaltung's task (#4791): on until the person switches it
-	// off, and only offered to the holders of class_day:all_classes. The
-	// notice names only a number, never a child.
+	// off, and only offered to the holders of class_day:absence_report_write,
+	// who can act on it. The notice names only a number, never a child.
 	RegisterType(TypeDefinition{
 		Key:         TypeSchoolUnreportedAbsence,
 		Label:       "Fehlt ohne Meldung",
 		Description: "Wenn eine Lehrkraft ein Kind als fehlend einträgt und keine Meldung da ist.",
 		Group:       GroupChildren,
 		Portal:      PortalSchool,
-		Permission:  permissionClassDayAllClasses,
+		Permission:  permissionClassDayAbsenceReportWrite,
 		DefaultOn:   true,
 		SortOrder:   2,
 	})

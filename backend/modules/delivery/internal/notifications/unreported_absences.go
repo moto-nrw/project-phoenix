@@ -20,6 +20,11 @@ const (
 	unreportedAbsenceBody    = "%d Kinder fehlen ohne Meldung"
 	// unreportedAbsenceDeepLink opens the school-wide day overview.
 	unreportedAbsenceDeepLink = "/school"
+	// permissionClassDayAbsenceReportWrite restates the permission
+	// registry's name, which this package may not import: the notice goes to
+	// whoever may act on it (#4791). TestUnreportedAbsenceNoticeFollowsTheRight
+	// pins it to the registry.
+	permissionClassDayAbsenceReportWrite = "class_day:absence_report_write"
 )
 
 // UnreportedAbsenceReport and UnreportedAbsenceNotifier are the contract's.

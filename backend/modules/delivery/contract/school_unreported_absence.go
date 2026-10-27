@@ -7,8 +7,8 @@ import (
 )
 
 // SchoolOffice lists the accounts of the school that hold
-// class_day:all_classes, the Schulverwaltung (#4789), for the notice about
-// children missing without a report (#4791). The root binds it over the
+// class_day:absence_report_write, the Schulverwaltung, for the notice about
+// children missing without a report (#4791): the people who can act on it. The root binds it over the
 // People Directory's staff and their accounts.
 type SchoolOffice interface {
 	SchoolOfficeAccountIDs(ctx context.Context) ([]int64, error)

@@ -129,7 +129,8 @@ func (r deliverySchoolClassReach) teacherAccounts(ctx context.Context, classOf m
 
 // deliverySchoolOffice lists the accounts of the Schulverwaltung for the
 // notice about children missing without a report (#4791): the staff whose
-// account holds class_day:all_classes in the current school.
+// account holds class_day:absence_report_write in the current school, the
+// people who can enter the missing report.
 type deliverySchoolOffice struct {
 	staff interface {
 		ListStaffWithPermission(ctx context.Context, permissionName string) ([]*peopleValues.StaffWithRoleInfo, error)
@@ -137,7 +138,7 @@ type deliverySchoolOffice struct {
 }
 
 func (o deliverySchoolOffice) SchoolOfficeAccountIDs(ctx context.Context) ([]int64, error) {
-	rows, err := o.staff.ListStaffWithPermission(ctx, permissions.ClassDayAllClasses)
+	rows, err := o.staff.ListStaffWithPermission(ctx, permissions.ClassDayAbsenceReportWrite)
 	if err != nil {
 		return nil, err
 	}
