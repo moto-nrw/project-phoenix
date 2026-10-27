@@ -149,17 +149,16 @@ func seedPresenceHistoryStatusDays(rt *Runtime, statuses []presenceHistoryStatus
 			"status": status.status, "dates": dates, "reason": "Von den Eltern gemeldet",
 		})
 		if err != nil {
-			return statusDays, created, fmt.Errorf("seed past %s days: %w", status.status, err)
+			recovered, recoveryErr := recoverPresenceHistoryStatusDays(rt, status, fmt.Errorf("seed past %s days: %w", status.status, err))
+			created = appendUniquePresenceHistoryStatusDays(created, recovered)
+			return statusDays, created, recoveryErr
 		}
 		rows, err := createdPresenceHistoryStatusDays(raw, status)
 		created = appendUniquePresenceHistoryStatusDays(created, rows)
 		if err != nil {
-			recovered, recoveryErr := findPresenceHistoryStatusDays(rt, status)
+			recovered, recoveryErr := recoverPresenceHistoryStatusDays(rt, status, err)
 			created = appendUniquePresenceHistoryStatusDays(created, recovered)
-			if recoveryErr != nil {
-				err = errors.Join(err, recoveryErr)
-			}
-			return statusDays, created, err
+			return statusDays, created, recoveryErr
 		}
 		statusDays += len(dates)
 	}
@@ -182,6 +181,16 @@ func createdPresenceHistoryStatusDays(raw []byte, status presenceHistoryStatus) 
 		return created, fmt.Errorf("read created past %s days: response missed %d status days", status.status, len(wanted))
 	}
 	return created, nil
+}
+
+// recoverPresenceHistoryStatusDays returns the requested status rows after a
+// response may have failed after the server committed the write.
+func recoverPresenceHistoryStatusDays(rt *Runtime, status presenceHistoryStatus, cause error) ([]presenceHistoryStatusDay, error) {
+	recovered, recoveryErr := findPresenceHistoryStatusDays(rt, status)
+	if recoveryErr != nil {
+		return recovered, errors.Join(cause, recoveryErr)
+	}
+	return recovered, cause
 }
 
 // findPresenceHistoryStatusDays recovers status rows after a successful write

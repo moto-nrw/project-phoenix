@@ -234,6 +234,8 @@ func TestPresenceHistoryStatusDaysRollBackEarlierWritesWhenLaterReportFails(t *t
 		case seedHTTPMethodPost + " /api/students/8/status-days":
 			w.WriteHeader(seedHTTPStatusInternalServerError)
 			_, _ = fmt.Fprint(w, `{"status":"error","message":"injected failure"}`)
+		case seedHTTPMethodGet + " /api/students/8/status-days":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[]}`)
 		case seedHTTPMethodDelete + " /api/students/7/status-days/101":
 			deleted = append(deleted, r.URL.Path)
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"deleted":true}}`)
@@ -256,6 +258,44 @@ func TestPresenceHistoryStatusDaysRollBackEarlierWritesWhenLaterReportFails(t *t
 	require.ErrorContains(t, err, "seed past excused days")
 	assert.False(t, writeCalled)
 	assert.Equal(t, []string{"/api/students/7/status-days/101"}, deleted)
+}
+
+func TestPresenceHistoryStatusDaysRecoversCommittedPostFailure(t *testing.T) {
+	t.Parallel()
+
+	var deleted []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method + " " + r.URL.Path {
+		case seedHTTPMethodPost + " /api/students/7/status-days":
+			// The write committed, but the response failed after the commit.
+			w.WriteHeader(seedHTTPStatusInternalServerError)
+			_, _ = fmt.Fprint(w, `{"status":"error","message":"injected failure"}`)
+		case seedHTTPMethodGet + " /api/students/7/status-days":
+			assert.Equal(t, "2026-10-01", r.URL.Query().Get("from"))
+			assert.Equal(t, "2026-10-02", r.URL.Query().Get("to"))
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":101,"date":"2026-10-01","status":"sick"},{"id":102,"date":"2026-10-02","status":"sick"}]}`)
+		case seedHTTPMethodDelete + " /api/students/7/status-days/101", seedHTTPMethodDelete + " /api/students/7/status-days/102":
+			deleted = append(deleted, r.URL.Path)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"deleted":true}}`)
+		default:
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(seedHTTPStatusNotFound)
+		}
+	})
+	defer srv.Close()
+
+	rt := &Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Kind: AuthBearer, Token: "tenant"}}
+	writeCalled := false
+	err := seedPresenceHistoryPlan(context.Background(), rt, 1, func(context.Context, int64, []PastPresenceDay) (int, error) {
+		writeCalled = true
+		return 0, nil
+	}, presenceHistoryPlan{statuses: []presenceHistoryStatus{
+		{studentID: 7, status: "sick", dates: []calendar.Date{calendar.NewDate(2026, time.October, 1), calendar.NewDate(2026, time.October, 2)}},
+	}})
+	require.ErrorContains(t, err, "seed past sick days")
+	assert.False(t, writeCalled)
+	assert.Equal(t, []string{"/api/students/7/status-days/101", "/api/students/7/status-days/102"}, deleted)
 }
 
 func TestCreatedPresenceHistoryStatusDaysKeepsIDsFromAnIncompleteResponse(t *testing.T) {
