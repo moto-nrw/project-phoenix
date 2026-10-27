@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeTimetableCompleteTooEarly                      = "timetable.complete_too_early"
+	CodeTimetableCompletionConfirmationStale           = "timetable.completion_confirmation_stale"
+	CodeTimetableCorrectionCancelled                   = "timetable.correction_cancelled"
 	CodeTimetableCorrectionNotCompleted                = "timetable.correction_not_completed"
 	CodeTimetableCorrectionReasonMissing               = "timetable.correction_reason_missing"
 	CodeTimetableCorrectionReasonTooLong               = "timetable.correction_reason_too_long"
@@ -201,6 +204,9 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.complete_too_early":                         "business_rejection",
+	"timetable.completion_confirmation_stale":              "business_rejection",
+	"timetable.correction_cancelled":                       "business_rejection",
 	"timetable.correction_not_completed":                   "business_rejection",
 	"timetable.correction_reason_missing":                  "input",
 	"timetable.correction_reason_too_long":                 "input",

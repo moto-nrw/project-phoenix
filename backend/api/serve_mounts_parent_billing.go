@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -29,28 +31,101 @@ import (
 // form at /traeger/holiday-quotes, and the billing runs and number ranges
 // at /traeger/billing-runs and /traeger/number-ranges behind the right
 // "Abrechnung" (#4668, ADR 0119), with the confirmation letters of a
-// released run in the layout of the Träger (#4669, ADR 0121) and its
-// overview for the Kämmerei (#4672, ADR 0122).
+// released run in the layout of the Träger (#4669, ADR 0121), its overview
+// for the Kämmerei (#4672, ADR 0122), and the mail of the letters as mails
+// of the Träger on Delivery's outbox and their print in one file (#4670,
+// ADR 0123).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, delivery, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-contributions", holiday.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/holiday-quotes", holiday.QuoteRouter())
-	runs := NewBillingRunHTTP(settings)
+	runs := NewBillingRunHTTP(settings, delivery)
 	root.Mount("/traeger/billing-runs", runs.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
 }
 
 // NewBillingRunHTTP binds the billing runs to the right "Abrechnung", to
-// Enrollment's holiday periods and the review of their registrations, and
-// their letters to the master data and branding settings of the Träger.
-func NewBillingRunHTTP(settings TraegerBrandingSettings) *parentBillingHTTP.BillingRunResource {
+// Enrollment's holiday periods and the review of their registrations, their
+// letters to the master data and branding settings of the Träger, and the
+// mail of the letters to Delivery and the letterhead of the Träger.
+func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntime.Capability) *parentBillingHTTP.BillingRunResource {
 	registrations := parentBillingBillingRegistrations{
 		periods: enrollmentCompose.NewHolidayPeriods(), review: enrollmentCompose.NewHolidayRegistrationReview(),
 	}
 	letterheads := parentBillingLetterheads{masterData: organizationTenancyCompose.NewTraegerMasterData(), settings: settings}
 	return parentBillingHTTP.NewBillingRunResource(parentBillingCompose.NewBillingRuns(registrations),
-		parentBillingCompose.NewBillingLetters(letterheads), common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+		parentBillingCompose.NewBillingLetters(letterheads),
+		parentBillingCompose.NewBillingLetterMail(parentBillingLetterPost{settings: settings, delivery: delivery}),
+		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+}
+
+// parentBillingLetterPost binds the mail of the letters to Delivery: a mail
+// of the Träger (ADR 0110) enqueued in the caller's Träger transaction with
+// the record of the send, the run as its related entity and the PDF in its
+// payload; and to the letterhead text of the branding settings of the
+// Träger, whose first line names the sender (ADR 0112, ADR 0123).
+type parentBillingLetterPost struct {
+	settings TraegerBrandingSettings
+	delivery deliveryRuntime.Capability
+}
+
+func (p parentBillingLetterPost) SenderText(ctx context.Context, organizationID int64) (string, error) {
+	texts, err := p.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyBrandingLetterheadText})
+	if err != nil {
+		return "", err
+	}
+	return texts[configModels.KeyBrandingLetterheadText], nil
+}
+
+func (p parentBillingLetterPost) EnqueueLetterMail(ctx context.Context, mail parentbilling.BillingLetterMail) (int64, error) {
+	payload, err := json.Marshal(mail)
+	if err != nil {
+		return 0, fmt.Errorf("letter mail payload: %w", err)
+	}
+	enqueued, err := p.delivery.EnqueueEmail(ctx, deliveryContract.EmailIntent{
+		OrganizationID: mail.OrganizationID, Template: parentbilling.MailKindBillingLetter,
+		Recipient: deliveryContract.EmailRecipient{Address: mail.Recipient, Name: mail.GuardianName},
+		Payload:   payload, IdempotencyKey: mail.IdempotencyKey,
+		Related: deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedBillingRun, ID: mail.RunID},
+	})
+	if err != nil {
+		return 0, err
+	}
+	return enqueued.ID, nil
+}
+
+func (p parentBillingLetterPost) LetterMailStates(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingLetterMailState, error) {
+	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID,
+		deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedBillingRun, ID: runID})
+	if err != nil {
+		return nil, err
+	}
+	states := make([]parentbilling.BillingLetterMailState, len(statuses))
+	for i, status := range statuses {
+		states[i] = parentbilling.BillingLetterMailState{
+			DeliveryID: status.ID, Status: parentBillingMailStatus(status), Attempts: status.Attempts, SentAt: status.SentAt,
+		}
+	}
+	return states, nil
+}
+
+// parentBillingMailStatus names Delivery's state of a mail in the
+// Elternabrechnung's words: waiting, accepted by the mail server, given up,
+// or unknown when the worker stopped during the provider call and the mail
+// may have gone out.
+func parentBillingMailStatus(status deliveryContract.Status) string {
+	switch {
+	case status.State == deliveryContract.StateSent:
+		return parentbilling.LetterMailSent
+	case status.State == deliveryContract.StateDeadLetter && status.LastError != nil &&
+		*status.LastError == deliveryContract.DispatchOutcomeUnknown:
+		return parentbilling.LetterMailUnknown
+	case status.State == deliveryContract.StateDeadLetter, status.State == deliveryContract.StateCancelled:
+		return parentbilling.LetterMailFailed
+	default:
+		return parentbilling.LetterMailQueued
+	}
 }
 
 // TraegerBrandingSettings is the Träger level of the settings system as the

@@ -2841,6 +2841,7 @@
         "billing_letter_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_letters_exist": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_letters_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+        "billing_letters_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_empty": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "billing_run_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
@@ -2852,9 +2853,11 @@
         "contribution_rule_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "holiday_quote_invalid": "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
         "invoice_number_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "letter_mail_pending": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "letterhead_too_long": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "number_range_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
-        "number_range_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "number_range_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "recipient_email_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",

@@ -2841,6 +2841,7 @@
         "billing_letter_not_found": "{object} could not be changed. Please check its current status.",
         "billing_letters_exist": "{object} could not be changed. Please check its current status.",
         "billing_letters_invalid": "{object} could not be saved. Please check your entries.",
+        "billing_letters_missing": "{object} could not be changed. Please check its current status.",
         "billing_run_changed": "{object} could not be changed. Please check its current status.",
         "billing_run_empty": "{object} could not be changed. Please check its current status.",
         "billing_run_not_found": "{object} could not be changed. Please check its current status.",
@@ -2852,9 +2853,11 @@
         "contribution_rule_overlap": "{object} could not be changed. Please check its current status.",
         "holiday_quote_invalid": "The fee cannot be calculated for these weeks. Please reload the page.",
         "invoice_number_taken": "{object} could not be changed. Please check its current status.",
+        "letter_mail_pending": "{object} could not be changed. Please check its current status.",
         "letterhead_too_long": "{object} could not be changed. Please check its current status.",
         "number_range_invalid": "{object} could not be saved. Please check your entries.",
-        "number_range_missing": "{object} could not be changed. Please check its current status."
+        "number_range_missing": "{object} could not be changed. Please check its current status.",
+        "recipient_email_missing": "{object} could not be changed. Please check its current status."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "{object} could not be saved. Please check your entries.",

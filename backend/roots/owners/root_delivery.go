@@ -19,6 +19,8 @@ import (
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -102,6 +104,8 @@ func BuildDeliveryWorker(
 		calendarService.EmailKindAppointmentUpdated:   appointments,
 		calendarService.EmailKindAppointmentCancelled: appointments,
 		calendarService.EmailKindAppointmentReminder:  appointments,
+		// The confirmation letter of a Träger, mailed with its PDF (#4670).
+		parentbilling.MailKindBillingLetter: parentBillingLetterMailRenderer(parentBillingCompose.NewLetterMailRenderer(), defaultFrom),
 	}
 	enrollmentKinds := []string{}
 	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom) {
@@ -113,7 +117,7 @@ func BuildDeliveryWorker(
 		calendarService.EmailKindAppointmentPublished, calendarService.EmailKindAppointmentUpdated,
 		calendarService.EmailKindAppointmentCancelled, calendarService.EmailKindAppointmentReminder,
 		identityaccess.MailKindGuardianInvitation, identityaccess.MailKindGuardianWelcome,
-	}, enrollmentKinds, []string{TransactionalMailKind, identityaccess.MailKindStaffWelcome})
+	}, enrollmentKinds, []string{TransactionalMailKind, identityaccess.MailKindStaffWelcome, parentbilling.MailKindBillingLetter})
 	if err != nil {
 		return nil, err
 	}

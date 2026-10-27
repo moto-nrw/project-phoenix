@@ -19,7 +19,9 @@ type DayRoster struct {
 
 // DayRosterRow is the part of a roster row the day view projects.
 type DayRosterRow struct {
-	StudentID      int64
+	StudentID int64
+	// SchoolClass is the row's class; the school-wide roster groups by it.
+	SchoolClass    string
 	FirstName      string
 	LastName       string
 	ListEntry      bool
@@ -137,6 +139,9 @@ type (
 	// DayRosters reads Enrollment's class roster of a day.
 	DayRosters interface {
 		ClassRosterDay(ctx context.Context, schoolClass string, date calendar.Date) (*DayRoster, error)
+		// SchoolRosterDay is the roster of every class of the day, built
+		// once for the school-wide overview (#4802).
+		SchoolRosterDay(ctx context.Context, date calendar.Date) (*DayRoster, error)
 	}
 	// StatusDays reads the active scheduled day statuses of many students.
 	StatusDays interface {
@@ -181,6 +186,11 @@ type (
 		// view of the class and date since the given instant.
 		ClassDayViewSeenSince(ctx context.Context, actorAccountID int64, schoolClass, date string, since time.Time) (bool, error)
 		RecordClassDayView(ctx context.Context, entry AccessRecord) error
+		// SchoolDayViewSeenSince reports whether the actor was served the
+		// school-wide day overview of the date since the given instant
+		// (#4802).
+		SchoolDayViewSeenSince(ctx context.Context, actorAccountID int64, date string, since time.Time) (bool, error)
+		RecordSchoolDayView(ctx context.Context, entry AccessRecord) error
 		RecordSupervisionSheet(ctx context.Context, entry AccessRecord) error
 	}
 	// ArrivalWriteScope applies operations.school_portal_write_scope.
