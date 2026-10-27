@@ -1,27 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import GuardianApprovalQueue, {
-  type GuardianInviteMode,
   type GuardianInviteModeState,
 } from "~/components/admin/guardian-approval-queue";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { canReviewGuardianApprovals } from "~/lib/guardian-approval-access";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { getSettingValue } from "~/lib/settings-api";
-
-const INVITE_MODES: readonly GuardianInviteMode[] = [
-  "disabled",
-  "direct",
-  "staff_approval",
-];
-
-function parseInviteMode(value: unknown): GuardianInviteMode | undefined {
-  return INVITE_MODES.find((mode) => mode === value);
-}
+import { useParentInviteMode } from "~/lib/tenant-context";
 
 // Staff approval queue for parent-initiated guardian invitations. Only
 // relevant when a school sets guardians.parent_invite_mode = staff_approval;
@@ -30,48 +18,20 @@ export default function GuardianApprovalsPage() {
   // Lesen verlangt users:manage, Annehmen und Ablehnen users:update;
   // dieselbe Regel zeigt den Eintrag in der Elterngruppe (#3469).
   const { isReady } = useRequirePermission(canReviewGuardianApprovals);
+  const router = useRouter();
   // Zeilenzahl der Warteschlange, von ihr selbst gemeldet (kein zusätzlicher
   // Request). `null` = noch am Laden.
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   // The queue is empty by design in the other two invite modes, so the empty
-  // state needs to know which one is active. The queue still mounts while this
-  // independent request runs; only its empty-result copy waits for the mode.
-  // A failed or incomplete schema must not make disabled/direct mode look like
-  // an empty staff-approval queue.
-  const {
-    data: settingsSchema,
-    error: settingsError,
-    isLoading: isSettingsLoading,
-    isValidating: isSettingsValidating,
-    mutate: retrySettings,
-  } = useSettingsSchema(isReady, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    shouldRetryOnError: false,
-  });
-  const inviteMode = parseInviteMode(
-    getSettingValue(settingsSchema, "guardians.parent_invite_mode"),
-  );
-  // A failed settings request goes through the shared error path (#2517):
-  // catalog text, retry and request ID in the queue's empty area.
-  const settingsLoadError = useSwrLoadError(
-    settingsError,
-    "die Einladungs-Einstellung",
-    () => retrySettings(),
-  );
+  // state needs to know which one is active. The mode rides on the tenant
+  // resolve (#4996) instead of the whole settings schema. A missing or unknown
+  // mode must not make disabled/direct mode look like an empty
+  // staff-approval queue; a reload resolves the school again.
+  const inviteMode = useParentInviteMode();
 
-  const inviteModeState: GuardianInviteModeState = isSettingsLoading
-    ? { status: "loading" }
-    : settingsError != null ||
-        settingsSchema == null ||
-        inviteMode === undefined
-      ? {
-          status: "error",
-          isRetrying: isSettingsValidating,
-          retry: () => void retrySettings(),
-          error: settingsLoadError,
-          awaitingError: settingsError != null && settingsLoadError === null,
-        }
+  const inviteModeState: GuardianInviteModeState =
+    inviteMode === undefined
+      ? { status: "error", isRetrying: false, retry: () => router.refresh() }
       : { status: "ready", mode: inviteMode };
 
   return (

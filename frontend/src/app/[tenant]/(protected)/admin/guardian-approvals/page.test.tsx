@@ -2,17 +2,22 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  mutate: vi.fn(),
+  refresh: vi.fn(),
   useRequirePermission: vi.fn(),
-  useSettingsSchema: vi.fn(),
+  useParentInviteMode: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-require-permission", () => ({
   useRequirePermission: () => mocks.useRequirePermission(),
 }));
 
-vi.mock("~/lib/hooks/use-settings-schema", () => ({
-  useSettingsSchema: () => mocks.useSettingsSchema(),
+// The invite mode rides on the tenant resolve since #4996.
+vi.mock("~/lib/tenant-context", () => ({
+  useParentInviteMode: () => mocks.useParentInviteMode(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mocks.refresh }),
 }));
 
 vi.mock("~/components/admin/guardian-approval-queue", () => ({
@@ -38,79 +43,28 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 import GuardianApprovalsPage from "./page";
 
-function schemaWithInviteMode(value?: string) {
-  return {
-    tabs: [
-      {
-        key: "operations",
-        label: "Betrieb",
-        categories: [
-          {
-            key: "guardians",
-            label: "Bezugspersonen",
-            items:
-              value === undefined
-                ? []
-                : [
-                    {
-                      key: "guardians.parent_invite_mode",
-                      value,
-                    },
-                  ],
-          },
-        ],
-      },
-    ],
-  };
-}
-
-function setSettingsResult({
-  data,
-  error,
-  isLoading = false,
-  isValidating = false,
-}: {
-  data?: ReturnType<typeof schemaWithInviteMode> | null;
-  error?: Error;
-  isLoading?: boolean;
-  isValidating?: boolean;
-}) {
-  mocks.useSettingsSchema.mockReturnValue({
-    data,
-    error,
-    isLoading,
-    isValidating,
-    mutate: mocks.mutate,
-  });
-}
-
 describe("GuardianApprovalsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.useRequirePermission.mockReturnValue({ isReady: true });
-    setSettingsResult({ data: schemaWithInviteMode("staff_approval") });
+    mocks.useParentInviteMode.mockReturnValue("staff_approval");
   });
 
-  it("mounts the queue while the invite mode is loading", () => {
-    setSettingsResult({ data: undefined, isLoading: true });
+  it.each(["disabled", "direct", "staff_approval"])(
+    "passes the invite mode %s to the queue",
+    (mode) => {
+      mocks.useParentInviteMode.mockReturnValue(mode);
 
-    render(<GuardianApprovalsPage />);
+      render(<GuardianApprovalsPage />);
 
-    expect(screen.getByTestId("approval-queue")).toHaveTextContent("loading:");
-  });
+      expect(screen.getByTestId("approval-queue")).toHaveTextContent(
+        `ready:${mode}`,
+      );
+    },
+  );
 
-  it("passes a valid invite mode to the queue", () => {
-    setSettingsResult({ data: schemaWithInviteMode("disabled") });
-
-    render(<GuardianApprovalsPage />);
-
-    expect(screen.getByTestId("approval-queue")).toHaveTextContent(
-      "ready:disabled",
-    );
-  });
-
-  it("passes an error state when settings access returns no schema", () => {
-    setSettingsResult({ data: null });
+  it("shows an error with a reload when the school sent no known mode", () => {
+    mocks.useParentInviteMode.mockReturnValue(undefined);
 
     render(<GuardianApprovalsPage />);
 
@@ -118,25 +72,6 @@ describe("GuardianApprovalsPage", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Einstellungen erneut laden" }),
     );
-    expect(mocks.mutate).toHaveBeenCalledOnce();
-  });
-
-  it("shows an error when the schema request fails", () => {
-    setSettingsResult({
-      data: undefined,
-      error: new Error("request failed"),
-    });
-
-    render(<GuardianApprovalsPage />);
-
-    expect(screen.getByTestId("approval-queue")).toHaveTextContent("error:");
-  });
-
-  it("shows an error when the required setting is missing", () => {
-    setSettingsResult({ data: schemaWithInviteMode() });
-
-    render(<GuardianApprovalsPage />);
-
-    expect(screen.getByTestId("approval-queue")).toHaveTextContent("error:");
+    expect(mocks.refresh).toHaveBeenCalledOnce();
   });
 });

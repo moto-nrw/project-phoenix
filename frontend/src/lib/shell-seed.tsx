@@ -4,7 +4,6 @@ import { createContext, useContext } from "react";
 import type { UnreadAnnouncement } from "~/lib/hooks/use-announcements";
 import type { Profile } from "~/lib/profile-helpers";
 import type { RemindersResult } from "~/lib/reminders-api";
-import type { SettingsSchema } from "~/lib/settings-api";
 import type { SupervisionSnapshot } from "~/lib/supervision-derive";
 import type { TenantSummary } from "~/lib/tenant-api";
 import type { UserContextResponse } from "~/lib/user-context-types";
@@ -35,7 +34,6 @@ export interface ShellBootstrap {
   /** Account the snapshot was built for. */
   accountId: string;
   userContext?: UserContextResponse;
-  settingsSchema?: SettingsSchema;
   profile?: Profile;
   accountTenants?: TenantSummary[];
   reminders?: RemindersResult;

@@ -41,7 +41,6 @@ import {
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { operatorPath } from "~/lib/operator-url";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import {
   useAttendanceLogEnabled,
   useChildSearchOnlyNavigation,
@@ -52,9 +51,9 @@ import {
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
   useMealPlanEnabled,
+  useTenantParentNewsEnabled,
   useTimetableEnabled,
 } from "~/lib/tenant-context";
-import { getSettingValue } from "~/lib/settings-api";
 import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
 import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 import {
@@ -858,22 +857,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const tagesplanEnabled = useTimetableEnabled();
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
-  // Schulschalter aus dem Settings-Schema, mit demselben Lesemuster wie die
-  // Desktop-Sidebar: für Admins und config:read-Halter. `!== false` für
-  // timetable.enabled, damit die Planungs-Einträge während des Schema-Ladens
-  // nicht kurz verschwinden.
-  const canReadConfig =
-    mode === "teacher" &&
-    (userIsAdmin || hasPermission(session, "config:read"));
-  const { data: settingsSchema } = useSettingsSchema(canReadConfig, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-    shouldRetryOnError: false,
-  });
-  const timetableEnabled =
-    getSettingValue(settingsSchema, "timetable.enabled") !== false;
-  const parentNewsEnabled =
-    getSettingValue(settingsSchema, "operations.parent_news_enabled") === true;
+  // Schulschalter vom Tenant-Resolve wie in der Desktop-Sidebar (#4996): die
+  // Navigation lädt dafür nicht das ganze Settings-Schema.
+  const timetableEnabled = tagesplanEnabled;
+  const parentNewsEnabled = useTenantParentNewsEnabled();
   // Vom Tenant-Resolve (#3873): eine Küchenrolle hält meals:*, aber kein
   // config:read und liest das Settings-Schema nicht.
   const mealPlanEnabled = useMealPlanEnabled();

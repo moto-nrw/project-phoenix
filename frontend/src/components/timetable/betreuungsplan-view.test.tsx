@@ -7,7 +7,11 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
-import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import {
+  useTimetableEnabled,
+  useWeekendFollowsFriday,
+} from "~/lib/tenant-context";
+import { fetchStudents } from "~/lib/student-api";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
@@ -790,8 +794,6 @@ function setupSWR({
   periods = [period],
   periodsState = "ready" as "ready" | "loading" | "error",
   templates = [template],
-  settingsSchema = null,
-  settingsSchemaLoading = false,
   careOfferingLink = null,
   gaps = [] as GapInstance[],
   gapsState = "ready" as "ready" | "loading" | "error",
@@ -806,8 +808,6 @@ function setupSWR({
   periods?: Array<typeof period>;
   periodsState?: "ready" | "loading" | "error";
   templates?: TimetableTemplate[];
-  settingsSchema?: unknown;
-  settingsSchemaLoading?: boolean;
   /** null = the planner admin cannot read enrollment (status "unknown"). */
   careOfferingLink?: { total: number; linked: number } | null;
   gaps?: GapInstance[];
@@ -824,11 +824,6 @@ function setupSWR({
     if (key === null) return {};
     if (key === "timetable-care-offering-link") {
       return { data: careOfferingLink, isLoading: false };
-    }
-    if (key === "settings-schema") {
-      return settingsSchemaLoading
-        ? { isLoading: true }
-        : { data: settingsSchema, isLoading: false };
     }
     if (key === "database-calendar-periods-list") {
       if (periodsState === "loading") return { isLoading: true };
@@ -1111,6 +1106,28 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     expect(mockBootstrap).not.toHaveBeenCalled();
+  });
+
+  // Raster und Detailpanel brauchen nur Namen: die schlanke Projektion
+  // statt der vollen Kinderliste (#4996), und kein Settings-Schema.
+  it("loads the student roster in the slim projection", async () => {
+    setupSWR();
+    render(<BetreuungsplanView />);
+
+    const call = mockUseSWRAuth.mock.calls.find(
+      ([key]) => key === "timetable-student-list",
+    );
+    expect(call).toBeDefined();
+    await (call![1] as () => Promise<unknown>)();
+    expect(fetchStudents).toHaveBeenCalledWith({
+      page_size: 500,
+      view: "slim",
+    });
+    expect(mockUseSWRAuth).not.toHaveBeenCalledWith(
+      "settings-schema",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it("skips the tenant student roster without users:read", () => {
@@ -2178,24 +2195,13 @@ describe("BetreuungsplanView", () => {
   });
 
   it("renders the disabled state when the timetable setting is off", () => {
-    setupSWR({
-      settingsSchema: {
-        tabs: [
-          {
-            id: "operations",
-            label: "Betrieb",
-            categories: [
-              {
-                id: "timetable",
-                label: "Betreuungsplan",
-                items: [{ key: "timetable.enabled", value: false }],
-              },
-            ],
-          },
-        ],
-      },
-    });
-    render(<BetreuungsplanView />);
+    setupSWR();
+    vi.mocked(useTimetableEnabled).mockReturnValue(false);
+    try {
+      render(<BetreuungsplanView />);
+    } finally {
+      vi.mocked(useTimetableEnabled).mockReturnValue(true);
+    }
 
     expect(screen.getByTestId("timetable-disabled-state")).toBeVisible();
     expect(screen.getByText("Betreuungsplan ist deaktiviert")).toBeVisible();
@@ -2203,13 +2209,14 @@ describe("BetreuungsplanView", () => {
     expect(mockBootstrap).not.toHaveBeenCalled();
   });
 
-  it("shows the skeleton while the settings schema loads", () => {
-    setupSWR({ settingsSchemaLoading: true });
+  it("shows the skeleton while the session loads", () => {
+    setupSWR();
+    mockUseSession.mockReturnValue({ status: "loading", data: null });
     render(<BetreuungsplanView />);
 
     // Chrome renders immediately; only the content region skeletonizes
-    // while the settings schema (and therefore timetableDisabled) is
-    // still unresolved.
+    // while the session (and therefore the caller's permissions) is still
+    // unresolved.
     expect(screen.getByText("Betreuungsplan")).toBeVisible();
     // Der Ladezustand kommt aus dem TenantPage-Gerüst, nicht aus einem
     // eigenen Seiten-Skelett.

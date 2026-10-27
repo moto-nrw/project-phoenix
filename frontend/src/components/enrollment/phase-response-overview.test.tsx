@@ -18,14 +18,6 @@ vi.mock("~/lib/auth-utils", () => ({
   hasPermission: mocks.hasPermission,
 }));
 
-vi.mock("~/lib/hooks/use-settings-schema", () => ({
-  useSettingsSchema: () => ({ data: {} }),
-}));
-
-vi.mock("~/lib/settings-api", () => ({
-  getSettingValue: () => mocks.parentNewsEnabled,
-}));
-
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mocks.push }),
 }));
@@ -36,6 +28,7 @@ vi.mock("~/lib/tenant-path", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "testschule",
+  useTenantParentNewsEnabled: () => mocks.parentNewsEnabled === true,
 }));
 
 import { PhaseResponseOverview } from "./phase-response-overview";

@@ -190,6 +190,14 @@ const tenantProviderMock = vi.hoisted(() => ({
   // Betreuungsplan (timetable.enabled) defaults ON like the registry default
   // (#2383). Tests covering the switched-off branch override this locally.
   useTimetableEnabled: vi.fn(() => true),
+  // The planner's day comes from the tenant resolve since #4996; undefined
+  // keeps the planner's 09:00-17:00 defaults, as before without a schema.
+  useTimetableDayTimes: vi.fn(() => ({ start: undefined, end: undefined })),
+  // Parent news and the invite mode ride on the tenant resolve since #4996.
+  // Off/unknown here, as they read before from a settings schema these
+  // fixtures never load; tests of those branches override them locally.
+  useTenantParentNewsEnabled: vi.fn(() => false),
+  useParentInviteMode: vi.fn(() => undefined),
   // The meal switches come from the tenant resolve since #3873. Off here, as
   // they read before from a settings schema these fixtures never load; tests
   // of the meal pages switch them on locally.

@@ -11,6 +11,7 @@ import {
 import {
   resolveTenant,
   type OperationalOverviewScope,
+  type ParentInviteMode,
   type PresenceMode,
   type TenantInfo,
 } from "~/lib/tenant-api";
@@ -377,6 +378,40 @@ export function useShowTimetableCounts(): boolean {
 export function useTimetableEnabled(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.timetableEnabled !== false;
+}
+
+/**
+ * The Betreuungsplan's day as "HH:MM" from the tenant shell (#4996).
+ * Undefined while tenant metadata is unavailable.
+ */
+export function useTimetableDayTimes(): {
+  start: string | undefined;
+  end: string | undefined;
+} {
+  const ctx = useContext(TenantContext);
+  return {
+    start: ctx?.tenant?.timetableDayStartTime,
+    end: ctx?.tenant?.timetableDayEndTime,
+  };
+}
+
+/**
+ * Whether the school writes parent announcements
+ * (operations.parent_news_enabled, #4996). Fails closed: without a resolved
+ * school the entry points stay hidden.
+ */
+export function useTenantParentNewsEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.parentNewsEnabled === true;
+}
+
+/**
+ * guardians.parent_invite_mode from the tenant shell (#4996). Undefined when
+ * the school is not resolved or the backend sent no known mode.
+ */
+export function useParentInviteMode(): ParentInviteMode | undefined {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.parentInviteMode;
 }
 
 // Fail closed: without a resolved school the meal pages stay hidden.

@@ -263,6 +263,45 @@ describe("TenantLayout", () => {
     },
   );
 
+  // The app shell reads these from the tenant resolve instead of the
+  // settings schema since #4996.
+  it("maps the schema-free shell switches into the server tenant context", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: "success",
+          data: {
+            tenant_id: 1,
+            slug: "school-a",
+            name: "School A",
+            subdomain: "school-a",
+            organization_id: 2,
+            organization_name: "Organization",
+            settings: {},
+            grade_level_max: 4,
+            parent_news_enabled: true,
+            parent_invite_mode: "direct",
+            timetable_day_start_time: "07:30",
+            timetable_day_end_time: "16:15",
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const element = (await TenantLayout({
+      children: null,
+      params: Promise.resolve({ tenant: "school-a" }),
+    })) as ReactElement<{ tenant: Record<string, unknown> }>;
+
+    expect(element.props.tenant).toMatchObject({
+      parentNewsEnabled: true,
+      parentInviteMode: "direct",
+      timetableDayStartTime: "07:30",
+      timetableDayEndTime: "16:15",
+    });
+  });
+
   it.each([
     { analytics_enabled: false, expected: false },
     { analytics_enabled: true, expected: true },

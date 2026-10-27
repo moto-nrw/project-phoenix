@@ -62,4 +62,13 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // saved setting cannot leave new forms enforcing the old cap for five
   // minutes.
   "enrollment.grade_level_max",
+  // The navigation, the planning pages, the Elternzugänge page and the
+  // planner's day read these from /auth/tenant/resolve since #4996 instead of
+  // the settings schema. Without revalidation a switch would reach reloads
+  // and new tabs only after the layout cache TTL (300s).
+  "timetable.enabled",
+  "timetable.day_start_time",
+  "timetable.day_end_time",
+  "operations.parent_news_enabled",
+  "guardians.parent_invite_mode",
 ]);

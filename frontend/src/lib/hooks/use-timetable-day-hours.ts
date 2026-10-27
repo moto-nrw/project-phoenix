@@ -1,7 +1,6 @@
 "use client";
 
-import { getSettingValue } from "~/lib/settings-api";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
+import { useTimetableDayTimes } from "~/lib/tenant-context";
 
 const DEFAULT_END_HOUR = 17;
 const DEFAULT_START_TIME = "09:00";
@@ -34,19 +33,12 @@ export function useTimetableDayHours(): {
   dayStartTime: string;
   dayEndTime: string;
 } {
-  const { data } = useSettingsSchema(true, {
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
-  });
+  // timetable.day_start_time / day_end_time from the tenant resolve (#4996),
+  // so the planner does not load the whole settings schema.
+  const { start, end } = useTimetableDayTimes();
 
-  const dayStartTimeRaw = parseTime(
-    getSettingValue(data, "timetable.day_start_time"),
-    DEFAULT_START_TIME,
-  );
-  const dayEndTimeRaw = parseTime(
-    getSettingValue(data, "timetable.day_end_time"),
-    DEFAULT_END_TIME,
-  );
+  const dayStartTimeRaw = parseTime(start, DEFAULT_START_TIME);
+  const dayEndTimeRaw = parseTime(end, DEFAULT_END_TIME);
   const dayStartMinutes = toMinutes(dayStartTimeRaw);
   const dayEndMinutes = toMinutes(dayEndTimeRaw);
   const hasValidDayRange = dayEndMinutes > dayStartMinutes;

@@ -88,13 +88,14 @@ import { hasPermission } from "~/lib/auth-utils";
 import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import {
+  useTimetableEnabled,
+  useWeekendFollowsFriday,
+} from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { getSettingValue } from "~/lib/settings-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
 import {
@@ -601,7 +602,8 @@ function TimetablesContent() {
     status === "authenticated" && canReadTenantRosters
       ? "timetable-student-list"
       : null,
-    () => fetchStudents({ page_size: 500 }),
+    // Nur Name und ID werden gebraucht: die schlanke Projektion (#4996).
+    () => fetchStudents({ page_size: 500, view: "slim" }),
   );
   // Auswahl des Gruppenfilters (#4766). Die Serienansicht filtert nicht.
   const { data: filterGroups } = useSWRAuth(
@@ -638,16 +640,9 @@ function TimetablesContent() {
     calendarPeriodService.list(),
   );
   // H4 route guard: same source the sidebar uses to hide the nav entry
-  // (settings schema -> timetable.enabled). fetchSettingsSchema returns
-  // null when the user cannot read settings; the page then renders
-  // normally (graceful default, mirroring the sidebar).
-  const { data: settingsSchema, isLoading: settingsSchemaLoading } =
-    useSettingsSchema(status === "authenticated", {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    });
-  const timetableDisabled =
-    getSettingValue(settingsSchema, "timetable.enabled") === false;
+  // (tenant resolve -> timetable.enabled, #4996), so the page no longer
+  // loads the settings schema.
+  const timetableDisabled = !useTimetableEnabled();
 
   // Ladefehler stehen dort, wo die Daten fehlen (#2516): Katalogtext mit
   // Wiederholen, nie der Satz des Browsers („Failed to fetch“) oder des
@@ -704,7 +699,7 @@ function TimetablesContent() {
   useEffect(() => {
     if (periodsLoading || periodsError || periods === undefined) return;
     if (periods.length > 0) return;
-    if (settingsSchemaLoading || timetableDisabled) return;
+    if (timetableDisabled) return;
     // Leseansicht (#2283): ohne schedules:create würde der Bootstrap ohnehin
     // mit 403 abgewiesen — gar nicht erst versuchen.
     if (!canBootstrapPeriods) return;
@@ -738,7 +733,6 @@ function TimetablesContent() {
     periods,
     periodsError,
     periodsLoading,
-    settingsSchemaLoading,
     tenantMutate,
     timetableDisabled,
   ]);
@@ -1617,15 +1611,13 @@ function TimetablesContent() {
     [clearArchiveError],
   );
 
-  // While the session or the settings schema loads we cannot tell yet
-  // whether the feature is enabled or what the caller may do. The
+  // While the session loads we cannot tell yet what the caller may do. The
   // PlanningContextBar (title, navigation) renders immediately regardless —
   // only the calendar-grid content below falls back to its skeleton, and
   // permission-dependent toolbar bits (view switcher, export, "Neu") stay
   // hidden until they resolve (hasPermission(undefined, …) is false while
   // loading).
-  const showSkeleton =
-    status === "loading" || settingsSchemaLoading || periodsPending;
+  const showSkeleton = status === "loading" || periodsPending;
 
   if (!showSkeleton && timetableDisabled) {
     return (
