@@ -1667,6 +1667,101 @@ describe("AggregatedRequestList", () => {
     },
   );
 
+  it.each([
+    ["merged", false],
+    ["merged", true],
+    ["withdrawal", false],
+    ["withdrawal", true],
+  ] as const)(
+    "preserves an in-flight refresh against %s pagination (refresh first: %s)",
+    async (kind, refreshFirst) => {
+      const oldPage = deferred<void>();
+      const refresh = deferred<void>();
+      const firstItems = Array.from({ length: 25 }, (_, i) =>
+        openItem("excused", String(i)),
+      );
+      let refreshing = false;
+      mockListHistory.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          await oldPage.promise;
+          return { items: [openItem("excused", "obsolete")] };
+        }
+        if (refreshing) {
+          await refresh.promise;
+          return { items: [openItem("excused", "replacement")] };
+        }
+        return { items: firstItems, next_cursor: "next" };
+      });
+      mockListWithdrawals.mockImplementation(async (params) => {
+        if (params?.page === 2) {
+          await oldPage.promise;
+          return {
+            items: [withdrawalItem("obsolete")],
+            total: 26,
+            page: 2,
+            pageSize: 25,
+          };
+        }
+        if (refreshing) await refresh.promise;
+        return {
+          items: [withdrawalItem(refreshing ? "replacement" : "first")],
+          total: refreshing ? 1 : 26,
+          page: 1,
+          pageSize: 25,
+        };
+      });
+      const { result } = renderHook(
+        () => useFeeds({ ...NO_FILTERS, includeCareWithdrawals: true }),
+        { wrapper: providersWith(new Map()) },
+      );
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      await waitFor(() => expect(current().hasMore).toBe(true));
+      let loading!: Promise<void>;
+      if (!refreshFirst) {
+        act(() => {
+          loading = current().loadMore();
+        });
+      }
+      refreshing = true;
+      let reloading!: Promise<void>;
+      act(() => {
+        reloading =
+          kind === "merged"
+            ? result.current.feed.reload()
+            : result.current.withdrawals.load();
+      });
+      await waitFor(() =>
+        expect(
+          kind === "merged" ? mockListHistory : mockListWithdrawals,
+        ).toHaveBeenCalledTimes(refreshFirst ? 2 : 3),
+      );
+      if (refreshFirst) {
+        act(() => {
+          loading = current().loadMore();
+        });
+      }
+      await act(async () => {
+        oldPage.resolve();
+        await loading;
+      });
+      expect(current().items).toEqual(
+        kind === "merged" ? firstItems : [withdrawalItem("first")],
+      );
+      await act(async () => {
+        refresh.resolve();
+        await reloading;
+      });
+      await waitFor(() =>
+        expect(current().items).toEqual(
+          kind === "merged"
+            ? [openItem("excused", "replacement")]
+            : [withdrawalItem("replacement")],
+        ),
+      );
+    },
+  );
+
   it("rejects a merged page after an identical first-page reload", async () => {
     const first = {
       items: Array.from({ length: 25 }, (_, i) =>

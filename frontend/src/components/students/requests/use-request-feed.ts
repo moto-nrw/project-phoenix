@@ -240,13 +240,24 @@ export function useMergedRequestFeed(
     view,
     requestFeedParts(view, filters),
   );
+  // Jeder gestartete Abgleich entwertet laufende Nachladeseiten sofort,
+  // bevor SWR den bisherigen Snapshot durch die neue Antwort ersetzt.
+  const refreshRef = useRef({ pending: false });
   const {
     data,
     error: swrError,
     mutate,
   } = useSWRAuth<RequestFeedSnapshot>(
     key,
-    () => loadFirstRequestPage(sources),
+    async () => {
+      const refresh = { pending: true };
+      refreshRef.current = refresh;
+      try {
+        return await loadFirstRequestPage(sources);
+      } finally {
+        refresh.pending = false;
+      }
+    },
     feedSwrOptions(view),
   );
   const currentRef = useRef<{
@@ -298,9 +309,12 @@ export function useMergedRequestFeed(
 
   const loadMoreRef = useRef<() => Promise<void>>(async () => undefined);
   const loadMore = useCallback(async () => {
-    if (!data?.hasMore || loadingMore) return;
+    if (!data?.hasMore || loadingMore || refreshRef.current.pending) return;
     const base = data;
+    const refresh = refreshRef.current;
     const isCurrent = () =>
+      refreshRef.current === refresh &&
+      !refresh.pending &&
       currentRef.current?.key === key &&
       currentRef.current.data?.snapshot === base.snapshot &&
       currentRef.current.data.feed === base.feed;
@@ -417,6 +431,9 @@ export function useWithdrawalFeed(
         filters.studentId ?? null,
       ])
     : null;
+  // Jeder gestartete Abgleich entwertet laufende Nachladeseiten sofort,
+  // bevor SWR den bisherigen Snapshot durch die neue Antwort ersetzt.
+  const refreshRef = useRef({ pending: false });
   const {
     data,
     error: swrError,
@@ -424,14 +441,20 @@ export function useWithdrawalFeed(
   } = useSWRAuth<WithdrawalFeedSnapshot>(
     key,
     async () => {
-      const page = await fetchWithdrawalPage(view, filters, 1);
-      return {
-        snapshot: Symbol(),
-        key: key ?? "",
-        items: page.items,
-        hasMore: page.items.length < page.total,
-        nextPage: 2,
-      };
+      const refresh = { pending: true };
+      refreshRef.current = refresh;
+      try {
+        const page = await fetchWithdrawalPage(view, filters, 1);
+        return {
+          snapshot: Symbol(),
+          key: key ?? "",
+          items: page.items,
+          hasMore: page.items.length < page.total,
+          nextPage: 2,
+        };
+      } finally {
+        refresh.pending = false;
+      }
     },
     feedSwrOptions(view),
   );
@@ -481,9 +504,12 @@ export function useWithdrawalFeed(
 
   const loadMoreRef = useRef<() => Promise<void>>(async () => undefined);
   const loadMore = useCallback(async () => {
-    if (!data?.hasMore || loadingMore) return;
+    if (!data?.hasMore || loadingMore || refreshRef.current.pending) return;
     const base = data;
+    const refresh = refreshRef.current;
     const isCurrent = () =>
+      refreshRef.current === refresh &&
+      !refresh.pending &&
       currentRef.current?.key === key &&
       currentRef.current.data?.snapshot === base.snapshot &&
       currentRef.current.data.nextPage === base.nextPage;
