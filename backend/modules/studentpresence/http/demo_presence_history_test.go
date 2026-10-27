@@ -101,11 +101,13 @@ func TestDemoPresenceHistoryRejectsInvalidInput(t *testing.T) {
 	}{
 		"owner rejects the day": {school: "42", body: demoPresenceHistoryBody(t, map[string]any{"student_id": 7, "date": "2026-10-20", "device_id": 3}),
 			reject: fmt.Errorf("%w: student 7 leaves before arriving", studentpresence.ErrPresenceHistoryInvalid)},
-		"invalid date":   {school: "42", body: demoPresenceHistoryBody(t, map[string]any{"student_id": 7, "date": "20.10.2026", "device_id": 3})},
-		"unknown field":  {school: "42", body: []byte(`{"days":[],"tenant_id":1}`)},
-		"too many days":  {school: "42", body: demoPresenceHistoryBody(t, tooMany...)},
-		"body too large": {school: "42", body: []byte(`{"days":[` + strings.Repeat(" ", 1<<20) + `]}`)},
-		"invalid school": {school: "0", body: demoPresenceHistoryBody(t)},
+		"invalid date":      {school: "42", body: demoPresenceHistoryBody(t, map[string]any{"student_id": 7, "date": "20.10.2026", "device_id": 3})},
+		"unknown field":     {school: "42", body: []byte(`{"days":[],"tenant_id":1}`)},
+		"second JSON value": {school: "42", body: []byte(`{"days":[]}{"days":[]}`)},
+		"trailing bytes":    {school: "42", body: []byte(`{"days":[]}not-json`)},
+		"too many days":     {school: "42", body: demoPresenceHistoryBody(t, tooMany...)},
+		"body too large":    {school: "42", body: []byte(`{"days":[` + strings.Repeat(" ", 1<<20) + `]}`)},
+		"invalid school":    {school: "0", body: demoPresenceHistoryBody(t)},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

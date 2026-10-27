@@ -47,11 +47,12 @@ type protectedRouteProvisioningService struct {
 	organizationtenancy.Provisioning
 	createSchoolFn func(context.Context, *organizationtenancy.CreateSchool, int64, net.IP) (*organizationtenancy.School, error)
 	reads          []organizationtenancy.OperatorReadAccess
+	readErr        error
 }
 
 func (s *protectedRouteProvisioningService) RecordOperatorRead(_ context.Context, access organizationtenancy.OperatorReadAccess) error {
 	s.reads = append(s.reads, access)
-	return nil
+	return s.readErr
 }
 
 func (s *protectedRouteProvisioningService) CreateSchool(ctx context.Context, school *organizationtenancy.CreateSchool, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
@@ -314,6 +315,52 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 	require.Len(t, provisioningService.reads, 1)
 	assert.Equal(t, organizationtenancy.ReadSchools, provisioningService.reads[0].View)
 	assert.EqualValues(t, 42, provisioningService.reads[0].OperatorID)
+}
+
+func TestDemoPresenceHistoryRouteRequiresAudit(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		auditErr error
+		status   int
+	}{
+		{name: "recorded", status: http.StatusNoContent},
+		{name: "unavailable", auditErr: &organizationtenancy.OperatorAuditUnavailableError{Err: fmt.Errorf("audit unavailable")}, status: http.StatusServiceUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			authService := &mockOperatorAuthService{
+				getOperatorFn: func(_ context.Context, id int64) (*identityaccess.Operator, error) {
+					op := &identityaccess.Operator{Active: true}
+					op.ID = id
+					return op, nil
+				},
+			}
+			provisioningService := &protectedRouteProvisioningService{readErr: tc.auditErr}
+			historyCalled := false
+			history := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				historyCalled = true
+				w.WriteHeader(http.StatusNoContent)
+			})
+			router := operatorRouter(operatorIdentity{access: authService, sessions: operatorTestSessions(t, authService)},
+				provisioningoperator.ProvisioningConfig{Service: provisioningService}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, history)
+			req := httptest.NewRequest(http.MethodPost, "/schools/42/demo-presence-history", nil)
+			req.Header.Set("Authorization", "Bearer "+operatorRouteAccessToken(t, 42))
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			require.Equal(t, tc.status, rr.Code, rr.Body.String())
+			require.Len(t, provisioningService.reads, 1)
+			assert.Equal(t, organizationtenancy.ReadDemoPresenceHistory, provisioningService.reads[0].View)
+			assert.EqualValues(t, 42, provisioningService.reads[0].SchoolID)
+			assert.EqualValues(t, 42, provisioningService.reads[0].OperatorID)
+			assert.Equal(t, tc.auditErr == nil, historyCalled, "the write must not run when its audit cannot be recorded")
+			if tc.auditErr != nil {
+				assert.Contains(t, rr.Body.String(), `"code":"operator.audit_unavailable"`)
+			}
+		})
+	}
 }
 
 // testOperatorRouter mounts the operator routes over the given Identity &

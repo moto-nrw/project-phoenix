@@ -4,6 +4,7 @@ import (
 	json "encoding/json"
 	errors "errors"
 	fmt "fmt"
+	io "io"
 	http "net/http"
 	time "time"
 
@@ -88,6 +89,9 @@ func decodeDemoPresenceHistory(w http.ResponseWriter, r *http.Request) ([]studen
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&body); err != nil {
 		return nil, fmt.Errorf("invalid presence history: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("invalid presence history: unexpected trailing data: %w", err)
 	}
 	if len(body.Days) > maxDemoPresenceHistoryDays {
 		return nil, fmt.Errorf("presence history holds %d days, at most %d per request", len(body.Days), maxDemoPresenceHistoryDays)
