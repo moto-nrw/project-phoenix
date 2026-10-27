@@ -148,6 +148,7 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
+import { StudentSearchTransitCard } from "~/components/students/student-search-transit-card";
 import {
   useAttendanceWebEnabled,
   useTenantSlugSafe,
@@ -3445,6 +3446,20 @@ function SearchPageContent() {
               />
             </div>
           )}
+
+          {/* Unterwegs-Kinder einem Raum zuweisen (#5026): wie auf „Räume“
+              führt die Karte zur Seite „Unterwegs“, der Rückweg zurück
+              hierher. */}
+          <StudentSearchTransitCard
+            students={filteredStudents}
+            show={
+              isToday &&
+              (effectiveAttendanceFilter === "unterwegs" ||
+                effectiveGroupMode === "status" ||
+                effectiveGroupMode === "room")
+            }
+            fromParam={fromParam}
+          />
 
           {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar.
           Check-in toggles TODAY's attendance, so it hides on other dates. */}

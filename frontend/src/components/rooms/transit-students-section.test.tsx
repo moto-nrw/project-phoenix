@@ -474,6 +474,9 @@ describe("TransitStudentsSection", () => {
         "room-students-",
         "dashboard",
         "timetable-roster-",
+        // #5026: „Alle Kinder“ (Liste) und der Unterwegs-Zähler
+        // (dashboard-analytics) zeigen das Kind danach im Raum.
+        "search-students-",
       ]),
     );
   });

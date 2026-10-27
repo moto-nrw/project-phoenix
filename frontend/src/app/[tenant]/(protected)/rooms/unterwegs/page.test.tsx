@@ -85,6 +85,31 @@ describe("TransitPage", () => {
     );
   });
 
+  it("returns to the filtered child overview it was opened from", () => {
+    searchParams.set("from", "/students/search?status=unterwegs");
+    render(<TransitPage />);
+
+    const back = screen.getByTestId("back-button");
+    expect(back).toHaveAttribute(
+      "data-href",
+      "/students/search?status=unterwegs",
+    );
+    expect(back).toHaveTextContent("Zurück zur Kinderübersicht");
+    expect(screen.getByTestId("transit-section")).toHaveAttribute(
+      "data-from",
+      `/rooms/unterwegs?from=${encodeURIComponent("/students/search?status=unterwegs")}`,
+    );
+  });
+
+  it("falls back to the rooms for a foreign return path", () => {
+    searchParams.set("from", "/settings");
+    render(<TransitPage />);
+
+    const back = screen.getByTestId("back-button");
+    expect(back).toHaveAttribute("data-href", "/rooms");
+    expect(back).toHaveTextContent("Zurück zu den Räumen");
+  });
+
   it("is switched off in binary presence mode", () => {
     presenceModeState.mode = "binary";
     render(<TransitPage />);

@@ -28,6 +28,7 @@ import { roomService, studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { SEARCH_STUDENTS_KEY_PREFIX } from "~/lib/swr/search-students-key";
 import type { Room } from "~/lib/room-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
@@ -138,13 +139,16 @@ export function TransitStudentsSection({
   // which carries the room's visits since #2096) and "timetable-roster-"
   // keep the /active-supervisions room grid and roster in sync when this
   // section is embedded there — without them the assigned children only
-  // appear once an SSE event happens to arrive.
+  // appear once an SSE event happens to arrive. "dashboard" also covers the
+  // Unterwegs counter (dashboard-analytics); the search-students prefix
+  // refreshes „Alle Kinder“, whose card leads here (#5026).
   const mutateMatching = useTenantMutateMatching([
     "room-students-",
     "room-detail-",
     "rooms-list",
     "dashboard",
     "timetable-roster-",
+    SEARCH_STUDENTS_KEY_PREFIX,
   ]);
 
   const {

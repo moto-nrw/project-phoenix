@@ -13,6 +13,12 @@ import { RoomsGridSkeleton } from "../page-skeleton";
 const TRANSIT_PATH = "/rooms/unterwegs";
 
 /**
+ * Der Einstieg „Unterwegs“ auf „Alle Kinder“ (#5026) führt dorthin zurück;
+ * jeder andere Rückweg geht zu den Räumen.
+ */
+const CHILD_OVERVIEW_PATH = "/students/search";
+
+/**
  * Kinder ohne Raumzuweisung (#3115). Bis dahin ein Slide-over auf /rooms
  * („Unterwegs"); jetzt eine Seite wie jeder Raum, damit „Zurück", ein
  * geteilter Link und ein Neuladen dort landen, wo man war.
@@ -32,7 +38,11 @@ function TransitPageContent() {
   const searchParams = useSearchParams();
   const referrer = resolveDetailReferrer(searchParams.get("from"), "/rooms", [
     "/rooms",
+    CHILD_OVERVIEW_PATH,
   ]);
+  const backLabel = referrer.startsWith(CHILD_OVERVIEW_PATH)
+    ? "Zurück zur Kinderübersicht"
+    : "Zurück zu den Räumen";
   const transitReferrer = `${TRANSIT_PATH}?from=${encodeURIComponent(referrer)}`;
 
   return (
@@ -46,7 +56,7 @@ function TransitPageContent() {
       statsLoading={totalCount === null}
       back
       backHref={referrer}
-      backLabel="Zurück zu den Räumen"
+      backLabel={backLabel}
       leading={<MotoConceptIcon concept="transit" size={40} />}
     >
       <TransitStudentsSection

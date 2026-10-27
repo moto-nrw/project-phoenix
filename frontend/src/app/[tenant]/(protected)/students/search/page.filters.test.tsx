@@ -255,6 +255,27 @@ vi.mock("~/components/students/student-card", () => ({
   StudentPendingExcusedRow: () => <div />,
 }));
 
+// Die Karte „Unterwegs“ (#5026) prüft ihre Rechte selbst
+// (student-search-transit-card.test.tsx); hier zählt, was die Seite ihr gibt.
+vi.mock("~/components/students/student-search-transit-card", () => ({
+  StudentSearchTransitCard: ({
+    show,
+    fromParam,
+    students,
+  }: {
+    show: boolean;
+    fromParam: string;
+    students: readonly unknown[];
+  }) => (
+    <div
+      data-testid="transit-card"
+      data-show={String(show)}
+      data-from={fromParam}
+      data-count={students.length}
+    />
+  ),
+}));
+
 import StudentSearchPage from "./page";
 
 // Defaults of the former files; a describe overrides what its file mocked
@@ -1437,5 +1458,63 @@ describe("StudentSearchPage — planning date (#1939)", () => {
       "entschuldigt",
       "entschuldigt-klassenfahrt",
     ]);
+  });
+});
+
+describe("StudentSearchPage — Unterwegs-Karte (#5026)", () => {
+  resetDocumentAfterAll();
+
+  const mockStudent = {
+    id: "7",
+    first_name: "Max",
+    second_name: "Mustermann",
+    school_class: "1a",
+    current_location: "Anwesend",
+    has_full_access: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    currentSearch = new URLSearchParams();
+    localStorage.clear();
+    mockUseImmutableSWR.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+    });
+    mockUseSWRAuth.mockImplementation((key: string | null) =>
+      key === "search-rooms-list"
+        ? { data: [], isLoading: false, error: null }
+        : { data: { students: [mockStudent] }, isLoading: false, error: null },
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    localStorage.clear();
+  });
+
+  it("offers the card while the list is grouped by status, with the way back", async () => {
+    currentSearch = new URLSearchParams({ view: "status" });
+
+    render(<StudentSearchPage />);
+
+    await screen.findByTestId("student-card-7");
+    const card = screen.getByTestId("transit-card");
+    expect(card).toHaveAttribute("data-show", "true");
+    expect(card).toHaveAttribute("data-count", "1");
+    expect(decodeURIComponent(card.getAttribute("data-from") ?? "")).toBe(
+      "/students/search?view=status",
+    );
+  });
+
+  it("keeps the card closed while the list neither filters nor groups by Unterwegs", async () => {
+    render(<StudentSearchPage />);
+
+    await screen.findByTestId("student-card-7");
+    expect(screen.getByTestId("transit-card")).toHaveAttribute(
+      "data-show",
+      "false",
+    );
   });
 });
