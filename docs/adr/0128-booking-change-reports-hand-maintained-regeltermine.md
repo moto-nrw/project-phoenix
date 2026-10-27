@@ -22,7 +22,10 @@ roster impact: the Regeltermine the resync rewrote and those that keep the
 child on a weekday the change took away. Timetable names the latter through
 the new read `timetable.StudentTemplateDays.ManualStudentPlan`. Care Plan
 reaches it through its consumer port `BookingManualPlans`, bound at the root.
-The office then confirms the removal per Regeltermin. Timetable runs it as
+Timetable does not know which offering carries a Regeltermin, so a weekday
+counts as taken away when the change drops more offerings on it than it newly
+books. A switch between Ganztag variants on the same day reports nothing; a
+Randstunde dropped beside a Ganztag that stays is still reported. The office then confirms the removal per Regeltermin. Timetable runs it as
 its own command `RemoveStudentTemplateDays` under the tenant recurrence gate.
 It writes only Timetable's rows: the child's hand roster rows and planned
 occurrences of that series.
