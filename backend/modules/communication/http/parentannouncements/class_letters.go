@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -181,13 +182,20 @@ func classLetterAuthor(next http.Handler) http.Handler {
 	})
 }
 
+// classLetterErrors classifies the class-letter refusals of this layer; the
+// rest is the announcement owner's.
+var classLetterErrors = []common.ErrorRule{
+	{Target: errClassLetterTarget, Render: common.ErrorInvalidRequest},
+	{Target: errClassLetterUnreachable, Render: func(err error) render.Renderer {
+		return common.ErrorForbiddenWithCode(err, common.CodeCommunicationClassLetterClassNotReachable)
+	}},
+}
+
 func renderClassLetterError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, errClassLetterTarget):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, errClassLetterUnreachable):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCommunicationClassLetterClassNotReachable))
-	default:
+	renderer := common.RenderWithRules(err, classLetterErrors, func(error) render.Renderer { return nil })
+	if renderer == nil {
 		renderAnnouncementError(w, r, err)
+		return
 	}
+	common.RenderError(w, r, renderer)
 }

@@ -200,6 +200,14 @@ export function classLetterSenderLine(
   return `${announcement.sender_name}, Lehrkraft der ${schoolClassLabel(announcement.sender_school_class)}`;
 }
 
+/** Die Zeile, mit der die OGS einen Klassenbrief als nur lesbar erkennt. */
+export function classLetterReadOnlyNote(
+  announcement: Pick<Announcement, "sender_name" | "sender_school_class">,
+): string | undefined {
+  const sender = classLetterSenderLine(announcement);
+  return sender ? `Von ${sender} · nur zum Lesen` : undefined;
+}
+
 /** Kurze, namenlose Zusammenfassung für die Liste (z. B. „2 Gruppen, 1 Klasse"). */
 export function summarizeTargets(targets: AnnouncementTarget[]): string {
   if (targets.length === 0) return "–";

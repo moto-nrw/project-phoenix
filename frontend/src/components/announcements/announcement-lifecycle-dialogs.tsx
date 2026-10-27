@@ -15,7 +15,7 @@ import {
   unpublishAnnouncement,
 } from "~/lib/parent-announcements-api";
 import type { Announcement } from "~/lib/parent-announcements-api";
-import { withApiBase } from "~/lib/parent-announcements-api";
+import { isClassLetter, withApiBase } from "~/lib/parent-announcements-api";
 import { summarizeTargets } from "./announcement-meta";
 
 const logger = createLogger({ component: "AnnouncementLifecycle" });
@@ -259,14 +259,14 @@ export function buildAnnouncementMenuItems(
   handlers: MenuHandlers,
 ): OverflowMenuItem[] {
   const items: OverflowMenuItem[] = [];
-  const readOnly =
-    !!announcement.sender_school_class && !handlers.classLetterAuthor;
+  const readOnly = isClassLetter(announcement) && !handlers.classLetterAuthor;
   if (readOnly) {
     return handlers.onView ? [viewItem(handlers.onView)] : [];
   }
   if (announcement.status === "draft") {
     items.push({
-      label: "Veröffentlichen",
+      // moto schule sagt Senden: die Lehrkraft schickt einen Brief ab.
+      label: handlers.classLetterAuthor ? "Senden" : "Veröffentlichen",
       icon: <Send className="size-4" aria-hidden />,
       onClick: handlers.onPublish,
     });

@@ -212,7 +212,7 @@ export const ERROR_CATALOG = {
       "communication.staff_notice_outdated":
         "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
       "communication.class_letter_class_not_reachable":
-        "Diese Klasse ist Ihnen nicht zugewiesen. Bitte wählen Sie eine eigene Klasse.",
+        "Diese Klasse ist Ihnen nicht zugeordnet. Bitte wählen Sie eine eigene Klasse.",
       "communication.class_letter_read_only":
         "Diesen Elternbrief hat eine Lehrkraft geschrieben. Nur sie kann ihn ändern, senden oder löschen.",
       "devices.tag_scan_already_resolved":

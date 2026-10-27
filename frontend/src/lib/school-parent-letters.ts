@@ -58,6 +58,18 @@ export function schoolParentLetterKindLabel(
   );
 }
 
+/** Der Stand eines Briefs in den Worten von moto schule: gesendet statt veröffentlicht. */
+export const SCHOOL_PARENT_LETTER_STATUS: Readonly<
+  Record<
+    Announcement["status"],
+    { label: string; tone: "gray" | "green" | "orange" }
+  >
+> = {
+  draft: { label: "Entwurf", tone: "gray" },
+  published: { label: "Gesendet", tone: "green" },
+  expired: { label: "Abgelaufen", tone: "orange" },
+};
+
 export interface SchoolParentLetterDraft {
   readonly schoolClass: string;
   readonly title: string;

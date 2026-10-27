@@ -2547,7 +2547,7 @@
         "survey_already_answered": "Sie haben an dieser Umfrage schon teilgenommen. Die Antwort lässt sich nicht mehr ändern.",
         "survey_not_draft": "Diese Umfrage ist schon veröffentlicht. Sie lässt sich nicht mehr ändern.",
         "survey_anonymous": "Diese Umfrage ist anonym. Einzelne Antworten gibt es dafür nicht.",
-        "class_letter_class_not_reachable": "Diese Klasse ist Ihnen nicht zugewiesen. Bitte wählen Sie eine eigene Klasse.",
+        "class_letter_class_not_reachable": "Diese Klasse ist Ihnen nicht zugeordnet. Bitte wählen Sie eine eigene Klasse.",
         "class_letter_read_only": "Diesen Elternbrief hat eine Lehrkraft geschrieben. Nur sie kann ihn ändern, senden oder löschen."
       },
       "enrollment": {

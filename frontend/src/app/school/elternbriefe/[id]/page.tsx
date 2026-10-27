@@ -16,7 +16,6 @@ import {
   PublishAnnouncementDialog,
   UnpublishAnnouncementDialog,
 } from "~/components/announcements/announcement-lifecycle-dialogs";
-import { AnnouncementStatusBadge } from "~/components/announcements/announcement-meta";
 import { BackLink } from "~/components/ui/back-link";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -31,9 +30,13 @@ import {
   type Announcement,
 } from "~/lib/parent-announcements-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
-import { SCHOOL_PARENT_LETTERS_ROUTE } from "~/lib/school-parent-letters";
+import {
+  SCHOOL_PARENT_LETTER_STATUS,
+  SCHOOL_PARENT_LETTERS_ROUTE,
+} from "~/lib/school-parent-letters";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 type LifecycleAction = "publish" | "unpublish" | "delete" | null;
 
@@ -118,7 +121,7 @@ export default function SchoolParentLetterPage() {
           <p className="mt-1 text-sm text-gray-500">{statusLine}</p>
         </div>
         <div className="flex items-center gap-2">
-          <AnnouncementStatusBadge status={letter.status} />
+          <StatusBadge {...SCHOOL_PARENT_LETTER_STATUS[letter.status]} />
           {menuItems.length > 0 ? (
             <OverflowMenu ariaLabel="Weitere Aktionen" items={menuItems} />
           ) : null}

@@ -91,6 +91,7 @@ describe("Elternbriefe in moto schule (#4800)", () => {
 
     expect(screen.getAllByText("Wandertag").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Klasse 3b").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Gesendet").length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByText("Wandertag")[0]!);
     expect(mockPush).toHaveBeenCalledWith("/school/elternbriefe/11");
   });

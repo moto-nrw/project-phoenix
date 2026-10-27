@@ -379,6 +379,17 @@ describe("class letters of a Lehrkraft (#4800)", () => {
         onDelete: vi.fn(),
       }).map((item) => item.label),
     ).toEqual(["Zurückziehen", "Löschen"]);
+    expect(
+      buildAnnouncementMenuItems(
+        { ...classLetter, status: "draft" },
+        {
+          classLetterAuthor: true,
+          onPublish: vi.fn(),
+          onUnpublish: vi.fn(),
+          onDelete: vi.fn(),
+        },
+      ).map((item) => item.label),
+    ).toEqual(["Senden", "Löschen"]);
   });
 
   it("calls the routes of moto schule when given their base", async () => {

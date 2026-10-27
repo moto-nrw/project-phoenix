@@ -122,6 +122,11 @@ export function isLetter(announcement: Announcement): boolean {
   return announcement.delivery_mode === "letter";
 }
 
+/** True when a Lehrkraft wrote the announcement in moto schule (#4800). */
+export function isClassLetter(announcement: Announcement): boolean {
+  return !!announcement.sender_school_class;
+}
+
 /** True when the announcement asks the parents a question. */
 export function isPoll(announcement: Announcement): boolean {
   return announcement.response_type !== "none";

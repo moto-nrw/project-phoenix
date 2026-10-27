@@ -12,7 +12,6 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Plus } from "lucide-react";
 
-import { AnnouncementStatusBadge } from "~/components/announcements/announcement-meta";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -55,9 +54,11 @@ import {
   schoolParentLetterKindLabel,
   schoolParentLetterRequest,
   type SchoolParentLetterDraft,
+  SCHOOL_PARENT_LETTER_STATUS,
 } from "~/lib/school-parent-letters";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { StatusBadge } from "~/components/ui/status-badge";
 
 const logger = createLogger({ component: "SchoolParentLettersPage" });
 
@@ -90,7 +91,9 @@ const columns: DataTableColumn<Announcement>[] = [
     header: "Status",
     stacked: "meta",
     sortValue: (row) => row.status,
-    render: (row) => <AnnouncementStatusBadge status={row.status} />,
+    render: (row) => (
+      <StatusBadge {...SCHOOL_PARENT_LETTER_STATUS[row.status]} />
+    ),
   },
   {
     key: "sent",
