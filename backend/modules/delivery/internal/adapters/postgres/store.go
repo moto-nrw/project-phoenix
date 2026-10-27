@@ -44,27 +44,6 @@ const emailEnqueueSQL = `
 		AND NOT EXISTS (SELECT 1 FROM inserted)
 	LIMIT 1`
 
-const pushEnqueueSQL = `
-	WITH inserted AS (
-		INSERT INTO platform.push_outbox (
-			tenant_id, kind, idempotency_key, related_entity_type,
-			related_entity_id, recipient, payload, status, next_retry_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)
-		ON CONFLICT (tenant_id, idempotency_key)
-			WHERE idempotency_key IS NOT NULL DO NOTHING
-		RETURNING id
-	)
-	SELECT id, FALSE AS duplicate, FALSE AS conflict FROM inserted
-	UNION ALL
-	SELECT id, TRUE AS duplicate,
-		NOT (kind = ? AND recipient = ?::jsonb AND payload = ?::jsonb
-		 AND COALESCE(related_entity_type, '') = COALESCE(?, '')
-		 AND COALESCE(related_entity_id, 0) = COALESCE(?, 0)) AS conflict
-	FROM platform.push_outbox
-	WHERE ? IS NOT NULL AND tenant_id = ? AND idempotency_key = ?
-		AND NOT EXISTS (SELECT 1 FROM inserted)
-	LIMIT 1`
-
 const emailExistingEnqueueSQL = `
 	SELECT id, TRUE AS duplicate,
 		NOT (kind = ? AND recipient = ?::jsonb AND payload = ?::jsonb
@@ -73,15 +52,6 @@ const emailExistingEnqueueSQL = `
 	FROM platform.email_outbox
 	WHERE COALESCE(tenant_id, 0) = COALESCE(?, 0) AND COALESCE(organization_id, 0) = COALESCE(?, 0)
 		AND idempotency_key = ?
-	LIMIT 1`
-
-const pushExistingEnqueueSQL = `
-	SELECT id, TRUE AS duplicate,
-		NOT (kind = ? AND recipient = ?::jsonb AND payload = ?::jsonb
-		 AND COALESCE(related_entity_type, '') = COALESCE(?, '')
-		 AND COALESCE(related_entity_id, 0) = COALESCE(?, 0)) AS conflict
-	FROM platform.push_outbox
-	WHERE tenant_id = ? AND idempotency_key = ?
 	LIMIT 1`
 
 const emailDeadLetterExpiredDispatchSQL = `UPDATE platform.email_outbox
@@ -293,39 +263,13 @@ func enqueueEmailIntent(ctx context.Context, db bun.IDB, intent domain.Intent) (
 	return result, nil
 }
 
-// enqueuePushIntent inserts a push intent of a school or reads the one with
-// its idempotency key.
-func enqueuePushIntent(ctx context.Context, db bun.IDB, intent domain.Intent) (domain.Enqueued, error) {
-	var result domain.Enqueued
-	err := db.NewRaw(pushEnqueueSQL,
-		intent.TenantID, intent.Template, intent.IdempotencyKey, intent.RelatedEntityType,
-		intent.RelatedEntityID, intent.Recipient, intent.Payload, intent.NextRetryAt,
-		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
-		intent.IdempotencyKey, intent.TenantID, intent.IdempotencyKey,
-	).Scan(ctx, &result)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return domain.Enqueued{}, fmt.Errorf("delivery postgres: enqueue %s: %w", intent.Transport, err)
-	}
-	if result.ID > 0 || intent.IdempotencyKey == nil {
-		return result, nil
-	}
-	err = db.NewRaw(pushExistingEnqueueSQL,
-		intent.Template, intent.Recipient, intent.Payload, intent.RelatedEntityType, intent.RelatedEntityID,
-		intent.TenantID, intent.IdempotencyKey,
-	).Scan(ctx, &result)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return domain.Enqueued{}, fmt.Errorf("delivery postgres: read existing %s intent: %w", intent.Transport, err)
-	}
-	return result, nil
-}
-
 // intentDB resolves the caller's unit of an intent: the Träger transaction
-// for a mail of a Träger (ADR 0110), the tenant or administrative one
-// otherwise.
+// for a mail (ADR 0110) or a deferred push (ADR 0126) of a Träger, the
+// tenant or administrative one otherwise.
 func (s *Store) intentDB(ctx context.Context, intent domain.Intent) (bun.IDB, error) {
 	if intent.OrganizationID > 0 {
-		if intent.Transport != domain.TransportEmail || intent.TenantID != 0 {
-			return nil, errors.New("delivery postgres: a Träger intent is an e-mail without a school")
+		if intent.TenantID != 0 {
+			return nil, errors.New("delivery postgres: a Träger intent names no school")
 		}
 		return RequireTraegerDatabase(ctx, intent.OrganizationID)
 	}

@@ -71,6 +71,15 @@ type Config struct {
 	// (#4662) in the school's data access log.
 	ChildDataAccess ChildDataAccessLog
 
+	// Document inbox (#4671, ADR 0126): the documents of the Elternabrechnung
+	// in the Träger transaction, the Träger of a school, the address of an
+	// account, and the push that a document arrived.
+	BillingDocuments BillingDocuments
+	TraegerRuntime   TraegerRuntime
+	SchoolTraeger    SchoolTraeger
+	ParentAccounts   ParentAccounts
+	DocumentNotifier BillingDocumentNotifier
+
 	// Owner commands. Care Plan records absences, the guardian leg of a
 	// day's pickup exception and the Stammdaten requests; People Directory
 	// writes the guardian and student rows; Audit Platform appends the

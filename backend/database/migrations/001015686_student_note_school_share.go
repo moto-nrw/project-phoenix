@@ -18,9 +18,9 @@ func init() {
 		Version:     studentNoteSchoolShareVersion,
 		Description: studentNoteSchoolShareDescription,
 		DependsOn: []string{
-			schoolAbsenceReportsVersion, // the last migration before this one
-			studentNotesVersion,         // the table the share is a column of
-			schoolDayHintsVersion,       // adds origin 'school', which is never shared back
+			parentBillingDocumentInboxVersion, // the last migration before this one
+			studentNotesVersion,               // the table the share is a column of
+			schoolDayHintsVersion,             // adds origin 'school', which is never shared back
 		},
 	})
 	Migrations.MustRegister(studentNoteSchoolShareUp, studentNoteSchoolShareDown)

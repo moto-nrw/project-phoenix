@@ -32,6 +32,7 @@ import {
   FolderOpenIcon,
   EyeIcon,
   FileArrowDownIcon,
+  FileTextIcon,
   FingerprintSimpleIcon,
   FirstAidKitIcon,
   ForkKnifeIcon,
@@ -433,6 +434,14 @@ export const MOTO_CONCEPTS = {
   // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
   // Mitarbeitenden, über die die OGS entscheidet.
   requests: concept("Anfragen", TrayIcon, "blue", "function", "communication"),
+  // Dokumente des Trägers an die Familie (#4671), etwa Bestätigungsschreiben.
+  documents: concept(
+    "Dokumente",
+    FileTextIcon,
+    "petrol",
+    "function",
+    "communication",
+  ),
   // Dateiablage (#2596): gemeinsame Dateien der OGS mit Ordner-Freigaben.
   files: concept("Dateien", FolderOpenIcon, "neutral", "function", "system"),
   rfid: concept(

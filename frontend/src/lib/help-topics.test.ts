@@ -593,7 +593,8 @@ describe("getParentHelpTopicForPath", () => {
     // 24 seit #4901: die eigene Einwilligung zur Nutzungsanalyse.
     // 25 seit #4781 („An einer Umfrage teilnehmen“).
     // 26 seit #4661 („Für die Ferienbetreuung anmelden“).
-    expect(parentTopics).toHaveLength(26);
+    // 27 seit #4671 („Dokumente vom Träger finden“).
+    expect(parentTopics).toHaveLength(27);
     expect(
       parentTopics.every(
         (topic) =>

@@ -104,6 +104,8 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /parent/holiday-registrations/{token}/family
 	GET /parent/me/children/{studentId}/pickup-permission-requests
 	GET /parent/me/children/{studentId}/pickup-requests/{requestId}/proof
+	GET /parent/me/documents
+	GET /parent/me/documents/{organizationId}/{documentId}/pdf
 	GET /parent/me/messages/group-threads
 	GET /parent/me/messages/group-threads/{groupThreadId}
 	GET /parent/me/news/{announcementId}/survey
