@@ -19,7 +19,14 @@
  * Entscheidungen und nachgeladene Seiten schreiben in denselben Eintrag.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { useSession } from "next-auth/react";
 
@@ -104,6 +111,8 @@ interface RequestFeedSource extends FeedSource<AnyItem> {
  * nach den geladenen Seiten; er wird nie verändert, nur ersetzt.
  */
 interface RequestFeedSnapshot {
+  // Auch eine inhaltlich gleiche erste Seite beginnt einen neuen Stand.
+  readonly snapshot: symbol;
   readonly items: AnyItem[];
   readonly hasMore: boolean;
   readonly pages: number;
@@ -197,6 +206,7 @@ async function loadFirstRequestPage(
   const feed = createFeedState<AnyItem>(reporting);
   const page = await takeMergedPage(reporting, feed, PAGE_SIZE);
   return {
+    snapshot: Symbol(),
     items: page.items,
     hasMore: page.hasMore,
     pages: 1,
@@ -239,6 +249,16 @@ export function useMergedRequestFeed(
     () => loadFirstRequestPage(sources),
     feedSwrOptions(view),
   );
+  const currentRef = useRef<{
+    key: string | null;
+    data: RequestFeedSnapshot | undefined;
+  } | null>(null);
+  useLayoutEffect(() => {
+    currentRef.current = { key, data };
+    return () => {
+      currentRef.current = null;
+    };
+  }, [key, data]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [autoLoadFailed, setAutoLoadFailed] = useState(false);
   const loadError = useApiLoadError();
@@ -279,18 +299,25 @@ export function useMergedRequestFeed(
   const loadMoreRef = useRef<() => Promise<void>>(async () => undefined);
   const loadMore = useCallback(async () => {
     if (!data?.hasMore || loadingMore) return;
-    const base = data.feed;
+    const base = data;
+    const isCurrent = () =>
+      currentRef.current?.key === key &&
+      currentRef.current.data?.snapshot === base.snapshot &&
+      currentRef.current.data.feed === base.feed;
     // Eine Kopie: der Cache-Eintrag bleibt, wie er war, bis die Seite da ist.
-    const feed = cloneFeedState(base);
+    const feed = cloneFeedState(base.feed);
     setLoadingMore(true);
     clearError();
     try {
       const page = await takeMergedPage(sources, feed, PAGE_SIZE);
+      // Schon ein unverändertes mutate markiert den aktuellen SWR-Schlüssel
+      // als geändert und kann dessen laufende erste Antwort verwerfen.
+      if (!isCurrent()) return;
       await mutate(
         // Hat ein Neuladen die Liste inzwischen ersetzt, gehört die Seite zu
         // einem Stand, den niemand mehr sieht.
         (current) =>
-          current?.feed === base
+          current?.snapshot === base.snapshot && current.feed === base.feed
             ? {
                 ...current,
                 items: [...current.items, ...page.items],
@@ -303,6 +330,8 @@ export function useMergedRequestFeed(
       );
       setAutoLoadFailed(false);
     } catch (err) {
+      // Fehler eines ersetzten Stands betreffen die aktuelle Liste nicht.
+      if (!isCurrent()) return;
       logger.warn("aggregated_request_list_load_more_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -311,7 +340,7 @@ export function useMergedRequestFeed(
     } finally {
       setLoadingMore(false);
     }
-  }, [clearError, data, loadingMore, mutate, reportError, sources]);
+  }, [clearError, data, key, loadingMore, mutate, reportError, sources]);
   useEffect(() => {
     loadMoreRef.current = loadMore;
   });
@@ -406,6 +435,16 @@ export function useWithdrawalFeed(
     },
     feedSwrOptions(view),
   );
+  const currentRef = useRef<{
+    key: string | null;
+    data: WithdrawalFeedSnapshot | undefined;
+  } | null>(null);
+  useLayoutEffect(() => {
+    currentRef.current = { key, data };
+    return () => {
+      currentRef.current = null;
+    };
+  }, [key, data]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [autoLoadFailed, setAutoLoadFailed] = useState(false);
   const load = useCallback(async () => {
@@ -444,11 +483,17 @@ export function useWithdrawalFeed(
   const loadMore = useCallback(async () => {
     if (!data?.hasMore || loadingMore) return;
     const base = data;
+    const isCurrent = () =>
+      currentRef.current?.key === key &&
+      currentRef.current.data?.snapshot === base.snapshot &&
+      currentRef.current.data.nextPage === base.nextPage;
     setLoadingMore(true);
     clearError();
     try {
       const pageNumber = base.nextPage;
       const page = await fetchWithdrawalPage(view, filters, pageNumber);
+      // Vor mutate prüfen: es ist inzwischen an den neuen Schlüssel gebunden.
+      if (!isCurrent()) return;
       await mutate(
         // Nur an den Stand anhängen, von dem aus nachgeladen wurde: nach einem
         // Filterwechsel oder Neuladen gehört die Seite zu keiner Liste mehr.
@@ -467,6 +512,8 @@ export function useWithdrawalFeed(
       );
       setAutoLoadFailed(false);
     } catch (err) {
+      // Ein alter Fehlschlag darf auch das automatische Nachladen nicht sperren.
+      if (!isCurrent()) return;
       logger.warn("care_withdrawal_list_load_more_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -475,7 +522,7 @@ export function useWithdrawalFeed(
     } finally {
       setLoadingMore(false);
     }
-  }, [clearError, data, filters, loadingMore, mutate, reportError, view]);
+  }, [clearError, data, filters, key, loadingMore, mutate, reportError, view]);
   useEffect(() => {
     loadMoreRef.current = loadMore;
   });

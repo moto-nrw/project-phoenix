@@ -200,14 +200,19 @@ function openItem(type: string, id: string) {
 }
 
 /** Wie openItem, aber mit dem Zeitpunkt, nach dem Quellen verschränkt werden. */
-function stampedItem(type: string, id: string, occurredAt: string) {
+function stampedItem(
+  type: string,
+  id: string,
+  occurredAt: string,
+  urgentToday = false,
+) {
   return {
     request_type: type,
     occurred_at: occurredAt,
     student_id: "10",
     student_name: "Mia Muster",
     expected_version: `v${id}`,
-    urgent_today: false,
+    urgent_today: urgentToday,
     bulk_eligible: true,
     data: { id },
   } as never;
@@ -1406,11 +1411,14 @@ describe("AggregatedRequestList", () => {
     expect(screen.queryByText("absence read required")).toBeNull();
   });
 
-  function useFeeds(filters: AggregatedRequestFilters) {
-    const sources = useRequestSources("history", filters);
-    const feed = useMergedRequestFeed(sources, "history", filters);
+  function useFeeds(
+    filters: AggregatedRequestFilters,
+    view: "open" | "history" = "history",
+  ) {
+    const sources = useRequestSources(view, filters);
+    const feed = useMergedRequestFeed(sources, view, filters);
     const withdrawals = useWithdrawalFeed(
-      "history",
+      view,
       filters,
       feed.reportError,
       feed.clearError,
@@ -1562,6 +1570,205 @@ describe("AggregatedRequestList", () => {
         expect(result.current.withdrawals.items[0]?.id).toBe("replacement"),
       );
       expect(result.current.feed.error).toBeNull();
+    },
+  );
+
+  function deferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((onResolve, onReject) => {
+      resolve = onResolve;
+      reject = onReject;
+    });
+    return { promise, resolve, reject };
+  }
+
+  function withdrawalItem(id: string) {
+    return {
+      id,
+      studentId: "10",
+      firstName: "Mia",
+      lastName: "Muster",
+      schoolClass: "2a",
+      firstBookinglessDay: "2026-09-01",
+      urgency: "planned" as const,
+      state: "pending" as const,
+    };
+  }
+
+  it.each(["merged", "withdrawal"] as const)(
+    "does not discard an uncached filter's initial response when old %s pagination completes",
+    async (kind) => {
+      const oldPage = deferred<void>();
+      const newFirstPage = deferred<void>();
+      mockListHistory.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          await oldPage.promise;
+          return { items: [openItem("excused", "obsolete")] };
+        }
+        if (params?.search === "Mia") {
+          await newFirstPage.promise;
+          return { items: [openItem("excused", "replacement")] };
+        }
+        return {
+          items: Array.from({ length: 25 }, (_, i) =>
+            openItem("excused", String(i)),
+          ),
+          next_cursor: "next",
+        };
+      });
+      mockListWithdrawals.mockImplementation(async (params) => {
+        if (params?.page === 2) {
+          await oldPage.promise;
+          return {
+            items: [withdrawalItem("obsolete")],
+            total: 26,
+            page: 2,
+            pageSize: 25,
+          };
+        }
+        if (params?.search === "Mia") await newFirstPage.promise;
+        return {
+          items: [
+            withdrawalItem(params?.search === "Mia" ? "replacement" : "first"),
+          ],
+          total: params?.search === "Mia" ? 1 : 26,
+          page: 1,
+          pageSize: 25,
+        };
+      });
+      const filters = { ...NO_FILTERS, includeCareWithdrawals: true };
+      const { result, rerender } = renderHook(useFeeds, {
+        initialProps: filters,
+        wrapper: providersWith(new Map()),
+      });
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      await waitFor(() => expect(current().hasMore).toBe(true));
+      let loading!: Promise<void>;
+      act(() => {
+        loading = current().loadMore();
+      });
+      rerender({ ...filters, search: "Mia" });
+      expect(current().loading).toBe(true);
+      await act(async () => {
+        oldPage.resolve();
+        await loading;
+      });
+      await act(async () => {
+        newFirstPage.resolve();
+      });
+      await waitFor(() => expect(current().loading).toBe(false));
+      expect(current().items).toEqual(
+        kind === "merged"
+          ? [openItem("excused", "replacement")]
+          : [withdrawalItem("replacement")],
+      );
+    },
+  );
+
+  it("rejects a merged page after an identical first-page reload", async () => {
+    const first = {
+      items: Array.from({ length: 25 }, (_, i) =>
+        openItem("excused", String(i)),
+      ),
+      next_cursor: "next",
+    };
+    const oldPage = deferred<typeof first>();
+    mockListHistory
+      .mockResolvedValue(first)
+      .mockResolvedValueOnce(first)
+      .mockReturnValueOnce(oldPage.promise);
+    const { result } = renderHook(() => useFeeds(NO_FILTERS), {
+      wrapper: providersWith(new Map()),
+    });
+    await waitFor(() => expect(result.current.feed.items).toHaveLength(25));
+    let loading!: Promise<void>;
+    act(() => {
+      loading = result.current.feed.loadMore();
+    });
+    await act(async () => {
+      await result.current.feed.reload();
+    });
+    await act(async () => {
+      oldPage.resolve({
+        items: [openItem("excused", "obsolete")],
+        next_cursor: "last",
+      });
+      await loading;
+    });
+    expect(result.current.feed.items).toEqual(first.items);
+  });
+
+  it.each(["reload", "filter"] as const)(
+    "ignores superseded pagination failures after %s and still loads new pages automatically",
+    async (replacement) => {
+      const oldPage = deferred<void>();
+      let replaced = false;
+      const urgentItems = Array.from({ length: 25 }, (_, i) =>
+        stampedItem("excused", String(i), "2026-09-01T12:00:00Z", true),
+      );
+      mockListOpen.mockImplementation(async (params) => {
+        if (params?.cursor) {
+          if (!replaced) await oldPage.promise;
+          return { items: [openItem("excused", "new-page")] };
+        }
+        return { items: urgentItems, next_cursor: "next" };
+      });
+      mockListWithdrawals.mockImplementation(async (params) => {
+        if (params?.page === 2 && !replaced) await oldPage.promise;
+        return {
+          items: [withdrawalItem(params?.page === 2 ? "new-page" : "first")],
+          total: params?.page === 2 ? 2 : 26,
+          page: params?.page ?? 1,
+          pageSize: 25,
+        };
+      });
+      const filters = { ...NO_FILTERS, includeCareWithdrawals: true };
+      const { result, rerender } = renderHook(
+        (props) => useFeeds(props, "open"),
+        {
+          initialProps: filters,
+          wrapper: providersWith(new Map()),
+        },
+      );
+      await waitFor(() => {
+        expect(result.current.feed.loadingMore).toBe(true);
+        expect(result.current.withdrawals.loadingMore).toBe(true);
+      });
+      replaced = true;
+      if (replacement === "reload") {
+        await act(async () => {
+          await Promise.all([
+            result.current.feed.reload(),
+            result.current.withdrawals.load(),
+          ]);
+        });
+      } else {
+        rerender({ ...filters, search: "Mia" });
+      }
+      await waitFor(() => {
+        expect(result.current.feed.items).toEqual(urgentItems);
+        expect(result.current.withdrawals.items).toEqual([
+          withdrawalItem("first"),
+        ]);
+      });
+      await act(async () => {
+        oldPage.reject(
+          new ApiError("old page unavailable", 503, {
+            code: "general.unavailable",
+          }),
+        );
+      });
+      await waitFor(() => {
+        expect(result.current.feed.items).toHaveLength(26);
+        expect(result.current.withdrawals.items).toEqual([
+          withdrawalItem("first"),
+          withdrawalItem("new-page"),
+        ]);
+      });
+      expect(result.current.feed.error).toBeNull();
+      expect(result.current.withdrawals.error).toBeNull();
     },
   );
 });
