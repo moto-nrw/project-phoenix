@@ -3,6 +3,11 @@ import type { NextRequest } from "next/server";
 import { REQUEST_ID_HEADER } from "~/lib/request-id";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
+import { berlinTodayISO } from "~/lib/date-helpers";
+import {
+  resolvePlanungRedirect,
+  type PlanungRedirectTarget,
+} from "~/components/timetable/planung-redirect";
 
 /**
  * Combined proxy for:
@@ -879,6 +884,70 @@ function redirectLegacySelection(request: NextRequest): NextResponse | null {
   return withSecurityHeaders(NextResponse.redirect(url));
 }
 
+/**
+ * Retired tenant pages that live on in bookmarks and old links. They used to
+ * be client pages that loaded a chunk and an RSC payload only to redirect;
+ * answering here sends the browser on before any page renders (#5001).
+ * `/planung` derives its area from `?tab=`; the other planning routes have a
+ * fixed one.
+ */
+const RETIRED_PLANNING_ROUTES: Readonly<
+  Record<string, PlanungRedirectTarget | undefined>
+> = {
+  "/planung": undefined,
+  "/timetables": "betreuungsplan",
+  "/vertretungsplan": "vertretung",
+  "/staff/dienstplan": "dienstplan",
+};
+
+function retiredTenantRouteTarget(
+  appPath: string,
+  searchParams: URLSearchParams,
+): string | null {
+  if (appPath === "/invitations") return "/database/personal";
+  if (!Object.hasOwn(RETIRED_PLANNING_ROUTES, appPath)) return null;
+  // Berlin calendar day (docs/07 §1), so the `d` anchor matches the
+  // backend's timezone.TodayDate().
+  return resolvePlanungRedirect(
+    searchParams,
+    berlinTodayISO(),
+    RETIRED_PLANNING_ROUTES[appPath],
+  );
+}
+
+/**
+ * Covers a tenant subdomain (bare or slug-prefixed path) and path mode on
+ * the bare domain; the tenant prefix of the request stays on the target.
+ */
+function redirectRetiredTenantRoute(
+  request: NextRequest,
+  tenantSlug: string | null,
+): NextResponse | null {
+  const { pathname, searchParams } = request.nextUrl;
+  let prefix = "";
+  let appPath = pathname;
+  if (tenantSlug) {
+    if (pathname.startsWith(`/${tenantSlug}/`)) {
+      prefix = `/${tenantSlug}`;
+      appPath = pathname.slice(prefix.length);
+    }
+  } else {
+    const bareAppPath = getBareTenantPrefixedPath(pathname);
+    if (!bareAppPath) return null;
+    prefix = `/${pathname.split("/")[1]}`;
+    appPath = bareAppPath;
+  }
+
+  const target = retiredTenantRouteTarget(appPath, searchParams);
+  if (target === null) return null;
+
+  const url = request.nextUrl.clone();
+  const queryStart = target.indexOf("?");
+  url.pathname = `${prefix}${queryStart === -1 ? target : target.slice(0, queryStart)}`;
+  url.search = queryStart === -1 ? "" : target.slice(queryStart);
+  return withSecurityHeaders(NextResponse.redirect(url));
+}
+
 // --- Main proxy ---
 
 export function proxy(request: NextRequest): NextResponse {
@@ -1075,6 +1144,9 @@ function routeRequest(request: NextRequest): NextResponse {
     const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}/login${search}`;
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
+
+  const retiredRoute = redirectRetiredTenantRoute(request, tenantSlug);
+  if (retiredRoute) return retiredRoute;
 
   // 4. Tenant subdomain routing
   // No subdomain (bare domain): pass through without rewrite.
