@@ -313,6 +313,12 @@ func (rs *Resource) mountTemplateRoutes(r chi.Router, withTx common.Middleware) 
 	// (Mehrfach-Quelle): exakte Vorschau für den Regeltermin-Editor.
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Get("/offering-sources/combined-counts", rs.getCombinedOfferingSourceCounts)
+	// #5104: Vorschlag und Vorschau für einen Regeltermin, der noch geplant
+	// wird; der Dialog schickt die geplanten Kinder pro Wochentag mit.
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Get("/offering-sources/suggestion", rs.suggestDraftOfferingSource)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Get("/offering-sources/preview", rs.previewDraftOfferingSource)
 	r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
 		Get("/templates/{id}", rs.getTemplate)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
@@ -328,8 +334,24 @@ func (rs *Resource) mountTemplateRoutes(r chi.Router, withTx common.Middleware) 
 	// future instances.
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Post("/templates/{id}/end", rs.endTemplate)
+	// "Dort auch entfernen" (#5102): after a booking change takes weekdays
+	// away, take the child off a hand-maintained Regeltermin on exactly those
+	// weekdays from the effective date on.
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Post("/templates/{id}/students/{studentId}/remove-days", rs.removeStudentTemplateDays)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Delete("/templates/{id}", rs.archiveTemplate)
+	// Roster review (#5103): hand-kept Regeltermine that drift from the
+	// bookings, the preview and the switch to a Betreuungsangebot as
+	// source, and "Bleibt von Hand gepflegt".
+	r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
+		Get("/templates/roster-deviations", rs.listTemplateRosterDeviations)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Get("/templates/{id}/offering-preview", rs.previewTemplateOfferingSource)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Post("/templates/{id}/offering-connection", rs.connectTemplateOfferingSource)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Put("/templates/{id}/manual-roster", rs.setTemplateManualRoster)
 }
 
 // mountPlanningTrackRoutes registers the planning tracks of the planner.

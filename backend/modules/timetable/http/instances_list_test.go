@@ -33,8 +33,9 @@ import (
 // the first selected option explains the empty occurrence, and before that
 // phase's service start the occurrence waits for it.
 type stubOfferingSources struct {
-	options []timetable.OfferingSourceOption
-	err     error
+	options  []timetable.OfferingSourceOption
+	bookings []timetable.OfferingWeekdayBooking
+	err      error
 }
 
 func (s *stubOfferingSources) ListOfferingSourceOptions(
@@ -84,6 +85,14 @@ func (s *stubOfferingSources) TemplateRosterMaintenance(
 	_ []timetable.TemplateRosterMaintenanceQuery,
 ) (map[int64]timetable.TemplateRosterMaintenance, error) {
 	return nil, nil
+}
+
+func (s *stubOfferingSources) OfferingWeekdayBookings(
+	_ context.Context,
+	_ *int64,
+	_ calendar.Date,
+) ([]timetable.OfferingWeekdayBooking, error) {
+	return s.bookings, s.err
 }
 
 type listSetup struct {

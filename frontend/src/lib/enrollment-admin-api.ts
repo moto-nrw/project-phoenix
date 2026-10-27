@@ -1,3 +1,4 @@
+import type { RosterImpactWire } from "~/lib/roster-impact";
 import { announceEnrollmentReadChange } from "~/lib/enrollment-unread-api";
 import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
@@ -125,6 +126,13 @@ export interface AdminEnrollmentChangeRequest {
   reviewed_by_account_id?: number | null;
   request?: AdminRequestSummary;
   messages?: AdminEnrollmentChangeRequestMessage[];
+  /** An approval that changed bookings reports its effect per child (#5102). */
+  roster_impacts?: Array<{
+    child_id: string;
+    student_id: string;
+    first_name: string;
+    roster_impact: RosterImpactWire;
+  }>;
 }
 
 export interface AdminChildDataCorrectionResult extends AdminEnrollmentChangeRequest {
@@ -688,11 +696,16 @@ export async function decideAdminChild(
   return readJSON<AdminRequestChild>(response);
 }
 
+/** The corrected child with its effect on the Regeltermine (#5102). */
+export type AdminChildOfferingsUpdate = AdminRequestChild & {
+  roster_impact?: RosterImpactWire;
+};
+
 export async function updateAdminChildOfferings(
   requestId: string,
   childId: string,
   input: UpdateAdminChildOfferingsInput,
-): Promise<AdminRequestChild> {
+): Promise<AdminChildOfferingsUpdate> {
   const response = await send(`/api/enrollment/admin/offerings`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -710,7 +723,7 @@ export async function updateAdminChildOfferings(
       "Betreuungsangebote konnten nicht gespeichert werden",
     );
   }
-  return readJSON<AdminRequestChild>(response);
+  return readJSON<AdminChildOfferingsUpdate>(response);
 }
 
 export async function correctAdminChildData(

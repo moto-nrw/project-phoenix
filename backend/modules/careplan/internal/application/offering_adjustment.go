@@ -36,6 +36,10 @@ func (m *BookingMaterialization) AdjustOfferings(ctx context.Context, in carepla
 	if err != nil {
 		return nil, err
 	}
+	rowsBefore, err := m.adjustedRosterRows(ctx, work)
+	if err != nil {
+		return nil, err
+	}
 	if err := m.persistOfferingAdjustment(ctx, work); err != nil {
 		return nil, err
 	}
@@ -49,10 +53,14 @@ func (m *BookingMaterialization) AdjustOfferings(ctx context.Context, in carepla
 	if err := m.ReconcileOfferingPickupForStudents(ctx, []int64{*work.child.CreatedStudentID}); err != nil {
 		return nil, fmt.Errorf("decision: reconcile offering pickup times: %w", err)
 	}
+	impact, err := m.offeringAdjustmentImpact(ctx, work, rowsBefore)
+	if err != nil {
+		return nil, err
+	}
 	return &careplan.OfferingAdjustmentResult{
 		RequestChildID: work.child.ID, Before: derefBookedOfferings(work.beforeLinks), Selections: work.selections,
 		Offerings: derefOfferings(work.offeringByID), Overridden: work.overridden,
-		CompleteWithdrawal: work.isCompleteWithdrawal,
+		CompleteWithdrawal: work.isCompleteWithdrawal, RosterImpact: impact,
 	}, nil
 }
 

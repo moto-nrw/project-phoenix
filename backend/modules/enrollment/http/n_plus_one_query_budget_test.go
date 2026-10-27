@@ -8,6 +8,8 @@ import (
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
@@ -192,4 +194,71 @@ func createBudgetReviewRows(t *testing.T, env *rolloverTestEnv, count int) {
 		sourceID := sources[0].ID
 		createBudgetRequest(t, env, env.sourcePhase.ID, prefix+"-target", 1, enrollmentNative.ChildStatusPendingAdminReview, &sourceID)
 	}
+}
+
+// TestOfferingWeekdayBookingsListsTheBookedWeekdays: the Regeltermin hint
+// (#5103) reads each approved child of an active offering with the weekdays
+// its booking plans.
+func TestOfferingWeekdayBookingsListsTheBookedWeekdays(t *testing.T) {
+	t.Parallel()
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	source := createAdjustmentCareOffering(t, env, uniqueSchemaName("Randstunde Hinweis"))
+	_, _, studentID := submitApprovedAdjustmentChild(t, env, "hinweis@example.com", "Hinweis", []*offeringContract.CareOfferingRecord{source})
+	lister := env.bookings.(careplan.OfferingSourceEditor)
+
+	var bookings []careplan.OfferingWeekdayBooking
+	err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		bookings, err = lister.OfferingWeekdayBookings(txCtx, nil, calendar.Date(env.sourcePhase.ServiceStartDate))
+		return err
+	})
+	require.NoError(t, err)
+
+	require.Len(t, bookings, 1)
+	assert.Equal(t, source.ID, bookings[0].OfferingID)
+	assert.Equal(t, source.Name, bookings[0].OfferingName)
+	assert.Equal(t, studentID, bookings[0].StudentID)
+	assert.Equal(t, []int{1}, bookings[0].Weekdays, "the booking plans Monday")
+	assert.Equal(t, source.CountsAsCare, bookings[0].CountsAsCare, "the catalog flags travel with the booking")
+	assert.Equal(t, source.IncludesLunch, bookings[0].IncludesLunch)
+}
+
+func TestOfferingWeekdayBookingsQueryBudget(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	source := createAdjustmentCareOffering(t, env, uniqueSchemaName("Hinweis Budget"))
+	lister := env.bookings.(careplan.OfferingSourceEditor)
+	approved := 0
+	approve := func(count int) {
+		for range count {
+			submitApprovedAdjustmentChild(t, env, fmt.Sprintf("hinweis-budget-%d@example.com", approved),
+				fmt.Sprintf("HinweisBudget%d", approved), []*offeringContract.CareOfferingRecord{source})
+			approved++
+		}
+	}
+	counter := testpkg.CaptureQueries(t, env.db)
+	run := func() []string {
+		var reads []string
+		err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			counter.Reset()
+			bookings, err := lister.OfferingWeekdayBookings(txCtx, nil, calendar.Date(env.sourcePhase.ServiceStartDate))
+			reads = counter.Operation("SELECT")
+			require.Len(t, bookings, approved)
+			return err
+		})
+		require.NoError(t, err)
+		return reads
+	}
+
+	approve(3)
+	small := run()
+	approve(5)
+	large := run()
+
+	t.Logf("query budget: 3 children → %d reads, 8 children → %d reads", len(small), len(large))
+	assert.Equal(t, len(small), len(large))
+	testpkg.AssertQueryBudget(t, "services.enrollment.offering_weekday_bookings.reads", large)
 }

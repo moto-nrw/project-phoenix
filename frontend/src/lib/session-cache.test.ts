@@ -435,18 +435,40 @@ describe("primeSessionCache when the sign-in ends or changes", () => {
     now.mockRestore();
   });
 
-  // Review of #5116: a school switch on another subdomain does not reach
-  // this tab's provider, so a primed session must not outlive the window of
-  // a looked-up one.
-  it("keeps a primed session no longer than the 10 s window", async () => {
+  // #5130: the BFF refuses a session of another school than the request's
+  // subdomain, so a primed session may stay until shortly after the
+  // provider's next poll (4 min) instead of the 10 s window of #5116.
+  it("keeps a primed session until shortly after the provider's next poll", async () => {
     const { getCachedSession, primeSessionCache } = await freshModule();
     primeSessionCache(session("primed", 1));
     mockGetSession.mockResolvedValueOnce(session("primed", 2));
 
     now.mockReturnValue(1_000_000 + 10_001);
-    const result = await getCachedSession();
+    expect((await getCachedSession())?.user?.tenantId).toBe(1);
+    expect(mockGetSession).not.toHaveBeenCalled();
 
-    expect(result?.user?.tenantId).toBe(2);
+    now.mockReturnValue(1_000_000 + 270_001);
+    expect((await getCachedSession())?.user?.tenantId).toBe(2);
+    expect(mockGetSession).toHaveBeenCalledTimes(1);
+  });
+
+  // #5130, replaces the 10 s window of #5116: a school switch on another
+  // subdomain drops this tab's session with the first refused request.
+  it("drops a primed session once the BFF refuses another school's session", async () => {
+    const { getCachedSession, primeSessionCache } = await freshModule();
+    const { apiErrorFromBody } = await import("./api-error");
+    primeSessionCache(session("primed", 1));
+    mockGetSession.mockResolvedValueOnce(session("primed", 2));
+
+    // Anker: the primed session serves without a lookup until the refusal.
+    expect((await getCachedSession())?.user?.tenantId).toBe(1);
+    expect(mockGetSession).not.toHaveBeenCalled();
+
+    apiErrorFromBody("Request refused", 409, {
+      code: "identity.session_tenant_mismatch",
+    });
+
+    expect((await getCachedSession())?.user?.tenantId).toBe(2);
     expect(mockGetSession).toHaveBeenCalledTimes(1);
   });
 

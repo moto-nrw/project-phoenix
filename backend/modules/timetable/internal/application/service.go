@@ -509,6 +509,32 @@ func (s *Service) ArchiveTemplate(ctx context.Context, id int64) (result int64, 
 	return result, err
 }
 
+// UpdateTemplateRosterReview validates a roster review write (#5103): a
+// source must name offerings and may carry either a Jahrgang or a Klassen
+// filter; at least one field must be set.
+func (s *Service) UpdateTemplateRosterReview(ctx context.Context, id int64, update timetable.TemplateRosterReviewUpdate) (result int64, err error) {
+	if id <= 0 || (update.Source == nil && update.ManualRosterConfirmed == nil) {
+		return 0, s.reject("update_template_roster_review", timetable.ErrInvalidGroup)
+	}
+	if update.Source != nil {
+		source := timetable.GroupInput{TargetGroupType: timetable.TargetGroupTypeOffering,
+			SourceCareOfferingIDs: update.Source.CareOfferingIDs, SourceGradeLevels: update.Source.GradeLevels,
+			SourceSchoolClasses: update.Source.SchoolClasses}
+		if len(source.SourceCareOfferingIDs) == 0 || !normalizeOfferingSource(&source) {
+			return 0, s.reject("update_template_roster_review", timetable.ErrInvalidGroup)
+		}
+		update.Source = &timetable.OfferingSourceInput{CareOfferingIDs: source.SourceCareOfferingIDs,
+			GradeLevels: source.SourceGradeLevels, SchoolClasses: source.SourceSchoolClasses}
+	}
+	err = s.runWrite(ctx, "update_template_roster_review", true, func(txCtx context.Context, stats *domain.OperationStats) error {
+		rows, queryStats, writeErr := s.store.UpdateTemplateRosterReview(txCtx, id, update)
+		stats.Add(queryStats)
+		result = rows
+		return writeErr
+	})
+	return result, err
+}
+
 func (s *Service) UpdateGroupOfferingSource(ctx context.Context, id int64, fields timetable.OfferingSourceInput) error {
 	source := timetable.GroupInput{TargetGroupType: timetable.TargetGroupTypeOffering,
 		SourceCareOfferingIDs: fields.CareOfferingIDs, SourceGradeLevels: fields.GradeLevels,

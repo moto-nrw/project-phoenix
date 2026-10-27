@@ -187,7 +187,7 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 	if actorRole == "" {
 		actorRole = "unknown"
 	}
-	if err := rs.OfferingChangeService.Decide(r.Context(), careplan.OfferingChangeDecisionInput{
+	impact, err := rs.OfferingChangeService.Decide(r.Context(), careplan.OfferingChangeDecisionInput{
 		RequestID:                   requestID,
 		Approve:                     *body.Approve,
 		Reason:                      body.Reason,
@@ -198,12 +198,28 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 		CompleteWithdrawalConfirmed: body.CompleteWithdrawalConfirmed,
 		ExpectedVersion:             body.ExpectedVersion,
 		ReasonRequired:              rs.staffReasonRequired(r),
-	}); err != nil {
+	})
+	if err != nil {
 		renderOfferingDecisionError(w, r, err)
 		return
 	}
+	common.Respond(w, r, http.StatusOK, newOfferingDecisionResponse(*body.Approve, impact), "Decision applied")
+}
 
-	common.Respond(w, r, http.StatusOK, map[string]string{"status": "ok"}, "Decision applied")
+func newOfferingDecisionResponse(approved bool, impact careplan.RosterImpact) offeringDecisionResponse {
+	out := offeringDecisionResponse{Status: "ok"}
+	if approved {
+		wire := newRosterImpactResponse(impact)
+		out.RosterImpact = &wire
+	}
+	return out
+}
+
+// offeringDecisionResponse confirms a decision; an approval carries its effect
+// on the child's Regeltermine (#5102).
+type offeringDecisionResponse struct {
+	Status       string                `json:"status"`
+	RosterImpact *rosterImpactResponse `json:"roster_impact,omitempty"`
 }
 
 // renderOfferingDecisionError maps the decision failures a reviewer can act on.
