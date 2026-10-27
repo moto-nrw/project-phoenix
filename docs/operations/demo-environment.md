@@ -150,6 +150,7 @@ image digests and configuration.
    the decrypted file or render Compose values into logs.
 2. Configure GitHub environment `demo` and repository secrets `DEMO_HOST`,
    `DEMO_SSH_KEY`, `DEMO_SSH_KNOWN_HOSTS`, plus the existing `SOPS_AGE_KEY`.
+   Its deployment branch policy allows `main` and `development`.
    The SOPS recipients match the other deployments. SSH host-key checking
    remains enabled. Missing demo secrets must not fall back to production.
 3. Before the first workflow deployment, establish a healthy baseline using
@@ -164,7 +165,11 @@ image digests and configuration.
 
 ## Deploy and rollback
 
-Run **Build and Push Docker Images** with branch `main` and environment `demo`.
+Run **Build and Push Docker Images** with branch `main` or `development` and
+environment `demo`. `development` ships a demo fix without a production
+release. A demo that runs a `development` build has its migrations; deploy it
+again from `development`, or from a `main` that contains that build: an older
+release would run against migrations it does not know.
 Only `workflow_dispatch` can deploy demo. Pushes to `main` still deploy only
 production; pushes to `development` still deploy only staging. The demo job
 uses GitHub environment `demo` and concurrency group `deploy-demo`. Each deploy
@@ -175,7 +180,7 @@ Release scripts are copied to `~/scripts/demo/`, the same per-environment
 layout as staging and production, which share their host and rely on separate
 script directories.
 
-For recovery, run **Manual Rollback**, also from `main`, and choose `demo`.
+For recovery, run **Manual Rollback**, also from `main` or `development`, and choose `demo`.
 It shares the deploy concurrency group and server-side lock. Three complete
 snapshot sets are retained in `~/backups/demo/`. Environment identity is
 checked before stopping services or restoring anything. A staging or production
