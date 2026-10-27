@@ -485,6 +485,25 @@ describe("StaffAbsenceRequestList", () => {
     expect(screen.queryByText("Mira Muster")).not.toBeInTheDocument();
   });
 
+  it("zeigt jeden Antrag nur einmal, auch wenn er doppelt ankommt (#4988)", async () => {
+    const other = { ...openRow(), id: "20", staff_name: "Tom Neu" };
+    listRequests.mockResolvedValue([openRow(), other, openRow()]);
+
+    render(
+      <StaffAbsenceRequestList
+        view="open"
+        filters={{ search: "", types: [] }}
+      />,
+    );
+
+    // Anker: die Liste ist geladen.
+    expect(await screen.findByText("Tom Neu")).toBeInTheDocument();
+    expect(screen.getAllByText("Mira Muster")).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Genehmigen" })).toHaveLength(
+      2,
+    );
+  });
+
   it("meldet eine abgelehnte Genehmigung über den gemeinsamen Fehlerweg", async () => {
     listRequests.mockResolvedValue([openRow()]);
     const refused = new ApiError("quota", 409, {

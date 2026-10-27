@@ -135,17 +135,18 @@ export function StaffAbsenceRequestList({
   const slug = useTenantSlugSafe();
   const list = `${slug ?? ""}|${family}`;
   const overlays = useListOverlays<StaffAbsenceRequestRow>(list);
-  const rows = useMemo(
-    () =>
-      data &&
-      applyListOverlays(
-        data.rows,
-        data.fetchedAt,
-        overlays,
-        (current, update) => update(current),
-      ),
-    [data, overlays],
-  );
+  const rows = useMemo(() => {
+    if (!data) return undefined;
+    const shown = applyListOverlays(
+      data.rows,
+      data.fetchedAt,
+      overlays,
+      (current, update) => update(current),
+    );
+    // Jeder Antrag höchstens einmal, wie in den anderen Anfragenlisten.
+    const seen = new Set<string>();
+    return shown.filter((row) => !seen.has(row.id) && seen.add(row.id));
+  }, [data, overlays]);
   const revalidateLists = useTenantMutateMatching([family]);
   const loadError = useSwrLoadError(error, "die Liste der Anträge", () =>
     mutate(),

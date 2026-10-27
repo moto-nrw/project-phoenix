@@ -62,7 +62,7 @@ import {
 } from "~/lib/list-overlays";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
-import type { AnyItem } from "./case-model";
+import { itemKey, type AnyItem } from "./case-model";
 import type { AggregatedRequestFilters } from "./filters";
 
 const logger = createLogger({ component: "AggregatedRequestList" });
@@ -270,6 +270,7 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   loadNext,
   autoLoad,
   applyUpdate,
+  itemId,
   reportError,
   clearError,
 }: {
@@ -287,6 +288,8 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   autoLoad: (snapshot: S) => boolean;
   /** Setzt eine lokale Änderung der Zeilen in den Stand der Liste um. */
   applyUpdate: (current: S, update: (items: T[]) => T[]) => S;
+  /** Die ID eines Eintrags; keine Liste zeigt dieselbe ID zweimal. */
+  itemId: (item: T) => string;
   reportError: ReportLoadError;
   clearError: () => void;
 }) {
@@ -306,16 +309,25 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
   const base = data && pages?.fetchedAt === data.fetchedAt ? pages.state : data;
   const shown = useMemo(
     () =>
-      base && applyListOverlays(base, base.fetchedAt, overlays, applyUpdate),
-    [applyUpdate, base, overlays],
+      base &&
+      uniqueItems(
+        applyListOverlays(base, base.fetchedAt, overlays, applyUpdate),
+        itemId,
+      ),
+    [applyUpdate, base, itemId, overlays],
   );
   // Die angezeigte erste Seite, gelesen erst, wenn eine Folgeseite ankommt.
   const dataRef = useRef(data);
   useLayoutEffect(() => {
     dataRef.current = data;
   });
-  const [pending, setPending] = useState<{ fetchedAt: number } | null>(null);
-  const loadingPage = pending !== null && pending.fetchedAt === data?.fetchedAt;
+  // Laufende Folgeseiten je erster Seite: `fetchedAt` ist eindeutig je Abruf
+  // und Schlüssel. Wer zu einem Filter zurückkehrt, findet dessen laufenden
+  // Abruf wieder, statt dieselbe Seite ein zweites Mal zu holen; die Antwort
+  // gilt nur für die erste Seite, zu der sie gehört.
+  const inFlight = useRef(new Set<number>());
+  const [pending, setPending] = useState<ReadonlySet<number>>(() => new Set());
+  const loadingPage = data !== undefined && pending.has(data.fetchedAt);
   const [autoLoadFailed, setAutoLoadFailed] = useState(false);
   // Laden und Abgleich im Hintergrund melden ihren Fehler über denselben
   // Fehlerpfad (#2513, #4988); die geladene Liste bleibt dabei stehen.
@@ -349,11 +361,11 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
 
   const loadMoreRef = useRef<() => Promise<void>>(async () => undefined);
   const loadMore = useCallback(async () => {
-    if (!shown?.hasMore || loadingPage) return;
+    if (!shown?.hasMore || inFlight.current.has(shown.fetchedAt)) return;
     const { fetchedAt } = shown;
     const isCurrent = () => dataRef.current?.fetchedAt === fetchedAt;
-    const request = { fetchedAt };
-    setPending(request);
+    inFlight.current.add(fetchedAt);
+    setPending(new Set(inFlight.current));
     clearError();
     try {
       const append = await loadNext(shown);
@@ -375,9 +387,10 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
       reportError(err, object, () => void loadMoreRef.current());
       setAutoLoadFailed(true);
     } finally {
-      setPending((current) => (current === request ? null : current));
+      inFlight.current.delete(fetchedAt);
+      setPending(new Set(inFlight.current));
     }
-  }, [clearError, loadNext, loadingPage, logEvent, object, reportError, shown]);
+  }, [clearError, loadNext, logEvent, object, reportError, shown]);
   useEffect(() => {
     loadMoreRef.current = loadMore;
   });
@@ -405,6 +418,24 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
     setItems,
     loadMore,
   };
+}
+
+/**
+ * Jede ID höchstens einmal, der erste Eintrag gilt. Hält die Liste frei von
+ * Doppelten, egal auf welchem Weg eine Seite zweimal ankommt.
+ */
+function uniqueItems<T, S extends PagedSnapshot<T>>(
+  state: S,
+  itemId: (item: T) => string,
+): S {
+  const seen = new Set<string>();
+  const items = state.items.filter((item) => {
+    const id = itemId(item);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+  return items.length === state.items.length ? state : { ...state, items };
 }
 
 /** Eine Änderung der Zeilen, auch in den noch nicht gezeigten Puffern. */
@@ -473,6 +504,7 @@ export function useMergedRequestFeed(
     object: LIST_OBJECT,
     logEvent: "aggregated_request_list_load_more_failed",
     applyUpdate: updateRequestFeed,
+    itemId: itemKey,
     loadFirst: () => loadFirstRequestPage(sources),
     loadNext,
     autoLoad,
@@ -519,6 +551,9 @@ interface WithdrawalFeedSnapshot extends PagedSnapshot<CareWithdrawalCompletion>
   readonly nextPage: number;
 }
 
+/** Die ID einer Abmeldung. */
+const withdrawalId = (row: CareWithdrawalCompletion) => row.id;
+
 /** Alle Seiten der Abmeldungen nachladen: ein Fall ist erst vollständig. */
 const ALWAYS = () => true;
 
@@ -558,6 +593,7 @@ export function useWithdrawalFeed(
     object: WITHDRAWAL_OBJECT,
     logEvent: "care_withdrawal_list_load_more_failed",
     applyUpdate: updateItems,
+    itemId: withdrawalId,
     loadFirst: async () => {
       const fetchedAt = startListFetch();
       const page = await fetchWithdrawalPage(view, filters, 1);

@@ -2561,4 +2561,150 @@ describe("AggregatedRequestList", () => {
       );
     },
   );
+  // Runde 4 (#4988): A lädt automatisch eine Folgeseite, B ebenso, zurück in
+  // A läuft ein Abgleich. A darf dieselbe Seite nicht ein zweites Mal holen
+  // und nicht zweimal anhängen, auch nicht, wenn der Abgleich danach mit 503
+  // scheitert.
+  it.each(["merged", "withdrawal"] as const)(
+    "holt und hängt die Folgeseite nach A, B, A nur einmal an (%s)",
+    async (kind) => {
+      await clearDefaultCache();
+      const pageA = deferred<void>();
+      const pageB = deferred<void>();
+      const refreshA = deferred<void>();
+      let firstA = 0;
+      let nextA = 0;
+      let nextB = 0;
+      const firstItems = Array.from({ length: 25 }, (_, i) =>
+        stampedItem("excused", String(i), "2026-09-09T12:00:00Z", true),
+      );
+      const withdrawalItems = Array.from({ length: 25 }, (_, i) =>
+        withdrawalItem(String(i)),
+      );
+      if (kind === "merged") {
+        mockListOpen.mockImplementation(async (params) => {
+          if (params?.cursor) {
+            if (params.search) {
+              nextB += 1;
+              await pageB.promise;
+            } else {
+              nextA += 1;
+              await pageA.promise;
+            }
+            return { items: [openItem("excused", "page-two")] };
+          }
+          if (!params?.search && ++firstA > 1) await refreshA.promise;
+          return { items: firstItems, next_cursor: "next" };
+        });
+      } else {
+        mockListWithdrawals.mockImplementation(async (params) => {
+          if (params?.page === 2) {
+            if (params.search) {
+              nextB += 1;
+              await pageB.promise;
+            } else {
+              nextA += 1;
+              await pageA.promise;
+            }
+            return {
+              items: [withdrawalItem("page-two")],
+              total: 26,
+              page: 2,
+              pageSize: 25,
+            };
+          }
+          if (!params?.search && ++firstA > 1) await refreshA.promise;
+          return { items: withdrawalItems, total: 26, page: 1, pageSize: 25 };
+        });
+      }
+      const filters = {
+        ...NO_FILTERS,
+        includeCareWithdrawals: kind === "withdrawal",
+      };
+      const { result, rerender } = renderHook(
+        (props) => useFeeds(props, "open"),
+        { initialProps: filters, wrapper: DefaultCacheProviders },
+      );
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+      const expected =
+        kind === "merged"
+          ? [...firstItems, openItem("excused", "page-two")]
+          : [...withdrawalItems, withdrawalItem("page-two")];
+      await waitFor(() => expect(nextA).toBe(1));
+      rerender({ ...filters, search: "Mia" });
+      await waitFor(() => expect(nextB).toBe(1));
+      rerender(filters);
+      await waitFor(() => expect(firstA).toBe(2));
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        pageA.resolve();
+      });
+      await waitFor(() => expect(current().items.length).toBeGreaterThan(25));
+      expect(current().items).toEqual(expected);
+      expect(nextA).toBe(1);
+
+      await act(async () => {
+        refreshA.reject(
+          new ApiError("refresh unavailable", 503, {
+            code: "general.unavailable",
+          }),
+        );
+      });
+      await waitFor(() => expect(current().error).toBeTruthy());
+      expect(current().items).toEqual(expected);
+      expect(nextA).toBe(1);
+      await clearDefaultCache();
+    },
+  );
+
+  // Die ID-Invariante (#4988): überschneiden sich zwei Seiten, steht jeder
+  // Eintrag trotzdem nur einmal in der Liste.
+  it.each(["merged", "withdrawal"] as const)(
+    "zeigt jede ID nur einmal, auch wenn sich Seiten überschneiden (%s)",
+    async (kind) => {
+      const firstItems = Array.from({ length: 25 }, (_, i) =>
+        stampedItem("excused", String(i), "2026-09-09T12:00:00Z", true),
+      );
+      const withdrawalItems = Array.from({ length: 25 }, (_, i) =>
+        withdrawalItem(String(i)),
+      );
+      mockListOpen.mockImplementation(async (params) =>
+        params?.cursor
+          ? { items: [firstItems[24], openItem("excused", "new")] as never[] }
+          : { items: firstItems, next_cursor: "next" },
+      );
+      mockListWithdrawals.mockImplementation(async (params) =>
+        params?.page === 2
+          ? {
+              items: [withdrawalItems[24]!, withdrawalItem("new")],
+              total: 27,
+              page: 2,
+              pageSize: 25,
+            }
+          : { items: withdrawalItems, total: 27, page: 1, pageSize: 25 },
+      );
+      const { result } = renderHook(
+        () =>
+          useFeeds(
+            { ...NO_FILTERS, includeCareWithdrawals: kind === "withdrawal" },
+            "open",
+          ),
+        { wrapper: providersWith(new Map()) },
+      );
+      const current = () =>
+        kind === "merged" ? result.current.feed : result.current.withdrawals;
+
+      await waitFor(() => expect(current().items).toHaveLength(26));
+      const ids = current().items.map((item) =>
+        kind === "merged"
+          ? itemKey(item as never)
+          : (item as { id: string }).id,
+      );
+      expect(new Set(ids).size).toBe(ids.length);
+    },
+  );
 });
