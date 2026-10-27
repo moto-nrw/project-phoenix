@@ -268,6 +268,13 @@ func (m *BookingMaterialization) sourcedTemplateSegment(
 		return careplan.LinkedSegment{}, false
 	}
 	group := careplan.LinkedGroup{ID: tmpl.ID, IsTemplate: true, CalendarPeriodID: tmpl.CalendarPeriodID}
+	if templateWithoutPeriod(group, schedules) {
+		// Neither the template nor a schedule names a planning period: the
+		// template-save resync plans such a template with a period-less row
+		// (sourcedTemplateDraft), so this feed must too. Skipping it would let
+		// a correction delete rows it never re-creates (#5114).
+		return careplan.LinkedSegment{Group: group, Schedules: schedules}, true
+	}
 	period, err := m.catalog.ResolveTemplatePeriod(ctx, group)
 	if err != nil {
 		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "calendar period not resolvable", err)
@@ -278,6 +285,20 @@ func (m *BookingMaterialization) sourcedTemplateSegment(
 		return careplan.LinkedSegment{}, false
 	}
 	return careplan.LinkedSegment{Group: group, Period: &period, Schedules: schedules}, true
+}
+
+// templateWithoutPeriod reports whether neither the template nor any of its
+// schedules carries a calendar_period_id.
+func templateWithoutPeriod(group careplan.LinkedGroup, schedules []careplan.LinkedSchedule) bool {
+	if group.CalendarPeriodID != nil {
+		return false
+	}
+	for _, schedule := range schedules {
+		if schedule.CalendarPeriodID != nil {
+			return false
+		}
+	}
+	return true
 }
 
 func addSourcedSegmentDraft(
