@@ -2841,6 +2841,7 @@
         "billing_letter_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_letters_exist": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_letters_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "billing_letters_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_run_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_run_empty": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "billing_run_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -2852,9 +2853,11 @@
         "contribution_rule_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "holiday_quote_invalid": "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
         "invoice_number_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "letter_mail_pending": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "letterhead_too_long": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "number_range_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-        "number_range_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "number_range_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "recipient_email_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

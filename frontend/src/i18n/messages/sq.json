@@ -2841,6 +2841,7 @@
         "billing_letter_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "billing_letters_exist": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "billing_letters_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "billing_letters_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "billing_run_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "billing_run_empty": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "billing_run_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
@@ -2852,9 +2853,11 @@
         "contribution_rule_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "holiday_quote_invalid": "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
         "invoice_number_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "letter_mail_pending": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "letterhead_too_long": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "number_range_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-        "number_range_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "number_range_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "recipient_email_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "pickup": {
         "bulk_exception_confirmation_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

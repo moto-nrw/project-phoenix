@@ -650,6 +650,8 @@ GET /traeger/billing-runs/periods
 GET /traeger/billing-runs/{id}
 GET /traeger/billing-runs/{id}/documents/{documentID}/letter
 GET /traeger/billing-runs/{id}/export
+GET /traeger/billing-runs/{id}/letters/print
+GET /traeger/billing-runs/{id}/mailings
 GET /traeger/contribution-rules/
 GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 GET /traeger/holiday-periods/
@@ -1076,8 +1078,10 @@ POST /traeger/auth/mfa/resend
 POST /traeger/auth/mfa/verify
 POST /traeger/billing-runs/
 POST /traeger/billing-runs/{id}/corrections
+POST /traeger/billing-runs/{id}/documents/{documentID}/mailings
 POST /traeger/billing-runs/{id}/letters
 POST /traeger/billing-runs/{id}/letters/preview
+POST /traeger/billing-runs/{id}/mailings
 POST /traeger/billing-runs/{id}/release
 POST /traeger/contribution-rules/
 POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm

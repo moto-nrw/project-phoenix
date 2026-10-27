@@ -4457,6 +4457,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.document_mailings",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.documents",
       "write_owner": "parent-billing"
     },

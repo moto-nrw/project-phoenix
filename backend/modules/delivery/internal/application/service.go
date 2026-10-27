@@ -240,6 +240,34 @@ func (s *Service) Statuses(ctx context.Context, tenantID int64, transport delive
 	if err != nil {
 		return nil, err
 	}
+	return intentStatuses(transport, rows)
+}
+
+// TraegerEmailStatuses reports the mails of a Träger for one related entity
+// (#4670). The store requires the caller's Träger transaction of that
+// Träger.
+func (s *Service) TraegerEmailStatuses(ctx context.Context, organizationID int64, related deliveryContract.RelatedEntity) (statuses []deliveryContract.Status, err error) {
+	if organizationID <= 0 {
+		return nil, errors.New("delivery: Träger is required")
+	}
+	related.Type = strings.TrimSpace(related.Type)
+	if err := validateRelated(related); err != nil {
+		return nil, err
+	}
+	started := time.Now()
+	var rows []domain.Intent
+	defer func() {
+		s.observe(domain.Observation{Operation: "status_query", Transport: string(domain.TransportEmail), Duration: time.Since(started), Count: len(rows), Err: err})
+	}()
+	rows, err = s.store.TraegerEmailStatuses(ctx, organizationID, related.Type, related.ID)
+	if err != nil {
+		return nil, err
+	}
+	return intentStatuses(deliveryContract.TransportEmail, rows)
+}
+
+// intentStatuses reports stored intents in the public status shape.
+func intentStatuses(transport deliveryContract.Transport, rows []domain.Intent) ([]deliveryContract.Status, error) {
 	statuses := make([]deliveryContract.Status, 0, len(rows))
 	for _, row := range rows {
 		var providerResult *deliveryContract.ProviderResult
