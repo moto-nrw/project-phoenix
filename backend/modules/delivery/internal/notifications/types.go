@@ -21,10 +21,12 @@ import (
 const (
 	PortalStaff  = "staff"
 	PortalParent = "parent"
-	// PortalSchool is the Lehrkraft portal "moto schule" (#2208). It has no
-	// catalogue of its own: a staff type opts into it with SchoolPortal, and
-	// the decision is stored on the same (account, type) row as in the OGS
-	// portal — the same person hears about the same conversation once.
+	// PortalSchool is the Lehrkraft portal "moto schule" (#2208). It borrows
+	// from the staff catalogue: a staff type opts into it with SchoolPortal,
+	// and the decision is stored on the same (account, type) row as in the
+	// OGS portal — the same person hears about the same conversation once.
+	// A type registered with PortalSchool itself exists only there (#4792):
+	// the OGS portal neither offers it nor delivers it.
 	PortalSchool = "school"
 )
 
@@ -77,7 +79,12 @@ const (
 	// (#2598) — staff to staff, no parent involved.
 	TypeStaffMessage = "staff_message"
 	// TypeStaffSurvey announces a new or still open staff survey (#4781).
-	TypeStaffSurvey        = "staff_survey"
+	TypeStaffSurvey = "staff_survey"
+	// TypeSchoolClassAbsenceReported tells a Lehrkraft or the
+	// Schulverwaltung in moto schule that a child of one of their classes was
+	// reported sick or excused for today (#4792).
+	TypeSchoolClassAbsenceReported = "school_class_absence_reported"
+
 	TypeParentAnnouncement = "parent_announcement"
 
 	// Parent-facing types added with issue #1671. Each one mirrors a channel the
@@ -133,7 +140,15 @@ func RegisterType(def TypeDefinition) {
 	if def.Key == "" || def.Label == "" || def.Portal == "" {
 		panic("notifications: incomplete type definition for key " + def.Key)
 	}
-	if def.Portal != PortalStaff && def.Portal != PortalParent {
+	switch def.Portal {
+	case PortalStaff, PortalParent:
+	case PortalSchool:
+		// A school-only type is already offered there; SchoolPortal only
+		// widens a staff type.
+		if def.SchoolPortal {
+			panic("notifications: school type " + def.Key + " must not set SchoolPortal")
+		}
+	default:
 		panic("notifications: unknown portal " + def.Portal + " for key " + def.Key)
 	}
 	switch def.Channel {
@@ -161,13 +176,14 @@ func RegisterType(def TypeDefinition) {
 }
 
 // OfferedInPortal reports whether a person using the given portal may see
-// and decide this type. The school portal borrows from the staff catalogue.
+// and decide this type. The school portal borrows from the staff catalogue
+// and adds its own school-only types.
 func OfferedInPortal(def TypeDefinition, portal string) bool {
 	if def.Channel == ChannelEmail {
 		return false
 	}
 	if portal == PortalSchool {
-		return def.Portal == PortalStaff && def.SchoolPortal
+		return def.Portal == PortalSchool || (def.Portal == PortalStaff && def.SchoolPortal)
 	}
 	return def.Portal == portal
 }
@@ -220,6 +236,7 @@ func init() {
 	registerStaffMessageTypes()
 	registerParentMessageTypes()
 	registerParentStatusTypes()
+	registerSchoolTypes()
 }
 
 func registerPickupTypes() {
@@ -401,6 +418,23 @@ func registerParentStatusTypes() {
 		Group:       GroupChildren,
 		Portal:      PortalParent,
 		TenantGate:  settingParentNotesEnabled,
+		SortOrder:   1,
+	})
+}
+
+// registerSchoolTypes adds the types only moto schule offers (#4792).
+func registerSchoolTypes() {
+
+	// Gated like the OGS sick note notice: a school that switched the
+	// absence notification off has decided against announcing health
+	// information at all, in either portal.
+	RegisterType(TypeDefinition{
+		Key:         TypeSchoolClassAbsenceReported,
+		Label:       "Krankmeldungen meiner Klassen",
+		Description: "Wenn ein Kind aus Ihren Klassen für heute krankgemeldet oder entschuldigt wird.",
+		Group:       GroupChildren,
+		Portal:      PortalSchool,
+		TenantGate:  settingAbsenceReportedEnabled,
 		SortOrder:   1,
 	})
 }

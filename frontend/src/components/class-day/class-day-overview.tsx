@@ -15,7 +15,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import type { CSSProperties } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -50,6 +50,7 @@ import {
 } from "./school-day";
 import type { SchoolDayListKey } from "./school-day";
 import { statusLabel } from "./status-labels";
+import { useClassDayRefresh } from "./use-class-day-refresh";
 
 const logger = createLogger({ component: "ClassDayOverview" });
 
@@ -340,6 +341,15 @@ export function ClassDayOverview({
       keepPreviousData: false,
     },
   );
+
+  // Eine neue Krankmeldung an dieser Schule aktualisiert die Zahlen der
+  // Übersicht ohne Neuladen der Seite (#4792); in der Schulansicht die
+  // Tagesübersicht der Schule, sonst die Klassenreports.
+  const refreshReports = useCallback(
+    () => void (schoolMode ? reloadSchoolDay() : reloadReports()),
+    [schoolMode, reloadSchoolDay, reloadReports],
+  );
+  useClassDayRefresh(refreshReports);
 
   const reports = useMemo<Record<string, ClassLine>>(() => {
     if (schoolMode) return schoolDay ? schoolDayLines(schoolDay) : {};

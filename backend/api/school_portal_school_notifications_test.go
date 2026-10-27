@@ -33,6 +33,17 @@ type schoolNotificationPreference struct {
 	Enabled   bool   `json:"enabled"`
 }
 
+func schoolPreference(t *testing.T, overview schoolNotificationPreferences, key string) schoolNotificationPreference {
+	t.Helper()
+	for _, entry := range overview.Types {
+		if entry.Key == key {
+			return entry
+		}
+	}
+	t.Fatalf("school catalogue has no %s", key)
+	return schoolNotificationPreference{}
+}
+
 func TestSchoolNotificationPreferences(t *testing.T) {
 	t.Parallel()
 	db, resource, tenantID, _ := setupSchoolRoute(t)
@@ -60,9 +71,12 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	for _, entry := range overview.Types {
 		keys = append(keys, entry.Key)
 	}
-	assert.Equal(t, []string{"staff_message"}, keys)
-	assert.True(t, overview.Types[0].Available, "the school switched the chat on")
-	assert.False(t, overview.Types[0].Enabled, "opt-in: nothing is on until the person decides")
+	assert.Equal(t, []string{"school_class_absence_reported", "staff_message"}, keys)
+	assert.True(t, schoolPreference(t, overview, "staff_message").Available, "the school switched the chat on")
+	assert.False(t, schoolPreference(t, overview, "staff_message").Enabled, "opt-in: nothing is on until the person decides")
+	// The class sick-note notice (#4792) is offered and starts off as well.
+	assert.True(t, schoolPreference(t, overview, "school_class_absence_reported").Available)
+	assert.False(t, schoolPreference(t, overview, "school_class_absence_reported").Enabled)
 
 	// Opting in writes the shared (account, type) row ...
 	req = httptest.NewRequest(http.MethodPut, "/notifications/preferences/"+"staff_message",
@@ -75,7 +89,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	overview = decodeSchoolPortalData[schoolNotificationPreferences](t, rec.Body.Bytes())
-	assert.True(t, overview.Types[0].Enabled)
+	assert.True(t, schoolPreference(t, overview, "staff_message").Enabled)
 
 	// ... and only the offered types can be decided from here.
 	req = httptest.NewRequest(http.MethodPut, "/notifications/preferences/"+"pickup_upcoming",
@@ -91,7 +105,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/notifications/preferences/", nil)
 	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
 	overview = decodeSchoolPortalData[schoolNotificationPreferences](t, rec.Body.Bytes())
-	assert.False(t, overview.Types[0].Enabled)
+	assert.False(t, schoolPreference(t, overview, "staff_message").Enabled)
 
 	// Scope isolation, symmetric to every other school surface.
 	req = httptest.NewRequest(http.MethodGet, "/notifications/preferences/", nil)
