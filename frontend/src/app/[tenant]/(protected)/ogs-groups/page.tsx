@@ -15,6 +15,7 @@ import {
   useLayoutEffect,
 } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
@@ -121,6 +122,9 @@ import {
 } from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
+import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
+import { useArrivalOwner } from "~/lib/hooks/use-arrival-owner";
+import { useLatest } from "~/lib/hooks/use-latest";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -345,9 +349,9 @@ function buildGroupTabItems(groups: readonly OGSGroup[]) {
   return groups.map(toItem);
 }
 
-function persistGroupSelection(group: OGSGroup): void {
-  localStorage.setItem("sidebar-last-group", group.id);
-  localStorage.setItem("sidebar-last-group-name", group.name);
+function persistGroupSelection(memory: SidebarMemory, group: OGSGroup): void {
+  memory.write("sidebar-last-group", group.id);
+  memory.write("sidebar-last-group-name", group.name);
 }
 
 function OGSGroupPageContent() {
@@ -359,6 +363,7 @@ function OGSGroupPageContent() {
       router.push("/");
     },
   });
+  const memory = useSidebarMemory();
 
   const { setGroupAttendanceCount } = useGroupAttendanceCounts();
   const canAdministerGroups = hasEffectiveAdminScope(session);
@@ -411,7 +416,7 @@ function OGSGroupPageContent() {
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(() => {
     if (groupParam) return groupParam;
     if (typeof window !== "undefined") {
-      return localStorage.getItem("sidebar-last-group");
+      return memory.read("sidebar-last-group");
     }
     return null;
   });
@@ -452,14 +457,13 @@ function OGSGroupPageContent() {
     error: liveError,
     mutate: reloadLive,
   } = useSWRAuth<OgsLiveViewData>(
-    session?.user?.token ? `ogs-students-${selectedGroupId ?? "auto"}` : null,
+    hasSessionAccess(session)
+      ? `ogs-students-${selectedGroupId ?? "auto"}`
+      : null,
     async () => {
       logger.debug("SWR fetching aggregated OGS live view");
       const start = performance.now();
-      const data = await fetchOgsGroupLive(
-        session?.user?.token,
-        selectedGroupId,
-      );
+      const data = await fetchOgsGroupLive(selectedGroupId);
       logger.debug("SWR fetch complete", {
         duration_ms: (performance.now() - start).toFixed(0),
       });
@@ -480,6 +484,13 @@ function OGSGroupPageContent() {
       refreshInterval: GROUP_ACCESS_RECONCILE_INTERVAL_MS,
     },
   );
+
+  // Whose group list the page holds (#5000). After an account switch the
+  // previous account's list stays until the new one's arrives; nothing from
+  // it is remembered for the new account. The ref keeps this effect from
+  // running again just because the account changed.
+  const liveDataOwner = useArrivalOwner(liveData, memory.owner);
+  const memoryRef = useLatest(memory);
 
   // Sync the aggregated live data with local state. The response is
   // self-describing (groupId says which group its live sections belong to),
@@ -574,10 +585,15 @@ function OGSGroupPageContent() {
         const resolvedGroup = ogsGroups.find(
           (group) => group.id === dataGroupId,
         );
-        if (resolvedGroup) {
-          persistGroupSelection(resolvedGroup);
-        } else {
-          localStorage.setItem("sidebar-last-group", dataGroupId);
+        const pageMemory = memoryRef.current;
+        // A list that still belongs to the previous account is not
+        // remembered for this one.
+        if (liveDataOwner.current === pageMemory.owner) {
+          if (resolvedGroup) {
+            persistGroupSelection(pageMemory, resolvedGroup);
+          } else {
+            pageMemory.write("sidebar-last-group", dataGroupId);
+          }
         }
       }
     }
@@ -589,13 +605,20 @@ function OGSGroupPageContent() {
       setPickupTimes(liveData.pickupTimes);
       setIsLoading(false);
     }
-  }, [liveData, selectedGroupId, setGroupAttendanceCount, tenantMutate]);
+  }, [
+    liveData,
+    liveDataOwner,
+    memoryRef,
+    selectedGroupId,
+    setGroupAttendanceCount,
+    tenantMutate,
+  ]);
 
   // Sync selected group with URL param.
   // The sidebar navigates with the correct ?group= param at click-time,
   // so this effect only needs to react to URL changes.
   // When no param is present (e.g. fresh login), persist the default (first group)
-  // so localStorage stays in sync and the sidebar picks it up on next click.
+  // so the sidebar memory stays in sync and the sidebar picks it up on next click.
   useEffect(() => {
     if (allGroups.length === 0) return;
 
@@ -608,21 +631,24 @@ function OGSGroupPageContent() {
       }
     } else {
       // No ?group= param (e.g. after login or browser back) — restore from
-      // localStorage so the user returns to their previously selected group.
-      const savedGroupId = localStorage.getItem("sidebar-last-group");
+      // the sidebar memory so the user returns to their previously selected group.
+      const savedGroupId = memory.read("sidebar-last-group");
       const savedGroup = savedGroupId
         ? allGroups.find((g) => g.id === savedGroupId)
         : undefined;
+      // A list that still belongs to the previous account is not
+      // remembered for this one (#5000).
+      const ownList = liveDataOwner.current === memory.owner;
       if (savedGroup) {
-        persistGroupSelection(savedGroup);
+        if (ownList) persistGroupSelection(memory, savedGroup);
         if (savedGroup.id !== selectedGroupId) {
           switchToGroup(savedGroup.id);
         }
       } else if (!savedGroup) {
         // Nothing saved or saved group no longer exists — persist first group
         const firstGroup = allGroups[0];
-        if (firstGroup) {
-          persistGroupSelection(firstGroup);
+        if (firstGroup && ownList) {
+          persistGroupSelection(memory, firstGroup);
         }
       }
       // When savedGroup.id === selectedGroupId, do nothing — already in sync
@@ -1408,7 +1434,7 @@ function OGSGroupPageContent() {
                 onChange: (tabId) => {
                   const group = allGroups.find((g) => g.id === tabId);
                   if (group) {
-                    persistGroupSelection(group);
+                    persistGroupSelection(memory, group);
                     switchToGroup(tabId);
                   }
                 },

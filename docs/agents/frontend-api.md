@@ -26,7 +26,10 @@ checklist. Local values belong in `.env.local` using `.env.example` as the templ
 Server-only wrappers carry a `.server.ts` suffix (`lib/route-wrapper.server.ts`, `lib/api-helpers.server.ts`, `lib/operator/route-wrapper.server.ts`, `lib/parent/route-wrapper.server.ts`).
 
 Read the existing server-only wrappers and keep server auth/env imports out
-of client components. A dynamic import is not itself an authorization or
+of client components. Modules outside `src/server/`, `src/app/api/` and
+`*.server.ts` import nothing from `src/server/`, not even a type
+(dependency-cruiser rule `browser-not-to-server-auth`, #5005); the auth
+modules there carry `import "server-only"`. A dynamic import is not itself an authorization or
 server-only boundary; inspect the caller and execution path.
 
 The same applies to `auth` and any other server-only import in mixed files.
@@ -53,6 +56,18 @@ rebuild an error body, infer status from an error string, or substitute a
 message when the backend returned an empty body. Locally generated errors
 (validation, missing session, network failure) are separate from backend
 responses.
+
+Cache policy (#4999): every BFF answer that is JSON or bodyless and sets no
+`Cache-Control` of its own leaves as `private, no-store`
+(`lib/private-no-store.ts`). The portal auth handlers
+(`server/auth/route-handler.ts`), `forwardBackendResponse` and the public
+proxy factories apply it; a route that builds its answer itself (login, MFA,
+passkeys, demo access, invitations, Auth.js endpoints) wraps its handler in
+`withPrivateNoStore`. `src/app/api/route-cache-policy.test.ts` fails for an
+exported handler that is neither built by a policy factory nor listed with a
+reason in its exception table, and for every re-export (`export * from`,
+`export { GET } from`) in a route file. Files, images and event streams keep their own
+headers.
 
 Sentry ownership follows the same boundary: forwarding a backend HTTP error,
 including 5xx, creates no BFF event. A caught network failure or BFF exception
@@ -158,7 +173,9 @@ Helper-backed custom handlers without a direct `fetch` have narrower reasons:
 `statistics/report` whitelist audit-sensitive queries, retry refreshed tenant
 sessions, and keep their established no-store success envelope;
 `auth/password` validates and renames password fields before `apiPost`;
-`auth/token` reads the local session; `logs` and `parent/logs` ingest client
+`auth/token` renews the tenant session and answers 204 without a token;
+`auth/staff-preview/end` takes the running preview's token from the session
+cookie; `logs` and `parent/logs` ingest client
 telemetry. `enrollment/legal-documents/[filename]` retries deletion with a
 refreshed tenant token. `timetable/betreuungsplan/export`,
 `timetable/lists/export`, `rooms/export`, `staff-shifts/export`,

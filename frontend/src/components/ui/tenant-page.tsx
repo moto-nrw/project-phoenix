@@ -8,6 +8,7 @@ import type {
   KeyboardEvent,
   MouseEvent,
   ReactNode,
+  RefObject,
 } from "react";
 import {
   useCallback,
@@ -37,6 +38,7 @@ import type {
   FilterConfig,
   OverflowMenuItem,
 } from "~/components/ui/page-header/types";
+import { createLogger } from "~/lib/logger";
 import { cn } from "~/lib/utils";
 
 /**
@@ -221,7 +223,11 @@ export interface TenantPageProps {
    * jedem Zustand gemountet.
    */
   readonly overlays?: ReactNode;
-  /** Leerzustand: ersetzt den Inhalt, sobald nichts zu zeigen ist. */
+  /**
+   * Leerzustand: ersetzt den Inhalt, sobald nichts zu zeigen ist. `action`
+   * wiederholt keine Kopfaktion (`actions`), sondern steht nur für eine
+   * andere Handlung, etwa „Filter zurücksetzen" (#5034).
+   */
   readonly empty?: {
     readonly title: string;
     readonly description?: string;
@@ -434,6 +440,60 @@ export function TenantPage(props: TenantPageProps) {
   return <TenantPageView {...props} />;
 }
 
+const logger = createLogger({ component: "TenantPage" });
+
+/** Zugänglicher Name eines Bedienelements, ohne das „+“ der Anlegen-Knöpfe. */
+function controlNames(root: HTMLElement | null): Set<string> {
+  const names = new Set<string>();
+  root?.querySelectorAll("button, a[href]").forEach((element) => {
+    for (const raw of [
+      element.getAttribute("aria-label"),
+      element.textContent,
+    ]) {
+      const name = raw
+        ?.replace(/^\s*\+\s*/, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (name) names.add(name.toLowerCase());
+    }
+  });
+  return names;
+}
+
+/**
+ * Wächter für #5034: Ein Leerzustand wiederholt keine Kopfaktion. Steht
+ * „Neue Notiz“ im Kopf und noch einmal im Leerzustand, sieht die leere Seite
+ * zwei gleiche Knöpfe. Eine Leerzustand-Aktion ist nur für eine ANDERE
+ * Handlung da („Filter zurücksetzen“). Außerhalb der Produktion meldet das
+ * Gerüst eine Wiederholung, damit sie im Test und beim Entwickeln auffällt.
+ */
+function useEmptyActionGuard(
+  headRef: RefObject<HTMLElement | null>,
+  bodyRef: RefObject<HTMLElement | null>,
+  title: string,
+  active: boolean,
+) {
+  const reportedViolations = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (!active || process.env.NODE_ENV === "production") return;
+    const head = controlNames(headRef.current);
+    const repeated = [...controlNames(bodyRef.current)].filter((name) =>
+      head.has(name),
+    );
+    const repeatedAction = repeated[0];
+    if (repeatedAction !== undefined) {
+      const violation = JSON.stringify([title, repeatedAction]);
+      if (reportedViolations.current.has(violation)) return;
+      reportedViolations.current.add(violation);
+      logger.error("tenant_page_empty_action_repeats_head_action", {
+        page: title,
+        action: repeatedAction,
+      });
+    }
+  });
+}
+
 function TenantPageView({
   title,
   stats,
@@ -474,6 +534,15 @@ function TenantPageView({
     primaryAction != null ||
     badge !== undefined;
 
+  const headRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEmptyActionGuard(
+    headRef,
+    bodyRef,
+    title,
+    Boolean(empty?.action) && !loading && !error,
+  );
+
   const statusLine = statsLoading ? (
     <Skeleton className="h-4 w-56" />
   ) : (
@@ -496,7 +565,10 @@ function TenantPageView({
           Grund. Die spezielle Klasse überschreibt die ungeschichtete
           Flächenklasse auch dann zuverlässig, wenn Tailwind-Utilities in
           einer CSS-Layer stehen. */}
-      <header className="moto-content-surface compact:p-4 rounded-2xl border p-5 shadow-sm max-sm:p-4">
+      <header
+        ref={headRef}
+        className="moto-content-surface compact:p-4 rounded-2xl border p-5 shadow-sm max-sm:p-4"
+      >
         {back && <TenantBackLink href={backHref} label={backLabel} />}
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 max-sm:gap-x-2">
           {/* `flex-1 basis-0`: der Titelblock nimmt, was die Aktionen übrig
@@ -615,7 +687,10 @@ function TenantPageView({
           nach 60 px Karte, und darunter stand der halbe Bildschirm nacktes
           Punktraster -- ein anderer Umriss auf jeder Seite. Jetzt haben die
           Seite mit einer Zeile, die mit dreißig und die leere denselben. */}
-      <div className="moto-tenant-body compact:mt-4 compact:space-y-4 mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3">
+      <div
+        ref={bodyRef}
+        className="moto-tenant-body compact:mt-4 compact:space-y-4 mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3"
+      >
         <TenantPageBody
           loading={loading}
           loadingLabel={loadingLabel ?? `Der Bereich „${title}“ wird geladen…`}

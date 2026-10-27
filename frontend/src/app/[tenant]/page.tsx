@@ -16,7 +16,6 @@ import {
 } from "~/components/auth/credential-error";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
-import { refreshToken } from "~/lib/auth-api";
 import { trackTenantEvent } from "~/lib/analytics";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import {
@@ -36,6 +35,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { parentsPortalLoginUrl } from "~/lib/parent-url";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { isSchoolPortalHandoffPath } from "~/lib/redirect-utils";
+import { hasSessionAccess } from "~/lib/session-access";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { login as loginApi, type MFATokenResponse } from "~/lib/mfa-api";
 import {
@@ -199,46 +199,13 @@ function LoginForm() {
         return;
       }
 
-      // If we have a valid session with access token, set up for redirect
-      if (status === "authenticated" && session?.user?.token) {
+      // A session without an error grants access; the browser never sees
+      // its tokens (#5005), and the JWT callback renews them server-side.
+      if (status === "authenticated" && hasSessionAccess(session)) {
         logger.debug("valid session found, preparing smart redirect");
         setAwaitingRedirect(true);
         setCheckingAuth(false);
         return;
-      }
-
-      // If session is expired but we have a refresh token, try to refresh
-      if (
-        status === "authenticated" &&
-        session?.user?.refreshToken &&
-        !session?.user?.token
-      ) {
-        logger.debug(
-          "session expired but refresh token available, attempting refresh",
-        );
-        try {
-          const newTokens = await refreshToken();
-          if (newTokens) {
-            // Update session with new tokens
-            const result = await signIn("credentials", {
-              redirect: false,
-              internalRefresh: true,
-              token: newTokens.access_token,
-              refreshToken: newTokens.refresh_token,
-            });
-
-            if (!result?.error) {
-              logger.debug("token refreshed successfully");
-              setAwaitingRedirect(true);
-              setCheckingAuth(false);
-              return;
-            }
-          }
-        } catch (error) {
-          logger.error("failed to refresh token", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-        }
       }
 
       // Only show login form if not authenticated
@@ -275,9 +242,7 @@ function LoginForm() {
 
   const isCheckingAuth = checkingAuth || status === "loading";
   const isSmartRedirecting =
-    awaitingRedirect &&
-    status === "authenticated" &&
-    Boolean(session?.user?.token);
+    awaitingRedirect && status === "authenticated" && hasSessionAccess(session);
   const isSubmitting = isLoading || awaitingRedirect;
 
   // seedSessionWithTokens hands an already-minted access/refresh pair to
@@ -717,7 +682,7 @@ function LoginForm() {
         {/* Smart redirect for authenticated users */}
         {awaitingRedirect &&
           status === "authenticated" &&
-          session?.user?.token && (
+          hasSessionAccess(session) && (
             <SmartRedirect
               onRedirect={(path) => {
                 logger.info("redirecting based on user permissions", { path });

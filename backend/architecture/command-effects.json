@@ -40668,11 +40668,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueExistingAccountEmail",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.Enqueue",
       "target_owner": "delivery-platform",
-      "binding_digest": "18f8ecb2c1ab33ec0b177d97b90a8988",
+      "binding_digest": "9c905a76952e7b787d00a9c4d2982a56",
       "effect": "durable",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueExistingAccountEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueExistingAccountEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Rebound by #4602: the mail returns its enqueue failure instead of logging it, so the access rolls back with its mail; a missing outbox is an error. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40680,11 +40680,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueInvitationEmail",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.Enqueue",
       "target_owner": "delivery-platform",
-      "binding_digest": "283de242d62467903dc413d02291c2e9",
+      "binding_digest": "1998f26822681eebcc087b423323bed2",
       "effect": "durable",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueInvitationEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueInvitationEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Rebound by #4602: the mail returns its enqueue failure instead of logging it, so the invitation rolls back with its mail; a missing outbox is an error. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40692,11 +40692,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.Enqueue",
       "target_owner": "delivery-platform",
-      "binding_digest": "8a10f81573e41a947a7293398b2aed5d",
+      "binding_digest": "2267f2760b0f7888763b7e528625ea1d",
       "effect": "durable",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
+      "reason": "Platform protocol participation (durable): identity-access reaches modules/delivery/compose.EmailOutbox.Enqueue (delivery-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed. Rebound by #4602: the mailer reports a missing outbox as an error instead of skipping the welcome; the welcome stays best-effort in its savepoint. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40704,10 +40704,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "1cfdb8d9bb69b6b9cde1bf1a51820481",
+      "binding_digest": "0d88b92f728d71edf6076b54e97c076e",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBoolForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed. Rebound by #4602: the mailer reports a missing outbox as an error instead of skipping the welcome; the welcome stays best-effort in its savepoint. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40715,10 +40715,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
       "target_owner": "settings-platform",
-      "binding_digest": "77039c8ba058b9b7a8e186c27c87f11a",
+      "binding_digest": "3ee89d2953fdbc0fec9227b10604a2d1",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed. Rebound by #4602: the mailer reports a missing outbox as an error instead of skipping the welcome; the welcome stays best-effort in its savepoint. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40726,10 +40726,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx",
       "target_owner": "settings-platform",
-      "binding_digest": "640b3966664b172a25ca87a138f8745f",
+      "binding_digest": "f07867eb28682193ba4bf3a2659f1640",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveStringForTenantInTx (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed. Rebound by #4602: the mailer reports a missing outbox as an error instead of skipping the welcome; the welcome stays best-effort in its savepoint. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",
@@ -40737,10 +40737,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
       "target_owner": "settings-platform",
-      "binding_digest": "a55e1a21345b09c7723e7d180d17fc1e",
+      "binding_digest": "bf9e895c4dd76717c8aed52c1dc61925",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed."
+      "reason": "Read-only newly exposed target: identity-access reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.guardianInvitationDelivery.EnqueueWelcomeEmail. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Rebound by #4892: the welcome mail's help link reads the module switch module.nfc_anwesenheit instead of attendance.nfc_enabled; the effect stays as reviewed. Rebound by #4602: the mailer reports a missing outbox as an error instead of skipping the welcome; the welcome stays best-effort in its savepoint. The effect stays as reviewed."
     },
     {
       "source_owner": "identity-access",

@@ -500,12 +500,20 @@ func (s *service) ownedGroupIDs(ctx context.Context, broad bool, staffID *int64)
 }
 
 // selectGroup resolves the caller-requested session against the operational
-// scope. An unknown id is a hard 403 (ErrForbiddenGroup) — the caller retries
-// without group_id when its selection went stale.
+// scope. Without a request it picks the caller's own first session and falls
+// back to the first visible one, so an overview caller does not land on a
+// foreign session (#5035). An unknown id is a hard 403 (ErrForbiddenGroup) —
+// the caller retries without group_id when its selection went stale.
 func selectGroup(groups []Group, schulhof *SchulhofStatus, requestedGroupID int64) (*int64, error) {
 	if requestedGroupID <= 0 {
 		if len(groups) == 0 {
 			return nil, nil
+		}
+		for _, group := range groups {
+			if group.IsCurrentUserSupervising {
+				id := group.ID
+				return &id, nil
+			}
 		}
 		id := groups[0].ID
 		return &id, nil

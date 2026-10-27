@@ -2748,6 +2748,7 @@
         "operator_invitation_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "operator_self_deactivation": "Nie możesz dezaktywować własnego konta. Poproś o to inną osobę z zespołu.",
         "invitation_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
+        "guardian_invitation_email_not_queued": "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
         "email_change_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "email_change_same_email": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "email_change_link_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

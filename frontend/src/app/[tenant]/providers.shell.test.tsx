@@ -88,7 +88,7 @@ function ChildWithLayoutEffect() {
 }
 
 const tenant = { tenantId: 1, subdomain: "school-a" } as TenantInfo;
-const session = mockSessionData({ user: { token: "server-token" } });
+const session = mockSessionData();
 
 const shell: ShellBootstrap = {
   accountId: "1",

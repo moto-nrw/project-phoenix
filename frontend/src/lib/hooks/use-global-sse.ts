@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -294,7 +295,7 @@ export function useGlobalSSE(): SSEHookState {
     (session?.user?.roles?.includes("admin") ?? false) || hasAdminWildcard;
   const isAuthenticated =
     sessionStatus === "authenticated" &&
-    !!session?.user?.token &&
+    hasSessionAccess(session) &&
     (isStaff || isAdmin);
 
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS

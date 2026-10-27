@@ -9,6 +9,8 @@ import { mutate } from "~/lib/swr";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
+import { leaveForAnotherAccount } from "~/lib/personal-storage";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "StaffPreviewBanner" });
 
@@ -34,16 +36,18 @@ function ActivePreviewBanner({
 }: {
   readonly previewTargetName?: string;
 }) {
-  const { data: session, update } = useSession();
+  const { update } = useSession();
+  const tenantPath = useTenantAwarePath();
   const [isEnding, setIsEnding] = useState(false);
 
   const handleEnd = async () => {
     if (isEnding) return;
     setIsEnding(true);
     try {
-      // Das aktive Token IST das Vorschau-Token — vor dem Zurückschalten
-      // gelesen, weil der Server damit prüft, welche Vorschau endet.
-      await performEndStaffPreview(session?.user?.token, update, mutate);
+      // Das Ende geht vor dem Zurückschalten ins Protokoll: der Server liest
+      // das Vorschau-Token aus dem Sitzungs-Cookie und prüft damit, welche
+      // Vorschau endet.
+      await performEndStaffPreview(update, mutate);
     } catch (err) {
       // Bewusst ohne Meldung: scheitert das Zurückschalten, meldet
       // performEndStaffPreview die Sitzung ab. Die Neuladung unten führt dann
@@ -52,9 +56,10 @@ function ActivePreviewBanner({
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    // Volle Neuladung: jede sichtbare Seite muss wieder mit den
-    // Admin-Rechten gerendert werden.
-    window.location.reload();
+    // Volle Neuladung auf der Startseite: jede sichtbare Seite muss wieder mit
+    // den Admin-Rechten gerendert werden, ohne Filter oder Listen aus der
+    // Vorschau (#5000).
+    leaveForAnotherAccount(tenantPath("/"));
   };
 
   return (

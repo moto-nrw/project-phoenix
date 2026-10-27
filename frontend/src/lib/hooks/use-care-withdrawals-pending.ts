@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { personalStorageOwner } from "~/lib/personal-storage";
 
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
 import { canReviewCareWithdrawals } from "~/lib/change-request-access";
@@ -21,6 +22,7 @@ export function useCareWithdrawalsPending() {
       canReviewCareWithdrawals(session),
     fetcher: async () => (await fetchCareWithdrawals({ pageSize: 1 })).total,
     cacheKey: `care_withdrawals_pending_count:${tenantSlug ?? ""}:${accountId}`,
+    cacheOwner: personalStorageOwner(session?.user),
     eventNames: ["change-requests-refresh"],
     eventDebounceMs: 500,
     refetchOnFocus: true,

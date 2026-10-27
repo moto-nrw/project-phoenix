@@ -9,6 +9,7 @@ import {
   useRef,
 } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { Camera, Pencil } from "lucide-react";
@@ -95,7 +96,7 @@ function ProfileContent() {
   }, [resetFormFromProfile]);
 
   const handleSaveProfile = async () => {
-    if (!session?.user?.token || !profile) return;
+    if (!hasSessionAccess(session) || !profile) return;
 
     setIsSaving(true);
     formErrors.clear();
@@ -134,7 +135,7 @@ function ProfileContent() {
   };
 
   const handleAvatarChange = async (file: File) => {
-    if (!session?.user?.token) return;
+    if (!hasSessionAccess(session)) return;
 
     try {
       setIsSaving(true);

@@ -2748,6 +2748,7 @@
         "operator_invitation_invalid": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "operator_self_deactivation": "Kendi hesabınızı devre dışı bırakamazsınız. Bunu ekipten başka bir kişiden isteyin.",
         "invitation_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
+        "guardian_invitation_email_not_queued": "Davet şu anda gönderilemedi. Yeniden deneyin.",
         "email_change_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "email_change_same_email": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "email_change_link_invalid": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

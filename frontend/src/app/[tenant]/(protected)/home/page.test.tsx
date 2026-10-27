@@ -468,9 +468,15 @@ describe("Startseite", () => {
     );
   });
 
+  // Kein Browser-Token mehr (#5005): eine Sitzung ohne Token trägt einen
+  // Fehler.
   it("leitet zur Anmeldung, wenn das Token fehlt", async () => {
     vi.mocked(useSession).mockReturnValue({
-      data: { ...mockSession, user: { ...mockSession.user, token: undefined } },
+      data: {
+        ...mockSession,
+        user: { ...mockSession.user },
+        error: "RefreshTokenError",
+      },
       status: "authenticated",
       update: vi.fn(),
     });

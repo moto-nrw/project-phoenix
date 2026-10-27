@@ -6,10 +6,11 @@ import {
   operatorInvitationCookieOptions,
 } from "~/lib/operator/operator-invitation-session.server";
 import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const MAX_TOKEN_LENGTH = 4096;
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
+async function POSTHandler(request: NextRequest): Promise<NextResponse> {
   let body: unknown;
   try {
     body = await request.json();
@@ -45,3 +46,5 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   );
   return response;
 }
+
+export const POST = withPrivateNoStore(POSTHandler);

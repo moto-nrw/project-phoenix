@@ -289,7 +289,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 	if err != nil {
 		return state, err
 	}
-	state.PhaseID = phaseID
+	state.PhaseID, rt.Values[enrollmentPhaseBodyKey] = phaseID, phaseBody
 	lateInviteRaw, err := rt.Client.PostWithAuth(adminAuth, fmt.Sprintf("/api/enrollment/phases/%d/late-invites", phaseID), map[string]any{
 		"guardian_email":      "spaete.anmeldung@example.test",
 		"guardian_first_name": "Miriam",

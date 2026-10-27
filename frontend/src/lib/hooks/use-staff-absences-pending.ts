@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { personalStorageOwner } from "~/lib/personal-storage";
 import { ABSENCES_REFRESH_EVENT } from "~/lib/absence-helpers";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
@@ -46,6 +47,7 @@ export function useStaffAbsencesPending() {
       canReview,
     fetcher: fetchPendingAbsenceCount,
     cacheKey: `staff_absences_pending_count:${tenantSlug ?? ""}:${accountId}`,
+    cacheOwner: personalStorageOwner(session?.user),
     eventNames: [ABSENCES_REFRESH_EVENT],
     eventDebounceMs: 500,
     refetchOnFocus: true,

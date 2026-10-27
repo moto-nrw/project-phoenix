@@ -165,15 +165,16 @@ describe("performEndStaffPreview", () => {
   it("records the end even when restoring the admin session fails", async () => {
     const update = vi.fn().mockRejectedValue(new Error("restore failed"));
 
-    await expect(
-      performEndStaffPreview("preview-token", update, swrMutate),
-    ).rejects.toThrow("restore failed");
+    await expect(performEndStaffPreview(update, swrMutate)).rejects.toThrow(
+      "restore failed",
+    );
 
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/auth/staff-preview/end",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ preview_token: "preview-token" }),
+        // The route reads the preview token from the session cookie (#5005).
+        body: JSON.stringify({}),
       }),
     );
   });
@@ -181,21 +182,57 @@ describe("performEndStaffPreview", () => {
   it("records the end on the normal path", async () => {
     const update = vi.fn().mockResolvedValue(undefined);
 
-    await performEndStaffPreview("preview-token", update, swrMutate);
+    await performEndStaffPreview(update, swrMutate);
 
     expect(update).toHaveBeenCalledWith({ previewEnd: true });
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(swrMutate).toHaveBeenCalled();
   });
 
+  it.each(["success", "failure"] as const)(
+    "settles the audit call before restoring the session can navigate (%s)",
+    async (outcome) => {
+      let finishAudit!: () => void;
+      const audit = new Promise<Response>((resolve, reject) => {
+        finishAudit = () => {
+          if (outcome === "success")
+            resolve(new Response(null, { status: 204 }));
+          else reject(new Error("offline"));
+        };
+      });
+      vi.mocked(global.fetch).mockReturnValue(audit);
+      // Updating the session can immediately make PersonalStorageGuard leave
+      // the page. No audit request may still be pending at that point.
+      const update = vi.fn().mockResolvedValue(previewSession(null));
+
+      const ending = performEndStaffPreview(update, swrMutate);
+      await Promise.resolve();
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/auth/staff-preview/end",
+        expect.objectContaining({
+          body: JSON.stringify({}),
+          // Bounded: a stalled audit call cannot hold the restore forever.
+          signal: expect.any(AbortSignal) as AbortSignal,
+        }),
+      );
+      expect(update).not.toHaveBeenCalled();
+      finishAudit();
+      await ending;
+
+      expect(update).toHaveBeenCalledWith({ previewEnd: true });
+      expect(swrMutate).toHaveBeenCalled();
+    },
+  );
+
   it("signs out when the session stayed in the preview", async () => {
     // Restore silently did nothing: the trail says ended, the cookie would
     // still render as the target — that state must not survive.
     const update = vi.fn().mockResolvedValue(previewSession("42"));
 
-    await expect(
-      performEndStaffPreview("preview-token", update, swrMutate),
-    ).rejects.toThrow("preview session was not restored");
+    await expect(performEndStaffPreview(update, swrMutate)).rejects.toThrow(
+      "preview session was not restored",
+    );
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
@@ -205,9 +242,9 @@ describe("performEndStaffPreview", () => {
   it("signs out when restoring the admin session fails", async () => {
     const update = vi.fn().mockRejectedValue(new Error("restore failed"));
 
-    await expect(
-      performEndStaffPreview("preview-token", update, swrMutate),
-    ).rejects.toThrow("restore failed");
+    await expect(performEndStaffPreview(update, swrMutate)).rejects.toThrow(
+      "restore failed",
+    );
 
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
   });
@@ -219,7 +256,7 @@ describe("performEndStaffPreview", () => {
     const update = vi.fn().mockResolvedValue(undefined);
 
     await expect(
-      performEndStaffPreview("preview-token", update, swrMutate),
+      performEndStaffPreview(update, swrMutate),
     ).resolves.toBeUndefined();
   });
 });

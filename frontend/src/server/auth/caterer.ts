@@ -7,6 +7,7 @@
  * Import from "~/server/auth/caterer" in caterer-app code.
  */
 
+import "server-only";
 import NextAuth from "next-auth";
 
 import { catererAuthConfig } from "./caterer-config";

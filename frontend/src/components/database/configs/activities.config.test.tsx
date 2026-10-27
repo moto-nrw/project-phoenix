@@ -10,7 +10,7 @@ import type { Activity, ActivitySupervisor } from "@/lib/activity-helpers";
 vi.mock("next-auth/react", () => ({
   getSession: vi.fn(() =>
     Promise.resolve({
-      user: { token: "mock-token" },
+      user: { id: "1" },
     }),
   ),
 }));

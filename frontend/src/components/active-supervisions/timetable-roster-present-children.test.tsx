@@ -6,6 +6,15 @@ import { PresentChildrenPicker } from "./present-children-picker";
 import { TimetableRosterContent } from "./timetable-roster";
 import type { TimetableRoster } from "~/lib/timetable-operations-types";
 
+// The sidebar memory and the offering choice belong to the signed-in account
+// (#5000), so the hooks read the session.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "7", tenantId: 1 } },
+    status: "authenticated",
+  }),
+}));
+
 const mocks = vi.hoisted(() => ({ fetchStudents: vi.fn() }));
 
 vi.mock("~/lib/student-api", () => ({

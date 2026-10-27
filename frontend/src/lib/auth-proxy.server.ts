@@ -11,16 +11,30 @@ const logger = createLogger({ component: "AuthProxy" });
 interface ForwardOptions {
   readonly method?: "GET" | "POST" | "PUT" | "DELETE";
   readonly hasBody?: boolean;
+  /**
+   * Routes that act for a signed-in account pass the access token of their
+   * portal's session here; the caller's Authorization header is then
+   * ignored. The browser holds no session token (#5005). Routes before a
+   * session (login, MFA challenge, enrollment) leave it out and forward the
+   * caller's header as before.
+   */
+  readonly sessionToken?: string | null;
 }
 
-function buildForwardHeaders(request: NextRequest): Record<string, string> {
+function buildForwardHeaders(
+  request: NextRequest,
+  options: ForwardOptions,
+): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...getClientForwardHeaders(request),
   };
   const cookieHeader = request.headers.get("cookie");
   if (cookieHeader) headers.Cookie = cookieHeader;
-  const authHeader = request.headers.get("authorization");
+  const authHeader =
+    options.sessionToken === undefined
+      ? request.headers.get("authorization")
+      : options.sessionToken && `Bearer ${options.sessionToken}`;
   if (authHeader) headers.Authorization = authHeader;
   return headers;
 }
@@ -48,7 +62,7 @@ export async function forwardJsonPost(
 
     const response = await fetch(`${getServerApiUrl()}${backendPath}`, {
       method,
-      headers: buildForwardHeaders(request),
+      headers: buildForwardHeaders(request, options),
       body: bodyJson,
     });
 

@@ -9,7 +9,6 @@ function buildSession(roles: readonly string[]): Session {
       id: "1",
       name: "Test User",
       email: "test@test.com",
-      token: "test-token",
       roles: [...roles],
     },
     expires: "2099-01-01",

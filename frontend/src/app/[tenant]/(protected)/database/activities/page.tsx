@@ -373,15 +373,6 @@ function ActivitiesPageContent() {
                   size={48}
                 />
               ),
-              action:
-                searchTerm || categoryFilter !== "all" ? undefined : (
-                  <DatabaseCreateAction
-                    label="Aktivität"
-                    ariaLabel="Aktivität erstellen"
-                    showMobileFab={false}
-                    onClick={() => setShowCreateModal(true)}
-                  />
-                ),
             }
           : null
       }

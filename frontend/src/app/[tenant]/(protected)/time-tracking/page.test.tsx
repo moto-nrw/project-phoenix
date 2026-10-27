@@ -56,6 +56,19 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: vi.fn(() => vi.fn()),
 }));
 
+// The own staff ID comes from the preloaded user context (#4992); the hook's
+// own tests cover the context and its `/api/me/staff` fallback.
+vi.mock("~/lib/hooks/use-user-context", () => ({
+  useUserContext: () => ({
+    userContext: { currentStaff: { id: mockOwnStaff.id, personId: "1" } },
+    isLoading: false,
+    error: undefined,
+    isIncomplete: false,
+    unavailableSections: [],
+    isReady: true,
+  }),
+}));
+
 // The real error paths (#2514) render their toasts through the real
 // provider; `useToast` stays a spy for the success messages the page sends.
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({

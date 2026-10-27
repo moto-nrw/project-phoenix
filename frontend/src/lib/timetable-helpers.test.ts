@@ -1685,6 +1685,38 @@ describe("assignBlockLanes", () => {
     const [only] = assignBlockLanes([fakeInstance("a", "10:00", "11:00")]);
     expect(only).toMatchObject({ lane: 0, laneCount: 1, laneSpan: 1 });
   });
+
+  // #5020: der Tagesplan gruppiert nach Überlappung und braucht dafür die
+  // Nummer des Clusters, nicht nur die Spuren.
+  it("numbers overlap clusters in time order", () => {
+    const result = assignBlockLanes([
+      fakeInstance("late", "14:00", "15:00"),
+      fakeInstance("a", "10:00", "11:00"),
+      fakeInstance("b", "10:30", "11:30"),
+      fakeInstance("touching", "11:30", "12:00"),
+    ]);
+    const byId = new Map(result.map((r) => [r.instance.id, r.cluster]));
+    expect(byId.get("a")).toBe(0);
+    expect(byId.get("b")).toBe(0);
+    expect(byId.get("touching")).toBe(1);
+    expect(byId.get("late")).toBe(2);
+  });
+
+  it("takes any block with a time window and the caller's order", () => {
+    const blocks = [
+      { startTime: "10:00", endTime: "11:00", name: "z" },
+      { startTime: "10:00", endTime: "11:00", name: "a" },
+    ];
+    const result = assignBlockLanes(blocks, (x, y) =>
+      x.startTime === y.startTime
+        ? x.name.localeCompare(y.name)
+        : x.startTime.localeCompare(y.startTime),
+    );
+    expect(result.map((r) => [r.instance.name, r.lane])).toEqual([
+      ["a", 0],
+      ["z", 1],
+    ]);
+  });
 });
 
 describe("buildDayColumnTemplate", () => {

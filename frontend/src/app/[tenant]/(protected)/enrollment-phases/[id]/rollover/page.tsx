@@ -7,7 +7,7 @@ import { RolloverForm } from "~/components/enrollment/rollover-form";
 import { getPhase, type Phase } from "~/lib/enrollment-phase-api";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { createLogger } from "~/lib/logger";
-import { useTenantAwarePath } from "~/lib/tenant-path";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantMutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "MobileRolloverPage" });
@@ -19,7 +19,7 @@ interface PageProps {
 export default function MobileRolloverPage({ params }: PageProps) {
   const { id } = use(params);
   const { isReady } = useRequirePermission("config:manage");
-  const tenantPath = useTenantAwarePath();
+  const router = useTenantRouter();
   const tenantMutate = useTenantMutate();
   const [phase, setPhase] = useState<Phase | null>(null);
   const phaseLoad = useApiLoadError();
@@ -81,10 +81,12 @@ export default function MobileRolloverPage({ params }: PageProps) {
     <RolloverForm
       variant="page"
       source={phase}
-      onCancel={() => (globalThis.location.href = tenantPath("/home"))}
+      // Router navigation keeps the loaded shell; a full document load
+      // would build it again (#5001).
+      onCancel={() => router.replace("/home")}
       onSuccess={() => {
         void tenantMutate("enrollment-phase-expiry-warnings");
-        globalThis.location.href = tenantPath("/home");
+        router.replace("/home");
       }}
     />
   );

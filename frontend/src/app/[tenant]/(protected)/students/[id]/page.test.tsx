@@ -48,7 +48,6 @@ vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
     data: {
       user: {
-        token: "test-token",
         permissions: ["config:manage", "users:read"],
       },
     },
@@ -641,7 +640,6 @@ describe("StudentDetailPage", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
-          token: "test-token",
           // Staff with absence rights; the route of every absence write
           // checks users:update or users:absence (ADR 0091 gate).
           permissions: [
@@ -1834,7 +1832,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:manage", "users:update", "users:read"],
           },
         },
@@ -2236,7 +2233,7 @@ describe("StudentDetailPage", () => {
   describe("Action Card Visibility", () => {
     it("hides check-in actions without users:checkin", () => {
       vi.mocked(useSession).mockReturnValue({
-        data: { user: { token: "test-token", permissions: ["config:manage"] } },
+        data: { user: { permissions: ["config:manage"] } },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
 
@@ -2357,7 +2354,7 @@ describe("StudentDetailPage", () => {
       (_view, hasFullAccess) => {
         vi.mocked(useSession).mockReturnValue({
           data: {
-            user: { token: "test-token", permissions: ["students:read"] },
+            user: { permissions: ["students:read"] },
           },
           status: "authenticated",
         } as ReturnType<typeof useSession>);
@@ -2391,7 +2388,7 @@ describe("StudentDetailPage", () => {
     it("loads and offers nothing a students:read session cannot use", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
-          user: { token: "test-token", permissions: ["students:read"] },
+          user: { permissions: ["students:read"] },
         },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
@@ -2422,7 +2419,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:manage", "users:update", "users:read"],
           },
         },
@@ -2440,7 +2436,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:manage", "users:read"],
           },
         },
@@ -2459,7 +2454,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:read", "users:read"],
           },
         },
@@ -2488,7 +2482,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
@@ -2513,7 +2506,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
@@ -2547,7 +2539,6 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
-            token: "test-token",
             permissions: ["schedules:read", "users:read"],
           },
         },

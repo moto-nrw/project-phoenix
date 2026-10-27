@@ -998,6 +998,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	// The first staff members the seed creates; the Frühbetreuung's
 	// deviation needs the second.
 	var planningStaffIDs []map[string]any
+	// The full workflow reads and writes these through the staff payroll API.
+	// Keeping them here makes its final payroll-status read prove that the
+	// endpoint-specific requests persisted the expected demo numbers.
+	staffPersonnelNumbers := make(map[int64]string)
 	manualStudents := make(map[int64]map[string]any)
 	manualAttendance := make(map[int64]string)
 	manualSettingWrites := make(map[string]json.RawMessage)
@@ -1008,6 +1012,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	// lastGuardianID is the parent-managed contact the pickup permission
 	// request of #4780 names.
 	var lastGuardianID int64
+	// The children of the master data by name, so a booking pinned to an
+	// existing child answers with that child (#5023).
+	studentIDsByName := make(map[string]int64)
 	var trace *fullSeedAPITrace
 	if len(traces) > 0 {
 		trace = traces[0]
@@ -1109,7 +1116,44 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		authorization := r.Header.Get("Authorization")
 		manualAuth := authorization == "Bearer manual-admin-token"
 		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/staff/" {
-			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []any{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{"id": "7001"}, {"id": "7002"}}})
+			return
+		}
+		if !manualAuth && strings.HasPrefix(r.URL.Path, "/api/staff/") && strings.HasSuffix(r.URL.Path, "/payroll-number") {
+			var staffID int64
+			parsed, err := fmt.Sscanf(r.URL.Path, "/api/staff/%d/payroll-number", &staffID)
+			require.NoError(t, err)
+			require.Equal(t, 1, parsed)
+
+			switch r.Method {
+			case seedHTTPMethodGet:
+				number, ok := staffPersonnelNumbers[staffID]
+				if !ok {
+					_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"staff_id": staffID, "personnel_number": nil}})
+					return
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"staff_id": staffID, "personnel_number": number}})
+			case seedHTTPMethodPut:
+				var body struct {
+					PersonnelNumber string `json:"personnel_number"`
+					Note            string `json:"note"`
+				}
+				require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+				require.NotEmpty(t, body.PersonnelNumber)
+				require.Equal(t, "Personalnummer aus der Lohnabrechnung übernommen", body.Note)
+				staffPersonnelNumbers[staffID] = body.PersonnelNumber
+				_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"staff_id": staffID, "personnel_number": body.PersonnelNumber}})
+			default:
+				w.WriteHeader(seedHTTPStatusNotFound)
+			}
+			return
+		}
+		if !manualAuth && r.Method == seedHTTPMethodGet && r.URL.Path == "/api/settings/payroll-status" {
+			require.Equal(t, map[int64]string{7001: "70001", 7002: "70002"}, staffPersonnelNumbers)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+				"lodas_header_complete": true, "configured_categories": 7, "total_categories": 7,
+				"staff_total": 2, "staff_without_personnel_number": 0,
+			}})
 			return
 		}
 		if r.Method == seedHTTPMethodPut && ((manualAuth && strings.HasPrefix(r.URL.Path, "/api/settings/values/")) || strings.Contains(r.URL.Path, "/operator/schools/2/settings/values/")) {
@@ -1287,6 +1331,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": devices})
+			return
+		}
+		if serveRegularBookingSeedAPI(t, w, r, idCounter, studentIDsByName) {
 			return
 		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/students" {
@@ -1879,4 +1926,43 @@ func TestTruncateSeedSubdomain(t *testing.T) {
 	assert.Equal(t, "short", truncateSeedSubdomain("short"))
 	long := "this-is-a-very-long-subdomain-that-exceeds-the-sixty-three-character-limit-for-dns-labels"
 	assert.Len(t, truncateSeedSubdomain(long), 63)
+}
+
+// serveRegularBookingSeedAPI answers the routes seedRegularBookingsStep
+// drives (#5023): it remembers the children of the master data by name,
+// lists one primary guardian per child and pins a manual booking to the
+// child with the submitted name, like an existing_students phase.
+func serveRegularBookingSeedAPI(t *testing.T, w seedHTTPResponseWriter, r *seedHTTPRequest, idCounter int64, studentIDsByName map[string]int64) bool {
+	switch {
+	case r.Method == seedHTTPMethodPost && r.URL.Path == "/api/students" && r.Header.Get("Authorization") != "Bearer manual-admin-token":
+		var body struct {
+			FirstName string `json:"first_name"`
+			LastName  string `json:"last_name"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		studentIDsByName[body.FirstName+" "+body.LastName] = idCounter
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": idCounter}})
+	case r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/api/guardians/students/") && r.Header.Get("Authorization") != "Bearer manual-admin-token":
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": []map[string]any{{
+			"guardian":        map[string]any{"id": idCounter, "first_name": "Demo", "last_name": "Elternteil", "email": "demo.elternteil@example.test"},
+			"relationship_id": idCounter, "relationship_type": "parent", "is_primary": true,
+		}}})
+	case r.Method == seedHTTPMethodPost && strings.HasSuffix(r.URL.Path, "/manual-approved-enrollments"):
+		var body struct {
+			Children []struct {
+				FirstName string `json:"first_name"`
+				LastName  string `json:"last_name"`
+			} `json:"children"`
+		}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.Len(t, body.Children, 1)
+		studentID := studentIDsByName[body.Children[0].FirstName+" "+body.Children[0].LastName]
+		_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{
+			"request_id": fmt.Sprint(idCounter), "child_id": fmt.Sprint(idCounter),
+			"student_id": fmt.Sprint(studentID), "status": "approved",
+		}})
+	default:
+		return false
+	}
+	return true
 }

@@ -115,13 +115,12 @@ export default function OperatorLoginPage() {
     void check();
   }, [status, session]);
 
-  // The layout's server snapshot carries no token (#4991) and redirects too;
-  // a stripped session (empty token) stays on the form.
+  // No browser session carries a token (#4991, #5005); a stripped session
+  // carries an error and is cleared above instead of redirected.
   if (
     status === "authenticated" &&
     session?.user?.scope === "platform" &&
-    hasSessionAccess(session) &&
-    session.error === undefined
+    hasSessionAccess(session)
   ) {
     redirect(operatorPath("/operator/organizations"));
   }

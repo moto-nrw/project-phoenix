@@ -5,10 +5,11 @@ import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "AuthLoginRoute" });
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   try {
     let body: unknown;
     try {
@@ -43,3 +44,5 @@ export async function POST(request: NextRequest) {
     return problemResponse(500, "Internal Server Error", request);
   }
 }
+
+export const POST = withPrivateNoStore(POSTHandler);

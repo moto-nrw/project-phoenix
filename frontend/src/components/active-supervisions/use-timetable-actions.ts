@@ -25,6 +25,8 @@ import type {
 import { useLatest } from "~/lib/hooks/use-latest";
 import { isTimetableOperationForbidden } from "~/lib/timetable-operation-access";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import { useSidebarMemory } from "~/lib/sidebar-memory";
+import { mayWritePersonalStorage } from "~/lib/personal-storage";
 import {
   clearOwnAttendanceMutation,
   markOwnAttendanceMutation,
@@ -174,6 +176,7 @@ export function useTimetableActions(
     clearReopenable,
   } = options;
   const { refresh: refreshSupervision } = useOptionalSupervision();
+  const memory = useSidebarMemory();
 
   const activeTimetableInstanceIdRef = useLatest(activeTimetableInstanceId);
   const { show: showActionError } = useApiErrorDisplay();
@@ -214,6 +217,7 @@ export function useTimetableActions(
     complete: () => void;
     confirmExpected: (rows: TimetableRosterRow[]) => void;
     reopen: () => void;
+    rosterSync: () => void;
   }>({
     startPlanned: () => undefined,
     startSpontaneous: () => undefined,
@@ -222,6 +226,7 @@ export function useTimetableActions(
     complete: () => undefined,
     confirmExpected: () => undefined,
     reopen: () => undefined,
+    rosterSync: () => undefined,
   });
 
   // Starting, ending or reopening a block changes which supervisions run.
@@ -277,6 +282,37 @@ export function useTimetableActions(
     [revalidateRoster],
   );
 
+  // The action is saved; only the open list could not follow. Say so and
+  // offer to load the list again instead of reloading the page (#5001).
+  // `action`, not `retry`: a local update that crashed is not retryable on
+  // the error path, but loading the list again still helps.
+  const showRosterSyncError = useCallback(
+    (err: unknown) => {
+      void showActionError(err, {
+        object: "die Anwesenheitsliste",
+        messageSuffix: "Ihre Änderung ist gespeichert.",
+        action: {
+          label: "Liste neu laden",
+          onClick: () => retryRef.current.rosterSync(),
+        },
+      });
+    },
+    [showActionError],
+  );
+
+  const syncRoster = useCallback(async () => {
+    const instanceId = activeTimetableInstanceIdRef.current;
+    try {
+      await mutateRoster();
+    } catch (err) {
+      if (activeTimetableInstanceIdRef.current !== instanceId) return;
+      logger.warn("timetable_roster_sync_retry_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      showRosterSyncError(err);
+    }
+  }, [activeTimetableInstanceIdRef, mutateRoster, showRosterSyncError]);
+
   const handleStartPlannedInstance = useCallback(
     async (instance: PlannedTimetableInstance) => {
       try {
@@ -288,12 +324,12 @@ export function useTimetableActions(
         router.push(
           adoptSession(result.activeGroupId, instance.id, instance.roomId),
         );
-        localStorage.setItem("supervision-last-session", result.activeGroupId);
-        localStorage.setItem("sidebar-last-room", instance.roomId);
+        memory.write("supervision-last-session", result.activeGroupId);
+        memory.write("sidebar-last-room", instance.roomId);
         if (startedRoom?.room_name) {
-          localStorage.setItem("sidebar-last-room-name", startedRoom.room_name);
+          memory.write("sidebar-last-room-name", startedRoom.room_name);
         } else {
-          localStorage.removeItem("sidebar-last-room-name");
+          memory.remove("sidebar-last-room-name");
         }
         await reloadAfterLifecycleChange();
       } catch (err) {
@@ -313,6 +349,7 @@ export function useTimetableActions(
     [
       allRooms,
       adoptSession,
+      memory,
       reloadAfterLifecycleChange,
       router,
       showActionError,
@@ -353,8 +390,8 @@ export function useTimetableActions(
         router.push(
           adoptSession(result.activeGroupId, result.instanceId, payload.roomId),
         );
-        localStorage.setItem("supervision-last-session", result.activeGroupId);
-        localStorage.setItem("sidebar-last-room", payload.roomId);
+        memory.write("supervision-last-session", result.activeGroupId);
+        memory.write("sidebar-last-room", payload.roomId);
         await reloadAfterLifecycleChange();
       } catch (err) {
         const context = {
@@ -384,6 +421,7 @@ export function useTimetableActions(
     [
       currentStaffId,
       adoptSession,
+      memory,
       reloadAfterLifecycleChange,
       router,
       showActionError,
@@ -427,15 +465,12 @@ export function useTimetableActions(
           : mutateRoster());
       } catch (err) {
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
-        // Sichtbar über das Neuladen: die Aktion ist gespeichert, nur die
-        // Liste ist nicht mehr aktuell.
         logger.warn("timetable_roster_sync_failed_after_successful_action", {
           action,
           student_id: row.studentId,
           error: err instanceof Error ? err.message : String(err),
         });
-        void logger.flush();
-        window.location.reload();
+        showRosterSyncError(err);
       }
     },
     [
@@ -444,6 +479,7 @@ export function useTimetableActions(
       mutateRoster,
       reloadAfterDenial,
       showActionError,
+      showRosterSyncError,
     ],
   );
 
@@ -529,14 +565,19 @@ export function useTimetableActions(
           .filter((row) => row.currentlyPresent)
           .map((row) => row.studentId) ?? [],
       );
-      rememberReopenable(
-        {
-          instanceId: activeTimetableInstanceId,
-          title: currentTimetableRoster?.instance.title ?? null,
-          roomId: currentTimetableRoster?.instance.roomId ?? null,
-        },
-        completed.reopenUntil,
-      );
+      // The undo names the activity. This callback still holds the memory of
+      // the account that ended it; after a logout or account switch in
+      // between it would show the activity to the next person (#5000).
+      if (mayWritePersonalStorage(memory.owner)) {
+        rememberReopenable(
+          {
+            instanceId: activeTimetableInstanceId,
+            title: currentTimetableRoster?.instance.title ?? null,
+            roomId: currentTimetableRoster?.instance.roomId ?? null,
+          },
+          completed.reopenUntil,
+        );
+      }
       // The dialog stays open with its pending button until both lists no
       // longer carry the ended block; closing first would show it as still
       // running for the length of the reload (#3888).
@@ -562,6 +603,7 @@ export function useTimetableActions(
     activeTimetableInstanceId,
     clearCompleteError,
     currentTimetableRoster,
+    memory,
     rememberReopenable,
     reloadAfterDenial,
     reloadAfterLifecycleChange,
@@ -591,8 +633,8 @@ export function useTimetableActions(
             reopenable.roomId,
           ),
         );
-        localStorage.setItem("supervision-last-session", result.activeGroupId);
-        localStorage.setItem("sidebar-last-room", reopenable.roomId);
+        memory.write("supervision-last-session", result.activeGroupId);
+        memory.write("sidebar-last-room", reopenable.roomId);
       } else {
         setSelectedTimetableInstanceId(result.instanceId);
       }
@@ -619,6 +661,7 @@ export function useTimetableActions(
   }, [
     adoptSession,
     clearReopenable,
+    memory,
     reloadAfterLifecycleChange,
     reopenable,
     router,
@@ -778,6 +821,7 @@ export function useTimetableActions(
       complete: () => void confirmCompleteTimetableInstance(),
       confirmExpected: (rows) => void handleConfirmExpectedStudents(rows),
       reopen: () => void handleReopenTimetableInstance(),
+      rosterSync: () => void syncRoster(),
     };
   });
 

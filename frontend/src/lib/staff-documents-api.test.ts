@@ -9,11 +9,13 @@ vi.mock("./session-cache", () => {
     getCachedSession,
     clearSessionCache: vi.fn(),
     sessionFetch: vi.fn(async (url: string, init?: RequestInit) => {
+      // Same gate as the real sessionFetch (hasSessionAccess, #5005).
       const session = (await getCachedSession()) as {
-        user?: { token?: string };
+        user?: { id?: string };
+        error?: string;
       } | null;
-      const token = session?.user?.token;
-      if (!token) throw new Error("No authentication token available");
+      if (!session?.user || session.error)
+        throw new Error("No authentication token available");
       return fetch(url, {
         ...init,
         headers: {
@@ -160,7 +162,8 @@ describe("staff-documents-api", () => {
       type: "application/pdf",
     });
 
-    it("posts multipart form data with a bearer token and no JSON content type", async () => {
+    // The route reads the session cookie; the browser holds no token (#5005).
+    it("posts multipart form data without Authorization or JSON content type", async () => {
       mockFetch().mockResolvedValue({ ok: true } as unknown as Response);
 
       await staffDocumentsService.upload("7", file, "lohnabrechnung");
@@ -169,8 +172,7 @@ describe("staff-documents-api", () => {
       const [url, init] = mockFetch().mock.calls[0] as [string, RequestInit];
       expect(url).toBe("/api/staff/7/documents");
       expect(init.method).toBe("POST");
-      expect(init.headers).toEqual({ Authorization: "Bearer test-token" });
-      expect(init.headers).not.toHaveProperty("Content-Type");
+      expect(init.headers).toBeUndefined();
 
       const body = init.body as FormData;
       expect(body).toBeInstanceOf(FormData);
@@ -190,10 +192,11 @@ describe("staff-documents-api", () => {
       expect(mockFetch()).not.toHaveBeenCalled();
     });
 
-    it("rejects when the session carries no token", async () => {
+    it("rejects when the callback stripped the session", async () => {
       mockedGetSession.mockResolvedValue({
         ...mockSessionData(),
         user: { id: "1", name: "Test User" },
+        error: "RefreshTokenError",
       });
 
       await expect(

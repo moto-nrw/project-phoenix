@@ -1366,7 +1366,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     title: "Den Betreuungstag von heute verfolgen",
     question: "Wo sehe ich den Betreuungstag von heute?",
     summary:
-      "Die Seite `Heute` zeigt die Betreuungsblöcke des Tages der Reihe nach.",
+      "Die Seite `Heute` zeigt die Betreuungsblöcke des Tages nach Uhrzeit.",
     group: "tagesplanung",
     audience: "caregiver",
     icon: "ClockAfternoon",
@@ -1377,6 +1377,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     steps: [
       "Öffnen Sie `Heute` in der Seitenleiste.",
       "Sie sehen die Blöcke des Tages von früh nach spät.",
+      "Blöcke zur selben Zeit stehen nebeneinander, unter `Gleichzeitig`.",
       "Eine Linie zeigt, wo Sie gerade im Tag stehen.",
       "Tippen Sie auf einen laufenden Block. Das öffnet seine Kinderliste.",
       "Hat Ihr Block noch nicht begonnen? Wählen Sie `Starten`.",
@@ -1386,6 +1387,7 @@ function dayPlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
     differences: [
       "`Läuft` heißt: der Block ist gerade aktiv. `Beendet` und `Nicht gestartet` können Sie nur ansehen.",
       "`Fällt aus` zeigt zusätzlich den Grund.",
+      "Laufen mehr als zwei Blöcke gleichzeitig? Dann wischen Sie auf dem Handy zur Seite, um alle zu sehen.",
       "Ein `Dienst` ist eine Aufgabe ohne Kinder, etwa die Busaufsicht. Er hat keinen Knopf `Starten`.",
       "Blöcke, für die Sie eingeteilt sind, sind in ihrer Farbe hinterlegt. Das gilt auch für eine Vertretung.",
       "Welche Blöcke Sie sehen, legt Ihre OGS fest. Manche sehen den ganzen Tag der Schule, andere nur die eigene Einteilung.",
@@ -1685,6 +1687,8 @@ function activeSupervisionTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // #4372: offene Räume ohne eigene Aufsicht stehen unter `Räume`.
       "Läuft Ihre Aufsicht in einem offenen Raum? Dann steht der Raum unter `Aktuelle Aufsicht`. Alle anderen offenen Räume finden Sie unter `Räume`.",
       "Haben Sie mehrere Aufsichten? Auf dem Handy stehen sie oben auf der Seite `Aufsicht` als Reiter.",
+      // #5035: mit dem Überblick über alle Aufsichten stehen auch fremde da.
+      "Sehen Sie auch Aufsichten von anderen? Ihre eigene steht zuerst und öffnet sich zuerst. Bei einer fremden steht oben `Nicht Ihre Aufsicht`.",
       "Welche Räume offen sind, legt Ihre OGS fest.",
       "`Abgeben` ist gesperrt? Dann sind Sie die einzige Aufsicht. Übergeben Sie die Aufsicht an eine Person oder beenden Sie die Aktivität.",
       "Eine externe Person steht danach unter `Personal` in der Gruppe `Extern`, mit jedem Zugang. In Zeiterfassung und Dienstplan erscheint sie nicht.",
@@ -3872,7 +3876,7 @@ function studentNotesTopic(): HelpTopic {
       "Ein Hinweis trägt `Übernommen aus den Betreuernotizen`? Der stammt aus dem früheren Textfeld und hat deshalb keinen Verfasser.",
     ],
     troubleshootingDetails: [
-      "Es fehlt `Neue Notiz`? Dann dürfen Sie dieses Kind nur lesen.",
+      "Es fehlt der Reiter `Notizen`? Dann darf Ihre Rolle keine Notizen sehen. Fragen Sie Ihre Leitung.",
       "Ein Angebot fehlt unter `Bezug`? Dort stehen nur Angebote, in denen das Kind heute angemeldet ist.",
       "Es fehlt `Gruppenleitung` oder `Angebotsleitung`? Wählen Sie zuerst unter `Bezug` die Gruppe oder das Angebot.",
     ],

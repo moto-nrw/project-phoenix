@@ -11,7 +11,6 @@
 
 "use client";
 
-import { useSession } from "next-auth/react";
 import { BuildingsIcon, StackSimpleIcon, TagIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { FormError, FormErrorInput } from "~/components/ui/form-error";
@@ -145,9 +144,6 @@ export function roomDetailKey(roomId: string): string {
 }
 
 export function useRoomDetail(roomId: string): UseRoomDetailResult {
-  const { data: session } = useSession();
-  const token = session?.user?.token;
-
   // SWR-cached so the global SSE handler can invalidate the header on
   // checkin/checkout/activity events, see use-global-sse.ts. The cache
   // key shape is "room-detail-{id}" (the slug-prefix is added by
@@ -164,18 +160,15 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
     historyDisabled: boolean;
     historyFailure: unknown;
   }>(roomDetailKey(roomId), async () => {
-    const authHeaders = token
-      ? { Authorization: `Bearer ${token}` }
-      : undefined;
-
+    // Both routes read the session cookie (#5005).
     const [roomResponse, historyResponse] = await Promise.all([
       transportFetch(`/api/rooms/${roomId}`, {
         credentials: "include",
-        headers: { "Content-Type": "application/json", ...authHeaders },
+        headers: { "Content-Type": "application/json" },
       }),
       transportFetch(`/api/rooms/${roomId}/history`, {
         credentials: "include",
-        headers: { "Content-Type": "application/json", ...authHeaders },
+        headers: { "Content-Type": "application/json" },
       }),
     ]);
     if (!roomResponse.ok) {

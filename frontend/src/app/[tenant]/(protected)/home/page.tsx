@@ -10,6 +10,7 @@ import {
 } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { redirect } from "next/navigation";
 
 import { HomeBlockContent } from "~/components/home/home-block-content";
@@ -399,11 +400,7 @@ function HomeContent() {
     retryResetRef.current = () => void restoreDefault();
   });
 
-  if (
-    status === "authenticated" &&
-    session &&
-    (session.error === "RefreshTokenExpired" || !session.user?.token)
-  ) {
+  if (status === "authenticated" && session && !hasSessionAccess(session)) {
     logger.info("invalid session, redirecting to login");
     redirect(tenantPath("/"));
   }

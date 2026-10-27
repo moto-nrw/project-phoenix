@@ -1,6 +1,11 @@
-import type { NextRequest } from "next/server";
 import { forwardJsonPost } from "~/lib/auth-proxy.server";
+import { withTenantAuth } from "~/server/auth/tenant-route";
+import type { ServerAuthRequest } from "~/server/auth/route-handler";
 
-export async function POST(request: NextRequest) {
-  return forwardJsonPost(request, "/auth/passkeys/enrollment/challenge");
+async function POSTHandler(request: ServerAuthRequest) {
+  return forwardJsonPost(request, "/auth/passkeys/enrollment/challenge", {
+    sessionToken: request.auth?.user?.token ?? null,
+  });
 }
+
+export const POST = withTenantAuth(POSTHandler);

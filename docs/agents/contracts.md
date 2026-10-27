@@ -251,6 +251,26 @@ host-only). The proxy redirects cross-host paths to their canonical subdomain.
 | Caterer | `{NEXT_PUBLIC_CATERER_HOSTNAME}` | `caterer.session-token` | `/api/caterer/auth` | `caterer` | `POST /caterer/auth/login` |
 | Träger | `{NEXT_PUBLIC_TRAEGER_HOSTNAME}` | `traeger.session-token` | `/api/traeger/auth` | `org` | `POST /traeger/auth/login` |
 
+The browser never receives a session's access token, refresh token or
+recovery proof (#5005). The client-importable `next-auth` types `Session` and
+`User` carry none; server code reads them through `ServerSession`, `AuthUser`
+and the `next-auth/jwt` `JWT` fields in `frontend/src/server/auth/shared.ts`.
+Each portal's `{basePath}/session` answer (GET and the `update()` POST)
+passes through the allowlist in `frontend/src/server/auth/browser-session.ts`,
+and the layout snapshots map the cookie without them. BFF routes authenticate
+through the session cookie, not a browser `Authorization` header. A session
+whose access token is gone always carries `error`, which `hasSessionAccess`
+checks. Three guards hold this: `src/app/api/auth/session-tokens.test.ts`
+checks every session route at runtime; the dependency-cruiser rule
+`browser-not-to-server-auth` forbids every import from `src/server/**`,
+type imports included, outside `server/`, `app/api/` and `*.server.ts`, and
+the auth modules carry `import "server-only"`; `src/lib/browser-token-ratchet.test.ts`
+pins the types and walks the syntax tree of those browser modules for
+credential reads on session values (casts, renames, type aliases,
+intermediate variables included). Open: login, MFA, passkey login, tenant switch, Träger Absprung
+and staff-preview start still hand freshly minted tokens through browser
+JavaScript into Auth.js (`signIn`/`update`).
+
 ### Login, refresh, and MFA
 
 Backend paths in this section are relative to `backend/`:

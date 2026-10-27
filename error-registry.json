@@ -1815,6 +1815,12 @@
       "legacy": "identity.email_change_same_email"
     },
     {
+      "code": "identity.guardian_invitation_email_not_queued",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.guardian_invitation_email_not_queued"
+    },
+    {
       "code": "identity.invalid_credentials",
       "class": "input",
       "parameters": [],

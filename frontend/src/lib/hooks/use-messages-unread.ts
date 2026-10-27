@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { personalStorageOwner } from "~/lib/personal-storage";
 import { hasPermission } from "~/lib/auth-utils";
 import { fetchUnreadCount } from "~/lib/parent-messages-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
@@ -48,6 +49,7 @@ export function useMessagesUnread() {
       hasPermission(session, "users:read"),
     fetcher: fetchUnreadCount,
     cacheKey: `messages_unread_count:${tenantSlug ?? ""}:${accountId}`,
+    cacheOwner: personalStorageOwner(session?.user),
     eventNames: ["messages-unread-refresh"],
     // Collapse the tenant-wide message fan-out into one count refetch per burst.
     eventDebounceMs: 500,
