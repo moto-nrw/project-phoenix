@@ -657,6 +657,60 @@ describe("SchoolSetupWizard", () => {
     ).toHaveTextContent("Station 6 von 7");
   });
 
+  it("goes back from the form past the closed menu to „+ Personal“", async () => {
+    setupState = newSchool();
+    pathname = "/database/personal";
+    render(<SchoolSetupWizard />);
+    const create = visibleTarget("create");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
+    await screen.findByRole("dialog", { name: "Personal einladen" });
+    await waitForHighlight();
+    fireEvent.click(create);
+    const entry = visibleTarget("invite-create");
+    await screen.findByRole("dialog", { name: "Einladung wählen" });
+    inviteForm();
+    fireEvent.click(entry);
+    entry.remove();
+    await screen.findByRole("dialog", { name: "Angaben eintragen" });
+
+    // Das Menü ist nach der Wahl zu; „Zurück“ zeigt wieder auf „+ Personal“.
+    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Personal einladen" }),
+    ).toHaveTextContent("Station 4 von 7");
+  });
+
+  it("ignores a late click advance once the tour has moved on", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    setupState = newSchool();
+    pathname = "/database/personal";
+    render(<SchoolSetupWizard />);
+    const create = visibleTarget("create");
+
+    fireEvent.click(screen.getByRole("button", { name: "Zeig es mir" }));
+    await screen.findByRole("dialog", { name: "Personal einladen" });
+    await waitForHighlight();
+    fireEvent.click(create);
+    const entry = visibleTarget("invite-create");
+    await screen.findByRole("dialog", { name: "Einladung wählen" });
+    await waitForHighlight();
+
+    // Der Klick plant den Wechsel in 250 ms; das Formular ist schneller da.
+    inviteForm();
+    fireEvent.click(entry);
+    entry.remove();
+    await act(() => vi.advanceTimersByTimeAsync(50));
+    await screen.findByRole("dialog", { name: "Angaben eintragen" });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+    await screen.findByRole("dialog", { name: "Einladung senden" });
+
+    await act(() => vi.advanceTimersByTimeAsync(400));
+    expect(
+      screen.getByRole("dialog", { name: "Einladung senden" }),
+    ).toHaveTextContent("Station 7 von 7");
+  });
+
   it("tells the person to click the spot when there is no Weiter", async () => {
     setupState = newSchool();
     pathname = "/database/personal";

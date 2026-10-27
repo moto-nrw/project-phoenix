@@ -19,6 +19,11 @@ export interface SetupTourStop {
    * (etwa auf dem Handy), öffnet die Tour die Seite selbst.
    */
   nav?: true;
+  /**
+   * Die Stelle gibt es nur kurz, etwa einen Eintrag in einem aufgeklappten
+   * Menü. „Zurück“ geht über sie hinweg zur Station davor, die sie öffnet.
+   */
+  skipOnBack?: true;
   /** Entfällt, wenn diese Stelle schon sichtbar ist (Bereich schon offen). */
   skipWhenVisible?: string;
   /**
@@ -185,6 +190,7 @@ export const SETUP_TOURS: Readonly<
         text: "Wählen Sie „Personal einladen“.",
         advance: "click",
         advanceWhenVisible: INVITE_FORM,
+        skipOnBack: true,
         missingText: "Wählen Sie „Zurück“ und dann noch einmal „+ Personal“.",
       },
       {
