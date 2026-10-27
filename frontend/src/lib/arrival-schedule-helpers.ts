@@ -45,7 +45,10 @@ export function arrivalScheduleSourceLabel(
   return null;
 }
 
-function getWeekStart(weekOffset = 0, todayISO = berlinTodayISO()): Date {
+export function getWeekStart(
+  weekOffset = 0,
+  todayISO = berlinTodayISO(),
+): Date {
   const today = parseISODate(todayISO);
   const dayOfWeek = today.getDay();
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -61,6 +64,20 @@ export function getWeekDays(
   todayISO = berlinTodayISO(),
 ): Date[] {
   const monday = getWeekStart(weekOffset, todayISO);
+  return getWeekDaysForStart(
+    formatDateISO(monday),
+    weekendFollowsFriday,
+    todayISO,
+  );
+}
+
+/** Returns the visible care days for a week identified by its Monday. */
+export function getWeekDaysForStart(
+  weekStartISO: string,
+  weekendFollowsFriday = false,
+  todayISO = berlinTodayISO(),
+): Date[] {
+  const monday = parseISODate(weekStartISO);
   const days: Date[] = [];
   const dayCount = careWeekDayCount(
     formatDateISO(monday),
@@ -79,14 +96,6 @@ export function formatShortDate(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
   const month = (date.getMonth() + 1).toString().padStart(2, "0");
   return `${day}.${month}.`;
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
 }
 
 function getWeekdayFromDate(date: Date): number | null {
@@ -156,17 +165,18 @@ export function getDayData(
   isExcusedToday = false,
   statusForDate: StudentStatusKind | null = null,
   weekendFollowsFriday = false,
+  todayISO = berlinTodayISO(),
 ): ArrivalDayData {
   const calendarWeekday = getWeekdayFromDate(date);
   const weekday = calendarWeekday ?? 5;
   const dateStr = formatDateISO(date);
-  const today = new Date();
+  const isToday = dateStr === todayISO;
 
   if (calendarWeekday === null && !weekendFollowsFriday) {
     return {
       date,
       weekday: 0,
-      isToday: isSameDay(date, today),
+      isToday,
       showSick: false,
       showClassTrip: false,
       showExcused: false,
@@ -182,7 +192,6 @@ export function getDayData(
 
   const exception = exceptions.find((e) => e.exception_date === dateStr);
   const baseSchedule = schedules.find((s) => s.weekday === weekday);
-  const isToday = isSameDay(date, today);
   const showSick = statusForDate
     ? statusForDate === "sick"
     : isToday && isSickToday;

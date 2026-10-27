@@ -788,6 +788,35 @@ describe("CareScheduleManager", () => {
     expect(screen.getAllByText("So").length).toBeGreaterThan(0);
   });
 
+  it("keeps a selected future week after Berlin Monday midnight", async () => {
+    setTestClock("2026-05-31T23:59:00+02:00"); // Sunday
+    const onVisibleDateRangeChange = vi.fn();
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
+
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-06-01",
+      "2026-06-05",
+    );
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-06-01",
+      "2026-06-05",
+    );
+    expect(screen.getByText("Aktuelle Woche")).toBeInTheDocument();
+  });
+
   it("uses the visible week's start date for weekly changes", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");
