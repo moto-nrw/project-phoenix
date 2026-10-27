@@ -9,6 +9,8 @@ import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types"
 
 interface TagesplanCell {
   instance: PlannedTimetableInstance;
+  /** Normalisiertes Ende für Statusberechnungen innerhalb des Tages. */
+  effectiveEndTime: string;
   /** Erste Spalte, 0-basiert. */
   lane: number;
   /** Spalten, die der Block nach rechts mitnimmt. */
@@ -58,20 +60,18 @@ function effectiveEnd(
   instance: PlannedTimetableInstance,
   nowHHMM: string | null,
 ): Pick<Window, "endTime" | "endMinute"> {
+  const endsAtMidnight =
+    instance.endTime === "00:00" && instance.startTime > instance.endTime;
   const end =
     // The API formats a block ending at the following midnight as "00:00".
     // Within one day, that is the 24:00 boundary rather than a zero-duration
     // block at the start time.
-    (instance.endTime === "00:00" && instance.startTime > instance.endTime) ||
-    instance.endTime > instance.startTime
+    endsAtMidnight || instance.endTime > instance.startTime
       ? instance.endTime
       : instance.startTime;
-  const endMinute =
-    end === "00:00" && instance.startTime > end
-      ? MINUTES_PER_DAY
-      : endTimeToMinutes(end);
+  const endMinute = endsAtMidnight ? MINUTES_PER_DAY : endTimeToMinutes(end);
   if (nowHHMM == null || !hasOpenEnd(instance)) {
-    return { endTime: end, endMinute };
+    return { endTime: endsAtMidnight ? "24:00" : end, endMinute };
   }
 
   // `24:00` is a valid end-of-day boundary, but not a valid HH:MM input.
@@ -90,7 +90,7 @@ function effectiveEnd(
 function compareWindows(a: Window, b: Window): number {
   return (
     a.startTime.localeCompare(b.startTime) ||
-    a.instance.endTime.localeCompare(b.instance.endTime) ||
+    a.endMinute - b.endMinute ||
     a.instance.title.localeCompare(b.instance.title)
   );
 }
@@ -109,7 +109,13 @@ function placeRows(
     for (let col = lane; col < lane + laneSpan; col++) {
       nextFreeRow[col] = row + 1;
     }
-    return { instance: instance.instance, lane, laneSpan, row };
+    return {
+      instance: instance.instance,
+      effectiveEndTime: instance.endTime,
+      lane,
+      laneSpan,
+      row,
+    };
   });
 }
 

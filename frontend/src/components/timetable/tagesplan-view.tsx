@@ -161,6 +161,7 @@ const TIME_PARALLEL_CLASS =
 
 function TagesplanRow({
   instance,
+  effectiveEndTime,
   isToday,
   dayIsPast,
   nowHHMM,
@@ -171,6 +172,8 @@ function TagesplanRow({
   placement,
 }: Readonly<{
   instance: PlannedTimetableInstance;
+  /** Normalisiertes Ende für die Statusanzeige; die angezeigte Zeit bleibt unverändert. */
+  effectiveEndTime: string;
   isToday: boolean;
   showMine: boolean;
   dayIsPast: boolean;
@@ -198,14 +201,14 @@ function TagesplanRow({
     canStartPlannedInstance(instance, new Date());
   const ended =
     instance.status === "planned" &&
-    (dayIsPast || (isToday && instance.endTime <= nowHHMM));
+    (dayIsPast || (isToday && effectiveEndTime <= nowHHMM));
   const missed = ended && !isDuty;
   // Vorbei ist vorbei: gedimmte Zeilen lassen das Laufende und Kommende von
   // selbst hervortreten — statt eines Etiketts an jeder Zeile.
   const over =
     instance.status === "completed" ||
     ended ||
-    (cancelled && (dayIsPast || (isToday && instance.endTime <= nowHHMM)));
+    (cancelled && (dayIsPast || (isToday && effectiveEndTime <= nowHHMM)));
   const staff = blockStaffNames(instance);
   // Eigener Block (#4350): die Zeile ist in ihrer Blockfarbe hinterlegt, wie
   // ein PlanBlock im Raster; Vorleseprogramme hören "Mein Block". isAssigned
@@ -395,6 +398,7 @@ function ParallelGroup({
   renderRow: (
     instance: PlannedTimetableInstance,
     placement: CSSProperties,
+    effectiveEndTime: string,
   ) => ReactNode;
 }>) {
   const captionId = useId();
@@ -422,10 +426,14 @@ function ParallelGroup({
         >
           {group.cells.map((cell) => (
             <Fragment key={cell.instance.id}>
-              {renderRow(cell.instance, {
-                gridColumn: `${cell.lane + 1} / span ${cell.laneSpan}`,
-                gridRow: `${cell.row + 1}`,
-              })}
+              {renderRow(
+                cell.instance,
+                {
+                  gridColumn: `${cell.lane + 1} / span ${cell.laneSpan}`,
+                  gridRow: `${cell.row + 1}`,
+                },
+                cell.effectiveEndTime,
+              )}
             </Fragment>
           ))}
         </ul>
@@ -548,10 +556,12 @@ export function TagesplanView() {
   const renderRow = (
     instance: PlannedTimetableInstance,
     placement?: CSSProperties,
+    effectiveEndTime: string = instance.endTime,
   ) => (
     <TagesplanRow
       key={instance.id}
       instance={instance}
+      effectiveEndTime={effectiveEndTime}
       isToday={isToday}
       dayIsPast={day < today}
       nowHHMM={nowHHMM}
@@ -672,7 +682,11 @@ export function TagesplanView() {
                 <Fragment key={group.key}>
                   {index === nowIndex ? <NowDivider nowHHMM={nowHHMM} /> : null}
                   {group.cells.length === 1 ? (
-                    renderRow(group.cells[0]!.instance)
+                    renderRow(
+                      group.cells[0]!.instance,
+                      undefined,
+                      group.cells[0]!.effectiveEndTime,
+                    )
                   ) : (
                     <ParallelGroup group={group} renderRow={renderRow} />
                   )}

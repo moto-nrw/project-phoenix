@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
@@ -138,6 +139,7 @@ const replace = vi.fn();
 describe("TagesplanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useMinuteClock).mockReturnValue(new Date("2026-08-31T08:00:00Z"));
     searchParams.current = new URLSearchParams();
     vi.mocked(useTimetableEnabled).mockReturnValue(true);
     vi.mocked(useOperationalOverviewScope).mockReturnValue("all_staff");
@@ -653,6 +655,30 @@ describe("TagesplanView", () => {
   // eine Liste in der Liste, damit Vorleseprogramme die Blöcke weiterhin
   // der Reihe nach hören.
   describe("parallel blocks (#5020)", () => {
+    it("does not mark a block ending at midnight as missed before midnight", () => {
+      vi.mocked(useMinuteClock).mockReturnValue(
+        new Date("2026-08-31T21:30:00Z"),
+      );
+      setSWR({
+        data: [
+          makeInstance({
+            id: "midnight",
+            title: "Spätbetreuung",
+            startTime: "23:00",
+            endTime: "00:00",
+          }),
+        ],
+        isLoading: false,
+        error: null,
+      });
+
+      render(<TagesplanView />);
+
+      const row = screen.getByText("Spätbetreuung").closest("li");
+      expect(row).not.toHaveTextContent("Nicht gestartet");
+      expect(row?.style.opacity).toBe("");
+    });
+
     it("groups overlapping blocks side by side and keeps the rest full width", () => {
       setSWR({
         data: [
