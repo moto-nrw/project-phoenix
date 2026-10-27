@@ -238,12 +238,15 @@ describe("ui-kit/no-tenant-kicker", () => {
 });
 
 describe("ui-kit/no-hand-rolled-page-card", () => {
-  it("reports the kit card chain spelled out in a tenant page or loading file", () => {
+  it("reports the kit card chain spelled out in a tenant or Träger page or loading file", () => {
     for (const path of [
       "src/app/[tenant]/(protected)/page.tsx",
       "src/app/[tenant]/(protected)/loading.tsx",
       "src/app/[tenant]/(protected)/rooms/page.tsx",
       "src/app/[tenant]/(protected)/rooms/[id]/loading.tsx",
+      // Das Träger-Portal rendert dasselbe Gerüst (#5146).
+      "src/app/traeger/page.tsx",
+      "src/app/traeger/ferien/[id]/page.tsx",
     ]) {
       const result = lintSource(
         `function Probe({ wide }: { wide: boolean }) {

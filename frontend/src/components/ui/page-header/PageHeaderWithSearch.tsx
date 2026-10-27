@@ -414,12 +414,16 @@ function MobileSearchSection({
 
   return (
     <div className={`${hideClass} ${embedded ? "[&>*:last-child]:mb-0" : ""}`}>
-      {search && (
+      {/* Auch ohne Suchfeld: sonst gäbe es unter der Desktop-Breite keinen
+          Weg zu den Filtern (Zugriffsprotokoll, Ferienanmeldungen). */}
+      {(search ?? hasFilters) && (
         <div
           className={`mb-3 flex items-center gap-2 ${compactWrapper}`}
           style={{ transformOrigin: "top right" }}
         >
-          <SharedSearchBar {...search} className="min-w-0 flex-1" size="sm" />
+          {search && (
+            <SharedSearchBar {...search} className="min-w-0 flex-1" size="sm" />
+          )}
 
           {hasFilters && (
             <div ref={filterButtonRef} className="flex-shrink-0">

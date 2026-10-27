@@ -12,10 +12,9 @@ import {
   BillingCorrectionModal,
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
-import { BillingDocumentCard } from "~/components/traeger/billing-document-card";
+import { BillingDocumentsCard } from "~/components/traeger/billing-documents-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
 import { BillingMailCard } from "~/components/traeger/billing-mail-card";
-import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
@@ -23,15 +22,12 @@ import {
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { Alert } from "~/components/ui/alert";
-import { BackLink } from "~/components/ui/back-link";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
-import { EmptyState } from "~/components/ui/empty-state";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
   useApiLoadError,
@@ -128,42 +124,73 @@ export default function TraegerBillingRunPage() {
   const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
 
   return (
-    <div className="w-full space-y-6">
-      <BackLink
-        href={traegerPath("/traeger/abrechnung")}
-        label="Zurück zur Abrechnung"
-      />
-      {pageLoad.error ? (
-        <LoadErrorAlert error={pageLoad.error} />
-      ) : run ? (
+    <TenantPage
+      title={run?.periodName ?? "Abrechnungslauf"}
+      back
+      backHref={traegerPath("/traeger/abrechnung")}
+      backLabel="Zurück zur Abrechnung"
+      stats={
+        run ? (
+          <StatusBadge
+            label={BILLING_RUN_STATUS_LABELS[run.status]}
+            tone={BILLING_RUN_STATUS_TONES[run.status]}
+          />
+        ) : null
+      }
+      statsLoading={!run && !pageLoad.error}
+      actions={
+        preview ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            disabled={!canRelease}
+            onClick={() => setConfirmingRelease(true)}
+          >
+            Lauf freigeben
+          </Button>
+        ) : undefined
+      }
+      error={pageLoad.error}
+      loading={!pageLoad.error && !run}
+      overlays={
+        run ? (
+          <>
+            <BillingCorrectionModal
+              runId={run.id}
+              target={correcting}
+              onClose={() => setCorrecting(null)}
+              onCorrected={(corrected) => {
+                setCorrecting(null);
+                setRun(corrected);
+              }}
+            />
+            <ConfirmationModal
+              isOpen={confirmingRelease}
+              title="Lauf freigeben?"
+              confirmText="Freigeben"
+              isConfirmLoading={releasing}
+              loadingText="Wird freigegeben …"
+              onClose={() => setConfirmingRelease(false)}
+              onConfirm={() => void release()}
+            >
+              <p className="text-sm text-gray-700">
+                {run.previewCount} Rechnung(en) über{" "}
+                {formatEuro(run.previewCents)} bekommen ihre Nummer. Danach
+                lassen sie sich nicht mehr ändern.
+              </p>
+            </ConfirmationModal>
+          </>
+        ) : null
+      }
+    >
+      {run ? (
         <>
-          <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-            {run.periodName}
-          </h1>
           <SectionCard
             title="Abrechnungslauf"
             description={runDescription(run)}
-            actions={
-              preview ? (
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  disabled={!canRelease}
-                  onClick={() => setConfirmingRelease(true)}
-                >
-                  Lauf freigeben
-                </Button>
-              ) : null
-            }
           >
             <DataGrid columns={2}>
-              <DataField label="Status">
-                <StatusBadge
-                  label={BILLING_RUN_STATUS_LABELS[run.status]}
-                  tone={BILLING_RUN_STATUS_TONES[run.status]}
-                />
-              </DataField>
               <DataField label="Betreuung">
                 {formatDateRange(run.serviceFrom, run.serviceUntil)}
               </DataField>
@@ -209,64 +236,25 @@ export default function TraegerBillingRunPage() {
           {run.status === "released" && run.letters ? (
             <BillingMailCard runId={run.id} />
           ) : null}
-          {run.status === "released" && run.documents.length > 0 ? (
-            <BillingRunOverviewCard run={run} />
-          ) : null}
-          {run.documents.length === 0 ? (
-            <SectionCard>
-              <EmptyState
-                title="Keine Rechnung in diesem Lauf."
-                description="Alle bestätigten Anmeldungen haben schon eine Rechnung, oder es ist noch keine bestätigt."
-              />
-            </SectionCard>
-          ) : (
-            run.documents.map((document) => (
-              <BillingDocumentCard
-                key={document.registrationId}
-                document={document}
-                onCorrect={
-                  preview
-                    ? (child) =>
-                        setCorrecting({
-                          registrationId: document.registrationId,
-                          child,
-                        })
-                    : undefined
-                }
-                onDownloadLetter={
-                  run.letters ? () => void downloadLetter(document) : undefined
-                }
-              />
-            ))
-          )}
-          <BillingCorrectionModal
-            runId={run.id}
-            target={correcting}
-            onClose={() => setCorrecting(null)}
-            onCorrected={(corrected) => {
-              setCorrecting(null);
-              setRun(corrected);
-            }}
+          <BillingDocumentsCard
+            run={run}
+            onCorrect={
+              preview
+                ? (document, child) =>
+                    setCorrecting({
+                      registrationId: document.registrationId,
+                      child,
+                    })
+                : undefined
+            }
+            onDownloadLetter={
+              run.letters
+                ? (document) => void downloadLetter(document)
+                : undefined
+            }
           />
-          <ConfirmationModal
-            isOpen={confirmingRelease}
-            title="Lauf freigeben?"
-            confirmText="Freigeben"
-            isConfirmLoading={releasing}
-            loadingText="Wird freigegeben …"
-            onClose={() => setConfirmingRelease(false)}
-            onConfirm={() => void release()}
-          >
-            <p className="text-sm text-gray-700">
-              {run.previewCount} Rechnung(en) über{" "}
-              {formatEuro(run.previewCents)} bekommen ihre Nummer. Danach lassen
-              sie sich nicht mehr ändern.
-            </p>
-          </ConfirmationModal>
         </>
-      ) : (
-        <Loading fullPage={false} />
-      )}
-    </div>
+      ) : null}
+    </TenantPage>
   );
 }
