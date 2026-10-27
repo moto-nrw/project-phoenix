@@ -2,6 +2,7 @@
 package common
 
 const (
+	CodeIdentityInvalidCredentials                    = "identity.invalid_credentials"
 	CodeIdentityInvitationAccountLoginRequired        = "identity.invitation_account_login_required"
 	CodeIdentityInvitationAccountMismatch             = "identity.invitation_account_mismatch"
 	CodeIdentityInvitationExpired                     = "identity.invitation_expired"
@@ -301,10 +302,10 @@ const (
 	CodeTimetableCorrectionCancelled                  = "timetable.correction_cancelled"
 	CodeTimetableCorrectionNotCompleted               = "timetable.correction_not_completed"
 	CodeTimetableCorrectionReasonMissing              = "timetable.correction_reason_missing"
-	CodeTimetableCorrectionReasonTooLong              = "timetable.correction_reason_too_long"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.invalid_credentials":                        "input",
 	"identity.invitation_account_login_required":          "permission",
 	"identity.invitation_account_mismatch":                "permission",
 	"identity.invitation_expired":                         "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.correction_cancelled":                      "business_rejection",
 	"timetable.correction_not_completed":                  "business_rejection",
 	"timetable.correction_reason_missing":                 "input",
-	"timetable.correction_reason_too_long":                "input",
 }
 
 func init() {
