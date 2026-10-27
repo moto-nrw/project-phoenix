@@ -141,8 +141,8 @@ func (w *PresenceHistoryWriter) recordPastVisit(ctx context.Context, day student
 		return fmt.Errorf("%w: visits in room %d on %s name different session bounds", errPresenceHistory, visit.RoomID, day.Date)
 	}
 	visitKey := pastVisitKey{studentID: day.StudentID, sessionID: session.ID}
-	if existing, ok := matchingPastVisit(records.visits[visitKey], visit); ok {
-		if existing {
+	if matches, existing := matchingPastVisit(records.visits[visitKey], visit); existing {
+		if matches {
 			return nil
 		}
 		return fmt.Errorf("%w: student %d has a different visit in room %d on %s", errPresenceHistory, day.StudentID, visit.RoomID, day.Date)
@@ -297,12 +297,11 @@ func matchesPastSession(session studentpresence.LiveGroup, expected pastSessionE
 }
 
 func matchingPastVisit(rows []studentpresence.Visit, visit *studentpresence.PastVisit) (bool, bool) {
-	for _, row := range rows {
-		if row.ExitTime != nil && row.EntryTime.Equal(visit.Entry) && row.ExitTime.Equal(visit.Exit) && row.CreatedAt.Equal(visit.Entry) && row.UpdatedAt.Equal(visit.Exit) {
-			return true, true
-		}
+	if len(rows) != 1 {
+		return false, len(rows) != 0
 	}
-	return len(rows) != 0, false
+	row := rows[0]
+	return row.ExitTime != nil && row.EntryTime.Equal(visit.Entry) && row.ExitTime.Equal(visit.Exit) && row.CreatedAt.Equal(visit.Entry) && row.UpdatedAt.Equal(visit.Exit), true
 }
 
 func validatePastPresenceDays(days []studentpresence.PastPresenceDay, today calendar.Date) error {

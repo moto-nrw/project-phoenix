@@ -147,3 +147,47 @@ func TestRecordPresenceHistoryRejectsOpenAttendance(t *testing.T) {
 	require.Len(t, attendance, 1)
 	assert.Nil(t, attendance[0].CheckOutTime)
 }
+
+func TestRecordPresenceHistoryRejectsConflictingVisit(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	require.NoError(t, err)
+	history := compose.NewPresenceHistory(compose.Dependencies{DB: db})
+	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
+	require.NoError(t, err)
+	device := testpkg.CreateTestDevice(t, db, "presence-history-conflicting-visit")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Presence history conflicting visit")
+	room := testpkg.CreateTestRoom(t, db, "Presence history conflicting visit")
+	student := testpkg.CreateTestStudent(t, db, "History", "Conflicting visit", "3a")
+	day := calendar.NewDate(2026, time.March, 10)
+	checkIn := time.Date(2026, time.March, 10, 12, 0, 0, 0, berlin)
+	checkOut := checkIn.Add(4 * time.Hour)
+	entry := checkIn.Add(15 * time.Minute)
+	exit := checkOut.Add(-15 * time.Minute)
+	sessionStart := checkIn
+	sessionEnd := checkOut
+	days := []compose.PastPresenceDay{{StudentID: student.ID, Date: day, DeviceID: device.ID, CheckIn: checkIn, CheckOut: checkOut,
+		Visit: &compose.PastVisit{ActivityGroupID: activity.ID, RoomID: room.ID, SessionStart: sessionStart, SessionEnd: sessionEnd, Entry: entry, Exit: exit}}}
+	_, err = history.RecordPresenceHistory(ctx, days)
+	require.NoError(t, err)
+	visits, err := module.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{student.ID}})
+	require.NoError(t, err)
+	require.Len(t, visits, 1)
+	conflicting := visits[0]
+	conflictingExit := exit.Add(-time.Minute)
+	conflicting.ExitTime = &conflictingExit
+	conflicting.UpdatedAt = conflictingExit
+	_, err = module.ReviseVisit(ctx, conflicting)
+	require.NoError(t, err)
+
+	_, err = history.RecordPresenceHistory(ctx, days)
+
+	require.ErrorContains(t, err, "different visit")
+	visits, err = module.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{student.ID}})
+	require.NoError(t, err)
+	require.Len(t, visits, 1)
+	require.NotNil(t, visits[0].ExitTime)
+	assert.True(t, visits[0].ExitTime.Equal(conflictingExit))
+}
