@@ -165,24 +165,23 @@ func (s *Service) BillingDocumentLetter(ctx context.Context, accountID, organiza
 }
 
 // billingDocumentAccess resolves the Träger the account's relationships open
-// and the account's current address.
+// and the account's current address, in one administrative transaction.
 func (s *Service) billingDocumentAccess(ctx context.Context, accountID int64) ([]Traeger, BillingDocumentReader, error) {
 	if s.BillingDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
 		return nil, BillingDocumentReader{}, errors.New("parent: document inbox is not configured")
 	}
-	children, err := s.ListChildrenForAccount(ctx, accountID)
-	if err != nil {
-		return nil, BillingDocumentReader{}, err
-	}
 	var access documentAccess
 	var email string
-	err = s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		var resolveErr error
-		if access, resolveErr = s.documentAccess(adminCtx, children); resolveErr != nil || len(access.traeger) == 0 {
-			return resolveErr
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
+		children, err := s.ListChildrenForAccount(adminCtx, accountID)
+		if err != nil {
+			return err
 		}
-		email, resolveErr = s.ParentAccounts.AccountEmail(adminCtx, accountID)
-		return resolveErr
+		if access, err = s.documentAccess(adminCtx, children); err != nil || len(access.traeger) == 0 {
+			return err
+		}
+		email, err = s.ParentAccounts.AccountEmail(adminCtx, accountID)
+		return err
 	})
 	if err != nil {
 		return nil, BillingDocumentReader{}, fmt.Errorf("parent: resolve document inbox: %w", err)
@@ -247,27 +246,7 @@ func (s *Service) NotifyBillingDocument(ctx context.Context, organizationID, doc
 	if organizationID <= 0 || documentID <= 0 || email == "" {
 		return errors.New("parent: document notice needs a Träger, a document and an address")
 	}
-	var accountID int64
-	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		id, found, err := s.ParentAccounts.AccountIDByEmail(adminCtx, email)
-		if found {
-			accountID = id
-		}
-		return err
-	})
-	if err != nil || accountID == 0 {
-		return err
-	}
-	children, err := s.ListChildrenForAccount(ctx, accountID)
-	if err != nil {
-		return err
-	}
-	var access documentAccess
-	err = s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		var resolveErr error
-		access, resolveErr = s.documentAccess(adminCtx, children)
-		return resolveErr
-	})
+	accountID, access, err := s.documentRecipient(ctx, email)
 	if err != nil {
 		return fmt.Errorf("parent: resolve document notice: %w", err)
 	}
@@ -284,6 +263,28 @@ func (s *Service) NotifyBillingDocument(ctx context.Context, organizationID, doc
 		}
 	}
 	return nil
+}
+
+// documentRecipient resolves the account of an address and what its
+// relationships open, in one administrative transaction. An address without
+// an account opens nothing.
+func (s *Service) documentRecipient(ctx context.Context, email string) (int64, documentAccess, error) {
+	var accountID int64
+	var access documentAccess
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
+		id, found, err := s.ParentAccounts.AccountIDByEmail(adminCtx, email)
+		if err != nil || !found {
+			return err
+		}
+		children, err := s.ListChildrenForAccount(adminCtx, id)
+		if err != nil {
+			return err
+		}
+		accountID = id
+		access, err = s.documentAccess(adminCtx, children)
+		return err
+	})
+	return accountID, access, err
 }
 
 // notifyBillingDocumentAt sends the push at one school in its tenant

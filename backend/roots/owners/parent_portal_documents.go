@@ -211,22 +211,30 @@ func (p parentDocumentPushes) send(ctx context.Context, intent deliveryContract.
 	return p.notices.NotifyBillingDocument(ctx, notice.OrganizationID, notice.DocumentID, notice.RecipientEmail)
 }
 
+// ParentDocumentNoticeSources are what the push of a new document reads
+// (ADR 0126): the children of the parents portal, the Träger of their
+// schools, the accounts, the guardians' languages and the school's
+// notification router.
+type ParentDocumentNoticeSources struct {
+	Portal        carePlanCompose.ParentPortalRepositories
+	Organizations organizationtenancy.Query
+	Identity      identityaccess.GuardianAccessQuery
+	People        PeopleRows
+	Notifications DeliveryNotifications
+}
+
 // BuildParentDocumentNotices composes the push of a new document for the
-// Delivery worker over the children of the parents portal at the schools
-// that book it, the Träger of those schools, the accounts and the school's
-// notification router (ADR 0126).
-func BuildParentDocumentNotices(
-	env RootEnvironment, portal carePlanCompose.ParentPortalRepositories, modules settingsValues.ModuleBookingReader,
-	organizations organizationtenancy.Query, identity identityaccess.GuardianAccessQuery, people PeopleRows, notifications DeliveryNotifications,
-) (parentportal.DocumentNotices, error) {
-	children, err := ParentChildReadsForBookedSchools(NewParentChildReads(carePlanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)), modules)
+// Delivery worker over the children at the schools that book the parents
+// portal.
+func BuildParentDocumentNotices(env RootEnvironment, modules settingsValues.ModuleBookingReader, sources ParentDocumentNoticeSources) (parentportal.DocumentNotices, error) {
+	children, err := ParentChildReadsForBookedSchools(NewParentChildReads(carePlanCompose.NewParentChildQueries(sources.Portal.ParentChild, securityruntime.GuardianPermissionGranted)), modules)
 	if err != nil {
 		return nil, fmt.Errorf("compose parent document notices: %w", err)
 	}
-	return parentportalcompose.NewDocumentNotices(parentportalcompose.DocumentNoticeDependencies{
-		Runtime: ParentPortalRuntime{}, ChildRepo: children, SchoolTraeger: NewParentSchoolTraeger(organizations),
-		ParentAccounts: NewParentAccounts(identity), GuardianProfileRepo: NewParentGuardianProfileReads(people.GuardianProfiles),
-		DocumentNotifier: NewParentDocumentNotifier(notifications.Notifier, notifications.Preferences),
+	return parentportalcompose.NewDocumentNotices(parentportalcompose.Dependencies{
+		Runtime: ParentPortalRuntime{}, ChildRepo: children, SchoolTraeger: NewParentSchoolTraeger(sources.Organizations),
+		ParentAccounts: NewParentAccounts(sources.Identity), GuardianProfileRepo: NewParentGuardianProfileReads(sources.People.GuardianProfiles),
+		DocumentNotifier: NewParentDocumentNotifier(sources.Notifications.Notifier, sources.Notifications.Preferences),
 		Logger:           env.Logger.With("service", "parent-document-notices"),
 	}), nil
 }

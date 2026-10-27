@@ -423,8 +423,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			parent, err = owners.BuildParentPortal(db, env, hub, settings.Service, people, portalReads, messaging, presence, carePlanRows,
-				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements, audit,
-				organizations)
+				carePlan, persons, mealPlan, schedules, requests, services, emitter, notifications, identity, enrollment, notices, announcements, audit, organizations)
 			return
 		},
 		func() (err error) {
@@ -501,12 +500,8 @@ func composeServeRoot(
 			return err
 		},
 		func() (err error) {
-			documents, err := owners.BuildParentDocumentNotices(env, portalReads, settings.Service, organizations, identity, people, notifications)
-			if err != nil {
-				return err
-			}
 			outbox, err = owners.BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, owners.BuildCalendarAppointmentRenderer(db, mailFrom, people),
-				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service, documents)
+				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), calendarApp, settings.Service, owners.ParentDocumentNoticeSources{Portal: portalReads, Organizations: organizations, Identity: identity, People: people, Notifications: notifications})
 			return
 		},
 	)

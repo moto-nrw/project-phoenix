@@ -346,12 +346,8 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			documents, err := owners.BuildParentDocumentNotices(env, portalReads, settings.Service, organizations, identity, people, notifications)
-			if err != nil {
-				return err
-			}
 			outbox, err = owners.BuildDeliveryWorker(db, env, mailSender, mailFrom, pushVAPID, mailIdentity, delivery, owners.BuildCalendarAppointmentRenderer(db, mailFrom, people),
-				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), nil, settings.Service, documents)
+				owners.IdentityDeliveryRenderers(identity, mailFrom, mailIdentity, delivery.Runtime.EmailStatus, env), nil, settings.Service, owners.ParentDocumentNoticeSources{Portal: portalReads, Organizations: organizations, Identity: identity, People: people, Notifications: notifications})
 			return
 		},
 		func() error { statusDays = presence.StatusDays; return nil },

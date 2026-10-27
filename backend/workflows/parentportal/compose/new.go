@@ -4,6 +4,7 @@
 package compose
 
 import (
+	"cmp"
 	"log/slog"
 	"time"
 
@@ -192,33 +193,14 @@ func bindOwners(deps Dependencies) owners {
 	return bound
 }
 
-// DocumentNoticeDependencies are the collaborators of the push that a
-// document of a Träger is in the inbox (#4671, ADR 0126): the children of an
-// account with their relationships, the Träger of a school, the account of
-// an address, the guardian's portal language and the school's notification
-// router.
-type DocumentNoticeDependencies struct {
-	Runtime             care.Runtime
-	ChildRepo           care.ChildReads
-	SchoolTraeger       care.SchoolTraeger
-	ParentAccounts      care.ParentAccounts
-	GuardianProfileRepo care.GuardianProfileReads
-	DocumentNotifier    care.BillingDocumentNotifier
-	Logger              *slog.Logger
-}
-
-// NewDocumentNotices builds the push of a new document for the Delivery
-// worker, which sends the Träger's push without the rest of the portal.
-func NewDocumentNotices(deps DocumentNoticeDependencies) parentportal.DocumentNotices {
+// NewDocumentNotices builds the push of a new document (ADR 0126) for the
+// Delivery worker over the children, their Träger, the accounts, the
+// guardian's language and the notifier of deps; it needs no other flow.
+func NewDocumentNotices(deps Dependencies) parentportal.DocumentNotices {
 	if deps.Runtime == nil || deps.ChildRepo == nil || deps.SchoolTraeger == nil || deps.ParentAccounts == nil || deps.DocumentNotifier == nil {
 		panic("parent portal: document notices need the runtime, the children, the Träger, the accounts and the notifier")
 	}
-	logger := deps.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	return &care.Service{Config: care.Config{
-		Runtime: deps.Runtime, ChildRepo: deps.ChildRepo, SchoolTraeger: deps.SchoolTraeger, ParentAccounts: deps.ParentAccounts,
-		GuardianProfileRepo: deps.GuardianProfileRepo, DocumentNotifier: deps.DocumentNotifier, Logger: logger,
-	}}
+	return &care.Service{Config: care.Config{Runtime: deps.Runtime, ChildRepo: deps.ChildRepo, SchoolTraeger: deps.SchoolTraeger,
+		ParentAccounts: deps.ParentAccounts, GuardianProfileRepo: deps.GuardianProfileRepo, DocumentNotifier: deps.DocumentNotifier,
+		Logger: cmp.Or(deps.Logger, slog.Default())}}
 }

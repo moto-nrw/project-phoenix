@@ -13,7 +13,7 @@ import (
 type transactionFingerprint func(key string, before bool) (string, error)
 
 func transactionScopeSubset(current, previous map[string]string, moves map[string]string, fingerprint transactionFingerprint, receiverRemoved func(string, string, string) (bool, error)) error {
-	current = withoutReviewedHolidayContributionTransactions(withoutReviewedHolidayRegistrationPrefillTransactions(withoutReviewedHolidayRegistrationTransactions(withoutReviewedTraegerTransactions(withoutReviewedTraegerViewTransactions(withoutReviewedTenantExportTransaction(withoutReviewedCaregiverDisableTransaction(current)))))))
+	current = withoutReviewedParentDocumentInboxTransactions(withoutReviewedHolidayContributionTransactions(withoutReviewedHolidayRegistrationPrefillTransactions(withoutReviewedHolidayRegistrationTransactions(withoutReviewedTraegerTransactions(withoutReviewedTraegerViewTransactions(withoutReviewedTenantExportTransaction(withoutReviewedCaregiverDisableTransaction(current))))))))
 	for key, reason := range current {
 		if old, retained := previous[key]; retained {
 			if old == reason {

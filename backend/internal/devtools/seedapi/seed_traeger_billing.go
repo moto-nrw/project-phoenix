@@ -112,7 +112,7 @@ var (
 	seedLetterContacts = []map[string]any{{"name": "Betreuungsteam der Ferien-OGS", "phone": "+49 5402 1234-10"}}
 )
 
-func (seedTraegerBillingLettersStep) Run(_ context.Context, rt *Runtime) error {
+func (seedTraegerBillingLettersStep) Run(ctx context.Context, rt *Runtime) error {
 	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" || rt.Bootstrap.AdminPassword == "" {
 		return fmt.Errorf("the confirmation letter seed prerequisites are not available")
 	}
@@ -134,5 +134,42 @@ func (seedTraegerBillingLettersStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("mail the confirmation letters: %w", err)
 	}
 	fmt.Println("  Abrechnung: confirmation letters of the holiday run mailed")
+	return seedParentDocumentInbox(ctx, rt)
+}
+
+// seedParentDocumentInbox opens the document inbox of the first seeded
+// parent (#4671), who registered the siblings with the account's address:
+// the sent confirmation letter is there, and its PDF downloads. A run
+// without seeded parents, like the step's own tests, has no inbox to read.
+func seedParentDocumentInbox(ctx context.Context, rt *Runtime) error {
+	if len(rt.Parents) == 0 || rt.Adapter == nil {
+		return nil
+	}
+	parent := rt.Parents[0]
+	auth, err := rt.Adapter.LoginParent(ctx, parent.Email, parent.Password)
+	if err != nil {
+		return fmt.Errorf("sign in the parent for the document inbox: %w", err)
+	}
+	raw, err := rt.Client.GetWithAuth(auth, "/parent/me/documents")
+	if err != nil {
+		return fmt.Errorf("read the document inbox: %w", err)
+	}
+	var envelope struct {
+		Data []struct {
+			ID             string `json:"id"`
+			OrganizationID string `json:"organization_id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("decode the document inbox: %w", err)
+	}
+	if len(envelope.Data) == 0 {
+		return fmt.Errorf("the seeded parent finds no confirmation letter in the document inbox")
+	}
+	first := envelope.Data[0]
+	if _, err := rt.Client.GetWithAuth(auth, fmt.Sprintf("/parent/me/documents/%s/%s/pdf", first.OrganizationID, first.ID)); err != nil {
+		return fmt.Errorf("download the confirmation letter from the document inbox: %w", err)
+	}
+	fmt.Printf("  Eltern-App: %d document(s) in the parent's inbox, the first downloaded\n", len(envelope.Data))
 	return nil
 }
