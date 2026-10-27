@@ -29,7 +29,7 @@ func (seedEnrollmentSignatureStep) Run(_ context.Context, rt *Runtime) error {
 	raw, err := rt.Client.PostWithAuth(auth, "/api/enrollment/schema/", map[string]any{
 		"name": "Ferienbetreuung mit Unterschrift",
 		"fields": []map[string]any{
-			{"key": "allergies", "label": "Allergien und Unverträglichkeiten", "type": "textarea", "sort_order": 10},
+			{"key": "allergies", "label": "Allergien und Unverträglichkeiten", "type": "textarea", "sort_order": 10, "applies_to_child": true},
 		},
 		"core_requirements": map[string]bool{"signature": true},
 	})
