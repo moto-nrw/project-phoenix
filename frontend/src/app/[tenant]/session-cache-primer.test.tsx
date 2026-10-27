@@ -4,6 +4,7 @@ import { SessionProvider } from "next-auth/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getCachedSession, sessionFetch } from "~/lib/session-cache";
+import { onTenantSessionMismatch } from "~/lib/tenant-session-mismatch";
 import { setTestClock, TEST_CLOCK_INSTANT } from "~/test/clock";
 import { mockSessionData } from "~/test/mocks/next-auth";
 import { SessionCachePrimer } from "./providers";
@@ -118,5 +119,32 @@ describe("SessionCachePrimer with the real SessionProvider", () => {
 
     expect((await getCachedSession())?.user?.tenantId).toBe(2);
     expect(sessionRequests()).toBeGreaterThanOrEqual(1);
+  });
+  // #5130: the BFF refuses a request whose session belongs to another school
+  // than the tab's host. That refusal is the first sign of a switch on
+  // another subdomain, inside the cache window too: the cache must drop the
+  // old school at once and report it, so TenantGuard switches back.
+  it("drops the old school with the first refused request inside its window", async () => {
+    const listener = vi.fn();
+    const unsubscribe = onTenantSessionMismatch(listener);
+    renderTab(mockSessionData({ user: { id: "a", tenantId: 1 } }));
+    expect((await getCachedSession())?.user?.tenantId).toBe(1);
+
+    sessionAnswer = mockSessionData({ user: { id: "a", tenantId: 2 } });
+    fetchMock.mockImplementation(async (url) =>
+      String(url).endsWith("/session")
+        ? Response.json(sessionAnswer)
+        : Response.json(
+            { status: 409, code: "identity.tenant_session_mismatch" },
+            { status: 409 },
+          ),
+    );
+
+    const refused = await sessionFetch("/api/test", { method: "POST" });
+
+    expect(refused.status).toBe(409);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect((await getCachedSession())?.user?.tenantId).toBe(2);
+    unsubscribe();
   });
 });

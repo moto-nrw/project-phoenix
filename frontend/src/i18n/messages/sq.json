@@ -2791,6 +2791,7 @@
         "passkey_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "account_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "tenant_access_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "tenant_session_mismatch": "Shkolla u ndryshua në një dritare tjetër. Provoni përsëri pas pak.",
         "account_not_in_school": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "lehrkraft_role_immutable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "access_name_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

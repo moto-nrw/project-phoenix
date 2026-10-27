@@ -9,6 +9,10 @@ import {
 } from "~/lib/rate-limit-backoff";
 import { hasSessionAccess } from "~/lib/session-access";
 import { clearSessionCache, getCachedSession } from "~/lib/session-cache";
+import {
+  isTenantSessionMismatchBody,
+  reportTenantSessionMismatch,
+} from "~/lib/tenant-session-mismatch";
 
 /**
  * Extended request config with retry tracking properties
@@ -137,6 +141,13 @@ api.interceptors.response.use(
         originalRequest?.method,
       );
       throw error;
+    }
+
+    if (
+      error.response?.status === 409 &&
+      isTenantSessionMismatchBody(error.response.data)
+    ) {
+      reportTenantSessionMismatch();
     }
 
     // Log non-401 errors

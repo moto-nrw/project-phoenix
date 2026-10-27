@@ -2051,6 +2051,12 @@
       "legacy": "identity.tenant_access_not_found"
     },
     {
+      "code": "identity.tenant_session_mismatch",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.tenant_session_mismatch"
+    },
+    {
       "code": "identity.use_parent_portal",
       "class": "permission",
       "parameters": [],

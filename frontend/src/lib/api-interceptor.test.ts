@@ -622,4 +622,30 @@ describe("response interceptor token refresh queue", () => {
     ).rejects.toMatchObject({ status: 429, response: { status: 429 } });
     expect(mockGetSession).not.toHaveBeenCalled();
   });
+  it("reports a refused tenant session so TenantGuard switches back (#5130)", async () => {
+    const { onTenantSessionMismatch } =
+      await import("./tenant-session-mismatch");
+    const listener = vi.fn();
+    const unsubscribe = onTenantSessionMismatch(listener);
+    const conflict = (code: string) => {
+      const error = make500Error({
+        method: "post",
+        url: "/api/time-tracking/check-in",
+      });
+      error.response!.status = 409;
+      error.response!.data = { status: 409, code };
+      return error;
+    };
+
+    const otherConflict = conflict("care.announcement_stale");
+    await expect(responseInterceptorRejected(otherConflict)).rejects.toBe(
+      otherConflict,
+    );
+    expect(listener).not.toHaveBeenCalled();
+
+    const refusal = conflict("identity.tenant_session_mismatch");
+    await expect(responseInterceptorRejected(refusal)).rejects.toBe(refusal);
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+  });
 });

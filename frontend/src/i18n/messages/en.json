@@ -2791,6 +2791,7 @@
         "passkey_not_found": "{object} could not be changed. Please check its current status.",
         "account_not_found": "{object} could not be changed. Please check its current status.",
         "tenant_access_not_found": "{object} could not be changed. Please check its current status.",
+        "tenant_session_mismatch": "The school was changed in another window. Please try again in a moment.",
         "account_not_in_school": "{object} could not be changed. Please check its current status.",
         "lehrkraft_role_immutable": "{object} could not be changed. Please check its current status.",
         "access_name_required": "{object} could not be saved. Please check your entries.",

@@ -8,6 +8,7 @@ import {
   unavailableApiError,
   type ProblemBody,
 } from "./api-error";
+import { noteTenantSessionMismatch } from "./tenant-session-mismatch";
 
 // Logger instance for API helpers
 const logger = createLogger({ component: "ApiHelpers" });
@@ -96,6 +97,7 @@ export async function authFetch<T>(
   }
 
   if (!response.ok) {
+    await noteTenantSessionMismatch(response);
     const bodyText =
       typeof response.text === "function" ? await response.text() : "";
     let payload: unknown;
@@ -193,6 +195,7 @@ export async function fetchWithRetry<T>(
   }
 
   if (!response.ok) {
+    await noteTenantSessionMismatch(response);
     const errorText = await response.text();
     // Only 401/403 are expected "access denied" scenarios - return null for graceful handling
     // Other 4xx errors (400 Bad Request, 404 Not Found) indicate bugs and should throw

@@ -7,6 +7,7 @@ import { mutate } from "~/lib/swr";
 import { hasSessionAccess } from "~/lib/session-access";
 import { clearSessionCache } from "~/lib/session-cache";
 import { performTenantSwitch } from "~/lib/tenant-api";
+import { onTenantSessionMismatch } from "~/lib/tenant-session-mismatch";
 import { ApiError } from "~/lib/api-error";
 import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { useTenant } from "~/lib/tenant-context";
@@ -103,6 +104,35 @@ function GuardedTenant({
   const [signingOutOperator, setSigningOutOperator] = useState(false);
   const [signingOutExpiredSession, setSigningOutExpiredSession] =
     useState(false);
+  const mismatchReloadInFlight = useRef(false);
+
+  // A tenant route refused a request: the shared cookie now holds another
+  // school's session (#5130). Nothing of this tab's caches may be shown or
+  // reused; ask the provider for the session, so the mismatch effect below
+  // switches back to this tab's school.
+  useEffect(
+    () =>
+      onTenantSessionMismatch(() => {
+        if (mismatchReloadInFlight.current) return;
+        mismatchReloadInFlight.current = true;
+        void (async () => {
+          try {
+            clearSessionCache();
+            await mutate(() => true, undefined, { revalidate: false });
+            await update();
+          } catch (err) {
+            // The refused request shows its own error; the next refusal or
+            // the provider's poll starts this again.
+            logger.warn("tenant_session_mismatch_reload_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          } finally {
+            mismatchReloadInFlight.current = false;
+          }
+        })();
+      }),
+    [update],
+  );
 
   const sessionTenantId = session?.user?.tenantId;
   const sessionScope = session?.user?.scope;

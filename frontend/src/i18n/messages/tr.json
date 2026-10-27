@@ -2791,6 +2791,7 @@
         "passkey_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "account_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "tenant_access_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "tenant_session_mismatch": "Okul başka bir pencerede değiştirildi. Lütfen birazdan tekrar deneyin.",
         "account_not_in_school": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "lehrkraft_role_immutable": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "access_name_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

@@ -59,6 +59,16 @@ function tagSentryRequest(portal: SentryPortal, request: NextAuthRequest) {
 export function createResponseAwareAuth(
   rawAuth: NextAuthResult["auth"],
   portal: SentryPortal,
+  options: {
+    /**
+     * Answers instead of the route when the session must not be used on
+     * this request; null lets the route run.
+     */
+    rejectSession?: (
+      request: NextRequest,
+      session: ServerSession | null,
+    ) => Promise<Response | null>;
+  } = {},
 ) {
   const requestSession = new AsyncLocalStorage<SessionContext>();
   // The session callback returns ServerSession; Auth.js types it as Session.
@@ -110,6 +120,11 @@ export function createResponseAwareAuth(
         current.session = serverRequest.auth;
         current.request = authRequest;
         tagSentryRequest(portal, authRequest);
+        const rejection = await options.rejectSession?.(
+          authRequest,
+          serverRequest.auth,
+        );
+        if (rejection) return rejection;
         return requestSession.run(current, () =>
           handler(serverRequest, authContext as Context),
         );

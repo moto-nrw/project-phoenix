@@ -2791,6 +2791,7 @@
         "passkey_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "account_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "tenant_access_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "tenant_session_mismatch": "В іншому вікні змінили школу. Спробуйте ще раз за мить.",
         "account_not_in_school": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "lehrkraft_role_immutable": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "access_name_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",

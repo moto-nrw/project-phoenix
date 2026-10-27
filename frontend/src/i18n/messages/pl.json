@@ -2791,6 +2791,7 @@
         "passkey_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "account_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "tenant_access_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "tenant_session_mismatch": "W innym oknie zmieniono szkołę. Spróbuj ponownie za chwilę.",
         "account_not_in_school": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "lehrkraft_role_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "access_name_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

@@ -1,8 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { reportTenantSessionMismatch } from "~/lib/tenant-session-mismatch";
 
 // ============================================================================
 // Mocks
@@ -860,6 +868,108 @@ describe("TenantGuard", () => {
       expect(
         screen.getAllByRole("button", { name: /Erneut versuchen|Wiederholen/ }),
       ).toHaveLength(1);
+    });
+  });
+  // #5130: a tenant route refused a request because the shared cookie holds
+  // another school's session. The tab drops its caches, asks the provider
+  // for the session and switches back to its own school.
+  describe("when a tenant route refuses the session (#5130)", () => {
+    const sessionOf = (tenantId: number) => ({
+      user: { tenantId, token: "access-token" },
+    });
+
+    /** Provider stand-in: update() answers with what the cookie holds now. */
+    function Tab({ cookieTenantId }: { cookieTenantId: number }) {
+      const [data, setData] = useState(sessionOf(1));
+      mockUseSession.mockReturnValue({
+        data,
+        status: "authenticated",
+        update: mockProviderUpdate.mockImplementation(async () => {
+          const next = sessionOf(cookieTenantId);
+          setData(next);
+          return next;
+        }),
+      });
+      return (
+        <TenantGuard>
+          <div>Protected Content</div>
+        </TenantGuard>
+      );
+    }
+
+    const mockProviderUpdate = vi.fn();
+
+    beforeEach(() => {
+      mockProviderUpdate.mockReset();
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-a",
+        tenant: tenantA,
+      });
+      // Keep the switch back open so the switching state stays visible.
+      mockPerformTenantSwitch.mockReturnValue(new Promise(vi.fn()));
+    });
+
+    it("drops the caches, reloads the session and switches back", async () => {
+      render(<Tab cookieTenantId={2} />);
+      // Anker: die Seite der eigenen Schule ist sichtbar.
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+
+      act(() => reportTenantSessionMismatch());
+
+      expect(
+        await screen.findByText("Mandant wird gewechselt..."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+      expect(mockClearSessionCache).toHaveBeenCalled();
+      expect(mockMutate).toHaveBeenCalledWith(expect.any(Function), undefined, {
+        revalidate: false,
+      });
+      const matcher = mockMutate.mock.calls[0]?.[0] as (
+        key: unknown,
+      ) => boolean;
+      expect(matcher("/api/students")).toBe(true);
+      // The caches are gone before the provider's answer can render anything.
+      expect(mockMutate.mock.invocationCallOrder[0]).toBeLessThan(
+        mockProviderUpdate.mock.invocationCallOrder[0]!,
+      );
+      await waitFor(() =>
+        expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+          "school-a",
+          mockSignIn,
+          mockMutate,
+        ),
+      );
+    });
+
+    it("asks the provider once while a reload runs", async () => {
+      let finishUpdate: () => void = () => undefined;
+      mockUseSession.mockReturnValue({
+        data: sessionOf(1),
+        status: "authenticated",
+        update: mockProviderUpdate.mockImplementation(
+          () =>
+            new Promise<void>((resolve) => {
+              finishUpdate = resolve;
+            }),
+        ),
+      });
+      render(
+        <TenantGuard>
+          <div>Protected Content</div>
+        </TenantGuard>,
+      );
+      // Anker: die Seite der eigenen Schule ist sichtbar.
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+
+      act(() => {
+        reportTenantSessionMismatch();
+        reportTenantSessionMismatch();
+      });
+      await waitFor(() => expect(mockProviderUpdate).toHaveBeenCalledTimes(1));
+
+      await act(async () => finishUpdate());
+      act(() => reportTenantSessionMismatch());
+      await waitFor(() => expect(mockProviderUpdate).toHaveBeenCalledTimes(2));
     });
   });
 });

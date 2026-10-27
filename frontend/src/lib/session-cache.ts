@@ -18,6 +18,7 @@ import {
 } from "./api-error";
 import { clearRateLimitBackoff } from "./rate-limit-backoff";
 import { hasSessionAccess } from "./session-access";
+import { noteTenantSessionMismatch } from "./tenant-session-mismatch";
 
 let cached: {
   session: Awaited<ReturnType<typeof getSession>>;
@@ -45,11 +46,16 @@ async function transportFetch(
   url: string,
   init: RequestInit,
 ): Promise<Response> {
+  let response: Response;
   try {
-    return await fetch(url, init);
+    response = await fetch(url, init);
   } catch (error) {
     throw unavailableApiError(error);
   }
+  // The cookie now holds another school's session (#5130); never answer
+  // from the cached one again. TenantGuard does the rest.
+  if (await noteTenantSessionMismatch(response)) clearSessionCache();
+  return response;
 }
 
 async function getSessionOrUnavailable() {

@@ -18,6 +18,7 @@ import {
   ApiResponseError as ServerApiResponseError,
 } from "./api-helpers.server";
 import { suppressConsole } from "~/test/helpers/console";
+import { onTenantSessionMismatch } from "./tenant-session-mismatch";
 
 const { mockNextHeaders } = vi.hoisted(() => ({
   mockNextHeaders: vi.fn(),
@@ -758,6 +759,24 @@ describe("authFetch", () => {
     globalThis.fetch = originalFetch;
   });
 
+  it("reports a refused tenant session and still throws its code (#5130)", async () => {
+    const listener = vi.fn();
+    const unsubscribe = onTenantSessionMismatch(listener);
+    mockFetch.mockResolvedValueOnce(
+      Response.json(
+        { status: 409, code: "identity.tenant_session_mismatch" },
+        { status: 409 },
+      ),
+    );
+
+    await expect(authFetch("/api/students")).rejects.toMatchObject({
+      status: 409,
+      code: "identity.tenant_session_mismatch",
+    });
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
+  });
+
   // The browser holds no token (#5005): the BFF reads the session cookie.
   it("makes GET request without headers", async () => {
     mockFetch.mockResolvedValueOnce({
@@ -856,6 +875,24 @@ describe("fetchWithRetry", () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+  });
+
+  it("reports a refused tenant session and still throws its code (#5130)", async () => {
+    const listener = vi.fn();
+    const unsubscribe = onTenantSessionMismatch(listener);
+    mockFetchRetry.mockResolvedValueOnce(
+      Response.json(
+        { status: 409, code: "identity.tenant_session_mismatch" },
+        { status: 409 },
+      ),
+    );
+
+    await expect(fetchWithRetry("/api/students")).rejects.toMatchObject({
+      status: 409,
+      code: "identity.tenant_session_mismatch",
+    });
+    expect(listener).toHaveBeenCalledTimes(1);
+    unsubscribe();
   });
 
   it("returns response and data on success", async () => {

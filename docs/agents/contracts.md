@@ -272,6 +272,19 @@ Operator, parents, school, and Träger cookies are host-only. The tenant cookie 
 domain-scoped to support switching between school subdomains (localhost:
 host-only). The proxy redirects cross-host paths to their canonical subdomain.
 
+A switch in one tab replaces that shared cookie for every school tab, and the
+backend only knows the token's school. So `withTenantAuth` refuses a session
+whose `tenantId` differs from the school of the request's tenant host
+(`X-Moto-Original-Host`, resolved through the layout's cached lookup) with
+409 `identity.tenant_session_mismatch`, before the route or any backend call
+runs; a failed lookup answers 503 (#5130,
+`frontend/src/server/auth/tenant-host-session.ts`). Exempt are the session
+routes TenantGuard needs to switch back (switch, staff-preview end, token,
+logout, client logs). Hosts without a school subdomain, such as path mode on
+the bare domain, are not checked. The browser transports report the code;
+TenantGuard drops the session and SWR caches, reloads the session and
+switches to the host's school.
+
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
 | Tenant | `{slug}.{TENANT_DOMAIN}` | `{TENANT_DOMAIN, dots→dashes}.session-token` on `.{TENANT_DOMAIN}`; localhost: `authjs.session-token` | `/api/auth` | `""` | `POST /auth/login` |
