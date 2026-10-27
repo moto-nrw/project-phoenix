@@ -32,6 +32,7 @@ import {
   downloadDeclarationExport,
   fetchDeclarationStatus,
   remindUnanswered,
+  withApiBase,
 } from "~/lib/parent-announcements-api";
 import type {
   DeclarationAction,
@@ -146,8 +147,11 @@ const DECLARATION_EXPORT_OPTIONS: readonly ExportMenuOption[] = [
 export function DeclarationStatusPanel({
   announcementId,
   canAct,
+  apiBase,
 }: {
   readonly announcementId: string;
+  /** The routes of the portal that shows the Einverständnis; default the OGS's. */
+  readonly apiBase?: string;
   /** Reminders are only offered while the Einverständnis is live. */
   readonly canAct: boolean;
 }) {
@@ -169,7 +173,9 @@ export function DeclarationStatusPanel({
 
   const load = useCallback(async () => {
     try {
-      setStatus(await fetchDeclarationStatus(announcementId));
+      setStatus(
+        await withApiBase(fetchDeclarationStatus, announcementId, apiBase),
+      );
       setLoadFailed(false);
       clearLoadError();
     } catch (error) {
@@ -182,7 +188,7 @@ export function DeclarationStatusPanel({
         retry: () => latestLoadRef.current(),
       });
     }
-  }, [announcementId, showLoadError, clearLoadError]);
+  }, [announcementId, apiBase, showLoadError, clearLoadError]);
   useLayoutEffect(() => {
     latestLoadRef.current = () => void load();
   });
@@ -202,7 +208,11 @@ export function DeclarationStatusPanel({
   const remind = async () => {
     setBusy("remind");
     try {
-      const count = await remindUnanswered(announcementId);
+      const count = await withApiBase(
+        remindUnanswered,
+        announcementId,
+        apiBase,
+      );
       toastSuccess(
         count === 0
           ? "Für alle Kinder liegt eine Antwort vor. Es wurde niemand erinnert."
@@ -225,7 +235,9 @@ export function DeclarationStatusPanel({
   const download = async (format: "pdf" | "csv") => {
     setBusy(format);
     try {
-      await downloadDeclarationExport(announcementId, format);
+      await (apiBase === undefined
+        ? downloadDeclarationExport(announcementId, format)
+        : downloadDeclarationExport(announcementId, format, apiBase));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error("declaration_export_failed", { format, error: message });

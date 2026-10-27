@@ -236,6 +236,7 @@ export const HELP_TOPICS = {
   teacherMessages: "als-lehrkraft-nachrichten-lesen",
   teacherNotices: "als-lehrkraft-tagesinformationen-lesen",
   teacherCalendar: "als-lehrkraft-den-kalender-nutzen",
+  teacherParentLetters: "einen-elternbrief-an-meine-klasse-schreiben",
   teacherLoginProblem: "anmeldung-bei-moto-schule-klappt-nicht",
   teacherNoClasses: "mir-wird-keine-klasse-angezeigt",
   teacherFeatureMissing: "als-lehrkraft-fehlt-mir-ein-bereich",
@@ -382,7 +383,10 @@ const SCHOOL_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
 
 const SCHOOL_PREFIX_HELP_TOPICS: ReadonlyArray<
   readonly [prefix: string, topic: HelpTopicId]
-> = [["/nachrichten", HELP_TOPICS.teacherMessages]];
+> = [
+  ["/nachrichten", HELP_TOPICS.teacherMessages],
+  ["/elternbriefe", HELP_TOPICS.teacherParentLetters],
+];
 
 /** Finds the help article for a page of the parents portal. */
 export function getParentHelpTopicForPath(

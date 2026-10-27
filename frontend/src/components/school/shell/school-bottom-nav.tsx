@@ -12,7 +12,7 @@ import { schoolNavBadge } from "./school-nav-badge";
 import { SCHOOL_PRIMARY_NAV, SCHOOL_SECONDARY_NAV } from "./school-nav-items";
 
 const ITEM =
-  "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-4 py-2.5 transition-colors duration-200";
+  "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full py-2.5 transition-colors duration-200";
 const ITEM_ACTIVE = "bg-gray-100 text-gray-900";
 const ITEM_IDLE = "text-gray-500 hover:text-gray-700";
 
@@ -56,8 +56,15 @@ export function SchoolBottomNav({
   // Pille. Schmalere Geräte bekommen die Icon-Zeile, statt dass ein Ziel aus
   // der Leiste geschoben wird. Seit den Tagesinformationen (#2208) sind es
   // immer mindestens vier Ziele, die Beschriftung ist also stets so geregelt.
-  const labelClass =
-    "hidden text-sm font-semibold whitespace-nowrap min-[420px]:inline";
+  //
+  // Mit den Elternbriefen (#4800) sind es mit Team-Chat sieben Ziele. Dann
+  // rücken die Icons enger zusammen, damit die Zeile auf 360 px passt, und
+  // die Beschriftung des aktiven Ziels kommt erst ab 480 px dazu.
+  const crowded = items.length > 6;
+  const itemPadding = crowded ? "px-3" : "px-4";
+  const labelClass = crowded
+    ? "hidden text-sm font-semibold whitespace-nowrap min-[480px]:inline"
+    : "hidden text-sm font-semibold whitespace-nowrap min-[420px]:inline";
 
   return (
     <nav
@@ -90,7 +97,7 @@ export function SchoolBottomNav({
                       ? { target: "_blank", rel: "noopener noreferrer" }
                       : {})}
                     aria-label={item.label}
-                    className={`${ITEM} ${active ? ITEM_ACTIVE : ITEM_IDLE}`}
+                    className={`${ITEM} ${itemPadding} ${active ? ITEM_ACTIVE : ITEM_IDLE}`}
                   >
                     <span className="relative inline-flex">
                       <MotoNavIcon

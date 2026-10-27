@@ -20,6 +20,7 @@ import {
   describeReminder,
   kindOf,
   KIND_PARAM,
+  classLetterSenderLine,
 } from "~/components/announcements/announcement-meta";
 import type { AnnouncementKind } from "~/components/announcements/announcement-meta";
 import { useToast } from "~/contexts/ToastContext";
@@ -186,7 +187,9 @@ function AnnouncementDetailPageContent() {
     onReminder: () => setAction("reminder"),
   });
 
+  const sender = classLetterSenderLine(announcement);
   const statusLine = [
+    sender ? `Von ${sender} · nur zum Lesen` : null,
     announcement.published_at
       ? `Veröffentlicht ${formatDate(announcement.published_at)}`
       : "Noch nicht veröffentlicht",

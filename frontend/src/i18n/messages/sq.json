@@ -423,6 +423,7 @@
     "newsAcknowledgementHint": "Kjo konfirmon vetëm që e keni lexuar njoftimin.",
     "newsMessageFrom": "Mesazh nga {school}",
     "newsDeclarationFrom": "Pëlqim · {school}",
+    "newsSender": "{name}, klasa {schoolClass}, {school}",
     "newsRead": "Lexuar",
     "newsStaleError": "Ky njoftim nuk është më aktual. Ju lutemi, ringarkoni faqen.",
     "newsPoll": "Sondazh",

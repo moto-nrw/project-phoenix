@@ -423,6 +423,7 @@
     "newsAcknowledgementHint": "Bununla yalnızca veli mektubunu okuduğunuzu onaylarsınız.",
     "newsMessageFrom": "Veli mektubu: {school}",
     "newsDeclarationFrom": "İzin · {school}",
+    "newsSender": "{name}, {schoolClass} sınıfı, {school}",
     "newsRead": "Okundu",
     "newsStaleError": "Bu veli mektubu artık güncel değil. Lütfen sayfayı yenileyin.",
     "newsPoll": "Anket",

@@ -343,3 +343,57 @@ describe("deleting an Einverständnis with answers (#3430)", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+// #4800: Klassenbriefe einer Lehrkraft. Die OGS liest sie nur, die Lehrkraft
+// führt sie über die Routen von moto schule.
+describe("class letters of a Lehrkraft (#4800)", () => {
+  const classLetter: Announcement = {
+    ...announcement,
+    status: "published",
+    sender_name: "Lena Lehrerin",
+    sender_school_class: "3b",
+  };
+  const handlers = {
+    onPublish: vi.fn(),
+    onEdit: vi.fn(),
+    onUnpublish: vi.fn(),
+    onDelete: vi.fn(),
+  };
+
+  it("keeps a class letter read-only for the OGS", () => {
+    expect(
+      buildAnnouncementMenuItems(classLetter, {
+        ...handlers,
+        onView: vi.fn(),
+      }).map((item) => item.label),
+    ).toEqual(["Anzeigen"]);
+    expect(buildAnnouncementMenuItems(classLetter, handlers)).toEqual([]);
+  });
+
+  it("lets the author withdraw and delete her letter, without an edit form", () => {
+    expect(
+      buildAnnouncementMenuItems(classLetter, {
+        classLetterAuthor: true,
+        onPublish: vi.fn(),
+        onUnpublish: vi.fn(),
+        onDelete: vi.fn(),
+      }).map((item) => item.label),
+    ).toEqual(["Zurückziehen", "Löschen"]);
+  });
+
+  it("calls the routes of moto schule when given their base", async () => {
+    const onClose = vi.fn();
+    render(
+      <PublishAnnouncementDialog
+        announcement={{ ...classLetter, status: "draft" }}
+        apiBase="/api/school/parent-letters"
+        onClose={onClose}
+        onDone={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(publishMock).toHaveBeenCalledWith("7", "/api/school/parent-letters");
+  });
+});

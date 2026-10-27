@@ -423,6 +423,7 @@
     "newsAcknowledgementHint": "Potwierdzają Państwo tylko, że przeczytali Państwo list do rodziców.",
     "newsMessageFrom": "List do rodziców: {school}",
     "newsDeclarationFrom": "Zgoda · {school}",
+    "newsSender": "{name}, klasa {schoolClass}, {school}",
     "newsRead": "Przeczytane",
     "newsStaleError": "Ten list do rodziców nie jest już aktualny. Proszę odświeżyć stronę.",
     "newsPoll": "Ankieta",

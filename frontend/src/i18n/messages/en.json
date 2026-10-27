@@ -423,6 +423,7 @@
     "newsAcknowledgementHint": "This only confirms that you have read the announcement.",
     "newsMessageFrom": "Message from {school}",
     "newsDeclarationFrom": "Consent · {school}",
+    "newsSender": "{name}, class {schoolClass}, {school}",
     "newsRead": "Read",
     "newsStaleError": "This announcement is no longer current. Please reload the page.",
     "newsPoll": "Survey",

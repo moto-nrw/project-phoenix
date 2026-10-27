@@ -59,6 +59,7 @@ import {
 } from "~/components/announcements/announcement-reminder-dialog";
 import {
   AnnouncementStatusBadge,
+  classLetterSenderLine,
   describeReminder,
   KIND_PARAM,
   kindFromParam,
@@ -360,7 +361,12 @@ function ParentAnnouncementsContent() {
   useEffect(() => {
     if (!editRequestId || announcements === undefined) return;
     const requested = announcements.find((a) => a.id === editRequestId);
-    if (requested && requested.status === "draft" && !requested.system_kind) {
+    if (
+      requested &&
+      requested.status === "draft" &&
+      !requested.system_kind &&
+      !requested.sender_school_class
+    ) {
       setEditing(requested);
       setIsFormOpen(true);
     }
@@ -559,6 +565,11 @@ function ParentAnnouncementsContent() {
           <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
             {row.body}
           </p>
+          {classLetterSenderLine(row) && (
+            <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
+              Von {classLetterSenderLine(row)} · nur zum Lesen
+            </p>
+          )}
         </div>
       ),
     },

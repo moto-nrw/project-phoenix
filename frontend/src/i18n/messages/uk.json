@@ -423,6 +423,7 @@
     "newsAcknowledgementHint": "Так ви лише підтверджуєте, що прочитали лист батькам.",
     "newsMessageFrom": "Лист батькам від {school}",
     "newsDeclarationFrom": "Згода · {school}",
+    "newsSender": "{name}, клас {schoolClass}, {school}",
     "newsRead": "Прочитано",
     "newsStaleError": "Цей лист батькам уже не актуальний. Оновіть сторінку.",
     "newsPoll": "Опитування",

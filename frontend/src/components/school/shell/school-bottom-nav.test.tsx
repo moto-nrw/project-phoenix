@@ -60,14 +60,19 @@ describe("SchoolBottomNav", () => {
     );
   });
 
-  it("blendet die Beschriftung auch bei sechs Zielen mit Team-Chat aus", () => {
+  // Mit den Elternbriefen (#4800) sind es mit Team-Chat sieben Ziele: die
+  // Icons rücken zusammen, die Beschriftung kommt erst ab 480 px dazu.
+  it("blendet die Beschriftung bei sieben Zielen mit Team-Chat unterhalb von 480 px aus", () => {
     mockPathname.value = "/aufsichten";
     render(<SchoolBottomNav teamChat={{ unreadCount: 0, available: true }} />);
 
-    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(6);
+    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(7);
     expect(screen.getByText("Meine Aufsichten")).toHaveClass(
       "hidden",
-      "min-[420px]:inline",
+      "min-[480px]:inline",
+    );
+    expect(screen.getByRole("link", { name: "Elternbriefe" })).toHaveClass(
+      "px-3",
     );
   });
 

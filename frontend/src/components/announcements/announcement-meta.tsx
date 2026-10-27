@@ -187,6 +187,19 @@ const TARGET_TYPE_PLURAL: Record<AnnouncementTargetType, string> = {
 };
 
 /** Kurze, namenlose Zusammenfassung für die Liste (z. B. „2 Gruppen, 1 Klasse"). */
+/**
+ * Who wrote a class letter in moto schule (#4800): the Lehrkraft and her
+ * class. Undefined for an announcement of the OGS.
+ */
+export function classLetterSenderLine(
+  announcement: Pick<Announcement, "sender_name" | "sender_school_class">,
+): string | undefined {
+  if (!announcement.sender_name || !announcement.sender_school_class) {
+    return undefined;
+  }
+  return `${announcement.sender_name}, Lehrkraft der Klasse ${announcement.sender_school_class}`;
+}
+
 export function summarizeTargets(targets: AnnouncementTarget[]): string {
   if (targets.length === 0) return "–";
   if (targets.some((t) => t.target_type === "school_all")) {

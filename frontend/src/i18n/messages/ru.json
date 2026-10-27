@@ -423,6 +423,7 @@
     "newsAcknowledgementHint": "Так вы подтверждаете только то, что прочитали объявление.",
     "newsMessageFrom": "Сообщение от {school}",
     "newsDeclarationFrom": "Согласие · {school}",
+    "newsSender": "{name}, класс {schoolClass}, {school}",
     "newsRead": "Прочитано",
     "newsStaleError": "Это объявление больше не актуально. Пожалуйста, обновите страницу.",
     "newsPoll": "Опрос",

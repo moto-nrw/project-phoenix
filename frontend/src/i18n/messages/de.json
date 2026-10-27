@@ -423,6 +423,7 @@
     "newsAcknowledgementHint": "Damit bestätigen Sie nur, dass Sie den Elternbrief gelesen haben.",
     "newsMessageFrom": "Elternbrief von {school}",
     "newsDeclarationFrom": "Einverständnis · {school}",
+    "newsSender": "{name}, Klasse {schoolClass}, {school}",
     "newsRead": "Gelesen",
     "newsStaleError": "Dieser Elternbrief ist nicht mehr aktuell. Bitte laden Sie die Seite neu.",
     "newsPoll": "Umfrage",
