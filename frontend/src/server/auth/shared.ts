@@ -8,7 +8,7 @@
 
 import { validateSessionToken } from "./token-validation";
 import type { JwtPayload } from "./jwt-payload";
-import type { DefaultSession, NextAuthConfig, User } from "next-auth";
+import type { DefaultSession, NextAuthConfig, Session, User } from "next-auth";
 import { createHmac, randomBytes } from "node:crypto";
 import { env } from "~/env";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
@@ -33,11 +33,16 @@ export type { JwtPayload } from "./jwt-payload";
 // ---------------------------------------------------------------------------
 
 declare module "next-auth" {
+  // The browser's view of a session (#5005): useSession(), getSession(),
+  // the session routes and the layout snapshots. It carries no access or
+  // refresh token; server code reads them through ServerSession. The user
+  // lists DefaultSession's fields itself: its User type carries the tokens.
   interface Session extends DefaultSession {
     user: {
       id: string;
-      token?: string;
-      refreshToken?: string;
+      name?: string | null;
+      email?: string | null;
+      image?: string | null;
       roles?: string[];
       roleIsSystem?: boolean[];
       permissions?: string[];
@@ -53,7 +58,7 @@ declare module "next-auth" {
       isPreview?: boolean;
       previewTargetName?: string;
       previewTargetAccountId?: string;
-    } & DefaultSession["user"];
+    };
     error?: "RefreshTokenExpired" | "RefreshTokenError";
   }
 
@@ -99,6 +104,16 @@ declare module "next-auth" {
     previewAdminEmail?: string;
   }
 }
+
+/**
+ * The session as server code sees it: what the session callback returns,
+ * including the access and refresh token. Only a portal's auth() and its
+ * route wrappers hand it out; the session routes strip it to Session before
+ * it reaches the browser (browser-session.ts, #5005).
+ */
+export type ServerSession = Session & {
+  user: Session["user"] & { token?: string; refreshToken?: string };
+};
 
 // ---------------------------------------------------------------------------
 // Utility functions
@@ -1568,9 +1583,15 @@ export const sharedJwtCallback: NonNullable<
   return token;
 };
 
+/**
+ * Builds the ServerSession. The browser never receives this object as is:
+ * the session routes and layout snapshots map it to Session, which carries
+ * no token (#5005). A session without an access token always carries an
+ * error, so the browser can tell a dead session apart without the token.
+ */
 export const sharedSessionCallback: NonNullable<
   NonNullable<NextAuthConfig["callbacks"]>["session"]
-> = ({ session, token }) => {
+> = ({ session, token }): ServerSession => {
   if (
     token.error === "RefreshTokenExpired" ||
     token.error === "RefreshTokenError" ||
@@ -1591,7 +1612,7 @@ export const sharedSessionCallback: NonNullable<
         isAdmin: false,
         scope: token.scope as string | undefined,
       },
-      error: token.error,
+      error: (token.error as Session["error"]) ?? "RefreshTokenError",
     };
   }
 

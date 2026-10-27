@@ -21,7 +21,7 @@ import StaffImportPage from "./page";
 const personnelSession = {
   data: {
     user: {
-      token: "test-token",
+      id: "1",
       permissions: ["users:create", "staff:manage", "staff:stammdaten"],
     },
   },
@@ -271,9 +271,8 @@ describe("StaffImportPage", () => {
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/import/teachers/template?format=xlsx",
-        expect.objectContaining({
-          headers: { Authorization: "Bearer test-token" },
-        }),
+        // The route reads the session cookie (#5005).
+        { credentials: "include" },
       );
     });
   });
@@ -959,15 +958,15 @@ describe("StaffImportPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("handles a missing token gracefully", async () => {
-    // Ohne Token ist die Anmeldung abgelaufen: der gemeinsame Fehlerweg
+  it("handles a stripped session gracefully", async () => {
+    // Ohne gültige Sitzung ist die Anmeldung abgelaufen: der gemeinsame Fehlerweg
     // schickt zur Anmeldung (#2517).
     const assign = vi
       .spyOn(window.location, "assign")
       .mockImplementation(() => undefined);
     const useSession = await import("next-auth/react");
     vi.mocked(useSession.useSession).mockReturnValueOnce({
-      data: { user: { token: undefined } },
+      data: { user: { id: "1" }, error: "RefreshTokenError" },
       status: "authenticated",
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession.useSession>);
@@ -985,7 +984,7 @@ describe("StaffImportPage", () => {
   it("keeps a create-only user in create mode and says so (#2906)", async () => {
     const useSession = await import("next-auth/react");
     vi.mocked(useSession.useSession).mockReturnValue({
-      data: { user: { token: "test-token", permissions: ["users:create"] } },
+      data: { user: { id: "1", permissions: ["users:create"] } },
       status: "authenticated",
       update: vi.fn(),
     } as unknown as ReturnType<typeof useSession.useSession>);

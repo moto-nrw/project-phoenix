@@ -8,11 +8,13 @@ vi.mock("./session-cache", () => {
     getCachedSession,
     clearSessionCache: vi.fn(),
     sessionFetch: vi.fn(async (url: string, init?: RequestInit) => {
+      // Same gate as the real sessionFetch (hasSessionAccess, #5005).
       const session = (await getCachedSession()) as {
-        user?: { token?: string };
+        user?: { id?: string };
+        error?: string;
       } | null;
-      const token = session?.user?.token;
-      if (!token) throw new Error("No authentication token available");
+      if (!session?.user || session.error)
+        throw new Error("No authentication token available");
       return fetch(url, {
         ...init,
         headers: {

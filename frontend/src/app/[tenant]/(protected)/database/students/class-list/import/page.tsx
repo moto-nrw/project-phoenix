@@ -149,7 +149,7 @@ export default function ClassListImportPage() {
     try {
       await downloadImportTemplate(
         `/api/import/class-list-entries/template?format=${templateFormat}`,
-        session?.user?.token,
+        session,
         templateFormat === "xlsx"
           ? "klassenliste-import-vorlage.xlsx"
           : "klassenliste-import-vorlage.csv",
@@ -183,7 +183,7 @@ export default function ClassListImportPage() {
 
         const response = await postImportFile(
           "/api/import/class-list-entries/preview",
-          session?.user?.token,
+          session,
           formData,
         );
         const result = response.body;
@@ -241,7 +241,7 @@ export default function ClassListImportPage() {
 
       const response = await postImportFile(
         "/api/import/class-list-entries/import",
-        session?.user?.token,
+        session,
         formData,
       );
       const result = response.body;

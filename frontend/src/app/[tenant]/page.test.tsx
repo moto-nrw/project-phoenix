@@ -26,9 +26,11 @@ vi.mock("~/lib/analytics", () => ({
 
 // Mock next-auth/react
 const mockSignIn = vi.fn();
+const mockSignOut = vi.fn();
 vi.mock("next-auth/react", () => ({
   signIn: (provider: string, options?: Record<string, unknown>) =>
     mockSignIn(provider, options),
+  signOut: (options?: Record<string, unknown>) => mockSignOut(options),
   useSession: vi.fn(() => ({
     data: null,
     status: "unauthenticated",
@@ -55,11 +57,6 @@ const mockTenantPush = vi.fn();
 const mockTenantRefresh = vi.fn();
 vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: mockTenantPush, refresh: mockTenantRefresh }),
-}));
-
-// Mock auth-api
-vi.mock("~/lib/auth-api", () => ({
-  refreshToken: vi.fn(() => Promise.resolve(null)),
 }));
 
 // Mock SmartRedirect
@@ -143,7 +140,6 @@ vi.mock("next/image", () => ({
 
 import { useSession } from "next-auth/react";
 import { useTenant } from "~/lib/tenant-context";
-import { refreshToken } from "~/lib/auth-api";
 import HomePage from "./page";
 
 const mockAnimate = vi.fn(() => ({
@@ -785,13 +781,11 @@ describe("HomePage (Login)", () => {
     });
   });
 
-  it("redirects authenticated users with valid token", async () => {
+  it("redirects authenticated users with a valid session", async () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
           id: "1",
-          token: "valid-token",
-          refreshToken: "refresh-token",
         },
         expires: new Date(Date.now() + 3600000).toISOString(),
       },
@@ -949,26 +943,21 @@ describe("Enter key form submission", () => {
   });
 });
 
-describe("Token refresh flow", () => {
+// The browser session carries no token (#5005): the page never reads a
+// refresh token and never seeds the session with tokens of its own. A
+// stripped session is cleared so the person can sign in again.
+describe("Stripped session", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Element.prototype.animate = mockAnimate;
   });
 
-  it("attempts token refresh when session has refresh token but no access token", async () => {
-    vi.mocked(refreshToken).mockResolvedValue({
-      access_token: "new-token",
-      refresh_token: "new-refresh",
-    });
-    mockSignIn.mockResolvedValue({ error: null });
-
+  it("clears a stripped session and shows the login form without seeding tokens", async () => {
+    mockSignOut.mockResolvedValue(undefined);
     vi.mocked(useSession).mockReturnValue({
       data: {
-        user: {
-          id: "1",
-          token: null as unknown as string,
-          refreshToken: "old-refresh",
-        },
+        user: { id: "1" },
+        error: "RefreshTokenError",
         expires: new Date(Date.now() + 3600000).toISOString(),
       },
       status: "authenticated",
@@ -978,28 +967,8 @@ describe("Token refresh flow", () => {
     render(<HomePage />);
 
     await waitFor(() => {
-      expect(refreshToken).toHaveBeenCalled();
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
     });
-  });
-
-  it("shows login form when token refresh returns null", async () => {
-    vi.mocked(refreshToken).mockResolvedValue(null);
-
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: {
-          id: "1",
-          token: null as unknown as string,
-          refreshToken: "old-refresh",
-        },
-        expires: new Date(Date.now() + 3600000).toISOString(),
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    render(<HomePage />);
-
     await waitFor(() => {
       const submitButton = screen.getByRole("button", { name: /anmelden/i });
       const formContainer = submitButton.closest(
@@ -1007,65 +976,8 @@ describe("Token refresh flow", () => {
       );
       expect(formContainer).toHaveClass("opacity-100");
     });
-  });
-
-  it("shows login form when token refresh throws an error", async () => {
-    vi.mocked(refreshToken).mockRejectedValue(new Error("refresh failed"));
-
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: {
-          id: "1",
-          token: null as unknown as string,
-          refreshToken: "old-refresh",
-        },
-        expires: new Date(Date.now() + 3600000).toISOString(),
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    render(<HomePage />);
-
-    await waitFor(() => {
-      const submitButton = screen.getByRole("button", { name: /anmelden/i });
-      const formContainer = submitButton.closest(
-        "div[class*='transition-opacity']",
-      );
-      expect(formContainer).toHaveClass("opacity-100");
-    });
-  });
-
-  it("calls signIn with refreshed tokens after successful refresh", async () => {
-    vi.mocked(refreshToken).mockResolvedValue({
-      access_token: "new-access-token",
-      refresh_token: "new-refresh-token",
-    });
-    mockSignIn.mockResolvedValue({ error: null });
-
-    vi.mocked(useSession).mockReturnValue({
-      data: {
-        user: {
-          id: "1",
-          token: null as unknown as string,
-          refreshToken: "old-refresh",
-        },
-        expires: new Date(Date.now() + 3600000).toISOString(),
-      },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-
-    render(<HomePage />);
-
-    await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalledWith("credentials", {
-        redirect: false,
-        internalRefresh: true,
-        token: "new-access-token",
-        refreshToken: "new-refresh-token",
-      });
-    });
+    expect(screen.queryByTestId("smart-redirect")).not.toBeInTheDocument();
+    expect(mockSignIn).not.toHaveBeenCalled();
   });
 });
 

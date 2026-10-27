@@ -12,6 +12,7 @@ import {
 } from "react";
 import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { KeyRound, Trash2, Users } from "lucide-react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
@@ -248,7 +249,7 @@ export default function StaffDetailContent() {
   const [deleting, setDeleting] = useState(false);
   const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
   const [mfaModalOpen, setMfaModalOpen] = useState(false);
-  const accessToken = session?.user?.token ?? "";
+  const hasAccess = hasSessionAccess(session);
 
   const refreshRecord = useCallback(async () => {
     await Promise.all([
@@ -519,7 +520,7 @@ export default function StaffDetailContent() {
     ? `${record.first_name} ${record.last_name}`.trim()
     : "";
   const recordMenuItems: OverflowMenuItem[] = [
-    ...(canManageUsers && hasAccount && accessToken
+    ...(canManageUsers && hasAccount && hasAccess
       ? [
           {
             label: "Zwei-Faktor-Authentifizierung verwalten",
@@ -638,11 +639,10 @@ export default function StaffDetailContent() {
                   accountLabel={recordLabel}
                   onUpdated={refreshRecord}
                 />
-                {accessToken ? (
+                {hasAccess ? (
                   <MFAAdminOverrideModal
                     isOpen={mfaModalOpen}
                     onClose={() => setMfaModalOpen(false)}
-                    bearerToken={accessToken}
                     accountId={accountId}
                     accountLabel={recordLabel}
                   />

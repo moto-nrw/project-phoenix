@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense, useMemo, useCallback } from "react";
 import { UserPlus } from "lucide-react";
 import { useSession } from "next-auth/react";
+import { sessionIdentityKey } from "~/lib/session-access";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -139,7 +140,7 @@ function MeinRaumPageContent() {
   // SWR refetch inside useSupervisionDashboard. Do NOT call useGlobalSSE()
   // here - it's already called in TenantAuthWrapper.
   const dashboard = useSupervisionDashboard({
-    sessionToken: session?.user?.token,
+    sessionKey: sessionIdentityKey(session),
     sessionParam,
     roomParam,
   });

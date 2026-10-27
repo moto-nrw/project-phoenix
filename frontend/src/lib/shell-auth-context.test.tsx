@@ -365,7 +365,6 @@ describe("TeacherShellProvider", () => {
           email: "erika@example.com",
           roles: [],
           isPreview: true,
-          token: "preview-token",
         },
       },
       status: "authenticated",
@@ -376,10 +375,13 @@ describe("TeacherShellProvider", () => {
 
       await result.current.logout();
 
-      // Das aktive Token IST das Vorschau-Token: es ist der Beweis, welche
-      // Vorschau endet, und wird vor dem Zurückschalten gelesen.
-      expect(mockEndStaffPreview.mock.calls[0]?.[0]).toBe("preview-token");
+      // Das Vorschau-Token liegt nur im Sitzungs-Cookie (#5005): das Ende
+      // muss im Protokoll stehen, bevor der Logout die Sitzung löscht.
+      expect(mockEndStaffPreview).toHaveBeenCalledOnce();
       expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+      expect(mockEndStaffPreview.mock.invocationCallOrder[0]).toBeLessThan(
+        mockSignOut.mock.invocationCallOrder[0]!,
+      );
     } finally {
       vi.unstubAllGlobals();
     }
@@ -413,7 +415,6 @@ describe("TeacherShellProvider", () => {
           email: "erika@example.com",
           roles: [],
           isPreview: true,
-          token: "preview-token",
         },
       },
       status: "authenticated",

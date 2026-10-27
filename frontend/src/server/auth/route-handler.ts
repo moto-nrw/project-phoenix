@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { cache } from "react";
 import * as Sentry from "@sentry/nextjs";
-import type { NextAuthRequest, NextAuthResult, Session } from "next-auth";
+import type { NextAuthRequest, NextAuthResult } from "next-auth";
 import type { NextRequest } from "next/server";
 import { applyPrivateNoStore } from "~/lib/private-no-store";
 import { REQUEST_ID_HEADER } from "~/lib/request-id";
@@ -11,21 +11,27 @@ import {
   sentrySessionContext,
   type SentryPortal,
 } from "~/lib/sentry-context";
+import type { ServerSession } from "./shared";
 
 export type ResponseRouteHandler<Context = RouteContext> = (
   request: NextRequest,
   context?: Context,
 ) => Promise<Response>;
 
+/** A route request whose `auth` is the server view, tokens included. */
+export type ServerAuthRequest = NextAuthRequest & {
+  auth: ServerSession | null;
+};
+
 type AuthenticatedResponseHandler<Context> = (
-  request: NextAuthRequest,
+  request: ServerAuthRequest,
   context: Context,
 ) => Promise<Response>;
 
 type SessionContext = {
-  session: Session | null;
+  session: ServerSession | null;
   request: NextRequest;
-  freshSession?: Promise<Session | null>;
+  freshSession?: Promise<ServerSession | null>;
   freshCookies: string[];
 };
 
@@ -54,17 +60,19 @@ export function createResponseAwareAuth(
   portal: SentryPortal,
 ) {
   const requestSession = new AsyncLocalStorage<SessionContext>();
-  const cachedRawAuth = cache(() => rawAuth());
+  // The session callback returns ServerSession; Auth.js types it as Session.
+  const serverAuth = rawAuth as () => Promise<ServerSession | null>;
+  const cachedRawAuth = cache(() => serverAuth());
 
-  const auth = async (): Promise<Session | null> => {
+  const auth = async (): Promise<ServerSession | null> => {
     const current = requestSession.getStore();
     if (current) return current.session;
     return cachedRawAuth();
   };
 
-  const uncachedAuth = async (): Promise<Session | null> => {
+  const uncachedAuth = async (): Promise<ServerSession | null> => {
     const current = requestSession.getStore();
-    if (!current) return rawAuth();
+    if (!current) return serverAuth();
 
     current.freshSession ??= (async () => {
       const freshReader = rawAuth(async (request) =>
@@ -73,7 +81,7 @@ export function createResponseAwareAuth(
       const response = await freshReader(current.request);
       current.freshCookies.push(...response.headers.getSetCookie());
 
-      const session = (await response.json()) as Session | null;
+      const session = (await response.json()) as ServerSession | null;
       current.session = session;
       return session;
     })();
@@ -97,11 +105,12 @@ export function createResponseAwareAuth(
         freshCookies: [],
       };
       const wrapped = rawAuth(async (authRequest, authContext) => {
-        current.session = authRequest.auth;
+        const serverRequest = authRequest as ServerAuthRequest;
+        current.session = serverRequest.auth;
         current.request = authRequest;
         tagSentryRequest(portal, authRequest);
         return requestSession.run(current, () =>
-          handler(authRequest, authContext as Context),
+          handler(serverRequest, authContext as Context),
         );
       }) as ResponseRouteHandler<Context>;
 

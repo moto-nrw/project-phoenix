@@ -213,7 +213,6 @@ describe("StaffDetailContent permissions", () => {
         data: {
           user: {
             id: "7",
-            token: "test-token",
             roles: ["admin"],
             permissions: ["admin:*"],
           },
@@ -280,7 +279,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["admin"],
           permissions: ["admin:*"],
         },
@@ -302,7 +300,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["time_tracking:manage"],
         },
@@ -346,7 +343,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["admin"],
           permissions: ["admin:*"],
         },
@@ -383,7 +379,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["admin"],
           permissions: ["admin:*"],
         },
@@ -424,7 +419,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["admin"],
           permissions: ["admin:*"],
         },
@@ -457,7 +451,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["time_tracking:manage"],
         },
@@ -482,7 +475,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["time_tracking:manage"],
         },
@@ -504,7 +496,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["time_tracking:manage", "config:manage"],
         },
@@ -533,7 +524,6 @@ describe("StaffDetailContent permissions", () => {
         data: {
           user: {
             id: "7",
-            token: "test-token",
             roles: ["lohnbuero"],
             permissions: [permission],
           },
@@ -561,7 +551,6 @@ describe("StaffDetailContent permissions", () => {
         data: {
           user: {
             id: "7",
-            token: "test-token",
             roles: ["teacher"],
             permissions: [permission],
           },
@@ -585,7 +574,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["staff_documents:health"],
         },
@@ -610,7 +598,6 @@ describe("StaffDetailContent permissions", () => {
         data: {
           user: {
             id: "7",
-            token: "test-token",
             roles: ["teacher"],
             permissions: [permission],
           },
@@ -643,7 +630,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["users:read"],
         },
@@ -676,7 +662,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["staff:manage", "users:delete", "users:manage"],
         },
@@ -717,7 +702,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["staff:manage"],
         },
@@ -741,7 +725,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["staff:manage", "users:update", "users:manage"],
         },
@@ -776,7 +759,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["users:read", "users:manage"],
         },
@@ -812,7 +794,6 @@ describe("StaffDetailContent permissions", () => {
         data: {
           user: {
             id: "7",
-            token: "test-token",
             roles: ["teacher"],
             permissions,
           },
@@ -844,7 +825,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["schedules:read"],
         },
@@ -866,7 +846,6 @@ describe("StaffDetailContent permissions", () => {
       data: {
         user: {
           id: "7",
-          token: "test-token",
           roles: ["teacher"],
           permissions: ["schedules:read"],
         },
@@ -888,7 +867,6 @@ describe("StaffDetailContent permissions", () => {
         data: {
           user: {
             id: "7",
-            token: "test-token",
             roles: ["teacher"],
             permissions,
           },

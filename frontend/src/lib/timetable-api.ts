@@ -10,6 +10,7 @@ import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
  * - materialize(from?, to?)      → POST   /materialize
  */
 
+import { hasSessionAccess } from "./session-access";
 import { getCachedSession } from "./session-cache";
 import { createLogger } from "./logger";
 import {
@@ -156,8 +157,7 @@ class TimetableService {
     to: string,
     filter: PlanFilter = NO_PLAN_FILTER,
   ): Promise<WeeklyInstancesResponse> {
-    const session = await getCachedSession();
-    if (!session?.user?.token) {
+    if (!hasSessionAccess(await getCachedSession())) {
       throw new ApiError("Nicht angemeldet", 401);
     }
 

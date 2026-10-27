@@ -7,6 +7,7 @@ import {
   rateLimitBlockedError,
   recordRateLimit,
 } from "~/lib/rate-limit-backoff";
+import { hasSessionAccess } from "~/lib/session-access";
 import { clearSessionCache, getCachedSession } from "~/lib/session-cache";
 
 /**
@@ -32,35 +33,12 @@ const api = createAxios({
   withCredentials: true,
 });
 
-// Add a request interceptor to include the auth token
-// Note: This interceptor only runs in client-side code
+// Request interceptor: rate-limit backoff only. The browser holds no token
+// (#5005); BFF routes authenticate through the session cookie.
 api.interceptors.request.use(
-  async (config) => {
+  (config) => {
     const rateLimitError = rateLimitBlockedError(config.method);
     if (rateLimitError) return Promise.reject(rateLimitError);
-
-    // Only try to get session if we're in the browser. getCachedSession
-    // deduplicates concurrent session lookups — every raw getSession() call is
-    // its own network round trip to /api/auth/session (#2123).
-    if (globalThis.window !== undefined) {
-      const session = await getCachedSession();
-
-      // If there's a token, add it to the headers
-      if (session?.user?.token) {
-        config.headers.Authorization = `Bearer ${session.user.token}`;
-        logger.debug("token injected in request", {
-          method: config.method?.toUpperCase(),
-          url: sanitizeEndpoint(config.url ?? ""),
-          has_token: true,
-        });
-      } else {
-        logger.debug("no token available for request", {
-          method: config.method?.toUpperCase(),
-          url: sanitizeEndpoint(config.url ?? ""),
-        });
-      }
-    }
-
     return config;
   },
   (error: Error) => {
@@ -73,24 +51,24 @@ api.interceptors.request.use(
 
 // Track ongoing refresh attempts to prevent multiple simultaneous refreshes
 let isRefreshing = false;
-let lastRefreshedToken: string | null = null;
+let refreshSucceeded = false;
 let refreshSubscribers: {
-  resolve: (token: string) => void;
+  resolve: () => void;
   reject: (error: Error) => void;
 }[] = [];
 
 // Subscribe to token refresh completion
 const subscribeTokenRefresh = (callbacks: {
-  resolve: (token: string) => void;
+  resolve: () => void;
   reject: (error: Error) => void;
 }) => {
   refreshSubscribers.push(callbacks);
 };
 
 // Notify all subscribers when refresh is complete
-const onTokenRefreshed = (token: string) => {
-  lastRefreshedToken = token;
-  refreshSubscribers.forEach((subscriber) => subscriber.resolve(token));
+const onTokenRefreshed = () => {
+  refreshSucceeded = true;
+  refreshSubscribers.forEach((subscriber) => subscriber.resolve());
   refreshSubscribers = [];
 };
 
@@ -114,11 +92,7 @@ function queueRequestForRefresh(
 ): Promise<AxiosResponse> {
   return new Promise((resolve, reject) => {
     subscribeTokenRefresh({
-      resolve: (token: string) => {
-        originalRequest.headers ??= {};
-        originalRequest.headers.Authorization = `Bearer ${token}`;
-        resolve(api(originalRequest));
-      },
+      resolve: () => resolve(api(originalRequest)),
       reject,
     });
   });
@@ -131,24 +105,22 @@ async function attemptClientSideRefresh(
   const { handleAuthFailure } = await import("./auth-failure");
   const refreshSuccessful = await handleAuthFailure();
 
-  if (!refreshSuccessful || !originalRequest.headers) {
+  if (!refreshSuccessful) {
     return null;
   }
 
-  // The refresh rotated the tokens. Drop the cached session BEFORE reading it
-  // again: the retry below re-runs the request interceptor, which reads
-  // getCachedSession() — served the stale pre-refresh token, the retry would
-  // 401 again and fail hard (_retry is already set). Repopulating the cache
-  // here also hands the fresh token to every queued subscriber.
+  // The refresh rotated the tokens inside the session cookie. Drop the cached
+  // session BEFORE reading it again: the session lookup persists the rotated
+  // cookie, and a stale cached session would hide a refresh that ended the
+  // session. The retry then goes out with the fresh cookie.
   clearSessionCache();
   const session = await getCachedSession();
 
-  if (!session?.user?.token) {
+  if (!hasSessionAccess(session)) {
     return null;
   }
 
-  onTokenRefreshed(session.user.token);
-  originalRequest.headers.Authorization = `Bearer ${session.user.token}`;
+  onTokenRefreshed();
   return api(originalRequest);
 }
 
@@ -216,7 +188,7 @@ api.interceptors.response.use(
     }
 
     isRefreshing = true;
-    lastRefreshedToken = null;
+    refreshSucceeded = false;
 
     try {
       if (globalThis.window === undefined) {
@@ -245,13 +217,13 @@ api.interceptors.response.use(
     } finally {
       isRefreshing = false;
       if (refreshSubscribers.length > 0) {
-        if (lastRefreshedToken) {
+        if (refreshSucceeded) {
           // Late arrivals queued after onTokenRefreshed but before finally —
-          // the refresh succeeded, so resolve them with the valid token.
+          // the refresh succeeded, so retry them with the fresh cookie.
           logger.info("resolving_late_queued_requests", {
             queued_count: refreshSubscribers.length,
           });
-          onTokenRefreshed(lastRefreshedToken);
+          onTokenRefreshed();
         } else {
           logger.warn("token_refresh_failed_rejecting_queued_requests", {
             queued_count: refreshSubscribers.length,
@@ -259,7 +231,7 @@ api.interceptors.response.use(
           onTokenRefreshFailed(new Error("Token refresh failed"));
         }
       }
-      lastRefreshedToken = null;
+      refreshSucceeded = false;
     }
 
     throw error;

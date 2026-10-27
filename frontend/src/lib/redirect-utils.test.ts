@@ -21,7 +21,6 @@ describe("redirect-utils", () => {
       email: "test@example.com",
       roles,
       permissions,
-      token: "token",
     },
     expires: "2024-12-31",
   });

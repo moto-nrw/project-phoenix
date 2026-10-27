@@ -1,13 +1,13 @@
 import type { ReactElement } from "react";
-import type { Session } from "next-auth";
+import type { TenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { authMock, notFoundMock, readTenantSessionSnapshotMock } = vi.hoisted(
   () => ({
     authMock: vi.fn(async () => null),
-    readTenantSessionSnapshotMock: vi.fn<() => Promise<Session | null>>(
-      async () => null,
-    ),
+    readTenantSessionSnapshotMock: vi.fn<
+      () => Promise<TenantSessionSnapshot | null>
+    >(async () => null),
     notFoundMock: vi.fn((): never => {
       throw new Error("NEXT_HTTP_ERROR_FALLBACK;404");
     }),
@@ -194,12 +194,17 @@ describe("TenantLayout", () => {
     expect(authMock).not.toHaveBeenCalled();
   });
 
+  // The provider prop lands in the HTML and RSC payload; only the server
+  // side shell preload receives the access token (#5005).
   it("passes the read-only session snapshot to the client provider", async () => {
     const session = {
       expires: "2026-09-04T12:00:00.000Z",
-      user: { id: "7", token: "backend-access", tenantId: 1 },
+      user: { id: "7", tenantId: 1 },
     };
-    readTenantSessionSnapshotMock.mockResolvedValue(session);
+    readTenantSessionSnapshotMock.mockResolvedValue({
+      session,
+      accessToken: "backend-access",
+    });
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -225,6 +230,13 @@ describe("TenantLayout", () => {
     })) as ReactElement<{ session: unknown }>;
 
     expect(element.props.session).toBe(session);
+    expect(JSON.stringify(element.props)).not.toContain("backend-access");
+    const { loadShellBootstrap } = await import("~/lib/shell-bootstrap.server");
+    expect(loadShellBootstrap).toHaveBeenCalledWith(
+      session,
+      expect.objectContaining({ tenantId: 1 }),
+      "backend-access",
+    );
   });
 
   it.each([

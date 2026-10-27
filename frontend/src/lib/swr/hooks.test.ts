@@ -39,9 +39,11 @@ import { useSession } from "next-auth/react";
 import useSWR from "swr";
 
 // Helper to create mock session data
-const createMockSession = (token?: string) => ({
-  data: token ? { user: { id: "user-1", token }, expires: "2099-01-01" } : null,
-  status: token ? ("authenticated" as const) : ("unauthenticated" as const),
+// The browser session carries no token (#5005); the argument only decides
+// whether a session exists.
+const createMockSession = (signedIn?: string) => ({
+  data: signedIn ? { user: { id: "user-1" }, expires: "2099-01-01" } : null,
+  status: signedIn ? ("authenticated" as const) : ("unauthenticated" as const),
   update: vi.fn(),
 });
 
@@ -51,11 +53,15 @@ const createLoadingSession = () => ({
   update: vi.fn(),
 });
 
-// The session callback strips a session whose refresh failed down to an
-// empty token. A missing token field is the portal layouts' server snapshot
-// (#4990, #4991), which still grants access.
+// The session callback strips a session whose refresh failed and marks it
+// with an error (#5005). No browser session carries a token, including the
+// portal layouts' server snapshot (#4990, #4991), which grants access.
 const createSessionWithoutToken = () => ({
-  data: { user: { id: "user-1", token: "" }, expires: "2099-01-01" },
+  data: {
+    user: { id: "user-1" },
+    error: "RefreshTokenError" as const,
+    expires: "2099-01-01",
+  },
   status: "authenticated" as const,
   update: vi.fn(),
 });

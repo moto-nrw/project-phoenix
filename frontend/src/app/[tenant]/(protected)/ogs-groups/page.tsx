@@ -15,6 +15,7 @@ import {
   useLayoutEffect,
 } from "react";
 import { useSession } from "next-auth/react";
+import { hasSessionAccess } from "~/lib/session-access";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
@@ -455,14 +456,13 @@ function OGSGroupPageContent() {
     error: liveError,
     mutate: reloadLive,
   } = useSWRAuth<OgsLiveViewData>(
-    session?.user?.token ? `ogs-students-${selectedGroupId ?? "auto"}` : null,
+    hasSessionAccess(session)
+      ? `ogs-students-${selectedGroupId ?? "auto"}`
+      : null,
     async () => {
       logger.debug("SWR fetching aggregated OGS live view");
       const start = performance.now();
-      const data = await fetchOgsGroupLive(
-        session?.user?.token,
-        selectedGroupId,
-      );
+      const data = await fetchOgsGroupLive(selectedGroupId);
       logger.debug("SWR fetch complete", {
         duration_ms: (performance.now() - start).toFixed(0),
       });

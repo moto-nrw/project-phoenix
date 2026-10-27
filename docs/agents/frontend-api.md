@@ -170,7 +170,9 @@ Helper-backed custom handlers without a direct `fetch` have narrower reasons:
 `statistics/report` whitelist audit-sensitive queries, retry refreshed tenant
 sessions, and keep their established no-store success envelope;
 `auth/password` validates and renames password fields before `apiPost`;
-`auth/token` reads the local session; `logs` and `parent/logs` ingest client
+`auth/token` renews the tenant session and answers 204 without a token;
+`auth/staff-preview/end` takes the running preview's token from the session
+cookie; `logs` and `parent/logs` ingest client
 telemetry. `enrollment/legal-documents/[filename]` retries deletion with a
 refreshed tenant token. `timetable/betreuungsplan/export`,
 `timetable/lists/export`, `rooms/export`, `staff-shifts/export`,

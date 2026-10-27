@@ -5,7 +5,10 @@ import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import { loadShellBootstrap } from "~/lib/shell-bootstrap.server";
 import type { ShellBootstrap } from "~/lib/shell-seed";
-import { readTenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server";
+import {
+  readTenantSessionSnapshot,
+  type TenantSessionSnapshot,
+} from "~/lib/tenant-session-snapshot.server";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import {
   bookedModuleFields,
@@ -191,22 +194,24 @@ function isTenantSubdomainHost(currentHost: string | null, subdomain: string) {
  * ends in a sign-out; both fetch nothing here and keep the client path.
  */
 async function loadShell(
-  session: Session | null,
+  snapshot: TenantSessionSnapshot | null,
   tenant: TenantInfo,
 ): Promise<ShellBootstrap | null> {
   // Only a tenant-staff scope ("" or "org") may read these endpoints; every
   // other scope is rejected by TenantMiddleware, so asking would produce a
   // burst of guaranteed 401s.
+  const session: Session | undefined = snapshot?.session;
   const scope = session?.user?.scope ?? "";
   if (
-    !session?.user?.token ||
+    !snapshot?.accessToken ||
+    !session ||
     session.error ||
     (scope !== "" && scope !== "org") ||
     session.user.tenantId !== tenant.tenantId
   ) {
     return null;
   }
-  return loadShellBootstrap(session, tenant);
+  return loadShellBootstrap(session, tenant, snapshot.accessToken);
 }
 
 async function redirectToTenantSelection(): Promise<never> {
@@ -265,10 +270,11 @@ export default async function TenantLayout({
 
   // Read-only JWT decode: auth() may rotate a refresh token, but a Server
   // Component cannot persist the replacement cookie (#1938). The snapshot
-  // safely hydrates SessionProvider; later polls and refreshes use its
-  // response-aware route handler.
-  const session = await readTenantSessionSnapshot();
-  const shell = await loadShell(session, tenant);
+  // safely hydrates SessionProvider without any token (#5005); later polls
+  // and refreshes use its response-aware route handler.
+  const snapshot = await readTenantSessionSnapshot();
+  const session = snapshot?.session ?? null;
+  const shell = await loadShell(snapshot, tenant);
 
   return (
     <TenantProviders
