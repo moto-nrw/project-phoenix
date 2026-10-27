@@ -29,6 +29,25 @@ describe("list overlays (#4988)", () => {
     ).toEqual(["x", "y"]);
   });
 
+  it("retains every change while an older snapshot can still be shown", () => {
+    const list = "school-a|requests:many:";
+    const fetchedAt = startListFetch();
+    const items = Array.from({ length: 102 }, (_, index) => String(index));
+    const { result } = renderHook(() => useListOverlays<string>(list));
+
+    act(() => {
+      for (const id of items.slice(0, 101)) {
+        addListOverlay<string>(list, (current) =>
+          current.filter((item) => item !== id),
+        );
+      }
+    });
+
+    expect(
+      applyListOverlays(items, fetchedAt, result.current, applyToItems),
+    ).toEqual(["101"]);
+  });
+
   it("keeps the changes of one list away from another", () => {
     const fetchedAt = startListFetch();
     addListOverlay<string>("school-a|requests:2:", () => []);

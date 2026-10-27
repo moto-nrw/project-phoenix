@@ -1701,6 +1701,105 @@ describe("AggregatedRequestList", () => {
     };
   }
 
+  it.each([
+    ["merged", true],
+    ["merged", false],
+    ["withdrawal", true],
+    ["withdrawal", false],
+  ] as const)(
+    "recovers %s automatic pagination after a background refresh (more pages: %s)",
+    async (kind, hasMore) => {
+      await clearDefaultCache();
+      mockListOpen.mockReset().mockResolvedValue({ items: [] });
+      mockListWithdrawals.mockReset().mockResolvedValue({
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 25,
+      });
+      const urgentItems = Array.from({ length: 25 }, (_, i) =>
+        stampedItem("excused", String(i), "2026-09-01T12:00:00Z", true),
+      );
+      const pageError = new ApiError("page unavailable", 503, {
+        code: "general.unavailable",
+      });
+      if (kind === "merged") {
+        mockListOpen
+          .mockResolvedValueOnce({ items: urgentItems, next_cursor: "next" })
+          .mockRejectedValueOnce(pageError)
+          .mockResolvedValueOnce({
+            items: urgentItems,
+            ...(hasMore ? { next_cursor: "next" } : {}),
+          })
+          .mockResolvedValue({ items: [openItem("excused", "new-page")] });
+      } else {
+        mockListWithdrawals
+          .mockResolvedValueOnce({
+            items: [withdrawalItem("first")],
+            total: 26,
+            page: 1,
+            pageSize: 25,
+          })
+          .mockRejectedValueOnce(pageError)
+          .mockResolvedValueOnce({
+            items: [withdrawalItem("first")],
+            total: hasMore ? 26 : 1,
+            page: 1,
+            pageSize: 25,
+          })
+          .mockResolvedValue({
+            items: [withdrawalItem("new-page")],
+            total: 26,
+            page: 2,
+            pageSize: 25,
+          });
+      }
+      const { result } = renderHook(
+        () => ({
+          ...useFeeds(
+            { ...NO_FILTERS, includeCareWithdrawals: kind === "withdrawal" },
+            "open",
+          ),
+        }),
+        { wrapper: DefaultCacheProviders },
+      );
+      await waitFor(() => expect(result.current.feed.error).toBeTruthy());
+      const fetchPage = kind === "merged" ? mockListOpen : mockListWithdrawals;
+      expect(fetchPage).toHaveBeenCalledTimes(2);
+
+      // Derselbe SWR-Abgleich wie bei Fokus/Reconnect, ohne explizites reload.
+      await act(async () => {
+        await mutate(
+          (key) =>
+            typeof key === "string" &&
+            key.includes(
+              kind === "merged" ? "request-feed:" : "care-withdrawal-feed:",
+            ),
+        );
+      });
+
+      await waitFor(() => {
+        const items =
+          kind === "merged"
+            ? result.current.feed.items
+            : result.current.withdrawals.items;
+        expect(items).toEqual(
+          kind === "merged"
+            ? [
+                ...urgentItems,
+                ...(hasMore ? [openItem("excused", "new-page")] : []),
+              ]
+            : [
+                withdrawalItem("first"),
+                ...(hasMore ? [withdrawalItem("new-page")] : []),
+              ],
+        );
+        expect(result.current.feed.error).toBeNull();
+      });
+      expect(fetchPage).toHaveBeenCalledTimes(hasMore ? 4 : 3);
+    },
+  );
+
   it.each(["merged", "withdrawal"] as const)(
     "loads a new filter while old %s pagination is pending and keeps the new request busy",
     async (kind) => {

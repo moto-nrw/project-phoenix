@@ -325,10 +325,12 @@ function usePagedFeed<T, S extends PagedSnapshot<T>>({
     clearError();
   }, [clearError, mutate]);
   const error = useSwrLoadError(swrError, object, reload);
+  // Auch Fokus/Reconnect ersetzt die erste Seite: deren Nachladefehler gilt
+  // nicht für den neuen Stand. Eine bloß gestartete Revalidierung reicht nicht.
   useEffect(() => {
     setAutoLoadFailed(false);
     clearError();
-  }, [clearError, key]);
+  }, [clearError, key, data?.fetchedAt]);
 
   const revalidateFamily = useTenantMutateMatching([family]);
   /**

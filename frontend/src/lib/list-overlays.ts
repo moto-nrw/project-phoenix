@@ -25,8 +25,6 @@ export interface ListOverlay<T> {
   readonly update: (items: T[]) => T[];
 }
 
-/** So viele Überlagerungen behält eine Liste; ältere gelten nur sehr alten Daten. */
-const MAX_OVERLAYS = 100;
 const NONE: readonly never[] = [];
 
 let counter = 0;
@@ -45,10 +43,12 @@ export function addListOverlay<T>(
   update: (items: T[]) => T[],
 ): void {
   counter += 1;
+  // Auch alte Cache-Stände bleiben im Tab erreichbar. Ohne deren Entwertung
+  // darf keine Überlagerung allein wegen ihres Alters oder der Anzahl wegfallen.
   const next = [
     ...(overlays.get(list) ?? NONE),
     { seq: counter, update } as ListOverlay<unknown>,
-  ].slice(-MAX_OVERLAYS);
+  ];
   overlays.set(list, next);
   for (const listener of listeners.get(list) ?? []) listener();
 }
