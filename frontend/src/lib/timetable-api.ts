@@ -124,6 +124,15 @@ import {
   type OfferingSelection,
   type RosterDeviation,
 } from "./roster-deviation";
+import {
+  draftPreviewQuery,
+  mapOfferingSuggestion,
+  suggestionQuery,
+  type BackendOfferingSuggestionResponse,
+  type DraftRoster,
+  type OfferingSuggestion,
+  type OfferingSuggestionQuery,
+} from "./offering-suggestion";
 
 const logger = createLogger({ component: "TimetableApiClient" });
 
@@ -393,6 +402,49 @@ class TimetableService {
   ): Promise<OfferingPreview> {
     const response = await transportFetch(
       `/api/timetable/templates/${templateId}/offering-preview?${previewQuery(selection, from)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapOfferingPreview(await unwrap<BackendOfferingPreview>(response));
+  }
+
+  /**
+   * GET /api/timetable/offering-sources/suggestion — the offering whose
+   * bookings match the children an unsaved Regeltermin plans (#5104); null
+   * when none matches.
+   */
+  async getOfferingSuggestion(
+    query: OfferingSuggestionQuery,
+  ): Promise<OfferingSuggestion | null> {
+    const response = await transportFetch(
+      `/api/timetable/offering-sources/suggestion?${suggestionQuery(query)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapOfferingSuggestion(
+      await unwrap<BackendOfferingSuggestionResponse>(response),
+    );
+  }
+
+  /**
+   * GET /api/timetable/offering-sources/preview — per weekday who joins and
+   * who leaves an unsaved Regeltermin when it takes its children from the
+   * offerings (#5104).
+   */
+  async getDraftOfferingPreview(
+    periodId: string,
+    selection: OfferingSelection,
+    roster: DraftRoster,
+    from?: string,
+  ): Promise<OfferingPreview> {
+    const response = await transportFetch(
+      `/api/timetable/offering-sources/preview?${draftPreviewQuery(periodId, selection, roster, from)}`,
       {
         method: "GET",
         headers: { Accept: "application/json" },
