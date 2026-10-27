@@ -140,6 +140,7 @@ import {
   careDayISO,
   nextCareDayISO,
   previousCareDayISO,
+  findOccurrenceSeriesTemplate,
   resolveTemplateCalendarPeriodId,
   toISODate,
   type TimetableView,
@@ -1160,13 +1161,8 @@ function TimetablesContent() {
   // Zeitraums (#3140, #5103).
   const selectedSeriesTemplate = useMemo(
     () =>
-      selectedInstance?.activityGroupId
-        ? templates.find(
-            (template) =>
-              template.id === selectedInstance.activityGroupId &&
-              resolveTemplateCalendarPeriodId(template) ===
-                selectedInstance.calendarPeriodId,
-          )
+      selectedInstance
+        ? findOccurrenceSeriesTemplate(templates, selectedInstance)
         : undefined,
     [selectedInstance, templates],
   );

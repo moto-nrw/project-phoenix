@@ -1274,6 +1274,23 @@ export function resolveTemplateCalendarPeriodId(
 }
 
 /**
+ * The Regeltermin an occurrence belongs to, from the period's template list.
+ * A template pinned to a period answers only for that period's occurrences;
+ * a template without a pin (older and seeded series) serves every period.
+ */
+export function findOccurrenceSeriesTemplate(
+  templates: readonly TimetableTemplate[],
+  occurrence: { activityGroupId?: string; calendarPeriodId?: string },
+): TimetableTemplate | undefined {
+  if (!occurrence.activityGroupId) return undefined;
+  return templates.find((template) => {
+    if (template.id !== occurrence.activityGroupId) return false;
+    const periodId = resolveTemplateCalendarPeriodId(template);
+    return periodId === undefined || periodId === occurrence.calendarPeriodId;
+  });
+}
+
+/**
  * Groups a flat list of instances by date. Returns a stable ordering: dates
  * are sorted, instances within a date keep their incoming order (the
  * backend already returns them sorted by start_time).
