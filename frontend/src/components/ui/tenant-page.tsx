@@ -473,16 +473,22 @@ function useEmptyActionGuard(
   title: string,
   active: boolean,
 ) {
+  const reportedViolations = useRef(new Set<string>());
+
   useEffect(() => {
     if (!active || process.env.NODE_ENV === "production") return;
     const head = controlNames(headRef.current);
     const repeated = [...controlNames(bodyRef.current)].filter((name) =>
       head.has(name),
     );
-    if (repeated.length > 0) {
+    const repeatedAction = repeated[0];
+    if (repeatedAction !== undefined) {
+      const violation = JSON.stringify([title, repeatedAction]);
+      if (reportedViolations.current.has(violation)) return;
+      reportedViolations.current.add(violation);
       logger.error("tenant_page_empty_action_repeats_head_action", {
         page: title,
-        action: repeated[0],
+        action: repeatedAction,
       });
     }
   });

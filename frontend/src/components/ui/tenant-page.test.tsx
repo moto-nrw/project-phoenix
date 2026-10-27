@@ -594,7 +594,17 @@ describe("TenantPage mit nicht gebuchtem Modul", () => {
       const consoleError = vi
         .spyOn(console, "error")
         .mockImplementation(() => undefined);
-      render(
+      const { rerender } = render(
+        <TenantPage
+          title="Räume"
+          actions={<button type="button">+ Raum</button>}
+          empty={{
+            title: "Keine Räume vorhanden",
+            action: <button type="button">Raum</button>,
+          }}
+        />,
+      );
+      rerender(
         <TenantPage
           title="Räume"
           actions={<button type="button">+ Raum</button>}
@@ -608,6 +618,7 @@ describe("TenantPage mit nicht gebuchtem Modul", () => {
         "tenant_page_empty_action_repeats_head_action",
         expect.objectContaining({ page: "Räume", action: "raum" }),
       );
+      expect(consoleError).toHaveBeenCalledTimes(1);
       consoleError.mockRestore();
     });
 
