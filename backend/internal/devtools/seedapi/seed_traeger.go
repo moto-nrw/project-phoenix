@@ -348,8 +348,6 @@ func seedHolidayDuplicate(registration map[string]any) map[string]any {
 // the dev and CI environments accept (dev.env.example).
 const seedTurnstileTestToken = "XXXX.DUMMY.TOKEN.XXXX"
 
-const seedCaptchaFailed = "enrollment.captcha_failed"
-
 // The public holiday registration always requires Turnstile (ADR 0110). The
 // demo server holds a real Turnstile key, which refuses the test token. It
 // also counts every attempt per Träger, sender e-mail and IP address, and
