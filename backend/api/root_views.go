@@ -186,7 +186,7 @@ func buildClassDayViews(
 			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
 		}, presence.Presence), audit.Persistence.StudentFieldEdit, notifications.UnreportedAbsences)
 	// The absence list (#4793) counts the morning marks of a period.
-	morning = withClassDayAbsenceList(morning, presence.Presence, carePlanRows.StatusDays, schoolDays, audit.Persistence.DataAccessLog, renderer)
+	morning = withClassDayAbsenceList(morning, presence.Presence, carePlanRows.StatusDays, schoolDays, audit.Persistence.DataAccessLog, renderer, settings, schedules.Lifecycle, reports)
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: caller, PickupTimes: schedules.Pickups, ArrivalTimes: schedules.Arrivals, CareDays: schedules.CareDay,
 		Companions: owners.NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,

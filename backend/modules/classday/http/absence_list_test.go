@@ -35,12 +35,14 @@ type absenceListCounts struct {
 }
 
 type absenceListBody struct {
-	SchoolClass  string `json:"school_class"`
-	From         string `json:"from"`
-	To           string `json:"to"`
-	CountedUntil string `json:"counted_until"`
-	SchoolDays   int    `json:"school_days"`
-	Children     []struct {
+	SchoolClass   string `json:"school_class"`
+	AvailableFrom string `json:"available_from"`
+	Incomplete    bool   `json:"incomplete"`
+	From          string `json:"from"`
+	To            string `json:"to"`
+	CountedUntil  string `json:"counted_until"`
+	SchoolDays    int    `json:"school_days"`
+	Children      []struct {
 		StudentID int64 `json:"student_id"`
 		absenceListCounts
 	} `json:"children"`
@@ -172,4 +174,52 @@ func TestAbsenceListQueryBudget(t *testing.T) {
 	large := read("2099-02-24", 5)
 	assert.Equal(t, small, large, "the list must not grow with the number of children")
 	testpkg.AssertQueryBudget(t, "modules.classday.absence_list", counter.Queries())
+}
+
+func TestAbsenceListRetentionWindows(t *testing.T) {
+	t.Parallel()
+	for _, key := range []string{"gdpr.morning_attendance_retention_days", "gdpr.status_day_retention_days"} {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+			f := setupMorningAttendanceFixture(t, morningMonday)
+			_, err := f.db.ExecContext(testpkg.Ctx(t), `INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES (?, ?, '31'::jsonb)`, f.tenantID, key)
+			require.NoError(t, err)
+			insertMorningMark(t, f.db, f.tenantID, f.present, "2099-01-29", "absent")
+			insertMorningMark(t, f.db, f.tenantID, f.present, "2099-01-30", "absent")
+			rec := f.do(t, http.MethodGet, "/absence-list?class="+f.class+"&from=2099-01-26&to="+morningMonday, "", classDayReadPermission)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			var envelope struct {
+				Data absenceListBody `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+			assert.True(t, envelope.Data.Incomplete)
+			assert.Equal(t, "2099-01-30", envelope.Data.AvailableFrom)
+			for _, child := range envelope.Data.Children {
+				if child.StudentID == f.present {
+					assert.Equal(t, 1, child.UnexcusedDays, "only the retained boundary day counts")
+				}
+			}
+		})
+	}
+}
+
+func TestAbsenceListIncludesEndedCare(t *testing.T) {
+	t.Parallel()
+	f := setupMorningAttendanceFixture(t, morningMonday)
+	end := calendar.Date("2099-02-26")
+	testpkg.SetStudentLifecycle(t, f.db, f.present, "active", nil, &end)
+	insertMorningMark(t, f.db, f.tenantID, f.present, "2099-02-25", "absent")
+	insertMorningMark(t, f.db, f.tenantID, f.present, "2099-02-27", "absent")
+	rec := f.do(t, http.MethodGet, "/absence-list?class="+f.class+"&from=2099-02-23&to="+morningMonday, "", classDayReadPermission)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var envelope struct {
+		Data absenceListBody `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
+	counts := map[int64]absenceListCounts{}
+	for _, child := range envelope.Data.Children {
+		counts[child.StudentID] = child.absenceListCounts
+	}
+	require.Contains(t, counts, f.present)
+	assert.Equal(t, absenceListCounts{AbsentDays: 1, UnexcusedDays: 1, NotRecordedDays: 3}, counts[f.present])
 }

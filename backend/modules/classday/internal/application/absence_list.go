@@ -48,9 +48,16 @@ type (
 )
 
 // AbsenceListDependencies wire the absence list (#4793). Without Marks,
-// StatusDays or Calendar the list answers classday.ErrAbsenceListNotConfigured;
+// StatusDays, Calendar, Children, AvailableFrom or Participation the list
+// answers classday.ErrAbsenceListNotConfigured;
 // without Log no access is recorded; without Renderer no file is rendered.
 type AbsenceListDependencies struct {
+	// AvailableFrom resolves the first day retained by both source windows.
+	AvailableFrom func(context.Context, calendar.Date) (calendar.Date, error)
+	Children      func(context.Context, string) ([]classday.AbsenceListChild, error)
+	Participation interface {
+		ParticipatingStudentIDsByDate(context.Context, []int64, calendar.Date, calendar.Date) (map[calendar.Date]map[int64]bool, error)
+	}
 	Marks      AbsenceListMarks
 	StatusDays AbsenceListStatusDays
 	Calendar   AbsenceListCalendar
@@ -61,9 +68,8 @@ type AbsenceListDependencies struct {
 // absenceList builds the absence list of a class (#4793). The class is
 // resolved within the caller's reach before.
 type absenceList struct {
-	deps    AbsenceListDependencies
-	rosters DayRosters
-	today   func() calendar.Date
+	deps  AbsenceListDependencies
+	today func() calendar.Date
 }
 
 // AbsenceListReport builds the list of one class and logs every read.
@@ -106,7 +112,7 @@ func (a absenceList) RenderAbsenceList(ctx context.Context, query classday.Absen
 }
 
 func (a absenceList) build(ctx context.Context, query classday.AbsenceListQuery) (*classday.AbsenceListReport, error) {
-	if a.deps.Marks == nil || a.deps.StatusDays == nil || a.deps.Calendar == nil {
+	if a.deps.Marks == nil || a.deps.StatusDays == nil || a.deps.Calendar == nil || a.deps.AvailableFrom == nil || a.deps.Participation == nil || a.deps.Children == nil {
 		return nil, classday.ErrAbsenceListNotConfigured
 	}
 	schoolClass := strings.TrimSpace(query.SchoolClass)
@@ -118,8 +124,13 @@ func (a absenceList) build(ctx context.Context, query classday.AbsenceListQuery)
 	if err != nil {
 		return nil, err
 	}
+	availableFrom, err := a.deps.AvailableFrom(ctx, today)
+	if err != nil {
+		return nil, fmt.Errorf("absence list: retention window: %w", err)
+	}
 	report := &classday.AbsenceListReport{
-		SchoolClass: schoolClass, From: period.From, To: period.To,
+		AvailableFrom: availableFrom,
+		SchoolClass:   schoolClass, From: period.From, To: period.To,
 		PeriodName: period.Name, Children: []classday.AbsenceListChild{},
 	}
 	// Only days up to today count: a day ahead has no mark yet.
@@ -128,31 +139,72 @@ func (a absenceList) build(ctx context.Context, query classday.AbsenceListQuery)
 		until = today
 	}
 	ahead := until.Before(period.From)
-	rosterDay := until
-	if ahead {
-		rosterDay = today
-	}
-	roster, err := a.rosters.ClassRosterDay(ctx, schoolClass, rosterDay)
+	children, err := a.deps.Children(ctx, schoolClass)
 	if err != nil {
 		return nil, err
 	}
-	children := absenceListChildren(roster)
+	participationFrom, participationUntil := period.From, until
+	if ahead {
+		participationFrom, participationUntil = today, today
+	}
+	ids := make([]int64, 0, len(children))
+	for _, child := range children {
+		ids = append(ids, child.StudentID)
+	}
+	participation, err := a.deps.Participation.ParticipatingStudentIDsByDate(ctx, ids, participationFrom, participationUntil)
+	if err != nil {
+		return nil, fmt.Errorf("absence list: participation: %w", err)
+	}
+	kept := make([]classday.AbsenceListChild, 0, len(children))
+	for _, child := range children {
+		for day := participationFrom; !day.After(participationUntil); day = day.AddDays(1) {
+			if participation[day][child.StudentID] {
+				kept = append(kept, child)
+				break
+			}
+		}
+	}
+	children = kept
+	sort.SliceStable(children, func(i, j int) bool {
+		if children[i].LastName != children[j].LastName {
+			return children[i].LastName < children[j].LastName
+		}
+		return children[i].FirstName < children[j].FirstName
+	})
 	if ahead {
 		report.Children = children
 		return report, nil
 	}
+	from := period.From
+	if from.Before(availableFrom) {
+		report.Incomplete = true
+		from = availableFrom
+	}
+	if from.After(until) {
+		report.Children = children
+		return report, nil
+	}
 	report.CountedUntil = until
-	schoolDays, err := a.schoolDays(ctx, period.From, until)
+	schoolDays, err := a.schoolDays(ctx, from, until)
 	if err != nil {
 		return nil, err
 	}
 	report.SchoolDays = len(schoolDays)
-	days, err := a.childDays(ctx, children, period.From, until)
+	days, err := a.childDays(ctx, children, from, until)
 	if err != nil {
 		return nil, err
 	}
 	for i := range children {
-		children[i].AbsenceListCounts = countAbsenceDays(days[children[i].StudentID], schoolDays)
+		childID := children[i].StudentID
+		childSchoolDays := make(map[calendar.Date]bool)
+		for day := from; !day.After(until); day = day.AddDays(1) {
+			if !participation[day][childID] {
+				delete(days[childID], day)
+			} else if schoolDays[day] {
+				childSchoolDays[day] = true
+			}
+		}
+		children[i].AbsenceListCounts = countAbsenceDays(days[childID], childSchoolDays)
 		addAbsenceCounts(&report.Totals, children[i].AbsenceListCounts)
 	}
 	report.Children = children
@@ -311,30 +363,6 @@ func addAbsenceCounts(sum *classday.AbsenceListCounts, add classday.AbsenceListC
 	sum.NotRecordedDays += add.NotRecordedDays
 }
 
-// absenceListChildren lists the children of the roster with an OGS record,
-// also without an OGS place, sorted by name. Class-list-only entries stay out
-// until they can carry a report (#4803); the counting already keys every
-// child by its record.
-func absenceListChildren(roster *DayRoster) []classday.AbsenceListChild {
-	children := []classday.AbsenceListChild{}
-	if roster == nil {
-		return children
-	}
-	for _, row := range roster.Rows {
-		if row.ListEntry || row.StudentID <= 0 {
-			continue
-		}
-		children = append(children, classday.AbsenceListChild{StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName})
-	}
-	sort.SliceStable(children, func(i, j int) bool {
-		if children[i].LastName != children[j].LastName {
-			return children[i].LastName < children[j].LastName
-		}
-		return children[i].FirstName < children[j].FirstName
-	})
-	return children
-}
-
 // recordView writes the GDPR access log of a read: one row per read. The
 // page loads the list only when the class or the period changes, not on
 // focus or on a timer, so every row is a deliberate look at the list.
@@ -380,6 +408,9 @@ func absenceListDocument(report *classday.AbsenceListReport, generatedAt time.Ti
 	counted := "Noch kein Tag gezählt: Der Zeitraum liegt in der Zukunft."
 	if !report.CountedUntil.IsZero() {
 		counted = fmt.Sprintf("Gezählt bis %s · %d Schultage", report.CountedUntil.Format(exportDateLayout), report.SchoolDays)
+	}
+	if report.Incomplete {
+		counted = "Unvollständiger Zeitraum. Gezählt wird erst ab " + report.AvailableFrom.Format(exportDateLayout) + ". Ältere Anwesenheit oder Meldungen können bereits gelöscht sein."
 	}
 	doc := classday.ExportDocument{
 		Title:       "Fehlzeiten der " + schoolClassLabel(report.SchoolClass),

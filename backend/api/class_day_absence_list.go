@@ -7,11 +7,14 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -39,7 +42,38 @@ type classDayMorningMarkReader interface {
 func withClassDayAbsenceList(
 	morning classdayCompose.MorningAttendanceDependencies, marks classDayMorningMarkReader, statusDays classDayAbsenceStatusDayReader,
 	schoolDays schoolcalendar.Days, accessLog owners.AccessLogLedger, renderer lists.Renderer,
+	settings interface {
+		ResolveInt(context.Context, string) (int, error)
+	}, participation careplan.CareParticipation, reports enrollment.Reports,
 ) classdayCompose.MorningAttendanceDependencies {
+	morning.AbsenceList.Participation = participation
+	if reports != nil {
+		morning.AbsenceList.Children = func(ctx context.Context, schoolClass string) ([]classday.AbsenceListChild, error) {
+			rows, err := reports.ClassReportChildren(ctx, schoolClass)
+			if err != nil {
+				return nil, err
+			}
+			children := make([]classday.AbsenceListChild, 0, len(rows))
+			for _, row := range rows {
+				children = append(children, classday.AbsenceListChild{StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName})
+			}
+			return children, nil
+		}
+	}
+
+	if settings != nil {
+		morning.AbsenceList.AvailableFrom = func(ctx context.Context, today timezone.Date) (timezone.Date, error) {
+			marksDays, err := settings.ResolveInt(ctx, configModels.KeyGDPRMorningAttendanceRetentionDays)
+			if err != nil {
+				return "", err
+			}
+			statusDays, err := settings.ResolveInt(ctx, configModels.KeyGDPRStatusDayRetentionDays)
+			if err != nil {
+				return "", err
+			}
+			return today.AddDays(-min(marksDays, statusDays)), nil
+		}
+	}
 	if marks != nil {
 		morning.AbsenceList.Marks = classDayMorningMarks{marks: marks}
 	}

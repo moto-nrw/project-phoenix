@@ -98,7 +98,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		homework:          newHomework(deps),
 		classHandover:     newClassHandover(deps),
 		absenceReports:    absence,
-		absenceList:       absenceList{deps: deps.AbsenceList, rosters: deps.Rosters, today: morning.today},
+		absenceList:       absenceList{deps: deps.AbsenceList, today: morning.today},
 	}
 }
 

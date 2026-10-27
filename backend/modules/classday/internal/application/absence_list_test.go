@@ -21,7 +21,13 @@ type fakeAbsenceMarks struct {
 
 func (f *fakeAbsenceMarks) MorningMarksBetween(_ context.Context, from, to calendar.Date, _, _ []int64) ([]MorningMark, error) {
 	f.from, f.to = from, to
-	return f.marks, nil
+	var marks []MorningMark
+	for _, mark := range f.marks {
+		if !mark.Date.Before(from) && !mark.Date.After(to) {
+			marks = append(marks, mark)
+		}
+	}
+	return marks, nil
 }
 
 // fakeAbsenceStatusDays serves fixed status days.
@@ -104,7 +110,10 @@ func newAbsenceListFixture(marks []MorningMark, statuses []DatedStatusDay, cal f
 		MorningAttendanceDependencies: MorningAttendanceDependencies{
 			Now: func() time.Time { return absenceListToday },
 			AbsenceList: AbsenceListDependencies{
-				Marks: f.marks, StatusDays: fakeAbsenceStatusDays{days: statuses}, Calendar: cal, Log: f.log, Renderer: f.renderer,
+				AvailableFrom: func(_ context.Context, today calendar.Date) (calendar.Date, error) { return today.AddDays(-365), nil },
+				Participation: fakeAbsenceParticipation{},
+				Children:      absenceTestChildren,
+				Marks:         f.marks, StatusDays: fakeAbsenceStatusDays{days: statuses}, Calendar: cal, Log: f.log, Renderer: f.renderer,
 			},
 		},
 	}).(classday.AbsenceList)
@@ -313,4 +322,77 @@ func TestAbsenceListCountsNoWeekendAsSchoolDay(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 8, report.SchoolDays)
 	assert.Equal(t, 8, report.Children[0].NotRecordedDays)
+}
+
+// fakeAbsenceParticipation can end one child's participation within a period.
+type fakeAbsenceParticipation struct{ end calendar.Date }
+
+func (f fakeAbsenceParticipation) ParticipatingStudentIDsByDate(_ context.Context, ids []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error) {
+	result := map[calendar.Date]map[int64]bool{}
+	for day := from; !day.After(to); day = day.AddDays(1) {
+		result[day] = map[int64]bool{}
+		for _, id := range ids {
+			result[day][id] = f.end.IsZero() || !day.After(f.end)
+		}
+	}
+	return result, nil
+}
+
+func TestAbsenceListExcludesExpiredEvidence(t *testing.T) {
+	t.Parallel()
+	for _, cutoff := range []calendar.Date{"2026-09-08", "2026-09-17"} {
+		t.Run(cutoff.String(), func(t *testing.T) {
+			a := absenceList{
+				today: func() calendar.Date { return "2026-09-16" },
+				deps: AbsenceListDependencies{
+					Marks:      &fakeAbsenceMarks{marks: []MorningMark{{StudentID: 1, Date: "2026-09-07", Status: classday.MorningAttendanceAbsent}}},
+					StatusDays: fakeAbsenceStatusDays{}, Calendar: fakeAbsenceCalendar{},
+					AvailableFrom: func(context.Context, calendar.Date) (calendar.Date, error) { return cutoff, nil },
+					Participation: fakeAbsenceParticipation{},
+					Children:      absenceTestChildren,
+				},
+			}
+			report, err := a.build(context.Background(), absenceQuery("2026-09-07", "2026-09-09"))
+			require.NoError(t, err)
+			assert.True(t, report.Incomplete)
+			assert.Equal(t, cutoff, report.AvailableFrom)
+			assert.Zero(t, report.Totals.AbsentDays)
+			assert.Zero(t, report.Totals.UnexcusedDays)
+			assert.Contains(t, absenceListDocument(report, absenceListToday).Filters[0], "Unvollständiger Zeitraum")
+			if cutoff == "2026-09-08" {
+				assert.Equal(t, 2, report.Children[0].NotRecordedDays)
+			} else {
+				assert.Zero(t, report.Totals.NotRecordedDays)
+			}
+		})
+	}
+}
+
+func TestAbsenceListCountsLeaversOnlyWhileParticipating(t *testing.T) {
+	t.Parallel()
+	a := absenceList{
+		today: func() calendar.Date { return "2026-09-16" },
+		deps: AbsenceListDependencies{
+			Marks: &fakeAbsenceMarks{marks: []MorningMark{
+				{StudentID: 1, Date: "2026-09-07", Status: classday.MorningAttendanceAbsent},
+				{StudentID: 1, Date: "2026-09-09", Status: classday.MorningAttendanceAbsent},
+			}},
+			StatusDays: fakeAbsenceStatusDays{}, Calendar: fakeAbsenceCalendar{},
+			AvailableFrom: func(context.Context, calendar.Date) (calendar.Date, error) { return "2025-09-16", nil },
+			Participation: fakeAbsenceParticipation{end: "2026-09-08"},
+			Children:      absenceTestChildren,
+		},
+	}
+	report, err := a.build(context.Background(), absenceQuery("2026-09-07", "2026-09-09"))
+	require.NoError(t, err)
+	require.Len(t, report.Children, 2)
+	assert.Equal(t, 1, report.Children[0].AbsentDays)
+	assert.Equal(t, 1, report.Children[0].NotRecordedDays)
+}
+
+func absenceTestChildren(context.Context, string) ([]classday.AbsenceListChild, error) {
+	return []classday.AbsenceListChild{
+		{StudentID: 2, FirstName: "Ben", LastName: "Busch"},
+		{StudentID: 1, FirstName: "Anna", LastName: "Arndt"},
+	}, nil
 }

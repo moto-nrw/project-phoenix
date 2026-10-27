@@ -10,6 +10,7 @@ import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Download } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -80,6 +81,9 @@ function childName(child: AbsenceListChild): string {
 
 /** Zeile unter der Auswahl: welcher Zeitraum gezählt ist. */
 function countedLine(list: AbsenceList): string {
+  if (!list.countedUntil && list.incomplete) {
+    return "Für diesen Zeitraum sind keine vollständigen Angaben mehr vorhanden.";
+  }
   if (!list.countedUntil) {
     return "Der Zeitraum liegt in der Zukunft. Noch kein Tag ist gezählt.";
   }
@@ -174,9 +178,20 @@ export default function SchoolAbsenceListPage() {
         schoolClass,
         period: chosenPeriod ?? undefined,
       }),
-    { revalidateOnFocus: false, keepPreviousData: true },
+    { revalidateOnFocus: false, keepPreviousData: false },
   );
-  const list = listQuery.data;
+  const [draft, setDraft] = useState<Period | null>(null);
+  const loadedList = listQuery.data;
+  const list =
+    loadedList &&
+    !listQuery.error &&
+    loadedList.schoolClass === schoolClass &&
+    (!chosenPeriod ||
+      (loadedList.from === chosenPeriod.from &&
+        loadedList.to === chosenPeriod.to)) &&
+    (!draft || (loadedList.from === draft.from && loadedList.to === draft.to))
+      ? loadedList
+      : undefined;
   const listError = useSwrLoadError(
     listQuery.error,
     "die Fehlzeiten",
@@ -185,8 +200,10 @@ export default function SchoolAbsenceListPage() {
 
   // Die Felder zeigen die Eingabe, sonst das vorbelegte Halbjahr. Nur eine
   // gültige Eingabe wird geladen (chosenPeriod).
-  const [draft, setDraft] = useState<Period | null>(null);
-  const fields = draft ?? { from: list?.from ?? "", to: list?.to ?? "" };
+  const fields = draft ?? {
+    from: loadedList?.from ?? "",
+    to: loadedList?.to ?? "",
+  };
   const fieldHint = draft ? periodHint(draft) : null;
   const rows = useMemo(() => [...(list?.children ?? [])], [list]);
 
@@ -299,6 +316,14 @@ export default function SchoolAbsenceListPage() {
             )}
           </SectionCard>
 
+          {list?.incomplete && (
+            <Alert
+              type="warning"
+              title="Unvollständiger Zeitraum"
+              message={`Gezählt wird erst ab ${formatDate(list.availableFrom)}. Ältere Anwesenheit oder Meldungen können bereits gelöscht sein.`}
+            />
+          )}
+
           {listQuery.error && listError ? (
             <LoadErrorAlert error={listError} />
           ) : (
@@ -321,7 +346,7 @@ export default function SchoolAbsenceListPage() {
       )}
 
       <ExportDialog
-        isOpen={exportOpen}
+        isOpen={exportOpen && !!list}
         onClose={() => setExportOpen(false)}
         title="Fehlzeiten exportieren"
         description="Fehltage je Kind der Klasse im gewählten Zeitraum."

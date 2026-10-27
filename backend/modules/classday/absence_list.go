@@ -66,6 +66,10 @@ var ErrAbsenceListNotConfigured = errors.New("absence list is not configured")
 
 // AbsenceListReport is the absence list of one class in one period.
 type AbsenceListReport struct {
+	// AvailableFrom is the first day within both source retention windows.
+	AvailableFrom calendar.Date `json:"available_from"`
+	// Incomplete means older requested days are excluded from all counts.
+	Incomplete  bool          `json:"incomplete"`
 	SchoolClass string        `json:"school_class"`
 	From        calendar.Date `json:"from"`
 	To          calendar.Date `json:"to"`
@@ -74,7 +78,7 @@ type AbsenceListReport struct {
 	// entry.
 	PeriodName string `json:"period_name"`
 	// CountedUntil is the last day counted: To, or today when To lies
-	// ahead. Zero (null) when the whole period lies ahead.
+	// ahead. Zero (null) when no requested days have complete retained data.
 	CountedUntil calendar.Date `json:"counted_until"`
 	// SchoolDays is the number of school days counted: Monday to Friday
 	// without statutory holidays and school holidays.

@@ -34,6 +34,8 @@ const CLASSES_KEY = "class-day-my-classes";
 
 function absenceList(overrides: Partial<AbsenceList> = {}): AbsenceList {
   return {
+    availableFrom: "2025-09-09",
+    incomplete: false,
     schoolClass: "3a",
     from: "2026-08-01",
     to: "2027-01-31",
@@ -210,4 +212,40 @@ describe("SchoolAbsenceListPage", () => {
       "fehlzeiten-klasse-3a.xlsx",
     );
   });
+});
+
+it("hides stale results and disables export while another period loads", () => {
+  swrData.set(CLASSES_KEY, classes(["3a"]));
+  swrData.set("list", absenceList());
+  const view = renderPage();
+  expect(screen.getByRole("button", { name: "Exportieren" })).toBeEnabled();
+  expect(screen.getAllByText("Arndt, Anna")[0]).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Bis"), {
+    target: { value: "2026-09-30" },
+  });
+  expect(screen.getByRole("button", { name: "Exportieren" })).toBeDisabled();
+  expect(screen.queryByText("Arndt, Anna")).not.toBeInTheDocument();
+  swrData.set("list", absenceList({ to: "2026-09-30" }));
+  view.rerender(
+    <ToastProvider>
+      <SchoolAbsenceListPage />
+    </ToastProvider>,
+  );
+  expect(screen.getAllByText("Arndt, Anna")[0]).toBeVisible();
+  expect(screen.getByRole("button", { name: "Exportieren" })).toBeEnabled();
+});
+
+it("warns when older requested days have been excluded", () => {
+  swrData.set(CLASSES_KEY, classes(["3a"]));
+  swrData.set(
+    "list",
+    absenceList({ incomplete: true, availableFrom: "2026-08-15" }),
+  );
+  renderPage();
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Unvollständiger Zeitraum",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Gezählt wird erst ab 15.08.2026",
+  );
 });

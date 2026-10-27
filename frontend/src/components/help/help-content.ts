@@ -8376,6 +8376,7 @@ function teacherAbsenceListTopic(): HelpTopic {
       "Klassenfahrt ist kein Fehltag.",
       "`Nicht erfasst` heißt: An diesem Schultag gibt es keinen Eintrag. Das ist kein Fehltag.",
       "Es gibt nur ganze Tage. Ein halber Tag zählt nicht extra.",
+      "Kinder, deren Betreuung im Zeitraum endet, bleiben in der Liste. Gezählt werden nur ihre Betreuungstage.",
       "Jeder Abruf und jeder Export wird protokolliert.",
     ],
     differences: [
@@ -8384,7 +8385,7 @@ function teacherAbsenceListTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Viele Tage `Nicht erfasst`? Dann fehlt die Anwesenheit am Vormittag. Tragen Sie sie jeden Morgen ein.",
-      "Ältere Tage fehlen? moto löscht die Anwesenheit am Vormittag nach einer festen Zeit. Meist ist das ein Jahr.",
+      "`Unvollständiger Zeitraum`? Ältere Anwesenheit oder Meldungen können bereits gelöscht sein. Die Liste und der Export zählen erst ab dem angegebenen Datum.",
     ],
     related: [
       HELP_TOPICS.teacherMorningAttendance,

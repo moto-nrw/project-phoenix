@@ -474,6 +474,8 @@ export interface AbsenceListChild extends AbsenceListCounts {
 }
 
 export interface AbsenceList {
+  readonly availableFrom: string;
+  readonly incomplete: boolean;
   readonly schoolClass: string;
   /** "YYYY-MM-DD" */
   readonly from: string;
@@ -484,7 +486,7 @@ export interface AbsenceList {
    * vorbelegt ist; sonst leer.
    */
   readonly periodName: string;
-  /** Letzter gezählter Tag; leer, wenn der Zeitraum noch bevorsteht. */
+  /** Letzter gezählter Tag; leer, wenn kein Tag gezählt werden kann. */
   readonly countedUntil: string;
   readonly schoolDays: number;
   readonly children: readonly AbsenceListChild[];
@@ -499,6 +501,8 @@ interface BackendAbsenceListCounts {
 }
 
 interface BackendAbsenceList {
+  available_from: string;
+  incomplete: boolean;
   school_class: string;
   from: string;
   to: string;
@@ -526,6 +530,8 @@ function absenceListCounts(raw: BackendAbsenceListCounts): AbsenceListCounts {
 
 function mapAbsenceList(raw: BackendAbsenceList): AbsenceList {
   return {
+    availableFrom: raw.available_from,
+    incomplete: raw.incomplete,
     schoolClass: raw.school_class,
     from: raw.from,
     to: raw.to,
