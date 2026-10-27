@@ -7697,7 +7697,7 @@ function parentDocumentsTopic(): HelpTopic {
     notes: [
       "Heute sind das die Bestätigungsschreiben der Ferienbetreuung. Das Schreiben ist auch Ihre Rechnung.",
       "Jedes Schreiben bekommen Sie auch per Mail.",
-      "Sie möchten eine Nachricht auf dem Handy bekommen? Schalten Sie unter `Einstellungen` `Neues Dokument vom Träger` ein.",
+      "Sie möchten eine Nachricht auf dem Handy bekommen? Schalten Sie unter `Einstellungen` den Punkt `Neues Dokument vom Träger` ein.",
     ],
     troubleshootingDetails: [
       "Ein Schreiben fehlt? Hier liegt es nur, wenn es an die Mail-Adresse Ihres Kontos ging. Haben Sie bei der Anmeldung eine andere Adresse angegeben, bekommen Sie es nur per Mail.",

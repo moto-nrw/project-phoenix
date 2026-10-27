@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -224,19 +223,18 @@ type ParentDocumentNoticeSources struct {
 }
 
 // BuildParentDocumentNotices composes the push of a new document for the
-// Delivery worker over the children at the schools that book the parents
-// portal.
-func BuildParentDocumentNotices(env RootEnvironment, modules settingsValues.ModuleBookingReader, sources ParentDocumentNoticeSources) (parentportal.DocumentNotices, error) {
-	children, err := ParentChildReadsForBookedSchools(NewParentChildReads(carePlanCompose.NewParentChildQueries(sources.Portal.ParentChild, securityruntime.GuardianPermissionGranted)), modules)
-	if err != nil {
-		return nil, fmt.Errorf("compose parent document notices: %w", err)
-	}
+// Delivery worker. It reads the children without the portal's booking
+// filter, which resolves settings per school inside the administrative
+// lookup; Delivery's module gate still drops the push of a school that does
+// not book the Eltern-App.
+func BuildParentDocumentNotices(env RootEnvironment, sources ParentDocumentNoticeSources) parentportal.DocumentNotices {
 	return parentportalcompose.NewDocumentNotices(parentportalcompose.Dependencies{
-		Runtime: ParentPortalRuntime{}, ChildRepo: children, SchoolTraeger: NewParentSchoolTraeger(sources.Organizations),
-		ParentAccounts: NewParentAccounts(sources.Identity), GuardianProfileRepo: NewParentGuardianProfileReads(sources.People.GuardianProfiles),
-		DocumentNotifier: NewParentDocumentNotifier(sources.Notifications.Notifier, sources.Notifications.Preferences),
-		Logger:           env.Logger.With("service", "parent-document-notices"),
-	}), nil
+		Runtime: ParentPortalRuntime{}, ChildRepo: NewParentChildReads(carePlanCompose.NewParentChildQueries(sources.Portal.ParentChild, securityruntime.GuardianPermissionGranted)),
+		SchoolTraeger: NewParentSchoolTraeger(sources.Organizations), ParentAccounts: NewParentAccounts(sources.Identity),
+		GuardianProfileRepo: NewParentGuardianProfileReads(sources.People.GuardianProfiles),
+		DocumentNotifier:    NewParentDocumentNotifier(sources.Notifications.Notifier, sources.Notifications.Preferences),
+		Logger:              env.Logger.With("service", "parent-document-notices"),
+	})
 }
 
 // deferredPushes routes a claimed deferred push by its kind: the Träger's

@@ -127,10 +127,7 @@ func BuildDeliveryWorker(
 	for kind, renderer := range identityRenderers {
 		renderers[kind] = renderer
 	}
-	documents, err := BuildParentDocumentNotices(env, modules, documentSources)
-	if err != nil {
-		return nil, err
-	}
+	documents := BuildParentDocumentNotices(env, documentSources)
 	pushSubscriptions := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
 	tenants := deliveryCompose.NewTenantTransactions(db.Pool())
 	vapid := pushVAPID
