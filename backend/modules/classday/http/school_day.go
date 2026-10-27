@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
@@ -45,5 +46,9 @@ func (rs *Resource) getSchoolDay(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	// The projection says whether the day allows a report; the token decides
+	// whether this caller may enter one (#4791).
+	report.CanReportAbsences = report.CanReportAbsences && rs.AbsenceReports != nil &&
+		common.HasPermission(permissions.ClassDayAbsenceReportWrite, sessiontoken.PermissionsFromCtx(r.Context()))
 	common.Respond(w, r, http.StatusOK, report, "School day retrieved successfully")
 }

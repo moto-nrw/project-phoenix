@@ -41,6 +41,7 @@ const (
 
 type morningAttendanceFixture struct {
 	db        *testpkg.DB
+	module    rootAPI.ClassDayTestModule
 	router    chi.Router
 	claims    sessiontoken.AppClaims
 	tenantID  int64
@@ -74,7 +75,7 @@ func setupMorningAttendanceFixture(t *testing.T, today string) *morningAttendanc
 	_ = testpkg.CreateTestStudentStatusDay(t, db, sick.ID, date, "sick")
 
 	return &morningAttendanceFixture{
-		db: db, router: router, tenantID: tenantID, class: className,
+		db: db, module: module, router: router, tenantID: tenantID, class: className,
 		sick: sick.ID, present: present.ID, listEntry: entry.ID, other: other.ID,
 		claims: sessiontoken.AppClaims{
 			ID: int(account.ID), Sub: account.Email,

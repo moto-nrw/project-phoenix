@@ -192,7 +192,10 @@ func (b classDayStatusDays) ActiveStatusDays(ctx context.Context, studentIDs []i
 	out := make([]classdayCompose.StatusDayEntry, 0, len(entries))
 	for _, entry := range entries {
 		if entry != nil {
-			out = append(out, classdayCompose.StatusDayEntry{StudentID: entry.StudentID, Status: entry.Status, ReportedAt: entry.ReportedAt})
+			out = append(out, classdayCompose.StatusDayEntry{
+				StudentID: entry.StudentID, Status: entry.Status, ReportedAt: entry.ReportedAt,
+				BySchool: entry.Source == absencerecords.StudentStatusSourceSchool,
+			})
 		}
 	}
 	return out, nil

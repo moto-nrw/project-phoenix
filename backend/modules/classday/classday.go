@@ -278,6 +278,13 @@ type DayRow struct {
 	// HandoverAbsent is true when the Lehrkraft marked the child "nicht da"
 	// at today's handover of the class (#4794).
 	HandoverAbsent bool `json:"handover_absent,omitempty"`
+	// Unreported is true when the Lehrkraft marked the child absent this
+	// morning and nobody reported it sick, excused or on a class trip
+	// ("fehlt ohne Meldung", #4791).
+	Unreported bool `json:"unreported,omitempty"`
+	// StatusBySchool is true when the Schulverwaltung entered Status
+	// afterwards in moto schule (#4791); only it takes the report back.
+	StatusBySchool bool `json:"status_by_school,omitempty"`
 }
 
 // DayMorningAttendance is one child's school-morning status on the wire.
@@ -382,6 +389,11 @@ type DayReport struct {
 	// school ticked the handover in its write scope, and the token holds
 	// class_day:handover_write.
 	CanHandOver bool `json:"can_hand_over"`
+	// CanReportAbsences is true when the caller may enter a report for a
+	// child missing without one, or take the school's report back (#4791):
+	// the date is today and a school day (projection), and the token holds
+	// class_day:absence_report_write (HTTP adapter).
+	CanReportAbsences bool `json:"can_report_absences"`
 }
 
 // DayHandover is the handover of a class as the class view shows it.
@@ -426,7 +438,10 @@ type MorningAttendanceWrite struct {
 	Date        Date
 	// RecordedBy is the users.staff_school_memberships row of the Lehrkraft.
 	RecordedBy int64
-	Marks      []MorningAttendanceMark
+	// ActorAccountID is the Lehrkraft's account; the notice about children
+	// missing without a report spares it (#4791).
+	ActorAccountID int64
+	Marks          []MorningAttendanceMark
 }
 
 // ArrivalException is one class-wide arrival day exception.
@@ -601,6 +616,10 @@ type SchoolDayTotals struct {
 	// (#4790): marked by the Lehrkraft, or filled in from a reported sick,
 	// excused or class-trip day.
 	Missing int `json:"missing"`
+	// Unreported counts the children missing without a report (#4791):
+	// marked absent by the Lehrkraft, with no sick, excused or class-trip
+	// day.
+	Unreported int `json:"unreported"`
 	// Sick, Excused and ClassTrip count the reported day statuses.
 	Sick      int `json:"sick"`
 	Excused   int `json:"excused"`
@@ -632,6 +651,11 @@ type SchoolDayChild struct {
 	Status string `json:"status,omitempty"`
 	// Missing is true when the school-morning status is "absent".
 	Missing bool `json:"missing,omitempty"`
+	// Unreported is true when the child misses without a report (#4791).
+	Unreported bool `json:"unreported,omitempty"`
+	// StatusBySchool is true when the Schulverwaltung entered Status
+	// afterwards (#4791).
+	StatusBySchool bool `json:"status_by_school,omitempty"`
 	// AfterSchool is SchoolDayStays or SchoolDayGoesHome, empty for a child
 	// with a day status, a class-list-only entry and whenever the totals
 	// leave Staying and Leaving at zero.
@@ -659,6 +683,10 @@ type SchoolDayReport struct {
 	EnrollmentKnown bool             `json:"enrollment_known"`
 	Totals          SchoolDayTotals  `json:"totals"`
 	Classes         []SchoolDayClass `json:"classes"`
+	// CanReportAbsences is true when the caller may enter a report for a
+	// child missing without one (#4791): the date is today and a school day,
+	// and the token holds class_day:absence_report_write.
+	CanReportAbsences bool `json:"can_report_absences"`
 }
 
 // SchoolDay is the school-wide day overview of moto schule (#4802), a facade

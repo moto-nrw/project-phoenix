@@ -142,6 +142,10 @@ type StatusDayWriteContext struct {
 	// AfterCommit so bulk writes can emit one aggregate absence notification
 	// while retaining the per-student SSE fan-out.
 	AfterCreate func(context.Context, []int64) error
+	// Source is the source the written rows carry; empty writes the planned
+	// source of the OGS's own status-day write. The Schulverwaltung's report
+	// in moto schule writes the school source (#4791).
+	Source string
 }
 
 // ApplyLiveStatusForToday mutates a student's live sick/excused flags to reflect

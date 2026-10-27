@@ -311,7 +311,7 @@ func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc 
 			Date:       date,
 			Status:     status,
 			ReportedAt: now,
-			Source:     absencerecords.StudentStatusSourcePlanned,
+			Source:     statusDayWriteSource(wc),
 			Note:       notePtr,
 		}); err != nil {
 			return false, err
@@ -324,6 +324,15 @@ func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc 
 		}
 	}
 	return notifyAbsence, nil
+}
+
+// statusDayWriteSource is the source the write context names, the planned
+// source without one.
+func statusDayWriteSource(wc StatusDayWriteContext) string {
+	if wc.Source != "" {
+		return wc.Source
+	}
+	return absencerecords.StudentStatusSourcePlanned
 }
 
 func isNewReportableAbsence(student *StudentRecord, status string, dates []calendar.Date, today calendar.Date) bool {
