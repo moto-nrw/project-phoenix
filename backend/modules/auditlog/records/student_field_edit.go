@@ -47,6 +47,11 @@ const (
 	StudentFieldCareEnd                = "care_end"
 	StudentFieldDepartureDays          = "departure_days"
 	StudentFieldDepartureCompanionNote = "departure_companion_note"
+	// StudentFieldSchoolAbsenceReport records a sick or excused day the
+	// Schulverwaltung entered afterwards in moto schule for a child missing
+	// without a report, and its withdrawal (#4791). Values are German text
+	// naming the status and the day.
+	StudentFieldSchoolAbsenceReport = "school_absence_report"
 
 	// StudentFieldDocumentPrefix marks an upload or deletion in the child's
 	// document file (#777). The full field name carries the category
@@ -105,7 +110,7 @@ func (e *StudentFieldEdit) Validate() error {
 	switch e.FieldName {
 	case StudentFieldStatus, StudentFieldExtraInfo,
 		StudentFieldHealthInfo, StudentFieldPickupStatus, StudentFieldPickupSchedule, StudentFieldDepartureDays,
-		StudentFieldDepartureCompanionNote, StudentFieldCareEnd, StudentFieldDocument:
+		StudentFieldDepartureCompanionNote, StudentFieldCareEnd, StudentFieldDocument, StudentFieldSchoolAbsenceReport:
 		// Valid field names
 	default:
 		// Document fields carry their category in the name. The vocabulary of

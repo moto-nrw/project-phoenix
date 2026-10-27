@@ -14,7 +14,28 @@ const (
 	StudentListViewFull = "full"
 	// StudentListViewSlim is the Kindersuche projection (#2097).
 	StudentListViewSlim = "slim"
+	// StudentListViewNames is the name lookup (#4996): the Betreuungsplan
+	// shows who a child is in its conflicts and block details and reads
+	// nothing else of the list.
+	StudentListViewNames = "names"
 )
+
+// NameStudentResponse is the names-only list projection (#4996). Like the slim
+// one it is a wire projection: filters, sorting, pagination and access run on
+// the full responses first.
+type NameStudentResponse struct {
+	ID        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+}
+
+func nameStudentResponses(responses []StudentResponse) []NameStudentResponse {
+	names := make([]NameStudentResponse, len(responses))
+	for i := range responses {
+		names[i] = NameStudentResponse{ID: responses[i].ID, FirstName: responses[i].FirstName, LastName: responses[i].LastName}
+	}
+	return names
+}
 
 // SlimStudentResponse is the list projection for the Kindersuche
 // (frontend students/search): every field its cards, client-side

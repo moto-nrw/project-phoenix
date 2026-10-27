@@ -171,6 +171,7 @@ func buildClassDayViews(
 	persons peopledirectory.Capability, groups schoolstructure.Query, rooms facilitiesModule.Catalog, renderer *lists.RendererService,
 	homework timetable.HomeworkBook,
 	emitter presenceStudentsHTTP.GuardianWake,
+	notifications owners.DeliveryNotifications,
 ) (ClassDayViews, error) {
 	classDayReads, err := arrivalTimetable.NewPresenceReads(owners.NewTimetablePresenceProjection(db))
 	if err != nil {
@@ -183,10 +184,15 @@ func buildClassDayViews(
 			Broadcaster: hub, Logger: env.Logger.With("service", "class-day-class-trips"), ParentEventEmitter: emitter,
 			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
 		})),
-		BlockStarts:                   operations,
-		DayHintDependencies:           classdayCompose.DayHintDependencies{DayHints: persons, Today: calendar.CalendarDateClock(env.Now)},
-		MorningAttendanceDependencies: classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
-		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
+		BlockStarts:         operations,
+		DayHintDependencies: classdayCompose.DayHintDependencies{DayHints: persons, Today: calendar.CalendarDateClock(env.Now)},
+		MorningAttendanceDependencies: withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
+			presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
+				AbsenceNotifier: studentAbsenceNotifier{notifier: notifications.AbsenceNotifier},
+				Broadcaster:     hub, Logger: env.Logger.With("service", "class-day-absence-reports"), ParentEventEmitter: emitter,
+				PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
+			}, presence.Presence), audit.Persistence.StudentFieldEdit, notifications.UnreportedAbsences),
+		HomeworkDependencies: classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence.Presence, HandoverStaffNames: classHandoverStaffNames(people.Staff),
 		},

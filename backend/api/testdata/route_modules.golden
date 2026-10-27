@@ -587,6 +587,7 @@ basis
 	POST /api/timetable/templates/{id}/end
 	POST /api/timetable/templates/{id}/offering-connection
 	POST /api/timetable/templates/{id}/split
+	POST /api/timetable/templates/{id}/students/{studentId}/remove-days
 	POST /api/users/
 	POST /auth/accounts/{accountId}/caregiver-capability
 	POST /auth/invitations/
@@ -1093,6 +1094,7 @@ online_anmeldung
 
 unterricht_vormittag
 	DELETE /school/calendar/appointments/{appointmentId}
+	DELETE /school/class-day/absence-reports/{schoolClass}/{date}/students/{studentId}
 	DELETE /school/class-day/arrival-exceptions/{schoolClass}/{date}
 	DELETE /school/class-day/day-hints/{schoolClass}/{date}
 	DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
@@ -1155,6 +1157,7 @@ unterricht_vormittag
 	POST /school/supervisions/{id}/students/{student_id}/check-in
 	POST /school/supervisions/{id}/students/{student_id}/check-out
 	PUT /school/calendar/appointments/{appointmentId}
+	PUT /school/class-day/absence-reports/{schoolClass}/{date}/students/{studentId}
 	PUT /school/class-day/arrival-exceptions/{schoolClass}/{date}
 	PUT /school/class-day/day-hints/{schoolClass}/{date}
 	PUT /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}

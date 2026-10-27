@@ -49,6 +49,12 @@ export interface StudentFilters {
    * are not signed off for it (#4571). Needs `location_state: "present"`.
    */
   care_offering_id?: string;
+  /**
+   * Wire projection. "slim" (#2097) drops address, health, guardian and
+   * schedule fields; "names" (#4996) keeps only ID and name, for callers that
+   * only show who a child is.
+   */
+  view?: "slim" | "names";
 }
 
 /** An active care offering that counts as care, as a selection lists it. */
@@ -145,6 +151,7 @@ async function buildStudentUrl(
     params.append("include_pickup_times", "true");
   if (filters.care_offering_id)
     params.append("care_offering_id", filters.care_offering_id);
+  if (filters.view) params.append("view", filters.view);
 
   const queryString = params.toString();
   return { url: queryString ? `${baseUrl}?${queryString}` : baseUrl, useProxy };

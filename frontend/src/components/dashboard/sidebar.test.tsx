@@ -40,7 +40,7 @@ vi.mock("~/lib/auth-utils", () => {
   const hasEffectiveAdminScopeFn = vi.fn(() => isAdminFn());
   // Elternmitteilungen (#1669) gates on this; admins hold it via admin:*.
   // The nav item additionally requires operations.parent_news_enabled (off
-  // in these tests' settings schema), so it stays hidden regardless.
+  // in the global tenant-context mock), so it stays hidden regardless.
   const hasPermissionFn = vi.fn((_session: unknown, _permission: string) =>
     isAdminFn(),
   );
@@ -2941,23 +2941,12 @@ describe("Sidebar", () => {
     });
 
     it("keeps Schuljahr und Kalender and Abrechnung when timetable.enabled is false", () => {
-      mockUseSWRDefault.mockReturnValue({
-        data: {
-          tabs: [
-            {
-              categories: [
-                { items: [{ key: "timetable.enabled", value: false }] },
-              ],
-            },
-          ],
-        },
-        error: undefined,
-        isLoading: false,
-        isValidating: false,
-        mutate: vi.fn(),
-      } as unknown as ReturnType<typeof useSWR>);
-
-      render(<Sidebar />);
+      vi.mocked(useTimetableEnabled).mockReturnValue(false);
+      try {
+        render(<Sidebar />);
+      } finally {
+        vi.mocked(useTimetableEnabled).mockReturnValue(true);
+      }
 
       // Schuljahr und Ferien bleiben erreichbar — die Anmeldephasen hängen
       // daran; nur die timetable-spezifischen Seiten verschwinden. Der
@@ -2970,19 +2959,18 @@ describe("Sidebar", () => {
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
     });
 
-    it("reads the settings schema from the tenant-scoped SWR key", () => {
+    it("reads its switches from the tenant resolve, not the settings schema (#4996)", () => {
       render(<Sidebar />);
 
-      expect(mockUseSWRDefault).toHaveBeenCalledWith(
+      expect(screen.getByText("Planung")).toBeInTheDocument();
+      expect(mockUseSWRDefault).not.toHaveBeenCalledWith(
         "test-tenant:settings-schema",
-        expect.any(Function),
-        expect.any(Object),
+        expect.anything(),
+        expect.anything(),
       );
     });
 
-    it("shows the Planung accordion while the settings schema is loading", () => {
-      // data undefined (globaler SWR-Default) — der Bereich darf beim Laden
-      // nicht kurz verschwinden (`!== false`-Gate).
+    it("shows the Planung accordion while timetable.enabled is on", () => {
       render(<Sidebar />);
 
       expect(screen.getByText("Planung")).toBeInTheDocument();

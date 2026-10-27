@@ -4,15 +4,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   mutate: vi.fn(),
   useRequirePermission: vi.fn(),
-  useSettingsSchema: vi.fn(),
+  useSchoolParentInviteMode: vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-require-permission", () => ({
   useRequirePermission: () => mocks.useRequirePermission(),
 }));
 
-vi.mock("~/lib/hooks/use-settings-schema", () => ({
-  useSettingsSchema: () => mocks.useSettingsSchema(),
+// The invite mode rides on the signed-in navigation context since #4996.
+vi.mock("~/lib/hooks/use-school-switches", () => ({
+  useSchoolParentInviteMode: () => mocks.useSchoolParentInviteMode(),
+}));
+
+vi.mock("~/lib/swr", () => ({
+  useTenantMutate: () => mocks.mutate,
 }));
 
 vi.mock("~/components/admin/guardian-approval-queue", () => ({
@@ -38,79 +43,48 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 import GuardianApprovalsPage from "./page";
 
-function schemaWithInviteMode(value?: string) {
-  return {
-    tabs: [
-      {
-        key: "operations",
-        label: "Betrieb",
-        categories: [
-          {
-            key: "guardians",
-            label: "Bezugspersonen",
-            items:
-              value === undefined
-                ? []
-                : [
-                    {
-                      key: "guardians.parent_invite_mode",
-                      value,
-                    },
-                  ],
-          },
-        ],
-      },
-    ],
-  };
-}
-
-function setSettingsResult({
-  data,
+function setInviteMode({
+  mode,
   error,
   isLoading = false,
-  isValidating = false,
 }: {
-  data?: ReturnType<typeof schemaWithInviteMode> | null;
+  mode?: string;
   error?: Error;
   isLoading?: boolean;
-  isValidating?: boolean;
 }) {
-  mocks.useSettingsSchema.mockReturnValue({
-    data,
-    error,
-    isLoading,
-    isValidating,
-    mutate: mocks.mutate,
-  });
+  mocks.useSchoolParentInviteMode.mockReturnValue({ mode, error, isLoading });
 }
 
 describe("GuardianApprovalsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.useRequirePermission.mockReturnValue({ isReady: true });
-    setSettingsResult({ data: schemaWithInviteMode("staff_approval") });
+    setInviteMode({ mode: "staff_approval" });
   });
 
   it("mounts the queue while the invite mode is loading", () => {
-    setSettingsResult({ data: undefined, isLoading: true });
+    setInviteMode({ isLoading: true });
 
     render(<GuardianApprovalsPage />);
 
     expect(screen.getByTestId("approval-queue")).toHaveTextContent("loading:");
   });
 
-  it("passes a valid invite mode to the queue", () => {
-    setSettingsResult({ data: schemaWithInviteMode("disabled") });
+  it.each(["disabled", "direct", "staff_approval"])(
+    "passes the invite mode %s to the queue",
+    (mode) => {
+      setInviteMode({ mode });
 
-    render(<GuardianApprovalsPage />);
+      render(<GuardianApprovalsPage />);
 
-    expect(screen.getByTestId("approval-queue")).toHaveTextContent(
-      "ready:disabled",
-    );
-  });
+      expect(screen.getByTestId("approval-queue")).toHaveTextContent(
+        `ready:${mode}`,
+      );
+    },
+  );
 
-  it("passes an error state when settings access returns no schema", () => {
-    setSettingsResult({ data: null });
+  it("shows an error with a reload when the request fails", () => {
+    setInviteMode({ error: new Error("request failed") });
 
     render(<GuardianApprovalsPage />);
 
@@ -118,22 +92,11 @@ describe("GuardianApprovalsPage", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Einstellungen erneut laden" }),
     );
-    expect(mocks.mutate).toHaveBeenCalledOnce();
+    expect(mocks.mutate).toHaveBeenCalledWith("user-context");
   });
 
-  it("shows an error when the schema request fails", () => {
-    setSettingsResult({
-      data: undefined,
-      error: new Error("request failed"),
-    });
-
-    render(<GuardianApprovalsPage />);
-
-    expect(screen.getByTestId("approval-queue")).toHaveTextContent("error:");
-  });
-
-  it("shows an error when the required setting is missing", () => {
-    setSettingsResult({ data: schemaWithInviteMode() });
+  it("shows an error when the school sent no known mode", () => {
+    setInviteMode({ mode: undefined });
 
     render(<GuardianApprovalsPage />);
 

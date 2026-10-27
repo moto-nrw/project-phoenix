@@ -217,6 +217,14 @@ interface InstanceDetailModalProps {
   onConnectOffering?: (deviation: RosterDeviation) => void;
   /** „Bleibt von Hand gepflegt“ setzen oder zurücknehmen. */
   onSetManualRoster?: (confirmed: boolean) => void;
+  /**
+   * Der Aufrufer lädt die Kinderzeilen des Termins noch nach (#4996): die
+   * Wochenliste kommt ohne sie. Bis dahin steht statt der Liste ein
+   * Ladehinweis, nie eine Liste, die alle als „Erwartet“ zeigt.
+   */
+  studentsPending?: boolean;
+  /** Ladefehler der nachgeladenen Kinderzeilen, mit Wiederholen. */
+  studentsLoadError?: ReturnType<typeof useSwrLoadError>;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -624,6 +632,8 @@ export function InstanceDetailModal({
   onConnectOffering,
   onSetManualRoster,
   seriesPeriodId,
+  studentsPending = false,
+  studentsLoadError = null,
 }: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -658,6 +668,21 @@ export function InstanceDetailModal({
     (instance.status === "planned" || instance.status === "active") &&
     instance.date >= today;
   const students = useMemo(() => studentsForInstance(instance), [instance]);
+  // Nachgeladene Kinderzeilen (#4996): bis sie da sind, Ladehinweis oder
+  // Fehler an ihrer Stelle, unter derselben Überschrift wie die Liste. Ein
+  // Dienst hat keine Kinder, also auch nichts nachzuladen.
+  const studentRowsState: React.ReactNode =
+    instance?.activityType === "duty" ? null : studentsLoadError !== null ? (
+      <Section title="Kinder">
+        <LoadErrorAlert error={studentsLoadError} />
+      </Section>
+    ) : studentsPending ? (
+      <Section title="Kinder">
+        <p role="status" className="text-sm text-gray-500">
+          Kinder werden geladen…
+        </p>
+      </Section>
+    ) : null;
   // Same split the header counts use (#1747): an assignment row still reads
   // "expected" when the care plan does not place the child here today, so it
   // gets its own group instead of padding "Erwartet" with children the
@@ -1184,15 +1209,17 @@ export function InstanceDetailModal({
                         onOpenPool={poolAvailable ? onOpenPool : undefined}
                         canManageStaffPool={canManageStaffPool}
                       />
-                      <InstanceStudentsSection
-                        groupedStudents={visibleGroupedStudents}
-                        handleAttendancePatch={handleAttendancePatch}
-                        instance={instance}
-                        onAttendancePatch={attendancePatch}
-                        pendingStudentId={pendingStudentId}
-                        studentNames={names.studentNames}
-                        students={visibleStudents}
-                      />
+                      {studentRowsState ?? (
+                        <InstanceStudentsSection
+                          groupedStudents={visibleGroupedStudents}
+                          handleAttendancePatch={handleAttendancePatch}
+                          instance={instance}
+                          onAttendancePatch={attendancePatch}
+                          pendingStudentId={pendingStudentId}
+                          studentNames={names.studentNames}
+                          students={visibleStudents}
+                        />
+                      )}
                     </>
                   );
                 }}
@@ -1205,15 +1232,17 @@ export function InstanceDetailModal({
                   onOpenPool={poolAvailable ? onOpenPool : undefined}
                   canManageStaffPool={canManageStaffPool}
                 />
-                <InstanceStudentsSection
-                  groupedStudents={groupedStudents}
-                  handleAttendancePatch={handleAttendancePatch}
-                  instance={instance}
-                  onAttendancePatch={attendancePatch}
-                  pendingStudentId={pendingStudentId}
-                  studentNames={studentNames}
-                  students={students}
-                />
+                {studentRowsState ?? (
+                  <InstanceStudentsSection
+                    groupedStudents={groupedStudents}
+                    handleAttendancePatch={handleAttendancePatch}
+                    instance={instance}
+                    onAttendancePatch={attendancePatch}
+                    pendingStudentId={pendingStudentId}
+                    studentNames={studentNames}
+                    students={students}
+                  />
+                )}
               </>
             )}
           </div>

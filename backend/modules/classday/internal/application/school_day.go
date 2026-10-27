@@ -43,6 +43,8 @@ func (s *dayReports) SchoolDayReport(ctx context.Context, day classday.Date, act
 		return nil, err
 	}
 	out := buildSchoolDayReport(date, weekday, enrollmentKnown, reports)
+	// The verdict of the day; the HTTP adapter adds the permission (#4791).
+	out.CanReportAbsences = out.SchoolDay && date == s.morning.today()
 	if err := s.recordSchoolDayViewAudit(ctx, out, actor); err != nil {
 		return nil, err
 	}
@@ -158,6 +160,8 @@ func schoolDayChild(row classday.DayRow, schoolDay, enrollmentKnown bool) classd
 	}
 	child.Status = row.Status
 	child.Missing = row.MorningAttendance != nil && row.MorningAttendance.Status == classday.MorningAttendanceAbsent
+	child.Unreported = row.Unreported
+	child.StatusBySchool = row.StatusBySchool
 	child.Changed = !row.ListEntry && (row.Status != "" || row.PickupChanged)
 	if row.ListEntry || row.Status != "" || !enrollmentKnown {
 		return child
@@ -174,6 +178,9 @@ func schoolDayChild(row classday.DayRow, schoolDay, enrollmentKnown bool) classd
 func countSchoolDayChild(totals *classday.SchoolDayTotals, child classday.SchoolDayChild) {
 	if child.Missing {
 		totals.Missing++
+	}
+	if child.Unreported {
+		totals.Unreported++
 	}
 	if child.Changed {
 		totals.Changes++
@@ -195,6 +202,7 @@ func addSchoolDayTotals(sum *classday.SchoolDayTotals, add classday.SchoolDayTot
 	sum.Absent += add.Absent
 	sum.ListEntries += add.ListEntries
 	sum.Missing += add.Missing
+	sum.Unreported += add.Unreported
 	sum.Sick += add.Sick
 	sum.Excused += add.Excused
 	sum.ClassTrip += add.ClassTrip

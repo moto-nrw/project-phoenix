@@ -43,6 +43,11 @@ export function SchoolRealtimeBridge() {
   const handleSSE = useCallback((event: SSEEvent) => {
     if (typeof window === "undefined") return;
     if (event.type === "notification") {
+      // „Fehlt ohne Meldung“ (#4791): die Liste der Schulverwaltung lädt
+      // neu, ohne dass jemand die Seite neu lädt.
+      if (event.data?.notification_type === "school_unreported_absence") {
+        window.dispatchEvent(new CustomEvent(CLASS_DAY_REFRESH_EVENT));
+      }
       // The backend names the school destination itself (school_deep_link);
       // the mapper only covers producers that do not yet.
       const schoolLink =

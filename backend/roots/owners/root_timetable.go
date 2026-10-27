@@ -13,6 +13,7 @@ import (
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TimetableOwner is Timetable & Activities as the roots bind it (#4009): the
@@ -30,6 +31,9 @@ type TimetableOwner struct {
 	TemplateRows        arrivalTimetable.TemplateRows
 	RosterReconciler    timetablePorts.RosterReconciler
 	BlockMetadata       timetablePorts.BlockDisplayMetadata
+	// StudentTemplateDays names and removes the hand planning a booking
+	// change leaves behind (#5102).
+	StudentTemplateDays timetable.StudentTemplateDays
 }
 
 // BuildTimetableOwner binds the Timetable owner's retained rows. The
@@ -48,6 +52,14 @@ func BuildTimetableOwner(
 		return TimetableOwner{}, fmt.Errorf("compose timetable recurrence lock: %w", err)
 	}
 	calendarPeriods := arrivalTimetable.NewCalendarPeriodRepository(calendar, arrivalTimetable.NewPlanningCalendarPeriodUsage(enrollment.Owner, owner))
+	today := timezone.TodayDate
+	if now != nil {
+		today = func() timezone.Date { return timezone.DateFromTime(now()) }
+	}
+	studentDays, err := NewTimetableStudentTemplateDays(repos, recurrenceLock, today, logger)
+	if err != nil {
+		return TimetableOwner{}, fmt.Errorf("compose timetable student template days: %w", err)
+	}
 	return TimetableOwner{
 		Repositories:        repos,
 		EducationGroupNames: TimetableEducationGroupNames(groups),
@@ -61,7 +73,20 @@ func BuildTimetableOwner(
 		},
 		// Reconciles already-materialized future timetable rosters when a
 		// grade transition graduates or restores students (#405).
-		RosterReconciler: arrivalTimetable.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, repos.Directories, logger, now),
-		BlockMetadata:    arrivalTimetable.NewBlockDisplayMetadata(pool, blockDisplayCompose.List),
+		RosterReconciler:    arrivalTimetable.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, repos.Directories, logger, now),
+		BlockMetadata:       arrivalTimetable.NewBlockDisplayMetadata(pool, blockDisplayCompose.List),
+		StudentTemplateDays: studentDays,
 	}, nil
+}
+
+// NewTimetableStudentTemplateDays binds the student template days over the
+// retained rows and the recurrence gate; today bounds the removal.
+func NewTimetableStudentTemplateDays(
+	repos TimetableRepositories, lock timetable.RecurrenceWriteLock, today func() timezone.Date, logger *slog.Logger,
+) (timetable.StudentTemplateDays, error) {
+	return arrivalTimetable.NewStudentTemplateDays(timetablePorts.StudentTemplateDaysDependencies{
+		Groups: repos.Timetable, Schedules: repos.ActivitySchedule, Enrollments: repos.StudentEnrollment,
+		Instances: repos.ActivityInstance.Reads, Participants: repos.InstanceStudent, RecurrenceLock: lock,
+		Today: today, Logger: logger,
+	})
 }

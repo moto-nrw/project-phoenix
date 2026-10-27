@@ -7,6 +7,8 @@ import type { SSEHookOptions } from "~/lib/sse-types";
 const useSSE = vi.hoisted(() => vi.fn());
 
 vi.mock("~/lib/hooks/use-sse", () => ({ useSSE }));
+// A notice's deep link goes through the school host; the test has none.
+vi.mock("~/lib/school-url", () => ({ schoolPath: (path: string) => path }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: { user: { tenantId: "5", id: "11" } },
@@ -71,6 +73,36 @@ describe("SchoolRealtimeBridge", () => {
     } finally {
       window.removeEventListener(CLASS_DAY_REFRESH_EVENT, refresh);
       window.removeEventListener("team-messages-unread-refresh", teamChat);
+    }
+  });
+
+  it("reloads the list of children missing without a report on its notice (#4791)", () => {
+    render(<SchoolRealtimeBridge />);
+
+    const refresh = vi.fn();
+    window.addEventListener(CLASS_DAY_REFRESH_EVENT, refresh);
+
+    try {
+      registeredHandler()({
+        type: "notification",
+        active_group_id: "",
+        data: {
+          notification_type: "school_unreported_absence",
+          school_deep_link: "/school",
+        },
+        timestamp: new Date().toISOString(),
+      });
+      expect(refresh).toHaveBeenCalledOnce();
+
+      registeredHandler()({
+        type: "notification",
+        active_group_id: "",
+        data: { notification_type: "staff_message", deep_link: "/messages" },
+        timestamp: new Date().toISOString(),
+      });
+      expect(refresh).toHaveBeenCalledOnce();
+    } finally {
+      window.removeEventListener(CLASS_DAY_REFRESH_EVENT, refresh);
     }
   });
 });

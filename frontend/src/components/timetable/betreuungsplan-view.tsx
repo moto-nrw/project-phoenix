@@ -91,13 +91,14 @@ import { hasPermission } from "~/lib/auth-utils";
 import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
-import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import { useWeekendFollowsFriday } from "~/lib/tenant-context";
+import {
+  useTimetableEnabled,
+  useWeekendFollowsFriday,
+} from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import { getSettingValue } from "~/lib/settings-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
 import {
@@ -586,9 +587,26 @@ function TimetablesContent() {
   const shouldLoadGaps =
     canManageSchedules && view === "week" && fetchToISO >= todayTargetISO;
   const gapsSWRKey = `timetable-gaps-${gapsFromISO}-${fetchToISO}`;
+  // Schlank (#4996): das Raster zeigt Zahlen, keine Kinderzeilen. Die
+  // Kinderzeilen des geöffneten Termins lädt das Detailpanel nach.
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
-    () => timetableService.getWeek(fetchFromISO, fetchToISO, planFilter),
+    () =>
+      timetableService.getWeek(fetchFromISO, fetchToISO, planFilter, {
+        view: "slim",
+      }),
+    {
+      // Auch eine unveränderte schlanke Antwort kann neue Kinder-Notizen oder
+      // Fehlgründe haben. Nicht von einer neuen data-Referenz abhängig machen.
+      onSuccess: (week) => {
+        const selected = week.instances.find(
+          (inst) => inst.id === selectedInstanceId,
+        );
+        if (selected) {
+          void tenantMutate(`${swrKey}-detail-${selected.date}`);
+        }
+      },
+    },
   );
   const { data: gapsData, error: gapsError } = useSWRAuth(
     status === "authenticated" && shouldLoadGaps ? gapsSWRKey : null,
@@ -613,7 +631,8 @@ function TimetablesContent() {
     status === "authenticated" && canReadTenantRosters
       ? "timetable-student-list"
       : null,
-    () => fetchStudents({ page_size: 500 }),
+    // Nur Name und ID werden gebraucht: die Namens-Projektion (#4996).
+    () => fetchStudents({ page_size: 500, view: "names" }),
   );
   // Auswahl des Gruppenfilters (#4766). Die Serienansicht filtert nicht.
   const { data: filterGroups } = useSWRAuth(
@@ -650,16 +669,9 @@ function TimetablesContent() {
     calendarPeriodService.list(),
   );
   // H4 route guard: same source the sidebar uses to hide the nav entry
-  // (settings schema -> timetable.enabled). fetchSettingsSchema returns
-  // null when the user cannot read settings; the page then renders
-  // normally (graceful default, mirroring the sidebar).
-  const { data: settingsSchema, isLoading: settingsSchemaLoading } =
-    useSettingsSchema(status === "authenticated", {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    });
-  const timetableDisabled =
-    getSettingValue(settingsSchema, "timetable.enabled") === false;
+  // (tenant resolve -> timetable.enabled, #4996), so the page no longer
+  // loads the settings schema.
+  const timetableDisabled = !useTimetableEnabled();
 
   // Ladefehler stehen dort, wo die Daten fehlen (#2516): Katalogtext mit
   // Wiederholen, nie der Satz des Browsers („Failed to fetch“) oder des
@@ -716,7 +728,7 @@ function TimetablesContent() {
   useEffect(() => {
     if (periodsLoading || periodsError || periods === undefined) return;
     if (periods.length > 0) return;
-    if (settingsSchemaLoading || timetableDisabled) return;
+    if (timetableDisabled) return;
     // Leseansicht (#2283): ohne schedules:create würde der Bootstrap ohnehin
     // mit 403 abgewiesen — gar nicht erst versuchen.
     if (!canBootstrapPeriods) return;
@@ -750,7 +762,6 @@ function TimetablesContent() {
     periods,
     periodsError,
     periodsLoading,
-    settingsSchemaLoading,
     tenantMutate,
     timetableDisabled,
   ]);
@@ -928,7 +939,11 @@ function TimetablesContent() {
     error: templatesError,
     isLoading: templatesLoading,
   } = useSWRAuth(
-    status === "authenticated" && templatePeriodID
+    // Regeltermine braucht nur die Serienansicht und das Detailpanel eines
+    // Termins (#4996); Woche, Tag und Monat laden sie nicht beim Öffnen.
+    status === "authenticated" &&
+      templatePeriodID &&
+      (view === "series" || selectedInstanceId)
       ? `timetable-templates-${templatePeriodID}`
       : null,
     () => timetableService.getTemplates(templatePeriodID),
@@ -1166,6 +1181,41 @@ function TimetablesContent() {
         : undefined,
     [selectedInstance, templates],
   );
+  // Die Woche kommt ohne Kinderzeilen (#4996). Für den geöffneten Termin lädt
+  // die Ansicht seinen Tag vollständig nach; der Schlüssel beginnt wie der der
+  // Woche, damit Echtzeit-Aktualisierungen ihn mitnehmen.
+  const detailDateISO = selectedInstance?.date ?? null;
+  const detailSWRKey = detailDateISO
+    ? `${swrKey}-detail-${detailDateISO}`
+    : null;
+  const { data: detailData, error: detailError } = useSWRAuth(
+    status === "authenticated" && detailSWRKey ? detailSWRKey : null,
+    () =>
+      timetableService.getWeek(
+        detailDateISO ?? "",
+        detailDateISO ?? "",
+        planFilter,
+      ),
+    { keepPreviousData: false },
+  );
+  const detailStudentsLoadError = useSwrLoadError(
+    detailError,
+    "die Liste der Kinder",
+    () => (detailSWRKey ? tenantMutate(detailSWRKey) : undefined),
+  );
+  const detailInstance = useMemo(() => {
+    if (!selectedInstance) return null;
+    const full = detailData?.instances.find(
+      (inst) => inst.id === selectedInstance.id,
+    );
+    return full
+      ? { ...selectedInstance, students: full.students }
+      : selectedInstance;
+  }, [detailData, selectedInstance]);
+  const detailStudentsPending =
+    selectedInstance !== null &&
+    detailData === undefined &&
+    detailStudentsLoadError === null;
   const isInstanceDataLoading = shouldLoadInstances && isLoading && !data;
   const weekEmptyState = useMemo(() => {
     if (instances.length > 0 || error) return undefined;
@@ -1687,15 +1737,13 @@ function TimetablesContent() {
     [clearArchiveError],
   );
 
-  // While the session or the settings schema loads we cannot tell yet
-  // whether the feature is enabled or what the caller may do. The
+  // While the session loads we cannot tell yet what the caller may do. The
   // PlanningContextBar (title, navigation) renders immediately regardless —
   // only the calendar-grid content below falls back to its skeleton, and
   // permission-dependent toolbar bits (view switcher, export, "Neu") stay
   // hidden until they resolve (hasPermission(undefined, …) is false while
   // loading).
-  const showSkeleton =
-    status === "loading" || settingsSchemaLoading || periodsPending;
+  const showSkeleton = status === "loading" || periodsPending;
 
   if (!showSkeleton && timetableDisabled) {
     return (
@@ -1880,7 +1928,9 @@ function TimetablesContent() {
   const overlays = (
     <>
       <InstanceDetailModal
-        instance={selectedInstance}
+        instance={detailInstance}
+        studentsPending={detailStudentsPending}
+        studentsLoadError={detailStudentsLoadError}
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
         canManage={canManageSchedules}

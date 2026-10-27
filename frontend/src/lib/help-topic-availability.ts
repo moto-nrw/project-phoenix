@@ -262,6 +262,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.teacherChildDetails]: "teacher",
   [HELP_TOPICS.teacherArrivalChange]: "teacher",
   [HELP_TOPICS.teacherClassTrip]: "teacher",
+  [HELP_TOPICS.teacherAbsenceReport]: "teacher",
   [HELP_TOPICS.teacherDayHint]: "teacher",
   [HELP_TOPICS.teacherSupervision]: "teacher",
   [HELP_TOPICS.teacherStartSupervision]: "teacher",

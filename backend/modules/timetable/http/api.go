@@ -108,7 +108,10 @@ type Dependencies struct {
 	RecurrenceLock timetable.RecurrenceWriteLock
 	// RosterReview compares hand-kept Regeltermine with the bookings and
 	// connects them to a Betreuungsangebot (#5103).
-	RosterReview          timetable.TemplateRosterReview
+	RosterReview timetable.TemplateRosterReview
+	// StudentTemplateDays removes a child from a hand-maintained Regeltermin
+	// on the weekdays a booking change took away (#5102).
+	StudentTemplateDays   timetable.StudentTemplateDays
 	AttendanceCorrections timetable.AttendanceCorrections
 	Deviations            timetable.StaffDeviations
 	TimetableData         timetable.TimetableDataCapability

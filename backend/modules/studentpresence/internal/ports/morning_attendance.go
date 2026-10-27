@@ -9,6 +9,7 @@ import (
 // MorningAttendanceStore persists the morning attendance (#4790) in
 // active.morning_attendance, apart from active.attendance.
 type MorningAttendanceStore interface {
+	LockMorningAttendance(context.Context, int64, Date) (string, Stats, error)
 	// ListMorningAttendance returns the marks of date for the given students
 	// and class-list entries.
 	ListMorningAttendance(ctx context.Context, date Date, studentIDs, classListEntryIDs []int64) ([]studentpresence.MorningAttendanceEntry, Stats, error)

@@ -163,6 +163,42 @@ type OfferingAdjustmentSelection struct {
 	SelectedDays []string
 }
 
+// ChildOfferingsUpdate is a corrected child with the effect of the
+// correction on the child's Regeltermine (#5102).
+type ChildOfferingsUpdate struct {
+	Child        *RequestChild
+	RosterImpact RosterImpact
+}
+
+// RosterImpact is Care Plan's account of a booking change on the child's
+// Regeltermine from EffectiveFrom on. Weekdays are ISO (1 = Monday).
+type RosterImpact struct {
+	EffectiveFrom calendar.Date
+	// Adjusted are the Regeltermine the booking change rewrote.
+	Adjusted []AdjustedRosterTemplate
+	// NotAdjusted are hand-maintained Regeltermine that keep the child on a
+	// weekday the change took away.
+	NotAdjusted []ManualRosterTemplate
+}
+
+// AdjustedRosterTemplate is one Regeltermin the booking change rewrote.
+type AdjustedRosterTemplate struct {
+	TemplateID      int64
+	Name            string
+	RemovedWeekdays []int
+	AddedWeekdays   []int
+}
+
+// ManualRosterTemplate is one hand-maintained Regeltermin that keeps the
+// child; ViaTarget means a Klasse/Jahrgang/Gruppe target adds the child to
+// occurrences created later.
+type ManualRosterTemplate struct {
+	TemplateID int64
+	Name       string
+	Weekdays   []int
+	ViaTarget  bool
+}
+
 // UpdateChildOfferingsInput is an admin's correction of a child's bookings.
 type UpdateChildOfferingsInput struct {
 	RequestID      int64
@@ -240,8 +276,9 @@ type Decisions interface {
 	// re-run under the submit advisory locks. Joins the handler-provided
 	// tenant transaction, like Decide.
 	RestoreWithdrawn(ctx context.Context, requestID, restoredBy int64) (*RestoreOutcome, error)
-	// UpdateChildOfferings corrects a child's bookings through Care Plan.
-	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
+	// UpdateChildOfferings corrects a child's bookings through Care Plan and
+	// reports what the correction did to the child's Regeltermine.
+	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*ChildOfferingsUpdate, error)
 	// ListOfferingAdjustments lists the audit trail of one child's offering
 	// adjustments for the admin request detail.
 	ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*OfferingAdjustmentRecord, error)
@@ -292,7 +329,7 @@ type ApprovedChildChanges interface {
 	// ApplyChangeRequestOfferings applies an offering proposal whose
 	// capability was validated and pinned when the parent created the change
 	// request.
-	ApplyChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*RequestChild, error)
+	ApplyChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*ChildOfferingsUpdate, error)
 	// SyncApprovedChildData carries the confirmed request and child data onto
 	// the student the approval created.
 	SyncApprovedChildData(ctx context.Context, input ApprovedChildSync) (*RequestChild, error)

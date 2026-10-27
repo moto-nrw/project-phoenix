@@ -22,6 +22,9 @@ type TimetablePlanning struct {
 	SeriesConverter timetable.InstanceSeriesConversion
 	// RosterReview compares hand-kept Regeltermine with the bookings (#5103).
 	RosterReview timetable.TemplateRosterReview
+	// StudentTemplateDays removes a child from a hand-maintained Regeltermin
+	// on weekdays a booking change took away (#5102).
+	StudentTemplateDays timetable.StudentTemplateDays
 }
 
 // buildTimetablePlanning binds the planning over the lifecycle. A split
@@ -69,7 +72,8 @@ func buildTimetablePlanning(
 			Templates: templates, RecurrenceLock: owner.RecurrenceLock, Data: data,
 			ConflictDetection: lifecycle.Conflicts, AttendanceCorrections: corrections, Deviations: lifecycle.Deviations,
 		},
-		SeriesConverter: converter,
-		RosterReview:    rosterReview,
+		SeriesConverter:     converter,
+		RosterReview:        rosterReview,
+		StudentTemplateDays: owner.StudentTemplateDays,
 	}, nil
 }

@@ -17,7 +17,6 @@ import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
 import { hasSessionAccess } from "~/lib/session-access";
 import { primeSessionCache } from "~/lib/session-cache";
-import { SETTINGS_SCHEMA_SWR_KEY } from "~/lib/settings-api";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
 import { tenantAwarePath } from "~/lib/tenant-path";
@@ -63,9 +62,6 @@ function shellSwrConfig(shell: ShellBootstrap, tenantSlug: string) {
   const entries: Record<string, unknown> = {};
   if (shell.userContext) {
     entries[`${tenantSlug}:${USER_CONTEXT_SWR_KEY}`] = shell.userContext;
-  }
-  if (shell.settingsSchema) {
-    entries[`${tenantSlug}:${SETTINGS_SCHEMA_SWR_KEY}`] = shell.settingsSchema;
   }
   if (shell.reminders) {
     entries[`${tenantSlug}:${REMINDERS_SWR_KEY}`] = shell.reminders;

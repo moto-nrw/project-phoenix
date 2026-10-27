@@ -2002,6 +2002,8 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
       "Haben die Eltern unterschrieben, öffnen Sie mit `Nachweis (PDF)` die Erklärung und die Unterschrift.",
       // #3946: freigegebene Tagesänderung markiert die Kinderkarte.
       "Ist der Tag heute, zeigt die Kinderkarte nach dem Freigeben unten einen orangen Hinweis.",
+      // #5102: von Hand gepflegte Regeltermine nach einer Angebotsanfrage.
+      "Planen von Hand gepflegte Regeltermine das Kind nach einer Angebotsanfrage weiter ein? Dann bleibt die Anfrage nach dem Freigeben offen stehen. Sie zeigt `Nicht angepasst, weil von Hand gepflegt`. Wählen Sie `Dort auch entfernen` oder `Fertig`.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
       // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
       // Freigabe haengen koennte.
@@ -3532,6 +3534,8 @@ function careTimesTopic(): HelpTopic {
       "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
       "Die üblichen Zeiten stehen unter `Einstellungen` bei `Betreuungszeiten`. Jede Schule pflegt ihre eigenen Zeiten.",
       "Betreut Ihre OGS am Wochenende? Dann gelten Samstag und Sonntag nach dem Freitagsplan.",
+      // #5102: Angebotswechsel aus dem Wochenplan.
+      "Wechselt das Kind mit dem Wochenplan das Angebot, zeigt moto danach `Auswirkung auf den Betreuungsplan`. Dort sehen Sie, welche Regeltermine angepasst sind und wo das Kind weiter eingeplant ist.",
     ],
     differences: [
       // Einstellung `enrollment.bookings_authoritative`, Vorgabe aus. Der
@@ -4962,6 +4966,10 @@ function enrollmentReviewTopic(): HelpTopic {
       "Hochgeladene Nachweise stehen bei `Zusatzfragen (Eltern)`. Mit `Öffnen` sehen Sie die Datei in einem neuen Tab.",
       "Hat die Vorlage `Unterschrift erforderlich`, steht die Unterschrift der Eltern im Abschnitt `Unterschrift`. Mit `Nachweis als PDF` laden Sie den Anmeldenachweis mit der Unterschrift herunter.",
       "Mit `Statusseite öffnen` sehen Sie, was die Eltern sehen.",
+      // #5102: Auswirkung nach einer Korrektur unter `Nachbearbeitung`.
+      "Angebote eines bestätigten Kindes ändern Sie unter `Nachbearbeitung` mit `Bearbeiten`. Danach steht dort `Auswirkung auf den Betreuungsplan`.",
+      "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
+      "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
       "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
       "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",
@@ -5657,6 +5665,8 @@ function leadCarePlanTopic(): HelpTopic {
     result: "Ihr Team sieht den Plan unter `Heute` und unter `Mein Kalender`.",
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
+      // #5102: Hand-Kinderlisten folgen keiner Abmeldung.
+      "Wählen Sie die Kinder eines Regeltermins von Hand oder über Klasse, Jahrgang oder Gruppe aus, folgt er keiner Abmeldung. Nach einer Abmeldung nennt moto diese Regeltermine. Dort wählen Sie `Dort auch entfernen`.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
       // #4573, ADR 0091: Externe in Regelterminen, auch allein und zuständig.
       "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen, auch mit `Kein Zugang`. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",
@@ -8257,6 +8267,7 @@ function teacherSettingsTopic(): HelpTopic {
       "`Krankmeldungen meiner Klassen`: moto meldet sich, wenn ein Kind aus Ihren Klassen für heute krank oder entschuldigt ist. Name und Grund stehen nicht im Hinweis.",
       "Tippen Sie auf den Hinweis. Dann öffnet sich die Liste der Klasse.",
       "Die Schulverwaltung bekommt diesen Hinweis für alle Klassen der Schule.",
+      "`Fehlt ohne Meldung`: nur für die Schulverwaltung. moto meldet sich, wenn eine Lehrkraft ein Kind als fehlend einträgt und keine Meldung da ist. Im Hinweis steht nur die Zahl der Kinder. Diese Benachrichtigung ist von Anfang an eingeschaltet.",
       "`Nachrichten von Kolleginnen und Kollegen`: neue Nachrichten im Team-Chat der OGS.",
       "Benachrichtigungen kommen erst an, wenn moto schule auf dem Startbildschirm liegt.",
     ],
@@ -8300,6 +8311,7 @@ function teacherClassDayTopic(): HelpTopic {
     differences: [
       "An einem Wochenende ohne Betreuung steht `Kein Schultag`.",
       "Sie haben die Rolle `Schulverwaltung`? Dann steht oben `Ganze Schule` mit den Zahlen aller Klassen. Wählen Sie eine Zahl. Darunter stehen dann die Kinder, nach Klassen sortiert. `Liste schließen` blendet sie wieder aus.",
+      "Unter `Fehlen ohne Meldung` stehen die Kinder, die eine Lehrkraft als fehlend eingetragen hat und für die es keine Meldung gibt. Ist die Benachrichtigung `Fehlt ohne Meldung` eingeschaltet, ändert sich die Liste von selbst.",
     ],
     troubleshootingDetails: [
       "Es steht `Keine Klassen zugewiesen`? Dann hat die OGS Ihnen noch keine Klasse zugeordnet.",
@@ -8309,6 +8321,52 @@ function teacherClassDayTopic(): HelpTopic {
       HELP_TOPICS.teacherChildDetails,
       HELP_TOPICS.teacherArrivalChange,
       HELP_TOPICS.teacherClassTrip,
+      HELP_TOPICS.teacherAbsenceReport,
+    ],
+  };
+}
+
+/**
+ * `Fehlen ohne Meldung` in der Tagesübersicht der Schulverwaltung
+ * (`class-day-overview.tsx`, #4791): Meldung nachtragen und zurücknehmen.
+ */
+function teacherAbsenceReportTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherAbsenceReport,
+    title: "Eine Meldung für ein fehlendes Kind nachtragen",
+    question: "Ein Kind fehlt ohne Meldung. Die Eltern rufen an. Was tue ich?",
+    summary:
+      "Die Schulverwaltung trägt krank oder entschuldigt für heute nach.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "ShieldAlert",
+    requirements: ["Die Rolle `Schulverwaltung`."],
+    steps: [
+      "Öffnen Sie die `Klassenansicht`.",
+      "Wählen Sie unter `Ganze Schule` die Zahl `Fehlen ohne Meldung`.",
+      "Suchen Sie das Kind in der Liste.",
+      "Wählen Sie neben dem Namen `Meldung eintragen`.",
+      "Wählen Sie `Krank` oder `Entschuldigt`.",
+    ],
+    result:
+      "Das Kind steht nicht mehr unter `Fehlen ohne Meldung`. Die Lehrkraft und die OGS sehen den Status für heute.",
+    notes: [
+      "Die Meldung gilt nur für heute.",
+      "Jede Meldung steht mit Ihrem Namen im Änderungsverlauf des Kindes.",
+      "Falsch eingetragen? Öffnen Sie die Liste `Krank` oder `Entschuldigt`. Wählen Sie neben dem Kind `Zurücknehmen`. Das Kind steht dann wieder unter `Fehlen ohne Meldung`.",
+    ],
+    differences: [
+      "Kein `Meldung eintragen` neben dem Namen? Dann haben Sie nicht die Rolle `Schulverwaltung`, oder der Tag ist nicht heute.",
+      "Kinder mit `Keine Betreuung` stehen noch nicht in dieser Liste.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, für das Kind steht heute schon etwas? Dann hat die OGS zum Beispiel eine frühere Abholung eingetragen. Es wurde nichts gespeichert. Sprechen Sie mit der OGS.",
+      "`Zurücknehmen` fehlt? Sie können nur Meldungen zurücknehmen, die die Schulverwaltung eingetragen hat. Eine Krankmeldung der Eltern oder der OGS ändert die OGS.",
+    ],
+    related: [
+      HELP_TOPICS.teacherClassDay,
+      HELP_TOPICS.teacherMorningAttendance,
+      HELP_TOPICS.teacherSettings,
     ],
   };
 }
@@ -9837,6 +9895,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherArrivalChangeTopic(),
   teacherDayHintTopic(),
   teacherClassTripTopic(),
+  teacherAbsenceReportTopic(),
 
   // --- Aufsicht ---
   teacherSupervisionTopic(),
