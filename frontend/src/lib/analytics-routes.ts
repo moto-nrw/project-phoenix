@@ -161,6 +161,7 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
   "/einstellungen",
   "/elternbriefe",
   "/elternbriefe/:id",
+  "/fehlzeiten",
   "/invite",
   "/kalender",
   "/klasse",

@@ -971,6 +971,16 @@ describe("proxy", () => {
       }
     });
 
+    it("rewrites /fehlzeiten to /school/fehlzeiten (#4793)", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/fehlzeiten`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/fehlzeiten",
+      );
+    });
+
     it("rewrites /kalender to /school/kalender (#4798)", () => {
       const res = proxy(
         makeRequest(`http://${SCHOOL_HOSTNAME}/kalender`, SCHOOL_HOSTNAME),

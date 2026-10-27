@@ -232,6 +232,7 @@ export const HELP_TOPICS = {
   teacherArrivalChange: "ankunftszeit-meiner-klasse-aendern",
   teacherClassTrip: "ausflug-oder-klassenfahrt-melden",
   teacherAbsenceReport: "meldung-fuer-ein-fehlendes-kind-nachtragen",
+  teacherAbsenceList: "fehlzeiten-einer-klasse-ansehen",
   teacherDayHint: "der-ogs-einen-hinweis-fuer-heute-geben",
   teacherSupervision: "meine-aufsichten-ansehen",
   teacherStartSupervision: "eine-aufsicht-starten",
@@ -376,6 +377,7 @@ const SCHOOL_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/aufsichten": HELP_TOPICS.teacherSupervision,
   "/tagesinformationen": HELP_TOPICS.teacherNotices,
   "/kalender": HELP_TOPICS.teacherCalendar,
+  "/fehlzeiten": HELP_TOPICS.teacherAbsenceList,
   "/einstellungen": HELP_TOPICS.teacherSettings,
 };
 

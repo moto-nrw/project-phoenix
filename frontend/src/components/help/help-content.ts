@@ -8314,6 +8314,53 @@ function teacherAbsenceReportTopic(): HelpTopic {
 }
 
 /**
+ * `/school/fehlzeiten` (#4793): Fehltage je Kind einer Klasse in einem
+ * Zeitraum, mit Export als PDF oder Excel.
+ */
+function teacherAbsenceListTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherAbsenceList,
+    title: "Fehlzeiten einer Klasse ansehen",
+    question: "Wie viele Tage hat ein Kind gefehlt?",
+    summary:
+      "Unter `Fehlzeiten` stehen die Fehltage je Kind, für Klassenbuch und Zeugnis.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "ClipboardList",
+    steps: [
+      "Öffnen Sie `Fehlzeiten`.",
+      "Wählen Sie die Klasse.",
+      "Prüfen Sie `Von` und `Bis`. Vorgewählt ist das laufende Halbjahr.",
+      "Lesen Sie je Kind die Fehltage, davon entschuldigt und unentschuldigt.",
+      "Wählen Sie bei Bedarf `Exportieren`. Wählen Sie `PDF` oder `Excel`.",
+    ],
+    result: "Sie sehen die Fehltage jedes Kindes im gewählten Zeitraum.",
+    notes: [
+      "Gezählt wird die Anwesenheit am Vormittag und die Meldungen.",
+      "Krank oder entschuldigt gemeldet zählt als entschuldigt. Auch eine Meldung der Schulverwaltung zählt.",
+      "Ein Kind war am Vormittag da, ist aber krank gemeldet? Dann zählt der Tag nicht als Fehltag.",
+      "Klassenfahrt ist kein Fehltag.",
+      "`Nicht erfasst` heißt: An diesem Schultag gibt es keinen Eintrag. Das ist kein Fehltag.",
+      "Es gibt nur ganze Tage. Ein halber Tag zählt nicht extra.",
+      "Jeder Abruf und jeder Export wird protokolliert.",
+    ],
+    differences: [
+      "Die Schulverwaltung sieht alle Klassen. Eine Lehrkraft sieht nur ihre Klassen.",
+      "Kinder ohne eigenen Eintrag in moto stehen noch nicht in der Liste.",
+    ],
+    troubleshootingDetails: [
+      "Viele Tage `Nicht erfasst`? Dann fehlt die Anwesenheit am Vormittag. Tragen Sie sie jeden Morgen ein.",
+      "Ältere Tage fehlen? moto löscht die Anwesenheit am Vormittag nach einer festen Zeit. Meist ist das ein Jahr.",
+    ],
+    related: [
+      HELP_TOPICS.teacherMorningAttendance,
+      HELP_TOPICS.teacherAbsenceReport,
+      HELP_TOPICS.teacherNoClasses,
+    ],
+  };
+}
+
+/**
  * Klassenseite (`class-day-class.tsx`). Fuenf benannte Abschnitte plus die
  * Statuskennzeichen aus `status-labels.ts`.
  */
@@ -9838,6 +9885,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherDayHintTopic(),
   teacherClassTripTopic(),
   teacherAbsenceReportTopic(),
+  teacherAbsenceListTopic(),
 
   // --- Aufsicht ---
   teacherSupervisionTopic(),

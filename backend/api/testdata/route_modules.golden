@@ -1102,6 +1102,8 @@ unterricht_vormittag
 	GET /school/calendar/feed
 	GET /school/calendar/my
 	GET /school/class-day/
+	GET /school/class-day/absence-list
+	GET /school/class-day/absence-list/export
 	GET /school/class-day/arrival-exceptions
 	GET /school/class-day/arrival-exceptions/block-start
 	GET /school/class-day/classes
