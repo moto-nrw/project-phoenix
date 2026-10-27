@@ -182,6 +182,13 @@ describe("Caterer-Konto: Zwei-Faktor-Anmeldung (#4497)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Einschalten" }));
 
     expect(await screen.findByText("Eingeschaltet")).toBeInTheDocument();
+    expect(
+      (
+        await screen.findAllByText(
+          "Die Zwei-Faktor-Anmeldung ist eingeschaltet.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
     expect(mfa.confirm).toHaveBeenCalledWith("challenge", "123456");
     expect(mfa.signIn).toHaveBeenCalledWith("caterer-credentials", {
       redirect: false,
@@ -190,6 +197,50 @@ describe("Caterer-Konto: Zwei-Faktor-Anmeldung (#4497)", () => {
       refreshToken: "refresh",
     });
   });
+
+  it.each(["returned", "thrown"])(
+    "offers a fresh sign-in after a %s session replacement error",
+    async (failure) => {
+      mfa.status.mockResolvedValue({ enabled: false, maskedEmail: "" });
+      mfa.start.mockResolvedValue({
+        challengeToken: "challenge",
+        maskedEmail: "k***@example.com",
+      });
+      mfa.confirm.mockResolvedValue({
+        accessToken: "access",
+        refreshToken: "refresh",
+      });
+      if (failure === "returned") {
+        mfa.signIn.mockResolvedValue({ error: "CredentialsSignin" });
+      } else {
+        mfa.signIn.mockRejectedValue(new Error("Network request failed"));
+      }
+      render(<CatererAccountPage />, { wrapper: ToastProvider });
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Einschalten" }),
+      );
+      fireEvent.change(await screen.findByLabelText("Code"), {
+        target: { value: "123456" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Einschalten" }));
+
+      // Anker: Der fehlgeschlagene Sitzungswechsel zeigt die neue Anmeldung an.
+      expect(
+        await screen.findByText(
+          "Die Zwei-Faktor-Anmeldung ist eingeschaltet. Die Anmeldung konnte nicht erneuert werden. Bitte melden Sie sich neu an.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByLabelText("Code")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Die Zwei-Faktor-Anmeldung ist eingeschaltet."),
+      ).not.toBeInTheDocument();
+      expect(mfa.confirm).toHaveBeenCalledTimes(1);
+      expect(logout).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole("button", { name: "Neu anmelden" }));
+      await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
+    },
+  );
 
   it("keeps a wrong code in the card", async () => {
     const { ApiError } = await import("~/lib/api-error");

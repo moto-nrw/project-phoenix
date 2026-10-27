@@ -48,9 +48,11 @@ const PASSWORD_REFUSALS = ["identity.current_password_wrong"] as const;
 type Step =
   | { kind: "idle" }
   | { kind: "code"; challengeToken: string; maskedEmail: string }
-  | { kind: "disable" };
+  | { kind: "disable" }
+  | { kind: "reauthenticate" };
 
 function TwoFactorSection() {
+  const { logout } = useShellAuth();
   const toast = useToast();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [step, setStep] = useState<Step>({ kind: "idle" });
@@ -124,16 +126,25 @@ function TwoFactorSection() {
       const tokens = await confirmCatererMFA(step.challengeToken, code.trim());
       // The answer is a new session with the second factor proven; the old
       // one would lose access at its next renewal.
-      const seeded = await signIn("caterer-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      });
-      if (seeded?.error) {
-        logger.error("caterer_mfa_session_seed_failed", {
-          error: seeded.error,
+      try {
+        const seeded = await signIn("caterer-credentials", {
+          redirect: false,
+          internalRefresh: "true",
+          token: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
         });
+        if (seeded?.error) throw new Error(seeded.error);
+      } catch (err) {
+        logger.error("caterer_mfa_session_seed_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setEnabled(true);
+        setCode("");
+        setStep({ kind: "reauthenticate" });
+        formErrors.invalid(
+          "Die Zwei-Faktor-Anmeldung ist eingeschaltet. Die Anmeldung konnte nicht erneuert werden. Bitte melden Sie sich neu an.",
+        );
+        return;
       }
       setEnabled(true);
       reset();
@@ -214,6 +225,16 @@ function TwoFactorSection() {
               {enabled ? "Eingeschaltet" : "Ausgeschaltet"}
             </DataField>
           </DataGrid>
+        )}
+        {step.kind === "reauthenticate" && (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => void logout()}
+          >
+            Neu anmelden
+          </Button>
         )}
         {step.kind === "code" && (
           <div className="space-y-3">
