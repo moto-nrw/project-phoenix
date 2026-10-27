@@ -8209,6 +8209,7 @@ function teacherSettingsTopic(): HelpTopic {
       "`Krankmeldungen meiner Klassen`: moto meldet sich, wenn ein Kind aus Ihren Klassen für heute krank oder entschuldigt ist. Name und Grund stehen nicht im Hinweis.",
       "Tippen Sie auf den Hinweis. Dann öffnet sich die Liste der Klasse.",
       "Die Schulverwaltung bekommt diesen Hinweis für alle Klassen der Schule.",
+      "`Fehlt ohne Meldung`: nur für die Schulverwaltung. moto meldet sich, wenn eine Lehrkraft ein Kind als fehlend einträgt und keine Meldung da ist. Im Hinweis steht nur die Zahl der Kinder. Diese Benachrichtigung ist von Anfang an eingeschaltet.",
       "`Nachrichten von Kolleginnen und Kollegen`: neue Nachrichten im Team-Chat der OGS.",
       "Benachrichtigungen kommen erst an, wenn moto schule auf dem Startbildschirm liegt.",
     ],
@@ -8252,6 +8253,7 @@ function teacherClassDayTopic(): HelpTopic {
     differences: [
       "An einem Wochenende ohne Betreuung steht `Kein Schultag`.",
       "Sie haben die Rolle `Schulverwaltung`? Dann steht oben `Ganze Schule` mit den Zahlen aller Klassen. Wählen Sie eine Zahl. Darunter stehen dann die Kinder, nach Klassen sortiert. `Liste schließen` blendet sie wieder aus.",
+      "Unter `Fehlen ohne Meldung` stehen die Kinder, die eine Lehrkraft als fehlend eingetragen hat und für die es keine Meldung gibt. Ist die Benachrichtigung `Fehlt ohne Meldung` eingeschaltet, ändert sich die Liste von selbst.",
     ],
     troubleshootingDetails: [
       "Es steht `Keine Klassen zugewiesen`? Dann hat die OGS Ihnen noch keine Klasse zugeordnet.",
@@ -8261,6 +8263,52 @@ function teacherClassDayTopic(): HelpTopic {
       HELP_TOPICS.teacherChildDetails,
       HELP_TOPICS.teacherArrivalChange,
       HELP_TOPICS.teacherClassTrip,
+      HELP_TOPICS.teacherAbsenceReport,
+    ],
+  };
+}
+
+/**
+ * `Fehlen ohne Meldung` in der Tagesübersicht der Schulverwaltung
+ * (`class-day-overview.tsx`, #4791): Meldung nachtragen und zurücknehmen.
+ */
+function teacherAbsenceReportTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherAbsenceReport,
+    title: "Eine Meldung für ein fehlendes Kind nachtragen",
+    question: "Ein Kind fehlt ohne Meldung. Die Eltern rufen an. Was tue ich?",
+    summary:
+      "Die Schulverwaltung trägt krank oder entschuldigt für heute nach.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "ShieldAlert",
+    requirements: ["Die Rolle `Schulverwaltung`."],
+    steps: [
+      "Öffnen Sie die `Klassenansicht`.",
+      "Wählen Sie unter `Ganze Schule` die Zahl `Fehlen ohne Meldung`.",
+      "Suchen Sie das Kind in der Liste.",
+      "Wählen Sie neben dem Namen `Meldung eintragen`.",
+      "Wählen Sie `Krank` oder `Entschuldigt`.",
+    ],
+    result:
+      "Das Kind steht nicht mehr unter `Fehlen ohne Meldung`. Die Lehrkraft und die OGS sehen den Status für heute.",
+    notes: [
+      "Die Meldung gilt nur für heute.",
+      "Jede Meldung steht mit Ihrem Namen im Änderungsverlauf des Kindes.",
+      "Falsch eingetragen? Öffnen Sie die Liste `Krank` oder `Entschuldigt`. Wählen Sie neben dem Kind `Zurücknehmen`. Das Kind steht dann wieder unter `Fehlen ohne Meldung`.",
+    ],
+    differences: [
+      "Kein `Meldung eintragen` neben dem Namen? Dann haben Sie nicht die Rolle `Schulverwaltung`, oder der Tag ist nicht heute.",
+      "Kinder mit `Keine Betreuung` stehen noch nicht in dieser Liste.",
+    ],
+    troubleshootingDetails: [
+      "moto sagt, für das Kind steht heute schon etwas? Dann hat die OGS zum Beispiel eine frühere Abholung eingetragen. Es wurde nichts gespeichert. Sprechen Sie mit der OGS.",
+      "`Zurücknehmen` fehlt? Sie können nur Meldungen zurücknehmen, die die Schulverwaltung eingetragen hat. Eine Krankmeldung der Eltern oder der OGS ändert die OGS.",
+    ],
+    related: [
+      HELP_TOPICS.teacherClassDay,
+      HELP_TOPICS.teacherMorningAttendance,
+      HELP_TOPICS.teacherSettings,
     ],
   };
 }
@@ -9789,6 +9837,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherArrivalChangeTopic(),
   teacherDayHintTopic(),
   teacherClassTripTopic(),
+  teacherAbsenceReportTopic(),
 
   // --- Aufsicht ---
   teacherSupervisionTopic(),

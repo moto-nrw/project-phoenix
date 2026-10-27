@@ -63,6 +63,7 @@ type classDayService struct {
 	morningAttendance
 	homework
 	classHandover
+	absenceReports
 }
 
 // NewClassDay creates the school-portal capability. Caller and Rosters are
@@ -72,6 +73,11 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		panic("classday application.NewClassDay: Caller and Rosters dependencies are required")
 	}
 	hints := dayHints{store: deps.DayHints, scope: deps.HintScope, rosters: deps.Rosters, today: deps.Today, announcer: deps.Announcer}
+	// A stored morning mark wakes the class views and tells the
+	// Schulverwaltung about children missing without a report (#4791).
+	absence := newAbsenceReports(deps)
+	morning := newMorningAttendance(deps)
+	morning.after = absence.afterMorningMarks
 	reports := newDayReports(deps)
 	reports.hints = hints
 	return &classDayService{
@@ -87,9 +93,10 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 			arrivals: deps.StudentArrivals, announcer: deps.Announcer,
 		},
 		dayHints:          hints,
-		morningAttendance: newMorningAttendance(deps),
+		morningAttendance: morning,
 		homework:          newHomework(deps),
 		classHandover:     newClassHandover(deps),
+		absenceReports:    absence,
 	}
 }
 

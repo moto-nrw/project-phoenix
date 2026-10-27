@@ -402,6 +402,13 @@ const (
 	// every class with class_day:all_classes) decides for which class; the
 	// school's parent-news switch decides whether letters go out at all.
 	ClassDayParentLetterWrite = ResourceClassDay + ":parent_letter_write"
+	// ClassDayAbsenceReportWrite lets the Schulverwaltung enter a report
+	// afterwards for a child the Lehrkraft marked absent in the morning
+	// without one (#4791): sick or excused for today, the status day the OGS
+	// enters itself. Only the system role schulverwaltung holds it, and only
+	// its holders take such a report back. The caller's class reach decides
+	// for which class.
+	ClassDayAbsenceReportWrite = ResourceClassDay + ":absence_report_write"
 )
 
 // Supervision permission for the school portal (#2527). supervision:own gates

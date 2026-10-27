@@ -84,6 +84,10 @@ const (
 	// Schulverwaltung in moto schule that a child of one of their classes was
 	// reported sick or excused for today (#4792).
 	TypeSchoolClassAbsenceReported = "school_class_absence_reported"
+	// TypeSchoolUnreportedAbsence tells the Schulverwaltung in moto schule
+	// how many children the Lehrkräfte marked absent this morning without a
+	// report (#4791). It names no child.
+	TypeSchoolUnreportedAbsence = "school_unreported_absence"
 
 	TypeParentAnnouncement = "parent_announcement"
 
@@ -125,7 +129,13 @@ type TypeDefinition struct {
 	Channel string
 	// Permission is the right an e-mail type's recipient must hold when the
 	// mail is sent. Losing it stops the mail although the decision stays on.
+	// A push type with a Permission is offered only to its holders (#4791).
 	Permission string
+	// DefaultOn makes a decision nobody stored read as on: the type is on
+	// until the person switches it off, and delivery drops only explicit
+	// declines (FilterNotOptedOut). It needs a Permission, so it is on only
+	// for the people whose task the notice is (#4791).
+	DefaultOn bool
 }
 
 var (
@@ -155,6 +165,9 @@ func RegisterType(def TypeDefinition) {
 	case "", ChannelPush:
 		if _, ok := groupOrder[def.Group]; !ok {
 			panic("notifications: unknown group " + def.Group + " for key " + def.Key)
+		}
+		if def.DefaultOn && def.Permission == "" {
+			panic("notifications: default-on type " + def.Key + " needs a permission")
 		}
 	case ChannelEmail:
 		// An e-mail type is addressed by permission, not by a relation to a
@@ -436,5 +449,19 @@ func registerSchoolTypes() {
 		Portal:      PortalSchool,
 		TenantGate:  settingAbsenceReportedEnabled,
 		SortOrder:   1,
+	})
+
+	// The Schulverwaltung's task (#4791): on until the person switches it
+	// off, and only offered to the holders of class_day:absence_report_write,
+	// who can act on it. The notice names only a number, never a child.
+	RegisterType(TypeDefinition{
+		Key:         TypeSchoolUnreportedAbsence,
+		Label:       "Fehlt ohne Meldung",
+		Description: "Wenn eine Lehrkraft ein Kind als fehlend einträgt und keine Meldung da ist.",
+		Group:       GroupChildren,
+		Portal:      PortalSchool,
+		Permission:  permissionClassDayAbsenceReportWrite,
+		DefaultOn:   true,
+		SortOrder:   2,
 	})
 }

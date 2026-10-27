@@ -31,7 +31,11 @@ type Resource struct {
 	// SchoolDay serves the school-wide day overview (#4802); the capability
 	// serves both facades. Without it the route answers "not configured".
 	SchoolDay classday.SchoolDay
-	logger    *slog.Logger
+	// AbsenceReports enters and withdraws the Schulverwaltung's reports
+	// (#4791); the capability serves both facades. Without it the routes
+	// answer "not configured".
+	AbsenceReports classday.AbsenceReports
+	logger         *slog.Logger
 }
 
 // NewResource creates the class-day resource over the projection's
@@ -42,7 +46,8 @@ func NewResource(capability classday.ClassDay, logger *slog.Logger) *Resource {
 	}
 	hints, _ := capability.(classday.DayHints)
 	schoolDay, _ := capability.(classday.SchoolDay)
-	return &Resource{ClassDay: capability, DayHints: hints, SchoolDay: schoolDay, logger: logger}
+	reports, _ := capability.(classday.AbsenceReports)
+	return &Resource{ClassDay: capability, DayHints: hints, SchoolDay: schoolDay, AbsenceReports: reports, logger: logger}
 }
 
 // SchoolRouter returns the class-day surface gated to school-scope tokens.
@@ -105,6 +110,12 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	handoverWrite := common.RequiresPermission(permissions.ClassDayHandoverWrite)
 	r.With(handoverWrite, withTx).Put("/handover/{schoolClass}/{date}", rs.putClassHandover)
 	r.With(handoverWrite, withTx).Delete("/handover/{schoolClass}/{date}", rs.deleteClassHandover)
+	// Absence reports (#4791): the Schulverwaltung enters sick or excused
+	// for a child missing without a report and takes it back; the day, the
+	// roster and the missing report are checked behind the permission.
+	reportWrite := common.RequiresPermission(permissions.ClassDayAbsenceReportWrite)
+	r.With(reportWrite, withTx).Put("/absence-reports/{schoolClass}/{date}/students/{studentId}", rs.putAbsenceReport)
+	r.With(reportWrite, withTx).Delete("/absence-reports/{schoolClass}/{date}/students/{studentId}", rs.deleteAbsenceReport)
 }
 
 // ClassesResponse lists the caller's assigned school classes.
@@ -209,6 +220,8 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 	report.CanHandOver = report.CanHandOver && common.HasPermission(permissions.ClassDayHandoverWrite, granted)
 	// Homework needs only the permission: the class is assigned.
 	report.CanWriteHomework = common.HasPermission(permissions.ClassDayHomeworkWrite, granted)
+	report.CanReportAbsences = report.CanReportAbsences && rs.AbsenceReports != nil &&
+		common.HasPermission(permissions.ClassDayAbsenceReportWrite, granted)
 
 	common.Respond(w, r, http.StatusOK, report, "Class day retrieved successfully")
 }

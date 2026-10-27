@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -124,4 +125,28 @@ func (r deliverySchoolClassReach) teacherAccounts(ctx context.Context, classOf m
 		accountsByClass[schoolClass] = byKey[schoolstructure.NormalizeClass(schoolClass)]
 	}
 	return accountsByClass, nil
+}
+
+// deliverySchoolOffice lists the accounts of the Schulverwaltung for the
+// notice about children missing without a report (#4791): the staff whose
+// account holds class_day:absence_report_write in the current school, the
+// people who can enter the missing report.
+type deliverySchoolOffice struct {
+	staff interface {
+		ListStaffWithPermission(ctx context.Context, permissionName string) ([]*peopleValues.StaffWithRoleInfo, error)
+	}
+}
+
+func (o deliverySchoolOffice) SchoolOfficeAccountIDs(ctx context.Context) ([]int64, error) {
+	rows, err := o.staff.ListStaffWithPermission(ctx, permissions.ClassDayAbsenceReportWrite)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row != nil && row.AccountID > 0 {
+			ids = append(ids, row.AccountID)
+		}
+	}
+	return ids, nil
 }

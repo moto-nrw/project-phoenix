@@ -108,9 +108,48 @@ describe("school day lists", () => {
     expect(keys({ ...report, enrollment_known: false })).toEqual([
       "kinder",
       "fehlen",
+      "ohne-meldung",
       "krank",
       "entschuldigt",
       "klassenfahrt",
+    ]);
+  });
+
+  it("lists the children missing without a report (#4791)", () => {
+    const withUnreported: SchoolDayReport = {
+      ...report,
+      totals: { ...report.totals, unreported: 1 },
+      classes: [
+        {
+          school_class: "4d",
+          totals: zero,
+          children: [
+            {
+              student_id: "7",
+              first_name: "Dana",
+              last_name: "Dorn",
+              missing: true,
+              unreported: true,
+            },
+            {
+              student_id: "8",
+              first_name: "Emil",
+              last_name: "Eck",
+              missing: true,
+              status: "sick",
+            },
+          ],
+        },
+      ],
+    };
+    const unreported = visibleSchoolDayLists(withUnreported).find(
+      (candidate) => candidate.key === "ohne-meldung",
+    )!;
+    expect(unreported.label).toBe("Fehlen ohne Meldung");
+    expect(unreported.count(withUnreported.totals)).toBe(1);
+    expect(unreported.count(zero)).toBe(0);
+    expect(schoolDayChildrenByClass(withUnreported, unreported)).toEqual([
+      { schoolClass: "4d", children: [withUnreported.classes[0]!.children[0]] },
     ]);
   });
 });
