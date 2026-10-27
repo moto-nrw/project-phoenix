@@ -66,7 +66,6 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/enrollment-phases/:id/rollover",
   "/home",
   "/info-displays",
-  "/invitations",
   "/lists",
   "/meal-plan",
   "/mein-dienstplan",
@@ -81,7 +80,6 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   // Titel — die Kennung bleibt als :id stehen.
   "/parent-announcements/:id",
   "/payroll",
-  "/planung",
   "/profile",
   "/reminders",
   "/rooms",
@@ -91,7 +89,6 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/settings",
   "/staff",
   "/staff/:id",
-  "/staff/dienstplan",
   "/statistics",
   "/students/:id",
   "/students/:id/change-history",
@@ -106,12 +103,10 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/tagesinformationen",
   "/tagesplan",
   "/time-tracking",
-  "/timetables",
   // Umfragen (#4781): nur die Route, nie ein Titel oder eine Antwort.
   "/umfragen",
   "/umfragen/:id",
   "/vertretung",
-  "/vertretungsplan",
 ] as const;
 
 /** Tenant-host pages outside `(protected)`: login, enrollment, display. */

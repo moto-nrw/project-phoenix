@@ -100,7 +100,6 @@ function GroupMessagesContent() {
               description: messagingEnabled
                 ? "Mit einer Gruppennachricht schreiben Sie allen Eltern einer Gruppe, Klasse oder AG. Eltern antworten nur Ihnen."
                 : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule ausgeschaltet.",
-              action: composeButton,
             }
           : null
       }

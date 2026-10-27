@@ -734,12 +734,7 @@ export function StudentNotizenTab({
         {notes.length === 0 && !composing ? (
           <EmptyState
             title="Noch keine Notizen"
-            description="Hier sammeln sich Einträge zu diesem Kind."
-            action={
-              <Button type="button" size="md" onClick={startCompose}>
-                Neue Notiz
-              </Button>
-            }
+            description="Schreiben Sie die erste Notiz über „Neue Notiz“ oben."
           />
         ) : null}
 

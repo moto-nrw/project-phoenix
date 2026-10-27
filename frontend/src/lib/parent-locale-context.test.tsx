@@ -18,6 +18,12 @@ vi.mock("~/lib/parent-locale-navigation", () => ({
   reloadForLocaleChange: reloadMock,
 }));
 
+// A stored language that differs from the render refreshes the server tree
+// instead of loading the document a second time (#5001).
+const refreshMock = vi.hoisted(() => vi.fn());
+const routerMock = vi.hoisted(() => ({ refresh: refreshMock }));
+vi.mock("next/navigation", () => ({ useRouter: () => routerMock }));
+
 // Control the session status per test.
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
 
@@ -147,6 +153,7 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
     expect(screen.getByTestId("locale").textContent).toBe("en");
     // ... but no refresh: the tree was already server-rendered in "en".
     expect(reloadMock).not.toHaveBeenCalled();
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("persists German when the adopted locale is already the default", async () => {
@@ -160,9 +167,10 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
     // de is the default, but it may still be an explicit pre-login choice.
     // Persisting it prevents the next non-German browser from overwriting it.
     expect(reloadMock).not.toHaveBeenCalled();
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
-  it("applies an explicit stored locale and reloads when it differs", async () => {
+  it("applies an explicit stored locale and refreshes without a second document load", async () => {
     setSession("authenticated");
     mockedUseLocale.mockReturnValue("de"); // rendered in de
     mockedFetchProfile.mockResolvedValue({ portal_locale: "ru" });
@@ -173,8 +181,40 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
       expect(screen.getByTestId("locale").textContent).toBe("ru"),
     );
     expect(mockedWriteCookie).toHaveBeenCalledWith("ru");
-    // Stored ru ≠ rendered de → refresh the server tree in ru.
-    expect(reloadMock).toHaveBeenCalled();
+    // Stored ru ≠ rendered de → refresh the server tree in ru, without
+    // loading the document again.
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+    expect(reloadMock).not.toHaveBeenCalled();
+  });
+
+  it("refreshes for an unsynced local choice the profile does not know yet", async () => {
+    setSession("authenticated");
+    mockedUseLocale.mockReturnValue("de");
+    mockedFetchProfile.mockResolvedValue({ portal_locale: "de" });
+    window.localStorage.setItem(
+      "phoenix_parent_unsynced_locale:parent-1",
+      "ru",
+    );
+
+    const { rerender } = renderProvider();
+
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("locale").textContent).toBe("ru");
+    expect(mockedWriteCookie).toHaveBeenCalledWith("ru");
+    expect(reloadMock).not.toHaveBeenCalled();
+
+    // The refreshed server tree renders in ru; nothing refreshes again.
+    mockedUseLocale.mockReturnValue("ru");
+    rerender(
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <ParentLocaleProvider>
+          <Consumer />
+        </ParentLocaleProvider>
+      </SWRConfig>,
+    );
+    expect(screen.getByTestId("locale").textContent).toBe("ru");
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(reloadMock).not.toHaveBeenCalled();
   });
 
   it("does not refresh when the stored locale already matches the render", async () => {
@@ -186,6 +226,7 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
 
     await waitFor(() => expect(mockedFetchProfile).toHaveBeenCalled());
     expect(reloadMock).not.toHaveBeenCalled();
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("swallows a profile fetch failure (graceful degradation)", async () => {
@@ -198,6 +239,7 @@ describe("ParentLocaleProvider — authenticated profile sync", () => {
     // No crash, no refresh, stays on the server-resolved locale.
     expect(screen.getByTestId("locale").textContent).toBe("de");
     expect(reloadMock).not.toHaveBeenCalled();
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 });
 

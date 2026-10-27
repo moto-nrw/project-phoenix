@@ -345,14 +345,6 @@ function RolesPageContent() {
                   size={48}
                 />
               ),
-              action: searchTerm ? undefined : (
-                <DatabaseCreateAction
-                  label="Rolle"
-                  ariaLabel="Rolle erstellen"
-                  showMobileFab={false}
-                  onClick={() => setShowCreateModal(true)}
-                />
-              ),
             }
           : null
       }

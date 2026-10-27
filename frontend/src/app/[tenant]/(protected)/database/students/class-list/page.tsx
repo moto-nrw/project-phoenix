@@ -831,18 +831,6 @@ export default function ClassListEntriesPage() {
                   : "Keine Kinder in dieser Klasse"
               }
               description="Legen Sie Kinder ohne OGS-Betreuung mit Name und Klasse an, damit Klassenlisten den vollständigen Klassenverband zeigen."
-              action={
-                canCreate ? (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={openCreate}
-                  >
-                    Eintrag anlegen
-                  </Button>
-                ) : undefined
-              }
             />
           }
         />

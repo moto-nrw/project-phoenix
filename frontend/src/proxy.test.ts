@@ -413,6 +413,117 @@ describe("proxy", () => {
     expect(first).not.toBe(second);
   });
 
+  describe("retired tenant routes (#5001)", () => {
+    function redirectOf(url: string, host: string) {
+      const response = proxy(makeRequest(url, host));
+      const location = response.headers.get("location");
+      return {
+        status: response.status,
+        location: location ? new URL(location) : null,
+      };
+    }
+
+    it.each([
+      ["/invitations", "/database/personal", ""],
+      ["/staff/dienstplan", "/dienstplan", ""],
+      [
+        "/vertretungsplan?history=1&instance=4",
+        "/vertretung",
+        "?block=4&verlauf=1",
+      ],
+      [
+        "/timetables?day=2026-09-14&view=month",
+        "/betreuungsplan",
+        "?d=2026-09-14&view=monat",
+      ],
+      ["/planung?tab=dienstplan", "/dienstplan", ""],
+      ["/planung", "/betreuungsplan", ""],
+    ])(
+      "answers %s on a tenant subdomain with a server redirect",
+      (source, pathname, search) => {
+        const { status, location } = redirectOf(
+          `http://school-a.localhost:3000${source}`,
+          "school-a.localhost:3000",
+        );
+
+        expect(status).toBe(307);
+        expect(location?.host).toBe("school-a.localhost:3000");
+        expect(location?.pathname).toBe(pathname);
+        expect(location?.search).toBe(search);
+      },
+    );
+
+    it("keeps the tenant prefix in path routing on the bare domain", () => {
+      const { status, location } = redirectOf(
+        "http://localhost:3000/school-a/timetables?instance=9",
+        "localhost:3000",
+      );
+
+      expect(status).toBe(307);
+      expect(location?.pathname).toBe("/school-a/betreuungsplan");
+      expect(location?.search).toBe("?block=9");
+    });
+
+    it("keeps a slug-prefixed path on the tenant subdomain", () => {
+      const { location } = redirectOf(
+        "http://school-a.localhost:3000/school-a/invitations",
+        "school-a.localhost:3000",
+      );
+
+      expect(location?.pathname).toBe("/school-a/database/personal");
+    });
+
+    it("anchors a week offset on the Berlin calendar day", () => {
+      // The test clock stands on Wednesday 2026-09-09; next week starts on
+      // Monday 14 September.
+      const { location } = redirectOf(
+        "http://school-a.localhost:3000/vertretungsplan?week=1",
+        "school-a.localhost:3000",
+      );
+
+      expect(location?.search).toBe("?d=2026-09-14");
+    });
+
+    it("leaves the new areas and unrelated paths to the tenant rewrite", () => {
+      const response = proxy(
+        makeRequest(
+          "http://school-a.localhost:3000/betreuungsplan",
+          "school-a.localhost:3000",
+        ),
+      );
+
+      // Anker: the request reached the tenant rewrite instead of a redirect.
+      expect(
+        new URL(response.headers.get("x-middleware-rewrite")!).pathname,
+      ).toBe("/school-a/betreuungsplan");
+      expect(response.headers.get("location")).toBeNull();
+    });
+
+    it("does not treat a bare-domain first segment as a retired route", () => {
+      // Without a tenant subdomain the first segment is the tenant slug, so
+      // /staff/dienstplan means tenant "staff", page /dienstplan.
+      const response = proxy(
+        makeRequest("http://localhost:3000/staff/dienstplan", "localhost:3000"),
+      );
+
+      // Anker: the request passed through to the App Router.
+      expect(response.headers.get("x-middleware-next")).toBe("1");
+      expect(response.headers.get("location")).toBeNull();
+    });
+
+    it("keeps the portal host guard for a retired path on the parents host", () => {
+      const { location } = redirectOf(
+        `http://${PARENTS_HOSTNAME}/planung`,
+        PARENTS_HOSTNAME,
+      );
+
+      // The parents host sends unknown paths to its root, never into the
+      // tenant portal.
+      expect(location?.host).toBe(PARENTS_HOSTNAME);
+      expect(location?.pathname).toBe("/");
+    });
+  });
+
   describe("operator subdomain", () => {
     it("rewrites / to /operator", () => {
       const res = proxy(

@@ -965,18 +965,6 @@ function StaffCalendarPageInner() {
           description: canManageCalendar
             ? "Legen Sie einen Termin an oder wechseln Sie den Zeitraum."
             : "Wechseln Sie den Zeitraum, um andere Termine zu sehen.",
-          action: canManageCalendar ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="gap-1.5"
-              onClick={handleCreate}
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              Neuer Termin
-            </Button>
-          ) : undefined,
         }
       : null;
 
@@ -990,7 +978,6 @@ function StaffCalendarPageInner() {
           <EmptyState
             title={calendarEmpty.title}
             description={calendarEmpty.description}
-            action={calendarEmpty.action}
           />
         </SectionCard>
       ) : (
