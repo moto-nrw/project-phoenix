@@ -796,7 +796,8 @@
       "badges": {
         "primary": "Primär",
         "canPickup": "Darf abholen",
-        "emergency": "Notfallkontakt"
+        "emergency": "Notfallkontakt",
+        "self": "Das sind Sie"
       },
       "editContact": "Bearbeiten",
       "managePickup": "Abholrecht verwalten",

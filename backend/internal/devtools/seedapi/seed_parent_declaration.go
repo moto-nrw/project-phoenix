@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -208,7 +209,8 @@ func seedDeclarationAnswer(rt *Runtime) error {
 		if !child.CanSubmit {
 			continue
 		}
-		if err := submitSeedDeclaration(rt, auth, item, child.StudentID, "agreed", parent.Name); err != nil {
+		first, last := parentFormName(rt.seedVisitor(), parent)
+		if err := submitSeedDeclaration(rt, auth, item, child.StudentID, "agreed", strings.TrimSpace(first+" "+last)); err != nil {
 			return err
 		}
 		if _, err := rt.Client.PostWithAuth(auth, "/parent/me/news/"+item.ID+"/read", map[string]any{

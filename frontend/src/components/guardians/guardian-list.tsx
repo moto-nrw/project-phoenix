@@ -17,6 +17,7 @@ import {
   buildGuardianTelHref,
 } from "./guardian-contact-actions";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { displayEmail } from "~/lib/demo-build";
 import {
   Phone,
   AlertCircle,
@@ -290,7 +291,7 @@ export default function GuardianList({
             {/* Contact Actions */}
             <div className="mt-2 sm:mt-3">
               <GuardianContactActions
-                email={guardian.email}
+                email={displayEmail(guardian.email)}
                 phone={getPrimaryPhone(guardian)}
                 phoneNumbers={
                   guardian.phoneNumbers?.map((p) => ({
@@ -309,13 +310,13 @@ export default function GuardianList({
   );
 }
 
-// Helper component for displaying email (clickable)
+// Helper component for displaying email (clickable); none for a demo seed address (#5033)
 function EmailItem({
   email,
   guardianName,
 }: Readonly<{ email?: string; guardianName: string }>) {
-  if (!email) {
-    return (
+  if (!email || !displayEmail(email)) {
+    return email ? null : (
       <div className="min-w-0">
         <div className="mb-1 flex items-center gap-1 text-xs text-gray-500">
           <Mail className="h-4 w-4" />

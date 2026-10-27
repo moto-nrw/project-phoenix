@@ -22,6 +22,7 @@ import {
 import { getRoleDisplayName } from "~/lib/auth-helpers";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { displayEmail } from "~/lib/demo-build";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
 import type { Teacher } from "~/lib/teacher-api";
@@ -292,7 +293,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
             </DataGrid>
           </InfoSection>
 
-          {teacher.email ? (
+          {displayEmail(teacher.email) ? (
             <InfoSection
               title="E-Mail"
               icon={
@@ -305,7 +306,7 @@ export function KontoTab({ teacher, editing }: KontoTabProps) {
               accentColor="blue"
             >
               <EmailActions
-                email={teacher.email}
+                email={displayEmail(teacher.email)}
                 name={
                   teacher.name ||
                   `${teacher.first_name ?? ""} ${teacher.last_name ?? ""}`.trim()

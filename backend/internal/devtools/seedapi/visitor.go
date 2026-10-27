@@ -35,6 +35,32 @@ func visitorDisplayName(visitor visitorName, isVisitor bool, first, last, displa
 	return first, last
 }
 
+// parentFormName returns the guardian name a seeded parent writes into a
+// form or signs with. The parent the visitor replaces writes the visitor's
+// name, as the guardian profile shows it; the rest keep their seed name
+// (#5033).
+func parentFormName(visitor visitorName, parent ParentCredentials) (string, string) {
+	seedFirst, seedLast := splitSeedName(parent.Name)
+	displaced := DemoGuardians[visitorGuardianIndex]
+	return visitorDisplayName(visitor, isVisitorParent(parent), seedFirst, seedLast, displaced.FirstName, displaced.LastName)
+}
+
+// isVisitorParent reports whether the parent account is the one the visitor
+// signs in as. Its key stays the seed name the visitor replaced.
+func isVisitorParent(parent ParentCredentials) bool {
+	displaced := DemoGuardians[visitorGuardianIndex]
+	return parent.Name == displaced.FirstName+" "+displaced.LastName
+}
+
+// seedVisitor returns the visitor of the school being seeded, or none when
+// the runtime seeds no fixed school.
+func (rt *Runtime) seedVisitor() visitorName {
+	if rt == nil || rt.FixedSeeder == nil {
+		return visitorName{}
+	}
+	return rt.FixedSeeder.visitor
+}
+
 // VisitorAccountID returns the account of the caregiver a visitor name
 // replaced, so the demo access signs the prospect in as that person.
 func VisitorAccountID(profile *SeedProfile) int64 {

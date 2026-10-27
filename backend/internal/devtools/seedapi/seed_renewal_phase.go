@@ -175,9 +175,17 @@ func (s parentEnrollmentSeedStep) submitRenewal(rt *Runtime, adminAuth AuthRef, 
 	if !ok {
 		return fmt.Errorf("parent %s is not logged in for the renewal", parent.Email)
 	}
-	guardianFirst, guardianLast := splitSeedName(parent.Name)
+	// The visitor's family answers under the visitor's name, as the school
+	// shows that family everywhere else (#5033).
+	guardianFirst, guardianLast := parentFormName(rt.seedVisitor(), parent)
 	body := s.enrollmentSubmissionWithDays(phaseID, nil, child.student.FirstName, child.student.LastName,
 		child.birthday, child.nextGrade, guardianFirst, guardianLast, parent.Email, "renewal", nil, nil)
+	if !rt.seedVisitor().empty() && isVisitorParent(parent) {
+		// The co-guardian takes the guardian's last name and an address made
+		// from the name. For the visitor that would be a contact carrying
+		// their name, which the demo erasure does not reach.
+		delete(body, "additional_guardians")
+	}
 
 	respBody, err := rt.Client.PostWithAuth(auth, "/parent/enrollments/"+rt.Bootstrap.TenantSlug+"/submit", body)
 	if err != nil {

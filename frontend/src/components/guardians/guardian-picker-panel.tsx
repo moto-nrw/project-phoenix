@@ -22,6 +22,7 @@ import {
 import type { GuardianRole } from "~/lib/guardian-helpers";
 import type { RelationshipFormData } from "~/components/guardians/guardian-form-modal";
 import { createLogger } from "~/lib/logger";
+import { displayEmail } from "~/lib/demo-build";
 
 const logger = createLogger({ component: "GuardianPickerPanel" });
 
@@ -209,7 +210,7 @@ export default function GuardianPickerPanel({
                 <p className="truncate text-sm font-semibold text-gray-900">
                   {getGuardianFullName(selected)}
                 </p>
-                {selected.email && (
+                {displayEmail(selected.email) && (
                   <p className="truncate text-xs text-gray-500">
                     {selected.email}
                   </p>
@@ -338,7 +339,7 @@ export default function GuardianPickerPanel({
                         </span>
                       )}
                     </p>
-                    {guardian.email && (
+                    {displayEmail(guardian.email) && (
                       <p className="truncate text-xs text-gray-500">
                         {guardian.email}
                       </p>

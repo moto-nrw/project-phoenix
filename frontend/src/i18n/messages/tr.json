@@ -796,7 +796,8 @@
       "badges": {
         "primary": "Birincil",
         "canPickup": "Teslim alabilir",
-        "emergency": "Acil durum kişisi"
+        "emergency": "Acil durum kişisi",
+        "self": "Bu sizsiniz"
       },
       "editContact": "Düzenle",
       "managePickup": "Teslim alma yetkisini yönet",

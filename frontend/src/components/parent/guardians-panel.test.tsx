@@ -338,6 +338,8 @@ describe("GuardiansPanel", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("juergen@example.test")).toBeInTheDocument();
     expect(screen.getByText("petra@example.test")).toBeInTheDocument();
+    // The parent finds their own account among the others (#5033).
+    expect(screen.getAllByText("Das sind Sie")).toHaveLength(1);
     expect(
       screen.queryByText("magdalena@example.test"),
     ).not.toBeInTheDocument();
