@@ -37,6 +37,11 @@ var demoCmd = &cobra.Command{
 		if err := validateDemoTarget(baseURL, os.Getenv("APP_ENV")); err != nil {
 			return err
 		}
+		flushSentry, err := initDemoSentry(os.Getenv("SENTRY_DSN"), os.Getenv("APP_ENV"))
+		if err != nil {
+			return err
+		}
+		defer flushSentry()
 		ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		db, err := transactionruntime.OpenDemoDatabase()

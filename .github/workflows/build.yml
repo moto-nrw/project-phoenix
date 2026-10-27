@@ -722,9 +722,36 @@ jobs:
             exit 1
           fi
 
+      # Health checks stayed green on 2026-10-27 while every visitor's demo
+      # order failed. One order proves the order path of the new release. A
+      # failure alarms in Slack; it rolls nothing back, the demo runtime
+      # cannot roll back by design (deploy-remote.sh).
+      - name: Order a demo school
+        id: smoke
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          SSH_HOST: ${{ secrets.DEMO_HOST }}
+        run: |
+          scp -i ~/.ssh/deploy_key scripts/demo-order-smoke.sh "root@$SSH_HOST:~/scripts/demo/demo-order-smoke.sh"
+          ssh -i ~/.ssh/deploy_key "root@$SSH_HOST" "DEMO_SMOKE_TIMEOUT_SECONDS=900 bash ~/scripts/demo/demo-order-smoke.sh"
+
       - name: Cleanup secrets
         if: always()
         run: rm -f ~/.ssh/deploy_key /tmp/demo.env
+
+      - name: Notify Slack about the failed demo order
+        if: steps.smoke.outcome == 'failure'
+        env:
+          WEBHOOK: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo '::warning::SLACK_DEPLOY_WEBHOOK secret not set, skipping Slack notification'
+            exit 0
+          fi
+          jq -n --arg run "$RUN_URL" '{text: ":rotating_light: Demo deployed, aber die Test-Bestellung einer Demo-Schule ist gescheitert. Interessenten bekommen keine Demo. \($run)"}' \
+            | curl -sS -X POST -H 'Content-Type: application/json' --data @- "$WEBHOOK" > /dev/null
 
       # Finalizes the release and records the deploy in Sentry (#3642).
       # A Sentry outage only warns; it never fails a finished deploy.

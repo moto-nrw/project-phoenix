@@ -494,9 +494,14 @@ jobs:
       ADMIN_PASSWORD: SeedSmoke1234%
       FRONTEND_URL: http://localhost:3000
       PARENTS_URL: http://parents.localhost:3000
-      # Cloudflare's documented always-passing Turnstile test keys.
+      # Cloudflare's documented Turnstile test keys. profiles and isolation
+      # use the always-passing secret, so the seeder covers the public
+      # holiday registration. queue seeds what the demo server seeds, and the
+      # demo holds a real secret that refuses the seeder's test token: the
+      # always-failing secret makes every demo order there prove it survives
+      # that, which a green CI missed until the demo failed on 2026-10-27.
       TURNSTILE_SITE_KEY: 1x00000000000000000000AA
-      TURNSTILE_SECRET_KEY: 1x0000000000000000000000000000000AA
+      TURNSTILE_SECRET_KEY: ${{ matrix.scenario == 'queue' && '2x0000000000000000000000000000000AA' || '1x0000000000000000000000000000000AA' }}
       SCHOOL_URL: http://schule.localhost:3000
       CATERER_URL: http://caterer.localhost:3000
       TRAEGER_URL: http://traeger.localhost:3000

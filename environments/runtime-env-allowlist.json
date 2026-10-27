@@ -10,6 +10,7 @@
     "OPERATOR_EMAIL",
     "OPERATOR_PASSWORD",
     "PHOENIX_DEMO_PASSWORD",
+    "SENTRY_DSN",
     "TZ"
   ],
   "frontend": [
