@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // Ports of the absence list (#4793). Student Presence stores the morning
@@ -432,7 +433,7 @@ func absenceListDocument(report *classday.AbsenceListReport, generatedAt time.Ti
 		counted = "Unvollständiger Zeitraum. Gezählt wird erst ab " + report.AvailableFrom.Format(exportDateLayout) + ". Ältere Anwesenheit oder Meldungen können bereits gelöscht sein."
 	}
 	doc := classday.ExportDocument{
-		Title:       "Fehlzeiten der " + schoolClassLabel(report.SchoolClass),
+		Title:       "Fehlzeiten der " + collation.SchoolClassLabel(report.SchoolClass),
 		Subtitle:    subtitle,
 		GeneratedAt: generatedAt,
 		Filters: []string{
@@ -455,15 +456,6 @@ func absenceListDocument(report *classday.AbsenceListReport, generatedAt time.Ti
 	}
 	doc.Rows = append(doc.Rows, absenceListExportRow("Klasse gesamt", report.Totals))
 	return doc
-}
-
-// schoolClassLabel names a class as the school spells it: a school that
-// stores "Klasse 3a" does not read "Klasse Klasse 3a".
-func schoolClassLabel(class string) string {
-	if strings.HasPrefix(strings.ToLower(class), "klasse") {
-		return class
-	}
-	return "Klasse " + class
 }
 
 func absenceListExportRow(name string, counts classday.AbsenceListCounts) classday.ExportRow {
