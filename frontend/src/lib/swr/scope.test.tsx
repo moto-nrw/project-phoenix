@@ -29,8 +29,14 @@ import {
   useListOverlays,
 } from "~/lib/list-overlays";
 import { _resetPersonalStorageLeave } from "~/lib/personal-storage";
-import { useDiscardRefusedEntity, useSWRAuth } from "./hooks";
-import { resetSWRScope } from "./scope";
+import {
+  useDiscardRefusedEntity,
+  useImmutableSWR,
+  useSWRAuth,
+  useTenantMutate,
+  useTenantMutateMatching,
+} from "./hooks";
+import { resetSWRScope, resumeSWRSession } from "./scope";
 import { SWRScopeBoundary } from "./scope-boundary";
 import { expectIdleRenderBudget } from "~/test/render-budget";
 import { releaseFakeTimers } from "~/test/clock";
@@ -106,6 +112,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  resumeSWRSession();
   _resetPersonalStorageLeave();
 });
 
@@ -154,6 +161,105 @@ describe("SWR cache scope (#5006)", () => {
     view.rerender(<Page fetcher={fetcher} />);
     expect(await screen.findByText("Daten von B")).toBeInTheDocument();
     expect(rendered).not.toContain("Daten von A");
+  });
+
+  it("suspends polling and stale mutation closures until the changed cookie is confirmed", async () => {
+    vi.useFakeTimers();
+    let cookie = "A";
+    const fetcher = vi.fn(() => Promise.resolve(`Daten von ${cookie}`));
+    function PollingReader() {
+      const { data } = useSWRAuth("poll", fetcher, {
+        refreshInterval: 100,
+        dedupingInterval: 0,
+        // A caller must not override the session-boundary pause.
+        isPaused: () => false,
+      });
+      const immutable = useImmutableSWR("immutable", fetcher);
+      return (
+        <>
+          <p>{data ?? "leer"}</p>
+          <p data-testid="immutable">{immutable.data ?? "leer"}</p>
+        </>
+      );
+    }
+    const page = (
+      <>
+        <SWRScopeBoundary />
+        <PollingReader />
+      </>
+    );
+    const view = render(page);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    // Anker: beide Leser haben die Daten des ersten Kontos geladen.
+    expect(screen.getAllByText("Daten von A")).toHaveLength(2);
+    const single = renderHook(() => useTenantMutate());
+    const matching = renderHook(() => useTenantMutateMatching(["poll"]));
+    const staleSingle = single.result.current;
+    const staleMatching = matching.result.current;
+    const calls = fetcher.mock.calls.length;
+    cookie = "B";
+    await act(async () => {
+      otherTabBinds("1:B");
+      // These callbacks run before React has committed new hook options.
+      await staleSingle("poll");
+      await staleMatching();
+      await mutate("school-a:A:poll");
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(screen.getAllByText("leer")).toHaveLength(2);
+    expect(fetcher).toHaveBeenCalledTimes(calls);
+
+    // An unrelated render and even a stale lookup must not reopen readers.
+    view.rerender(
+      <>
+        <SWRScopeBoundary />
+        <PollingReader />
+      </>,
+    );
+    setSession(signedIn("A"));
+    view.rerender(
+      <>
+        <SWRScopeBoundary />
+        <PollingReader />
+      </>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(calls);
+    expect(screen.getByTestId("immutable")).toHaveTextContent("leer");
+
+    setSession({ data: signedIn("B").data, status: "loading" });
+    view.rerender(
+      <>
+        <SWRScopeBoundary />
+        <PollingReader />
+      </>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(fetcher).toHaveBeenCalledTimes(calls);
+
+    setSession(signedIn("B"));
+    view.rerender(
+      <>
+        <SWRScopeBoundary />
+        <PollingReader />
+      </>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200);
+    });
+    expect(screen.getAllByText("Daten von B")).toHaveLength(2);
+    expect(screen.getByTestId("immutable")).toHaveTextContent("Daten von B");
+    const cache = renderHook(() => useSWRConfig());
+    expect(
+      cache.result.current.cache.get("school-a:A:poll")?.data,
+    ).toBeUndefined();
+    releaseFakeTimers();
   });
 
   it("keeps the cache when another tab only binds the same account to another school", async () => {

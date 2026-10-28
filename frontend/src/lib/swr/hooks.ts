@@ -17,6 +17,7 @@
 import useSWR, {
   mutate as swrMutate,
   useSWRConfig,
+  type Middleware,
   type SWRConfiguration,
   type SWRResponse,
 } from "swr";
@@ -25,6 +26,8 @@ import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
 import {
   authGeneration,
+  isSWRSessionPending,
+  useSWRSessionRefresh,
   discardScopedEntries,
   isEntityRefusal,
   scopedSWRKey,
@@ -45,12 +48,24 @@ function useSWRScope(): {
 } {
   const { data: session, status } = useSession();
   const slug = useTenantSlugSafe();
-  if (status === "loading") return { prefix: null, generation: null };
+  const { pending } = useSWRSessionRefresh();
+  if (pending || status === "loading")
+    return { prefix: null, generation: null };
   return {
     prefix: swrScopePrefix(session, slug),
     generation: authGeneration(session),
   };
 }
+
+// Wrap the merged configuration, preserving provider- and caller-level
+// pauses. Read the live flag because a timer or mutation can run before
+// React commits the disabled keys after an owner-change event.
+const sessionRefreshMiddleware: Middleware =
+  (useSWRNext) => (key, fetcher, config) =>
+    useSWRNext(key, fetcher, {
+      ...config,
+      isPaused: () => isSWRSessionPending() || config.isPaused?.() === true,
+    });
 
 /**
  * useSWR under the session's scope. `keepPreviousData` keeps an earlier
@@ -80,6 +95,7 @@ function useScopedSWR<T, E>(
       ...swrConfig,
       ...options,
       keepPreviousData: keep,
+      use: [sessionRefreshMiddleware, ...(options?.use ?? [])],
     },
   );
 
@@ -173,7 +189,8 @@ export function useTenantMutate() {
       data?: unknown,
       options?: { revalidate?: boolean },
     ): Promise<unknown> => {
-      if (prefix === null) return Promise.resolve(undefined);
+      if (prefix === null || isSWRSessionPending())
+        return Promise.resolve(undefined);
       const cacheKey = scopedSWRKey(prefix, key);
       if (data === undefined) {
         return swrMutate(cacheKey);
@@ -251,7 +268,7 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
 
   return useCallback(
     (options?: { clear?: boolean; except?: readonly string[] }) => {
-      if (prefix === null) return Promise.resolve([]);
+      if (prefix === null || isSWRSessionPending()) return Promise.resolve([]);
       const needles = joined.length > 0 ? joined.split("|") : [];
       const kept = new Set(
         (options?.except ?? []).map((key) => scopedSWRKey(prefix, key)),

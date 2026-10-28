@@ -8,7 +8,12 @@ import {
 } from "~/lib/personal-storage";
 import { hasSessionAccess } from "~/lib/session-access";
 import { announceSessionChange } from "~/lib/session-cache";
-import { authGeneration, resetSWRScope } from "./scope";
+import {
+  authGeneration,
+  resetSWRScope,
+  suspendSWRSession,
+  resumeSWRSession,
+} from "./scope";
 
 /**
  * Drops the SWR cache at every boundary of the session (#5006): login,
@@ -48,26 +53,47 @@ export function SWRScopeBoundary({
   const committed = useRef<{
     generation: string | null;
     accountId: string | null;
+    session: typeof session;
+  } | null>(null);
+
+  const pending = useRef<{
+    session: typeof session;
+    accountId: string | null;
   } | null>(null);
 
   useLayoutEffect(() => {
     if (generation === undefined) return;
     const previous = committed.current;
-    committed.current = { generation, accountId };
-    if (previous === null || previous.generation === generation) return;
+    committed.current = { generation, accountId, session };
+    const waiting = pending.current;
+    if (waiting) {
+      // A render or an older lookup is not confirmation of the new cookie.
+      if (session === waiting.session || accountId !== waiting.accountId)
+        return;
+      pending.current = null;
+      // Clear while still paused: old-key subscribers may not have committed
+      // their disabled keys yet. The null -> scoped key transition reloads
+      // the confirmed session after resuming, including immutable readers.
+      resetSWRScope({ revalidate: false });
+      resumeSWRSession();
+      return;
+    } else if (previous === null || previous.generation === generation) return;
     resetSWRScope({
       revalidate:
         generation !== null &&
         (expectedTenantId == null || tenantId === expectedTenantId),
     });
-  }, [generation, accountId, tenantId, expectedTenantId]);
+  }, [generation, accountId, tenantId, expectedTenantId, session]);
 
   useEffect(
     () =>
       onOtherTabOwnerChange((owner) => {
         const shown = committed.current;
         if (shown === null) return;
-        if (personalStorageAccount(owner) === shown.accountId) return;
+        const nextAccount = personalStorageAccount(owner);
+        if (pending.current === null && nextAccount === shown.accountId) return;
+        pending.current = { session: shown.session, accountId: nextAccount };
+        suspendSWRSession();
         resetSWRScope({ revalidate: false });
         announceSessionChange();
       }),

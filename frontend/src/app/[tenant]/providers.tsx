@@ -19,7 +19,7 @@ import { primeSessionCache } from "~/lib/session-cache";
 import { SESSION_PROVIDER_POLL_SECONDS } from "~/lib/session-provider-poll";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import { mutate, scopedSWRKey, tenantSWRScope } from "~/lib/swr";
-import { authGeneration } from "~/lib/swr/scope";
+import { authGeneration, useSWRSessionRefresh } from "~/lib/swr/scope";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { staffNoticesTodayKey } from "~/lib/staff-notices-api";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
@@ -148,11 +148,15 @@ function ShellSwrSeed({
 }>) {
   const { data: session, status } = useSession();
   const current = status === "loading" ? generation : authGeneration(session);
+  const refresh = useSWRSessionRefresh();
+  const initialRevision = useRef(refresh.revision);
   const left = useRef(false);
-  const active = !left.current && current === generation;
+  const invalidated =
+    refresh.pending || refresh.revision !== initialRevision.current;
+  const active = !left.current && !invalidated && current === generation;
   useLayoutEffect(() => {
-    if (current !== generation) left.current = true;
-  }, [current, generation]);
+    if (invalidated || current !== generation) left.current = true;
+  }, [invalidated, current, generation]);
   return (
     <SWRConfig value={active ? seed.config : NO_SEED}>
       <ShellCacheSeeder entries={active ? seed.owned : NO_ENTRIES} />

@@ -17,6 +17,7 @@
  */
 
 import type { Session } from "next-auth";
+import { useSyncExternalStore } from "react";
 // swr/no-direct-import permits package imports inside this shared wrapper only.
 import { unload, type Cache } from "swr";
 import { SWRGlobalState, createCacheHelper, getTimestamp } from "swr/_internal";
@@ -88,6 +89,42 @@ let epoch = 0;
 /** How many times this tab dropped cache entries. */
 export function swrScopeEpoch(): number {
   return epoch;
+}
+
+// Cross-tab invalidation must take effect before React commits new keys or
+// SessionProvider answers. The revision also permanently withdraws shell seeds.
+const initialRefresh = { pending: false, revision: 0 };
+let sessionRefresh = initialRefresh;
+const refreshListeners = new Set<() => void>();
+
+function subscribeRefresh(listener: () => void): () => void {
+  refreshListeners.add(listener);
+  return () => {
+    refreshListeners.delete(listener);
+  };
+}
+
+export function useSWRSessionRefresh() {
+  return useSyncExternalStore(
+    subscribeRefresh,
+    () => sessionRefresh,
+    () => initialRefresh,
+  );
+}
+
+export function isSWRSessionPending(): boolean {
+  return sessionRefresh.pending;
+}
+
+export function suspendSWRSession(): void {
+  sessionRefresh = { pending: true, revision: sessionRefresh.revision + 1 };
+  for (const listener of refreshListeners) listener();
+}
+
+export function resumeSWRSession(): void {
+  if (!sessionRefresh.pending) return;
+  sessionRefresh = { ...sessionRefresh, pending: false };
+  for (const listener of refreshListeners) listener();
 }
 
 /**
