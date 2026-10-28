@@ -200,6 +200,18 @@ function GuardedTenant({
         // A running switch settles the school itself; a running check or
         // its failure stays as it is, so further refusals do not flicker.
         if (switchInFlight.current || refusalActive.current) return;
+        // The provider already names another school: refusals are expected
+        // and the mismatch handling below owns the screen (switch, its
+        // failure, the explicit login). Another lookup now would only race
+        // that flow, and its answer can write the old cookie back after the
+        // sign-out of "Zur Schulanmeldung".
+        const known = current.session;
+        if (
+          hasSessionAccess(known) &&
+          known?.user?.tenantId !== current.tenant?.tenantId
+        ) {
+          return;
+        }
         checkSessionSchool();
       }),
     [redirect, checkSessionSchool],

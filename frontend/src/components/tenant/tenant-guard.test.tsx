@@ -1096,6 +1096,33 @@ describe("TenantGuard", () => {
       expect(providerUpdate).toHaveBeenCalledTimes(1);
     });
 
+    // tenant-mfa-switch E2E: once the provider names the other school, the
+    // switch flow owns the screen; a further lookup raced its sign-out and
+    // wrote the old cookie back.
+    it("leaves refusals to the switch flow once the provider names another school", async () => {
+      mockPerformTenantSwitch.mockRejectedValue(
+        new ApiError("MFA required", 401, {
+          code: "identity.mfa_session_required",
+        }),
+      );
+      render(<Tab />);
+      act(() => answer(2));
+      expect(
+        await screen.findByRole("button", { name: "Zur Schulanmeldung" }),
+      ).toBeInTheDocument();
+
+      act(() => {
+        reportSessionTenantMismatch();
+        reportSessionTenantMismatch();
+      });
+
+      // Anker: der Ausweg des Wechsels bleibt stehen.
+      expect(
+        screen.getByRole("button", { name: "Zur Schulanmeldung" }),
+      ).toBeInTheDocument();
+      expect(providerUpdate).not.toHaveBeenCalled();
+    });
+
     it("asks again while another session lookup of the provider still runs", async () => {
       render(<Tab />);
       // The first update() returns nothing: another lookup still runs.
