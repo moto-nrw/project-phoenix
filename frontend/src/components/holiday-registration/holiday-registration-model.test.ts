@@ -225,3 +225,62 @@ describe("known children of a parent account (#4662)", () => {
     expect(JSON.stringify(payload)).not.toContain("41");
   });
 });
+
+describe("optional second guardian", () => {
+  it("omits a blank card and does not prefill it", () => {
+    const draft = complete();
+    expect(validateRegistration(draft, offer)).toEqual({});
+    expect(
+      payloadFromDraft(draft, offer, "captcha").second_guardian,
+    ).toBeUndefined();
+    expect(
+      registrationFromFamily({ guardian: draft.guardian, children: [] })
+        .secondGuardian,
+    ).toEqual(emptyRegistration().secondGuardian);
+  });
+
+  it("trims the card and keeps contacts optional", () => {
+    const draft = {
+      ...complete(),
+      secondGuardian: {
+        firstName: " Tom ",
+        lastName: " Anders ",
+        email: " ",
+        phone: " ",
+      },
+    };
+    expect(validateRegistration(draft, offer)).toEqual({});
+    expect(payloadFromDraft(draft, offer, "captcha").second_guardian).toEqual({
+      first_name: "Tom",
+      last_name: "Anders",
+      email: "",
+      phone: "",
+    });
+  });
+
+  it.each([
+    [
+      { firstName: "Tom", lastName: "", email: "", phone: "" },
+      { "second_guardian.last_name": "required" },
+    ],
+    [
+      { firstName: "", lastName: "Anders", email: "", phone: "" },
+      { "second_guardian.first_name": "required" },
+    ],
+    [
+      { firstName: "Tom", lastName: "Anders", email: "bad", phone: "" },
+      { "second_guardian.email": "email" },
+    ],
+    [
+      { firstName: "Tom", lastName: "Anders", email: "", phone: "abc" },
+      { "second_guardian.phone": "phone" },
+    ],
+  ])(
+    "validates the second guardian with field paths",
+    (secondGuardian, errors) => {
+      expect(
+        validateRegistration({ ...complete(), secondGuardian }, offer),
+      ).toEqual(errors);
+    },
+  );
+});

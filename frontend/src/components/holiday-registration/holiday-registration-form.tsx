@@ -38,6 +38,7 @@ import {
   ChildCard,
   ContactList,
   KnownChildPicker,
+  SecondGuardianCard,
 } from "./holiday-registration-sections";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
 
@@ -267,6 +268,12 @@ export function HolidayRegistrationForm({
           />
         </div>
       </SectionCard>
+
+      <SecondGuardianCard
+        guardian={draft.secondGuardian}
+        fieldError={fieldError}
+        onChange={(secondGuardian) => setDraft({ ...draft, secondGuardian })}
+      />
 
       <ContactList
         kind="emergency_contacts"

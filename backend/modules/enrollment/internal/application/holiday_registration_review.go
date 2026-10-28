@@ -79,8 +79,8 @@ func (h *HolidayRegistrationReview) ListHolidayRegistrations(ctx context.Context
 	}
 	for _, registration := range all {
 		list.StatusCounts[registration.Status]++
-		if holidayRegistrationMatches(registration, filter) {
-			list.Registrations = append(list.Registrations, registration)
+		if holidayRegistrationMatches(registration.HolidayRegistrationSummary, filter) {
+			list.Registrations = append(list.Registrations, registration.HolidayRegistrationSummary)
 		}
 	}
 	if err := h.audit(ctx, reviewer, period.ID, 0, enrollment.HolidayAuditList, map[string]any{
@@ -304,7 +304,7 @@ func (h *HolidayRegistrationReview) period(ctx context.Context, organizationID, 
 
 // readPeriod checks the filter and reads every registration of the period
 // without health information.
-func (h *HolidayRegistrationReview) readPeriod(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) (enrollment.HolidayPeriod, []enrollment.HolidayRegistrationSummary, error) {
+func (h *HolidayRegistrationReview) readPeriod(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) (enrollment.HolidayPeriod, []enrollment.HolidayRegistrationDetail, error) {
 	if err := holidayReviewKey(reviewer, periodID, 1); err != nil {
 		return enrollment.HolidayPeriod{}, nil, err
 	}
@@ -320,11 +320,7 @@ func (h *HolidayRegistrationReview) readPeriod(ctx context.Context, reviewer enr
 		return enrollment.HolidayPeriod{}, nil, fmt.Errorf("enrollment: read holiday registrations: %w", err)
 	}
 	h.complete(period, read, overrides)
-	summaries := make([]enrollment.HolidayRegistrationSummary, len(read))
-	for i, registration := range read {
-		summaries[i] = registration.HolidayRegistrationSummary
-	}
-	return period, summaries, nil
+	return period, read, nil
 }
 
 func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, registrationID int64) (enrollment.HolidayRegistrationDetail, error) {
@@ -437,7 +433,7 @@ func validateHolidayRegistrationFilter(filter enrollment.HolidayRegistrationFilt
 }
 
 // holidayExportRows lists one row per child and booking of the filter.
-func holidayExportRows(all []enrollment.HolidayRegistrationSummary, filter enrollment.HolidayRegistrationFilter) []enrollment.HolidayRegistrationExportRow {
+func holidayExportRows(all []enrollment.HolidayRegistrationDetail, filter enrollment.HolidayRegistrationFilter) []enrollment.HolidayRegistrationExportRow {
 	rows := []enrollment.HolidayRegistrationExportRow{}
 	for _, registration := range all {
 		if filter.Status != "" && registration.Status != filter.Status {
@@ -450,13 +446,13 @@ func holidayExportRows(all []enrollment.HolidayRegistrationSummary, filter enrol
 	return rows
 }
 
-func appendHolidayChildRows(rows []enrollment.HolidayRegistrationExportRow, registration enrollment.HolidayRegistrationSummary, child enrollment.HolidayRegistrationChild, filter enrollment.HolidayRegistrationFilter) []enrollment.HolidayRegistrationExportRow {
+func appendHolidayChildRows(rows []enrollment.HolidayRegistrationExportRow, registration enrollment.HolidayRegistrationDetail, child enrollment.HolidayRegistrationChild, filter enrollment.HolidayRegistrationFilter) []enrollment.HolidayRegistrationExportRow {
 	if !holidayChildMatches(child, filter) {
 		return rows
 	}
 	for _, booking := range child.Bookings {
 		if holidayBookingMatches(booking, filter) {
-			rows = append(rows, enrollment.HolidayRegistrationExportRow{Registration: registration, Child: child, Booking: booking})
+			rows = append(rows, enrollment.HolidayRegistrationExportRow{Registration: registration.HolidayRegistrationSummary, SecondGuardian: registration.SecondGuardian, Child: child, Booking: booking})
 		}
 	}
 	return rows

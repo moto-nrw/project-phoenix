@@ -1691,6 +1691,9 @@
     "signatureEyebrow": "Belge"
   },
   "holidayRegistration": {
+    "secondGuardianTitle": "İkinci yasal veli",
+    "secondGuardianText": "İsteğe bağlı. Bilgi girerseniz ad ve soyad zorunludur.",
+    "emailOptional": "E-posta adresi (isteğe bağlı)",
     "eyebrow": "Tatil bakımı",
     "loading": "Kayıt yükleniyor.",
     "errorObject": "tatil kaydı",
@@ -1772,6 +1775,7 @@
     "doneText": "{email} adresine bir onay göndereceğiz.",
     "doneNext": "Bu henüz kesin bir yer değildir. Kurum kaydı kontrol eder ve çocuğunuzun yer alıp almadığını size yazar.",
     "errors": {
+      "phone": "Lütfen geçerli bir telefon numarası girin.",
       "required": "Lütfen bu alanı doldurun.",
       "email": "Lütfen geçerli bir e-posta adresi girin.",
       "school": "Lütfen çocuğunuzun okulunu seçin.",
