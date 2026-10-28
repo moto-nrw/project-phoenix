@@ -206,6 +206,52 @@ describe.each([
   ["with cleanup", true],
   ["lock only, cleanup off", false],
 ])("generation lock %s (#5006)", (_mode, cleanup) => {
+  it.each(["value", "updater", "promise"] as const)(
+    "binds a retained %s mutation to its captured key",
+    async (kind) => {
+      const oldKey = `student-7-retained-${kind}-${cleanup}`;
+      const newKey = `student-8-current-${kind}-${cleanup}`;
+      const fetcher = vi.fn(() => Promise.resolve("stand"));
+      const view = render(
+        <Page>
+          <Reader name={oldKey} fetcher={fetcher} />
+        </Page>,
+      );
+      await flush();
+      expect(screen.getByTestId(oldKey)).toHaveTextContent("stand");
+      const retained = responses[oldKey]!.mutate;
+      _setSWRCleanupForTests(cleanup);
+      view.rerender(
+        <Page>
+          <Reader name={newKey} fetcher={fetcher} />
+        </Page>,
+      );
+      await flush();
+      expect(screen.getByTestId(newKey)).toHaveTextContent("stand");
+
+      await act(async () => {
+        await retained(
+          kind === "value"
+            ? "gespeichert"
+            : kind === "updater"
+              ? (current) => `${current}-gespeichert`
+              : Promise.resolve("gespeichert"),
+          { revalidate: false },
+        );
+      });
+
+      expect(cachedData(newKey)).toBe("stand");
+      expect(cachedData(oldKey)).toBe(
+        kind === "updater" ? "stand-gespeichert" : "gespeichert",
+      );
+      expect(screen.getByTestId(newKey)).toHaveTextContent("stand");
+      expect(seen[newKey]).toEqual(expect.arrayContaining(["stand"]));
+      expect(seen[newKey]).not.toContain("gespeichert");
+      expect(seen[newKey]).not.toContain("stand-gespeichert");
+      expect(fetcher).toHaveBeenCalledTimes(2);
+    },
+  );
+
   describe.each(OPERATIONS)("%s", (_name, operation) => {
     async function run(ui: ReactNode, before: () => Promise<void> | void) {
       const view = render(ui);

@@ -127,19 +127,23 @@ const generationLockMiddleware: Middleware =
 
 /** A bound mutate of `key` whose writes go through the generation lock. */
 function lockBoundMutate<T>(
-  key: string,
-  mutate: SWRResponse<T>["mutate"],
+  key: string | null,
+  mutate: ReturnType<typeof useSWRConfig>["mutate"],
 ): SWRResponse<T>["mutate"] {
   return ((...args: unknown[]) => {
+    if (key === null) return Promise.resolve(undefined);
+    // SWR's bound mutate follows the hook's latest key. A retained callback
+    // must write to the same captured key that its generation lock checks.
     // SWR counts the arguments: `mutate()` revalidates, while an explicit
     // `undefined` writes it. Pass revalidations through unchanged.
     if (args[0] === undefined) {
       return (mutate as (...given: unknown[]) => Promise<T | undefined>)(
+        key,
         ...args,
       );
     }
     const [locked, lockedOptions] = lockMutation(key, args[0], args[1]);
-    return mutate(locked as never, lockedOptions as never);
+    return mutate(key, locked as never, lockedOptions as never);
   }) as SWRResponse<T>["mutate"];
 }
 
@@ -163,6 +167,7 @@ function useScopedSWR<T, E>(
   options: SWRConfiguration<T, E> | undefined,
 ): SWRResponse<T, E> {
   const { prefix, generation } = useSWRScope();
+  const { mutate: cacheMutate } = useSWRConfig();
   const fullKey =
     key !== null && prefix !== null ? scopedSWRKey(prefix, key) : null;
   // Renders again whenever values stop counting (scope or data bump).
@@ -252,8 +257,8 @@ function useScopedSWR<T, E>(
   }, [reload, revalidate]);
 
   const mutate = useMemo(
-    () => (fullKey ? lockBoundMutate(fullKey, revalidate) : revalidate),
-    [fullKey, revalidate],
+    () => lockBoundMutate<T>(fullKey, cacheMutate),
+    [fullKey, cacheMutate],
   );
   return {
     data,

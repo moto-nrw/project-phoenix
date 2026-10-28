@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
 
 // Vaul (SlideOver) rendert in jsdom nichts: das Detailpanel bliebe im Test
 // leer. Wie in components/ui/slide-over.test.tsx, plus ein Close-Knopf, der
@@ -409,26 +409,34 @@ describe("InstanceDetailModal", () => {
       mutate,
     } as unknown as ReturnType<typeof useSWR>);
 
-    render(
-      <InstanceDetailModal
-        instance={instance()}
-        onClose={vi.fn()}
-        onLifecycleAction={vi.fn()}
-        canManage={false}
-        fetchParticipantNames
-      />,
-    );
+    const config = useSWRConfig();
+    await vi.mocked(useSWRConfig).withImplementation(
+      () => ({ ...config, mutate }),
+      async () => {
+        render(
+          <InstanceDetailModal
+            instance={instance()}
+            onClose={vi.fn()}
+            onLifecycleAction={vi.fn()}
+            canManage={false}
+            fetchParticipantNames
+          />,
+        );
 
-    expect(
-      await screen.findByText(
-        catalogText("general.unavailable", "die Liste der Teilnehmenden"),
-      ),
-    ).toBeVisible();
-    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
-    expect(screen.queryByText("Keine Kinder geplant.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Personal #11")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
-    expect(mutate).toHaveBeenCalled();
+        expect(
+          await screen.findByText(
+            catalogText("general.unavailable", "die Liste der Teilnehmenden"),
+          ),
+        ).toBeVisible();
+        expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument();
+        expect(
+          screen.queryByText("Keine Kinder geplant."),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText("Personal #11")).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+        expect(mutate).toHaveBeenCalled();
+      },
+    );
   });
 
   // The header count already leaves these children out (#1747). Listing them
