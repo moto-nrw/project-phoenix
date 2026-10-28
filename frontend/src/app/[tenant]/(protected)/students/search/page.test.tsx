@@ -4142,10 +4142,10 @@ describe("StudentSearchPage", () => {
       render(<StudentSearchPage />);
 
       await waitFor(() => {
-        expect(roomService.getRooms).toHaveBeenCalledWith({
-          page: 1,
-          pageSize: 1000,
-        });
+        expect(roomService.getRooms).toHaveBeenCalledWith(
+          { page: 1, pageSize: 1000 },
+          { strict: true },
+        );
       });
     });
 

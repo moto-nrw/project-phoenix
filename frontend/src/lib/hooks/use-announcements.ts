@@ -3,12 +3,8 @@
 import { announcementKeys } from "~/lib/swr/portal-keys";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-// eslint-disable-next-line no-restricted-imports -- platform-scoped announcements, not tenant-scoped
 import { useSWRAuth } from "~/lib/swr";
 import { authFetch } from "~/lib/api-helpers";
-
-/** Platform-scoped, so deliberately NOT tenant-prefixed. */
-export const ANNOUNCEMENTS_UNREAD_SWR_KEY = "user-announcements-unread";
 
 export interface UnreadAnnouncement {
   id: number;

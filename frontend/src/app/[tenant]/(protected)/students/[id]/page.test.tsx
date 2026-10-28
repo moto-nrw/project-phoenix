@@ -19,24 +19,27 @@ import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { setTestClock } from "~/test/clock";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 
-const { mockSWRMutate, MockStudentStatusDayConflictError } = vi.hoisted(() => ({
-  mockSWRMutate: vi.fn(),
-  MockStudentStatusDayConflictError: class extends Error {
-    conflicts: unknown[];
-    totalCount: number;
+const { mockSWRMutate, mockScopedMutate, MockStudentStatusDayConflictError } =
+  vi.hoisted(() => ({
+    mockSWRMutate: vi.fn(),
+    mockScopedMutate: vi.fn(),
+    MockStudentStatusDayConflictError: class extends Error {
+      conflicts: unknown[];
+      totalCount: number;
 
-    constructor(conflicts: unknown[], totalCount?: number) {
-      super("conflict");
-      this.name = "StudentStatusDayConflictError";
-      this.conflicts = conflicts;
-      this.totalCount = totalCount ?? conflicts.length;
-    }
-  },
-}));
+      constructor(conflicts: unknown[], totalCount?: number) {
+        super("conflict");
+        this.name = "StudentStatusDayConflictError";
+        this.conflicts = conflicts;
+        this.totalCount = totalCount ?? conflicts.length;
+      }
+    },
+  }));
 vi.mock("swr", async (importOriginal) => {
   const actual = await importOriginal<typeof import("swr")>();
   return {
     ...actual,
+    mutate: mockScopedMutate,
     useSWRConfig: () => ({ mutate: mockSWRMutate }),
   };
 });
@@ -679,6 +682,7 @@ describe("StudentDetailPage", () => {
     mockCreateStudentStatusDays.mockResolvedValue([]);
     mockFetchStudentStatusDays.mockResolvedValue([]);
     mockSWRMutate.mockResolvedValue(undefined);
+    mockScopedMutate.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -1129,8 +1133,8 @@ describe("StudentDetailPage", () => {
       });
 
       await waitFor(() => {
-        expect(mockSWRMutate).toHaveBeenCalledWith(
-          "/api/students/1/change-history",
+        expect(mockScopedMutate).toHaveBeenCalledWith(
+          "test-tenant:1:student-change-history-1",
         );
       });
     });
@@ -1441,8 +1445,8 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(mockRefreshData).toHaveBeenCalled();
-        expect(mockSWRMutate).toHaveBeenCalledWith(
-          "/api/students/1/change-history",
+        expect(mockScopedMutate).toHaveBeenCalledWith(
+          "test-tenant:1:student-change-history-1",
         );
       });
     });

@@ -802,6 +802,25 @@ describe("api.ts helper functions", () => {
   });
 
   describe("roomService.getRooms", () => {
+    it.each([401, 403] as const)(
+      "preserves a refused shared room list (%s)",
+      async (status) => {
+        const { fetchWithRetry } = await import("./api-helpers");
+        vi.mocked(fetchWithRetry).mockResolvedValue({
+          data: null,
+          response: null,
+          accessDeniedStatus: status,
+        });
+        const { rooms } = await import("./swr/rooms");
+        const restore = setupBrowserEnv();
+        try {
+          await expect(rooms.fetcher()).rejects.toMatchObject({ status });
+        } finally {
+          restore();
+        }
+      },
+    );
+
     it("builds correct query params with filters", async () => {
       const { fetchWithRetry } = await import("./api-helpers");
       vi.mocked(fetchWithRetry).mockResolvedValue({

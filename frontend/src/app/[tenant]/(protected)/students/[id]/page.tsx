@@ -42,7 +42,8 @@ import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollm
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { studentKeys } from "~/lib/swr/portal-keys";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
   allowedDepartureModesFromDeparture,
@@ -411,6 +412,7 @@ export default function StudentDetailPage() {
 
 function StudentDetailPageContent() {
   const { mutate } = useSWRConfig();
+  const tenantMutate = useTenantMutate();
   const params = useParams();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -526,17 +528,17 @@ function StudentDetailPageContent() {
       .map((group) => ({ value: String(group.id), label: group.name }))
       .sort((a, b) => a.label.localeCompare(b.label, "de"));
   });
-  const refreshDataAndHistory = useCallback(() => {
+  const refreshDataAndHistory = useCallback(async () => {
     refreshData();
     // Best effort: the change history reloads with its own load error path
     // when it is opened; a failed background refresh only leaves it stale.
-    return mutate(`/api/students/${studentId}/change-history`).catch((err) => {
+    await tenantMutate(studentKeys.changeHistory(studentId)).catch((err) => {
       logger.debug("change_history_revalidation_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
     });
-  }, [mutate, refreshData, studentId]);
+  }, [tenantMutate, refreshData, studentId]);
   const canViewEnrollments =
     sessionStatus === "authenticated" &&
     hasPermission(session, "config:manage");

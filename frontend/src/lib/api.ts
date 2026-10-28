@@ -1597,16 +1597,19 @@ export const groupService = {
 // Room service for API operations
 export const roomService = {
   // Get all rooms
-  getRooms: async (filters?: {
-    building?: string;
-    floor?: number;
-    category?: string;
-    occupied?: boolean;
-    search?: string;
-    includeSystem?: boolean;
-    page?: number;
-    pageSize?: number;
-  }): Promise<Room[]> => {
+  getRooms: async (
+    filters?: {
+      building?: string;
+      floor?: number;
+      category?: string;
+      occupied?: boolean;
+      search?: string;
+      includeSystem?: boolean;
+      page?: number;
+      pageSize?: number;
+    },
+    options?: { strict?: boolean },
+  ): Promise<Room[]> => {
     const params = buildRoomQueryParams(filters);
     const queryString = params.toString();
 
@@ -1617,10 +1620,15 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const { data } = await fetchWithRetry<unknown>(url, {
-          onAuthFailure: handleAuthFailure,
-          beforeRetry: reloadSession,
-        });
+        const { response, data, accessDeniedStatus } =
+          await fetchWithRetry<unknown>(url, {
+            onAuthFailure: handleAuthFailure,
+            beforeRetry: reloadSession,
+          });
+
+        if (options?.strict && (response === null || data === null)) {
+          throw accessDeniedApiError(accessDeniedStatus);
+        }
 
         const rooms = parseRoomsResponse(data);
         return mapRoomsResponse(rooms);

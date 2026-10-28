@@ -12,7 +12,7 @@ import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { ModuleBookingAudienceProvider } from "~/contexts/ToastContext";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
-import { ANNOUNCEMENTS_UNREAD_SWR_KEY } from "~/lib/hooks/use-announcements";
+import { announcementKeys } from "~/lib/swr/portal-keys";
 import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
 import { primeSessionCache } from "~/lib/session-cache";
@@ -101,9 +101,10 @@ export function shellOwnedEntries(shell: ShellBootstrap, tenantSlug: string) {
  */
 export function shellSwrConfig(shell: ShellBootstrap, tenantSlug: string) {
   const consumed: Record<string, unknown> = {};
-  // Platform-scoped, so its key carries no tenant prefix.
+  const scope = tenantSWRScope(tenantSlug, shell.accountId);
   if (shell.announcements) {
-    consumed[ANNOUNCEMENTS_UNREAD_SWR_KEY] = shell.announcements;
+    consumed[scopedSWRKey(scope, announcementKeys.unread())] =
+      shell.announcements;
   }
   return {
     fallback: { ...shellOwnedEntries(shell, tenantSlug), ...consumed },
