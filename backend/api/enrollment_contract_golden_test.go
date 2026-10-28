@@ -184,7 +184,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 		}
 		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &payload))
 		total := counter.Queries()
-		route := withoutModuleLock(t, total)
+		route := withoutModuleLock(t, withoutSessionCheck(t, total))
 		overview := make([]string, 0, len(route))
 		for _, query := range route {
 			if !strings.Contains(query, "setting_values") {

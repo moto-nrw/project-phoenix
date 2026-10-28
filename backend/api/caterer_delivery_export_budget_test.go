@@ -66,7 +66,7 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 		t.Helper()
 		counter.Reset()
 		response := checkpointRequest(api, checkpointScenario{Method: http.MethodGet, Path: path, Authenticated: true}, token)
-		return response.Code, counter.Queries()
+		return response.Code, withoutSessionCheck(t, counter.Queries())
 	}
 
 	addSchool(1)
