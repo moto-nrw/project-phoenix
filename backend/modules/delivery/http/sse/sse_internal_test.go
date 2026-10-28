@@ -19,15 +19,11 @@ import (
 type mockFlusher struct {
 	*httptest.ResponseRecorder
 	flushCount int
-	onFlush    func()
 }
 
 func (mf *mockFlusher) Flush() {
 	mf.flushCount++
 	// ResponseRecorder doesn't need actual flush
-	if mf.onFlush != nil {
-		mf.onFlush()
-	}
 }
 
 func newMockFlusher() *mockFlusher {
