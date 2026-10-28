@@ -1239,18 +1239,16 @@
       "offeringsOnlyDescription": "Choose each child's care offerings and weekdays for the new period."
     },
     "fields": {
-      "firstName": "First name *",
+      "firstName": "First name",
       "firstNamePlain": "First name",
-      "lastName": "Last name *",
+      "lastName": "Last name",
       "lastNamePlain": "Last name",
-      "email": "Email *",
+      "email": "Email",
       "phone": "Phone",
-      "phoneRequired": "Phone *",
       "emailPlain": "Email",
-      "dateOfBirth": "Date of birth *",
-      "gradeLevel": "Grade level *",
+      "dateOfBirth": "Date of birth",
+      "gradeLevel": "Grade level",
       "schoolClass": "Class",
-      "schoolClassRequired": "Class *",
       "schoolClassOpen": "Class not yet assigned",
       "choose": "Please choose",
       "grade": "Grade {grade}"
@@ -1298,6 +1296,7 @@
       "submitting": "Submitting…",
       "previewSubmit": "Preview, do not submit",
       "showMore": "Show more",
+      "notice": "Notice",
       "details": "Details",
       "detailsAria": "Show details for {title}"
     },

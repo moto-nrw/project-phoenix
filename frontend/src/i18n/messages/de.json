@@ -1241,18 +1241,16 @@
       "offeringsOnlyDescription": "Wählen Sie je Kind die Betreuungsangebote und Wochentage für den neuen Zeitraum."
     },
     "fields": {
-      "firstName": "Vorname *",
+      "firstName": "Vorname",
       "firstNamePlain": "Vorname",
-      "lastName": "Nachname *",
+      "lastName": "Nachname",
       "lastNamePlain": "Nachname",
-      "email": "E-Mail *",
+      "email": "E-Mail",
       "phone": "Telefon",
-      "phoneRequired": "Telefon *",
       "emailPlain": "E-Mail",
-      "dateOfBirth": "Geburtsdatum *",
-      "gradeLevel": "Klassenstufe *",
+      "dateOfBirth": "Geburtsdatum",
+      "gradeLevel": "Klassenstufe",
       "schoolClass": "Klasse",
-      "schoolClassRequired": "Klasse *",
       "schoolClassOpen": "Klasse offen",
       "choose": "Bitte wählen",
       "grade": "{grade}. Klasse"
@@ -1300,6 +1298,7 @@
       "submitting": "Wird übermittelt…",
       "previewSubmit": "Vorschau, nicht absenden",
       "showMore": "Mehr anzeigen",
+      "notice": "Hinweis",
       "details": "Details",
       "detailsAria": "Details zu {title} anzeigen"
     },

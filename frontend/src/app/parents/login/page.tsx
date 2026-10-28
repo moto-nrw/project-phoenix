@@ -14,11 +14,12 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import {
   AuthShell,
   AuthShellSkeleton,
   MotoBrand,
-  authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { buildParentAuthShellCopy } from "~/components/auth/parent-auth-shell-copy";
@@ -335,43 +336,36 @@ function ParentLoginForm() {
 
           <div className="space-y-4">
             <div className="text-left">
-              <label
-                htmlFor="parent-email"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                {t("emailLabel")}
-              </label>
-              <input
+              <Input
                 id="parent-email"
                 name="email"
                 type="email"
+                label={t("emailLabel")}
+                controlSize="compact"
                 autoComplete="username"
                 required
                 disabled={isSessionSettling}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={authInputClassName}
               />
             </div>
 
             <div className="text-left">
-              <label
-                htmlFor="parent-password"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
+              <FieldLabel htmlFor="parent-password" required>
                 {t("passwordLabel")}
-              </label>
+              </FieldLabel>
               <div className="relative">
-                <input
+                <Input
                   id="parent-password"
                   name="password"
                   type={showPassword ? "text" : "password"}
+                  controlSize="compact"
                   autoComplete="current-password"
                   required
                   disabled={isSessionSettling}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`${authInputClassName} pr-10`}
+                  className="pr-10"
                 />
                 <PasswordToggleButton
                   showPassword={showPassword}

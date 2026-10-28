@@ -136,8 +136,12 @@ describe("PermissionSelector", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/ressource\*/i)).toBeInTheDocument();
-      expect(screen.getByText(/aktion\*/i)).toBeInTheDocument();
+      expect(screen.getByText("Ressource").parentElement).toHaveTextContent(
+        "Ressource *",
+      );
+      expect(screen.getByText("Aktion").parentElement).toHaveTextContent(
+        "Aktion *",
+      );
     });
   });
 

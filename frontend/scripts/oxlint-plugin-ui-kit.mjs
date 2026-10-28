@@ -44,6 +44,14 @@ import { dirname, normalize } from "node:path/posix";
 //   ui-kit/green-fill-white-text    — opaque green surfaces carry white text,
 //                                     only on the dark bg-moto-green-fill steps
 //
+// One more keeps form fields on the kit (#5217):
+//
+//   ui-kit/no-raw-input             — no hand-built <input> outside
+//                                     src/components/ui/; use Input,
+//                                     Checkbox, Radio, TimeField,
+//                                     ConsentCheckbox or ColorSwatchInput.
+//                                     Hidden and file inputs stay native.
+//
 // The tiny-text baseline below is SHRINK-ONLY: matches may be removed when
 // a file is migrated, but never added.
 
@@ -556,14 +564,14 @@ src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@230
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
-src/components/activities/activity-management-modal.tsx|text-[10px]@313 text-[10px]@343 text-[10px]@381
+src/components/activities/activity-management-modal.tsx|text-[10px]@314 text-[10px]@345 text-[10px]@383
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@893 text-[11px]@921 text-[11px]@1008 text-[11px]@1069 text-[11px]@1073 text-[11px]@1079 text-[11px]@1126 text-[11px]@1132 text-[10px]@1152 text-[11px]@1205 text-[11px]@1285 text-[11px]@1296 text-[11px]@1301
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@42 text-[10px]@96
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@968 text-[11px]@987
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1465
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/enrollment/phases-editor.tsx|text-[11px]@759 text-[11px]@764
+src/components/enrollment/phases-editor.tsx|text-[11px]@760 text-[11px]@765
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@377
@@ -581,8 +589,8 @@ src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@542
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[10px]@295 text-[11px]@301
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@163 text-[11px]@233 text-[11px]@266 text-[11px]@343 text-[11px]@349 text-[11px]@397
+src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@146 text-[10px]@295 text-[11px]@301
+src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
 src/components/timetable/instance-detail-modal.tsx|text-[10px]@319 text-[9px]@439 text-[9px]@1072 text-[11px]@1386 text-[11px]@1412 text-[11px]@1588 text-[10px]@1697 text-[11px]@1720
@@ -1023,6 +1031,63 @@ const requireCheckboxLabel = {
   },
 };
 
+// --- ui-kit/no-raw-input ----------------------------------------------------
+
+// A native input that has no kit counterpart: a value carried in the form
+// (`hidden`) and the file dialog a kit button opens (`file`).
+const NATIVE_INPUT_TYPES = new Set(["hidden", "file"]);
+
+function staticInputType(openingElement) {
+  const attribute = openingElement.attributes.find(
+    (candidate) =>
+      candidate.type === "JSXAttribute" &&
+      candidate.name.type === "JSXIdentifier" &&
+      candidate.name.name === "type",
+  );
+  const value = attribute?.value;
+  if (value?.type === "Literal") return String(value.value);
+  if (
+    value?.type === "JSXExpressionContainer" &&
+    value.expression.type === "Literal"
+  ) {
+    return String(value.expression.value);
+  }
+  return null;
+}
+
+const noRawInput = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Build form fields from the kit instead of a hand-styled <input>.",
+    },
+    messages: {
+      rawInput:
+        'Kein eigenes <input>. Input, Checkbox, Radio, TimeField, ConsentCheckbox oder ColorSwatchInput aus ~/components/ui nehmen (#5217, .claude/rules/frontend-ui-kit.md). Nur type="hidden" und type="file" bleiben nativ.',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    // Test mocks stand in for a kit control and render its native input.
+    if (
+      EXEMPT_FILE_RE.test(key) ||
+      key.includes(UI_KIT_DIR) ||
+      key.includes("src/test/")
+    ) {
+      return {};
+    }
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) !== "input") return;
+        if (NATIVE_INPUT_TYPES.has(staticInputType(node) ?? "")) return;
+        context.report({ node, messageId: "rawInput" });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
@@ -1031,6 +1096,7 @@ export default {
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,
     "no-hand-rolled-surface": noHandRolledSurface,
+    "no-raw-input": noRawInput,
     "no-rounded-3xl": noRounded3xl,
     "no-tenant-kicker": noTenantKicker,
     "no-tabs-as-value-switcher": noTabsAsValueSwitcher,

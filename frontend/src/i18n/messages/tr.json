@@ -1241,18 +1241,16 @@
       "offeringsOnlyDescription": "Her çocuk için yeni döneme ait bakım tekliflerini ve haftanın günlerini seçin."
     },
     "fields": {
-      "firstName": "Ad *",
+      "firstName": "Ad",
       "firstNamePlain": "Ad",
-      "lastName": "Soyad *",
+      "lastName": "Soyad",
       "lastNamePlain": "Soyad",
-      "email": "E-posta *",
+      "email": "E-posta",
       "phone": "Telefon numarası",
-      "phoneRequired": "Telefon numarası *",
       "emailPlain": "E-posta",
-      "dateOfBirth": "Doğum tarihi *",
-      "gradeLevel": "Sınıf düzeyi *",
+      "dateOfBirth": "Doğum tarihi",
+      "gradeLevel": "Sınıf düzeyi",
       "schoolClass": "Sınıf",
-      "schoolClassRequired": "Sınıf *",
       "schoolClassOpen": "Sınıf henüz belli değil",
       "choose": "Lütfen seçin",
       "grade": "{grade}. sınıf"
@@ -1300,6 +1298,7 @@
       "submitting": "Gönderiliyor…",
       "previewSubmit": "Ön izleme, gönderilmez",
       "showMore": "Daha fazla göster",
+      "notice": "Bilgi",
       "details": "Ayrıntılar",
       "detailsAria": "{title} ayrıntılarını göster"
     },

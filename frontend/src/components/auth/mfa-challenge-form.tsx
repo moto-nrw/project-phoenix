@@ -9,7 +9,7 @@ import {
 } from "react";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
 import { credentialError, MFA_STEP_REFUSALS } from "./credential-error";
 import {
@@ -253,20 +253,17 @@ export function MFAChallengeForm({
       </div>
 
       {trustedDeviceEnabled && (
-        <div className="flex items-center justify-center gap-2">
-          <input
-            id="mfa-remember-device"
-            type="checkbox"
-            checked={rememberDevice}
-            onChange={(e) => setRememberDevice(e.target.checked)}
-            disabled={isVerifying}
-            className="h-4 w-4 rounded border-gray-300"
-            style={{ accentColor: LOCATION_COLORS.GROUP_ROOM }}
-          />
+        <div className="flex justify-center">
           <label
             htmlFor="mfa-remember-device"
-            className="text-sm text-gray-700 select-none"
+            className="relative flex cursor-pointer items-center gap-2 text-sm text-gray-700 select-none has-[:disabled]:cursor-not-allowed"
           >
+            <Checkbox
+              id="mfa-remember-device"
+              checked={rememberDevice}
+              onChange={(e) => setRememberDevice(e.target.checked)}
+              disabled={isVerifying}
+            />
             Auf diesem Gerät {trustedDeviceDays} Tage merken
           </label>
         </div>

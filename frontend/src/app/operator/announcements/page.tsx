@@ -10,7 +10,10 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { Skeleton } from "~/components/ui/skeleton";
+import { Textarea } from "~/components/ui/textarea";
 import { SkeletonRegion } from "~/components/ui/page-skeletons";
 import { DatePicker } from "~/components/ui/date-picker";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -576,30 +579,34 @@ export default function OperatorAnnouncementsPage() {
         title={editTarget ? "Ankündigung bearbeiten" : "Neue Ankündigung"}
         footer={
           <>
-            <button
+            <Button
               type="button"
               onClick={() => {
                 setFormOpen(false);
                 setEditTarget(null);
               }}
-              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              variant="outline"
+              size="md"
+              className="flex-1"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={(e) => void handleSave(e)}
               disabled={
                 isSaving || !formData.title.trim() || !formData.content.trim()
               }
-              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+              variant="primary"
+              size="md"
+              className="flex-1"
             >
               {isSaving
                 ? "Wird gespeichert..."
                 : editTarget
                   ? "Speichern"
                   : "Erstellen"}
-            </button>
+            </Button>
           </>
         }
       >
@@ -611,76 +618,35 @@ export default function OperatorAnnouncementsPage() {
         >
           <FormErrorAlert message={saveErrors.error} />
           {/* Title */}
-          <div>
-            <label
-              htmlFor="announcement-title"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Titel
-            </label>
-            <input
-              id="announcement-title"
-              name="title"
-              aria-invalid={saveErrors.fieldError("title") ? true : undefined}
-              aria-describedby={
-                saveErrors.fieldError("title")
-                  ? "announcement-title-error"
-                  : undefined
-              }
-              type="text"
-              value={formData.title}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, title: e.target.value }))
-              }
-              maxLength={200}
-              className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-              required
-            />
-            {saveErrors.fieldError("title") ? (
-              <p
-                id="announcement-title-error"
-                className="text-moto-red mt-1 text-xs"
-              >
-                {saveErrors.fieldError("title")}
-              </p>
-            ) : null}
-          </div>
+          <Input
+            id="announcement-title"
+            name="title"
+            type="text"
+            label="Titel"
+            value={formData.title}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, title: e.target.value }))
+            }
+            maxLength={200}
+            required
+            error={saveErrors.fieldError("title")}
+            controlSize="compact"
+          />
 
           {/* Content */}
-          <div>
-            <label
-              htmlFor="announcement-content"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Inhalt
-            </label>
-            <textarea
-              id="announcement-content"
-              name="content"
-              aria-invalid={saveErrors.fieldError("content") ? true : undefined}
-              aria-describedby={
-                saveErrors.fieldError("content")
-                  ? "announcement-content-error"
-                  : undefined
-              }
-              value={formData.content}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, content: e.target.value }))
-              }
-              rows={5}
-              maxLength={5000}
-              className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-              required
-            />
-            {saveErrors.fieldError("content") ? (
-              <p
-                id="announcement-content-error"
-                className="text-moto-red mt-1 text-xs"
-              >
-                {saveErrors.fieldError("content")}
-              </p>
-            ) : null}
-          </div>
+          <Textarea
+            id="announcement-content"
+            name="content"
+            label="Inhalt"
+            value={formData.content}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, content: e.target.value }))
+            }
+            rows={5}
+            maxLength={5000}
+            required
+            error={saveErrors.fieldError("content")}
+          />
 
           {/* Type */}
           <div>
@@ -786,25 +752,18 @@ export default function OperatorAnnouncementsPage() {
 
           {/* Version (only for release type) */}
           {formData.type === "release" && (
-            <div>
-              <label
-                htmlFor="announcement-version"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Version
-              </label>
-              <input
-                id="announcement-version"
-                type="text"
-                value={formData.version}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, version: e.target.value }))
-                }
-                placeholder="z.B. 2.1.0"
-                maxLength={255}
-                className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-              />
-            </div>
+            <Input
+              id="announcement-version"
+              type="text"
+              label="Version"
+              value={formData.version}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, version: e.target.value }))
+              }
+              placeholder="z.B. 2.1.0"
+              maxLength={255}
+              controlSize="compact"
+            />
           )}
 
           {/* Expires at */}

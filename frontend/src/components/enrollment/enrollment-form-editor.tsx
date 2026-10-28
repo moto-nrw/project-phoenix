@@ -34,7 +34,6 @@ import {
   AttachmentEditor,
   AttachmentUploadContext,
 } from "~/components/enrollment/attachment-editor";
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import {
   applyFileFieldRules,
   createIncomeDeclarationFields,
@@ -70,6 +69,8 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Input } from "~/components/ui/input";
+import { CheckboxCard } from "~/components/ui/checkbox-card";
+import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
@@ -246,9 +247,13 @@ function fieldErrorProps(
   name: string,
 ) {
   const message = fieldError(name);
-  const hintId = `${name.replaceAll(".", "-")}-error`;
+  // `Input` names its hint `${id}-error`, so a kit control given `controlId`
+  // carries the same hint id as a raw control spreading `controlProps`.
+  const controlId = name.replaceAll(".", "-");
+  const hintId = `${controlId}-error`;
   return {
     message,
+    controlId,
     hintId,
     controlProps: {
       name,
@@ -2289,21 +2294,18 @@ function BuilderTemplateSummary({
         </div>
 
         <div className="space-y-3">
-          <label className="block">
-            <span className="text-xs font-medium text-gray-700">
-              Name der Vorlage
-            </span>
-            <input
-              type="text"
-              value={name}
-              onChange={(event) => onNameChange(event.target.value)}
-              placeholder="z. B. Ferienbetreuung Sommer 2026"
-              disabled={saving}
-              {...nameError.controlProps}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
-            />
-          </label>
-          <FieldErrorHint id={nameError.hintId} message={nameError.message} />
+          <Input
+            id={nameError.controlId}
+            name={nameError.controlProps.name}
+            type="text"
+            label="Name der Vorlage"
+            controlSize="compact"
+            value={name}
+            onChange={(event) => onNameChange(event.target.value)}
+            placeholder="z. B. Ferienbetreuung Sommer 2026"
+            disabled={saving}
+            error={nameError.message}
+          />
           {!isCreating ? (
             <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
               <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
@@ -2641,44 +2643,47 @@ function LegalBlocksSection({
           </p>
           <div className="flex flex-wrap gap-2">
             {onReset ? (
-              <button
+              <Button
                 type="button"
                 onClick={onReset}
                 disabled={disabled}
-                className="inline-flex h-8 w-fit items-center rounded-lg px-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                variant="ghost"
+                size="compact"
+                className="w-fit text-sm"
               >
                 Einstellungen wieder verwenden
-              </button>
+              </Button>
             ) : null}
             {onRemove ? (
-              <button
+              <Button
                 type="button"
                 onClick={onRemove}
                 disabled={disabled}
-                className="text-moto-red-strong hover:bg-moto-red/10 inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                variant="ghost"
+                size="compact"
+                className="text-moto-red-strong hover:bg-moto-red/10 hover:text-moto-red-strong w-fit gap-2 text-sm"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Entfernen
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
 
         <div className="mt-3">
-          <label className="block">
-            <span className="text-xs font-medium text-gray-700">Titel</span>
-            <input
-              type="text"
-              value={block.title}
-              disabled={disabled}
-              onChange={(event) =>
-                updateBlock(index, { title: event.target.value })
-              }
-              {...titleError.controlProps}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
-            />
-          </label>
-          <FieldErrorHint id={titleError.hintId} message={titleError.message} />
+          <Input
+            id={titleError.controlId}
+            name={titleError.controlProps.name}
+            type="text"
+            label="Titel"
+            controlSize="compact"
+            value={block.title}
+            disabled={disabled}
+            onChange={(event) =>
+              updateBlock(index, { title: event.target.value })
+            }
+            error={titleError.message}
+          />
         </div>
 
         <div className="mt-3">
@@ -3070,15 +3075,16 @@ function AGBTemplateSourceEditor({
                 </a>
               ) : null}
               {hasDocument ? (
-                <button
+                <Button
                   type="button"
                   onClick={onDocumentRemove}
                   disabled={disabled || documentSaving}
-                  className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  variant="outline_danger"
+                  size="compact"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Entfernen</span>
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>
@@ -3578,33 +3584,39 @@ function FieldEditorRow({
               </h3>
             </div>
             <div className="flex gap-1.5">
-              <button
+              <Button
                 type="button"
                 onClick={onMoveUp}
                 disabled={disabled || index === 0}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                variant="surface"
+                size="icon"
+                className="text-sm"
                 aria-label="Frage nach oben verschieben"
               >
                 ↑
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={onMoveDown}
                 disabled={disabled || index === total - 1}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-500 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                variant="surface"
+                size="icon"
+                className="text-sm"
                 aria-label="Frage nach unten verschieben"
               >
                 ↓
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={onRemove}
                 disabled={disabled}
-                className="hover:border-moto-red/30 hover:bg-moto-red/10 hover:text-moto-red-strong inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+                variant="surface"
+                size="icon"
+                className="hover:bg-moto-red/10 hover:text-moto-red-strong hover:ring-moto-red/30"
                 aria-label="Frage entfernen"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -3643,28 +3655,18 @@ function FieldEditorRow({
 
           {isInfo ? (
             <>
-              <div>
-                <label className="block">
-                  <span className="text-xs font-medium text-gray-700">
-                    Titel (optional)
-                  </span>
-                  <input
-                    type="text"
-                    value={field.label}
-                    onChange={(event) =>
-                      onChange({ label: event.target.value })
-                    }
-                    placeholder="z. B. Wichtiger Hinweis"
-                    disabled={disabled}
-                    {...labelError.controlProps}
-                    className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                  />
-                </label>
-                <FieldErrorHint
-                  id={labelError.hintId}
-                  message={labelError.message}
-                />
-              </div>
+              <Input
+                id={labelError.controlId}
+                name={labelError.controlProps.name}
+                type="text"
+                label="Titel (optional)"
+                controlSize="compact"
+                value={field.label}
+                onChange={(event) => onChange({ label: event.target.value })}
+                placeholder="z. B. Wichtiger Hinweis"
+                disabled={disabled}
+                error={labelError.message}
+              />
               <div>
                 <Textarea
                   id={`field-info-content-${index}`}
@@ -3688,7 +3690,7 @@ function FieldEditorRow({
                 disabled={disabled}
               />
               <div className="grid gap-2 sm:grid-cols-2">
-                <FormChoice
+                <CheckboxCard
                   checked={Boolean(field.applies_to_child)}
                   onChange={(checked) =>
                     onChange({ applies_to_child: checked })
@@ -3702,57 +3704,48 @@ function FieldEditorRow({
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input
+                  id={labelError.controlId}
+                  name={labelError.controlProps.name}
+                  type="text"
+                  label="Frage im Elternformular"
+                  controlSize="compact"
+                  value={field.label}
+                  onChange={(event) => {
+                    const nextLabel = event.target.value;
+                    if (isTargetField) {
+                      // Suggested fields keep their fixed key + type; only
+                      // the displayed question text is editable.
+                      onChange({ label: nextLabel });
+                      return;
+                    }
+                    const currentAutoKey = normalizeFieldKey(field.label);
+                    const shouldUpdateKey =
+                      field.key.trim() === "" || field.key === currentAutoKey;
+                    onChange({
+                      label: nextLabel,
+                      key: shouldUpdateKey
+                        ? normalizeFieldKey(nextLabel)
+                        : field.key,
+                    });
+                  }}
+                  placeholder={
+                    isTargetField && target
+                      ? RESERVED_TARGETS[target].label
+                      : "z. B. Wie haben Sie von uns erfahren?"
+                  }
+                  disabled={disabled}
+                  error={labelError.message}
+                />
                 <div>
-                  <label className="block">
-                    <span className="text-xs font-medium text-gray-700">
-                      Frage im Elternformular
-                    </span>
-                    <input
-                      type="text"
-                      value={field.label}
-                      onChange={(event) => {
-                        const nextLabel = event.target.value;
-                        if (isTargetField) {
-                          // Suggested fields keep their fixed key + type; only
-                          // the displayed question text is editable.
-                          onChange({ label: nextLabel });
-                          return;
-                        }
-                        const currentAutoKey = normalizeFieldKey(field.label);
-                        const shouldUpdateKey =
-                          field.key.trim() === "" ||
-                          field.key === currentAutoKey;
-                        onChange({
-                          label: nextLabel,
-                          key: shouldUpdateKey
-                            ? normalizeFieldKey(nextLabel)
-                            : field.key,
-                        });
-                      }}
-                      placeholder={
-                        isTargetField && target
-                          ? RESERVED_TARGETS[target].label
-                          : "z. B. Wie haben Sie von uns erfahren?"
-                      }
-                      disabled={disabled}
-                      {...labelError.controlProps}
-                      className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                    />
-                  </label>
-                  <FieldErrorHint
-                    id={labelError.hintId}
-                    message={labelError.message}
-                  />
-                </div>
-                <label className="block">
-                  <span className="text-xs font-medium text-gray-700">
+                  <FieldLabel>
                     Typ
                     {isTargetField ? (
-                      <span className="ml-1 text-sm font-normal text-gray-500">
+                      <span className="ml-1 font-normal text-gray-500">
                         (automatisch festgelegt)
                       </span>
                     ) : null}
-                  </span>
+                  </FieldLabel>
                   <CustomSelect
                     ariaLabel="Typ"
                     value={field.type}
@@ -3762,7 +3755,6 @@ function FieldEditorRow({
                       )
                     }
                     disabled={disabled || isTargetField}
-                    className="mt-1"
                     options={(isTargetField
                       ? [field.type]
                       : freeFieldTypes
@@ -3771,24 +3763,21 @@ function FieldEditorRow({
                       label: fieldTypeLabels[value],
                     }))}
                   />
-                </label>
+                </div>
               </div>
 
-              <label className="block">
-                <span className="text-xs font-medium text-gray-700">
-                  Hilfetext für Eltern
-                </span>
-                <input
-                  type="text"
-                  value={field.help_text ?? ""}
-                  onChange={(event) =>
-                    onChange({ help_text: event.target.value })
-                  }
-                  placeholder="Optionaler kurzer Hinweis unter der Frage"
-                  disabled={disabled}
-                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                />
-              </label>
+              <Input
+                id={`fields-${index}-help_text`}
+                type="text"
+                label="Hilfetext für Eltern"
+                controlSize="compact"
+                value={field.help_text ?? ""}
+                onChange={(event) =>
+                  onChange({ help_text: event.target.value })
+                }
+                placeholder="Optionaler kurzer Hinweis unter der Frage"
+                disabled={disabled}
+              />
 
               {field.type === "select" ? (
                 <div>
@@ -3841,16 +3830,18 @@ function FieldEditorRow({
                     <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {allowedTimesRows.map((row, index) => (
                         <li key={row.id} className="flex items-center gap-2">
-                          <input
-                            type="time"
-                            value={row.value}
-                            onChange={(event) =>
-                              updateAllowedTime(index, event.target.value)
-                            }
-                            disabled={disabled}
-                            aria-label={`Auswahlzeit ${index + 1}`}
-                            className="h-10 w-full min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                          />
+                          <div className="min-w-0 flex-1">
+                            <Input
+                              type="time"
+                              controlSize="compact"
+                              value={row.value}
+                              onChange={(event) =>
+                                updateAllowedTime(index, event.target.value)
+                              }
+                              disabled={disabled}
+                              aria-label={`Auswahlzeit ${index + 1}`}
+                            />
+                          </div>
                           <OverflowMenu
                             ariaLabel={`Aktionen für Auswahlzeit ${index + 1}`}
                             triggerSize="sm"
@@ -3878,45 +3869,47 @@ function FieldEditorRow({
 
               {field.target === "student.allowed_departure_modes" ? (
                 <div>
-                  <label
-                    className="block"
+                  <FieldLabel
                     htmlFor={`${allowedTimeIdPrefix}-single-mode-grades`}
+                    className="mb-1"
                   >
-                    <span className="text-xs font-medium text-gray-700">
-                      Nur ein Heimweg pro Wochentag (optional)
-                    </span>
-                    <p className="mt-1 text-xs leading-5 text-gray-500">
-                      Tragen Sie Jahrgänge ein, deren Eltern pro Wochentag nur
-                      einen Heimweg auswählen dürfen, zum Beispiel „1“ für die
-                      Erstklässler. Ohne Eintrag bleibt die Mehrfachauswahl für
-                      alle Jahrgänge erlaubt. Voraussetzung: Die Abfrage der
-                      Klassenstufe ist in den Einstellungen aktiv.
-                    </p>
-                    <input
-                      id={`${allowedTimeIdPrefix}-single-mode-grades`}
-                      type="text"
-                      inputMode="numeric"
-                      value={singleModeDraft}
-                      onChange={(event) =>
-                        updateSingleModeGrades(event.target.value)
-                      }
-                      placeholder="z. B. 1 oder 1, 2"
-                      disabled={disabled}
-                      className="mt-2 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                    />
-                  </label>
+                    Nur ein Heimweg pro Wochentag (optional)
+                  </FieldLabel>
+                  <p
+                    id={`${allowedTimeIdPrefix}-single-mode-grades-hint`}
+                    className="mb-2 text-xs leading-5 text-gray-500"
+                  >
+                    Tragen Sie Jahrgänge ein, deren Eltern pro Wochentag nur
+                    einen Heimweg auswählen dürfen, zum Beispiel „1“ für die
+                    Erstklässler. Ohne Eintrag bleibt die Mehrfachauswahl für
+                    alle Jahrgänge erlaubt. Voraussetzung: Die Abfrage der
+                    Klassenstufe ist in den Einstellungen aktiv.
+                  </p>
+                  <Input
+                    id={`${allowedTimeIdPrefix}-single-mode-grades`}
+                    type="text"
+                    inputMode="numeric"
+                    controlSize="compact"
+                    aria-describedby={`${allowedTimeIdPrefix}-single-mode-grades-hint`}
+                    value={singleModeDraft}
+                    onChange={(event) =>
+                      updateSingleModeGrades(event.target.value)
+                    }
+                    placeholder="z. B. 1 oder 1, 2"
+                    disabled={disabled}
+                  />
                 </div>
               ) : null}
 
               <div className="grid gap-2 sm:grid-cols-2">
-                <FormChoice
+                <CheckboxCard
                   checked={Boolean(field.required)}
                   onChange={(checked) => onChange({ required: checked })}
                   label="Pflichtfrage"
                   hint={getRequiredHint(field)}
                   disabled={disabled}
                 />
-                <FormChoice
+                <CheckboxCard
                   checked={Boolean(field.applies_to_child)}
                   onChange={(checked) =>
                     onChange({ applies_to_child: checked })
@@ -3946,52 +3939,8 @@ function FieldEditorRow({
   );
 }
 
-function FormChoice({
-  checked,
-  onChange,
-  label,
-  hint,
-  disabled,
-}: Readonly<{
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  hint: string;
-  disabled: boolean;
-}>) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      disabled={disabled}
-      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-        checked
-          ? "border-moto-green/40 bg-moto-green/10"
-          : "border-gray-200 bg-white hover:bg-gray-50"
-      } ${disabled ? "cursor-not-allowed opacity-60" : ""}`}
-    >
-      <span
-        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-          checked
-            ? "border-moto-green-fill bg-moto-green-fill text-white"
-            : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        {checked ? <Check className="h-3.5 w-3.5" /> : null}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-medium text-gray-900">{label}</span>
-        <span className="mt-0.5 block text-xs text-gray-500">{hint}</span>
-      </span>
-    </button>
-  );
-}
-
 const conditionInputClass =
-  "moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600";
+  "moto-content-surface h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600";
 
 // Field-source operators offered in the condition editor. "includes" is
 // reserved for the care-offering source and is not listed here.
@@ -4096,7 +4045,7 @@ function ConditionEditor({
 
   return (
     <div className="moto-content-surface rounded-xl border p-3 shadow-sm">
-      <FormChoice
+      <CheckboxCard
         checked={condition !== null}
         onChange={(checked) =>
           setCondition(
@@ -4112,14 +4061,13 @@ function ConditionEditor({
 
       {condition ? (
         <div className="mt-3 space-y-2">
-          <label
-            className="block"
-            htmlFor={`condition-${index}-source`}
-            id={`condition-${index}-source-label`}
-          >
-            <span className="text-xs font-medium text-gray-700">
+          <div>
+            <FieldLabel
+              htmlFor={`condition-${index}-source`}
+              id={`condition-${index}-source-label`}
+            >
               Sichtbar wenn
-            </span>
+            </FieldLabel>
             <CustomSelect
               ariaLabelledBy={`condition-${index}-source-label`}
               id={`condition-${index}-source`}
@@ -4139,7 +4087,7 @@ function ConditionEditor({
                 label: conditionSourceLabels[source],
               }))}
             />
-          </label>
+          </div>
 
           {condition.source === "field" ? (
             <ConditionFieldControls
@@ -4162,6 +4110,7 @@ function ConditionEditor({
               condition={condition}
               onPatch={patchCondition}
               disabled={disabled}
+              idPrefix={`condition-${index}-offering`}
             />
           )}
         </div>
@@ -4211,12 +4160,13 @@ function ConditionFieldControls({
 
   return (
     <>
-      <label
-        className="block"
-        htmlFor={`${idPrefix}-question`}
-        id={`${idPrefix}-question-label`}
-      >
-        <span className="text-xs font-medium text-gray-700">Frage</span>
+      <div>
+        <FieldLabel
+          htmlFor={`${idPrefix}-question`}
+          id={`${idPrefix}-question-label`}
+        >
+          Frage
+        </FieldLabel>
         <CustomSelect
           ariaLabelledBy={`${idPrefix}-question-label`}
           id={`${idPrefix}-question`}
@@ -4229,14 +4179,15 @@ function ConditionFieldControls({
             label: controller.label.trim() || controller.key,
           }))}
         />
-      </label>
+      </div>
 
-      <label
-        className="block"
-        htmlFor={`${idPrefix}-operator`}
-        id={`${idPrefix}-operator-label`}
-      >
-        <span className="text-xs font-medium text-gray-700">Vergleich</span>
+      <div>
+        <FieldLabel
+          htmlFor={`${idPrefix}-operator`}
+          id={`${idPrefix}-operator-label`}
+        >
+          Vergleich
+        </FieldLabel>
         <CustomSelect
           ariaLabelledBy={`${idPrefix}-operator-label`}
           id={`${idPrefix}-operator`}
@@ -4249,15 +4200,16 @@ function ConditionFieldControls({
             label: conditionOperatorLabels[operator],
           }))}
         />
-      </label>
+      </div>
 
       {condition.operator !== "not_empty" && controller ? (
-        <label
-          className="block"
-          htmlFor={`${idPrefix}-value`}
-          id={`${idPrefix}-value-label`}
-        >
-          <span className="text-xs font-medium text-gray-700">Wert</span>
+        <div>
+          <FieldLabel
+            htmlFor={`${idPrefix}-value`}
+            id={`${idPrefix}-value-label`}
+          >
+            Wert
+          </FieldLabel>
           {controller.type === "boolean" ? (
             <CustomSelect
               ariaLabelledBy={`${idPrefix}-value-label`}
@@ -4285,7 +4237,7 @@ function ConditionFieldControls({
               }))}
             />
           )}
-        </label>
+        </div>
       ) : null}
     </>
   );
@@ -4304,12 +4256,13 @@ function ConditionGradeControls({
 }>) {
   return (
     <>
-      <label
-        className="block"
-        htmlFor={`${idPrefix}-operator`}
-        id={`${idPrefix}-operator-label`}
-      >
-        <span className="text-xs font-medium text-gray-700">Vergleich</span>
+      <div>
+        <FieldLabel
+          htmlFor={`${idPrefix}-operator`}
+          id={`${idPrefix}-operator-label`}
+        >
+          Vergleich
+        </FieldLabel>
         <CustomSelect
           ariaLabelledBy={`${idPrefix}-operator-label`}
           id={`${idPrefix}-operator`}
@@ -4324,23 +4277,21 @@ function ConditionGradeControls({
             { value: "neq", label: conditionOperatorLabels.neq },
           ]}
         />
-      </label>
-      <label className="block">
-        <span className="text-xs font-medium text-gray-700">Klassenstufe</span>
-        <input
-          type="number"
-          min={1}
-          value={String(condition.value ?? "")}
-          onChange={(event) =>
-            onPatch({
-              value:
-                event.target.value === "" ? "" : Number(event.target.value),
-            })
-          }
-          disabled={disabled}
-          className={conditionInputClass}
-        />
-      </label>
+      </div>
+      <Input
+        id={`${idPrefix}-value`}
+        type="number"
+        label="Klassenstufe"
+        controlSize="compact"
+        min={1}
+        value={String(condition.value ?? "")}
+        onChange={(event) =>
+          onPatch({
+            value: event.target.value === "" ? "" : Number(event.target.value),
+          })
+        }
+        disabled={disabled}
+      />
     </>
   );
 }
@@ -4349,28 +4300,33 @@ function ConditionOfferingControls({
   condition,
   onPatch,
   disabled,
+  idPrefix,
 }: Readonly<{
   condition: VisibilityCondition;
   onPatch: (patch: Partial<VisibilityCondition>) => void;
   disabled: boolean;
+  idPrefix: string;
 }>) {
   return (
-    <label className="block">
-      <span className="text-xs font-medium text-gray-700">
-        Angebotsname (enthält)
-      </span>
-      <input
+    <div>
+      <Input
+        id={`${idPrefix}-value`}
         type="text"
+        label="Angebotsname (enthält)"
+        controlSize="compact"
+        aria-describedby={`${idPrefix}-hint`}
         value={String(condition.value ?? "")}
         onChange={(event) => onPatch({ value: event.target.value })}
         placeholder="z. B. Mittagessen"
         disabled={disabled}
-        className={conditionInputClass}
       />
-      <span className="mt-1 block text-sm leading-5 text-gray-500">
+      <span
+        id={`${idPrefix}-hint`}
+        className="mt-1 block text-sm leading-5 text-gray-500"
+      >
         Sichtbar, wenn ein gewähltes Betreuungsangebot diesen Namen trägt.
       </span>
-    </label>
+    </div>
   );
 }
 
@@ -4403,11 +4359,11 @@ function FormPreview({
     isSaved,
   });
   const enabledLegalBlocks = legalBlocks.filter((block) => block.enabled);
-  const guardianFields = [
-    "Vorname *",
-    "Nachname *",
-    "E-Mail *",
-    coreRequirements.guardian_phone ? "Telefonnummer *" : "Telefonnummer",
+  const guardianFields: PreviewFieldLabel[] = [
+    { label: "Vorname", required: true },
+    { label: "Nachname", required: true },
+    { label: "E-Mail", required: true },
+    { label: "Telefonnummer", required: coreRequirements.guardian_phone },
   ];
 
   return (
@@ -4505,15 +4461,18 @@ function FormPreview({
           <PreviewSection
             title="Kind"
             fields={[
-              "Vorname *",
-              "Nachname *",
-              "Geburtsdatum *",
-              "Klassenstufe *",
+              { label: "Vorname", required: true },
+              { label: "Nachname", required: true },
+              { label: "Geburtsdatum", required: true },
+              { label: "Klassenstufe", required: true },
             ]}
           />
           <PreviewSection
             title="Betreuungsangebot"
-            fields={["Gewünschtes Angebot", "Betreuungstage"]}
+            fields={[
+              { label: "Gewünschtes Angebot" },
+              { label: "Betreuungstage" },
+            ]}
           />
 
           <section>
@@ -4621,21 +4580,28 @@ function FormPreview({
   );
 }
 
+/** A base field in the preview; the star comes from the kit (#5217). */
+interface PreviewFieldLabel {
+  readonly label: string;
+  readonly required?: boolean;
+}
+
 function PreviewSection({
   title,
   fields,
-}: Readonly<{ title: string; fields: string[] }>) {
+}: Readonly<{ title: string; fields: readonly PreviewFieldLabel[] }>) {
   return (
     <section>
       <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
       <div className="mt-3 grid gap-2">
         {fields.map((field) => (
           <div
-            key={field}
+            key={field.label}
             className="rounded-lg border border-gray-200 bg-white px-3 py-2"
           >
             <span className="block text-sm font-medium text-gray-500">
-              {field}
+              {field.label}
+              {field.required && <RequiredMark />}
             </span>
             <span className="mt-1 block h-2 w-2/3 rounded-full bg-gray-100" />
           </div>
