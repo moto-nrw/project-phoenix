@@ -200,3 +200,62 @@ describe("SettingsField in the Träger portal", () => {
     expect(screen.queryByText("PDF-Datei hochladen")).not.toBeInTheDocument();
   });
 });
+
+describe("SettingsField with a colour", () => {
+  it("shows the colour picker and the code field with the same value", () => {
+    renderField(
+      makeSetting({
+        key: "branding.primary_color",
+        label: "Farbe für Briefe und Rechnungen",
+        type: "color",
+        default: "#111827",
+        value: "#217A78",
+        levels: "traeger",
+      }),
+      "traeger",
+    );
+
+    const picker = screen.getByLabelText("Farbe für Briefe und Rechnungen");
+    expect(picker).toHaveAttribute("type", "color");
+    expect(picker).toHaveValue("#217a78");
+    expect(
+      screen.getByLabelText("Farbe für Briefe und Rechnungen als Farbcode"),
+    ).toHaveValue("#217A78");
+  });
+
+  it("puts the picked colour into the code field", () => {
+    renderField(
+      makeSetting({
+        key: "branding.primary_color",
+        label: "Farbe",
+        type: "color",
+        default: "#111827",
+        value: "#111827",
+        levels: "traeger",
+      }),
+      "traeger",
+    );
+
+    fireEvent.change(screen.getByLabelText("Farbe"), {
+      target: { value: "#1f4e79" },
+    });
+    expect(screen.getByLabelText("Farbe als Farbcode")).toHaveValue("#1F4E79");
+  });
+
+  it("keeps the default in the picker while the typed code is incomplete", () => {
+    renderField(
+      makeSetting({
+        key: "branding.primary_color",
+        label: "Farbe",
+        type: "color",
+        default: "#111827",
+        value: "#12",
+        levels: "traeger",
+      }),
+      "traeger",
+    );
+
+    expect(screen.getByLabelText("Farbe")).toHaveValue("#111827");
+    expect(screen.getByLabelText("Farbe als Farbcode")).toHaveValue("#12");
+  });
+});
