@@ -94,8 +94,24 @@ func (d *DueExits) RunDue(ctx context.Context) (DueRun, error) {
 // runPlan does what is due for one planned exit. exitErr is a failed
 // offboarding whose closed sign-in and next attempt are kept; err rolls the
 // planned exit's savepoint back.
-func (d *DueExits) runPlan(ctx context.Context, plan schoolmembership.PlannedExit, today calendar.Date) (exitErr, err error) {
-	day := plan.LastWorkingDay
+func (d *DueExits) runPlan(ctx context.Context, listed schoolmembership.PlannedExit, today calendar.Date) (exitErr, err error) {
+	day := listed.LastWorkingDay
+	if day.After(today) && !inReminderWeek(today, day) {
+		return nil, nil
+	}
+
+	// ListPlannedExits only finds candidates. The membership lock makes the
+	// decision, its progress claim and the notification outbox one unit: a
+	// move or withdrawal that won the lock is never notified from this
+	// snapshot, and a later move waits until the current notice commits.
+	plan, err := d.planner.exits.FindPlannedExitForMutation(ctx, listed.StaffID)
+	if errors.Is(err, schoolmembership.ErrPlannedExitNotFound) || errors.Is(err, schoolmembership.ErrStaffNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	day = plan.LastWorkingDay
 	switch {
 	case day.After(today):
 		if !inReminderWeek(today, day) {
@@ -127,20 +143,11 @@ func (d *DueExits) remindOnce(ctx context.Context, plan schoolmembership.Planned
 	return d.planner.exits.RecordPlannedExitProgress(ctx, progress)
 }
 
-// runExit offboards the member through the immediate deletion's execution
-// path, acting as the planner, once the planned exit is due. The plan is
-// locked and read again first: a move or withdrawal that committed after
-// the listing wins. A failed offboarding closes the member's sign-in at
-// this school anyway and is retried every hour until it succeeds; a blocked
-// one also tells the Leitung once.
-func (d *DueExits) runExit(ctx context.Context, listed schoolmembership.PlannedExit, today calendar.Date) (exitErr, err error) {
-	plan, err := d.planner.exits.FindPlannedExitForMutation(ctx, listed.StaffID)
-	if errors.Is(err, schoolmembership.ErrPlannedExitNotFound) || errors.Is(err, schoolmembership.ErrStaffNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
+// runExit offboards the locked current plan through the immediate deletion's
+// execution path, acting as its planner, once it is due. A failed offboarding
+// closes the member's sign-in at this school anyway and is retried every hour
+// until it succeeds; a blocked one also tells the Leitung once.
+func (d *DueExits) runExit(ctx context.Context, plan schoolmembership.PlannedExit, today calendar.Date) (exitErr, err error) {
 	now := d.deps.Now()
 	if !plan.LastWorkingDay.Before(today) ||
 		(plan.NextAttemptAt != nil && now.Before(*plan.NextAttemptAt)) {

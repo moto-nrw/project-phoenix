@@ -28,6 +28,8 @@ type plannerFixture struct {
 	notices    []staffoffboarding.ExitNotice
 	accessRuns int
 	deletion   []staffoffboarding.Actor
+	// beforeRunPlan changes a listed plan immediately before DueExits locks it.
+	beforeRunPlan func(context.Context) error
 	// failDeletion makes the offboarding's audit append fail, which rolls
 	// the offboarding back like any owner failure.
 	failDeletion bool
@@ -121,8 +123,17 @@ func newPlannerFixture(t *testing.T) (*plannerFixture, *testPlanner) {
 			}
 			return f.notify, nil
 		},
-		Isolate: isolate,
-		Now:     func() time.Time { return f.now },
+		Isolate: func(ctx context.Context, fn func(context.Context) error) (failed, err error) {
+			if f.beforeRunPlan != nil {
+				before := f.beforeRunPlan
+				f.beforeRunPlan = nil
+				if err := before(ctx); err != nil {
+					return err, nil
+				}
+			}
+			return isolate(ctx, fn)
+		},
+		Now: func() time.Time { return f.now },
 	})
 	require.NoError(t, err)
 	return f, &testPlanner{Planner: planner, t: t, due: due}
@@ -278,6 +289,33 @@ func TestPlannedExitReminderWaitsUntilItIsDelivered(t *testing.T) {
 	require.NoError(t, planner.RunDue(ctx))
 	require.Len(t, f.notices, 1)
 	require.Equal(t, staffoffboarding.NoticeExitDay, f.notices[0].Kind)
+}
+
+func TestPlannedExitReminderUsesTheLockedCurrentPlan(t *testing.T) {
+	t.Parallel()
+	f, planner := newPlannerFixture(t)
+	ctx := testpkg.Ctx(t)
+	plan, err := planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-10"))
+	require.NoError(t, err)
+
+	f.beforeRunPlan = func(ctx context.Context) error {
+		_, err := f.exits.SavePlannedExit(ctx, schoolmembership.PlanExit{
+			StaffID:            plan.StaffID,
+			LastWorkingDay:     plannedExitDate("2027-11-10"),
+			PlannedByAccountID: plan.PlannedByAccountID,
+			PlannedByStaffID:   plan.PlannedByStaffID,
+			PlannedByName:      plan.PlannedByName,
+		})
+		return err
+	}
+	f.today = "2027-10-03"
+
+	require.NoError(t, planner.RunDue(ctx))
+	require.Empty(t, f.notices, "a moved exit must not receive the stale reminder")
+	current, err := f.exits.FindPlannedExitForMutation(ctx, f.staffID)
+	require.NoError(t, err)
+	require.Equal(t, plannedExitDate("2027-11-10"), current.LastWorkingDay)
+	require.Nil(t, current.WeekNoticeSentAt)
 }
 
 func TestPlannedExitStaysInsideItsSchool(t *testing.T) {
