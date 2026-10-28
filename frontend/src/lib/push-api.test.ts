@@ -342,15 +342,22 @@ describe("push-api", () => {
     vi.useFakeTimers();
     try {
       getSubscription.mockResolvedValue(subscription);
-      fetchMock.mockReturnValue(new Promise(() => undefined));
+      let signal: AbortSignal | undefined;
+      fetchMock.mockImplementation((_url: unknown, init?: RequestInit) => {
+        signal = init?.signal ?? undefined;
+        return new Promise(() => undefined);
+      });
       let done = false;
       void unsubscribePushSilently("tenant").then(() => {
         done = true;
       });
       await vi.advanceTimersByTimeAsync(4_999);
       expect(done).toBe(false);
+      expect(signal?.aborted).toBe(false);
       await vi.advanceTimersByTimeAsync(1);
       expect(done).toBe(true);
+      // Aborted, not left running: a late answer would reissue the cookie.
+      expect(signal?.aborted).toBe(true);
     } finally {
       releaseFakeTimers();
     }

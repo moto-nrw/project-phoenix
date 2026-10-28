@@ -233,13 +233,16 @@ export async function syncExistingPushSubscription(
  * Unsubscribes this device: removes the server-side registration and the
  * browser subscription. Best effort — errors surface to the caller.
  */
-export async function unsubscribePush(portal: PushPortal): Promise<void> {
+export async function unsubscribePush(
+  portal: PushPortal,
+  signal?: AbortSignal,
+): Promise<void> {
   const subscription = await getExistingSubscription();
   if (!subscription) return;
   try {
     await requestJson<void>(
       `${basePath(portal)}/subscriptions?endpoint=${encodeURIComponent(subscription.endpoint)}`,
-      { method: "DELETE" },
+      { method: "DELETE", signal },
     );
   } finally {
     await subscription.unsubscribe();
@@ -256,13 +259,19 @@ export async function unsubscribePushSilently(
   portal: PushPortal,
 ): Promise<void> {
   // A logout waits at most five seconds: a hanging push cleanup must not keep
-  // the one logout of the tab running forever (#5126).
+  // the one logout of the tab running forever (#5126). The DELETE is aborted,
+  // not left running: its late answer would carry the session cookie again
+  // after the logout deleted it.
+  const cleanup = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([
-      unsubscribePush(portal),
+      unsubscribePush(portal, cleanup.signal),
       new Promise<void>((resolve) => {
-        timer = setTimeout(resolve, PUSH_CLEANUP_TIMEOUT_MS);
+        timer = setTimeout(() => {
+          cleanup.abort();
+          resolve();
+        }, PUSH_CLEANUP_TIMEOUT_MS);
       }),
     ]);
   } catch {
