@@ -253,7 +253,7 @@ func (m *staffMessaging[I, T, M, G, R]) GetStaffMessageThread(ctx context.Contex
 }
 func (m *staffMessaging[I, T, M, G, R]) PostStaffMessage(ctx context.Context, threadID int64, body string) (*communication.StaffMessage, error) {
 	return observeMessageResult(ctx, m.observe, "staff_messages.post_message", func(runCtx context.Context) (*communication.StaffMessage, error) {
-		result, err := m.service.PostMessage(runCtx, threadID, body)
+		result, err := m.service.PostMessageWithReceipt(runCtx, threadID, body)
 		if result == nil || result.Message == nil {
 			return nil, m.mapError(err)
 		}

@@ -502,6 +502,14 @@ func (s *Service) groupMessageReceipt(ctx context.Context, threadID int64, messa
 	return &receipt, nil
 }
 
+func (s *Service) initialMessageReceipt(ctx context.Context, threadID int64, message *StaffMessage) (*values.StaffReadReceipt, error) {
+	thread, err := s.ThreadRepo.FindByID(ctx, threadID)
+	if err != nil || thread == nil || thread.Kind != groupKind {
+		return nil, err
+	}
+	return s.groupMessageReceipt(ctx, threadID, message)
+}
+
 func cursorAtOrPast(state *values.StaffParticipantState, message *StaffMessage) bool {
 	if state.LastReadAt == nil {
 		return false

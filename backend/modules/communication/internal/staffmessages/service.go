@@ -451,7 +451,7 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 }
 
 // PostMessage appends a message to a conversation the caller takes part in.
-func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) (*deliveryPorts.StaffMessagePostResult[StaffMessage], error) {
+func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) (*StaffMessage, error) {
 	if err := s.requireEnabled(ctx); err != nil {
 		return nil, err
 	}
@@ -508,15 +508,21 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// clearing their unread signal for messages the sender never saw.
 	// TestSendingDoesNotSwallowIncomingUnread pins this.
 
-	var receipt *deliveryPorts.StaffReadReceipt
-	if thread.Kind == groupKind {
-		receipt, err = s.groupMessageReceipt(ctx, threadID, message)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	s.notifyAfterCommit(ctx, thread, message, accountID)
+	return message, nil
+}
+
+// PostMessageWithReceipt returns a new message together with its initial group
+// read receipt. The caller's transaction still holds PostMessage's thread lock.
+func (s *Service) PostMessageWithReceipt(ctx context.Context, threadID int64, body string) (*deliveryPorts.StaffMessagePostResult[StaffMessage], error) {
+	message, err := s.PostMessage(ctx, threadID, body)
+	if err != nil || message == nil {
+		return nil, err
+	}
+	receipt, err := s.initialMessageReceipt(ctx, threadID, message)
+	if err != nil {
+		return nil, err
+	}
 	return &deliveryPorts.StaffMessagePostResult[StaffMessage]{Message: message, Receipt: receipt}, nil
 }
 

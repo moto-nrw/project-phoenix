@@ -33,7 +33,7 @@ type StaffMessageService[I, T, M, G any, R retentionCounts] interface {
 	ListMessageableStaff(context.Context) ([]*G, error)
 	OpenThread(context.Context, int64) (*T, error)
 	GetThread(context.Context, int64) (*T, error)
-	PostMessage(context.Context, int64, string) (*StaffMessagePostResult[M], error)
+	PostMessageWithReceipt(context.Context, int64, string) (*StaffMessagePostResult[M], error)
 	CleanupExpiredMessages(context.Context) (R, error)
 	CreateGroup(context.Context, string, []int64) (*T, error)
 	RenameGroup(context.Context, int64, string) (*T, error)
