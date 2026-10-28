@@ -193,6 +193,7 @@ function useScopedSWR<T, E>(
   const fallbackSeen = useRef<{ value: unknown; generation: number } | null>(
     null,
   );
+  let fallbackShown: { value: unknown; generation: number } | null = null;
   let visible: boolean;
   if (fullKey === null) {
     // Without a session nothing is shown, not even `fallbackData`; a key
@@ -203,17 +204,26 @@ function useScopedSWR<T, E>(
     if (current !== undefined) {
       visible = current;
     } else if (raw === options?.fallbackData) {
-      let seen = fallbackSeen.current;
-      if (seen === null || seen.value !== raw) {
-        seen = { value: raw, generation: dataGenerationOf(fullKey) };
-        fallbackSeen.current = seen;
-      }
-      visible = seen.generation >= dataGenerationOf(fullKey);
+      const seen = fallbackSeen.current;
+      fallbackShown = {
+        value: raw,
+        generation:
+          seen !== null && seen.value === raw
+            ? seen.generation
+            : dataGenerationOf(fullKey),
+      };
+      visible = fallbackShown.generation >= dataGenerationOf(fullKey);
     } else {
       stampSWRValue(fullKey, raw, dataGenerationOf(fullKey));
       visible = true;
     }
   }
+  // Remember the generation a fallback was first shown in, after render.
+  useLayoutEffect(() => {
+    if (fallbackShown && fallbackSeen.current?.value !== fallbackShown.value) {
+      fallbackSeen.current = fallbackShown;
+    }
+  });
   const data = visible ? raw : undefined;
   const error = discarded ? undefined : rawError;
 
