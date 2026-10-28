@@ -162,6 +162,7 @@
     "/school/invite": 799662,
     "/school/kalender": 882864,
     "/school/klasse": 871917,
+    "/school/klasse/kind": 797485,
     "/school/login": 804615,
     "/school/nachrichten": 814325,
     "/school/nachrichten/[threadID]": 796673,

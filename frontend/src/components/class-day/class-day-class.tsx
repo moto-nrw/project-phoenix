@@ -74,7 +74,7 @@ import {
   morningSummaryLine,
   type MorningAttendanceDraft,
 } from "./morning-attendance";
-import { classDayDateParam, isWeekendISO } from "./routes";
+import { classDayChildPath, classDayDateParam, isWeekendISO } from "./routes";
 import { schoolDayListParam, schoolDayListPath } from "./school-day";
 import { Section, type StudentRowMorning } from "./student-row";
 import { type ClassHomeworkApi, useClassHomework } from "./use-class-homework";
@@ -330,6 +330,17 @@ export function ClassDayClass({
       ? classArrivalExceptionLine(report, dateISO, todayISO())
       : null;
   const isToday = dateISO === todayISO();
+  // Beobachtungen der OGS (#4797): nur die Lehrkraft der Klasse bekommt den
+  // Link, und nur bei Kindern mit OGS-Datensatz.
+  const sharedNotesHref =
+    report?.can_read_shared_notes === true
+      ? (row: ClassDayRow) => {
+          if (row.list_entry || row.student_id <= 0) return undefined;
+          return schoolPath(
+            classDayChildPath(schoolClass, String(row.student_id), dateISO),
+          );
+        }
+      : undefined;
   const classHints = report && !weekend ? (report.class_day_hints ?? []) : [];
   const canWriteDayHints =
     report?.can_write_day_hints === true && isAssignedClass && !weekend;
@@ -914,6 +925,7 @@ export function ClassDayClass({
                 enrollmentKnown={false}
                 now={at}
                 morning={morning}
+                sharedNotesHref={sharedNotesHref}
               />
               <Section
                 title="Abgemeldet"
@@ -923,6 +935,7 @@ export function ClassDayClass({
                 enrollmentKnown={false}
                 now={at}
                 morning={morning}
+                sharedNotesHref={sharedNotesHref}
               />
             </div>
           )}
@@ -940,6 +953,7 @@ export function ClassDayClass({
                 rows={staying}
                 now={at}
                 morning={morning}
+                sharedNotesHref={sharedNotesHref}
               />
               <Section
                 title="Gehen nach Hause"
@@ -947,6 +961,7 @@ export function ClassDayClass({
                 rows={leaving}
                 now={at}
                 morning={morning}
+                sharedNotesHref={sharedNotesHref}
               />
               {noCare.length > 0 && (
                 <Section
@@ -955,6 +970,7 @@ export function ClassDayClass({
                   rows={noCare}
                   now={at}
                   morning={morning}
+                  sharedNotesHref={sharedNotesHref}
                 />
               )}
               <Section
@@ -964,6 +980,7 @@ export function ClassDayClass({
                 rows={absent}
                 now={at}
                 morning={morning}
+                sharedNotesHref={sharedNotesHref}
               />
             </div>
           )}

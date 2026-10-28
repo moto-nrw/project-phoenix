@@ -52,6 +52,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 	DELETE /school/class-day/handover/{schoolClass}/{date}
 	DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
+	GET /school/class-day/shared-notes/{schoolClass}/students/{studentId}
 	POST /school/class-day/class-trips/{schoolClass}
 	POST /school/class-day/homework/{schoolClass}
 	PUT /school/class-day/absence-reports/{schoolClass}/{date}/students/{studentId}

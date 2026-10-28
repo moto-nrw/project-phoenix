@@ -94,6 +94,7 @@ function note(overrides: Partial<StudentNote> = {}): StudentNote {
     subjectDate: "2026-09-09",
     activityGroupId: "",
     educationGroupId: "",
+    sharedWithSchool: false,
     canEdit: false,
     canDelete: false,
     edited: false,
@@ -299,6 +300,61 @@ describe("StudentNotizenTab", () => {
         kind: "journal",
         visibility: "all_staff",
       }),
+    );
+  });
+
+  it("leaves a new note unreleased for the school unless ticked", async () => {
+    createMock.mockResolvedValue(undefined);
+    renderTab([]);
+    fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
+    const release = screen.getByRole("checkbox", {
+      name: /Für die Schule freigeben/,
+    });
+    expect(release).not.toBeChecked();
+
+    fireEvent.change(screen.getByLabelText("Notiz"), {
+      target: { value: "Spielt gern mit Bruno." },
+    });
+    fireEvent.click(release);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(createMock).toHaveBeenCalledTimes(1);
+    });
+    expect(createMock).toHaveBeenCalledWith(
+      "7",
+      expect.objectContaining({ sharedWithSchool: true }),
+    );
+  });
+
+  it("marks a note released for the school, and only that one", () => {
+    renderTab([
+      note({ id: "1", body: "Freigegeben.", sharedWithSchool: true }),
+      note({ id: "2", body: "Nur für die OGS." }),
+    ]);
+    expect(screen.getAllByText("Für die Schule freigegeben")).toHaveLength(1);
+    expect(screen.getByText("Nur für die OGS.")).toBeInTheDocument();
+  });
+
+  it("lets the author withdraw the release", async () => {
+    updateMock.mockResolvedValue(undefined);
+    renderTab([note({ canEdit: true, sharedWithSchool: true })]);
+    fireEvent.click(screen.getByRole("button", { name: "Aktionen zur Notiz" }));
+    fireEvent.click(screen.getByText("Bearbeiten"));
+    const release = screen.getByRole("checkbox", {
+      name: /Für die Schule freigeben/,
+    });
+    expect(release).toBeChecked();
+    fireEvent.click(release);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(updateMock).toHaveBeenCalledTimes(1);
+    });
+    expect(updateMock).toHaveBeenCalledWith(
+      "7",
+      "1",
+      expect.objectContaining({ sharedWithSchool: false }),
     );
   });
 
