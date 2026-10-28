@@ -32,18 +32,16 @@
     "offeringsOnlyDescription": "Выберите для каждого ребёнка предложения по присмотру и дни недели на новый период."
   },
   "fields": {
-    "firstName": "Имя *",
+    "firstName": "Имя",
     "firstNamePlain": "Имя",
-    "lastName": "Фамилия *",
+    "lastName": "Фамилия",
     "lastNamePlain": "Фамилия",
-    "email": "E-mail *",
+    "email": "E-mail",
     "phone": "Телефон",
-    "phoneRequired": "Телефон *",
     "emailPlain": "E-mail",
-    "dateOfBirth": "Дата рождения *",
-    "gradeLevel": "Класс *",
+    "dateOfBirth": "Дата рождения",
+    "gradeLevel": "Класс",
     "schoolClass": "Конкретный класс",
-    "schoolClassRequired": "Конкретный класс *",
     "schoolClassOpen": "Класс пока не назначен",
     "choose": "Пожалуйста, выберите",
     "grade": "{grade}. класс"
@@ -56,6 +54,7 @@
     "submitting": "Отправка…",
     "previewSubmit": "Предпросмотр, не отправлять",
     "showMore": "Показать больше",
+    "notice": "Примечание",
     "details": "Подробности",
     "detailsAria": "Показать подробности: {title}"
   },

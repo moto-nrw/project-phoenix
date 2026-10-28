@@ -32,18 +32,16 @@
     "offeringsOnlyDescription": "Zgjidhni për çdo fëmijë ofertat e kujdesit dhe ditët e javës për periudhën e re."
   },
   "fields": {
-    "firstName": "Emri *",
+    "firstName": "Emri",
     "firstNamePlain": "Emri",
-    "lastName": "Mbiemri *",
+    "lastName": "Mbiemri",
     "lastNamePlain": "Mbiemri",
-    "email": "E-mail *",
+    "email": "E-mail",
     "phone": "Telefoni",
-    "phoneRequired": "Telefoni *",
     "emailPlain": "E-mail",
-    "dateOfBirth": "Data e lindjes *",
-    "gradeLevel": "Klasa *",
+    "dateOfBirth": "Data e lindjes",
+    "gradeLevel": "Klasa",
     "schoolClass": "Klasa konkrete",
-    "schoolClassRequired": "Klasa konkrete *",
     "schoolClassOpen": "Klasa ende e pacaktuar",
     "choose": "Ju lutemi zgjidhni",
     "grade": "Klasa {grade}"
@@ -56,6 +54,7 @@
     "submitting": "Duke dërguar…",
     "previewSubmit": "Parapamje, mos dërgo",
     "showMore": "Shfaq më shumë",
+    "notice": "Njoftim",
     "details": "Detaje",
     "detailsAria": "Shfaq detajet për {title}"
   },

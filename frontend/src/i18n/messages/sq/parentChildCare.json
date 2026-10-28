@@ -48,7 +48,7 @@
     "dateLabel": "Dita",
     "pickupLabel": "Ora e re e marrjes",
     "noTime": "Ju lutemi shkruani një orë.",
-    "reasonLabel": "Pse? *",
+    "reasonLabel": "Pse?",
     "reasonPlaceholder": "Për shembull, takim te mjeku ose marrje nga gjyshërit",
     "reasonRequired": "Ju lutemi shkruani shkurt pse ndryshon marrja.",
     "reasonTooLong": "Arsyeja mund të ketë maksimumi 255 karaktere.",

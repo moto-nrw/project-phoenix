@@ -34,18 +34,16 @@
     "offeringsOnlyDescription": "Виберіть для кожної дитини пропозиції догляду та дні тижня на новий період."
   },
   "fields": {
-    "firstName": "Ім'я *",
+    "firstName": "Ім'я",
     "firstNamePlain": "Ім'я",
-    "lastName": "Прізвище *",
+    "lastName": "Прізвище",
     "lastNamePlain": "Прізвище",
-    "email": "Ел. пошта *",
+    "email": "Ел. пошта",
     "phone": "Телефон",
-    "phoneRequired": "Телефон *",
     "emailPlain": "Ел. пошта",
-    "dateOfBirth": "Дата народження *",
-    "gradeLevel": "Рік навчання *",
+    "dateOfBirth": "Дата народження",
+    "gradeLevel": "Рік навчання",
     "schoolClass": "Клас",
-    "schoolClassRequired": "Клас *",
     "schoolClassOpen": "Клас ще не відомий",
     "choose": "Виберіть",
     "grade": "{grade}-й клас"
@@ -93,6 +91,7 @@
     "submitting": "Надсилаємо…",
     "previewSubmit": "Попередній перегляд, без надсилання",
     "showMore": "Показати більше",
+    "notice": "Інформація",
     "details": "Подробиці",
     "detailsAria": "Показати подробиці про {title}"
   },

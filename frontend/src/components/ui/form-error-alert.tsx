@@ -47,7 +47,9 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
     // the message marks the fields in the same render.
     const field = ref.current
       ?.closest("form")
-      ?.querySelector<HTMLElement>('[aria-invalid="true"]');
+      ?.querySelector<HTMLElement>(
+        '[aria-invalid="true"], [data-form-invalid="true"]',
+      );
     // happy-dom and older WebKit builds ship no scrollIntoView on divs.
     if (field) field.scrollIntoView?.({ behavior: "smooth", block: "center" });
     else

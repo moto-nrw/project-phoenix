@@ -3,18 +3,19 @@
 import { AttachmentList } from "~/components/enrollment/attachment-list";
 import {
   EnrollmentUploadScope,
-  FileUploadInput,
   fileValueMissing,
   useEnrollmentUploadTarget,
 } from "~/components/enrollment/enrollment-file-upload";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
+import { Check, Lock, Plus } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
-import { ISODatePicker } from "~/components/ui/date-picker";
+import { Button } from "~/components/ui/button";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
-import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
+import { Input } from "~/components/ui/input";
 import { useTenant } from "~/lib/tenant-context";
 import deMessages from "~/i18n/messages/de.generated";
 import { DEFAULT_LOCALE } from "~/i18n/locales";
@@ -44,6 +45,32 @@ import {
   type PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
 import {
+  EmailContactNotice,
+  EnrollmentConsent,
+  LegalMarkdown,
+  resolvePreviewLegalTexts,
+} from "~/components/enrollment/enrollment-form-consent";
+import {
+  contactListValueMissing,
+  phoneListValueMissing,
+} from "~/components/enrollment/enrollment-form-contact-inputs";
+import {
+  CustomFieldInput,
+  InfoBlock,
+} from "~/components/enrollment/enrollment-form-custom-field";
+import {
+  asScheduleObject,
+  asStringMap,
+  asWeekdayBooleanObject,
+  asWeekdayMultiModeObject,
+  DEPARTURE_COMPANION_KEY,
+  departureMultiModeOptionsForField,
+  WEEKDAYS,
+  type EnrollmentFormTranslator,
+  type TranslationFn,
+  type TranslationValues,
+} from "~/components/enrollment/enrollment-form-shared";
+import {
   localizeFormFields,
   localizeLegalBlocks,
   localizeOfferings,
@@ -55,17 +82,14 @@ import {
   visibleAnswerData,
   type ConditionContext,
 } from "~/lib/enrollment-field-visibility";
-import ReactMarkdown, { type Components } from "react-markdown";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
-import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   FormErrorAlert,
@@ -252,12 +276,6 @@ interface Props {
    */
   readonly withoutSignature?: boolean;
 }
-
-type TranslationValues = Record<string, string | number | Date>;
-type TranslationFn = (key: string, values?: TranslationValues) => string;
-type EnrollmentFormTranslator = TranslationFn & {
-  raw: (key: string) => unknown;
-};
 
 export interface EnrollmentFormPrefetchedData {
   schema: PublicFormSchema | null;
@@ -446,13 +464,11 @@ export function EnrollmentForm({
   const [offeringDayErrors, setOfferingDayErrors] = useState<
     Record<string, boolean>
   >({});
-  // Scroll to the first invalid field on every submit attempt that leaves an
-  // error showing. The form is long (guardian + N children + offerings) with
-  // the submit button at the bottom, so an error rendered above is easy to
-  // miss. `scrollToError()` is keyed on a per-attempt counter, so a repeated
-  // submit with the *same* unchanged message still scrolls back to it; on a
-  // successful submit nothing is marked invalid so it's a no-op.
-  const { formRef, scrollToError } = useScrollToFirstError();
+  // The form is long (guardian + N children + offerings) with the submit
+  // button at the bottom. FormErrorAlert brings the first field marked
+  // aria-invalid into view whenever a failed attempt sets the form error, so
+  // every failing path below sets its marks no later than that error.
+  const formRef = useRef<HTMLFormElement>(null);
   // One display path for every failure (#2515): a submit error or a local
   // check lands in the alert above the form, the affected fields are marked
   // via `fieldError(name)` (keys are each input's `name`: guardian_email,
@@ -1002,11 +1018,6 @@ export function EnrollmentForm({
     formError.clear();
     setChildOfferingErrors({});
     setOfferingDayErrors({});
-    // Bump per attempt so the scroll-to-error effect re-runs even when this
-    // submit produces the same error message as the previous one. Covers
-    // every synchronous validation failure below (error is set in the same
-    // batch). On success no error is set, so the scroll is a no-op.
-    scrollToError();
 
     if (previewMode) {
       formError.invalid(tr("previewError"));
@@ -1638,9 +1649,6 @@ export function EnrollmentForm({
           ),
         );
       }
-      // A server-side rejection resolves after the synchronous attempt bump
-      // above, so bump again to scroll the late-arriving error into view.
-      scrollToError();
     } finally {
       setSubmitting(false);
     }
@@ -1686,57 +1694,64 @@ export function EnrollmentForm({
                 title={tr("sections.guardianTitle")}
                 description={tr("sections.guardianDescription")}
               />
-              <button
+              <Button
                 type="button"
+                variant="surface"
+                size="md"
                 onClick={addGuardian}
-                className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
+                className="w-full gap-1.5 whitespace-nowrap sm:w-auto sm:shrink-0"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 {tr("actions.addGuardian")}
-              </button>
+              </Button>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Input
+                id="enrollment-guardian_first_name"
                 label={tr("fields.firstName")}
                 name="guardian_first_name"
                 autoComplete="given-name"
+                controlSize="compact"
                 value={guardianFirstName}
-                onChange={setGuardianFirstName}
+                onChange={(e) => setGuardianFirstName(e.target.value)}
                 required
                 error={fieldError("guardian_first_name")}
               />
               <Input
+                id="enrollment-guardian_last_name"
                 label={tr("fields.lastName")}
                 name="guardian_last_name"
                 autoComplete="family-name"
+                controlSize="compact"
                 value={guardianLastName}
-                onChange={setGuardianLastName}
+                onChange={(e) => setGuardianLastName(e.target.value)}
                 required
                 error={fieldError("guardian_last_name")}
               />
               <Input
+                id="enrollment-guardian_email"
                 label={tr("fields.email")}
                 name="guardian_email"
                 type="email"
+                spellCheck={false}
                 autoComplete="email"
+                controlSize="compact"
                 value={guardianEmail}
-                onChange={setGuardianEmail}
+                onChange={(e) => setGuardianEmail(e.target.value)}
                 required
                 readOnly={lockedGuardianEmail}
                 error={fieldError("guardian_email")}
               />
               <Input
-                label={tr(
-                  schema?.core_requirements?.guardian_phone
-                    ? "fields.phoneRequired"
-                    : "fields.phone",
-                )}
+                id="enrollment-guardian_phone"
+                label={tr("fields.phone")}
                 name="guardian_phone"
                 type="tel"
                 autoComplete="tel"
                 inputMode="tel"
+                controlSize="compact"
                 value={guardianPhone}
-                onChange={setGuardianPhone}
+                onChange={(e) => setGuardianPhone(e.target.value)}
                 required={schema?.core_requirements?.guardian_phone === true}
                 error={fieldError("guardian_phone")}
               />
@@ -1751,50 +1766,69 @@ export function EnrollmentForm({
                   <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
                     {tr("sections.additionalGuardianLabel", { index: i + 1 })}
                   </h3>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="compact"
                     onClick={() => removeGuardian(i)}
-                    className="text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                    className="text-moto-red-strong hover:bg-moto-red/10 hover:text-moto-red-strong"
                   >
                     {tr("actions.remove")}
-                  </button>
+                  </Button>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Input
+                    id={`enrollment-additional_guardian_${i}_first_name`}
                     label={tr("fields.firstName")}
                     name={`additional_guardian_${i}_first_name`}
                     autoComplete="given-name"
+                    controlSize="compact"
                     value={g.first_name}
-                    onChange={(v) => updateGuardian(i, { first_name: v })}
+                    onChange={(e) =>
+                      updateGuardian(i, { first_name: e.target.value })
+                    }
                     required
                     error={fieldError(`additional_guardian_${i}_first_name`)}
                   />
                   <Input
+                    id={`enrollment-additional_guardian_${i}_last_name`}
                     label={tr("fields.lastName")}
                     name={`additional_guardian_${i}_last_name`}
                     autoComplete="family-name"
+                    controlSize="compact"
                     value={g.last_name}
-                    onChange={(v) => updateGuardian(i, { last_name: v })}
+                    onChange={(e) =>
+                      updateGuardian(i, { last_name: e.target.value })
+                    }
                     required
                     error={fieldError(`additional_guardian_${i}_last_name`)}
                   />
                   <Input
+                    id={`enrollment-additional_guardian_${i}_email`}
                     label={tr("fields.emailPlain")}
                     name={`additional_guardian_${i}_email`}
                     type="email"
+                    spellCheck={false}
                     autoComplete="email"
+                    controlSize="compact"
                     value={g.email}
-                    onChange={(v) => updateGuardian(i, { email: v })}
+                    onChange={(e) =>
+                      updateGuardian(i, { email: e.target.value })
+                    }
                     error={fieldError(`additional_guardian_${i}_email`)}
                   />
                   <Input
+                    id={`enrollment-additional_guardian_${i}_phone`}
                     label={tr("fields.phone")}
                     name={`additional_guardian_${i}_phone`}
                     type="tel"
                     autoComplete="tel"
                     inputMode="tel"
+                    controlSize="compact"
                     value={g.phone}
-                    onChange={(v) => updateGuardian(i, { phone: v })}
+                    onChange={(e) =>
+                      updateGuardian(i, { phone: e.target.value })
+                    }
                     error={fieldError(`additional_guardian_${i}_phone`)}
                   />
                 </div>
@@ -1849,14 +1883,16 @@ export function EnrollmentForm({
               )}
             />
             {!lockChildStructure ? (
-              <button
+              <Button
                 type="button"
+                variant="surface"
+                size="md"
                 onClick={addChild}
-                className="moto-content-surface inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg border px-3 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto sm:shrink-0"
+                className="w-full gap-1.5 whitespace-nowrap sm:w-auto sm:shrink-0"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 {tr("actions.addChild")}
-              </button>
+              </Button>
             ) : null}
           </div>
 
@@ -2070,39 +2106,54 @@ export function EnrollmentForm({
                       : `${tr("structured.child")} ${i + 1}`}
                   </h3>
                   {children.length > 1 && !lockChildStructure && (
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="compact"
                       onClick={() => removeChild(i)}
-                      className="text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
+                      className="text-moto-red-strong hover:bg-moto-red/10 hover:text-moto-red-strong"
                     >
                       {tr("actions.remove")}
-                    </button>
+                    </Button>
                   )}
                 </div>
                 {!restrictToOfferings && (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <Input
+                      id={`enrollment-children_${i}_first_name`}
                       label={tr("fields.firstName")}
                       name={`children_${i}_first_name`}
                       autoComplete="given-name"
+                      controlSize="compact"
                       value={child.first_name}
-                      onChange={(v) => updateChild(i, { first_name: v })}
+                      onChange={(e) =>
+                        updateChild(i, { first_name: e.target.value })
+                      }
                       required
                       error={fieldError(`children_${i}_first_name`)}
                     />
                     <Input
+                      id={`enrollment-children_${i}_last_name`}
                       label={tr("fields.lastName")}
                       name={`children_${i}_last_name`}
                       autoComplete="family-name"
+                      controlSize="compact"
                       value={child.last_name}
-                      onChange={(v) => updateChild(i, { last_name: v })}
+                      onChange={(e) =>
+                        updateChild(i, { last_name: e.target.value })
+                      }
                       required
                       error={fieldError(`children_${i}_last_name`)}
                     />
                     <div>
-                      <span className="block text-sm font-semibold text-gray-700">
+                      <FieldLabel
+                        required
+                        invalid={Boolean(
+                          fieldError(`children_${i}_date_of_birth`),
+                        )}
+                      >
                         {tr("fields.dateOfBirth")}
-                      </span>
+                      </FieldLabel>
                       <DateOfBirthPicker
                         value={child.date_of_birth}
                         onChange={(v) => updateChild(i, { date_of_birth: v })}
@@ -2295,7 +2346,7 @@ export function EnrollmentForm({
                             ? tr("care.additional")
                             : tr("care.offers")}
                           {careOfferingSelectionMode !== "optional" && (
-                            <span className="text-moto-red ml-1">*</span>
+                            <RequiredMark />
                           )}
                         </p>
                         <p className="mt-1 text-xs leading-5 text-gray-500">
@@ -2309,6 +2360,11 @@ export function EnrollmentForm({
                         <div
                           aria-invalid={
                             childOfferingErrors[i] ? true : undefined
+                          }
+                          aria-describedby={
+                            childOfferingErrors[i]
+                              ? `children-${i}-offerings-error`
+                              : undefined
                           }
                           className={`mt-2 space-y-2 ${
                             childOfferingErrors[i]
@@ -2457,13 +2513,16 @@ export function EnrollmentForm({
                             ),
                           )}
                         </div>
-                        {childOfferingErrors[i] && (
-                          <p className="text-moto-red mt-1 text-xs">
-                            {careOfferingSelectionMode === "exactly_one"
-                              ? tr("care.chooseExactlyOne")
-                              : tr("care.chooseAtLeastOne")}
-                          </p>
-                        )}
+                        <FieldErrorHint
+                          id={`children-${i}-offerings-error`}
+                          message={
+                            childOfferingErrors[i]
+                              ? careOfferingSelectionMode === "exactly_one"
+                                ? tr("care.chooseExactlyOne")
+                                : tr("care.chooseAtLeastOne")
+                              : null
+                          }
+                        />
                       </div>
                     )}
                     {blockedOfferings.length > 0 && (
@@ -2583,13 +2642,10 @@ export function EnrollmentForm({
                     onViewLegal={
                       block.text ? () => setOpenLegalDoc(block) : undefined
                     }
-                    detailsLabel={tr("actions.details")}
-                    detailsAriaLabel={tr("actions.detailsAria", {
-                      title: block.title,
-                    })}
+                    tr={tr}
                   />
                 ) : (
-                  <Consent
+                  <EnrollmentConsent
                     key={block.key}
                     name={`consent_${block.key}`}
                     label={block.label}
@@ -2673,21 +2729,23 @@ export function EnrollmentForm({
             <input type="hidden" name="captcha_token" value={captchaToken} />
           </section>
         )}
-        <button
+        <Button
           type="submit"
+          variant="primary"
+          size="lg"
           disabled={
             submitting ||
             previewMode ||
             (captchaRequired && (!captchaConfig.site_key || !captchaToken))
           }
-          className="h-11 w-full rounded-lg bg-gray-900 text-sm font-semibold text-white shadow-sm transition-colors duration-200 hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400"
+          className="w-full disabled:cursor-not-allowed"
         >
           {previewMode
             ? tr("actions.previewSubmit")
             : submitting
               ? tr("actions.submitting")
               : (submitLabel ?? tr("actions.submit"))}
-        </button>
+        </Button>
       </form>
     </EnrollmentUploadScope>
   );
@@ -2877,15 +2935,6 @@ function interpolateMessage(value: string, values?: TranslationValues): string {
   );
 }
 
-function asStringMap(value: unknown): Record<string, string> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
-    ),
-  );
-}
-
 // Add mandatory offerings that apply to each child's visible grade after the
 // catalog loads. Conditional required offerings stay absent while their grade
 // input is empty and are added by the grade-change handler once applicable.
@@ -3039,32 +3088,6 @@ function offeringRuleHint(rule: string, tr: TranslationFn): string {
   return "";
 }
 
-/**
- * Read-only information block (FormFieldInfo). Renders an optional heading +
- * plain-text body to parents; collects no answer. Newlines in the body are
- * preserved via `whitespace-pre-line`. Content is plain text by design (no
- * HTML/markdown), so it is safe to render directly.
- */
-function InfoBlock({
-  field,
-}: {
-  readonly field: PublicFormSchema["fields"][number];
-}) {
-  return (
-    <div className="border-moto-blue/20 bg-moto-blue/5 rounded-lg border p-3">
-      {field.label && (
-        <p className="text-sm font-semibold text-gray-900">{field.label}</p>
-      )}
-      {field.content && (
-        <p className="mt-1 text-sm leading-6 whitespace-pre-line text-gray-600">
-          {field.content}
-        </p>
-      )}
-      <AttachmentList attachments={field.attachments} />
-    </div>
-  );
-}
-
 // OfferingCard renders one care-offering row. Required offerings show as a
 // locked "always included" card (gray, lock indicator) so they never read as
 // a parent's pick; choosable offerings keep the interactive green-check
@@ -3187,40 +3210,33 @@ function OfferingCard({
           inputLocked ? "cursor-default" : "cursor-pointer"
         }`}
       >
-        <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
-          <input
-            id={inputId}
-            name={`children_${childIndex}_offering_${offering.id}`}
-            type="checkbox"
-            checked={effectiveChecked}
-            disabled={inputLocked}
-            onChange={onToggle}
-            className={`absolute inset-0 opacity-0 ${
-              inputLocked ? "cursor-default" : "cursor-pointer"
+        {/* A locked row (required or added automatically) keeps the native
+            box for assistive tech, but shows why it cannot be changed: a
+            lock, or the green check of an automatic addition. */}
+        <Checkbox
+          id={inputId}
+          name={`children_${childIndex}_offering_${offering.id}`}
+          checked={effectiveChecked}
+          disabled={inputLocked}
+          onChange={onToggle}
+          className={inputLocked ? "hidden" : "mt-0.5"}
+        />
+        {inputLocked ? (
+          <span
+            aria-hidden="true"
+            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md ${
+              autoIncluded
+                ? "bg-moto-green-fill text-white"
+                : "bg-gray-400 text-gray-900"
             }`}
-          />
-          {inputLocked ? (
-            <span
-              className={`flex h-5 w-5 items-center justify-center rounded-md ${
-                autoIncluded
-                  ? "bg-moto-green-fill text-white"
-                  : "bg-gray-400 text-gray-900"
-              }`}
-            >
-              {autoIncluded ? (
-                <Check className="h-3.5 w-3.5" />
-              ) : (
-                <Lock className="h-3 w-3" />
-              )}
-            </span>
-          ) : (
-            checked && (
-              <span className="bg-moto-green-fill flex h-5 w-5 items-center justify-center rounded-md text-white">
-                <Check className="h-3.5 w-3.5" />
-              </span>
-            )
-          )}
-        </span>
+          >
+            {autoIncluded ? (
+              <Check className="h-3.5 w-3.5" />
+            ) : (
+              <Lock className="h-3 w-3" />
+            )}
+          </span>
+        ) : null}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-medium break-words text-gray-900">
@@ -3281,58 +3297,6 @@ function OfferingCard({
   );
 }
 
-function Input({
-  label,
-  name,
-  value,
-  onChange,
-  type = "text",
-  required = false,
-  autoComplete,
-  inputMode,
-  readOnly = false,
-  error,
-}: {
-  readonly label: string;
-  readonly name: string;
-  readonly value: string;
-  readonly onChange: (v: string) => void;
-  readonly type?: string;
-  readonly required?: boolean;
-  readonly autoComplete?: string;
-  readonly inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
-  readonly readOnly?: boolean;
-  readonly error?: string;
-}) {
-  const id = `enrollment-${name}`;
-  return (
-    <label className="block">
-      <span className="block text-sm font-semibold text-gray-700">{label}</span>
-      <input
-        id={id}
-        name={name}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        aria-required={required}
-        aria-invalid={error ? true : undefined}
-        autoComplete={autoComplete}
-        inputMode={inputMode}
-        readOnly={readOnly}
-        spellCheck={type === "email" ? false : undefined}
-        className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-          error
-            ? "border-moto-red bg-moto-red/5"
-            : readOnly
-              ? "border-gray-200 bg-gray-50 text-gray-500"
-              : "moto-content-surface hover:border-gray-300"
-        }`}
-      />
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-    </label>
-  );
-}
-
 function GradeLevelSelect({
   id,
   value,
@@ -3359,18 +3323,23 @@ function GradeLevelSelect({
 }) {
   const grades = selectableGradeLevels(max, allowedGrades);
   return (
-    <label className="block" htmlFor={id} id={`${id}-label`}>
-      <span className="block text-sm font-semibold text-gray-700">
+    <div>
+      <FieldLabel
+        htmlFor={id}
+        id={`${id}-label`}
+        required
+        invalid={Boolean(error)}
+      >
         {tr("fields.gradeLevel")}
-      </span>
+      </FieldLabel>
       <CustomSelect
         ariaLabelledBy={`${id}-label`}
+        ariaDescribedBy={error ? `${id}-error` : undefined}
         id={id}
         value={value}
         required
         onChange={onChange}
         invalid={Boolean(error)}
-        className="mt-1"
         options={[
           { value: "", label: tr("fields.choose"), disabled: true },
           ...grades.map((grade) => ({
@@ -3379,8 +3348,8 @@ function GradeLevelSelect({
           })),
         ]}
       />
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-    </label>
+      <FieldErrorHint id={`${id}-error`} message={error} />
+    </div>
   );
 }
 
@@ -3472,18 +3441,23 @@ function SchoolClassSelect({
   readonly tr: EnrollmentFormTranslator;
 }) {
   return (
-    <label className="block" htmlFor={id} id={`${id}-label`}>
-      <span className="block text-sm font-semibold text-gray-700">
-        {tr(required ? "fields.schoolClassRequired" : "fields.schoolClass")}
-      </span>
+    <div>
+      <FieldLabel
+        htmlFor={id}
+        id={`${id}-label`}
+        required={required}
+        invalid={Boolean(error)}
+      >
+        {tr("fields.schoolClass")}
+      </FieldLabel>
       <CustomSelect
         ariaLabelledBy={`${id}-label`}
+        ariaDescribedBy={error ? `${id}-error` : undefined}
         id={id}
         value={value}
         required={required}
         onChange={onChange}
         invalid={Boolean(error)}
-        className="mt-1"
         options={[
           required
             ? { value: "", label: tr("fields.choose"), disabled: true }
@@ -3491,8 +3465,8 @@ function SchoolClassSelect({
           ...classes.map((c) => ({ value: c, label: c })),
         ]}
       />
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-    </label>
+      <FieldErrorHint id={`${id}-error`} message={error} />
+    </div>
   );
 }
 
@@ -3508,313 +3482,6 @@ function SectionHeading({
       <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
       <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
     </div>
-  );
-}
-
-// Explicit element styling for the legal-document Markdown. Defined at
-// module scope (not inline in the `components` prop) so the renderers
-// keep a stable identity across re-renders. Tailwind v4 + Preflight
-// strips default heading/list styling, and the project has no
-// @tailwindcss/typography plugin, so each tag is styled by hand.
-// Links open in a new tab; react-markdown does not emit raw HTML by
-// default, so authored Markdown stays XSS-safe.
-//
-// Every renderer strips react-markdown's internal `node` prop before
-// spreading the rest onto the DOM element — forwarding `node` produces
-// an invalid HTML attribute and a React warning.
-const LEGAL_MARKDOWN_COMPONENTS: Components = {
-  h1: ({ node: _node, children, ...props }) => (
-    <h1 className="mt-4 mb-2 text-lg font-bold text-gray-900" {...props}>
-      {children}
-    </h1>
-  ),
-  h2: ({ node: _node, children, ...props }) => (
-    <h2 className="mt-4 mb-2 text-base font-bold text-gray-900" {...props}>
-      {children}
-    </h2>
-  ),
-  h3: ({ node: _node, children, ...props }) => (
-    <h3 className="mt-3 mb-1.5 text-sm font-bold text-gray-900" {...props}>
-      {children}
-    </h3>
-  ),
-  p: ({ node: _node, children, ...props }) => (
-    <p className="mb-3 leading-6" {...props}>
-      {children}
-    </p>
-  ),
-  ul: ({ node: _node, children, ...props }) => (
-    <ul className="mb-3 list-disc space-y-1 pl-5" {...props}>
-      {children}
-    </ul>
-  ),
-  ol: ({ node: _node, children, ...props }) => (
-    <ol className="mb-3 list-decimal space-y-1 pl-5" {...props}>
-      {children}
-    </ol>
-  ),
-  li: ({ node: _node, children, ...props }) => (
-    <li className="leading-6" {...props}>
-      {children}
-    </li>
-  ),
-  a: ({ node: _node, children, ...props }) => (
-    <a
-      className="text-moto-blue hover:text-moto-blue-hover font-medium underline underline-offset-2"
-      target="_blank"
-      rel="noopener noreferrer"
-      {...props}
-    >
-      {children}
-    </a>
-  ),
-  strong: ({ node: _node, children, ...props }) => (
-    <strong className="font-semibold text-gray-900" {...props}>
-      {children}
-    </strong>
-  ),
-  em: ({ node: _node, children, ...props }) => (
-    <em className="italic" {...props}>
-      {children}
-    </em>
-  ),
-};
-
-function LegalMarkdown({ text }: { readonly text: string }) {
-  return (
-    <ReactMarkdown components={LEGAL_MARKDOWN_COMPONENTS}>{text}</ReactMarkdown>
-  );
-}
-
-/**
- * Resolves the legal blocks an admin preview shows. Template-owned blocks
- * win; base previews and templates without enabled blocks fall back to the
- * tenant-wide legal settings — the same resolution the live form uses, so
- * the preview can never omit blocks the live form will require.
- */
-async function resolvePreviewLegalTexts(
-  tenantSlug: string,
-  schema: PublicFormSchema | null,
-): Promise<PublicLegalTexts> {
-  const fromTemplate = previewLegalTexts(schema);
-  if (fromTemplate.blocks.length > 0) return fromTemplate;
-  return fetchPublicLegalTexts(tenantSlug);
-}
-
-function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
-  const blocks =
-    schema?.legal_blocks
-      ?.filter((block) => block.enabled)
-      .map((block) => ({
-        key: block.key,
-        kind: block.kind,
-        title: block.title,
-        label: block.label,
-        text: legalBlockText(block),
-        attachments: block.attachments,
-        required: block.required,
-        sort_order: block.sort_order,
-        source: block.source,
-        // The preview reads the stored document; the resolver compares each
-        // translation's source, so a PDF block's link text stays German.
-        translations: block.translations,
-      }))
-      .sort((a, b) => a.sort_order - b.sort_order) ?? [];
-  return {
-    agb: blocks.find((block) => block.key === "agb")?.text ?? "",
-    agb_document_url: "",
-    agb_display_mode: "text",
-    dsgvo: blocks.find((block) => block.key === "data_processing")?.text ?? "",
-    email_contact:
-      blocks.find((block) => block.key === "email_contact")?.text ?? "",
-    photo: blocks.find((block) => block.key === "photo")?.text ?? "",
-    terms_enabled: blocks.some((block) => block.key === "agb"),
-    dsgvo_enabled: blocks.some((block) => block.key === "data_processing"),
-    email_contact_enabled: blocks.some(
-      (block) => block.key === "email_contact",
-    ),
-    photo_enabled: blocks.some((block) => block.key === "photo"),
-    blocks,
-  };
-}
-
-function legalBlockText(
-  block: NonNullable<PublicFormSchema["legal_blocks"]>[number],
-) {
-  const documentURL = (block.document_url ?? "").trim();
-  if (
-    block.key === "agb" &&
-    block.display_mode === "pdf" &&
-    documentURL !== ""
-  ) {
-    return `Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](${publicAGBDocumentURL(documentURL)})`;
-  }
-  return block.text;
-}
-
-function publicAGBDocumentURL(storedURL: string): string {
-  const globalPrefix = "/uploads/enrollment-legal-documents/";
-  if (storedURL.startsWith(globalPrefix)) {
-    return `/api/public/enrollment-legal-documents/${storedURL.slice(globalPrefix.length)}`;
-  }
-  const formPrefix = "/uploads/enrollment-form-legal-documents/";
-  if (storedURL.startsWith(formPrefix)) {
-    return `/api/public/enrollment-form-legal-documents/${storedURL.slice(formPrefix.length)}`;
-  }
-  return storedURL;
-}
-
-function Consent({
-  name,
-  label,
-  checked,
-  onChange,
-  required = false,
-  error,
-  legalText,
-  legalTitle,
-  onViewLegal,
-  tr,
-}: {
-  readonly name: string;
-  readonly label: string;
-  readonly checked: boolean;
-  readonly onChange: (v: boolean) => void;
-  readonly required?: boolean;
-  readonly error?: string;
-  /**
-   * Optional per-tenant legal document (Markdown). When non-empty, the
-   * consent label gains an "anzeigen" link that opens onViewLegal. When
-   * empty/undefined the label renders plain — tenants that haven't
-   * configured a document still get a working form.
-   */
-  readonly legalText?: string;
-  readonly legalTitle?: string;
-  readonly onViewLegal?: () => void;
-  readonly tr: TranslationFn;
-}) {
-  const hasLink = Boolean(legalText && legalText.trim() && onViewLegal);
-  return (
-    <div>
-      <label
-        className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm transition-colors ${
-          checked
-            ? "border-moto-green/40 bg-moto-green/10"
-            : error
-              ? "border-moto-red bg-moto-red/5"
-              : "border-gray-200 bg-white hover:border-gray-300"
-        }`}
-      >
-        <span className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white">
-          <input
-            name={name}
-            type="checkbox"
-            checked={checked}
-            onChange={(e) => onChange(e.target.checked)}
-            aria-required={required}
-            aria-invalid={error ? true : undefined}
-            className="absolute inset-0 cursor-pointer opacity-0"
-          />
-          {checked && (
-            <span className="bg-moto-green-fill flex h-5 w-5 items-center justify-center rounded-md text-white">
-              <Check className="h-3.5 w-3.5" />
-            </span>
-          )}
-        </span>
-        <span className="min-w-0 flex-1 leading-6 font-medium text-gray-700">
-          {label} {required && <span className="text-moto-red">*</span>}
-        </span>
-        {hasLink && (
-          <LegalDetailsButton
-            title={legalTitle ?? label}
-            label={tr("actions.details")}
-            ariaLabel={tr("actions.detailsAria", {
-              title: legalTitle ?? label,
-            })}
-            onClick={onViewLegal}
-            preventLabelToggle
-          />
-        )}
-      </label>
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-    </div>
-  );
-}
-
-/**
- * Informational notice for the e-mail contact. Unlike the consent rows
- * this carries NO checkbox: the school needs the e-mail address to run
- * the enrollment (Rückfragen, Status-Link), which is contract
- * performance, not a consent the parent could decline and still enrol.
- * When the tenant configured an explanatory text it gains a localized
- * "show more" link that opens it in the shared legal modal.
- */
-function EmailContactNotice({
-  block,
-  onViewLegal,
-  detailsLabel,
-  detailsAriaLabel,
-}: {
-  readonly block: PublicLegalBlock;
-  readonly onViewLegal?: () => void;
-  readonly detailsLabel: string;
-  readonly detailsAriaLabel: string;
-}) {
-  return (
-    <div className="border-moto-blue/25 bg-moto-blue/5 flex items-center gap-3 rounded-lg border p-3 text-sm leading-6 text-gray-700">
-      <span className="border-moto-blue/30 text-moto-blue flex h-5 w-5 shrink-0 items-center justify-center rounded-md border bg-white">
-        <Info className="h-3.5 w-3.5" aria-hidden="true" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <span className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Hinweis
-          </span>
-        </div>
-        <span className="font-medium">{block.label}</span>{" "}
-        {onViewLegal && (
-          <LegalDetailsButton
-            title={block.title}
-            label={detailsLabel}
-            ariaLabel={detailsAriaLabel}
-            onClick={onViewLegal}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function LegalDetailsButton({
-  title,
-  label,
-  ariaLabel,
-  onClick,
-  preventLabelToggle = false,
-}: {
-  readonly title: string;
-  readonly label: string;
-  readonly ariaLabel: string;
-  readonly onClick?: () => void;
-  readonly preventLabelToggle?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      title={title}
-      onClick={(event) => {
-        if (preventLabelToggle) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-        onClick?.();
-      }}
-      className="inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-      <span>{label}</span>
-    </button>
   );
 }
 
@@ -3879,33 +3546,6 @@ function customValueMissing(
   return typeof value !== "string" || value.trim() === "";
 }
 
-function phoneListValueMissing(value: unknown): boolean {
-  if (!Array.isArray(value) || value.length === 0) return true;
-  return value.some((row) => {
-    if (!row || typeof row !== "object") return true;
-    const phoneNumber = (row as Partial<PhoneEntry>).phone_number;
-    return typeof phoneNumber !== "string" || phoneNumber.trim() === "";
-  });
-}
-
-function contactListValueMissing(value: unknown): boolean {
-  if (!Array.isArray(value) || value.length === 0) return true;
-  return value.some((row) => {
-    if (!row || typeof row !== "object") return true;
-    const contact = row as ContactEntryValue;
-    const hasName =
-      typeof contact.first_name === "string" &&
-      contact.first_name.trim() !== "" &&
-      typeof contact.last_name === "string" &&
-      contact.last_name.trim() !== "";
-    const hasEmail = (contact.email ?? "").trim() !== "";
-    const hasPhone =
-      Array.isArray(contact.phone_numbers) &&
-      contact.phone_numbers.some((phone) => phone.phone_number.trim() !== "");
-    return !hasName || (!hasEmail && !hasPhone);
-  });
-}
-
 function requiredMessageForField(
   field: PublicFormSchema["fields"][number],
   tr: TranslationFn,
@@ -3949,461 +3589,6 @@ function requiredMessageForField(
   return tr("errors.required");
 }
 
-interface CustomFieldInputProps {
-  readonly field: PublicFormSchema["fields"][number];
-  // The control's `name`, unique per child, so a server field error and the
-  // focus jump find the right input (#2515).
-  readonly inputName: string;
-  readonly value: unknown;
-  readonly onChange: (v: unknown) => void;
-  readonly error?: string;
-  readonly tr: EnrollmentFormTranslator;
-  readonly relevantDays?: readonly string[];
-  // True when relevantDays come from selected care offerings (not the
-  // all-weekdays fallback). Drives the weekday_schedule "every care day needs a
-  // time" requirement and its hint copy.
-  readonly careConstrained?: boolean;
-  // Free-text "mit wem" for the accompanied departure mode (#1694), coupled
-  // into the weekday_multi_mode field so it is always available to parents
-  // without the admin adding a separate field. Only wired for the
-  // allowed-departure-modes field.
-  readonly companionNote?: string;
-  readonly onCompanionNoteChange?: (v: string) => void;
-  // Per-field error for the coupled "mit wem" note (#1694), keyed separately
-  // from `error` so the modes fieldset and the note input show their own
-  // messages.
-  readonly companionNoteError?: string;
-  readonly companionNoteName?: string;
-  // Heimweg-Beschränkung (#2381): true when the field's single_mode_grades
-  // restrict this child's target grade — the multi-mode picker then allows
-  // at most one way home per care day (selecting a mode replaces the
-  // previous one). Backend re-validates, this is the honest UI for it.
-  readonly singleMode?: boolean;
-}
-
-function CustomFieldInput({
-  field,
-  inputName,
-  companionNoteName,
-  value,
-  onChange,
-  error,
-  tr,
-  relevantDays,
-  careConstrained,
-  companionNote,
-  onCompanionNoteChange,
-  companionNoteError,
-  singleMode,
-}: CustomFieldInputProps) {
-  const datePicker = useLocalizedDatePicker();
-  const labelEl = (
-    <>
-      <span className="block text-sm font-semibold text-gray-700">
-        {field.label}
-        {field.required && <span className="text-moto-red"> *</span>}
-      </span>
-      {field.help_text && (
-        <span className="mt-1 block text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </span>
-      )}
-    </>
-  );
-  const valueStr = typeof value === "string" ? value : "";
-
-  if (field.type === "boolean") {
-    const selectedValue = value === true ? "yes" : value === false ? "no" : "";
-    return (
-      <fieldset aria-invalid={error ? "true" : undefined}>
-        {labelEl}
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          {[
-            { label: tr("structured.yes"), value: "yes", raw: true },
-            { label: tr("structured.no"), value: "no", raw: false },
-          ].map((option) => (
-            <label
-              key={option.value}
-              className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors ${
-                selectedValue === option.value
-                  ? "border-gray-900 bg-gray-900 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <input
-                type="radio"
-                name={inputName}
-                value={option.value}
-                checked={selectedValue === option.value}
-                onChange={() => onChange(option.raw)}
-                className="sr-only"
-              />
-              {option.label}
-            </label>
-          ))}
-        </div>
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-      </fieldset>
-    );
-  }
-  if (field.type === "textarea") {
-    return (
-      <label className="block">
-        {labelEl}
-        <textarea
-          value={valueStr}
-          onChange={(e) => onChange(e.target.value)}
-          rows={3}
-          name={inputName}
-          className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
-          aria-required={field.required}
-          aria-invalid={error ? "true" : undefined}
-        />
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-      </label>
-    );
-  }
-  if (field.type === "select") {
-    return (
-      <label className="block">
-        {labelEl}
-        <CustomSelect
-          ariaLabel={field.label}
-          value={valueStr}
-          onChange={onChange}
-          name={inputName}
-          required={field.required}
-          invalid={Boolean(error)}
-          className="mt-1"
-          options={[
-            { value: "", label: tr("fields.choose") },
-            ...(field.options ?? []).map((option) => ({
-              value: option.value,
-              label: option.label,
-            })),
-          ]}
-        />
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-      </label>
-    );
-  }
-  if (field.type === "phone_list") {
-    return (
-      <PhoneListInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-      />
-    );
-  }
-  if (field.type === "weekday_schedule") {
-    return (
-      <WeekdayScheduleInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-        relevantDays={relevantDays}
-        careConstrained={careConstrained}
-      />
-    );
-  }
-  if (field.type === "weekday_boolean") {
-    return (
-      <WeekdayBooleanInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-      />
-    );
-  }
-  if (field.type === "weekday_mode") {
-    return (
-      <WeekdayModeInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-      />
-    );
-  }
-  if (field.type === "weekday_multi_mode") {
-    return (
-      <WeekdayMultiModeInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-        relevantDays={relevantDays}
-        companionNote={companionNote}
-        onCompanionNoteChange={onCompanionNoteChange}
-        companionNoteError={companionNoteError}
-        companionNoteName={companionNoteName}
-        singleMode={singleMode}
-      />
-    );
-  }
-  if (field.type === "file") {
-    return (
-      <FileUploadInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-      />
-    );
-  }
-  if (field.type === "contact_list") {
-    return (
-      <ContactListInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-      />
-    );
-  }
-
-  if (field.type === "date") {
-    const dateId = `enrollment-${field.key}`;
-    return (
-      <div className="block">
-        <label htmlFor={dateId}>{labelEl}</label>
-        <ISODatePicker
-          {...datePicker}
-          id={dateId}
-          controlSize="md"
-          value={valueStr}
-          onChange={onChange}
-          invalid={Boolean(error)}
-          className="mt-1"
-          calendarLayout="popover"
-          // A school-defined date field can be anything from a birthday to a
-          // future appointment, so the year dropdown stays available and no
-          // bound is imposed.
-          monthYearNavigation
-        />
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-      </div>
-    );
-  }
-
-  const inputType = field.type === "number" ? "number" : "text";
-  return (
-    <label className="block">
-      {labelEl}
-      <input
-        name={inputName}
-        type={inputType}
-        value={valueStr}
-        onChange={(e) => onChange(e.target.value)}
-        aria-required={field.required}
-        aria-invalid={error ? "true" : undefined}
-        className={`moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
-      />
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-    </label>
-  );
-}
-
-// ---- Structured field renderers ----------------------------------------
-//
-// The shapes here mirror the Go types in
-// backend/models/enrollment/form_schema.go (PhoneEntry, WeekdaySchedule,
-// ContactEntry). The decision service consumes whatever JSON these
-// components emit, so the field names must match exactly.
-
-interface PhoneEntry {
-  phone_number: string;
-  phone_type: "mobile" | "home" | "work" | "other";
-  label?: string;
-  is_primary?: boolean;
-}
-
-function asPhoneArray(v: unknown): PhoneEntry[] {
-  if (!Array.isArray(v)) return [];
-  return v.filter((row): row is PhoneEntry => {
-    if (!row || typeof row !== "object") return false;
-    const r = row as Record<string, unknown>;
-    return typeof r.phone_number === "string";
-  });
-}
-
-function PhoneListInput({
-  field,
-  inputName,
-  value,
-  onChange,
-  error,
-  tr,
-}: CustomFieldInputProps) {
-  const phones = asPhoneArray(value);
-  const phoneTypeLabels = asStringMap(tr.raw("phoneTypes"));
-  const update = (next: PhoneEntry[]) => onChange(next);
-  const setRow = (idx: number, patch: Partial<PhoneEntry>) =>
-    update(
-      phones.map((phone, i) =>
-        i === idx ? copyStableObjectKey(phone, { ...phone, ...patch }) : phone,
-      ),
-    );
-  return (
-    <fieldset
-      className={`rounded-2xl border bg-gray-50/70 p-4 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-    >
-      <legend className="px-1 text-sm font-semibold text-gray-900">
-        {field.label}
-        {field.required && <span className="text-moto-red"> *</span>}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
-      {phones.length === 0 && (
-        <p className="mt-2 text-sm text-gray-500">
-          {tr("structured.nonePhone")}
-        </p>
-      )}
-      <ul className="space-y-2">
-        {phones.map((p, idx) => (
-          <li
-            key={getStableObjectKey(p, "phone")}
-            className="moto-content-surface grid items-end gap-3 rounded-xl border p-3 shadow-sm md:grid-cols-[minmax(0,1fr)_180px_auto_auto]"
-          >
-            <label className="block">
-              <span className="text-xs font-medium text-gray-700">
-                {tr("structured.number")}
-              </span>
-              <input
-                type="tel"
-                value={p.phone_number}
-                onChange={(e) => setRow(idx, { phone_number: e.target.value })}
-                className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-              />
-            </label>
-            <label className="block" htmlFor={`phone-type-${idx}`}>
-              <span className="text-xs font-medium text-gray-700">
-                {tr("structured.type")}
-              </span>
-              <CustomSelect
-                id={`phone-type-${idx}`}
-                value={p.phone_type}
-                onChange={(value) =>
-                  setRow(idx, {
-                    phone_type: value as PhoneEntry["phone_type"],
-                  })
-                }
-                ariaLabel={tr("structured.type")}
-                className="mt-1 border-gray-200 bg-white"
-                options={(
-                  [
-                    "mobile",
-                    "home",
-                    "work",
-                    "other",
-                  ] as PhoneEntry["phone_type"][]
-                ).map((key) => ({
-                  value: key,
-                  label: phoneTypeLabels[key] ?? key,
-                }))}
-              />
-            </label>
-            <StructuredToggle
-              checked={Boolean(p.is_primary)}
-              onChange={() =>
-                update(
-                  phones.map((row, i) =>
-                    copyStableObjectKey(row, {
-                      ...row,
-                      is_primary: i === idx,
-                    }),
-                  ),
-                )
-              }
-              label={tr("structured.primary")}
-              name={`${inputName}-primary`}
-              type="radio"
-            />
-            <button
-              type="button"
-              onClick={() => update(phones.filter((_, i) => i !== idx))}
-              className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-9 w-9 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
-              aria-label={tr("structured.removeNumber")}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button
-        type="button"
-        onClick={() =>
-          update([
-            ...phones,
-            { phone_number: "", phone_type: "mobile" } satisfies PhoneEntry,
-          ])
-        }
-        className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <Plus className="h-4 w-4" aria-hidden="true" />
-        {tr("structured.addPhone")}
-      </button>
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
-    </fieldset>
-  );
-}
-
-const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
-
-function asScheduleObject(v: unknown): Record<string, string> {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
-  const out: Record<string, string> = {};
-  for (const weekday of WEEKDAYS) {
-    const raw = (v as Record<string, unknown>)[weekday];
-    if (typeof raw === "string") out[weekday] = raw;
-  }
-  return out;
-}
-
-function asWeekdayBooleanObject(v: unknown): Record<string, boolean> {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
-  const out: Record<string, boolean> = {};
-  for (const w of WEEKDAYS) {
-    const raw = (v as Record<string, unknown>)[w];
-    if (typeof raw === "boolean") out[w] = raw;
-  }
-  return out;
-}
-
-type DepartureModeValue = "alone" | "bus" | "pickup" | "accompanied";
-
-const DEPARTURE_MULTI_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
-  "alone",
-  "bus",
-  "pickup",
-  "accompanied",
-];
-
-const DEPARTURE_MULTI_MODE_OPTIONS_WITHOUT_COMPANION: ReadonlyArray<DepartureModeValue> =
-  ["alone", "bus", "pickup"];
-
 // singleModeApplies reports whether a field's Heimweg-Beschränkung (#2381)
 // restricts the child's declared target grade. An unparseable or missing
 // grade is never restricted — mirrors the backend's SingleModeAppliesTo.
@@ -4415,80 +3600,6 @@ function singleModeApplies(
   if (!Number.isInteger(grade)) return false;
   return (field.single_mode_grades ?? []).includes(grade);
 }
-
-function departureMultiModeOptionsForField(
-  field: PublicFormSchema["fields"][number],
-): ReadonlyArray<DepartureModeValue> {
-  return field.target === "student.allowed_departure_modes"
-    ? DEPARTURE_MULTI_MODE_OPTIONS
-    : DEPARTURE_MULTI_MODE_OPTIONS_WITHOUT_COMPANION;
-}
-
-// Reserved child-custom key carrying the coupled "mit wem" note for the
-// accompanied mode (#1694). Matches the backend reserved target so the
-// decision service can apply it when it processes allowed_departure_modes.
-// It travels with the modes field instead of being a separate admin field, so
-// the note is always available to parents.
-const DEPARTURE_COMPANION_KEY = "student.departure_companion_note";
-
-function asWeekdayModeObject(v: unknown): Record<string, DepartureModeValue> {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
-  const out: Record<string, DepartureModeValue> = {};
-  for (const w of WEEKDAYS) {
-    const raw = (v as Record<string, unknown>)[w];
-    if (
-      raw === "bus" ||
-      raw === "pickup" ||
-      raw === "alone" ||
-      raw === "accompanied"
-    ) {
-      out[w] = raw;
-    }
-  }
-  return out;
-}
-
-function asWeekdayMultiModeObject(
-  v: unknown,
-  allowedDays: readonly string[] = WEEKDAYS,
-  allowedModes: ReadonlyArray<DepartureModeValue> = DEPARTURE_MULTI_MODE_OPTIONS,
-): Record<string, DepartureModeValue[]> {
-  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
-  const allowed = new Set(allowedDays);
-  const allowedModeSet = new Set(allowedModes);
-  const out: Record<string, DepartureModeValue[]> = {};
-  for (const w of WEEKDAYS) {
-    if (!allowed.has(w)) continue;
-    const raw = (v as Record<string, unknown>)[w];
-    if (!Array.isArray(raw)) continue;
-    const seen = new Set<DepartureModeValue>();
-    for (const item of raw) {
-      if (
-        item === "alone" ||
-        item === "bus" ||
-        item === "pickup" ||
-        item === "accompanied"
-      ) {
-        if (allowedModeSet.has(item)) seen.add(item);
-      }
-    }
-    const modes = allowedModes.filter((mode) => seen.has(mode));
-    if (modes.length > 0) out[w] = modes;
-  }
-  return out;
-}
-
-// Single-mode legacy departure field (target student.departure). The
-// accompanied mode is intentionally NOT offered here: it requires the coupled
-// "mit wem" companion note, which is only captured + required-validated on the
-// multi-mode student.allowed_departure_modes field. Offering it here would let
-// a parent pick an accompanied departure with no companion note, defeating the
-// data requirement of #1694.
-const DEPARTURE_MODE_OPTIONS: ReadonlyArray<DepartureModeValue> = [
-  "alone",
-  "bus",
-  "pickup",
-];
 
 function selectedCareDaysForChild(
   child: ChildDraft,
@@ -4682,826 +3793,6 @@ function pruneWeekdayAnswers(
   return next;
 }
 
-function WeekdayScheduleInput({
-  field,
-  value,
-  onChange,
-  error,
-  tr,
-  relevantDays,
-  careConstrained,
-}: CustomFieldInputProps) {
-  const sched = asScheduleObject(value);
-  const weekdayLabels = asStringMap(tr.raw("weekdays"));
-  // Only offer the weekdays the child is actually in care on (derived from the
-  // selected care offerings). When no offerings constrain the form, relevantDays
-  // is undefined and all weekdays are shown (historical behaviour).
-  const daysToRender = relevantDays ?? WEEKDAYS;
-  // When the field configures fixed pickup times, parents pick from a
-  // dropdown limited to those values per weekday instead of a free time
-  // input. Empty list = free entry (the historical behaviour).
-  const allowedTimes = field.allowed_times ?? [];
-  return (
-    <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-    >
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        {field.label}
-        {field.required && <span className="text-moto-red"> *</span>}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
-      {daysToRender.length === 0 ? (
-        <p className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-          {tr("structured.weekdayMultiModeNoDays")}
-        </p>
-      ) : (
-        <>
-          <p className="text-xs text-gray-500">
-            {tr(
-              !field.required
-                ? // Optional: blanks are accepted (validation skips the field).
-                  "structured.emptySchedule"
-                : careConstrained
-                  ? // Required + care-constrained: every shown care day needs a time.
-                    "structured.everyDayTime"
-                  : // Required + all weekdays shown: at least one time is enough
-                    // (matches the errors.schedule gate, not a per-day demand).
-                    "structured.atLeastOneTime",
-            )}
-          </p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-5">
-            {daysToRender.map((weekday) => {
-              const current = sched[weekday] ?? "";
-              // A previously saved value that is no longer in the configured
-              // list (admin changed the times after the draft was saved) must
-              // still be shown, otherwise the dropdown silently blanks it and
-              // the parent never sees that their time was dropped. It is
-              // flagged "nicht mehr verfügbar" so the parent notices it has to
-              // be re-picked before submit — the backend rejects it anyway.
-              const isStale =
-                Boolean(current) && !allowedTimes.includes(current);
-              return (
-                <label key={weekday} className="block text-xs">
-                  <span className="block text-gray-600">
-                    {weekdayLabels[weekday] ?? weekday}
-                  </span>
-                  {allowedTimes.length > 0 ? (
-                    <CustomSelect
-                      value={current}
-                      onChange={(selected) =>
-                        onChange({ ...sched, [weekday]: selected })
-                      }
-                      ariaLabel={`${weekdayLabels[weekday] ?? weekday} – ${field.label}`}
-                      placeholder={tr("structured.selectTime")}
-                      invalid={Boolean(error) || isStale}
-                      className="mt-1 border-gray-200 bg-white"
-                      options={[
-                        { value: "", label: tr("structured.selectTime") },
-                        ...allowedTimes.map((time) => ({
-                          value: time,
-                          label: time,
-                        })),
-                        ...(isStale
-                          ? [
-                              {
-                                value: current,
-                                label: `${current} (${tr("structured.timeUnavailable")})`,
-                              },
-                            ]
-                          : []),
-                      ]}
-                    />
-                  ) : (
-                    <input
-                      type="time"
-                      value={current}
-                      onChange={(e) =>
-                        onChange({ ...sched, [weekday]: e.target.value })
-                      }
-                      className="mt-1 h-9 w-full rounded-md border border-gray-200 bg-white px-2 text-sm"
-                    />
-                  )}
-                </label>
-              );
-            })}
-          </div>
-        </>
-      )}
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
-    </fieldset>
-  );
-}
-
-function WeekdayBooleanInput({
-  field,
-  value,
-  onChange,
-  error,
-  tr,
-}: CustomFieldInputProps) {
-  const days = asWeekdayBooleanObject(value);
-  const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
-  return (
-    <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-    >
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        {field.label}
-        {field.required && <span className="text-moto-red"> *</span>}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
-      <p className="text-xs text-gray-500">
-        {field.target === "student.pickup_status"
-          ? tr("structured.pickupDaysHelp")
-          : tr("structured.busDaysHelp")}
-      </p>
-      <div className="mt-2 grid gap-2 sm:grid-cols-5">
-        {WEEKDAYS.map((w) => {
-          const checked = Boolean(days[w]);
-          return (
-            <label
-              key={w}
-              className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-2 text-xs font-medium transition-colors ${
-                checked
-                  ? "border-gray-900 bg-gray-900 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={(e) => onChange({ ...days, [w]: e.target.checked })}
-                className="sr-only"
-              />
-              {weekdayLabels[w] ?? w}
-            </label>
-          );
-        })}
-      </div>
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
-    </fieldset>
-  );
-}
-
-function WeekdayModeInput({
-  field,
-  value,
-  onChange,
-  error,
-  tr,
-}: CustomFieldInputProps) {
-  const modes = asWeekdayModeObject(value);
-  const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
-  const departureModeLabels = asStringMap(tr.raw("structured.departureModes"));
-  const modeFor = (key: string): DepartureModeValue => {
-    const m = modes[key];
-    return m === "bus" || m === "pickup" || m === "accompanied" ? m : "alone";
-  };
-  return (
-    <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-    >
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        {field.label}
-        {field.required && <span className="text-moto-red"> *</span>}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
-      <p className="text-xs text-gray-500">
-        {tr("structured.departureModeHelp")}
-      </p>
-      <div className="mt-2 space-y-2">
-        {WEEKDAYS.map((w) => {
-          const current = modeFor(w);
-          return (
-            <div key={w} className="flex items-center gap-2">
-              <span className="w-20 shrink-0 text-xs font-medium text-gray-600">
-                {weekdayLabels[w] ?? w}
-              </span>
-              <SegmentedControl
-                className="flex-1"
-                fullWidth
-                ariaLabel={`Heimweg ${weekdayLabels[w] ?? w}`}
-                value={current}
-                onChange={(mode) => {
-                  const next = { ...modes };
-                  if (mode === "alone") delete next[w];
-                  else next[w] = mode;
-                  onChange(next);
-                }}
-                items={DEPARTURE_MODE_OPTIONS.map((mode) => ({
-                  value: mode,
-                  label: departureModeLabels[mode] ?? mode,
-                }))}
-              />
-            </div>
-          );
-        })}
-      </div>
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
-    </fieldset>
-  );
-}
-
-function WeekdayMultiModeInput({
-  field,
-  value,
-  onChange,
-  error,
-  tr,
-  relevantDays,
-  companionNote,
-  onCompanionNoteChange,
-  companionNoteError,
-  companionNoteName,
-  singleMode,
-}: CustomFieldInputProps) {
-  const daysToRender = relevantDays ?? WEEKDAYS;
-  const modeOptions = departureMultiModeOptionsForField(field);
-  const modes = asWeekdayMultiModeObject(value, daysToRender, modeOptions);
-  // Instance-unique radio-group prefix for single mode: field.key repeats
-  // across children, so naming groups by key alone would couple the
-  // siblings' radios in the same form.
-  const radioGroupId = useId();
-  const [expandedDays, setExpandedDays] = useState<Set<string>>(
-    () => new Set(daysToRender.filter((day) => (modes[day]?.length ?? 0) > 0)),
-  );
-  // Opt-in convenience: pick the allowed ways home once and apply them to
-  // every care day. The stored value stays per-day (each day gets the same
-  // array), so backend, validation, and pruning are untouched. Always starts
-  // in the per-day view; the parent flips it on explicitly via the toggle.
-  const [uniform, setUniform] = useState(false);
-  // The shared selection while uniform is on. This is the source of truth for
-  // the uniform block (rather than re-deriving it from the per-day payload),
-  // so the choice survives even when the entire care-day set is swapped out
-  // from under it -- a payload-derived value would read empty once its source
-  // days disappear and silently reset to nothing.
-  const [uniformSelection, setUniformSelection] = useState<
-    DepartureModeValue[]
-  >([]);
-  // Open only when enabling uniform mode would discard divergent per-day
-  // choices (see toggleUniform).
-  const [confirmUniformOpen, setConfirmUniformOpen] = useState(false);
-  const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
-  const departureModeLabels = asStringMap(tr.raw("structured.departureModes"));
-  const activeDays = daysToRender.filter(
-    (day) => expandedDays.has(day) || (modes[day]?.length ?? 0) > 0,
-  );
-  const toggleDay = (day: string) => {
-    const isActive = activeDays.includes(day);
-    const nextExpanded = new Set(expandedDays);
-    if (isActive) {
-      nextExpanded.delete(day);
-      const nextRaw = { ...modes };
-      delete nextRaw[day];
-      onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
-    } else {
-      nextExpanded.add(day);
-    }
-    setExpandedDays(nextExpanded);
-  };
-  const updateDay = (day: string, mode: DepartureModeValue) => {
-    const current = new Set(modes[day] ?? []);
-    if (singleMode) {
-      // Heimweg-Beschränkung (#2381): a radio group — picking a mode
-      // replaces the previous one, so a day never carries more than one,
-      // including stale multi-selections prefilled from before the rule.
-      // Clearing a day happens by collapsing it (toggleDay).
-      current.clear();
-      current.add(mode);
-    } else if (current.has(mode)) current.delete(mode);
-    else current.add(mode);
-    const nextRaw = {
-      ...modes,
-      [day]: modeOptions.filter((m) => current.has(m)),
-    };
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
-  };
-  // The payload-derived shared selection: the first *populated* day's modes.
-  // Used only to decide whether enabling uniform is lossless and, if so, to
-  // seed the uniform state from the existing per-day data. The live uniform
-  // block reads `uniformSelection` (state), not this.
-  const payloadModes =
-    daysToRender.map((day) => modes[day]).find((m) => m && m.length > 0) ?? [];
-  // Switching into uniform mode is lossless only when every care day already
-  // holds the identical selection (including all-empty); the shared block then
-  // simply adopts that selection. join keys compare the pruned arrays.
-  const allDaysIdentical = daysToRender.every(
-    (day) => (modes[day] ?? []).join(",") === payloadModes.join(","),
-  );
-  // Fan the shared selection across the current care days whenever the payload
-  // falls out of sync with it -- e.g. a care day is added/removed elsewhere on
-  // the form after uniform was enabled. A newly added day starts empty, so
-  // without this the uniform block would claim coverage the payload doesn't
-  // have. Driven by string-signature deps (not the fresh-every-render `modes`
-  // /`daysToRender`/`onChange` references), so it fires only on a real change
-  // -- the selection, the day set, or the payload -- never on every render.
-  // The needsSync guard keeps it idempotent and self-terminating.
-  const uniformKey = uniformSelection.join(",");
-  const daysKey = daysToRender.join(",");
-  const modesKey = daysToRender
-    .map((day) => `${day}:${(modes[day] ?? []).join("|")}`)
-    .join(";");
-  useEffect(() => {
-    if (!uniform) return;
-    const needsSync = daysToRender.some(
-      (day) => (modes[day] ?? []).join(",") !== uniformKey,
-    );
-    if (!needsSync) return;
-    const nextRaw: Record<string, DepartureModeValue[]> = {};
-    for (const day of daysToRender) nextRaw[day] = uniformSelection;
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
-    // String-signature deps keep the effect from re-running every render while
-    // still reacting to every meaningful change. `modes`/`daysToRender`/
-    // `onChange`/`uniformSelection` are read from the current render's closure;
-    // they change identity every render, so depending on them directly would
-    // defeat the point of the signatures.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uniform, uniformKey, daysKey, modesKey]);
-  const enableUniform = () => {
-    setExpandedDays(new Set());
-    setUniformSelection([]);
-    setUniform(true);
-    // Clear divergent per-day data so the parent makes one fresh selection;
-    // the shared block then fans it out to every day via updateUniform.
-    onChange({});
-  };
-  const toggleUniform = (next: boolean) => {
-    if (!next) {
-      setUniform(false);
-      return;
-    }
-    // Enabling over already-uniform data is lossless: adopt the existing
-    // selection as the shared state and flip the view.
-    if (allDaysIdentical) {
-      setUniformSelection(payloadModes);
-      setUniform(true);
-      return;
-    }
-    // Enabling over divergent per-day choices would discard them silently;
-    // confirm first, then wipe in enableUniform.
-    setConfirmUniformOpen(true);
-  };
-  const updateUniform = (mode: DepartureModeValue) => {
-    const current = new Set(uniformSelection);
-    if (singleMode) {
-      current.clear();
-      current.add(mode);
-    } else if (current.has(mode)) current.delete(mode);
-    else current.add(mode);
-    const arr = modeOptions.filter((m) => current.has(m));
-    setUniformSelection(arr);
-    const nextRaw: Record<string, DepartureModeValue[]> = {};
-    for (const day of daysToRender) nextRaw[day] = arr;
-    onChange(asWeekdayMultiModeObject(nextRaw, daysToRender, modeOptions));
-  };
-  // The coupled "mit wem" note (#1694) is shown the moment any care day allows
-  // the accompanied mode, so parents can always say which child it is.
-  const accompaniedSelected = uniform
-    ? uniformSelection.includes("accompanied")
-    : daysToRender.some((day) => (modes[day] ?? []).includes("accompanied"));
-  return (
-    <fieldset
-      className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
-      aria-invalid={error ? "true" : undefined}
-    >
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        {field.label}
-        {field.required && <span className="text-moto-red"> *</span>}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
-      <p className="text-xs text-gray-500">
-        {tr(
-          singleMode
-            ? "structured.weekdayMultiModeSingleHelp"
-            : "structured.weekdayMultiModeHelp",
-        )}
-      </p>
-      {singleMode &&
-      daysToRender.some((day) => (modes[day]?.length ?? 0) > 1) ? (
-        // Stale multi-selection carried over from before the rule (e.g. a
-        // change request on an older submission): the backend rejects it,
-        // so warn up front instead of failing on submit.
-        <p className="text-moto-red mt-1 text-xs">
-          {tr("structured.weekdayMultiModeSingleLimit")}
-        </p>
-      ) : null}
-      <div className="mt-3">
-        {daysToRender.length > 0 ? (
-          <>
-            <label
-              className={`flex cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
-                uniform
-                  ? "border-gray-900 text-gray-900"
-                  : "border-gray-200 text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              <Checkbox
-                checked={uniform}
-                onChange={(e) => toggleUniform(e.target.checked)}
-              />
-              <span>{tr("structured.weekdayMultiModeUniform")}</span>
-            </label>
-            {uniform ? (
-              <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50/70 p-3">
-                <p className="mb-2 text-xs text-gray-500">
-                  {tr("structured.weekdayMultiModeUniformHint")}
-                </p>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {modeOptions.map((mode) => {
-                    const checked = uniformSelection.includes(mode);
-                    return (
-                      <label
-                        key={mode}
-                        className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
-                          checked
-                            ? "border-gray-900 text-gray-900"
-                            : "border-gray-200 text-gray-700 hover:border-gray-300"
-                        }`}
-                      >
-                        {singleMode ? (
-                          // Heimweg-Beschränkung (#2381): a real radio group,
-                          // not a checkbox that merely behaves like one.
-                          <input
-                            type="radio"
-                            name={`${radioGroupId}-uniform`}
-                            checked={checked}
-                            onChange={() => updateUniform(mode)}
-                            className="h-4 w-4 shrink-0 accent-gray-900"
-                          />
-                        ) : (
-                          <Checkbox
-                            checked={checked}
-                            onChange={() => updateUniform(mode)}
-                          />
-                        )}
-                        <span>{departureModeLabels[mode] ?? mode}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="mt-3 grid grid-cols-5 gap-2">
-                  {daysToRender.map((day) => {
-                    const active = activeDays.includes(day);
-                    return (
-                      <button
-                        key={day}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => toggleDay(day)}
-                        className={`flex h-9 items-center justify-center rounded-lg border px-2 text-xs font-semibold transition-colors ${
-                          active
-                            ? "border-gray-900 bg-gray-900 text-white"
-                            : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                        }`}
-                      >
-                        {weekdayLabels[day] ?? day}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 space-y-2">
-                  {activeDays.map((day) => (
-                    <div
-                      key={day}
-                      className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
-                    >
-                      <div className="mb-2 text-xs font-semibold text-gray-700">
-                        {weekdayLabels[day] ?? day}
-                      </div>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {modeOptions.map((mode) => {
-                          const checked = modes[day]?.includes(mode) ?? false;
-                          return (
-                            <label
-                              key={mode}
-                              className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-medium transition-colors ${
-                                checked
-                                  ? "border-gray-900 text-gray-900"
-                                  : "border-gray-200 text-gray-700 hover:border-gray-300"
-                              }`}
-                            >
-                              {singleMode ? (
-                                <input
-                                  type="radio"
-                                  name={`${radioGroupId}-${day}`}
-                                  checked={checked}
-                                  onChange={() => updateDay(day, mode)}
-                                  className="h-4 w-4 shrink-0 accent-gray-900"
-                                />
-                              ) : (
-                                <Checkbox
-                                  checked={checked}
-                                  onChange={() => updateDay(day, mode)}
-                                />
-                              )}
-                              <span>{departureModeLabels[mode] ?? mode}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-        ) : (
-          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-            {tr("structured.weekdayMultiModeNoDays")}
-          </p>
-        )}
-        {onCompanionNoteChange && accompaniedSelected && (
-          <div className="mt-3">
-            <label className="mb-1 block text-xs font-medium text-gray-700">
-              {tr("structured.departureCompanionLabel")}
-            </label>
-            <input
-              type="text"
-              value={companionNote ?? ""}
-              name={companionNoteName}
-              onChange={(e) => onCompanionNoteChange(e.target.value)}
-              placeholder={tr("structured.departureCompanionPlaceholder")}
-              maxLength={255}
-              aria-invalid={companionNoteError ? "true" : undefined}
-              className={`block w-full rounded-lg border bg-white px-3 py-2 text-sm transition-colors focus:border-gray-900 focus:ring-1 focus:ring-gray-900 ${
-                companionNoteError ? "border-moto-red" : "border-gray-200"
-              }`}
-            />
-            {companionNoteError && (
-              <p className="text-moto-red mt-1 text-xs">{companionNoteError}</p>
-            )}
-          </div>
-        )}
-      </div>
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
-      <ConfirmationModal
-        isOpen={confirmUniformOpen}
-        onClose={() => setConfirmUniformOpen(false)}
-        onConfirm={() => {
-          setConfirmUniformOpen(false);
-          enableUniform();
-        }}
-        title={tr("structured.weekdayMultiModeUniformConfirmTitle")}
-        confirmText={tr("structured.weekdayMultiModeUniformConfirmCta")}
-        cancelText={tr("structured.weekdayMultiModeUniformConfirmCancel")}
-        confirmVariant="danger"
-      >
-        {tr("structured.weekdayMultiModeUniformConfirmBody")}
-      </ConfirmationModal>
-    </fieldset>
-  );
-}
-
-interface ContactEntryValue {
-  first_name: string;
-  last_name: string;
-  email?: string;
-  relationship_type?: string;
-  phone_numbers?: PhoneEntry[];
-  can_pickup?: boolean;
-  is_emergency_contact?: boolean;
-  emergency_priority?: number;
-}
-
-function asContactArray(v: unknown): ContactEntryValue[] {
-  if (!Array.isArray(v)) return [];
-  return v.filter((row): row is ContactEntryValue => {
-    if (!row || typeof row !== "object") return false;
-    const r = row as Record<string, unknown>;
-    return typeof r.first_name === "string" && typeof r.last_name === "string";
-  });
-}
-
-function blankContact(): ContactEntryValue {
-  return {
-    first_name: "",
-    last_name: "",
-    relationship_type: "",
-    phone_numbers: [],
-    can_pickup: false,
-    is_emergency_contact: false,
-  };
-}
-
-function ContactListInput({
-  field,
-  inputName,
-  value,
-  onChange,
-  error,
-  tr,
-}: CustomFieldInputProps) {
-  const contacts = asContactArray(value);
-  const update = (next: ContactEntryValue[]) => onChange(next);
-  const setRow = (idx: number, patch: Partial<ContactEntryValue>) =>
-    update(
-      contacts.map((contact, i) =>
-        i === idx
-          ? copyStableObjectKey(contact, { ...contact, ...patch })
-          : contact,
-      ),
-    );
-  return (
-    <fieldset
-      className={`rounded-2xl border p-4 shadow-sm ${error ? "border-moto-red" : "moto-content-surface"}`}
-      aria-invalid={error ? "true" : undefined}
-    >
-      <legend className="px-1 text-sm font-semibold text-gray-900">
-        {field.label}
-        {field.required && <span className="text-moto-red"> *</span>}
-      </legend>
-      {field.help_text && (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      )}
-      {contacts.length === 0 && (
-        <p className="mt-2 text-sm text-gray-500">
-          {tr("structured.noneContact")}
-        </p>
-      )}
-      <ul className="space-y-3">
-        {contacts.map((c, idx) => (
-          <li
-            key={getStableObjectKey(c, "contact")}
-            className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4"
-          >
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <label className="block">
-                <span className="text-xs font-medium text-gray-700">
-                  {tr("fields.firstNamePlain")}
-                </span>
-                <input
-                  type="text"
-                  value={c.first_name}
-                  onChange={(e) => setRow(idx, { first_name: e.target.value })}
-                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-gray-700">
-                  {tr("fields.lastNamePlain")}
-                </span>
-                <input
-                  type="text"
-                  value={c.last_name}
-                  onChange={(e) => setRow(idx, { last_name: e.target.value })}
-                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-gray-700">
-                  {tr("structured.relationship")}
-                </span>
-                <input
-                  type="text"
-                  value={c.relationship_type ?? ""}
-                  onChange={(e) =>
-                    setRow(idx, { relationship_type: e.target.value })
-                  }
-                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="text-xs font-medium text-gray-700">
-                  {tr("structured.optionalEmail")}
-                </span>
-                <input
-                  type="email"
-                  value={c.email ?? ""}
-                  onChange={(e) => setRow(idx, { email: e.target.value })}
-                  className="mt-1 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                />
-              </label>
-            </div>
-
-            <div className="mt-3">
-              <PhoneListInput
-                inputName={`${inputName}_${idx}_phones`}
-                field={{
-                  ...field,
-                  key: `${field.key}_${idx}_phones`,
-                  label: tr("structured.phoneNumbers"),
-                  type: "phone_list",
-                  required: false,
-                }}
-                value={c.phone_numbers ?? []}
-                onChange={(v) =>
-                  setRow(idx, {
-                    phone_numbers: Array.isArray(v) ? (v as PhoneEntry[]) : [],
-                  })
-                }
-                tr={tr}
-              />
-            </div>
-
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <StructuredToggle
-                  checked={Boolean(c.can_pickup)}
-                  onChange={(checked) => setRow(idx, { can_pickup: checked })}
-                  label={tr("structured.pickup")}
-                />
-                <StructuredToggle
-                  checked={Boolean(c.is_emergency_contact)}
-                  onChange={(checked) =>
-                    setRow(idx, { is_emergency_contact: checked })
-                  }
-                  label={tr("structured.emergency")}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => update(contacts.filter((_, i) => i !== idx))}
-                className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-9 items-center justify-center gap-2 rounded-lg border bg-white px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
-              >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
-                {tr("structured.removeContact")}
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-      <button
-        type="button"
-        onClick={() => update([...contacts, blankContact()])}
-        className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <Plus className="h-4 w-4" aria-hidden="true" />
-        {tr("structured.addContact")}
-      </button>
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
-    </fieldset>
-  );
-}
-
-function StructuredToggle({
-  checked,
-  label,
-  name,
-  onChange,
-  type = "checkbox",
-}: Readonly<{
-  checked: boolean;
-  label: string;
-  name?: string;
-  onChange: (checked: boolean) => void;
-  type?: "checkbox" | "radio";
-}>) {
-  return (
-    <label
-      className={`flex h-9 cursor-pointer items-center gap-2.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
-        checked
-          ? "border-moto-green/40 bg-moto-green/10 text-gray-900"
-          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-      }`}
-    >
-      <input
-        type={type}
-        name={name}
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="sr-only"
-      />
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center border ${
-          type === "radio" ? "rounded-full" : "rounded-md"
-        } ${
-          checked
-            ? "border-moto-green-fill bg-moto-green-fill text-white"
-            : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        {checked ? <Check className="h-3.5 w-3.5" /> : null}
-      </span>
-      {label}
-    </label>
-  );
-}
-
 interface ExistingChildrenPanelProps {
   readonly existing: MeProfileChild[];
   readonly usedIDs: Set<string>;
@@ -5548,14 +3839,16 @@ function ExistingChildrenPanel({
                   })}
                 </p>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="compact"
                 onClick={() => onAdopt(c)}
                 disabled={used}
-                className="shrink-0 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+                className="shrink-0"
               >
                 {used ? tr("structured.adopted") : tr("structured.adopt")}
-              </button>
+              </Button>
             </li>
           );
         })}
