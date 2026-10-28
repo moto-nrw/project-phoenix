@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -140,4 +141,32 @@ func sessionOfTraeger(session domain.AccountSession, claims domain.SessionClaims
 	default:
 		return session.OrganizationID == 0
 	}
+}
+
+// VerifyAccessSession confirms that the family an access token names still
+// backs it (#5194). Logout and every revocation delete the family, so a
+// cookie a late response writes back no longer opens anything, on every
+// instance: the check reads the latest generation each time and caches
+// nothing. A token without a family is refused; every session minted since
+// families exist carries one.
+func (s *AccountAuthentication) VerifyAccessSession(ctx context.Context, session identityaccess.AccessSession) (err error) {
+	if s == nil {
+		return errAccountAuthenticationUnavailable
+	}
+	defer func() { err = authenticationError(err) }()
+	token := domain.AccessSession(session)
+	if token.FamilyID == "" {
+		return identityaccess.ErrInvalidToken
+	}
+	head, err := s.sessions.LatestAccountSessionInFamily(bindRuntime(s.attach, ctx), token.FamilyID)
+	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
+		return identityaccess.ErrInvalidToken
+	}
+	if err != nil {
+		return err
+	}
+	if !domain.AccessSessionLive(domain.AccountSession(head), token, time.Now()) {
+		return identityaccess.ErrInvalidToken
+	}
+	return nil
 }

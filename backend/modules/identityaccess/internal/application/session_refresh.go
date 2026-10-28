@@ -343,7 +343,10 @@ func (r *refreshRotation) validatePresented(ctx context.Context, presented domai
 
 func (r *refreshRotation) validateLineage(ctx context.Context, current domain.AccountSession) error {
 	if current.FamilyID == "" {
-		return nil
+		// A session from before refresh families carries no family_id, so
+		// its access tokens cannot be checked per request and are refused
+		// (#5194). The row goes, and the person signs in again.
+		return r.reject(ctx, current, "family_missing", "delete refresh token without family", identityaccess.ErrInvalidToken)
 	}
 	latest, err := r.service.sessions.LatestAccountSessionInFamily(ctx, current.FamilyID)
 	if err != nil {
@@ -573,9 +576,18 @@ func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToke
 	)
 	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		presented, err := s.sessions.findAccountSessionByToken(txCtx, claims.Token)
-		if err != nil {
+		if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
 			// An unknown token is a successful logout.
 			return nil
+		}
+		if err != nil {
+			return failed("find refresh token", err)
+		}
+		// The account lock refresh takes first (#5194): a rotation that
+		// committed its successor before this lock is granted is deleted
+		// with the family below, one that waits for it finds no token.
+		if _, _, _, err := findLoginAccount(txCtx, s.runtime, s.store, presented.AccountID, true); err != nil {
+			return failed("lock account", err)
 		}
 		var deleteErr error
 		if presented.FamilyID == "" {

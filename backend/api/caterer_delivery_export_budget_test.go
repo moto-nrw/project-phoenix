@@ -38,7 +38,8 @@ func checkCatererDeliveryExportQueryBudget(t *testing.T, api *goldenRuntime) {
 	require.NoError(t, err)
 	tokenAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	token, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer})
+	family := testpkg.CreateTestSessionFamily(t, db, account.ID, testpkg.Tenant(t), tenant.ScopeCaterer)
+	token, err := tokenAuth.CreateJWT(sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"caterer"}, Scope: tenant.ScopeCaterer, FamilyID: family})
 	require.NoError(t, err)
 
 	addSchool := func(children int) {
