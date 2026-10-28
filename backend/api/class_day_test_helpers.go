@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -90,13 +91,7 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 	}
 	rCare := NewEnrollmentCarePlanRows(db)
 	rAudit := NewEnrollmentAuditRows(db, command)
-	rMembership := NewSchoolMembershipSuiteRepositories(db)
-	reports := owners.NewEnrollmentReports(owners.EnrollmentReportSources{
-		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(rCare.CarePlan), AccessLog: rAudit.DataAccessLog,
-		Students: r.Student, Persons: r.Person, Groups: schoolStructureCompose.NewGroupNames(owners.NewSchoolStructureSuiteRepositories(db).Group), StudentGuardians: r.StudentGuardian,
-		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassListEntries: owners.NewClassListEntryRosterReader(rMembership.Membership),
-		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: activeSettings.Settings,
-	})
+	reports := classDayTestReports(db, r, rCare, rAudit, active, care, activeSettings)
 	people, err := owners.NewPeopleDirectory(db)
 	if err != nil {
 		return ClassDayTestModule{}, err
@@ -112,6 +107,10 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}
+	_, staffGroups, err := NewUserContextTestRepositories(db, members)
+	if err != nil {
+		return ClassDayTestModule{}, err
+	}
 	unreported := &RecordingUnreportedNotifier{}
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: activeCaller, PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
@@ -119,8 +118,10 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 		BlockStarts:                   activeTimetable.TimetableOperations,
 		MorningAttendanceDependencies: classDayTestMorning(db, hub, people, rCare, command, presence, unreported, clocks),
 		TripStatusDays:                classDayTestTrips(db, hub, people, rCare, clocks),
-		DayHintDependencies:           classdayCompose.DayHintDependencies{DayHints: people, Today: calendar.CalendarDateClock(clocks...)},
-		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(owners.MustNewUnobservedTimetable(db))},
+		StudentNoteDependencies: classdayCompose.StudentNoteDependencies{
+			DayHints: people, Today: calendar.CalendarDateClock(clocks...), SharedNotes: people, ClassTeachers: staffGroups,
+		},
+		HomeworkDependencies: classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(owners.MustNewUnobservedTimetable(db))},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence, HandoverStaffNames: classHandoverStaffNames(members.Staff),
 		},
@@ -138,6 +139,21 @@ func classDayTestMorning(db transactionruntime.Database, hub *realtime.Hub, peop
 		presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
 			Broadcaster: hub, Logger: slog.Default(), PeopleDirectory: people, StudentStatusDayService: classDayTestStatusDays(db, rCare, clocks),
 		}, presence), owners.NewTestAuditPersistence(db, command).StudentFieldEdit, unreported)
+}
+
+// classDayTestReports is Enrollment's day roster over the test graph, composed
+// like the service factory composes it.
+func classDayTestReports(
+	db transactionruntime.Database, r EnrollmentTestRepositories, rCare owners.TimetableCarePlanRows, rAudit *EnrollmentAuditRows,
+	active ActiveTestModule, care CareLifecycleTestModule, activeSettings ActiveSettings,
+) enrollmentOwner.Reports {
+	rMembership := NewSchoolMembershipSuiteRepositories(db)
+	return owners.NewEnrollmentReports(owners.EnrollmentReportSources{
+		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(rCare.CarePlan), AccessLog: rAudit.DataAccessLog,
+		Students: r.Student, Persons: r.Person, Groups: schoolStructureCompose.NewGroupNames(owners.NewSchoolStructureSuiteRepositories(db).Group), StudentGuardians: r.StudentGuardian,
+		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassListEntries: owners.NewClassListEntryRosterReader(rMembership.Membership),
+		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: activeSettings.Settings,
+	})
 }
 
 // classDayTestTrips is the class-trip write seam (#4799) over the test graph,

@@ -467,6 +467,13 @@ function studentSearchTopic(
     presenceMode === "binary"
       ? "Bei einfacher Anwesenheit sehen Sie keinen Raum. Sie sehen nur, ob das Kind da ist."
       : null;
+  // #5026: ohne Räume (Binärmodus) gibt es keine Zuweisung.
+  const transitNotes =
+    presenceMode === "binary"
+      ? []
+      : [
+          "Filtern Sie nach `Unterwegs`? Oder gruppieren Sie `Nach Status` oder `Nach Raum`? Dann steht oben die Karte `Unterwegs`. Mit `Zuweisen` setzen Sie diese Kinder in einen Raum. Die Karte sehen Sie nur, wenn Sie Kinder einem Raum zuweisen dürfen.",
+        ];
 
   return {
     id: HELP_TOPICS.studentSearch,
@@ -563,6 +570,7 @@ function studentSearchTopic(
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
       ...(presenceDifference ? [presenceDifference] : []),
     ],
+    ...(transitNotes.length > 0 ? { notes: transitNotes } : {}),
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
     related: [
       HELP_TOPICS.editStudent,
@@ -842,6 +850,8 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
     notes: ["Sie können mehrere Kinder auswählen und gemeinsam verschieben."],
     differences: [
       "Hat das Kind noch keinen Raum? Wählen Sie auf `Räume` die Karte `Unterwegs`. Wählen Sie dort das Kind und den Zielraum.",
+      // #5026: dieselbe Karte steht auf „Alle Kinder“.
+      "Oder filtern Sie unter `Alle Kinder` nach `Unterwegs`. Wählen Sie dann oben die Karte `Unterwegs`.",
       "Steht hinter dem Zielraum `(offener Raum)`? Dort braucht es keine Aufsicht. Das Kind nutzt den Raum dann, ohne an einem Angebot teilzunehmen.",
       "Fehlt der Zielraum? Prüfen Sie dort `Aktuelle Aufsicht`.",
       "Beaufsichtigen Sie keinen der beiden Räume? Bitten Sie eine zuständige Aufsicht. Oder fragen Sie Ihre Leitung.",
@@ -1503,7 +1513,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       {
         title: "Kinder ohne Raum in einen Raum setzen",
         description:
-          "Führen Sie selbst die Aufsicht, stehen nur Ihre Räume zur Wahl. Mit dem Recht für alle Räume steht die ganze Liste da. Dann stehen auch offene Räume in der Liste, mit dem Zusatz `(offener Raum)`. So bleibt ein Kind nach seinem Angebot im Raum, ohne an einem Angebot teilzunehmen.",
+          "Führen Sie selbst die Aufsicht, stehen nur Ihre Räume zur Wahl. Mit dem Recht für alle Räume steht die ganze Liste da. Dann stehen auch offene Räume in der Liste, mit dem Zusatz `(offener Raum)`. So bleibt ein Kind nach seinem Angebot im Raum, ohne an einem Angebot teilzunehmen. Dieselbe Karte steht auch unter `Alle Kinder`, wenn Sie dort nach `Unterwegs` filtern.",
         steps: [
           "Wählen Sie oben die Karte `Unterwegs`.",
           "Wählen Sie die gewünschten Kinder aus.",
@@ -1994,6 +2004,8 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
     result:
       "moto übernimmt die freigegebene Änderung. Die Bezugsperson sieht die Entscheidung in der Eltern-App.",
     differences: [
+      // #5024: Freigeben braucht standardmäßig keine Begründung mehr.
+      "Zeigt das Feld `Begründung (Pflicht)` statt `Begründung (Pflicht bei Ablehnung)`? Dann verlangt Ihre OGS auch beim Freigeben eine Begründung. Tragen Sie sie vorher ein.",
       "Bei einer geänderten Abholzeit zeigt moto vorher betroffene Termine an.",
       // #3945: Tagesanfrage mit Abholart.
       "Eine Anfrage für einen einzelnen Tag kann die Abholzeit, die Abholart oder beides ändern. Die neue Abholart gilt nur an diesem Tag.",
@@ -3866,6 +3878,15 @@ function studentNotesTopic(): HelpTopic {
           "Der Hinweis steht danach auch im Reiter `Stammdaten`.",
         ],
       },
+      {
+        title: "Eine Notiz für die Schule freigeben",
+        steps: [
+          "Setzen Sie beim Schreiben oder Bearbeiten den Haken bei `Für die Schule freigeben`.",
+          "Wählen Sie `Speichern`.",
+          "An der Notiz steht danach `Für die Schule freigegeben`.",
+          "Zum Zurücknehmen entfernen Sie den Haken wieder und wählen `Speichern`.",
+        ],
+      },
     ],
     result:
       "Die Notiz steht sofort in der Kindakte, mit Datum und Ihrem Namen.",
@@ -3874,6 +3895,7 @@ function studentNotesTopic(): HelpTopic {
       "Gesundheitsangaben gehören nicht in eine Notiz, sondern in die `Gesundheitsinformationen` der Stammdaten.",
       "Ändern kann eine Notiz nur, wer sie geschrieben hat.",
       "Entfernen kann sie die Leitung der Gruppe oder des Angebots.",
+      "Eine freigegebene Notiz liest nur die Lehrkraft der Klasse des Kindes, in moto schule. Die Schulverwaltung sieht sie nicht. Ohne Haken bleibt jede Notiz bei der OGS.",
       "Die `Bemerkung` an der Anwesenheit eines Angebots ist nur ein kurzer Satz zur Anwesenheit. Beobachtungen wie Verhalten oder einen Vorfall schreiben Sie als Notiz, mit dem Angebot als `Bezug`.",
     ],
     differences: [
@@ -4623,6 +4645,7 @@ function mealCatererTopic(): HelpTopic {
       "Der Caterer sieht nur Zahlen: je Tag und, wenn Sie so bestellen, je Klasse. Namen sieht er nur, wenn Sie unter `Einstellungen` → `Datenschutz` `Namen der Kinder für den Caterer` einschalten.",
       "Der Caterer kann eine Bestellung nur bestätigen. Dann steht bei Ihnen `Vom Caterer bestätigt`.",
       "Beliefert der Caterer schon andere Schulen, bestätigt er mit seinem Passwort. Ihre Schule kommt dann zu seinen Schulen dazu.",
+      "Sein Passwort ändert der Caterer selbst. Er öffnet oben rechts sein Menü und wählt `Konto`. Hat er es vergessen, wählt er bei der Anmeldung `Passwort vergessen?`.",
       "Die Belieferung beenden Sie auf der Karte `Caterer` über das Menü mit den drei Punkten: `Belieferung beenden`. moto fragt vorher nach. Danach sieht der Caterer Ihre Schule nicht mehr, und Sie können einen neuen Caterer einladen.",
       "Die Lieferliste bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten. Wählen Sie unter `Lieferliste der Woche` `PDF`, `Excel` oder `CSV`. Die Woche wählen Sie oben unter dem Titel. Es ist dieselbe Liste, die Ihr Caterer sieht, ohne Namen.",
     ],
@@ -8783,6 +8806,47 @@ function teacherDayHintTopic(): HelpTopic {
   };
 }
 
+/**
+ * `Beobachtungen der OGS` (`student-row.tsx`, `/school/klasse/kind`, #4797).
+ * Nur die Lehrkraft der Klasse; nur Notizen, die die OGS freigegeben hat.
+ */
+function teacherSharedNotesTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.teacherSharedNotes,
+    title: "Beobachtungen der OGS lesen",
+    question: "Was hat die OGS über ein Kind meiner Klasse notiert?",
+    summary:
+      "Sie lesen die Notizen, die die OGS für die Schule freigegeben hat.",
+    group: "klasse",
+    audience: "teacher",
+    icon: "FileText",
+    steps: [
+      "Öffnen Sie die Liste Ihrer Klasse.",
+      "Wählen Sie beim Kind `Beobachtungen der OGS`.",
+      "Lesen Sie die Notizen. Die neueste steht oben.",
+    ],
+    result:
+      "Sie sehen jede Notiz mit Tag und dem Namen der Person aus der OGS, die sie geschrieben hat.",
+    notes: [
+      "Sie können die Notizen nur lesen. Ändern oder beantworten können Sie sie nicht.",
+      "Jeder Abruf wird protokolliert.",
+      "Fragen zu einer Notiz klären Sie direkt mit der OGS, zum Beispiel über `Nachrichten`.",
+    ],
+    differences: [
+      "Fehlt `Beobachtungen der OGS`? Dann sind Sie der Klasse nicht als Lehrkraft zugewiesen. Die Schulverwaltung sieht die Notizen nicht.",
+      "Steht dort `Keine Beobachtungen`? Dann hat die OGS für dieses Kind nichts freigegeben.",
+    ],
+    troubleshootingDetails: [
+      "Eine Notiz ist verschwunden? Dann hat die OGS die Freigabe zurückgenommen.",
+    ],
+    related: [
+      HELP_TOPICS.teacherClassList,
+      HELP_TOPICS.teacherDayHint,
+      HELP_TOPICS.teacherMessages,
+    ],
+  };
+}
+
 /** `/school/aufsichten`: die eigenen Dienste des Tages. */
 function teacherSupervisionTopic(): HelpTopic {
   return {
@@ -9239,7 +9303,7 @@ function traegerSettingsTopic(): HelpTopic {
     requirements: ["Sie dürfen im Träger-Büro Einstellungen ändern."],
     steps: [
       "Wählen Sie in der Navigation `Einstellungen`.",
-      "Suchen Sie die Einstellung, zum Beispiel unter `Anmeldung` oder `Betrieb`.",
+      "Wählen Sie den Bereich, zum Beispiel `Anmeldung` oder `Betrieb`.",
       "Ändern Sie den Wert. moto speichert die Änderung von selbst.",
     ],
     result:
@@ -9480,7 +9544,7 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         steps: [
           "Wählen Sie in der Navigation `Ferien`.",
           "Öffnen Sie den Ferienzeitraum.",
-          "Wählen Sie `Anmeldungen prüfen`.",
+          "Wählen Sie den Reiter `Anmeldungen`.",
           "Filtern Sie nach Status, `Schule`, `Woche` oder `Zeitmodell`. Unter `Schule` finden Sie auch `Feriengäste`.",
           "Wählen Sie eine Anmeldung, um sie zu öffnen.",
         ],
@@ -9515,7 +9579,7 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         title: "Exportieren",
         steps: [
           "Stellen Sie die Filter ein, zum Beispiel eine Schule.",
-          "Wählen Sie `Als CSV herunterladen` oder `Als Excel herunterladen`.",
+          "Wählen Sie `Herunterladen` und dann `Excel` oder `CSV`.",
         ],
       },
     ],
@@ -9637,9 +9701,10 @@ function traegerBillingRunTopic(): HelpTopic {
       {
         title: "Lauf starten und prüfen",
         steps: [
-          "Wählen Sie bei `Abrechnungsläufe` den Knopf `Lauf starten`.",
+          "Wählen Sie `Lauf starten`.",
           "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
-          "Prüfen Sie die Vorschau. Je Familie steht eine Rechnung mit allen Positionen da.",
+          "Prüfen Sie die Vorschau unter `Rechnungen`. Je Familie steht dort eine Rechnung.",
+          "Die Positionen einer Rechnung sehen Sie im Menü mit den drei Punkten unter `Aufschlüsselung ansehen`.",
         ],
       },
       {
@@ -9688,7 +9753,7 @@ function traegerBillingRunTopic(): HelpTopic {
         description: "Das geht, sobald der Lauf freigegeben ist.",
         steps: [
           "Öffnen Sie den freigegebenen Lauf.",
-          "Wählen Sie bei `Übersicht für die Kämmerei` den Knopf `Herunterladen`.",
+          "Wählen Sie bei `Rechnungen` den Knopf `Übersicht für die Kämmerei`.",
           "Wählen Sie das Format: `PDF`, `Excel` oder `CSV`.",
           "Geben Sie die Datei an die Kämmerei weiter.",
         ],
@@ -9889,7 +9954,7 @@ function traegerAccessLogTopic(): HelpTopic {
         description: "Für einen Nachweis, zum Beispiel in einer Tabelle.",
         steps: [
           "Stellen Sie die Filter ein.",
-          "Wählen Sie `Als CSV herunterladen`.",
+          "Wählen Sie `Herunterladen` und dann `CSV`.",
           "moto lädt eine Datei mit allen Einträgen zu den Filtern herunter.",
         ],
       },
@@ -9942,6 +10007,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   teacherChildDetailsTopic(),
   teacherArrivalChangeTopic(),
   teacherDayHintTopic(),
+  teacherSharedNotesTopic(),
   teacherClassTripTopic(),
   teacherAbsenceReportTopic(),
 

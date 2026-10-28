@@ -45,7 +45,7 @@ func New(deps Dependencies) (studentpresence.Owner, error) {
 	return application.New(store, transaction{}, deps.Observe, sessionAttendancePorts(deps), now), nil
 }
 
-// NewPresenceHistory builds the past-presence writer only the dev tools compose (ADR 0125).
+// NewPresenceHistory builds the past-presence writer for the dev tools (ADR 0125) and the public demo's operator route (ADR 0127).
 func NewPresenceHistory(deps Dependencies) studentpresence.PresenceHistory {
 	return application.NewPresenceHistory(postgres.New(databaseRuntime(deps.DB)), transaction{})
 }

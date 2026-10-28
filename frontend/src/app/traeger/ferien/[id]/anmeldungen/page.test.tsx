@@ -95,6 +95,15 @@ describe("TraegerHolidayRegistrationsPage", () => {
       ),
     ).toBeInTheDocument();
     expect(table.getByText("Eingegangen")).toBeInTheDocument();
+    // Planung and Anmeldungen are the two page tabs of the period (#5146).
+    expect(screen.getByRole("tab", { name: /Anmeldungen/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("tab", { name: "Planung" })).toHaveAttribute(
+      "href",
+      "/traeger/ferien/5",
+    );
     expect(mockFetchList).toHaveBeenCalledWith("5", {
       status: "",
       school: "",
@@ -107,8 +116,10 @@ describe("TraegerHolidayRegistrationsPage", () => {
     renderPage();
     await within(await screen.findByRole("table")).findByText("Eva Muster");
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Status" }));
-    fireEvent.click(await screen.findByRole("option", { name: "Bestätigt" }));
+    // Die Filter stehen in der Filterzeile des Seitenkopfs (#5146); jeder
+    // Auslöser nennt seinen aktuellen Wert.
+    fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigt" }));
     await waitFor(() =>
       expect(mockFetchList).toHaveBeenLastCalledWith(
         "5",
@@ -116,8 +127,8 @@ describe("TraegerHolidayRegistrationsPage", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Schule" }));
-    fireEvent.click(await screen.findByRole("option", { name: "Feriengäste" }));
+    fireEvent.click(screen.getByRole("button", { name: "Alle Schulen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Feriengäste" }));
     await waitFor(() =>
       expect(mockFetchList).toHaveBeenLastCalledWith(
         "5",
@@ -125,14 +136,14 @@ describe("TraegerHolidayRegistrationsPage", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Woche" }));
+    fireEvent.click(screen.getByRole("button", { name: "Alle Wochen" }));
     fireEvent.click(
-      await screen.findByRole("option", {
+      await screen.findByRole("button", {
         name: "11.01. bis 15.01.2027, OGS Süd",
       }),
     );
-    fireEvent.click(screen.getByRole("combobox", { name: "Zeitmodell" }));
-    fireEvent.click(await screen.findByRole("option", { name: "bis 13 Uhr" }));
+    fireEvent.click(screen.getByRole("button", { name: "Alle Zeitmodelle" }));
+    fireEvent.click(await screen.findByRole("button", { name: "bis 13 Uhr" }));
     await waitFor(() =>
       expect(mockFetchList).toHaveBeenLastCalledWith("5", {
         status: "confirmed",
@@ -161,9 +172,11 @@ describe("TraegerHolidayRegistrationsPage", () => {
     renderPage();
     await within(await screen.findByRole("table")).findByText("Eva Muster");
 
+    // Export als Menü im Seitenkopf (#5146).
     fireEvent.click(
-      screen.getByRole("button", { name: "Als Excel herunterladen" }),
+      screen.getByRole("button", { name: "Anmeldungen herunterladen" }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Excel" }));
     await waitFor(() =>
       expect(mockDownloadBlob).toHaveBeenCalledWith(
         blob,
@@ -177,8 +190,9 @@ describe("TraegerHolidayRegistrationsPage", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Als CSV herunterladen" }),
+      screen.getByRole("button", { name: "Anmeldungen herunterladen" }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
     await waitFor(() =>
       expect(mockDownload).toHaveBeenLastCalledWith(
         "5",

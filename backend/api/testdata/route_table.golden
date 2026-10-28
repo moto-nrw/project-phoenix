@@ -642,6 +642,7 @@ GET /school/class-day/arrival-exceptions
 GET /school/class-day/arrival-exceptions/block-start
 GET /school/class-day/classes
 GET /school/class-day/school-day
+GET /school/class-day/shared-notes/{schoolClass}/students/{studentId}
 GET /school/notifications/preferences/
 GET /school/notifications/push/public-key
 GET /school/parent-letters/
@@ -995,6 +996,7 @@ POST /auth/session/validate
 POST /auth/staff-preview
 POST /auth/staff-preview/end
 POST /auth/switch-tenant
+POST /caterer/account/password
 POST /caterer/auth/login
 POST /caterer/auth/password-reset
 POST /caterer/auth/password-reset/confirm

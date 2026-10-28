@@ -91,6 +91,9 @@ type StudentNote struct {
 	Category        string
 	Body            string
 	Subject         StudentNoteSubject
+	// SharedWithSchool releases the note to the Lehrkraft of the child's
+	// class in moto schule (#4797). Off by default; only the OGS sets it.
+	SharedWithSchool bool
 	// AuthorName is resolved on read from the author's current person record;
 	// it is empty for a carried-over hint and for an author whose record is
 	// gone.
@@ -111,6 +114,8 @@ type CreateStudentNote struct {
 	Category        string
 	Body            string
 	Subject         StudentNoteSubject
+	// SharedWithSchool releases the new note to the school (#4797).
+	SharedWithSchool bool
 	// RevalidateSubject is supplied by the caller that owns group and activity
 	// assignments. The note service invokes it after locking the child.
 	RevalidateSubject func(context.Context) error
@@ -129,6 +134,9 @@ type UpdateStudentNote struct {
 	Category       string
 	Body           string
 	SubjectDate    *calendar.Date
+	// SharedWithSchool changes the release for the school (#4797); nil keeps
+	// the stored value.
+	SharedWithSchool *bool
 }
 
 // DeleteStudentNote removes one entry from every timeline while keeping the
@@ -189,6 +197,11 @@ type StudentNoteQuery interface {
 	// with each author's name resolved. Set StudentNoteFilter.NoteID to read a
 	// single note through the same audience predicate.
 	ListStudentNotes(context.Context, StudentNoteFilter) ([]StudentNote, error)
+	// ListSchoolSharedNotes returns the live notes of one child the OGS
+	// released for the school (#4797), newest first, with each author's name
+	// resolved. Who may read them — the Lehrkraft of the child's class — is
+	// the caller's decision.
+	ListSchoolSharedNotes(ctx context.Context, studentID int64) ([]StudentNote, error)
 }
 
 // StudentNoteCommand writes a child's note card. Deciding WHO may write, edit

@@ -20146,6 +20146,50 @@
     },
     {
       "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListSchoolSharedNotes",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "1efd9a29b9418accdd6170a7c1682c40",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/compose.Directory.ListSchoolSharedNotes; modules/peopledirectory/internal/application/capability_student_notes.go:94. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "076e959c1f41f44d60eef8b4c4adaaaa",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.ListSchoolSharedNotes; modules/peopledirectory.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "411524003a6acc3b746cc7ae30fe004f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolSharedNotes; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "411524003a6acc3b746cc7ae30fe004f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolSharedNotes; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentCareEnds",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentCareEnds",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentCareEnds",
@@ -36297,11 +36341,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "7354cc8b6686b2cccc59e2f597432232",
+      "binding_digest": "2d1c08d900e38f3e72d9cbe6af08e254",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the shared session mint it reaches now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the shared session mint it reaches now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36309,11 +36353,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.AcceptTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "5c62ac40f368c86c85cea50a2795e4a2",
+      "binding_digest": "ecc9480638384b42530359d96486c090",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36429,11 +36473,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36441,11 +36485,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36573,11 +36617,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36585,11 +36629,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36597,11 +36641,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36609,11 +36653,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36621,11 +36665,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36633,11 +36677,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36645,11 +36689,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "03650c38c6fc6d6ef37f7747c5417eb0",
+      "binding_digest": "f57a02c89b6152faf6e0a9122497d69a",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36657,11 +36701,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "46ab4b37450f0ef43eff228e078a8a19",
+      "binding_digest": "cff4d7549a9061b3055055d03bb48a0b",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36681,11 +36725,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "adbdc338d590f4d9c6f6e2a206d8c179",
+      "binding_digest": "45dd66bc86344ef4be977751606bba11",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36693,11 +36737,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "842e2d9845e5abf1e841ee946877a2f8",
+      "binding_digest": "eb4ce2064b73b766ecc46836d51e3ce8",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36753,11 +36797,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "f256ce28d4db23229068235ac3b9b206",
+      "binding_digest": "105e448536f34a6c7211c8ca4b6ea004",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36765,11 +36809,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "4cb361b52b5bb73b3b137545a9fd7ce7",
+      "binding_digest": "b7a887b25d7ee65d0a68cb4c56f17cc9",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36777,11 +36821,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchTenant",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "36b744da6bd0d2d665fe6c93b628a5a8",
+      "binding_digest": "c65d7789a3d0f4b73671ff270f2dccaa",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36789,11 +36833,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.SwitchTenant",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "134040070ec5211a5acd712821bbdaa1",
+      "binding_digest": "00e1fa4acd33a914d890e47c05dc65eb",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36801,11 +36845,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36813,11 +36857,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36825,11 +36869,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36837,11 +36881,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -36997,11 +37041,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37009,11 +37053,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37021,11 +37065,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37033,11 +37077,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37045,11 +37089,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.AcceptTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "7354cc8b6686b2cccc59e2f597432232",
+      "binding_digest": "2d1c08d900e38f3e72d9cbe6af08e254",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the shared session mint it reaches now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the shared session mint it reaches now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37057,11 +37101,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.AcceptTraegerInvitation",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "5c62ac40f368c86c85cea50a2795e4a2",
+      "binding_digest": "ecc9480638384b42530359d96486c090",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.AcceptTraegerInvitation. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37141,11 +37185,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "f256ce28d4db23229068235ac3b9b206",
+      "binding_digest": "105e448536f34a6c7211c8ca4b6ea004",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37153,11 +37197,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "4cb361b52b5bb73b3b137545a9fd7ce7",
+      "binding_digest": "b7a887b25d7ee65d0a68cb4c56f17cc9",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37493,11 +37537,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37505,11 +37549,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.IssueTraegerTokensForVerifiedMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37589,11 +37633,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37601,11 +37645,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolAtTenantWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37613,11 +37657,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "56c41eb0e9a73723dca3e7b4646534f5",
+      "binding_digest": "4aaabb3ac6a1b9bead1adc9b276bfec9",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37625,11 +37669,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginSchoolWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "6d6a97a8accb65b9ba5449291781b046",
+      "binding_digest": "2553a7a6335f9f0a9ce382ed54b5af2e",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginSchoolWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37637,11 +37681,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "207567b389c6596a28363d8ed23ed917",
+      "binding_digest": "9c6fcf44236c6b4bee672cb867569a17",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37649,11 +37693,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginTraeger",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "49a501a578ffa4ebde2f8bb6114ea688",
+      "binding_digest": "0006f4c6813f12bc109a70c15fcd7a18",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginTraeger. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098) Re-reviewed for #4654: the Träger sign-in and its second factor (#4651) mint through the shared session mint, which now also holds an OGS session of the Träger to the second factor and files the Absprung in the school's audit inside the same administrative unit; no new unit or scope switch. Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37661,11 +37705,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "03650c38c6fc6d6ef37f7747c5417eb0",
+      "binding_digest": "f57a02c89b6152faf6e0a9122497d69a",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37673,11 +37717,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginWithMFAGate",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "46ab4b37450f0ef43eff228e078a8a19",
+      "binding_digest": "cff4d7549a9061b3055055d03bb48a0b",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.LoginWithMFAGate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37685,11 +37729,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "adbdc338d590f4d9c6f6e2a206d8c179",
+      "binding_digest": "45dd66bc86344ef4be977751606bba11",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37697,11 +37741,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RefreshTokenWithAudit",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "842e2d9845e5abf1e841ee946877a2f8",
+      "binding_digest": "eb4ce2064b73b766ecc46836d51e3ce8",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.RefreshTokenWithAudit. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37709,11 +37753,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "f256ce28d4db23229068235ac3b9b206",
+      "binding_digest": "105e448536f34a6c7211c8ca4b6ea004",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37721,11 +37765,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "4cb361b52b5bb73b3b137545a9fd7ce7",
+      "binding_digest": "b7a887b25d7ee65d0a68cb4c56f17cc9",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37733,11 +37777,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime",
-      "binding_digest": "36b744da6bd0d2d665fe6c93b628a5a8",
+      "binding_digest": "c65d7789a3d0f4b73671ff270f2dccaa",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -37745,11 +37789,11 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime",
-      "binding_digest": "134040070ec5211a5acd712821bbdaa1",
+      "binding_digest": "00e1fa4acd33a914d890e47c05dc65eb",
       "effect": "scope",
       "classification": "platform",
       "adr": "0098",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged."
     },
     {
       "source_owner": "identity-access",
@@ -72447,6 +72491,50 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolDayHints; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListSchoolSharedNotes",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "1efd9a29b9418accdd6170a7c1682c40",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/compose.Directory.ListSchoolSharedNotes; modules/peopledirectory/internal/application/capability_student_notes.go:94. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "076e959c1f41f44d60eef8b4c4adaaaa",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Capability.ListSchoolSharedNotes; modules/peopledirectory.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "411524003a6acc3b746cc7ae30fe004f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolSharedNotes; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListSchoolSharedNotes",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListSchoolSharedNotes",
+      "target_owner": "people-directory",
+      "binding_digest": "411524003a6acc3b746cc7ae30fe004f",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.Owner.ListSchoolSharedNotes; modules/peopledirectory.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
     },
     {
       "source_owner": "student-presence",

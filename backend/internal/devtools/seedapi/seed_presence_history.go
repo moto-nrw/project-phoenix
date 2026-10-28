@@ -35,9 +35,10 @@ type PastVisit struct {
 	Entry, Exit              time.Time
 }
 
-// PresenceHistoryWriter records past care days of one school (#5031). No API
-// writes presence after the fact, so the dev tools bind it to the owner of
-// the attendance directly; nil leaves the past without presence.
+// PresenceHistoryWriter records past care days of one school (#5031). No
+// regular API writes presence after the fact, so the dev tools bind it to the
+// owner of the attendance directly, or, in the public demo, to the operator
+// route only its server mounts (ADR 0127); nil leaves the past without presence.
 type PresenceHistoryWriter func(ctx context.Context, schoolID int64, days []PastPresenceDay) (int, error)
 
 // presenceHistoryStatus is one planned absence, recorded through the regular
@@ -103,7 +104,7 @@ type seedPresenceHistoryStep struct{ seeder *Seeder }
 func (seedPresenceHistoryStep) Name() string { return "Anwesenheits- und Raumverlauf wird angelegt" }
 
 func (s seedPresenceHistoryStep) Run(ctx context.Context, rt *Runtime) error {
-	write := s.seeder.options.PresenceHistory
+	write := presenceHistoryWriterFor(s.seeder.options, rt)
 	if write == nil {
 		fmt.Println("  keine Datenbank für den Anwesenheitsverlauf, vergangene Anwesenheiten werden übersprungen")
 		return nil
@@ -119,7 +120,9 @@ func (s seedPresenceHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 // seedPresenceHistoryPlan writes the two independently committed parts of a
 // history seed. Status days use the normal HTTP write path, while attendance
 // needs the dev-tools-only writer. Keep the IDs from the former so either a
-// failed report or a rejected attendance batch restores a clean retry.
+// failed report or a rejected attendance batch removes the status days again.
+// The demo's route commits its chunks one by one; a retry reuses the chunks
+// that already went through, since the writer recognizes its own rows.
 func seedPresenceHistoryPlan(ctx context.Context, rt *Runtime, schoolID int64, write PresenceHistoryWriter, plan presenceHistoryPlan) error {
 	statusDays, createdStatusDays, err := seedPresenceHistoryStatusDays(rt, plan.statuses)
 	if err != nil {

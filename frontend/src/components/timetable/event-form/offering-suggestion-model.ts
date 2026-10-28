@@ -1,4 +1,5 @@
 import type { DraftRoster } from "~/lib/offering-suggestion";
+import { schoolClassLabel } from "~/lib/school-class-label";
 
 import { rosterForWeekday, type EventFormState } from "./form-model";
 
@@ -67,7 +68,7 @@ export function targetAudienceText(
     const classes = form.targetSchoolClasses;
     audience =
       classes.length === 1
-        ? `der Klasse ${(classes[0] ?? "").trim().replace(/^klasse\s+/i, "")}`
+        ? `der ${schoolClassLabel(classes[0] ?? "")}`
         : "der gewählten Klassen";
   } else if (form.targetGroupType === "jahrgang") {
     const grades = form.targetGradeLevels;

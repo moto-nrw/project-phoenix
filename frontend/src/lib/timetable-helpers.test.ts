@@ -346,7 +346,8 @@ describe("activity/status helpers", () => {
     expect(getActivityTypeBadge("care")).toBeNull();
     expect(getActivityTypeBadge("activity")).toEqual({
       label: "AG",
-      bg: "#83CD2D",
+      // Weiße Schrift, darum der Füllton statt #83CD2D (#5141).
+      bg: "#4A7F14",
     });
     expect(getActivityTypeBadge("external")).toEqual({
       label: "EXTERN",

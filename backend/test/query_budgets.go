@@ -409,6 +409,9 @@ var queryBudgets = map[string]queryBudget{
 	// every author's name. Exact, because a count of one would mean the name
 	// resolution silently stopped running and every entry lost its author.
 	"modules.peopledirectory.student_notes.list": {max: 2, exact: true},
+	// The notes the OGS released for the school (#4797): the released notes
+	// of one child and one bulk read of the authors' names.
+	"modules.peopledirectory.school_shared_notes.list": {max: 2, exact: true},
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},

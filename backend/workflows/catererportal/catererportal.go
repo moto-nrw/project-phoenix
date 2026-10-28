@@ -100,6 +100,10 @@ type CatererSide interface {
 	// caterer supplies, each read in its own transaction, over at most
 	// MaxDeliveryDays days.
 	DeliveryExport(ctx context.Context, accountID int64, from, to mealplan.Date) (mealplan.ListExport, error)
+	// ChangeCatererPassword replaces the caterer's own password after
+	// checking the current one like a login, and ends every session of the
+	// account (#4496).
+	ChangeCatererPassword(ctx context.Context, accountID int64, currentPassword, newPassword, ipAddress, userAgent string) error
 }
 
 // Portal is the whole workflow.

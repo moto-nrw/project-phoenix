@@ -45,6 +45,7 @@ import type {
   TargetGroupType,
 } from "~/lib/timetable-types";
 import { normalizeSchoolClass } from "~/lib/timetable-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import type {
   DraftRoster,
@@ -669,7 +670,7 @@ export function StepPersonalKinder({
                                 toggleSourceSchoolClass(schoolClass)
                               }
                             />
-                            Klasse {schoolClass} (
+                            {schoolClassLabel(schoolClass)} (
                             {sourceClassCounts[
                               normalizeSchoolClass(schoolClass)
                             ] ?? 0}

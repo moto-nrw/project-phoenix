@@ -45,6 +45,7 @@ import {
   type PlanningTrack,
 } from "~/lib/planning-track-api";
 import { staffService, type Staff } from "~/lib/staff-api";
+import { schoolClassesLabel, schoolClassLabel } from "~/lib/school-class-label";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { useTenant } from "~/lib/tenant-context";
 import { timetableService } from "~/lib/timetable-api";
@@ -75,7 +76,6 @@ import {
   plannedStudentIds,
   rosterForWeekday,
   rosterSeedForWeekday,
-  schoolClassLabel,
   seedWeekdayRosters,
   withWeekdayStudentIds,
   shiftCoverageWarningText,
@@ -3755,7 +3755,7 @@ export function useEventForm({
         seen.add(template.id);
         const scope =
           otherClasses.length > 0
-            ? `Klasse ${template.schoolClasses.join(", ")}`
+            ? schoolClassesLabel(template.schoolClasses)
             : template.gradeLevels.length > 0
               ? `Jahrgang ${template.gradeLevels.join(", ")}`
               : "alle Kinder des Angebots";

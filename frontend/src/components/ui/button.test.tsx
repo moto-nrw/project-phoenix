@@ -97,7 +97,7 @@ describe("Button", () => {
 
     const button = screen.getByRole("button");
     expect(button.className).toContain("bg-moto-orange");
-    // Dunkler Text wie bei success: Weiss auf moto-orange erreicht nur 2,4:1.
+    // Dunkler Text: Weiss auf moto-orange erreicht nur 2,4:1.
     expect(button.className).toContain("text-gray-950");
     expect(button.className).toContain("hover:bg-moto-orange-hover");
   });
@@ -106,8 +106,13 @@ describe("Button", () => {
     render(<Button variant="success">Success</Button>);
 
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-moto-green");
-    expect(button.className).toContain("text-gray-950");
+    // #5141: weiße Schrift auf dem dunklen Füllton (4,84:1), nicht mehr
+    // dunkle Schrift auf moto-green. Hover und Active bleiben über AA.
+    expect(button.className).toContain("bg-moto-green-fill");
+    expect(button.className).toContain("text-white");
+    expect(button.className).toContain("hover:bg-moto-green-fill-hover");
+    expect(button.className).toContain("active:bg-moto-green-fill-active");
+    expect(button.className).not.toContain("text-gray-950");
   });
 
   it("applies login-style surface variant styles", () => {

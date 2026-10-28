@@ -81,8 +81,14 @@ function schoolTitleForPath(pathname: string): string | null {
   if (pathname === "/" || pathname === "/school") return "Klassenansicht";
   // Die Klassenseite (#2294) ist eine Ebene der Klassenansicht, kein eigener
   // Bereich: der Kopf behält den Namen des Bereichs, den Klassennamen trägt
-  // die Seite selbst.
-  if (pathname === "/klasse" || pathname === "/school/klasse") {
+  // die Seite selbst. Die Beobachtungen der OGS zu einem Kind (#4797)
+  // liegen eine Ebene darunter und bleiben ebenfalls im Bereich.
+  if (
+    pathname === "/klasse" ||
+    pathname === "/school/klasse" ||
+    pathname.startsWith("/klasse/") ||
+    pathname.startsWith("/school/klasse/")
+  ) {
     return "Klassenansicht";
   }
   if (pathname === "/aufsichten" || pathname === "/school/aufsichten") {
@@ -125,10 +131,11 @@ function schoolTitleForPath(pathname: string): string | null {
   return null;
 }
 
-// Caterer-Portal (ADR 0077): eine Seite, auf dem Caterer-Host ohne
-// /caterer-Präfix.
+// Caterer-Portal (ADR 0077): die Bestellungen und das Konto (#4496), auf
+// dem Caterer-Host ohne /caterer-Präfix.
 function catererTitleForPath(pathname: string): string | null {
   if (pathname === "/" || pathname === "/caterer") return "Bestellungen";
+  if (pathname === "/konto" || pathname === "/caterer/konto") return "Konto";
   return null;
 }
 
@@ -529,7 +536,9 @@ export function Header() {
                         ? tParentNav("settings")
                         : mode === "school"
                           ? "Einstellungen"
-                          : undefined
+                          : mode === "caterer"
+                            ? "Konto"
+                            : undefined
                   }
                   onClose={close}
                   onLogout={() => setIsLogoutModalOpen(true)}

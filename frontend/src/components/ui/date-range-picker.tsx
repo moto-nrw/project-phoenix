@@ -467,13 +467,13 @@ export function RangeCalendarInline({
               // inner half) + dark rounded pill on the button. This keeps the
               // band continuous from start to end without "tails" outside.
               rangeStart:
-                "!bg-[linear-gradient(to_right,transparent_50%,var(--color-moto-green-soft)_50%)] [&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
+                "!bg-[linear-gradient(to_right,transparent_50%,var(--color-moto-green-soft)_50%)] [&>button]:!bg-moto-green-fill [&>button]:!text-white [&>button]:!rounded-lg",
               rangeEnd:
-                "!bg-[linear-gradient(to_right,var(--color-moto-green-soft)_50%,transparent_50%)] [&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
+                "!bg-[linear-gradient(to_right,var(--color-moto-green-soft)_50%,transparent_50%)] [&>button]:!bg-moto-green-fill [&>button]:!text-white [&>button]:!rounded-lg",
               rangeMiddle:
                 "!bg-moto-green/15 [&>button]:!text-moto-green-strong",
               singlePick:
-                "[&>button]:!bg-moto-green [&>button]:!text-gray-950 [&>button]:!rounded-lg",
+                "[&>button]:!bg-moto-green-fill [&>button]:!text-white [&>button]:!rounded-lg",
             }}
             classNames={{
               root: "text-sm",
