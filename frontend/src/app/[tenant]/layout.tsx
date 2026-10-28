@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
+import { PathModeRedirect } from "~/components/tenant/path-mode-redirect";
 import { TenantProviders } from "./providers";
 import { loadShellBootstrap } from "~/lib/shell-bootstrap.server";
 import type { ShellBootstrap } from "~/lib/shell-seed";
@@ -167,15 +168,16 @@ function isBareTenantHost(currentHost: string | null): currentHost is string {
  * Path mode on the bare domain (<domain>/<school>/...) shares the session
  * cookie with every school, but its host names no school, so the BFF cannot
  * bind its requests to the tab's school (#5130). The same page lives on the
- * school's subdomain; path, query and, in the browser, the fragment carry
- * over, so printed enrollment and display links keep working.
+ * school's subdomain; path and query come from the proxy, the fragment from
+ * the browser (PathModeRedirect), so printed enrollment and display links
+ * keep working.
  */
-function redirectToTenantSubdomain(
+function tenantSubdomainUrl(
   requestHeaders: Headers,
   currentHost: string,
   pathSlug: string,
   subdomain: string,
-): never {
+): string {
   const original = requestHeaders.get("x-moto-original-path") ?? "/";
   const prefix = `/${pathSlug}`;
   const rest = original.startsWith(prefix) ? original.slice(prefix.length) : "";
@@ -191,9 +193,7 @@ function redirectToTenantSubdomain(
     requestHeaders.get("x-moto-original-proto") ??
     requestHeaders.get("x-forwarded-proto") ??
     (env.NODE_ENV === "production" ? "https" : "http");
-  redirect(
-    `${protocol}://${subdomain}.${env.TENANT_DOMAIN}${port ? `:${port}` : ""}${path}`,
-  );
+  return `${protocol}://${subdomain}.${env.TENANT_DOMAIN}${port ? `:${port}` : ""}${path}`;
 }
 
 /**
@@ -279,11 +279,15 @@ export default async function TenantLayout({
     ? "subdomain"
     : "path";
   if (routingMode === "path" && isBareTenantHost(currentHost)) {
-    redirectToTenantSubdomain(
-      requestHeaders,
-      currentHost,
-      tenantSlug,
-      tenant.subdomain,
+    return (
+      <PathModeRedirect
+        href={tenantSubdomainUrl(
+          requestHeaders,
+          currentHost,
+          tenantSlug,
+          tenant.subdomain,
+        )}
+      />
     );
   }
 

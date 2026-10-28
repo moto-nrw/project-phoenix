@@ -196,14 +196,16 @@ describe("TenantLayout", () => {
       async (_case, originalPath, target) => {
         requestTo("localhost:3000", originalPath);
 
-        await TenantLayout({
+        const result = await TenantLayout({
           children: null,
           params: Promise.resolve({ tenant: "school-a" }),
         });
 
-        expect(redirect).toHaveBeenCalledWith(
-          `https://school-a.localhost:3000${target}`,
-        );
+        expect(result).toMatchObject({
+          props: { href: `https://school-a.localhost:3000${target}` },
+        });
+        // Nothing of the school loads on the bare domain.
+        expect(readTenantSessionSnapshotMock).not.toHaveBeenCalled();
       },
     );
 
@@ -212,13 +214,16 @@ describe("TenantLayout", () => {
       async (host) => {
         requestTo(host, "/students");
 
-        await expect(
-          TenantLayout({
-            children: null,
-            params: Promise.resolve({ tenant: "school-a" }),
-          }),
-        ).resolves.toBeTruthy();
+        const result = await TenantLayout({
+          children: null,
+          params: Promise.resolve({ tenant: "school-a" }),
+        });
 
+        // Anker: die Schule lädt ihre Sitzung und ihr Gerüst.
+        expect(readTenantSessionSnapshotMock).toHaveBeenCalledOnce();
+        expect(result).not.toMatchObject({
+          props: { href: expect.anything() },
+        });
         expect(redirect).not.toHaveBeenCalled();
       },
     );

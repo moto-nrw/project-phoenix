@@ -9339,6 +9339,7 @@ function traegerSchoolSwitchTopic(): HelpTopic {
       "moto öffnet die Schule in einem neuen Tab. Dort arbeiten Sie mit der Rolle Verwaltung der Schule.",
     notes: [
       "Sie können mehrere Schulen in mehreren Tabs offen haben.",
+      "Haben Sie in einem anderen Tab die Schule gewechselt? Dann stellt moto diesen Tab beim nächsten Klick wieder auf seine Schule um. Dieser Klick wird nicht ausgeführt. Wiederholen Sie ihn danach.",
       "Eine neue Schule Ihres Trägers können Sie sofort öffnen. Niemand muss Sie dafür freischalten.",
       "Jedes Öffnen steht im Protokoll der Schule.",
     ],
