@@ -257,6 +257,7 @@ func TestWorkerDeadLettersAtAttemptLimit(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, stats.DeadLettered)
+	assert.Equal(t, []string{"email welcome delivery 41: provider rejected"}, stats.DeadLetters)
 	assert.Equal(t, 2, store.failureAttempts)
 	assert.Equal(t, 2, store.failureMaxAttempts)
 }
@@ -275,6 +276,7 @@ func TestWorkerDeadLettersExpiredDispatchFencesBeforeClaim(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, 2, stats.DeadLettered)
+	assert.Equal(t, []string{"2 email dispatches with unknown outcome: dispatch fence expired without finalization"}, stats.DeadLetters)
 	require.Len(t, unknown, 1)
 	assert.Equal(t, 2, unknown[0].Count)
 	assert.Error(t, unknown[0].Err, "an unknown provider outcome must be observable as an error")
@@ -399,6 +401,9 @@ func TestWorkerConcurrentRunsKeepIndependentRetryLimits(t *testing.T) {
 	first, second := <-low, <-high
 	require.NoError(t, first.err)
 	require.NoError(t, second.err)
-	assert.Equal(t, deliveryContract.WorkerStats{Claimed: 2, DeadLettered: 2}, first.stats)
+	assert.Equal(t, deliveryContract.WorkerStats{Claimed: 2, DeadLettered: 2, DeadLetters: []string{
+		"email welcome delivery 41: provider rejected",
+		"push welcome delivery 41: provider rejected",
+	}}, first.stats)
 	assert.Equal(t, deliveryContract.WorkerStats{Claimed: 2, Retried: 2}, second.stats)
 }

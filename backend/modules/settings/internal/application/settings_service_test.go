@@ -1592,6 +1592,28 @@ func TestSetValue_TextPatternValidation(t *testing.T) {
 	}
 }
 
+func TestSetValue_ColorPatternValidation(t *testing.T) {
+	t.Parallel()
+	registry := setupTest(t)
+	pattern := `^#[0-9A-Fa-f]{6}$`
+	registry.Register(config.Definition{
+		Key:        "branding.color_test",
+		Label:      "Farbe",
+		Type:       config.FieldColor,
+		Default:    "#111827",
+		Tab:        "branding",
+		Category:   "briefkopf",
+		Validation: &config.ValidationRules{Pattern: &pattern},
+	})
+
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
+
+	require.NoError(t, svc.SetValue(tenantCtx(1), "branding.color_test", "#1F4E79", nil, nil))
+	for _, value := range []any{"rot", "#12345", 42} {
+		require.Error(t, svc.SetValue(tenantCtx(1), "branding.color_test", value, nil, nil))
+	}
+}
+
 // =============================================================================
 // PIN validation tests
 // =============================================================================

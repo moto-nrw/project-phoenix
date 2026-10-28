@@ -211,7 +211,7 @@ func TestRegister_AllFieldTypes(t *testing.T) {
 
 	for _, ft := range []FieldType{
 		FieldBoolean, FieldNumber, FieldTime,
-		FieldText, FieldPassword,
+		FieldText, FieldColor, FieldPassword,
 	} {
 		def := validDefinition("test." + string(ft))
 		def.Type = ft
@@ -226,7 +226,7 @@ func TestRegister_AllFieldTypes(t *testing.T) {
 		Options:  &SelectOptions{Static: []SelectOption{{Label: "A", Value: "a"}}},
 	})
 
-	assert.Len(t, registry.AllDefinitions(), 6)
+	assert.Len(t, registry.AllDefinitions(), 7)
 }
 
 func TestValidate_InvalidPattern(t *testing.T) {
