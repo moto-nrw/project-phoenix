@@ -429,10 +429,30 @@ describe("TeacherShellProvider", () => {
     }
   });
 
-  it("handles backend logout failure gracefully", async () => {
-    const mockFetch = vi.fn().mockRejectedValue(new Error("network error"));
-    vi.stubGlobal("fetch", mockFetch);
-
+  // #5194: only the revoked family ends the session's access tokens, so a
+  // failed revocation keeps the session and reaches the caller instead of
+  // passing for a logout.
+  it.each([
+    [
+      "an unreachable logout route",
+      () => Promise.reject(new Error("network error")),
+    ],
+    [
+      "a revocation the backend could not run",
+      () =>
+        Promise.resolve(
+          Response.json(
+            {
+              status: 503,
+              detail: "logout could not revoke the session",
+              code: "general.unavailable",
+            },
+            { status: 503 },
+          ),
+        ),
+    ],
+  ])("keeps the session after %s", async (_name, respond) => {
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(respond));
     mockUseSession.mockReturnValue({
       data: { user: { name: "User", email: "user@example.com", roles: [] } },
       status: "authenticated",
@@ -440,12 +460,34 @@ describe("TeacherShellProvider", () => {
 
     const { result } = renderHook(() => useShellAuth(), { wrapper });
 
-    // Should not throw even when fetch fails
+    await expect(result.current.logout()).rejects.toThrow();
+    expect(mockSignOut).not.toHaveBeenCalled();
+    expect(mockClearSessionCache).not.toHaveBeenCalled();
+
+    vi.unstubAllGlobals();
+  });
+
+  it("signs out when no session is left to revoke (401)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(
+            { status: 401, code: "general.permission" },
+            { status: 401 },
+          ),
+        ),
+    );
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
     await result.current.logout();
 
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
-    expect(mockClearSessionCache).toHaveBeenCalled();
-
     vi.unstubAllGlobals();
   });
 

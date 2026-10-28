@@ -355,15 +355,52 @@ and wakes the `SessionProvider`; `TenantGuard` hides the page at once and
 shows it again only after a session lookup started after the refusal names
 this tab's school. An answer naming another school hands over to the switch,
 and while the provider names another school, refusals start no lookup. Without
-a valid answer within 10 s the guard offers only `Erneut versuchen`: a
-sign-out would not make a cookie that a late answer writes back worthless,
-because access tokens are stateless until they expire. Only because of this check may the
-session cache keep the provider's session until its next poll. Path mode
+a valid answer within 10 s the guard offers only `Erneut versuchen`. Only
+because of this check may the session cache keep the provider's session until
+its next poll. Path mode
 (`{TENANT_DOMAIN}/{school}/...`) names no school in its host: the tenant
 layout redirects it to the school's subdomain (path and query from the
 proxy's `X-Moto-Original-Path`; the browser keeps the fragment), the BFF
 refuses a school's session on the bare domain, and `TenantGuard` moves a tab
 still on path mode to the subdomain.
+
+### Session revocation per request (#5194)
+
+Every account access token names the refresh-token family that minted it
+(`family_id`). After the verifier, `sessiontoken.RequireLiveSession`
+(`backend/api/serve_host.go`) asks Identity & Access
+(`AccessSessions.VerifyAccessSession`) on every request whether the family
+still backs the token: latest generation present, same account (for a
+staff-view preview the acting admin), same portal scope (legacy `unknown`
+rows match every scope), not expired. Otherwise the token counts as
+unverified, so every Authenticator answers 401 and public routes treat the
+request as anonymous; a failed read answers 503 `general.unavailable` and
+never lets the token through. Operator tokens keep their own family check
+(`RequiresActiveOperator`); device keys, refresh, MFA and enrollment tokens
+are not access tokens and pass unchanged. The check reads the database each
+time (one indexed statement in its own administrative transaction, budget
+`identity.access_session.verify`) and caches nothing, so a confirmed
+revocation holds on every instance at once.
+
+Logout, the session cap, revocations and a tenant switch's retirement (after
+its grace) therefore end the access tokens of that family immediately; a
+cookie a late response writes back opens nothing. Logout takes the account
+lock refresh takes first, so a rotation committing during logout is revoked
+with its family, and a switch mints nothing out of a family that is gone.
+`/auth/logout` answers 204 only after the revocation committed and 503 when
+it failed; the tenant shell and the relogin action keep the session and show
+the error with a retry. Sessions without `family_id` (from before families)
+are refused: their access tokens get 401, their refresh deletes the row and
+the person signs in again. A staff-view preview token carries the admin's
+family and ends with the admin's session.
+
+In the frontend a backend 401 for an unexpired token renews the session at
+once (`withForcedSessionRenewal` in `frontend/src/server/auth/shared.ts`,
+used by `uncachedAuth` and by `withAuthResponse` for routes without their own
+retry). A revoked family fails that refresh, the response carries the ended
+session (`RefreshTokenError`), and a written-back copy of that cookie ends on
+its next read without a backend call. A live family continues with fresh
+tokens.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
@@ -503,10 +540,8 @@ the domain cookie would reach the target guard unchanged. The guard handles the
 same MFA refusal without SessionExpired redirects or automatic retries and
 offers this same explicit logout-and-login action. An HTTP error returned by
 the logout BFF stays visible and prevents navigation; 401 is treated as already
-unauthenticated. This does not confirm database revocation: the existing backend
-`/auth/logout` logs `LogoutWithAudit` failures, including database revocation
-failures, and still responds 204. The browser cannot distinguish that failure
-from success.
+unauthenticated. The backend `/auth/logout` answers 503 when the database
+revocation failed, so a 204 confirms it (#5194).
 If Auth.js fails to clear the cookie, the target guard still blocks access and
 offers explicit reauthentication instead of redirecting in a loop.
 School-portal cookies remain host-only and are neither used nor cleared by the tenant action; the school portal currently has no

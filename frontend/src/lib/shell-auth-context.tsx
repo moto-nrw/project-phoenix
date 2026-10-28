@@ -11,6 +11,7 @@ import { traegerPath } from "~/lib/traeger-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { clearPersonalStorage } from "~/lib/personal-storage";
 import { createLogger } from "~/lib/logger";
+import { apiErrorFromResponse } from "~/lib/api-error";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { getSmartRedirectPath } from "~/lib/redirect-utils";
@@ -163,15 +164,16 @@ export function TeacherShellProvider({
         // Finish backend revocation before clearing the Auth.js cookie. The
         // response-aware route may persist a just-refreshed session cookie;
         // awaiting it guarantees signOut remains the final cookie mutation.
-        try {
-          await fetch("/api/auth/logout", {
-            method: "POST",
-            signal: AbortSignal.timeout(5000),
-          });
-        } catch (err: unknown) {
-          logger.warn("backend_logout_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
+        // Only the revoked family ends the session's access tokens (#5194):
+        // a failed revocation stops here, keeps the session and lets the
+        // caller show the error with a retry. 401 means nothing is left to
+        // revoke.
+        const response = await fetch("/api/auth/logout", {
+          method: "POST",
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!response.ok && response.status !== 401) {
+          throw await apiErrorFromResponse(response, "Tenant logout failed");
         }
         // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
         // Gerät (#5000).

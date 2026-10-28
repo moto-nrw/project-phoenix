@@ -9,7 +9,7 @@ export default defineConfig({
   testDir: "./e2e/network",
   testMatch: "*.spec.ts",
   // The shared-cookie scenario needs its own domain and fixture server mode.
-  testIgnore: "tenant-mfa-switch.spec.ts",
+  testIgnore: ["tenant-mfa-switch.spec.ts", "late-session-cookie.spec.ts"],
   workers: 1,
   retries: 0,
   timeout: 90_000,

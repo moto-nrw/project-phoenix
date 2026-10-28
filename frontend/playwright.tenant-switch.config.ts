@@ -5,7 +5,7 @@ import network from "./playwright.network.config";
 export default defineConfig({
   ...network,
   testDir: "./e2e/network",
-  testMatch: "tenant-mfa-switch.spec.ts",
+  testMatch: ["tenant-mfa-switch.spec.ts", "late-session-cookie.spec.ts"],
   testIgnore: "portal-network.spec.ts",
   outputDir: "test-results/tenant-switch",
   webServer: {
