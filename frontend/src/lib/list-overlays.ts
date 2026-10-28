@@ -54,6 +54,20 @@ export function addListOverlay<T>(
 }
 
 /**
+ * Verwirft alle Überlagerungen dieses Tabs (#5006). Läuft mit dem Verwerfen
+ * des SWR-Caches an jeder Grenze von Konto, Schule oder Sitzung: Die Listen,
+ * denen sie galten, lädt der neue Scope ohnehin neu.
+ */
+export function clearListOverlays(): void {
+  if (overlays.size === 0) return;
+  const lists = [...overlays.keys()];
+  overlays.clear();
+  for (const list of lists) {
+    for (const listener of listeners.get(list) ?? []) listener();
+  }
+}
+
+/**
  * Wendet die Änderungen an, die nach dem Abruf `fetchedAt` vermerkt wurden.
  * `apply` setzt eine Änderung in den Zustand der Liste um.
  */
