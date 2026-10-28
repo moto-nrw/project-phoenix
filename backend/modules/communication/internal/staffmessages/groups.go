@@ -186,8 +186,17 @@ func (s *Service) managedGroup(ctx context.Context, threadID int64) (*StaffMessa
 	}
 	// Serialize membership changes on the thread row, so two additions cannot
 	// both pass the size cap and a last leave cannot race an addition.
-	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
+	if err := s.lockThread(ctx, threadID); err != nil {
 		return nil, 0, err
+	}
+	// A removal may have committed while this request waited for the lock.
+	// Revalidate membership while holding it before deciding management rights.
+	thread, err = s.authorizeThread(ctx, threadID, accountID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if thread.Kind != groupKind {
+		return nil, 0, ErrThreadNotFound
 	}
 	manager, err := s.canManage(ctx, thread, accountID)
 	if err != nil {
@@ -305,8 +314,16 @@ func (s *Service) LeaveGroup(ctx context.Context, threadID int64) error {
 	if thread.Kind != groupKind {
 		return ErrThreadNotFound
 	}
-	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
+	if err := s.lockThread(ctx, threadID); err != nil {
 		return err
+	}
+	// The caller might have been removed while waiting for the lock.
+	thread, err = s.authorizeThread(ctx, threadID, accountID)
+	if err != nil {
+		return err
+	}
+	if thread.Kind != groupKind {
+		return ErrThreadNotFound
 	}
 	if err := s.Groups.RemoveStaffParticipant(ctx, threadID, accountID); err != nil {
 		return err
@@ -436,7 +453,7 @@ func (s *Service) groupMembers(ctx context.Context, viewerAccountID int64, state
 func readReceipts(messages []*StaffMessage, states []*values.StaffParticipantState) map[int64]values.StaffReadReceipt {
 	out := make(map[int64]values.StaffReadReceipt, len(messages))
 	for _, message := range messages {
-		receipt := values.StaffReadReceipt{ReadBy: []int64{}}
+		receipt := values.StaffReadReceipt{ReadBy: []int64{}, EligibleReaderAccountIDs: []int64{}}
 		for _, state := range states {
 			if state.AccountID == message.SenderAccountID {
 				continue
@@ -445,6 +462,7 @@ func readReceipts(messages []*StaffMessage, states []*values.StaffParticipantSta
 				continue
 			}
 			receipt.ReaderCount++
+			receipt.EligibleReaderAccountIDs = append(receipt.EligibleReaderAccountIDs, state.AccountID)
 			if cursorAtOrPast(state, message) {
 				receipt.ReadBy = append(receipt.ReadBy, state.AccountID)
 			}

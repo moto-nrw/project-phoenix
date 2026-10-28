@@ -109,8 +109,9 @@ type MessageResponse struct {
 	CreatedAt       string `json:"created_at"`
 	// Group chats only (#4776): who of the members read the message and how
 	// many members could have.
-	ReadByAccountIDs []string `json:"read_by_account_ids,omitempty"`
-	ReaderCount      int      `json:"reader_count"`
+	ReadByAccountIDs         []string `json:"read_by_account_ids,omitempty"`
+	EligibleReaderAccountIDs []string `json:"eligible_reader_account_ids,omitempty"`
+	ReaderCount              int      `json:"reader_count"`
 }
 
 // ThreadDetailResponse is the chat window payload.
@@ -146,13 +147,14 @@ func toMessageResponses(messages []communication.StaffMessage) []MessageResponse
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		out = append(out, MessageResponse{
-			ID:               strconv.FormatInt(m.ID, 10),
-			SenderAccountID:  strconv.FormatInt(m.SenderAccountID, 10),
-			SenderName:       m.SenderName,
-			Body:             m.Body,
-			CreatedAt:        m.CreatedAt.Format(time.RFC3339),
-			ReadByAccountIDs: formatIDs(m.ReadByAccountIDs),
-			ReaderCount:      m.ReaderCount,
+			ID:                       strconv.FormatInt(m.ID, 10),
+			SenderAccountID:          strconv.FormatInt(m.SenderAccountID, 10),
+			SenderName:               m.SenderName,
+			Body:                     m.Body,
+			CreatedAt:                m.CreatedAt.Format(time.RFC3339),
+			ReadByAccountIDs:         formatIDs(m.ReadByAccountIDs),
+			EligibleReaderAccountIDs: formatIDs(m.EligibleReaderAccountIDs),
+			ReaderCount:              m.ReaderCount,
 		})
 	}
 	return out
@@ -170,17 +172,20 @@ func formatIDs(ids []int64) []string {
 }
 
 func toThreadDetail(d *communication.StaffMessageThread) ThreadDetailResponse {
-	return ThreadDetailResponse{
-		ThreadID:             strconv.FormatInt(d.ThreadID, 10),
-		CounterpartAccountID: strconv.FormatInt(d.CounterpartAccountID, 10),
-		CounterpartName:      d.CounterpartName,
-		CounterpartRoleKind:  d.CounterpartRoleKind,
-		Messages:             toMessageResponses(d.Messages),
-		Kind:                 d.Kind,
-		GroupName:            d.GroupName,
-		CanManage:            d.CanManage,
-		Members:              toMemberResponses(d.Members),
+	response := ThreadDetailResponse{
+		ThreadID:  strconv.FormatInt(d.ThreadID, 10),
+		Messages:  toMessageResponses(d.Messages),
+		Kind:      d.Kind,
+		GroupName: d.GroupName,
+		CanManage: d.CanManage,
+		Members:   toMemberResponses(d.Members),
 	}
+	if d.Kind == "direct" {
+		response.CounterpartAccountID = strconv.FormatInt(d.CounterpartAccountID, 10)
+		response.CounterpartName = d.CounterpartName
+		response.CounterpartRoleKind = d.CounterpartRoleKind
+	}
+	return response
 }
 
 func toMemberResponses(members []communication.StaffThreadMember) []MemberResponse {

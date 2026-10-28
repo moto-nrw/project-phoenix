@@ -95,6 +95,7 @@ const group: StaffThreadDetail = {
       body: "Wer übernimmt Montag?",
       created_at: "2026-09-09T08:00:00Z",
       read_by_account_ids: ["3"],
+      eligible_reader_account_ids: ["2", "3"],
       reader_count: 2,
     },
     {
@@ -104,6 +105,7 @@ const group: StaffThreadDetail = {
       body: "Ich kann.",
       created_at: "2026-09-09T08:05:00Z",
       read_by_account_ids: [],
+      eligible_reader_account_ids: ["1", "2"],
       reader_count: 2,
     },
   ],
@@ -145,6 +147,23 @@ describe("Team-Chat groups (#4776)", () => {
     expect(await screen.findByText("Lena Lang")).toBeInTheDocument();
     expect(screen.getByText("Noch nicht gelesen")).toBeInTheDocument();
     expect(screen.getByText("Anna Arndt")).toBeInTheDocument();
+  });
+
+  it("does not list people who joined after a message as unread", async () => {
+    api.fetchThread.mockResolvedValue({
+      ...group,
+      members: [
+        ...(group.members ?? []),
+        { account_id: "4", name: "Mira Müller", role_kind: "staff" },
+      ],
+    });
+    renderThread(api, "tenant");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "1 von 2 gelesen" }),
+    );
+    expect(await screen.findByText("Anna Arndt")).toBeInTheDocument();
+    expect(screen.queryByText("Mira Müller")).not.toBeInTheDocument();
   });
 
   it("lets a manager remove a member after confirming", async () => {

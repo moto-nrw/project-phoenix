@@ -79,7 +79,9 @@ func mapStaffThreadView(view *StaffThreadView) *communication.StaffMessageThread
 	for _, message := range view.Messages {
 		mapped := mapStaffMessage(message)
 		if receipt, ok := view.Receipts[message.ID]; ok {
-			mapped.ReadByAccountIDs, mapped.ReaderCount = receipt.ReadBy, receipt.ReaderCount
+			mapped.ReadByAccountIDs = receipt.ReadBy
+			mapped.EligibleReaderAccountIDs = receipt.EligibleReaderAccountIDs
+			mapped.ReaderCount = receipt.ReaderCount
 		}
 		result.Messages = append(result.Messages, mapped)
 	}

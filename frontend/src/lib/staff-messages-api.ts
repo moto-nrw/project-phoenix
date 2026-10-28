@@ -37,6 +37,8 @@ export interface StaffMessage {
    * many members could have (everyone but the sender who had joined by then).
    */
   read_by_account_ids?: string[];
+  /** Group chats: members who were eligible to read this message. */
+  eligible_reader_account_ids?: string[];
   reader_count?: number;
 }
 

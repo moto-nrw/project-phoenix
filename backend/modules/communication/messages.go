@@ -146,8 +146,9 @@ type StaffMessage struct {
 	CreatedAt       time.Time
 	// Group chats only (#4776): who of the members read the message, and how
 	// many members could have.
-	ReadByAccountIDs []int64
-	ReaderCount      int
+	ReadByAccountIDs         []int64
+	EligibleReaderAccountIDs []int64
+	ReaderCount              int
 }
 
 type StaffMessageInboxThread struct {

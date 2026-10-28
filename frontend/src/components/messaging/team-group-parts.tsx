@@ -38,6 +38,7 @@ export function GroupReadReceipt({
   const total = message.reader_count ?? 0;
   if (total === 0) return null;
   const readIds = new Set(message.read_by_account_ids ?? []);
+  const eligibleIds = new Set(message.eligible_reader_account_ids ?? []);
   const nameOf = new Map(members.map((m) => [m.account_id, m.name]));
   const readers = [...readIds].map(
     (id) => nameOf.get(id) ?? "Ehemaliges Mitglied",
@@ -45,6 +46,7 @@ export function GroupReadReceipt({
   const pending = members
     .filter(
       (m) =>
+        eligibleIds.has(m.account_id) &&
         m.account_id !== message.sender_account_id &&
         !readIds.has(m.account_id),
     )

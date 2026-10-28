@@ -131,6 +131,7 @@ func TestStaffGroupChatLifecycle(t *testing.T) {
 	threadID := group.ThreadID
 	assert.Equal(t, "group", group.Kind)
 	assert.Equal(t, "Klasse 2a", group.GroupName, "the name is trimmed")
+	assert.Empty(t, group.CounterpartAccountID, "a group has no direct-chat counterpart")
 	assert.True(t, group.CanManage, "the creator manages the group")
 	assert.Len(t, group.Members, 3)
 
@@ -162,6 +163,7 @@ func TestStaffGroupChatLifecycle(t *testing.T) {
 	require.Len(t, detail.Messages, 1)
 	assert.Equal(t, 2, detail.Messages[0].ReaderCount, "Anna and Lena could read it, not Ben himself")
 	assert.Equal(t, []string{lena.idString()}, detail.Messages[0].ReadByAccountIDs)
+	assert.ElementsMatch(t, []string{anna.idString(), lena.idString()}, detail.Messages[0].EligibleReaderAccountIDs)
 
 	// The leadership joins later: no earlier history, nothing unread.
 	rec = f.do(t, ben, http.MethodPost, "/threads/"+threadID+"/members", fmt.Sprintf(`{"account_ids":[%q]}`, leitung.idString()))

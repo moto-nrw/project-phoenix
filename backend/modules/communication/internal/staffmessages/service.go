@@ -14,6 +14,7 @@ package staffmessaging
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"strings"
@@ -255,6 +256,18 @@ func (s *Service) authorizeThread(ctx context.Context, threadID, accountID int64
 	return thread, nil
 }
 
+// lockThread serializes a thread mutation and translates a concurrent deletion
+// into the same not-found result as an authorization lookup.
+func (s *Service) lockThread(ctx context.Context, threadID int64) error {
+	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrThreadNotFound
+		}
+		return err
+	}
+	return nil
+}
+
 // OpenThread returns the conversation with the given colleague, creating it
 // when it does not exist yet. This is the "write to someone" entry point; the
 // thread carries no message until the first send.
@@ -402,8 +415,20 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	if err := s.requireReachableCounterparts(ctx, thread, accountID); err != nil {
 		return nil, err
 	}
+	if err := s.lockThread(ctx, threadID); err != nil {
+		return nil, err
+	}
+	// Membership can change while this request waits on the thread lock. Check
+	// it again while holding that lock before appending to a group.
+	thread, err = s.authorizeThread(ctx, threadID, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireActiveGroupMember(ctx, thread, accountID); err != nil {
+		return nil, err
+	}
 
-	message, err := s.appendMessage(ctx, threadID, accountID, trimmed)
+	message, err := s.appendLockedMessage(ctx, threadID, accountID, trimmed)
 	if err != nil {
 		return nil, err
 	}
@@ -483,12 +508,7 @@ func (s *Service) buildDetail(ctx context.Context, thread *StaffMessageThread, v
 	return detail, nil
 }
 
-func (s *Service) appendMessage(ctx context.Context, threadID, accountID int64, trimmed string) (*StaffMessage, error) {
-	// Serialize appends for this thread so message order matches commit order.
-	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
-		return nil, err
-	}
-
+func (s *Service) appendLockedMessage(ctx context.Context, threadID, accountID int64, trimmed string) (*StaffMessage, error) {
 	message := &StaffMessage{
 		ThreadID:        threadID,
 		SenderAccountID: accountID,

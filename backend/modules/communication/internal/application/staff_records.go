@@ -52,8 +52,9 @@ type StaffThreadView struct {
 // StaffReadReceipt is who of the members read one group message, and how
 // many could have.
 type StaffReadReceipt struct {
-	ReadBy      []int64
-	ReaderCount int
+	ReadBy                   []int64
+	EligibleReaderAccountIDs []int64
+	ReaderCount              int
 }
 type StaffMessageSource interface {
 	communication.StaffMessageRecords
